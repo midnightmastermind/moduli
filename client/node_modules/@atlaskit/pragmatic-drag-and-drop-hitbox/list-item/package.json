@@ -1,0 +1,15 @@
+{
+  "name": "@atlaskit/pragmatic-drag-and-drop-hitbox/list-item",
+  "main": "../dist/cjs/list-item.js",
+  "module": "../dist/esm/list-item.js",
+  "module:es2019": "../dist/es2019/list-item.js",
+  "sideEffects": false,
+  "types": "../dist/types/list-item.d.ts",
+  "typesVersions": {
+    ">=4.5 <5.4": {
+      "*": [
+        "../dist/types-ts4.5/list-item.d.ts"
+      ]
+    }
+  }
+}

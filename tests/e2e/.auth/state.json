@@ -1,0 +1,22 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "moduli-gridId",
+          "value": "69b930682c9d38248ac76388"
+        },
+        {
+          "name": "moduli-token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OWE4NDM0NDBmOTU5Njc3N2E2ZjFkNmQiLCJpYXQiOjE3NzM3NTIzODUsImV4cCI6MTc3NDM1NzE4NX0.1z_A42GNA6rdrwaw-b2wv20ASui590w-8csxvVCX6No"
+        },
+        {
+          "name": "moduli-userId",
+          "value": "69a843440f9596777a6f1d6d"
+        }
+      ]
+    }
+  ]
+}

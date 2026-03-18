@@ -1,0 +1,219 @@
+// ui/PomodoroTimer.jsx
+// ============================================================
+// Compact Pomodoro timer for the toolbar (N13)
+// Inline: ring + countdown time only — click to expand
+// Slide-down panel: full controls (play/pause/reset/skip + phase info)
+// ============================================================
+
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Play, Pause, RotateCcw, SkipForward } from "lucide-react";
+import { toast } from "sonner";
+
+const PHASES = [
+  { label: "Work",       duration: 25 * 60, color: "#ef4444" },
+  { label: "Break",      duration:  5 * 60, color: "#22c55e" },
+  { label: "Work",       duration: 25 * 60, color: "#ef4444" },
+  { label: "Break",      duration:  5 * 60, color: "#22c55e" },
+  { label: "Work",       duration: 25 * 60, color: "#ef4444" },
+  { label: "Break",      duration:  5 * 60, color: "#22c55e" },
+  { label: "Work",       duration: 25 * 60, color: "#ef4444" },
+  { label: "Long Break", duration: 15 * 60, color: "#3b82f6" },
+];
+
+function fmt(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+export default function PomodoroTimer() {
+  const [phaseIndex, setPhaseIndex] = useState(0);
+  const [remaining, setRemaining] = useState(PHASES[0].duration);
+  const [running, setRunning] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const intervalRef = useRef(null);
+  const panelRef = useRef(null);
+  const triggerRef = useRef(null);
+
+  const phase = PHASES[phaseIndex % PHASES.length];
+
+  // Tick
+  useEffect(() => {
+    if (!running) return;
+    intervalRef.current = setInterval(() => {
+      setRemaining(r => {
+        if (r <= 1) {
+          clearInterval(intervalRef.current);
+          setRunning(false);
+          const nextIdx = (phaseIndex + 1) % PHASES.length;
+          const nextPhase = PHASES[nextIdx];
+          toast.success(`${phase.label} complete! Up next: ${nextPhase.label}`, { duration: 6000 });
+          setPhaseIndex(nextIdx);
+          setRemaining(nextPhase.duration);
+          return 0;
+        }
+        return r - 1;
+      });
+    }, 1000);
+    return () => clearInterval(intervalRef.current);
+  }, [running, phaseIndex, phase.label]);
+
+  const toggleRun = useCallback(() => setRunning(r => !r), []);
+  const reset = useCallback(() => { setRunning(false); setRemaining(phase.duration); }, [phase.duration]);
+  const skip = useCallback(() => {
+    setRunning(false);
+    const nextIdx = (phaseIndex + 1) % PHASES.length;
+    setPhaseIndex(nextIdx);
+    setRemaining(PHASES[nextIdx].duration);
+  }, [phaseIndex]);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!expanded) return;
+    const handler = (e) => {
+      if (!panelRef.current?.contains(e.target) && !triggerRef.current?.contains(e.target)) {
+        setExpanded(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [expanded]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!expanded) return;
+    const handler = (e) => { if (e.key === "Escape") setExpanded(false); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [expanded]);
+
+  const progress = 1 - remaining / phase.duration;
+  const circumference = 2 * Math.PI * 7; // r=7
+  const dash = circumference * progress;
+
+  const pomodorosComplete = Math.floor(phaseIndex / 2);
+  const pomodorosDots = Array.from({ length: 4 }, (_, i) => i < pomodorosComplete % 4);
+
+  return (
+    <div style={{ position: "relative", fontFamily: "monospace" }}>
+      {/* ── COMPACT BAR WIDGET ── */}
+      <div
+        ref={triggerRef}
+        onClick={() => setExpanded(v => !v)}
+        title={`${phase.label} — ${fmt(remaining)} remaining. Click to ${expanded ? "hide" : "show"} controls.`}
+        style={{
+          display: "flex", alignItems: "center", gap: 5, cursor: "pointer",
+          padding: "2px 6px", borderRadius: 5,
+          background: expanded ? "var(--border-subtle)" : "transparent",
+          transition: "background 0.15s",
+        }}
+      >
+        {/* Progress ring */}
+        <svg width="18" height="18" style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
+          <circle cx="9" cy="9" r="7" fill="none" stroke="var(--border-default)" strokeWidth="2" />
+          <circle
+            cx="9" cy="9" r="7" fill="none"
+            stroke={phase.color}
+            strokeWidth="2"
+            strokeDasharray={`${dash} ${circumference}`}
+            style={{ transition: "stroke-dasharray 0.5s linear" }}
+          />
+        </svg>
+        {/* Time */}
+        <span style={{
+          fontSize: 11,
+          color: remaining <= 60 && running ? phase.color : "var(--text-primary)",
+          minWidth: 36, letterSpacing: "0.5px", transition: "color 0.3s",
+        }}>
+          {fmt(remaining)}
+        </span>
+        {/* Running indicator dot */}
+        {running && (
+          <span style={{ width: 5, height: 5, borderRadius: "50%", background: phase.color, flexShrink: 0 }} />
+        )}
+      </div>
+
+      {/* ── SLIDE-DOWN CONTROL PANEL ── */}
+      <div
+        ref={panelRef}
+        style={{
+          position: "fixed",
+          top: 36,
+          right: 120,
+          zIndex: 1200,
+          background: "var(--surface-card)",
+          border: "1px solid var(--input-border)",
+          borderRadius: 8,
+          padding: "12px 14px",
+          minWidth: 180,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+          transition: "transform 0.2s ease, opacity 0.2s ease",
+          transform: expanded ? "translateY(0)" : "translateY(-8px)",
+          opacity: expanded ? 1 : 0,
+          pointerEvents: expanded ? "auto" : "none",
+        }}
+      >
+        {/* Phase label */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: phase.color }}>{phase.label}</span>
+          <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
+            {fmt(remaining)} left
+          </span>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ height: 3, background: "var(--border-default)", borderRadius: 2, marginBottom: 12, overflow: "hidden" }}>
+          <div style={{
+            height: "100%", borderRadius: 2,
+            background: phase.color,
+            width: `${progress * 100}%`,
+            transition: "width 0.5s linear",
+          }} />
+        </div>
+
+        {/* Controls */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center", marginBottom: 10 }}>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={reset} title="Reset">
+            <RotateCcw className="h-3.5 w-3.5" style={{ color: "var(--text-muted)" }} />
+          </Button>
+          <Button
+            size="sm" variant="ghost"
+            className="h-8 w-8 p-0"
+            onClick={toggleRun}
+            title={running ? "Pause" : "Start"}
+            style={{ background: "var(--input-bg)", borderRadius: 20 }}
+          >
+            {running
+              ? <Pause className="h-4 w-4" style={{ color: phase.color }} />
+              : <Play  className="h-4 w-4" style={{ color: "var(--text-primary)" }} />
+            }
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={skip} title={`Skip to next`}>
+            <SkipForward className="h-3.5 w-3.5" style={{ color: "var(--text-muted)" }} />
+          </Button>
+        </div>
+
+        {/* Pomodoro dots (4 per cycle) */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 5 }}>
+          {pomodorosDots.map((done, i) => (
+            <div
+              key={i}
+              style={{
+                width: 7, height: 7, borderRadius: "50%",
+                background: done ? "var(--danger)" : "var(--border-default)",
+                transition: "background 0.3s",
+              }}
+              title={`Pomodoro ${i + 1}`}
+            />
+          ))}
+        </div>
+
+        {/* Next phase hint */}
+        <div style={{ marginTop: 8, fontSize: 10, color: "var(--text-faint)", textAlign: "center" }}>
+          Next: {PHASES[(phaseIndex + 1) % PHASES.length].label}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,1389 @@
+/* =============================================================================
+   index.css — Moduli global styles
+   Sections:
+     1. IMPORTS & TAILWIND
+     2. CSS VARIABLES (design tokens)
+     3. BASE RESET
+     4. APP LAYOUT
+     5. GRID (grid-frame, grid-cell, grid-wrapper)
+     6. PANELS
+     7. CONTAINERS
+     8. INSTANCES
+     9. MODULE HANDLES (drag handles, radial menu reveal)
+    10. DRAG SYSTEM (overlays, drop indicators)
+    11. DOCS & PILLS (TipTap editor)
+    12. UTILITIES
+    13. RESPONSIVE
+   ============================================================================= */
+
+/* =============================================================================
+   1. IMPORTS & TAILWIND
+   ============================================================================= */
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@layer base {
+  *, ::before, ::after {
+    border-color: hsl(var(--border));
+  }
+}
+
+/* =============================================================================
+   2. CSS VARIABLES (design tokens)
+   ============================================================================= */
+
+/* Shared font tokens + brand (always present) */
+:root {
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+  --moduli-mark: #0e2140;
+  --moduli-text: #4474c2;
+}
+
+/* =============================================================================
+   THEME: Moduli Dark (default)
+   Deep navy / slate blue workspace. Applied when data-theme="moduli-dark"
+   or when no data-theme is set (backwards-compat with hardcoded html.dark).
+   ============================================================================= */
+.dark,
+[data-theme="moduli-dark"] {
+  /* Backgrounds */
+  --background-0: 222 30% 6%;
+  --background-1: 222 30% 7%;
+  --background-2: 222 30% 9%;
+
+  /* Surfaces (panels / cards) */
+  --surface-0: 215 18% 10%;
+  --surface-1: 215 18% 11%;
+  --surface-2: 215 18% 13%;
+
+  /* Popovers / floating */
+  --popover-0: 220 22% 6%;
+  --popover-1: 220 22% 7%;
+  --popover-2: 220 22% 9%;
+  --popover-foreground: 210 40% 98%;
+
+  /* Inputs */
+  --input-0: 215 21% 10%;
+  --input-1: 215 21% 11%;
+  --input-2: 215 21% 13%;
+
+  /* Overlays (drag / modal) */
+  --overlay-0: 0 20% 1%;
+  --overlay-1: 0 20% 2%;
+  --overlay-2: 0 20% 4%;
+
+  /* Borders */
+  --border-0: 216 17% 27%;
+  --border-1: 0 0% 20%;
+  --border-2: 0 0% 26%;
+
+  /* Text */
+  --foreground-0: 210 40% 94%;
+  --foreground-1: 210 40% 98%;
+  --foreground-2: 216 15% 65%;
+
+  /* Tailwind token aliases */
+  --background: var(--background-1);
+  --foreground: var(--foreground-1);
+  --border: var(--border-1);
+  --popover: var(--popover-1);
+  --primary: 210 40% 98%;
+  --primary-foreground: 222 30% 8%;
+  --accent: var(--surface-2);
+  --accent-foreground: var(--foreground-1);
+
+  /* Named aliases */
+  --background2: var(--surface-0);
+  --input2: var(--input-1);
+  --overlay: var(--overlay-0);
+
+  /* Body colors for this theme */
+  --body-bg: hsl(var(--background-0));
+  --body-color: hsl(var(--foreground-1));
+
+  /* Grid cell border */
+  --grid-cell-border: #3f444a;
+
+  /* Semantic tokens for component Tailwind migration */
+  --text-primary: hsl(var(--foreground-1));
+  --text-muted: rgba(255,255,255,0.45);
+  --text-faint: rgba(255,255,255,0.22);
+  --border-default: rgba(255,255,255,0.10);
+  --border-subtle: rgba(255,255,255,0.06);
+  --surface-card: hsl(var(--surface-1));
+  --surface-overlay: rgba(14,27,48,0.88);
+  --input-bg: rgba(255,255,255,0.06);
+  --input-border: rgba(255,255,255,0.12);
+  --accent-blue: #2563eb;
+  --accent-blue-hover: #1d4ed8;
+  --accent-blue-text: rgb(147,197,253);
+  --accent-blue-bg: rgba(59,130,246,0.18);
+  --accent-blue-border: rgba(59,130,246,0.40);
+  --accent-green-text: rgb(110,231,183);
+  --accent-green-bg: rgba(16,185,129,0.15);
+  --accent-green-border: rgba(16,185,129,0.35);
+  --accent-purple-text: rgb(196,181,253);
+  --accent-purple-bg: rgba(139,92,246,0.12);
+  --accent-purple-border: rgba(139,92,246,0.30);
+  --danger: #ef4444;
+  --danger-bg: rgba(239,68,68,0.12);
+  --danger-border: rgba(239,68,68,0.30);
+  --danger-text: rgb(252,165,165);
+}
+
+/* =============================================================================
+   THEME: Moduli Light
+   Clean bright workspace with blue accents.
+   ============================================================================= */
+[data-theme="moduli-light"] {
+  /* Backgrounds */
+  --background-0: 220 20% 96%;
+  --background-1: 220 20% 97%;
+  --background-2: 220 20% 93%;
+
+  /* Surfaces */
+  --surface-0: 220 16% 93%;
+  --surface-1: 0 0% 100%;
+  --surface-2: 220 14% 90%;
+
+  /* Popovers */
+  --popover-0: 0 0% 100%;
+  --popover-1: 0 0% 100%;
+  --popover-2: 220 20% 97%;
+  --popover-foreground: 222 47% 11%;
+
+  /* Inputs */
+  --input-0: 220 14% 92%;
+  --input-1: 220 14% 95%;
+  --input-2: 220 14% 90%;
+
+  /* Overlays */
+  --overlay-0: 220 10% 70%;
+  --overlay-1: 220 10% 75%;
+  --overlay-2: 220 10% 80%;
+
+  /* Borders */
+  --border-0: 214 20% 78%;
+  --border-1: 214 20% 84%;
+  --border-2: 214 20% 74%;
+
+  /* Text */
+  --foreground-0: 222 47% 18%;
+  --foreground-1: 222 47% 11%;
+  --foreground-2: 222 15% 45%;
+
+  /* Tailwind aliases */
+  --background: var(--background-1);
+  --foreground: var(--foreground-1);
+  --border: var(--border-1);
+  --popover: var(--popover-1);
+  --primary: 221 83% 53%;
+  --primary-foreground: 210 40% 98%;
+  --accent: var(--surface-2);
+  --accent-foreground: var(--foreground-1);
+
+  /* Named aliases */
+  --background2: var(--surface-0);
+  --input2: var(--input-1);
+  --overlay: var(--overlay-0);
+
+  /* Body colors */
+  --body-bg: hsl(var(--background-0));
+  --body-color: hsl(var(--foreground-1));
+
+  /* Grid cell border */
+  --grid-cell-border: hsl(var(--border-1));
+
+  /* Semantic tokens */
+  --text-primary: hsl(var(--foreground-1));
+  --text-muted: rgba(34,51,102,0.65);
+  --text-faint: rgba(34,51,102,0.45);
+  --border-default: rgba(0,0,0,0.12);
+  --border-subtle: rgba(0,0,0,0.07);
+  --surface-card: hsl(var(--surface-1));
+  --surface-overlay: rgba(240,242,245,0.92);
+  --input-bg: rgba(0,0,0,0.05);
+  --input-border: rgba(0,0,0,0.14);
+  --accent-blue: #2563eb;
+  --accent-blue-hover: #1d4ed8;
+  --accent-blue-text: #1d4ed8;
+  --accent-blue-bg: rgba(37,99,235,0.12);
+  --accent-blue-border: rgba(37,99,235,0.40);
+  --accent-green-text: #16a34a;
+  --accent-green-bg: rgba(22,163,74,0.10);
+  --accent-green-border: rgba(22,163,74,0.35);
+  --accent-purple-text: #7c3aed;
+  --accent-purple-bg: rgba(124,58,237,0.08);
+  --accent-purple-border: rgba(124,58,237,0.30);
+  --danger: #dc2626;
+  --danger-bg: rgba(220,38,38,0.10);
+  --danger-border: rgba(220,38,38,0.35);
+  --danger-text: #dc2626;
+}
+
+/* =============================================================================
+   THEME: Midnight
+   Pure black with violet / indigo accents.
+   ============================================================================= */
+[data-theme="midnight"] {
+  /* Backgrounds */
+  --background-0: 265 25% 4%;
+  --background-1: 265 22% 5%;
+  --background-2: 265 20% 7%;
+
+  /* Surfaces */
+  --surface-0: 265 15% 8%;
+  --surface-1: 265 14% 9%;
+  --surface-2: 265 12% 11%;
+
+  /* Popovers */
+  --popover-0: 265 22% 5%;
+  --popover-1: 265 22% 6%;
+  --popover-2: 265 20% 8%;
+  --popover-foreground: 280 30% 96%;
+
+  /* Inputs */
+  --input-0: 265 14% 9%;
+  --input-1: 265 14% 10%;
+  --input-2: 265 12% 12%;
+
+  /* Overlays */
+  --overlay-0: 270 30% 2%;
+  --overlay-1: 270 30% 3%;
+  --overlay-2: 270 30% 5%;
+
+  /* Borders */
+  --border-0: 265 18% 24%;
+  --border-1: 265 16% 20%;
+  --border-2: 265 15% 27%;
+
+  /* Text */
+  --foreground-0: 280 20% 93%;
+  --foreground-1: 280 30% 97%;
+  --foreground-2: 270 10% 60%;
+
+  /* Tailwind aliases */
+  --background: var(--background-1);
+  --foreground: var(--foreground-1);
+  --border: var(--border-1);
+  --popover: var(--popover-1);
+  --primary: 270 80% 70%;
+  --primary-foreground: 265 25% 8%;
+  --accent: var(--surface-2);
+  --accent-foreground: var(--foreground-1);
+
+  /* Named aliases */
+  --background2: var(--surface-0);
+  --input2: var(--input-1);
+  --overlay: var(--overlay-0);
+
+  /* Body colors */
+  --body-bg: hsl(var(--background-0));
+  --body-color: hsl(var(--foreground-1));
+
+  /* Grid cell border */
+  --grid-cell-border: hsl(var(--border-0));
+
+  /* Semantic tokens */
+  --text-primary: hsl(var(--foreground-1));
+  --text-muted: rgba(220,200,255,0.45);
+  --text-faint: rgba(200,180,255,0.22);
+  --border-default: rgba(160,130,255,0.14);
+  --border-subtle: rgba(130,100,255,0.07);
+  --surface-card: hsl(var(--surface-1));
+  --surface-overlay: rgba(9,7,15,0.90);
+  --input-bg: rgba(130,100,255,0.07);
+  --input-border: rgba(160,130,255,0.16);
+  --accent-blue: #7c3aed;
+  --accent-blue-hover: #6d28d9;
+  --accent-blue-text: rgb(196,181,253);
+  --accent-blue-bg: rgba(124,58,237,0.18);
+  --accent-blue-border: rgba(124,58,237,0.40);
+  --accent-green-text: rgb(110,231,183);
+  --accent-green-bg: rgba(16,185,129,0.15);
+  --accent-green-border: rgba(16,185,129,0.35);
+  --accent-purple-text: rgb(196,181,253);
+  --accent-purple-bg: rgba(139,92,246,0.14);
+  --accent-purple-border: rgba(139,92,246,0.35);
+  --danger: #ef4444;
+  --danger-bg: rgba(239,68,68,0.12);
+  --danger-border: rgba(239,68,68,0.30);
+  --danger-text: rgb(252,165,165);
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* Light theme color-scheme */
+html[data-theme="moduli-light"] {
+  color-scheme: light;
+}
+
+/* =============================================================================
+   3. BASE RESET
+   ============================================================================= */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-mono);
+  background: var(--body-bg, #101318);
+  color: var(--body-color, #f5f5f5);
+}
+
+/* =============================================================================
+   4. APP LAYOUT
+   ============================================================================= */
+.app-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dnd-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* =============================================================================
+   5. GRID (grid-frame, grid-wrapper, grid-cell)
+   ============================================================================= */
+.grid-frame {
+  background: hsl(var(--surface-0));
+  border-radius: 10px;
+  border: 1px solid hsl(var(--border-1));
+  overflow: hidden;
+  padding: 0;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.grid-wrapper {
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    inset 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+.grid-cell {
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--grid-cell-border, #3f444a);
+  border-radius: 8px;
+  transition: background 80ms;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  padding: 6px;
+  box-sizing: border-box;
+  background: transparent;
+  position: relative;
+}
+
+.grid-cell.is-highlight {
+  background: rgba(50, 150, 255, 0.45);
+}
+
+/* Muted state during panel drags */
+.grid-muted {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* =============================================================================
+   6. PANELS
+   ============================================================================= */
+.panel-root {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.panel-card {
+  width: calc(100% - 4px);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.6),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.panel-header {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+}
+
+.panel-scroll {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  min-height: 120px;
+  position: relative;
+  scrollbar-gutter: stable;
+}
+
+.panel-scroll * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* =============================================================================
+   7. CONTAINERS
+   ============================================================================= */
+.container-shell {
+  min-width: 161px;
+  min-height: 92px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border-1));
+  background: hsl(var(--surface-1));
+  overflow: hidden;
+  height: 100%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    inset 0 -10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.container-body {
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+}
+
+.container-header {
+  display: flex;
+  justify-content: start;
+  align-items: start;
+  cursor: grab;
+}
+
+/* Embedded doc container header — hash shows only on hover, collapses when hidden */
+.embedded-container-header .embedded-hash {
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  display: inline-block;
+  transition: opacity 0.15s, max-width 0.15s;
+}
+.embedded-container-header:hover .embedded-hash {
+  opacity: 0.5;
+  max-width: 14px;
+}
+
+.container-list {
+  min-height: 50px !important;
+  height: 100%;
+  flex: 1;
+  overflow-y: auto !important;
+}
+
+.container-list-wrap {
+  height: 100%;
+  overflow: hidden;
+  flex: 1;
+  min-height: 85px;
+  position: relative;
+  padding: 10px 5px 15px 5px;
+}
+
+.container-list.over {
+  background: rgba(80, 140, 255, 0.12);
+}
+
+/* Top/bottom sentinel drop zones */
+.container-sentinel {
+  height: 10px;
+  background: transparent;
+}
+
+.container-sentinel.over {
+  background: rgba(80, 140, 255, 0.25);
+}
+
+/* Column layout within a panel */
+.containers-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+  align-content: start;
+  grid-auto-flow: row;
+  padding-top: 3px;
+}
+
+/* Row layout */
+.containers-row {
+  display: flex;
+  gap: 12px;
+}
+
+/* Prevent overflow in flex/grid parents */
+.containers-col,
+.container-shell,
+.container-list,
+.instance-row {
+  min-width: 0;
+}
+
+/* =============================================================================
+   8. INSTANCES
+   ============================================================================= */
+
+/* Pocket dock inside the container */
+.instance-pocket {
+  padding: 6px;
+  border-radius: 10px;
+  overflow-y: auto;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  background: hsl(var(--input2));
+  border: 1px solid hsl(var(--border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 14px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* Instance wrapper */
+.instance-wrap {
+  width: 100%;
+  z-index: 3;
+  position: relative;
+  margin-bottom: 5px;
+}
+
+.instance-wrap.is-dragging {
+  pointer-events: none;
+}
+
+/* Instance card raised in a well — only the instance row, not lip or body */
+.instance-wrap > .instance-row {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+  background: rgba(12, 53, 70, 0.55);
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+/* Dragging: suppress hover shadow change */
+.dragging .instance-wrap:hover > .instance-row {
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.instance-row.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* =============================================================================
+   9. MODULE HANDLES (drag handles, radial menu reveal)
+   ============================================================================= */
+
+/* Fixed-width handle — reserves space, no text shift */
+.module-handle {
+  width: 32px;
+  flex-shrink: 0;
+  pointer-events: auto;
+  cursor: grab;
+  position: relative;
+  touch-action: none; /* Prevent Android split-screen + faster drag activation */
+}
+
+/* Dot indicator at rest */
+.module-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  display: block;
+  z-index: 1;
+}
+
+/* RadialMenu hidden at rest */
+.module-handle .radial-menu {
+  display: none;
+}
+
+/* Panel header hover → show RadialMenu, hide dot (only innermost) */
+.panel-header:hover:not(:has(.panel-header:hover)) > .module-handle .radial-menu {
+  display: flex;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.panel-header:hover:not(:has(.panel-header:hover)) > .module-handle .module-dot {
+  display: none;
+}
+
+/* Container header hover → show RadialMenu, hide dot (only innermost) */
+.container-header:hover:not(:has(.container-header:hover)) > .module-handle .radial-menu {
+  display: flex;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.container-header:hover:not(:has(.container-header:hover)) > .module-handle .module-dot {
+  display: none;
+}
+
+/* Cog handle — shown when header is hidden; absolute top-left, reveals on shell hover */
+.container-cog-handle,
+.panel-cog-handle {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.15s;
+  width: 20px;
+  height: 20px;
+}
+
+/* Only show cog on the innermost hovered shell — :not(:has(...)) prevents cascade to ancestors */
+.container-shell:hover:not(:has(.container-shell:hover)) .container-cog-handle,
+.panel-shell:hover:not(:has(.panel-shell:hover)) .panel-cog-handle {
+  opacity: 1;
+}
+
+.container-cog-handle .radial-menu,
+.panel-cog-handle .radial-menu {
+  display: flex;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.container-cog-handle .module-dot,
+.panel-cog-handle .module-dot {
+  display: none;
+}
+
+/* Instance row hover */
+.instance-wrap:hover .module-handle .radial-menu {
+  display: flex;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.instance-wrap:hover .module-handle .module-dot {
+  display: none;
+}
+
+/* Hide all handles during drag */
+.dragging .module-handle {
+  visibility: hidden;
+  pointer-events: none !important;
+}
+
+/* =============================================================================
+   10. DRAG SYSTEM (overlays, drop indicators)
+   ============================================================================= */
+
+/* Drop target highlight — set by DragProvider via direct DOM mutation */
+[data-drop-active="true"] {
+  outline: 2px solid rgba(50, 150, 255, 0.95) !important;
+  outline-offset: 0;
+  border-radius: 10px;
+}
+
+/* Drag overlays — pointer-events off so they don't block drops */
+.drag-overlay,
+.panel-clone-overlay {
+  pointer-events: none;
+}
+
+/* Fullscreen panel overlay */
+.fullscreen-overlay {
+  pointer-events: auto;
+}
+
+.fullscreen-overlay * {
+  pointer-events: auto;
+}
+
+/* Drag-ghost styles */
+.panel-overlay,
+.container-overlay,
+.instance-overlay {
+  transform: translateZ(0);
+}
+
+.instance-overlay {
+  max-width: 200px;
+}
+
+.instance-overlay > * {
+  border-radius: 10px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface-0));
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  transform: translateZ(0);
+}
+
+.panel-overlay > * {
+  border-radius: 12px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface-0));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+.container-overlay > * {
+  border-radius: 12px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface-1));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 10px 22px rgba(0, 0, 0, 0.55);
+}
+
+/* =============================================================================
+   11. DOCS & PILLS (TipTap rich-text editor)
+   ============================================================================= */
+.doc-editor-wrapper {
+  overflow: visible;
+}
+
+.doc-editor-content.ProseMirror {
+  font-size: 13px;
+  line-height: 1.6;
+  overflow: visible;
+}
+
+/* Headings */
+.doc-editor-content.ProseMirror h1 { font-size: 1.5em; }
+.doc-editor-content.ProseMirror h2 { font-size: 1.25em; }
+.doc-editor-content.ProseMirror h3 { font-size: 1.1em; }
+
+/* Section heading colors — # prefix hidden until editing */
+.doc-editor-content.ProseMirror h1::before { content: ""; }
+.doc-editor-content.ProseMirror h2 {
+  color: #4ade80;
+  margin-top: 1.4em;
+  margin-bottom: 0.3em;
+}
+.doc-editor-content.ProseMirror h2::before {
+  content: "# ";
+  color: rgba(74, 222, 128, 0.5);
+  font-weight: normal;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.doc-editor-content.ProseMirror h3 {
+  color: #86efac;
+  margin-top: 0.8em;
+  margin-bottom: 0.2em;
+}
+.doc-editor-content.ProseMirror h3::before {
+  content: "## ";
+  color: rgba(134, 239, 172, 0.4);
+  font-weight: normal;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+/* Show # prefix only when cursor is on that heading line (via HeadingFocusExtension) */
+.doc-editor-content.ProseMirror h2.heading-focused::before { opacity: 1; }
+.doc-editor-content.ProseMirror h3.heading-focused::before { opacity: 1; }
+
+/* Obsidian-style # markers on focused headings */
+.doc-editor-content.ProseMirror h1.heading-focused::before {
+  content: "# ";
+  opacity: 0.35;
+  font-weight: normal;
+}
+.doc-editor-content.ProseMirror h2.heading-focused::before {
+  content: "# ";
+  color: rgba(74, 222, 128, 0.7);
+  font-weight: normal;
+  opacity: 1;
+}
+.doc-editor-content.ProseMirror h3.heading-focused::before {
+  content: "## ";
+  color: rgba(134, 239, 172, 0.6);
+  font-weight: normal;
+  opacity: 1;
+}
+
+/* Sticky doc toolbar — stays at top of scrollable artifact/container */
+.doc-toolbar-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(15, 20, 30, 0.92);
+  backdrop-filter: blur(4px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+/* Paragraphs & lists */
+.doc-editor-content.ProseMirror p { margin: 0.25em 0; }
+
+.doc-editor-content.ProseMirror ul,
+.doc-editor-content.ProseMirror ol {
+  margin: 0.25em 0;
+  padding-left: 1.5em;
+  overflow: visible;
+}
+
+.doc-editor-content.ProseMirror ul { list-style-type: disc !important; }
+.doc-editor-content.ProseMirror ol { list-style-type: decimal !important; }
+
+.doc-editor-content.ProseMirror li {
+  margin: 0.1em 0;
+  overflow: visible;
+  display: list-item !important;
+}
+
+.doc-editor-content.ProseMirror li p { display: inline; margin: 0; }
+
+.doc-editor-content.ProseMirror li::marker {
+  color: rgba(255, 255, 255, 0.5) !important;
+  font-size: 1em !important;
+}
+
+/* Nested list styles */
+.doc-editor-content.ProseMirror ul ul { list-style-type: circle !important; }
+.doc-editor-content.ProseMirror ul ul ul { list-style-type: square !important; }
+
+/* Code blocks */
+.doc-editor-content.ProseMirror pre {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.65;
+  overflow-x: auto;
+  margin: 0.5em 0;
+  white-space: pre;
+}
+
+.doc-editor-content.ProseMirror pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Inline code */
+.doc-editor-content.ProseMirror code {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  color: rgba(134, 239, 172, 0.9);
+}
+
+
+/* ManifestTree folder add button on hover */
+div:hover > .folder-add-btn { opacity: 1 !important; }
+
+/* Quick-add menu button on header hover */
+.panel-header:hover .quick-add-btn,
+.container-header:hover .quick-add-btn { opacity: 1 !important; }
+
+/* Images */
+.doc-editor-content.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 0.5em 0;
+  display: block;
+  cursor: default;
+}
+
+.doc-editor-content.ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid rgb(50, 150, 255);
+  outline-offset: 2px;
+}
+
+/* Pills — inline display */
+.doc-editor-content.ProseMirror .instance-pill,
+.doc-editor-content.ProseMirror .field-pill {
+  display: inline-flex;
+  vertical-align: baseline;
+}
+
+/* Block pills take full width */
+.doc-editor-content.ProseMirror .instance-pill.block-pill {
+  display: block;
+}
+
+/* Doc-instance card — block mode instance in a doc container */
+/* Visual mix: list instance card style (dark bg, border) + doc container layout (header row) */
+.doc-instance-card {
+  background: rgba(12, 53, 70, 0.38);
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  cursor: default;
+}
+
+.doc-instance-card:hover {
+  background: rgba(12, 53, 70, 0.52);
+  border-color: hsl(var(--border-2));
+}
+
+/* Placeholder text */
+.doc-editor-content.ProseMirror .is-editor-empty:first-child::before {
+  color: hsl(var(--muted-foreground));
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* =============================================================================
+   12. DROP INDICATORS (Pragmatic DnD edge indicators)
+   ============================================================================= */
+
+/* Shared base: 2px blue bar on the drop edge */
+.drop-indicator {
+  position: absolute;
+  background-color: rgb(50, 150, 255);
+  border-radius: 1px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.drop-indicator-top {
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+
+.drop-indicator-bottom {
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+
+.drop-indicator-left {
+  left: -2px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+}
+
+.drop-indicator-right {
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+}
+
+/* Instance-level (z-index 100, slightly larger offset) */
+.drop-indicator-inst-top {
+  top: -3px;
+  left: -1px;
+  right: -1px;
+  height: 3px;
+}
+
+.drop-indicator-inst-bottom {
+  bottom: -3px;
+  left: -1px;
+  right: -1px;
+  height: 3px;
+}
+
+.drop-indicator-inst-left {
+  left: -3px;
+  top: -1px;
+  bottom: -1px;
+  width: 3px;
+  z-index: 100;
+}
+
+.drop-indicator-inst-right {
+  right: -3px;
+  top: -1px;
+  bottom: -1px;
+  width: 3px;
+  z-index: 100;
+}
+
+/* Active insert line (inside header, z-index 10) */
+.drop-indicator-insert {
+  position: absolute;
+  bottom: -1px;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background-color: rgb(50, 150, 255);
+  border-radius: 1px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Container empty placeholder (inline flow) */
+.empty-placeholder-inline {
+  font-style: italic;
+  opacity: 0.6;
+  position: relative;
+  z-index: 2;
+  margin-top: -5px;
+  min-height: 36px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Pool pill — show delete button on hover */
+.pool-pill:hover .pool-pill-delete {
+  display: flex !important;
+}
+
+/* TipTap table */
+.doc-editor-content.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+  font-size: 12px;
+}
+.doc-editor-content.ProseMirror table td,
+.doc-editor-content.ProseMirror table th {
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 4px 8px;
+  min-width: 60px;
+  vertical-align: top;
+}
+.doc-editor-content.ProseMirror table th {
+  background: rgba(255,255,255,0.06);
+  font-weight: 600;
+}
+.doc-editor-content.ProseMirror table .selectedCell {
+  background: rgba(50,150,255,0.15);
+}
+
+/* Linked-copy badge */
+.linked-copy-badge {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  color: rgba(96, 165, 250, 0.7);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Module header layout */
+.module-header-row {
+  user-select: none;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  position: relative;
+}
+
+/* Grab zone inside header */
+.module-grab-zone {
+  position: relative;
+  z-index: 50;
+  height: 100%;
+  cursor: grab;
+  touch-action: none; /* Prevent Android split-screen + faster drag activation */
+}
+
+/* Empty panel / container placeholder text */
+.empty-placeholder {
+  font-style: italic;
+  opacity: 0.6;
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+/* =============================================================================
+   13. UTILITIES
+   ============================================================================= */
+
+
+/* Drag handle z-index */
+.drag-handle {
+  z-index: 100;
+}
+
+/* No-select (used on toolbar controls) */
+.no-select {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* Collapse lip — 3px bar below header, click to collapse/expand body */
+.collapse-lip {
+  height: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: rgba(120, 120, 120, 0.18);
+  transition: background 0.1s;
+}
+.collapse-lip:hover {
+  background: rgba(160, 160, 160, 0.45);
+}
+
+/* Flex helpers */
+.flex-center {
+  display: flex;
+  align-items: center;
+}
+
+.flex-center-gap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Position helpers */
+.abs-fill {
+  position: absolute;
+  inset: 0;
+}
+
+/* Scroll helpers */
+.scroll-y {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Text truncation */
+.truncate-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Undo highlight flash — background fades from yellow to transparent after FLIP */
+@keyframes undo-highlight {
+  0%   { background-color: rgba(250, 204, 21, 0.3); }
+  100% { background-color: transparent; }
+}
+.undo-flash {
+  animation: undo-highlight 900ms ease-out forwards;
+  border-radius: 6px;
+}
+
+/* TN4 — Field delta popup (operation-driven field value change) */
+@keyframes deltaFadeOut {
+  0%   { opacity: 1; transform: translateY(0); }
+  70%  { opacity: 1; transform: translateY(-8px); }
+  100% { opacity: 0; transform: translateY(-14px); }
+}
+.delta-popup {
+  position: absolute;
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 100;
+  white-space: nowrap;
+  animation: deltaFadeOut 2.5s ease-out forwards;
+}
+.delta-popup.positive { color: var(--accent-green-text); }
+.delta-popup.negative { color: var(--danger-text); }
+
+/* =============================================================================
+   14. MOBILE GRID NAV (Zelda-style cell-by-cell navigation)
+   ============================================================================= */
+
+/* Viewport container — clips to one cell. flex:1 so it fills parent in flex column */
+.mobile-grid-viewport { position: relative; overflow: hidden; width: 100%; height: 100%; flex: 1; min-height: 0; }
+
+/* Inner slider — expanded to full grid size, animated */
+.mobile-grid-slider { will-change: transform; backface-visibility: hidden; }
+.mobile-grid-slider.animating { transition: transform 80ms ease-out; }
+
+/* Lip buttons — semi-transparent edge overlays */
+.mobile-lip-btn {
+  position: absolute; z-index: 50; display: flex; align-items: center;
+  justify-content: center; background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.15);
+  backdrop-filter: blur(4px); color: var(--text-muted); cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-lip-btn:active { background: rgba(50,150,255,0.35); color: var(--text-primary); }
+.mobile-lip-btn-left   { left:0; top:50%; transform:translateY(-50%); width:16px; height:40px; border-radius:0 6px 6px 0; border-left:none; }
+.mobile-lip-btn-right  { right:0; top:50%; transform:translateY(-50%); width:16px; height:40px; border-radius:6px 0 0 6px; border-right:none; }
+.mobile-lip-btn-up     { top:0; left:50%; transform:translateX(-50%); width:40px; height:16px; border-radius:0 0 6px 6px; border-top:none; }
+.mobile-lip-btn-down   { bottom:0; left:50%; transform:translateX(-50%); width:40px; height:16px; border-radius:6px 6px 0 0; border-bottom:none; }
+
+/* Drag edge glow indicator */
+.mobile-edge-indicator { position:fixed; z-index:9999; pointer-events:none; animation:edge-pulse 1s ease-in-out infinite; }
+.mobile-edge-left   { left:0; top:0; bottom:0; width:4px; background:linear-gradient(to right, rgba(50,150,255,0.6), transparent); }
+.mobile-edge-right  { right:0; top:0; bottom:0; width:4px; background:linear-gradient(to left, rgba(50,150,255,0.6), transparent); }
+.mobile-edge-up     { top:0; left:0; right:0; height:4px; background:linear-gradient(to bottom, rgba(50,150,255,0.6), transparent); }
+.mobile-edge-down   { bottom:0; left:0; right:0; height:4px; background:linear-gradient(to top, rgba(50,150,255,0.6), transparent); }
+@keyframes edge-pulse { 0%,100% { opacity:0.5 } 50% { opacity:1 } }
+
+/* Zoomed-out mode — content non-interactive */
+.mobile-grid-slider.zoomed-out { pointer-events: none; }
+
+/* Cell selection overlay — covers viewport, CSS grid of clickable zones */
+.zoom-overlay {
+  position: absolute; inset: 0; z-index: 60;
+  display: grid; gap: 3px; padding: 3px;
+}
+.zoom-cell {
+  border-radius: 6px; cursor: pointer;
+  border: 2px solid transparent;
+  background: rgba(0,0,0,0.15);
+  transition: border-color 0.15s, background 0.15s;
+}
+.zoom-cell:active { background: rgba(50,150,255,0.2); }
+.zoom-cell-active {
+  border-color: var(--accent-blue);
+  background: rgba(50,150,255,0.12);
+  box-shadow: 0 0 0 1px var(--accent-blue-border);
+}
+
+/* CC tab bar — hide scrollbar, allow horizontal swipe */
+.cc-tab-bar { scrollbar-width: none; -ms-overflow-style: none; flex-wrap: nowrap; }
+.cc-tab-bar::-webkit-scrollbar { display: none; }
+
+/* CC drawer handle — touch target on mobile */
+.cc-drawer-handle { touch-action: none; }
+
+/* Panel stack overlay — prev/next arrows on grid cells with stacked panels */
+.panel-stack-overlay {
+  position: absolute; bottom: 8px; right: 8px; z-index: 70;
+  display: flex; gap: 2px;
+}
+.panel-stack-overlay button {
+  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.5); border: 1px solid var(--border-subtle); border-radius: 5px;
+  color: var(--text-muted); cursor: pointer; backdrop-filter: blur(4px);
+  -webkit-tap-highlight-color: transparent; padding: 0;
+}
+.panel-stack-overlay button:active { background: rgba(50,150,255,0.3); color: var(--text-primary); }
+
+/* =============================================================================
+   15. RESPONSIVE
+   ============================================================================= */
+@media (max-width: 600px) {
+  .containers-row {
+    flex-direction: column;
+  }
+
+  .toolbar * {
+    font-size: 8px !important;
+  }
+
+  .toolbar .grid-select {
+    width: 100px;
+  }
+
+  .toolbar input[type="text"] {
+    max-width: 50px !important;
+  }
+
+  .button-span {
+    display: none !important;
+  }
+
+  .toolbar input[type="number"] {
+    max-width: 10px !important;
+  }
+
+  .container-header {
+    font-size: 13px;
+  }
+
+  button {
+    font-size: 9px;
+  }
+
+  .grid-wrapper {
+    height: 90vh !important;
+  }
+
+  .instance-row {
+    font-size: 10px;
+  }
+
+  .panel-header button {
+    font-size: 8px !important;
+  }
+
+  .panel-select button {
+    display: flex;
+    justify-content: center;
+    flex-wrap: nowrap;
+    min-width: 70px;
+  }
+
+  /* Grid frame fills screen — no padding/border/radius on mobile */
+  .grid-frame { padding: 0 !important; border-radius: 0 !important; border: none !important; box-shadow: none !important; }
+
+  /* Hide grid resize handles on mobile */
+  .grid-cell { border: none; padding: 2px; border-radius: 0; }
+
+  /* Panels fill cells edge-to-edge */
+  .panel-card { width: 100%; }
+
+  /* Disable hover effects on mobile — prevent sticky :hover on touch */
+  .instance-wrap:hover > .instance-row { box-shadow: 0 2px 10px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.04) inset !important; }
+
+  /* Hide cog handles on mobile — no hover to reveal them */
+  .container-cog-handle,
+  .panel-cog-handle { display: none !important; }
+
+  /* Hide resize handle on mobile — no cell resizing in mobile nav */
+  .panel-shell [style*="nwse-resize"] { display: none !important; }
+
+  /* Extra bottom padding on mobile so content scrolls past overlays */
+  .panel-content { padding-bottom: 40px !important; }
+  .panel-scroll { padding-bottom: 40px !important; }
+}

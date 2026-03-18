@@ -1,0 +1,279 @@
+// ui/commandCenter/ComponentsTab.jsx
+// ComponentsTab + ModulePill + TemplatePill
+
+import React, { useState, useMemo, useContext, useEffect, useRef, useCallback } from "react";
+import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { GripVertical, BookMarked, Pencil, Trash2 } from "lucide-react";
+
+import { GridActionsContext } from "../../GridActionsContext";
+import * as CommitHelpers from "../../helpers/CommitHelpers";
+
+const inputStyle = {
+  height: 28,
+  fontSize: 11,
+  fontFamily: "monospace",
+  background: "var(--input-bg)",
+  border: "1px solid var(--input-border)",
+  borderRadius: 5,
+  color: "var(--text-primary)",
+  padding: "0 8px",
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+const ROLE_COLORS = {
+  panel: "rgba(59,130,246,0.7)",
+  container: "rgba(34,197,94,0.7)",
+  instance: "rgba(168,85,247,0.7)",
+};
+const ROLE_LABELS = { panel: "panel", container: "container", instance: "instance" };
+
+export function ModulePill({ module, inferredRole }) {
+  const ref = useRef(null);
+  const label = module.label || module.name || "Untitled";
+  const role = inferredRole || module.role || "instance";
+  const kind = module.kind || "list";
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return draggable({
+      element: el,
+      getInitialData: () => ({
+        type: "module",
+        role,
+        id: module.id,
+        data: module,
+        sourceType: "command-center",
+      }),
+    });
+  }, [module, role]);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        display: "flex", alignItems: "center", gap: 7,
+        padding: "5px 8px", borderRadius: 6,
+        background: "var(--input-bg)",
+        border: "1px solid var(--border-subtle)",
+        cursor: "grab", userSelect: "none",
+      }}
+    >
+      <GripVertical style={{ width: 10, height: 10, color: "var(--text-faint)", flexShrink: 0 }} />
+      <span style={{
+        fontSize: 9, fontFamily: "monospace", padding: "1px 5px",
+        borderRadius: 3, background: ROLE_COLORS[role] || "var(--border-default)",
+        color: "white", flexShrink: 0,
+      }}>
+        {ROLE_LABELS[role] || role}
+      </span>
+      <span style={{
+        flex: 1, fontSize: 11, fontFamily: "monospace",
+        color: "var(--text-primary)", overflow: "hidden",
+        textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "monospace", flexShrink: 0 }}>
+        {kind}
+      </span>
+    </div>
+  );
+}
+
+export function TemplatePill({ template, isEditing, editName, onEditNameChange, onStartEdit, onConfirmRename, onCancelEdit, onDelete }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return draggable({
+      element: el,
+      getInitialData: () => ({
+        type: "template",
+        id: template.id,
+        data: template,
+        sourceType: "command-center",
+      }),
+    });
+  }, [template]);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 7,
+        padding: "6px 10px",
+        borderRadius: 7,
+        background: "var(--input-bg)",
+        border: "1px solid var(--border-subtle)",
+        cursor: "grab",
+        userSelect: "none",
+      }}
+    >
+      <GripVertical style={{ width: 11, height: 11, color: "var(--text-faint)", flexShrink: 0 }} />
+      <BookMarked style={{ width: 11, height: 11, color: "rgb(251,191,36)", flexShrink: 0 }} />
+
+      {isEditing ? (
+        <input
+          autoFocus
+          value={editName}
+          onChange={(e) => onEditNameChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onConfirmRename();
+            if (e.key === "Escape") onCancelEdit();
+          }}
+          onBlur={onConfirmRename}
+          style={{ ...inputStyle, flex: 1, height: 22, fontSize: 11 }}
+        />
+      ) : (
+        <span style={{
+          flex: 1, fontSize: 11, fontFamily: "monospace",
+          color: "var(--text-primary)", minWidth: 0,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {template.name || "Untitled"}
+        </span>
+      )}
+
+      <span style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "monospace", flexShrink: 0 }}>
+        {template.items?.length || 0} items
+      </span>
+
+      {!isEditing && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onStartEdit(); }}
+          title="Rename"
+          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-faint)", padding: 0, display: "inline-flex" }}
+        >
+          <Pencil style={{ width: 10, height: 10 }} />
+        </button>
+      )}
+      <button
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        title="Delete template"
+        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", padding: 0, display: "inline-flex", opacity: 0.6 }}
+      >
+        <Trash2 style={{ width: 10, height: 10 }} />
+      </button>
+    </div>
+  );
+}
+
+export function ComponentsTab() {
+  const ctx = useContext(GridActionsContext);
+  const { state, socket, dispatch, modulesById, roleByModuleId } = ctx;
+  const gridId = state?.gridId;
+  const grid = state?.grid;
+  const templates = useMemo(() => grid?.templates || [], [grid?.templates]);
+
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState("");
+
+  const allModules = useMemo(() => Object.values(modulesById || {}), [modulesById]);
+
+  const filteredModules = useMemo(() => {
+    return allModules.filter(m => {
+      const role = roleByModuleId?.[m.id] || m.role || "instance";
+      if (roleFilter !== "all" && role !== roleFilter) return false;
+      const label = (m.label || m.name || "").toLowerCase();
+      if (search && !label.includes(search.toLowerCase())) return false;
+      return true;
+    }).sort((a, b) => {
+      const roleOrder = { panel: 0, container: 1, instance: 2 };
+      const ra = roleByModuleId?.[a.id] || a.role || "instance";
+      const rb = roleByModuleId?.[b.id] || b.role || "instance";
+      const ro = (roleOrder[ra] ?? 3) - (roleOrder[rb] ?? 3);
+      if (ro !== 0) return ro;
+      const lc = (a.label || "").localeCompare(b.label || "");
+      if (lc !== 0) return lc;
+      return (a.id || "").localeCompare(b.id || "");
+    });
+  }, [allModules, search, roleFilter, roleByModuleId]);
+
+  const commitTemplates = useCallback((updated) => {
+    const gid = grid?._id?.toString() || grid?.id || gridId;
+    CommitHelpers.updateGrid({ dispatch, socket, gridId: gid, grid: { ...grid, templates: updated }, emit: true });
+  }, [grid, gridId, dispatch, socket]);
+
+  const handleDelete = useCallback((templateId) => {
+    commitTemplates(templates.filter(t => t.id !== templateId));
+  }, [templates, commitTemplates]);
+
+  const handleRename = useCallback((template) => {
+    const trimmed = editName.trim();
+    setEditingId(null);
+    if (!trimmed || trimmed === template.name) return;
+    commitTemplates(templates.map(t => t.id === template.id ? { ...t, name: trimmed } : t));
+  }, [templates, editName, commitTemplates]);
+
+  return (
+    <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* Search + role filter */}
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search modules…"
+          style={{ ...inputStyle, flex: 1, height: 26 }}
+        />
+        {["all", "panel", "container", "instance"].map(r => (
+          <button
+            key={r}
+            onClick={() => setRoleFilter(r)}
+            style={{
+              fontSize: 9, fontFamily: "monospace", padding: "2px 6px",
+              borderRadius: 4, border: "1px solid var(--border-default)",
+              background: roleFilter === r ? "var(--border-default)" : "transparent",
+              color: roleFilter === r ? "var(--text-primary)" : "var(--text-muted)",
+              cursor: "pointer",
+            }}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+
+      {/* Module list */}
+      <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
+        {filteredModules.length === 0 && (
+          <div style={{ fontSize: 11, color: "var(--text-faint)", fontFamily: "monospace", padding: "8px 0" }}>
+            No modules found
+          </div>
+        )}
+        {filteredModules.map(m => <ModulePill key={m.id} module={m} inferredRole={roleByModuleId?.[m.id]} />)}
+      </div>
+
+      {/* Templates section */}
+      <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 8, marginTop: 2 }}>
+        <div style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-faint)", marginBottom: 5 }}>
+          Templates — drag onto a container to fill
+        </div>
+        {templates.length === 0 && (
+          <div style={{ fontSize: 11, color: "var(--text-faint)", fontFamily: "monospace" }}>
+            No templates yet. Right-click a container → Save as Template.
+          </div>
+        )}
+        {templates.map((template) => (
+          <TemplatePill
+            key={template.id}
+            template={template}
+            isEditing={editingId === template.id}
+            editName={editName}
+            onEditNameChange={setEditName}
+            onStartEdit={() => { setEditingId(template.id); setEditName(template.name || ""); }}
+            onConfirmRename={() => handleRename(template)}
+            onCancelEdit={() => setEditingId(null)}
+            onDelete={() => handleDelete(template.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}

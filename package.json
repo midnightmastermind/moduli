@@ -1,0 +1,41 @@
+{
+  "name": "dndtest2",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "start": "npm run build:client && npm run serve",
+    "serve": "concurrently \"npm run serve:client\" \"npm run start:server\"",
+    "serve:client": "npx serve -s ./client/dist",
+    "start:server": "npm --prefix ./server run dev",
+    "build:client": "npm --prefix ./client run build",
+    "dev": "concurrently \"npm run dev:client\" \"npm run start:server\"",
+    "dev:client": "npm --prefix ./client run dev",
+    "test": "npm --prefix ./client run test",
+    "test:watch": "npm --prefix ./client run test:watch",
+    "test:server": "npm --prefix ./server run test",
+    "test:e2e": "npx playwright test",
+    "test:all": "npm run test && npm run test:server && npm run test:e2e",
+    "test:ci": "mkdir -p test-results && npm run test:all 2>&1 | tee test-results/full-run.log"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/midnightmastermind/dndtest2.git"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@tailwindcss/postcss": "^4.1.18",
+    "concurrently": "^8.2.1",
+    "socket.io-client": "^4.8.3"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/midnightmastermind/dndtest2/issues"
+  },
+  "homepage": "https://github.com/midnightmastermind/dndtest2#readme",
+  "dependencies": {
+    "playwright": "^1.58.2"
+  }
+}

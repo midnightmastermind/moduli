@@ -1,0 +1,1 @@
+export declare const unsafeOverflowAutoScrollForExternal: (args: import("../../unsafe-overflow/types").UnsafeOverflowAutoScrollArgs<import("@atlaskit/pragmatic-drag-and-drop/types").ExternalDragType>) => import("@atlaskit/pragmatic-drag-and-drop/types").CleanupFn;

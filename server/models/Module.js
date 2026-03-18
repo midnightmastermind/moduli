@@ -1,0 +1,123 @@
+// models/Module.js
+// ============================================================
+// Unified Module model — replaces Panel, Container, and Instance.
+// All layout hierarchy nodes are Modules differentiated by `role`.
+// Placement (row/col/width/height for panels) is stored in Occurrence.
+// ============================================================
+import mongoose from "mongoose";
+
+const ModuleSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, index: true, unique: true },
+    userId: { type: String, required: true },
+    gridId: { type: String, index: true },
+
+    // ─── Hierarchy (deprecated — role is inferred from occurrence hierarchy on client) ─
+    // Kept as optional string for backward compat. Use roleByModuleId on client instead.
+    role: { type: String, default: null },
+
+    // ─── Kind (deprecated — rendering type belongs on View.viewType) ─────────────────
+    // Kept as optional string for backward compat. Use view.viewType on client instead.
+    kind: { type: String, default: null },
+
+    // ─── Label / name ────────────────────────────────────────
+    label: { type: String, default: "", trim: true },
+
+    // ─── File reference (artifact modules) ───────────────────
+    // Display name / original filename (e.g. "morenotes.md").
+    // The actual textmap is stored in occurrence.textmap and synced to uploads/md/{occurrenceId}.md.
+    fileRef: { type: String, default: null },
+
+    // ─── Iteration settings ──────────────────────────────────
+    iteration: {
+      mode: { type: String, enum: ["inherit", "own"], default: "inherit" },
+      timeFilter: {
+        type: String,
+        enum: ["daily", "weekly", "monthly", "yearly", "all"],
+        default: "daily",
+      },
+    },
+
+    // ─── Drag mode ───────────────────────────────────────────
+    defaultDragMode: {
+      type: String,
+      enum: ["move", "copy", "copylink"],
+      default: "move",
+    },
+
+    // ─── Field bindings (instances) ──────────────────────────
+    fieldBindings: [
+      {
+        fieldId: { type: String, required: true },
+        order: { type: Number },
+        hidden: { type: Boolean },
+      },
+    ],
+
+    // ─── Operation widgets (instances) ───────────────────────
+    operationBindings: [
+      {
+        operationId: { type: String, required: true },
+        widgetType: {
+          type: String,
+          enum: ["trigger", "display", "input"],
+          default: "trigger",
+        },
+        displayName: { type: String },
+      },
+    ],
+
+    // ─── Layout ──────────────────────────────────────────────
+    // For panels: visual arrangement of children
+    // For containers: orientation (horizontal/vertical)
+    layout: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+    // ─── Style ───────────────────────────────────────────────
+    styleMode: { type: String, enum: ["inherit", "own"], default: "inherit" },
+    ownStyle: { type: mongoose.Schema.Types.Mixed, default: null },
+
+    // Cascading defaults for children
+    defaultInstanceStyle: { type: mongoose.Schema.Types.Mixed, default: null },
+
+    // ─── Sibling links ───────────────────────────────────────
+    // Linked peer modules (Q↔A pairs, linked containers, etc.)
+    siblingLinks: { type: [String], default: [] },
+
+    // ─── Templates (containers) ──────────────────────────────
+    defaultTemplateId: { type: String, default: null },
+
+    // ─── Behavior toggles (5.2) ──────────────────────────────
+    // behaviorMode: "inherit" uses parent defaults; "own" uses this entity's settings
+    behaviorMode: { type: String, enum: ["inherit", "own"], default: "inherit" },
+    behavior: {
+      sortable:  { type: Boolean, default: true },   // children can be reordered
+      draggable: { type: Boolean, default: true },   // this entity can be dragged
+      droppable: { type: Boolean, default: true },   // accepts drops from outside
+    },
+
+    // ─── Split partner (panels) ──────────────────────────────
+    splitPartnerId: { type: String, default: null },
+
+    // ─── Filter options (smart/filtered containers) ──────────
+    filter: { type: mongoose.Schema.Types.Mixed },
+
+    // ─── Custom CSS (CS6a) ───────────────────────────────────
+    // Scoped CSS injected as <style>.mod-{id} { ... }</style> in Module.jsx
+    customCss: { type: String, default: "" },
+
+    // ─── Meta ────────────────────────────────────────────────
+    meta: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { timestamps: true, minimize: false }
+);
+
+ModuleSchema.set("toJSON", {
+  virtuals: true,
+  versionKey: false,
+  transform: (_, ret) => {
+    ret._id = ret._id?.toString?.() ?? ret._id;
+    return ret;
+  },
+});
+
+export default mongoose.model("Module", ModuleSchema);
