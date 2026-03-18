@@ -1,6 +1,6 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: Mar 17 2026. This folder implements occurrence-based view routing._
+_Updated: Mar 18 2026. This folder implements occurrence-based view routing._
 
 ## Architecture
 
@@ -37,6 +37,9 @@ The new system links views to occurrences (`occurrence.viewId → View`) instead
 - `Editor.jsx` new prop: `stickyToolbar` — wraps DocToolbar in `.doc-toolbar-sticky` div when true.
 - `Instance.jsx`: label `flexShrink:0`, fields container `flex:1` — no wrapping around label.
 - `ManifestTree.jsx`: anchor child block `paddingBottom: 6`.
+
+## Recent Changes (Mar 18 2026 — Mobile Fixes)
+- **Panel.jsx**: Removed panel cog handle entirely (`.panel-cog-handle` block deleted). Right-click context menu now includes "Show/Hide header" for the same functionality. `onContextMenu` added to panel shell div. ResizeHandle moved from absolute overlay to inline flex bottom bar.
 
 ## Recent Changes (Mar 17 2026 — Instance Row CSS Fix)
 - **Instance.jsx**: Changed root div class from `dnd-instance` to `instance-row` to deconflict from the legacy inline chip `.dnd-instance` rule (which was applying `display: inline-flex` + `background: #4372ac` to all instance rows).

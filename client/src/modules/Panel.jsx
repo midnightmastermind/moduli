@@ -291,6 +291,7 @@ export default function Panel({
     setCtxMenu({
       x: e.clientX, y: e.clientY,
       items: [
+        { label: showHeader ? "Hide header" : "Show header", onClick: () => setShowHeader(v => !v) },
         { label: "Copy panel", icon: Copy, onClick: handleCopyPanel },
         { label: "Link panel", icon: Link2, onClick: handleCopylinkPanel },
         panelOccurrence?.linkedGroupId && {
@@ -305,7 +306,7 @@ export default function Panel({
         { label: "Delete panel", icon: Trash2, danger: true, onClick: () => CommitHelpers.deleteModule({ dispatch, socket, moduleId: module.id, emit: true }) },
       ].filter(Boolean),
     });
-  }, [handleCopyPanel, handleCopylinkPanel, handleSplitPanel, handleUnsplitPanel, isSplit, panelOccurrence, module.id, dispatch, socket]);
+  }, [handleCopyPanel, handleCopylinkPanel, handleSplitPanel, handleUnsplitPanel, isSplit, panelOccurrence, module.id, dispatch, socket, showHeader]);
 
   // DISPLAY STATE
   const display = layout?.style?.display ?? "block";
@@ -471,6 +472,7 @@ export default function Panel({
       data-panel-id={module.id}
       data-testid="panel-shell"
       className={`panel-shell bg-background rounded-lg border border-border shadow-md mod-${module.id}`}
+      onContextMenu={handlePanelContextMenu}
       style={{
         gridRow: isFullscreen ? "auto" : `${module.row + 1} / span ${cellHeight}`,
         gridColumn: isFullscreen ? "auto" : `${module.col + 1} / span ${cellWidth}`,
@@ -493,55 +495,8 @@ export default function Panel({
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
 
-      {/* COG HANDLE — shown when header hidden, acts as drag handle */}
-      {!showHeader && (
-        <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <PopoverAnchor asChild>
-            <div ref={panelHandleRef} className="panel-cog-handle module-handle module-grab-zone">
-              <span className="module-dot" />
-              <RadialMenu
-                dragMode={panelDragMode}
-                onToggleDragMode={togglePanelDragModeQuick}
-                onSettings={() => setSettingsOpen(true)}
-                onAddChild={(e) => {
-                  const rect = e?.currentTarget?.getBoundingClientRect?.();
-                  if (rect) setKindSelectorPos({ top: rect.bottom + 8, left: rect.left });
-                  else setKindSelectorPos(null);
-                  setKindSelectorOpen(true);
-                }}
-                addLabel="Container"
-                size="sm"
-                onToggleHeader={() => setShowHeader(true)}
-                showHeader={false}
-                onHistory={() => setHistoryOpen(true)}
-              />
-            </div>
-          </PopoverAnchor>
-          <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0">
-            <LayoutForm
-              value={layout}
-              onChange={setLayout}
-              onCommit={commitPanelLayout}
-              panelId={module.id}
-              panel={module}
-              onPanelStyleUpdate={commitPanelStyleUpdate}
-              iteration={module.iteration}
-              onIterationChange={commitPanelIteration}
-              defaultDragMode={module.defaultDragMode}
-              onDragModeChange={commitPanelDragMode}
-              occurrence={panelOccurrence}
-              onOccurrenceUpdate={commitOccurrenceUpdate}
-              currentViewType={currentViewType}
-              onViewTypeChange={handleViewTypeChange}
-              onCopyPanel={handleCopyPanel}
-              onCopylinkPanel={handleCopylinkPanel}
-              onSplitPanel={handleSplitPanel}
-              onUnsplitPanel={isSplit ? handleUnsplitPanel : null}
-              isSplit={isSplit}
-            />
-          </PopoverContent>
-        </Popover>
-      )}
+      {/* Cog handle removed — header is always the access point for panel settings.
+          If header is hidden, user can re-show it via context menu (right-click). */}
 
       {/* HEADER */}
       {showHeader && (
@@ -694,19 +649,22 @@ export default function Panel({
         );
       })()}
 
+      {/* Resize handle — inline in bottom bar, not overlayed */}
       {!isFullscreen && (
-        <ResizeHandle
-          panel={module}
-          cols={cols}
-          rows={rows}
-          onResize={({ width, height }) => setLiveSize({ w: width, h: height })}
-          onResizeEnd={({ width, height }) => {
-            setLiveSize({ w: null, h: null });
-            if (width !== module.width || height !== module.height) {
-              CommitHelpers.updateModule({ dispatch, socket, module: { ...module, width, height }, emit: true });
-            }
-          }}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          <ResizeHandle
+            panel={module}
+            cols={cols}
+            rows={rows}
+            onResize={({ width, height }) => setLiveSize({ w: width, h: height })}
+            onResizeEnd={({ width, height }) => {
+              setLiveSize({ w: null, h: null });
+              if (width !== module.width || height !== module.height) {
+                CommitHelpers.updateModule({ dispatch, socket, module: { ...module, width, height }, emit: true });
+              }
+            }}
+          />
+        </div>
       )}
 
       <ContainerKindSelector

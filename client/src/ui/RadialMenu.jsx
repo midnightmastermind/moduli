@@ -234,8 +234,8 @@ export default function RadialMenu({
 
   // Get angles based on direction and item count
   const getAnglesForDirection = useCallback((direction, count) => {
-    // Spread items evenly in a 90-degree arc
-    const spread = 45; // degrees between items
+    // Cap spread so total arc never exceeds 180 degrees (prevents wraparound)
+    const spread = Math.min(45, 180 / Math.max(count - 1, 1));
     const baseAngles = {
       left: 180,    // center of left arc
       right: 0,     // center of right arc
@@ -374,8 +374,16 @@ export default function RadialMenu({
           {menuItems.map((item, index) => {
             const Icon = item.icon;
             const angleRad = (item.angle * Math.PI) / 180;
-            const x = Math.cos(angleRad) * s.radius;
-            const y = Math.sin(angleRad) * s.radius;
+            let x = Math.cos(angleRad) * s.radius;
+            let y = Math.sin(angleRad) * s.radius;
+
+            // Clamp each arc item's absolute position to stay within viewport
+            const itemHalf = 14;
+            const absX = anchor.x + x;
+            const absY = anchor.y + y;
+            x += Math.max(itemHalf, Math.min(window.innerWidth - itemHalf, absX)) - absX;
+            y += Math.max(itemHalf, Math.min(window.innerHeight - itemHalf, absY)) - absY;
+
             const delay = index * 35;
 
             return (

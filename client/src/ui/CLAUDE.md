@@ -1,6 +1,9 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-03-16 (History/Toast/CS6b). Check this file before re-reading source._
+_Updated: 2026-03-18 (Mobile fixes). Check this file before re-reading source._
+
+## Recent Changes (Mar 18 2026 — Mobile Fixes)
+- **RadialMenu.jsx**: Arc item viewport clamping — each item's final absolute position is clamped to stay within viewport bounds (prevents off-screen items near edges). Arc spread capped to `min(45, 180/(count-1))` degrees to prevent wraparound with 5+ items.
 
 ## Recent Changes (Mar 16 2026 — History + CS6b)
 - **TransactionHistory.jsx**: Added `moduleId` prop for per-module filtering. When set, only shows transactions where ops match panelId/containerId/moduleId. Updated title to "Module History" when moduleId provided. Added `transaction_created` socket listener for live updates (auto-refreshes when open).

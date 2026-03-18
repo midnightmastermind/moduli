@@ -7,7 +7,7 @@ _Updated: 2026-03-18. Check this file before re-reading source._
 | File | Purpose | Last Changed |
 |------|---------|--------------|
 | `App.jsx` | Root component. Socket.io setup, GridActionsContext/GridDataContext providers, undo/redo lifted here. Filter handlers. **Mobile: isMobile + activeCell + zoomedOut state lifted here, passed via actionsValue context.** | Mar 18 |
-| `Grid.jsx` | Main grid layout. Panel placement via CSS grid. **Mobile: wraps GridRender in MobileGridNav, hides resize handles, clamps activeCell on dimension change.** | Mar 18 |
+| `Grid.jsx` | Main grid layout. Panel placement via CSS grid. **Mobile: wraps GridRender in MobileGridNav, hides resize handles, clamps activeCell on dimension change. StackOverlay component renders AFTER panels for z-index stacking.** | Mar 18 |
 | `modules/Module.jsx` | **PRIMARY RENDERING COMPONENT.** Unified Panel/Container/Instance/Canvas in one file. Replaces old Panel.jsx, SortableContainer.jsx, SortableInstance.jsx. Has context menus (right-click) for all entity types. | Mar 2026 |
 | `modules/` | Module.jsx + supporting files. Active rendering system for all entity types. | Mar 2026 |
 | `ResizeHandle.jsx` | Panel resize corner handle | Stable |
@@ -31,12 +31,20 @@ _Updated: 2026-03-18. Check this file before re-reading source._
 - No component calls socket directly — all mutations go through CommitHelpers.
 - Filter system (not iteration): `grid.namedFilters`, `grid.activeFilterId`, `grid.activeFilterValues`. FilterNav.jsx is the nav component.
 
+## Recent Changes (Mar 18 2026 — Mobile UX Fixes v2)
+- **Grid.jsx**: StackOverlay extracted as separate component rendered AFTER panels in CSS grid (z-index: 80, pointer-events: none wrapper, pointer-events: auto on buttons). Removed z-index: 65 from GridCell (was blocking all panel interaction). GridRadialMenu conditionally hidden on mobile (`{!isMobile && <GridRadialMenu>}`).
+- **index.css**: Removed `.module-handle .module-dot { display: none !important; }` from mobile media query — was breaking drag handles. Down lip button CSS retained (safe-area offset + 24px height).
+- **DragProvider.jsx**: `touch-action: none` on `document.documentElement` during drags (mobile only) to prevent Android split-screen interception.
+- **RadialMenu.jsx**: Arc item viewport clamping (per-item position clamped to viewport bounds). Spread capped to prevent 360-degree wraparound.
+- **E2E tests**: `tests/e2e/mobile-fixes.spec.js` — verifies no z-index blocking, drag handles visible, GridRadialMenu hidden on mobile, stack overlay z-index/pointer-events, down lip button.
+
 ## Recent Changes (Mar 18 2026 — Mobile UX Refinements)
-- **MobileGridNav.jsx**: Removed swipe-to-navigate (swipe now scrolls cell content). Removed `isInteractiveEl`, `INTERACTIVE_TAGS/CLASSES`, `navigateRef`, entire touch event useEffect. Navigation is now lip buttons + minigridmap + drag-to-edge only. Lip button icons shrunk from `size={14}` to `size={10}`.
+- **MobileGridNav.jsx**: Removed swipe-to-navigate (swipe now scrolls cell content). Navigation is now lip buttons + minigridmap + drag-to-edge only. Lip button icons shrunk from `size={14}` to `size={10}`.
 - **ModuleInstance.jsx**: Changed `touchAction: "none"` → `touchAction: "manipulation"` on `.instance-wrap` — allows normal scrolling through instance elements.
-- **index.css**: Lip buttons shrunk from 28x72px to 16x40px. Added `.panel-stack-overlay` CSS (absolute bottom-right, two small prev/next arrows). Removed mobile rules that hid radial menus (`.module-handle .radial-menu { display: none }`), cog handles, and module dots — radial menus now work on mobile. Removed `touch-action: pan-x pan-y` override (no longer needed without swipe nav).
-- **Grid.jsx**: GridCell now receives `stackCount` + `visiblePanelId` props and renders `panel-stack-overlay` with prev/next arrows when `stackCount > 1`. Imported `ChevronLeft`/`ChevronRight`.
-- **Panel.jsx**: Removed stack nav from header (moved to GridCell overlay). Removed `showStackHint` state + useEffect. `LocalIterationNav` changed from `alwaysExpanded={true}` to `alwaysExpanded={false}` — datepickers collapsed by default. Removed unused `ChevronLeft`/`ChevronRight` imports and `getStackForPanel`/`cyclePanelStack` from dragCtx.
+- **index.css**: Lip buttons shrunk from 28x72px to 16x40px. Added `.panel-stack-overlay` CSS (absolute bottom-right, two small prev/next arrows). Removed mobile rules that hid radial menus. Removed duplicate `.panel-scroll` bottom padding, bumped `.panel-content` to 48px. Added `.mobile-lip-btn-down` safe-area offset + bigger tap target. Added `.mobile-grid-viewport` safe-area padding.
+- **Panel.jsx**: Panel cog handle removed entirely — right-click context menu has "Show/Hide header" option instead. `onContextMenu` added to panel shell div. ResizeHandle now in a flex bottom bar (inline flow, not overlayed).
+- **ResizeHandle.jsx**: Changed from `position: absolute` to inline flow (`flexShrink: 0`, `marginLeft: auto`). No longer overlays panel content.
+- **Panel.jsx**: Removed stack nav from header (moved to Grid overlay). Removed `showStackHint` state + useEffect.
 - **App.jsx**: CC drawer handle height same on mobile/desktop (14px, was 24px on mobile). Grid-frame `onTouchStart` — swipe up (dy < -30) closes CC when open.
 
 ## Recent Changes (Mar 13-14 2026 — Filter System Cleanup)

@@ -660,8 +660,7 @@ body {
 }
 
 /* Cog handle — shown when header is hidden; absolute top-left, reveals on shell hover */
-.container-cog-handle,
-.panel-cog-handle {
+.container-cog-handle {
   position: absolute;
   top: 4px;
   left: 4px;
@@ -673,13 +672,11 @@ body {
 }
 
 /* Only show cog on the innermost hovered shell — :not(:has(...)) prevents cascade to ancestors */
-.container-shell:hover:not(:has(.container-shell:hover)) .container-cog-handle,
-.panel-shell:hover:not(:has(.panel-shell:hover)) .panel-cog-handle {
+.container-shell:hover:not(:has(.container-shell:hover)) .container-cog-handle {
   opacity: 1;
 }
 
-.container-cog-handle .radial-menu,
-.panel-cog-handle .radial-menu {
+.container-cog-handle .radial-menu {
   display: flex;
   position: absolute;
   top: 50%;
@@ -687,8 +684,7 @@ body {
   transform: translate(-50%, -50%);
 }
 
-.container-cog-handle .module-dot,
-.panel-cog-handle .module-dot {
+.container-cog-handle .module-dot {
   display: none;
 }
 
@@ -1377,13 +1373,23 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   .instance-wrap:hover > .instance-row { box-shadow: 0 2px 10px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.04) inset !important; }
 
   /* Hide cog handles on mobile — no hover to reveal them */
-  .container-cog-handle,
-  .panel-cog-handle { display: none !important; }
+  .container-cog-handle { display: none !important; }
 
-  /* Hide resize handle on mobile — no cell resizing in mobile nav */
-  .panel-shell [style*="nwse-resize"] { display: none !important; }
+  /* Prevent Android split-screen gesture from intercepting drags.
+     touch-action: none on drag handles BEFORE touch starts — JS handleDragStart is too late. */
+  .module-handle, .module-grab-zone { touch-action: none; }
 
-  /* Extra bottom padding on mobile so content scrolls past overlays */
-  .panel-content { padding-bottom: 40px !important; }
-  .panel-scroll { padding-bottom: 40px !important; }
+  /* Down lip button: lift above Android gesture zone + bigger tap target */
+  .mobile-lip-btn-down {
+    bottom: max(4px, env(safe-area-inset-bottom, 4px)) !important;
+    height: 24px !important;
+  }
+
+  /* Safe-area viewport padding for devices with gesture nav bars */
+  .mobile-grid-viewport {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Extra bottom padding on mobile so content scrolls past overlays (only on .panel-content, not .panel-scroll — avoids double padding) */
+  .panel-content { padding-bottom: 48px !important; }
 }

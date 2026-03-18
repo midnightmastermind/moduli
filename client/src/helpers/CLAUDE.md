@@ -29,6 +29,9 @@ _Updated: 2026-03-18. Check this file before re-reading source._
 - LayoutHelpers.normalizeId is a private function (not exported).
 - splitPartnerId stored on panel entity to track split relationships.
 
+## Recent Changes (Mar 18 2026 — Mobile Fixes)
+- **DragProvider.jsx**: `handleDragStart` now sets `document.documentElement.style.touchAction = 'none'` when `isMobile` — prevents Android split-screen gesture from intercepting drags. `clearSession` restores `touchAction = ''`. Added `isMobile` to `handleDragStart` dependency array.
+
 ## Recent Changes (Mar 18 2026 — Mobile Grid Nav)
 - **DragProvider.jsx**: Added `activeCell`, `setActiveCell`, `isMobile` props. New `dragEdgeTimerRef` + `dragEdgeIndicatorRef` refs. In `handleDragMove` RAF callback: mobile drag-to-edge detection with 40px edge zones, 600ms dwell timer, and pulsing edge glow indicator (direct DOM). `clearSession` clears timer + removes indicator element.
 

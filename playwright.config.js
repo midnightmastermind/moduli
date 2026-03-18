@@ -40,5 +40,15 @@ module.exports = defineConfig({
       use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
       dependencies: ['setup'],
     },
+    {
+      name: 'mobile-chromium',
+      testMatch: /mobile.*\.spec\.js/,
+      use: {
+        ...devices['Pixel 5'],
+        storageState: AUTH_STATE,
+        hasTouch: true,
+      },
+      dependencies: ['setup'],
+    },
   ],
 });

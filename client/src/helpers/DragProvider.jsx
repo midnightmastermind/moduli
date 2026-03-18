@@ -260,6 +260,9 @@ export function DragProvider({
   }, [basePanels, baseContainers, occurrencesById]);
 
   const clearSession = useCallback(() => {
+    // Restore touch-action on document (set during drag start on mobile)
+    document.documentElement.style.touchAction = '';
+
     const s = sessionRef.current;
     s.dragging = false;
     s.payload = null;
@@ -354,6 +357,9 @@ export function DragProvider({
   const handleDragStart = useCallback((payload, clientX, clientY, options = {}) => {
     pointerRef.current = { x: clientX, y: clientY };
 
+    // Prevent Android split-screen gesture from intercepting drags on mobile
+    if (isMobile) document.documentElement.style.touchAction = 'none';
+
     // Determine initial mode from options or default to 'move'
     // Alt/Option key = copy mode
     const initialMode = options.mode || 'move';
@@ -365,7 +371,7 @@ export function DragProvider({
     }
 
     onTick?.();
-  }, [startSession, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId, onTick]);
+  }, [startSession, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId, onTick, isMobile]);
 
   const handleDragMove = useCallback((clientX, clientY) => {
     const s = sessionRef.current;

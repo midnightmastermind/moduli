@@ -95,20 +95,18 @@ const ResizeHandle = ({ panel, cols, rows, onResize, onResizeEnd }) => {
       style={{
         width: 18,
         height: 18,
-        position: "absolute",
-        right: 6,  // Account for panel margin
-        bottom: 6,
         cursor: "nwse-resize",
         background: "rgba(100, 120, 150, 0.6)",
         borderTopLeftRadius: 6,
         touchAction: "none",
-        zIndex: 9999,
         pointerEvents: "auto",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         opacity: 0.7,
         transition: "opacity 0.15s",
+        flexShrink: 0,
+        marginLeft: "auto",
       }}
       onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; }}
       onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.7; }}

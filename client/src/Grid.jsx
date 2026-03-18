@@ -32,7 +32,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 // ============================================================
 // GRID CELL - Drop zone for panels
 // ============================================================
-const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack, firstHiddenId, stackCount, visiblePanelId }) {
+const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack, firstHiddenId }) {
   const { isPanelDrag, cyclePanelStack } = useDragContext();
   const { panelOverCellId } = useDragHotContext();
 
@@ -57,7 +57,10 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
         "grid-cell",
         highlight ? "is-highlight" : "",
       ].join(" ")}
-      style={{ gridRow: r + 1, gridColumn: c + 1 }}
+      style={{
+        gridRow: r + 1,
+        gridColumn: c + 1,
+      }}
     >
       {/* Show pocket effect when cell is empty */}
       {!hasPanel && (
@@ -85,21 +88,36 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
           </div>
         </div>
       )}
-
-      {/* Panel stack arrows — bottom right overlay */}
-      {stackCount > 1 && visiblePanelId && (
-        <div className="panel-stack-overlay">
-          <button onClick={() => cyclePanelStack?.({ panelId: visiblePanelId, dir: -1 })} aria-label="Previous panel">
-            <ChevronLeft size={12} />
-          </button>
-          <button onClick={() => cyclePanelStack?.({ panelId: visiblePanelId, dir: 1 })} aria-label="Next panel">
-            <ChevronRight size={12} />
-          </button>
-        </div>
-      )}
     </div>
   );
 });
+
+// ============================================================
+// STACK OVERLAY — rendered AFTER panels so it stacks on top
+// ============================================================
+function StackOverlay({ r, c, panelId }) {
+  const { cyclePanelStack } = useDragContext();
+  return (
+    <div
+      style={{
+        gridRow: r + 1,
+        gridColumn: c + 1,
+        position: "relative",
+        pointerEvents: "none",
+        zIndex: 80,
+      }}
+    >
+      <div className="panel-stack-overlay" style={{ pointerEvents: "auto" }}>
+        <button onClick={() => cyclePanelStack?.({ panelId, dir: -1 })} aria-label="Previous panel">
+          <ChevronLeft size={12} />
+        </button>
+        <button onClick={() => cyclePanelStack?.({ panelId, dir: 1 })} aria-label="Next panel">
+          <ChevronRight size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ============================================================
 // GRID RENDER
@@ -174,8 +192,8 @@ function GridRender({
         transition: "opacity 0.15s ease",
       }}
     >
-      {cellsData.map(({ r, c, dark, hasPanel, hasHiddenStack, firstHiddenId, stackCount, visiblePanelId }) => (
-        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} hasHiddenStack={hasHiddenStack} firstHiddenId={firstHiddenId} stackCount={stackCount} visiblePanelId={visiblePanelId} />
+      {cellsData.map(({ r, c, dark, hasPanel, hasHiddenStack, firstHiddenId }) => (
+        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} hasHiddenStack={hasHiddenStack} firstHiddenId={firstHiddenId} />
       ))}
 
       {/* Vertical resize handles (between columns) — hidden on mobile */}
@@ -259,6 +277,19 @@ function GridRender({
           </ErrorBoundary>
         );
       })}
+
+      {/* Stack cycle overlays — rendered AFTER panels so they stack on top */}
+      {cellsData
+        .filter(c => c.stackCount > 1)
+        .map(({ r, c, visiblePanelId, firstHiddenId }) => (
+          <StackOverlay
+            key={`stack-${r}-${c}`}
+            r={r}
+            c={c}
+            panelId={visiblePanelId || firstHiddenId}
+          />
+        ))}
+
     </div>
   );
 }
@@ -614,15 +645,17 @@ function GridInner() {
         rows={rows}
       />
 
-      {/* Grid Radial Menu - Undo/Redo/Fields (History moved to Toolbar) */}
-      <GridRadialMenu
-        onUndo={undo}
-        onRedo={redo}
-        canUndo={canUndo && !isProcessing}
-        canRedo={canRedo && !isProcessing}
-        onFields={() => setFieldsBankOpen(true)}
-        disabled={isProcessing}
-      />
+      {/* Grid Radial Menu - Undo/Redo/Fields (History moved to Toolbar) — hidden on mobile */}
+      {!isMobile && (
+        <GridRadialMenu
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo && !isProcessing}
+          canRedo={canRedo && !isProcessing}
+          onFields={() => setFieldsBankOpen(true)}
+          disabled={isProcessing}
+        />
+      )}
 
       {/* Grid Fields Bank Dialog */}
       <GridFieldsBank
