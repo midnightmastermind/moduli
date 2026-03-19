@@ -1,6 +1,7 @@
 // App.jsx — STEP 2: commits routed through CommitHelpers / LayoutHelpers
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { preventUnhandled } from "@atlaskit/pragmatic-drag-and-drop/prevent-unhandled";
 
 import { socket } from "./socket";
 import { bindSocketToStore } from "./state/bindSocketToStore";
@@ -139,10 +140,16 @@ export default function App() {
   const [commandCenterEverOpened, setCommandCenterEverOpened] = useState(false);
   useEffect(() => { if (commandCenterOpen) setCommandCenterEverOpened(true); }, [commandCenterOpen]);
 
-  // Auto-collapse CommandCenter when ANY drag starts (so the grid is visible as drop target)
+  // Auto-collapse CommandCenter when ANY drag starts + prevent OS from intercepting unhandled drags
   useEffect(() => {
     return monitorForElements({
-      onDragStart: () => setCommandCenterOpen(false),
+      onDragStart: () => {
+        setCommandCenterOpen(false);
+        preventUnhandled.start();
+      },
+      onDrop: () => {
+        preventUnhandled.stop();
+      },
     });
   }, []);
 

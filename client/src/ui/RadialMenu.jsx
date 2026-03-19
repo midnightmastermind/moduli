@@ -2,12 +2,13 @@
 // ui/RadialMenu.jsx
 // Exported for testing:
 export function calcOpenDirection(centerX, centerY, viewportW, viewportH, spread = 58) {
+  // Always open right — handles are on the left wall of entities.
+  // Only override for top/bottom edge cases.
   const topEdge = centerY;
   const bottomEdge = viewportH - centerY;
-  const isInLeftHalf = centerX < viewportW / 2;
   if (bottomEdge < spread) return 'up';
   if (topEdge < spread) return 'down';
-  return isInLeftHalf ? 'right' : 'left';
+  return 'right';
 }
 // ============================================================
 // Radial/Arc menu component with spinning animation
@@ -90,7 +91,7 @@ export default function RadialMenu({
   const [entered, setEntered] = useState(false);
 
   // Screen edge detection - determines which direction to open the menu
-  const [openDirection, setOpenDirection] = useState(forceDirection || 'left');
+  const [openDirection, setOpenDirection] = useState(forceDirection || 'right');
 
   // Dynamic start rotation based on open direction
   const getStartRotation = (dir) => {
@@ -119,7 +120,7 @@ export default function RadialMenu({
     }
 
     // Direction logic: open toward viewport center — uses exported calcOpenDirection for testability
-    const dir = calcOpenDirection(centerX, centerY, window.innerWidth, window.innerHeight, s.radius + 24);
+    const dir = calcOpenDirection(centerX, centerY, window.innerWidth, window.innerHeight, 80);
     setOpenDirection(dir);
 
     // Clamp anchor so portal always stays inside viewport
@@ -215,7 +216,7 @@ export default function RadialMenu({
       handleIcon: "w-2.5 h-2.5",
       menu: "w-6 h-6",
       menuIcon: "w-3 h-3",
-      radius: 34,               // was 24
+      radius: 34,
     },
     md: {
       handle: "h-6",
@@ -234,18 +235,15 @@ export default function RadialMenu({
 
   // Get angles based on direction and item count
   const getAnglesForDirection = useCallback((direction, count) => {
-    // Cap spread so total arc never exceeds 180 degrees (prevents wraparound)
-    const spread = Math.min(45, 180 / Math.max(count - 1, 1));
+    const spread = 45; // degrees between items
     const baseAngles = {
       left: 180,    // center of left arc
       right: 0,     // center of right arc
       down: 90,     // center of bottom arc (90 = straight down)
       up: 270,      // center of top arc
     };
-    const base = baseAngles[direction] || 180;
+    const base = baseAngles[direction] || 0;
 
-    // For 3 items: -45, 0, +45 from base
-    // For 4 items: -67.5, -22.5, +22.5, +67.5 from base
     const angles = [];
     const halfSpread = ((count - 1) * spread) / 2;
     for (let i = 0; i < count; i++) {
@@ -274,12 +272,6 @@ export default function RadialMenu({
           label: "Settings",
           onClick: onSettings,
           color: "bg-slate-600 hover:bg-slate-500",
-        },
-        {
-          icon: Plus,
-          label: `Add ${addLabel}`,
-          onClick: onAddChild,
-          color: "bg-emerald-600 hover:bg-emerald-500",
         },
         {
           icon: dragMode === "move" ? Copy : Move,
@@ -345,7 +337,7 @@ export default function RadialMenu({
           position: "fixed",
           left: anchor.x,
           top: anchor.y,
-          width: s.radius * 2 + 28,   // slightly bigger footprint
+          width: s.radius * 2 + 28,
           height: s.radius * 2 + 28,
           transform: "translate(-50%, -50%)",
           pointerEvents: "none",
@@ -376,13 +368,6 @@ export default function RadialMenu({
             const angleRad = (item.angle * Math.PI) / 180;
             let x = Math.cos(angleRad) * s.radius;
             let y = Math.sin(angleRad) * s.radius;
-
-            // Clamp each arc item's absolute position to stay within viewport
-            const itemHalf = 14;
-            const absX = anchor.x + x;
-            const absY = anchor.y + y;
-            x += Math.max(itemHalf, Math.min(window.innerWidth - itemHalf, absX)) - absX;
-            y += Math.max(itemHalf, Math.min(window.innerHeight - itemHalf, absY)) - absY;
 
             const delay = index * 35;
 

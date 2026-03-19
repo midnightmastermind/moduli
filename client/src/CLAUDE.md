@@ -31,6 +31,16 @@ _Updated: 2026-03-18. Check this file before re-reading source._
 - No component calls socket directly — all mutations go through CommitHelpers.
 - Filter system (not iteration): `grid.namedFilters`, `grid.activeFilterId`, `grid.activeFilterValues`. FilterNav.jsx is the nav component.
 
+## Recent Changes (Mar 18 2026 — Mobile UX Fixes v4)
+- **Panel.jsx**: Stack cycler button added INSIDE panel header, left of QuickAddMenu (+). Uses `dragCtx.getStackForPanel(module)` for count. Only renders when `stack.length > 1`. Added `Layers` import. Added `forceDirection="right"` to panel RadialMenu. Label span gets `minWidth: 0` for proper truncation.
+- **Grid.jsx**: StackOverlay component REMOVED entirely. GridCell empty pocket now shows `.panel-stack-btn-inline` button (same style as panel header button) with `isEmpty: true` for correct cycling. Button positioned top-right of pocket (`justifyContent: flex-end`).
+- **DragProvider.jsx**: `cyclePanelStack` speed fix — `emit: idx === stack.length - 1` (only emits on last panel, cutting N socket calls to 1).
+- **index.css**: Replaced `.panel-stack-btn` (absolute positioned overlay) with `.panel-stack-btn-inline` (inline flex button, 20px height, used in both panel header and empty cell pocket).
+
+## Recent Changes (Mar 18 2026 — Mobile UX Fixes v3)
+- **RadialMenu.jsx**: `calcOpenDirection` now ALWAYS returns 'right' (handles are on left wall). Default direction state changed from 'left' to 'right'. Removed viewport clamping code (was squishing items). Spread stays at 45°. Removed "Add" button from default menu items.
+- **DragProvider.jsx**: 3-layer Android split-screen prevention: `dragover`/`dragenter` + `touchmove` (all `passive:false`). `cyclePanelStack` now accepts `isEmpty` flag for proper empty-slot cycling.
+
 ## Recent Changes (Mar 18 2026 — Mobile UX Fixes v2)
 - **Grid.jsx**: StackOverlay extracted as separate component rendered AFTER panels in CSS grid (z-index: 80, pointer-events: none wrapper, pointer-events: auto on buttons). Removed z-index: 65 from GridCell (was blocking all panel interaction). GridRadialMenu conditionally hidden on mobile (`{!isMobile && <GridRadialMenu>}`).
 - **index.css**: Removed `.module-handle .module-dot { display: none !important; }` from mobile media query — was breaking drag handles. Down lip button CSS retained (safe-area offset + 24px height).

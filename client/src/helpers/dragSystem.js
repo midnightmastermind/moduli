@@ -8,6 +8,11 @@
 // - Drag/drop behavior is ATTACHED via hooks
 // - All state flows through ONE coordinator (DragProvider)
 //
+// MOBILE: Touch-based drag replaces HTML5 DnD entirely.
+// HTML5 DnD creates native OS-level drags that Samsung/Android
+// intercept for split-screen. Touch events bypass the OS gesture
+// system — no native drag = nothing to intercept.
+//
 // HOOKS:
 // - useDraggable() - makes an element draggable
 // - useDroppable() - makes an element a drop target
@@ -30,6 +35,9 @@ import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
+import { MOBILE_BREAKPOINT } from "../hooks/useMobileDetect";
+
+const _isMobile = () => window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
 
 // ============================================================
 // CONSTANTS & TYPES
@@ -191,7 +199,72 @@ export function parseExternalDrop(source) {
 }
 
 // ============================================================
-// useDraggable HOOK (Pragmatic Drag and Drop)
+// MOBILE TOUCH DRAG SYSTEM
+// ============================================================
+// On mobile, HTML5 Drag and Drop creates native OS-level drags that
+// Samsung One UI / Android intercept for split-screen gestures.
+// This touch-based system bypasses native DnD entirely:
+// - touchstart/touchmove/touchend on drag handles
+// - CSS-positioned clone follows the finger
+// - elementFromPoint hit-testing for drop targets
+// - No native drag event = nothing for the OS to intercept
+
+const _TOUCH_THRESHOLD = 8; // px movement before drag starts
+
+// Global drop target registry — maps DOM elements to their drop config.
+// Used by touch move handler to find drop targets via elementFromPoint.
+const _dropRegistry = new Map();
+
+function _registerDrop(el, config) {
+  _dropRegistry.set(el, config);
+}
+
+function _unregisterDrop(el) {
+  _dropRegistry.delete(el);
+}
+
+function _computeClosestEdge(el, clientX, clientY, allowedEdges) {
+  const rect = el.getBoundingClientRect();
+  const distances = {
+    top: Math.abs(clientY - rect.top),
+    bottom: Math.abs(clientY - rect.bottom),
+    left: Math.abs(clientX - rect.left),
+    right: Math.abs(clientX - rect.right),
+  };
+  let closest = null;
+  let minDist = Infinity;
+  for (const edge of allowedEdges) {
+    if (distances[edge] < minDist) {
+      minDist = distances[edge];
+      closest = edge;
+    }
+  }
+  return closest;
+}
+
+function _findDropTarget(clientX, clientY, dragType, sourceEl) {
+  // elementsFromPoint returns ALL elements at coordinates (top to bottom).
+  // The drag clone has pointer-events:none but may still appear — it's
+  // simply not in the registry, so walk-up from it finds nothing.
+  const elements = document.elementsFromPoint(clientX, clientY);
+  for (const el of elements) {
+    let node = el;
+    while (node && node !== document.body) {
+      if (node === sourceEl) { node = node.parentElement; continue; }
+      const config = _dropRegistry.get(node);
+      if (config) {
+        if (config.accepts.length === 0 || config.accepts.includes(dragType)) {
+          return { el: node, ...config };
+        }
+      }
+      node = node.parentElement;
+    }
+  }
+  return null;
+}
+
+// ============================================================
+// useDraggable HOOK
 // ============================================================
 export function useDraggable({
   type,
@@ -213,24 +286,170 @@ export function useDraggable({
     const payload = createPayload(type, id, data, context);
     const handleEl = dragHandleRef?.current;
 
+    // ─── MOBILE: Touch-based drag (no native DnD) ───
+    if (_isMobile()) {
+      const triggerEl = handleEl || el;
+      // Prevent browser gestures on drag handle (sampled at touchstart)
+      const prevTouchAction = triggerEl.style.touchAction;
+      triggerEl.style.touchAction = 'none';
+
+      let clone = null;
+      let dragging = false;
+      let startX, startY, offsetX, offsetY;
+      let curTarget = null;
+      let touchStartTime = 0;
+
+      const onStart = (e) => {
+        if (e.touches.length !== 1) return;
+        e.preventDefault(); // Claim gesture immediately — blocks OS interception
+        document.documentElement.style.touchAction = 'none';
+        document.documentElement.style.overscrollBehavior = 'none';
+        const t = e.touches[0];
+        startX = t.clientX;
+        startY = t.clientY;
+        dragging = false;
+        touchStartTime = Date.now();
+      };
+
+      const onMove = (e) => {
+        if (e.touches.length !== 1) return;
+        e.preventDefault(); // Always prevent — blocks OS gesture recognition even sub-threshold
+        const t = e.touches[0];
+
+        if (!dragging) {
+          if (Math.sqrt((t.clientX - startX) ** 2 + (t.clientY - startY) ** 2) < _TOUCH_THRESHOLD) return;
+          dragging = true;
+          setIsDragging(true);
+
+          const rect = el.getBoundingClientRect();
+          offsetX = startX - rect.left;
+          offsetY = startY - rect.top;
+          clone = el.cloneNode(true);
+          Object.assign(clone.style, {
+            position: 'fixed', left: '0', top: '0',
+            width: rect.width + 'px',
+            pointerEvents: 'none',
+            zIndex: '2147483646',
+            opacity: '0.8',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+            willChange: 'transform',
+            transform: `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`,
+          });
+          document.body.appendChild(clone);
+          dragCtx.handleDragStart(payload, startX, startY);
+          return;
+        }
+
+        if (clone) {
+          clone.style.transform = `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`;
+        }
+
+        // Hit-test drop targets
+        const target = _findDropTarget(t.clientX, t.clientY, payload.type, el);
+
+        if (target?.el !== curTarget?.el) {
+          curTarget?.stateRef?.current?.setIsOver?.(false);
+          curTarget?.stateRef?.current?.setClosestEdge?.(null);
+          curTarget = target;
+          target?.stateRef?.current?.setIsOver?.(true);
+        }
+        if (curTarget?.allowedEdges) {
+          const edge = _computeClosestEdge(curTarget.el, t.clientX, t.clientY, curTarget.allowedEdges);
+          curTarget.stateRef?.current?.setClosestEdge?.(edge);
+        }
+
+        dragCtx.handleDragMove(t.clientX, t.clientY);
+        if (curTarget) {
+          dragCtx.handleDragOver?.({
+            type: curTarget.type, id: curTarget.id,
+            context: curTarget.context,
+            clientX: t.clientX, clientY: t.clientY,
+          });
+        }
+      };
+
+      const onEnd = (e) => {
+        if (!dragging) {
+          // Restore touch defaults on tap (no drag)
+          document.documentElement.style.touchAction = '';
+          document.documentElement.style.overscrollBehavior = '';
+          // Synthetic click for tap — preserves RadialMenu tap-to-open
+          const elapsed = Date.now() - touchStartTime;
+          if (elapsed < 300) {
+            const t = e.changedTouches[0];
+            const target = document.elementFromPoint(t.clientX, t.clientY);
+            if (target) {
+              target.dispatchEvent(new MouseEvent('click', {
+                bubbles: true, cancelable: true,
+                clientX: t.clientX, clientY: t.clientY,
+              }));
+            }
+          }
+          return;
+        }
+        const t = e.changedTouches[0];
+        if (clone) { clone.remove(); clone = null; }
+
+        if (curTarget) {
+          const edge = curTarget.allowedEdges
+            ? _computeClosestEdge(curTarget.el, t.clientX, t.clientY, curTarget.allowedEdges)
+            : null;
+          curTarget.stateRef?.current?.setIsOver?.(false);
+          curTarget.stateRef?.current?.setClosestEdge?.(null);
+          dragCtx.handleDrop({
+            type: curTarget.type, id: curTarget.id,
+            context: { ...curTarget.context, instanceId: curTarget.id, closestEdge: edge },
+            clientX: t.clientX, clientY: t.clientY,
+            source: payload,
+          });
+        }
+
+        curTarget = null;
+        dragging = false;
+        setIsDragging(false);
+        document.documentElement.style.touchAction = '';
+        document.documentElement.style.overscrollBehavior = '';
+        setTimeout(() => dragCtx.handleDragEnd(), 0);
+      };
+
+      triggerEl.addEventListener('touchstart', onStart, { passive: false });
+      triggerEl.addEventListener('touchmove', onMove, { passive: false });
+      triggerEl.addEventListener('touchend', onEnd);
+      triggerEl.addEventListener('touchcancel', onEnd);
+
+      return () => {
+        triggerEl.style.touchAction = prevTouchAction;
+        triggerEl.removeEventListener('touchstart', onStart);
+        triggerEl.removeEventListener('touchmove', onMove);
+        triggerEl.removeEventListener('touchend', onEnd);
+        triggerEl.removeEventListener('touchcancel', onEnd);
+        if (clone) { clone.remove(); }
+      };
+    }
+
+    // ─── DESKTOP: Pragmatic DnD (HTML5 Drag and Drop) ───
     const cleanup = draggable({
       element: el,
       ...(handleEl ? { dragHandle: handleEl } : {}),
       getInitialData: () => payload,
-      getInitialDataForExternal: () => ({
-        [NATIVE_DND_MIME]: serializePayload(payload),
-        'text/plain': data.label || data.name || id,
-      }),
+      getInitialDataForExternal: () => {
+        const externalData = {
+          [NATIVE_DND_MIME]: serializePayload(payload),
+        };
+        // Only include text/plain on desktop — Android treats it as shareable content
+        // and triggers split-screen/popup window gestures
+        if (!_isMobile()) {
+          externalData['text/plain'] = data.label || data.name || id;
+        }
+        return externalData;
+      },
       onGenerateDragPreview: ({ nativeSetDragImage }) => {
-        // Create a fully opaque drag preview
         if (nativeEnabled) {
           setCustomNativeDragPreview({
             nativeSetDragImage,
             getOffset: () => ({ x: 0, y: 0 }),
             render: ({ container }) => {
-              // Clone the element
               const clone = el.cloneNode(true);
-              // Ensure it's fully opaque
               clone.style.opacity = '1';
               clone.style.transform = 'none';
               container.appendChild(clone);
@@ -251,7 +470,6 @@ export function useDraggable({
       },
       onDrop: () => {
         setIsDragging(false);
-        // Delay handleDragEnd to allow drop target's onDrop to fire first
         setTimeout(() => {
           dragCtx.handleDragEnd();
         }, 0);
@@ -273,7 +491,7 @@ export function useDraggable({
 }
 
 // ============================================================
-// useDroppable HOOK (Pragmatic Drag and Drop)
+// useDroppable HOOK
 // ============================================================
 export function useDroppable({
   type,
@@ -286,9 +504,16 @@ export function useDroppable({
   const dragCtx = useDragContext();
   const [isOver, setIsOver] = useState(false);
 
+  // Stable ref for mobile touch system to update state
+  const stateRef = useRef({ setIsOver });
+  stateRef.current = { setIsOver };
+
   useEffect(() => {
     const el = ref.current;
     if (!el || disabled) return;
+
+    // Register in drop target registry (for mobile touch hit-testing)
+    _registerDrop(el, { type, id, context, accepts, allowedEdges: null, stateRef });
 
     const canAccept = (source) => {
       const dragType = source?.data?.type;
@@ -297,7 +522,6 @@ export function useDroppable({
     };
 
     const canAcceptExternal = () => {
-      // Accept external if accepts includes INSTANCE (for cross-window), FILE, TEXT, URL, or EXTERNAL
       return accepts.includes(DragType.INSTANCE) ||
              accepts.includes(DragType.FILE) ||
              accepts.includes(DragType.TEXT) ||
@@ -335,7 +559,7 @@ export function useDroppable({
             clientX,
             clientY,
             source: source.data,
-            dataTransfer: nativeEvent?.dataTransfer, // Include native dataTransfer for external drops
+            dataTransfer: nativeEvent?.dataTransfer,
           });
         },
       }),
@@ -361,7 +585,6 @@ export function useDroppable({
           const clientX = location.current.input.clientX;
           const clientY = location.current.input.clientY;
 
-          // Parse external drop data
           const parsed = parseExternalDrop(source);
 
           dragCtx.handleDrop({
@@ -376,13 +599,16 @@ export function useDroppable({
               data: parsed.data,
               context: parsed.context || {},
             },
-            dataTransfer: source, // Pass the native source
+            dataTransfer: source,
           });
         },
       })
     );
 
-    return cleanup;
+    return () => {
+      cleanup();
+      _unregisterDrop(el);
+    };
   }, [type, id, JSON.stringify(context), JSON.stringify(accepts), disabled, dragCtx]);
 
   return {
@@ -416,6 +642,10 @@ export function useDragDrop({
   const [isOver, setIsOver] = useState(false);
   const [closestEdge, setClosestEdge] = useState(null);
 
+  // Stable ref for mobile touch system to update state
+  const stateRef = useRef({ setIsOver, setClosestEdge });
+  stateRef.current = { setIsOver, setClosestEdge };
+
   useEffect(() => {
     const el = ref.current;
     if (!el || disabled) return;
@@ -430,7 +660,6 @@ export function useDragDrop({
     };
 
     const canAcceptExternal = () => {
-      // Accept external if accepts includes INSTANCE (for cross-window), FILE, TEXT, URL, or EXTERNAL
       return accepts.includes(DragType.INSTANCE) ||
              accepts.includes(DragType.FILE) ||
              accepts.includes(DragType.TEXT) ||
@@ -438,26 +667,249 @@ export function useDragDrop({
              accepts.includes(DragType.EXTERNAL);
     };
 
-    // Combine draggable, dropTarget for elements, and dropTarget for external
+    // Register in drop target registry (for mobile touch hit-testing)
+    _registerDrop(el, { type, id, context, accepts, allowedEdges, stateRef });
+
+    // ─── MOBILE: Touch drag + Pragmatic drop targets ───
+    if (_isMobile()) {
+      const triggerEl = handleEl || el;
+      const prevTouchAction = triggerEl.style.touchAction;
+      triggerEl.style.touchAction = 'none';
+
+      let clone = null;
+      let dragging = false;
+      let startX, startY, offsetX, offsetY;
+      let curTarget = null;
+      let touchStartTime = 0;
+
+      const onStart = (e) => {
+        if (e.touches.length !== 1) return;
+        e.preventDefault(); // Claim gesture immediately — blocks OS interception
+        document.documentElement.style.touchAction = 'none';
+        document.documentElement.style.overscrollBehavior = 'none';
+        const t = e.touches[0];
+        startX = t.clientX;
+        startY = t.clientY;
+        dragging = false;
+        touchStartTime = Date.now();
+      };
+
+      const onMove = (e) => {
+        if (e.touches.length !== 1) return;
+        e.preventDefault(); // Always prevent — blocks OS gesture recognition even sub-threshold
+        const t = e.touches[0];
+
+        if (!dragging) {
+          if (Math.sqrt((t.clientX - startX) ** 2 + (t.clientY - startY) ** 2) < _TOUCH_THRESHOLD) return;
+          dragging = true;
+          setIsDragging(true);
+
+          const rect = el.getBoundingClientRect();
+          offsetX = startX - rect.left;
+          offsetY = startY - rect.top;
+          clone = el.cloneNode(true);
+          Object.assign(clone.style, {
+            position: 'fixed', left: '0', top: '0',
+            width: rect.width + 'px',
+            pointerEvents: 'none',
+            zIndex: '2147483646',
+            opacity: '0.8',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+            willChange: 'transform',
+            transform: `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`,
+          });
+          document.body.appendChild(clone);
+
+          // Per-occurrence dragMode overrides entity's defaultDragMode
+          const mode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? 'move';
+          dragCtx.handleDragStart(payload, startX, startY, { mode });
+          return;
+        }
+
+        if (clone) {
+          clone.style.transform = `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`;
+        }
+
+        // Hit-test drop targets
+        const target = _findDropTarget(t.clientX, t.clientY, payload.type, el);
+
+        if (target?.el !== curTarget?.el) {
+          curTarget?.stateRef?.current?.setIsOver?.(false);
+          curTarget?.stateRef?.current?.setClosestEdge?.(null);
+          curTarget = target;
+          target?.stateRef?.current?.setIsOver?.(true);
+        }
+        if (curTarget?.allowedEdges) {
+          const edge = _computeClosestEdge(curTarget.el, t.clientX, t.clientY, curTarget.allowedEdges);
+          curTarget.stateRef?.current?.setClosestEdge?.(edge);
+        }
+
+        dragCtx.handleDragMove(t.clientX, t.clientY);
+        if (curTarget) {
+          dragCtx.handleDragOver?.({
+            type: curTarget.type, id: curTarget.id,
+            context: curTarget.context,
+            clientX: t.clientX, clientY: t.clientY,
+          });
+        }
+      };
+
+      const onEnd = (e) => {
+        if (!dragging) {
+          // Restore touch defaults on tap (no drag)
+          document.documentElement.style.touchAction = '';
+          document.documentElement.style.overscrollBehavior = '';
+          // Synthetic click for tap — preserves RadialMenu tap-to-open
+          const elapsed = Date.now() - touchStartTime;
+          if (elapsed < 300) {
+            const t = e.changedTouches[0];
+            const target = document.elementFromPoint(t.clientX, t.clientY);
+            if (target) {
+              target.dispatchEvent(new MouseEvent('click', {
+                bubbles: true, cancelable: true,
+                clientX: t.clientX, clientY: t.clientY,
+              }));
+            }
+          }
+          return;
+        }
+        const t = e.changedTouches[0];
+        if (clone) { clone.remove(); clone = null; }
+
+        if (curTarget) {
+          const edge = curTarget.allowedEdges
+            ? _computeClosestEdge(curTarget.el, t.clientX, t.clientY, curTarget.allowedEdges)
+            : null;
+          curTarget.stateRef?.current?.setIsOver?.(false);
+          curTarget.stateRef?.current?.setClosestEdge?.(null);
+          dragCtx.handleDrop({
+            type: curTarget.type, id: curTarget.id,
+            context: { ...curTarget.context, instanceId: curTarget.id, closestEdge: edge },
+            clientX: t.clientX, clientY: t.clientY,
+            source: payload,
+          });
+        }
+
+        curTarget = null;
+        dragging = false;
+        setIsDragging(false);
+        document.documentElement.style.touchAction = '';
+        document.documentElement.style.overscrollBehavior = '';
+        setTimeout(() => dragCtx.handleDragEnd(), 0);
+      };
+
+      triggerEl.addEventListener('touchstart', onStart, { passive: false });
+      triggerEl.addEventListener('touchmove', onMove, { passive: false });
+      triggerEl.addEventListener('touchend', onEnd);
+      triggerEl.addEventListener('touchcancel', onEnd);
+
+      // Drop targets still registered via Pragmatic DnD (for desktop fallback)
+      const dropCleanup = combine(
+        dropTargetForElements({
+          element: el,
+          canDrop: ({ source }) => canAccept(source),
+          getData: ({ input, element }) => {
+            const data = { type, id, context, instanceId: id };
+            return attachClosestEdge(data, { input, element, allowedEdges });
+          },
+          onDragEnter: ({ source, self }) => {
+            if (canAccept(source)) {
+              setIsOver(true);
+              setClosestEdge(extractClosestEdge(self.data));
+            }
+          },
+          onDrag: ({ location, self }) => {
+            const clientX = location.current.input.clientX;
+            const clientY = location.current.input.clientY;
+            dragCtx.handleDragOver?.({ type, id, context, clientX, clientY });
+            setClosestEdge(extractClosestEdge(self.data));
+          },
+          onDragLeave: () => { setIsOver(false); setClosestEdge(null); },
+          onDrop: ({ source, location, nativeEvent, self }) => {
+            setIsOver(false); setClosestEdge(null);
+            const clientX = location.current.input.clientX;
+            const clientY = location.current.input.clientY;
+            const edge = extractClosestEdge(self.data);
+            dragCtx.handleDrop({
+              type, id,
+              context: { ...context, instanceId: id, closestEdge: edge },
+              clientX, clientY,
+              source: source.data,
+              dataTransfer: nativeEvent?.dataTransfer,
+            });
+          },
+        }),
+        dropTargetForExternal({
+          element: el,
+          canDrop: () => canAcceptExternal(),
+          getData: ({ input, element }) => {
+            const data = { type, id, context, instanceId: id };
+            return attachClosestEdge(data, { input, element, allowedEdges });
+          },
+          onDragEnter: ({ self }) => {
+            if (canAcceptExternal()) {
+              setIsOver(true);
+              setClosestEdge(extractClosestEdge(self.data));
+            }
+          },
+          onDrag: ({ location, self }) => {
+            const clientX = location.current.input.clientX;
+            const clientY = location.current.input.clientY;
+            setClosestEdge(extractClosestEdge(self.data));
+            dragCtx.handleDragOver?.({ type, id, context, clientX, clientY });
+          },
+          onDragLeave: () => { setIsOver(false); setClosestEdge(null); },
+          onDrop: ({ location, source, self }) => {
+            setIsOver(false); setClosestEdge(null);
+            const clientX = location.current.input.clientX;
+            const clientY = location.current.input.clientY;
+            const edge = extractClosestEdge(self.data);
+            const parsed = parseExternalDrop(source);
+            dragCtx.handleDrop({
+              type, id,
+              context: { ...context, instanceId: id, closestEdge: edge },
+              clientX, clientY,
+              source: { type: parsed.type, id: parsed.id, data: parsed.data, context: parsed.context || {} },
+              dataTransfer: source,
+            });
+          },
+        })
+      );
+
+      return () => {
+        triggerEl.style.touchAction = prevTouchAction;
+        triggerEl.removeEventListener('touchstart', onStart);
+        triggerEl.removeEventListener('touchmove', onMove);
+        triggerEl.removeEventListener('touchend', onEnd);
+        triggerEl.removeEventListener('touchcancel', onEnd);
+        dropCleanup();
+        _unregisterDrop(el);
+        if (clone) { clone.remove(); }
+      };
+    }
+
+    // ─── DESKTOP: Full Pragmatic DnD ───
     const cleanup = combine(
       draggable({
         element: el,
         ...(handleEl ? { dragHandle: handleEl } : {}),
         getInitialData: () => payload,
-        getInitialDataForExternal: () => ({
-          [NATIVE_DND_MIME]: serializePayload(payload),
-          'text/plain': data.label || data.name || id,
-        }),
+        getInitialDataForExternal: () => {
+          const externalData = {
+            [NATIVE_DND_MIME]: serializePayload(payload),
+          };
+          if (!_isMobile()) {
+            externalData['text/plain'] = data.label || data.name || id;
+          }
+          return externalData;
+        },
         onGenerateDragPreview: ({ nativeSetDragImage }) => {
-          // Create a fully opaque drag preview
           if (nativeEnabled) {
             setCustomNativeDragPreview({
               nativeSetDragImage,
               getOffset: () => ({ x: 0, y: 0 }),
               render: ({ container }) => {
-                // Clone the element
                 const clone = el.cloneNode(true);
-                // Ensure it's fully opaque
                 clone.style.opacity = '1';
                 clone.style.transform = 'none';
                 container.appendChild(clone);
@@ -469,7 +921,6 @@ export function useDragDrop({
           setIsDragging(true);
           const clientX = location.current.input.clientX;
           const clientY = location.current.input.clientY;
-          // Per-occurrence dragMode overrides entity's defaultDragMode
           const mode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? 'move';
           dragCtx.handleDragStart(payload, clientX, clientY, { mode });
         },
@@ -480,7 +931,6 @@ export function useDragDrop({
         },
         onDrop: () => {
           setIsDragging(false);
-          // Delay handleDragEnd to allow drop target's onDrop to fire first
           setTimeout(() => {
             dragCtx.handleDragEnd();
           }, 0);
@@ -491,7 +941,6 @@ export function useDragDrop({
         canDrop: ({ source }) => canAccept(source),
         getData: ({ input, element }) => {
           const data = { type, id, context, instanceId: id };
-          // Attach closest edge for drop indicator
           return attachClosestEdge(data, {
             input,
             element,
@@ -509,8 +958,6 @@ export function useDragDrop({
           const clientX = location.current.input.clientX;
           const clientY = location.current.input.clientY;
           dragCtx.handleDragOver?.({ type, id, context, clientX, clientY });
-
-          // Update closest edge as pointer moves
           const edge = extractClosestEdge(self.data);
           setClosestEdge(edge);
         },
@@ -523,10 +970,7 @@ export function useDragDrop({
           setClosestEdge(null);
           const clientX = location.current.input.clientX;
           const clientY = location.current.input.clientY;
-
-          // Extract closestEdge from drop target data
           const edge = extractClosestEdge(self.data);
-
           dragCtx.handleDrop({
             type,
             id,
@@ -534,7 +978,7 @@ export function useDragDrop({
             clientX,
             clientY,
             source: source.data,
-            dataTransfer: nativeEvent?.dataTransfer, // Include native dataTransfer
+            dataTransfer: nativeEvent?.dataTransfer,
           });
         },
       }),
@@ -543,7 +987,6 @@ export function useDragDrop({
         canDrop: () => canAcceptExternal(),
         getData: ({ input, element }) => {
           const data = { type, id, context, instanceId: id };
-          // Attach closest edge for drop indicator (same as internal drops)
           return attachClosestEdge(data, {
             input,
             element,
@@ -553,7 +996,6 @@ export function useDragDrop({
         onDragEnter: ({ self }) => {
           if (canAcceptExternal()) {
             setIsOver(true);
-            // Extract and set closest edge for drop indicators
             const edge = extractClosestEdge(self.data);
             setClosestEdge(edge);
           }
@@ -561,7 +1003,6 @@ export function useDragDrop({
         onDrag: ({ location, self }) => {
           const clientX = location.current.input.clientX;
           const clientY = location.current.input.clientY;
-          // Update closest edge on drag
           const edge = extractClosestEdge(self.data);
           setClosestEdge(edge);
           dragCtx.handleDragOver?.({ type, id, context, clientX, clientY });
@@ -575,13 +1016,8 @@ export function useDragDrop({
           setClosestEdge(null);
           const clientX = location.current.input.clientX;
           const clientY = location.current.input.clientY;
-
-          // Extract closestEdge from drop target data
           const edge = extractClosestEdge(self.data);
-
-          // Parse external drop data
           const parsed = parseExternalDrop(source);
-
           dragCtx.handleDrop({
             type,
             id,
@@ -594,13 +1030,16 @@ export function useDragDrop({
               data: parsed.data,
               context: parsed.context || {},
             },
-            dataTransfer: source, // Pass the native source
+            dataTransfer: source,
           });
         },
       })
     );
 
-    return cleanup;
+    return () => {
+      cleanup();
+      _unregisterDrop(el);
+    };
   }, [type, id, JSON.stringify(data), JSON.stringify(context), disabled, nativeEnabled, JSON.stringify(accepts), JSON.stringify(allowedEdges), dragCtx, dragHandleRef]);
 
   return {

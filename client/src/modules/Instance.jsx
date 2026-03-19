@@ -233,6 +233,7 @@ function InstanceInner({
               <div
                 ref={dragHandleRef}
                 className="module-handle"
+                draggable={false}
                 style={{ position: "relative", alignSelf: "center", cursor: "grab", flexShrink: 0, width: 16, height: 16 }}
               >
                 <span className="module-dot" />

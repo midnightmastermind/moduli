@@ -1,6 +1,10 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-03-16. Check this file before re-reading source._
+_Updated: 2026-03-19. Check this file before re-reading source._
+
+## Recent Changes (Mar 19 2026 — Batch Module Update)
+- **actions.js**: Added `BATCH_UPDATE_MODULES` to `ActionTypes`. Added `batchUpdateModulesAction(modules)` action creator.
+- **masterReducer.js**: Added `BATCH_UPDATE_MODULES` reducer case — merges array of module updates in a single dispatch + single `deriveRoleArrays()` call. Used by `cyclePanelStack` for instant panel stack switching.
 
 ## Recent Changes (Mar 16 2026 — History/Toast/Delta)
 - **bindSocketToStore.js**: Removed `addNotification` import + all `addNotification` calls. Removed bell/notification system entirely.

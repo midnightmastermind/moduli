@@ -27,13 +27,13 @@ import { useDragContext, useDragHotContext, useDroppable, DragType, DropAccepts 
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import { getGridPanels } from "./state/selectors";
 import MobileGridNav from "./mobile/MobileGridNav";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Layers } from "lucide-react";
 
 // ============================================================
 // GRID CELL - Drop zone for panels
 // ============================================================
-const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack, firstHiddenId }) {
-  const { isPanelDrag, cyclePanelStack } = useDragContext();
+const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel }) {
+  const { isPanelDrag } = useDragContext();
   const { panelOverCellId } = useDragHotContext();
 
   const cellId = `cell-${r}-${c}`;
@@ -72,19 +72,14 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
             background: "rgba(69, 72, 74, 0.4)",
             border: "1px solid rgba(0, 0, 0, 0.5)",
             boxShadow: "inset 0 2px 4px rgba(0, 0, 0, 0.3)",
-            pointerEvents: hasHiddenStack ? "auto" : "none",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: hasHiddenStack ? "pointer" : "default",
+            pointerEvents: "none",
           }}
-          onClick={hasHiddenStack && firstHiddenId ? () => cyclePanelStack?.({ panelId: firstHiddenId, dir: 1 }) : undefined}
         >
           <div
             className="text-xs text-muted-foreground p-2 text-center"
-            style={{ fontStyle: "italic", opacity: 0.6 }}
+            style={{ fontStyle: "italic", opacity: 0.6, width: "100%", position: "absolute", top: "50%", transform: "translateY(-50%)" }}
           >
-            {hasHiddenStack ? "Click to show panels" : "Drop panel here"}
+            Drop panel here
           </div>
         </div>
       )}
@@ -92,32 +87,6 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
   );
 });
 
-// ============================================================
-// STACK OVERLAY — rendered AFTER panels so it stacks on top
-// ============================================================
-function StackOverlay({ r, c, panelId }) {
-  const { cyclePanelStack } = useDragContext();
-  return (
-    <div
-      style={{
-        gridRow: r + 1,
-        gridColumn: c + 1,
-        position: "relative",
-        pointerEvents: "none",
-        zIndex: 80,
-      }}
-    >
-      <div className="panel-stack-overlay" style={{ pointerEvents: "auto" }}>
-        <button onClick={() => cyclePanelStack?.({ panelId, dir: -1 })} aria-label="Previous panel">
-          <ChevronLeft size={12} />
-        </button>
-        <button onClick={() => cyclePanelStack?.({ panelId, dir: 1 })} aria-label="Next panel">
-          <ChevronRight size={12} />
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // ============================================================
 // GRID RENDER
@@ -142,19 +111,38 @@ function GridRender({
   onStartRowResize,
   isMobile,
 }) {
+  const [foregroundPanelId, setForegroundPanelId] = useState(null);
+
+  // Detect cells whose primary panel is covered by another panel's multi-span
+  const coveredCells = useMemo(() => {
+    const result = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const localPanels = panelsRender.filter(p =>
+          p.row === r && p.col === c && (p?.layout?.style?.display ?? "block") !== "none"
+        );
+        if (localPanels.length === 0) continue;
+
+        const isCovered = panelsRender.some(p => {
+          if (p.row === r && p.col === c) return false;
+          if ((p?.layout?.style?.display ?? "block") === "none") return false;
+          return r >= p.row && r < p.row + (p.width || 1)
+              && c >= p.col && c < p.col + (p.height || 1);
+        });
+
+        if (isCovered) result.push({ r, c, panelId: localPanels[0].id });
+      }
+    }
+    return result;
+  }, [rows, cols, panelsRender]);
   const cellsData = useMemo(() => {
     const arr = [];
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        // Check if any visible panel occupies this cell (as its primary cell)
         const cellPanels = panelsRender.filter((p) => p.row === r && p.col === c);
         const visiblePanel = cellPanels.find((p) => (p?.layout?.style?.display ?? "block") !== "none");
         const hasPanel = !!visiblePanel;
-        const hasHiddenStack = !hasPanel && cellPanels.length > 0;
-        const firstHiddenId = hasHiddenStack ? cellPanels[0]?.id : null;
-        const stackCount = cellPanels.length;
-        const visiblePanelId = visiblePanel?.id || null;
-        arr.push({ r, c, dark: (r + c) % 2 === 0, hasPanel, hasHiddenStack, firstHiddenId, stackCount, visiblePanelId });
+        arr.push({ r, c, dark: (r + c) % 2 === 0, hasPanel });
       }
     }
     return arr;
@@ -192,8 +180,8 @@ function GridRender({
         transition: "opacity 0.15s ease",
       }}
     >
-      {cellsData.map(({ r, c, dark, hasPanel, hasHiddenStack, firstHiddenId }) => (
-        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} hasHiddenStack={hasHiddenStack} firstHiddenId={firstHiddenId} />
+      {cellsData.map(({ r, c, dark, hasPanel }) => (
+        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} />
       ))}
 
       {/* Vertical resize handles (between columns) — hidden on mobile */}
@@ -273,22 +261,28 @@ function GridRender({
               sizesRef={sizesRef}
               fullscreenPanelId={fullscreenPanelId}
               setFullscreenPanelId={setFullscreenPanelId}
+              isForeground={p.id === foregroundPanelId}
             />
           </ErrorBoundary>
         );
       })}
 
-      {/* Stack cycle overlays — rendered AFTER panels so they stack on top */}
-      {cellsData
-        .filter(c => c.stackCount > 1)
-        .map(({ r, c, visiblePanelId, firstHiddenId }) => (
-          <StackOverlay
-            key={`stack-${r}-${c}`}
-            r={r}
-            c={c}
-            panelId={visiblePanelId || firstHiddenId}
-          />
-        ))}
+      {/* Covered cell overlay buttons */}
+      {coveredCells.map(({ r, c, panelId }) => (
+        <div key={`covered-${r}-${c}`} style={{
+          gridRow: r + 1, gridColumn: c + 1,
+          position: "relative", pointerEvents: "none", zIndex: 85,
+        }}>
+          <button
+            className="covered-cell-btn"
+            onClick={() => setForegroundPanelId(prev => prev === panelId ? null : panelId)}
+            style={{ pointerEvents: "auto" }}
+            title="Bring panel to front"
+          >
+            <Layers size={10} />
+          </button>
+        </div>
+      ))}
 
     </div>
   );

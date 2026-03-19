@@ -44,6 +44,7 @@ import {
   Trash2,
   SplitSquareHorizontal,
   Merge,
+  Layers,
 } from "lucide-react";
 
 import Container from "./Container.jsx";
@@ -128,6 +129,7 @@ export default function Panel({
   fullscreenPanelId,
   setFullscreenPanelId,
   forceFullscreen = false,
+  isForeground = false,
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -484,7 +486,7 @@ export default function Panel({
         minWidth: 0,
         opacity: isDragging ? 0.4 : 1,
         margin: isFullscreen ? 0 : "6px",
-        zIndex: isExtended ? 60 : 1,
+        zIndex: isForeground ? 70 : (isExtended ? 60 : 1),
         pointerEvents: isPanelDrag && !isDragging ? "none" : "auto",
         ...(isFullscreen && {
           position: "fixed",
@@ -528,6 +530,7 @@ export default function Panel({
                 }}
                 addLabel="Container"
                 size="sm"
+                forceDirection="right"
                 onToggleHeader={() => setShowHeader(false)}
                 showHeader={showHeader}
                 onHistory={() => setHistoryOpen(true)}
@@ -563,12 +566,29 @@ export default function Panel({
           <div className="drop-indicator drop-indicator-insert" />
         )}
 
-        <span className="text-sm font-small pl-1 truncate flex-1 flex items-center gap-1">
+        <span className="text-sm font-small pl-1 truncate flex-1 flex items-center gap-1" style={{ minWidth: 0 }}>
           {layout.name || module.id}
           {panelOccurrence?.linkedGroupId && (
             <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0" title="Linked" />
           )}
         </span>
+
+        {/* Stack cycler — only when multiple panels in this cell */}
+        {(() => {
+          const stack = dragCtx.getStackForPanel?.(module) || [];
+          if (stack.length <= 1) return null;
+          return (
+            <button
+              className="panel-stack-btn-inline"
+              onClick={(e) => { e.stopPropagation(); dragCtx.cyclePanelStack?.({ panelId: module.id, dir: 1 }); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="Cycle panels"
+            >
+              <Layers size={10} />
+              <span style={{ fontSize: 9, fontWeight: 600, lineHeight: 1 }}>{stack.length}</span>
+            </button>
+          );
+        })()}
 
         <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
           <QuickAddMenu

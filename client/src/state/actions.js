@@ -57,6 +57,8 @@ export const ActionTypes = {
   // ---- computed values (client-only, written by operation executor) ----
   SET_COMPUTED_VALUES: "SET_COMPUTED_VALUES",
 
+  BATCH_UPDATE_MODULES: "BATCH_UPDATE_MODULES",
+
   SET_ACTIVE_ID: "SET_ACTIVE_ID",
   SET_ACTIVE_SIZE: "SET_ACTIVE_SIZE",
   SOFT_TICK: "SOFT_TICK",
@@ -242,6 +244,12 @@ export const updateModuleAction = (module) => ({
 export const deleteModuleAction = (moduleId) => ({
   type: ActionTypes.DELETE_MODULE,
   payload: { moduleId },
+});
+
+// ---- batch modules ----
+export const batchUpdateModulesAction = (modules) => ({
+  type: ActionTypes.BATCH_UPDATE_MODULES,
+  payload: { modules },
 });
 
 // ---- computed values ----

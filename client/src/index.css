@@ -1292,18 +1292,40 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 /* CC drawer handle — touch target on mobile */
 .cc-drawer-handle { touch-action: none; }
 
-/* Panel stack overlay — prev/next arrows on grid cells with stacked panels */
-.panel-stack-overlay {
-  position: absolute; bottom: 8px; right: 8px; z-index: 70;
-  display: flex; gap: 2px;
+/* Panel stack cycler — inline in panel header + empty grid cell pocket */
+.panel-stack-btn-inline {
+  display: flex; align-items: center; justify-content: center; gap: 2px;
+  height: 20px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0 5px;
+  transition: background 0.1s, color 0.1s;
 }
-.panel-stack-overlay button {
-  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.5); border: 1px solid var(--border-subtle); border-radius: 5px;
-  color: var(--text-muted); cursor: pointer; backdrop-filter: blur(4px);
-  -webkit-tap-highlight-color: transparent; padding: 0;
+.panel-stack-btn-inline:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+.panel-stack-btn-inline:active { background: rgba(50,150,255,0.3); color: white; }
+
+/* Covered cell overlay — brings hidden panel to foreground */
+.covered-cell-btn {
+  position: absolute;
+  bottom: 10px; right: 10px;
+  width: 28px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s, color 0.1s;
 }
-.panel-stack-overlay button:active { background: rgba(50,150,255,0.3); color: var(--text-primary); }
+.covered-cell-btn:hover { background: rgba(50,150,255,0.4); color: white; }
+.covered-cell-btn:active { background: rgba(50,150,255,0.6); color: white; }
 
 /* =============================================================================
    15. RESPONSIVE
@@ -1376,13 +1398,27 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   .container-cog-handle { display: none !important; }
 
   /* Prevent Android split-screen gesture from intercepting drags.
-     touch-action: none on drag handles BEFORE touch starts — JS handleDragStart is too late. */
-  .module-handle, .module-grab-zone { touch-action: none; }
+     touch-action: none on handles BEFORE touch starts — JS handleDragStart is too late.
+     !important to beat inline styles on ancestors. */
+  .module-handle, .module-grab-zone { touch-action: none !important; }
+  .mobile-grid-viewport { touch-action: manipulation; }
 
-  /* Down lip button: lift above Android gesture zone + bigger tap target */
-  .mobile-lip-btn-down {
-    bottom: max(4px, env(safe-area-inset-bottom, 4px)) !important;
-    height: 24px !important;
+  /* Prevent pull-to-refresh and overscroll system gestures */
+  html, body { overscroll-behavior: none !important; }
+
+  /* Lip buttons: position: fixed so overflow: hidden on viewport/grid-frame doesn't clip them */
+  .mobile-lip-btn {
+    position: fixed !important;
+    z-index: 9999 !important;
+  }
+  .mobile-lip-btn-left   { left: 0 !important; top: 50% !important; }
+  .mobile-lip-btn-right  { right: 0 !important; top: 50% !important; }
+  .mobile-lip-btn-up     { top: 50px !important; left: 50% !important; }
+  .mobile-lip-btn-down   {
+    bottom: 0 !important;
+    left: 50% !important;
+    height: 28px !important;
+    width: 48px !important;
   }
 
   /* Safe-area viewport padding for devices with gesture nav bars */
@@ -1392,4 +1428,5 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 
   /* Extra bottom padding on mobile so content scrolls past overlays (only on .panel-content, not .panel-scroll — avoids double padding) */
   .panel-content { padding-bottom: 48px !important; }
+
 }

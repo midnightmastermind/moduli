@@ -201,6 +201,19 @@ export function masterReducer(state, action) {
             return { ...state, modules: nextModules, ...deriveRoleArrays(nextModules) };
         }
 
+        case ActionTypes.BATCH_UPDATE_MODULES: {
+            const updates = action.payload?.modules;
+            if (!Array.isArray(updates) || updates.length === 0) return state;
+            const nextModules = [...(state.modules || [])];
+            for (const mod of updates) {
+                if (!mod?.id) continue;
+                const idx = nextModules.findIndex(m => m.id === mod.id);
+                if (idx >= 0) nextModules[idx] = { ...nextModules[idx], ...mod };
+                else nextModules.push(mod);
+            }
+            return { ...state, modules: nextModules, ...deriveRoleArrays(nextModules) };
+        }
+
         case ActionTypes.DELETE_MODULE: {
             const moduleId = action.payload?.moduleId ?? action.payload;
             if (!moduleId) return state;

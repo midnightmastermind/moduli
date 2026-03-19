@@ -4,6 +4,8 @@
   "description": "",
   "scripts": {
     "start": "npm run build:client && npm run serve",
+    "install:all": "npm i && cd client && npm i && cd ../server && npm install && cd ..",
+    "git_update": "rm -rf ./node_modules && cd client && rm -rf ./node_modules ./dist && cd ../server && rm -rf ./node_modules && cd .. && git add . && git commit -m 'code update' && git push",
     "serve": "concurrently \"npm run serve:client\" \"npm run start:server\"",
     "serve:client": "npx serve -s ./client/dist",
     "start:server": "npm --prefix ./server run dev",

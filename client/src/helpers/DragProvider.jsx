@@ -26,6 +26,7 @@ import {
 import * as CommitHelpers from "./CommitHelpers";
 import * as LayoutHelpers from "./LayoutHelpers";
 import { runMatchingOperations } from "./operationExecutor";
+import { batchUpdateModulesAction } from "../state/actions";
 
 // ============================================================
 // UTILITIES
@@ -259,9 +260,58 @@ export function DragProvider({
     setDragMode(mode); // Also set state for UI updates
   }, [basePanels, baseContainers, occurrencesById]);
 
+  // Ref for mobile edge barrier elements (anti-split-screen)
+  const edgeBarriersRef = useRef(null);
+
+  const removeEdgeBarriers = useCallback(() => {
+    if (edgeBarriersRef.current) {
+      edgeBarriersRef.current.forEach(el => el.remove());
+      edgeBarriersRef.current = null;
+    }
+  }, []);
+
+  const spawnEdgeBarriers = useCallback(() => {
+    removeEdgeBarriers();
+    const EDGE = 40; // px thickness — covers Android's gesture zone
+    const edges = [
+      { top: '0', left: '0', width: `${EDGE}px`, height: '100vh' },       // left
+      { top: '0', right: '0', width: `${EDGE}px`, height: '100vh' },      // right
+      { top: '0', left: '0', width: '100vw', height: `${EDGE}px` },       // top
+      { bottom: '0', left: '0', width: '100vw', height: `${EDGE}px` },    // bottom
+    ];
+    const els = edges.map(pos => {
+      const el = document.createElement('div');
+      el.className = 'drag-edge-barrier';
+      Object.assign(el.style, {
+        position: 'fixed',
+        zIndex: '2147483647', // max 32-bit int — above everything
+        pointerEvents: 'auto',
+        background: 'transparent',
+        ...pos,
+      });
+      // Consume ALL events that could leak to the OS
+      const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+      el.addEventListener('dragover', stop, { passive: false });
+      el.addEventListener('dragenter', stop, { passive: false });
+      el.addEventListener('dragleave', stop, { passive: false });
+      el.addEventListener('drop', stop, { passive: false });
+      el.addEventListener('touchstart', stop, { capture: true, passive: false });
+      el.addEventListener('touchmove', stop, { capture: true, passive: false });
+      el.addEventListener('touchend', stop, { capture: true, passive: false });
+      el.addEventListener('pointerdown', stop, { capture: true, passive: false });
+      el.addEventListener('pointermove', stop, { capture: true, passive: false });
+      el.addEventListener('pointerup', stop, { capture: true, passive: false });
+      document.body.appendChild(el);
+      return el;
+    });
+    edgeBarriersRef.current = els;
+  }, [removeEdgeBarriers]);
+
   const clearSession = useCallback(() => {
-    // Restore touch-action on document (set during drag start on mobile)
+    // Restore touch-action + overscroll-behavior on document (set during drag start on mobile)
     document.documentElement.style.touchAction = '';
+    document.documentElement.style.overscrollBehavior = '';
+    removeEdgeBarriers();
 
     const s = sessionRef.current;
     s.dragging = false;
@@ -292,7 +342,7 @@ export function DragProvider({
     }
 
     onTick?.();
-  }, [onTick]);
+  }, [onTick, removeEdgeBarriers]);
 
   // ============================================================
   // PREVIEW MUTATIONS
@@ -357,8 +407,12 @@ export function DragProvider({
   const handleDragStart = useCallback((payload, clientX, clientY, options = {}) => {
     pointerRef.current = { x: clientX, y: clientY };
 
-    // Prevent Android split-screen gesture from intercepting drags on mobile
-    if (isMobile) document.documentElement.style.touchAction = 'none';
+    // Prevent Android split-screen gesture from intercepting drags on mobile.
+    if (isMobile) {
+      document.documentElement.style.touchAction = 'none';
+      document.documentElement.style.overscrollBehavior = 'none';
+      spawnEdgeBarriers();
+    }
 
     // Determine initial mode from options or default to 'move'
     // Alt/Option key = copy mode
@@ -371,7 +425,7 @@ export function DragProvider({
     }
 
     onTick?.();
-  }, [startSession, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId, onTick, isMobile]);
+  }, [startSession, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId, onTick, isMobile, spawnEdgeBarriers]);
 
   const handleDragMove = useCallback((clientX, clientY) => {
     const s = sessionRef.current;
@@ -1776,6 +1830,66 @@ export function DragProvider({
   }, []);
 
   // ============================================================
+  // PREVENT ANDROID SPLIT-SCREEN / POPUP WINDOW ON DRAG-TO-EDGE
+  // Multiple layers of defense:
+  // 1. dragover/dragenter preventDefault → signals browser this is a web drop
+  // 2. touchmove preventDefault → blocks OS gesture recognition during drags
+  // 3. touch-action: none on documentElement (set in handleDragStart)
+  // 4. Fullscreen mode on handle pointerdown → disables OS edge gesture zones
+  // ============================================================
+  useEffect(() => {
+    if (!isMobile) return;
+    const preventDrag = (e) => {
+      if (sessionRef.current.dragging) {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      }
+    };
+    const preventTouch = (e) => {
+      if (sessionRef.current.dragging) {
+        e.preventDefault();
+      }
+    };
+    // Capture-phase touchstart prevention near edges during active drag
+    const preventEdgeTouch = (e) => {
+      if (!sessionRef.current.dragging) return;
+      const t = e.touches?.[0];
+      if (!t) return;
+      const edge = 40;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      if (t.clientX < edge || t.clientX > vw - edge ||
+          t.clientY < edge || t.clientY > vh - edge) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener('dragover', preventDrag, { passive: false });
+    document.addEventListener('dragenter', preventDrag, { passive: false });
+    document.addEventListener('touchmove', preventTouch, { passive: false });
+    document.addEventListener('touchstart', preventEdgeTouch, { capture: true, passive: false });
+    return () => {
+      document.removeEventListener('dragover', preventDrag);
+      document.removeEventListener('dragenter', preventDrag);
+      document.removeEventListener('touchmove', preventTouch);
+      document.removeEventListener('touchstart', preventEdgeTouch, { capture: true });
+    };
+  }, [isMobile]);
+
+  // Recovery: if Android triggers split-screen despite prevention, cancel the drag
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden && sessionRef.current.dragging) {
+        clearSession();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [clearSession]);
+
+  // Clean up edge barriers on unmount
+  useEffect(() => removeEdgeBarriers, [removeEdgeBarriers]);
+
+  // ============================================================
   // STACK HELPERS
   // ============================================================
   const getStacksByCell = useCallback(() => {
@@ -1817,18 +1931,17 @@ export function DragProvider({
     const stack = getStackForPanel(anchor);
     if (stack.length <= 1) return;
 
-    // Cycle includes an "empty" slot (all panels hidden) at index === stack.length
     const currIdx = stack.findIndex((p) => p.id === panelId);
-    const total = stack.length + 1; // +1 for the empty slot
-    const nextIdx = (currIdx + (dir >= 0 ? 1 : -1) + total) % total;
+    const nextIdx = (currIdx + (dir >= 0 ? 1 : -1) + stack.length) % stack.length;
 
-    stack.forEach((p, idx) => {
-      LayoutHelpers.setPanelStackDisplay({
-        dispatch, socket, panel: p,
-        display: idx === nextIdx ? "block" : "none",
-        emit: true,
-      });
-    });
+    // Build all updated panels — single dispatch instead of N
+    const updatedModules = stack.map((p, idx) => ({
+      ...p,
+      layout: { ...(p.layout || {}), style: { ...(p.layout?.style || {}), display: idx === nextIdx ? "block" : "none" } },
+    }));
+
+    dispatch(batchUpdateModulesAction(updatedModules));
+    socket?.emit("update_module", { module: updatedModules[nextIdx] });
   }, [dispatch, socket, getWorkingPanels, getStackForPanel]);
 
   // ============================================================
