@@ -115,8 +115,8 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
             </span>
           </div>
         </div>
-        {open && hasChildren && (
-          <div>
+        {hasChildren && (
+          <div style={{ display: open ? "block" : "none" }}>
             {childOccs.map(co => (
               <DocNode
                 key={co.id}
@@ -175,8 +175,8 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
           <span style={{ fontSize: 8, color: "var(--text-faint)", flexShrink: 0 }} title="Default page">&#x1F4CC;</span>
         )}
       </div>
-      {open && hasChildren && (
-        <div style={{ paddingBottom: 6 }}>
+      {hasChildren && (
+        <div style={{ display: open ? "block" : "none", paddingBottom: 6 }}>
           {childOccs.map(co => (
             <DocNode
               key={co.id}

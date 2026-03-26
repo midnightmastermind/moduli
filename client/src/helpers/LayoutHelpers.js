@@ -579,6 +579,7 @@ export function copyInstanceToContainer({
   iterationMode = "specific",  // Default: specific to this iteration
   iterationValue = null,       // The date for this occurrence
   sourceOccurrence = null,     // Source occurrence to copy field values from
+  initialMeta = null,          // Extra meta fields (e.g. { x, y } for canvas containers)
 }) {
   if (!gridId || !sourceInstanceId || !toContainer || !userId) return null;
 
@@ -612,7 +613,7 @@ export function copyInstanceToContainer({
     },
     timestamp: new Date(),
     fields: copiedFields,
-    meta: { containerId },
+    meta: { containerId, ...(initialMeta || {}) },
   };
 
   CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit });
@@ -646,6 +647,7 @@ export function copylinkInstanceToContainer({
   iterationMode = "specific",
   iterationValue = null,
   sourceOccurrence = null,
+  initialMeta = null,
 }) {
   if (!gridId || !sourceInstanceId || !toContainer || !userId) return null;
 
@@ -680,7 +682,7 @@ export function copylinkInstanceToContainer({
     timestamp: new Date(),
     fields: copiedFields,
     linkedGroupId,
-    meta: { containerId },
+    meta: { containerId, ...(initialMeta || {}) },
   };
 
   // Also tag the source occurrence with the same linkedGroupId if it doesn't have one

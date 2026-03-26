@@ -527,7 +527,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           createInstanceInContainer({
             dispatch: socketDispatch,
             socket,
-            containerId: effect.poolContainerId,
+            containerId: effect.poolId,
             instance: { id: instanceId, role: "instance", kind: "list", label: effect.label || "New Item", userId, gridId, fieldBindings: [] },
             emit: true,
           });
@@ -537,11 +537,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
       case "REMOVE_FROM_POOL": {
         // Find the canonical pool occurrence: targetId === moduleId, inside the pool container's occurrences list
-        const { moduleId, poolContainerId } = effect;
+        const { moduleId, poolId } = effect;
         const poolContainerOcc = Object.values(localOccsById).find(
-          o => o.targetId === poolContainerId
+          o => o.targetId === poolId
         ) || Object.values(state.occurrencesById || {}).find(
-          o => o.targetId === poolContainerId
+          o => o.targetId === poolId
         );
         const childOccIds = poolContainerOcc?.occurrences || [];
         const poolOcc = childOccIds
@@ -598,14 +598,6 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       applyOperationEffect(eff, state);
     }
 
-    // TN5 — Toast when operations apply field value changes
-    const fieldEffects = effects.filter(e => e._effect === "SET_FIELD_VALUE");
-    if (fieldEffects.length > 0) {
-      toast.success("Operation ran", {
-        description: `Updated ${fieldEffects.length} field${fieldEffects.length > 1 ? "s" : ""}`,
-        duration: 3000,
-      });
-    }
   }
 
   // On transaction_created: fire operations + toast notification
@@ -619,7 +611,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     for (const f of state.fields || []) fieldsById[f.id] = f;
     const modulesById = {};
     for (const m of state.modules || []) modulesById[m.id] = m;
-    const occurrencesById = { ...Object.assign({}, ...Object.values(state.occurrencesById || {})), ...localOccsById };
+    const occurrencesById = { ...state.occurrencesById, ...localOccsById };
 
     const ops = transaction.operations || [];
     if (transaction.type === "MeasureOp" && ops.length > 0) {

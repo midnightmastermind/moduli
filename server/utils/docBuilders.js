@@ -47,8 +47,51 @@ export function makeDocContent(lines) {
     bulletItems = [];
   }
 
+  let tableLines = [];
+
+  function flushTable() {
+    if (tableLines.length === 0) return;
+    // tableLines[0] = header row, tableLines[1] = separator, tableLines[2+] = body rows
+    const parseRow = (line) =>
+      line.split("|").map(c => c.trim()).filter((c, i, arr) => i > 0 && i < arr.length - 1);
+    const headerCells = parseRow(tableLines[0]);
+    const bodyRows = tableLines.slice(2); // skip separator line
+    const tableContent = [];
+    // Header row
+    tableContent.push({
+      type: "tableRow",
+      content: headerCells.map(cell => ({
+        type: "tableHeader",
+        attrs: { colspan: 1, rowspan: 1, colwidth: null },
+        content: [{ type: "paragraph", content: inlineToTipTap(cell) }],
+      })),
+    });
+    // Body rows
+    for (const row of bodyRows) {
+      const cells = parseRow(row);
+      if (!cells.length) continue;
+      tableContent.push({
+        type: "tableRow",
+        content: cells.map(cell => ({
+          type: "tableCell",
+          attrs: { colspan: 1, rowspan: 1, colwidth: null },
+          content: [{ type: "paragraph", content: inlineToTipTap(cell) }],
+        })),
+      });
+    }
+    nodes.push({ type: "table", content: tableContent });
+    tableLines = [];
+  }
+
   for (const line of lines) {
     const trimmed = line.trim();
+    // Markdown table row detection
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      flushBullets();
+      tableLines.push(trimmed);
+      continue;
+    }
+    if (tableLines.length) flushTable();
     if (!trimmed || trimmed === "---") { flushBullets(); continue; }
     // Bullet point: * text or - text (asterisk/hyphen + space required)
     const bulletMatch = trimmed.match(/^[*-]\s+(.+)/);
@@ -70,6 +113,7 @@ export function makeDocContent(lines) {
     const content = inlineToTipTap(trimmed);
     if (content.some(n => n.text)) nodes.push({ type: "paragraph", content });
   }
+  flushTable();
   flushBullets();
   if (nodes.length === 0) nodes.push({ type: "paragraph", content: [{ type: "text", text: "" }] });
   return { type: "doc", content: nodes };

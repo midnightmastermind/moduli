@@ -1,6 +1,9 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-03-20. Check this file before re-reading source._
+_Updated: 2026-03-26. Check this file before re-reading source._
+
+## Recent Changes (Mar 26 2026 — Panel Cycler Empty State)
+- **Grid.jsx**: `GridCell` now accepts `hasHiddenStack` prop. When `!hasPanel && hasHiddenStack`, shows a "show" button (Layers icon) in the pocket that calls `cyclePanelStack({ cellKey, dir: 1 })`. Pocket `pointerEvents: "auto"` when hasHiddenStack. `cellsData` now computes `hasHiddenStack = !hasPanel && cellPanels.length > 1`.
 
 ## Key Files
 

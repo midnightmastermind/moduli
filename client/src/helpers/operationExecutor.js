@@ -61,7 +61,9 @@ export function shouldTrigger(operation, transactionType, transaction) {
   // triggerTypes array) should still fire on load even though they don't
   // explicitly list "onLoad". New operations created via the UI always have
   // a triggerTypes array — respect those literally.
-  if (transactionType == null && !hasExplicitArray && types[0] !== "manual") {
+  // Exception: onChange-only operations must NOT fire on load — they have no
+  // data to react to and would just run spuriously on every page load.
+  if (transactionType == null && !hasExplicitArray && types[0] !== "manual" && types[0] !== "onChange") {
     return true;
   }
 
@@ -623,7 +625,7 @@ function executeSteps(steps, $vars, context, transaction) {
  * Returns array of { value, flow, occurrenceId, targetId, [fieldValues] }
  */
 function gatherLoopItems(step, context, $vars) {
-  const { over = "field_occurrences", fieldId, containerId, moduleId, timeFilter, flowFilter = "any" } = step;
+  const { over = "field_occurrences", fieldId, scopeContainerId, moduleId, timeFilter, flowFilter = "any" } = step;
   const { occurrencesById = {}, state } = context;
 
   // ---- TEMPLATES: loop over grid templates ----
@@ -710,13 +712,12 @@ function gatherLoopItems(step, context, $vars) {
       }));
   }
 
-  // Filter by container if specified
-  if (containerId) {
-    const resolvedContainerId = resolveExpr(containerId, $vars) || containerId;
-    const container = (state?.containers || []).find(c => c.id === resolvedContainerId)
-      || (state?.modules || []).find(m => m.id === resolvedContainerId && m.role === "container");
-    const containerOccIds = container?.occurrences || [];
-    occs = occs.filter(o => containerOccIds.includes(o.id));
+  // Scope loop to items within a specific container
+  if (scopeContainerId) {
+    const resolvedId = resolveExpr(scopeContainerId, $vars) || scopeContainerId;
+    const scopeMod = (state?.modules || []).find(m => m.id === resolvedId && m.role === "container");
+    const scopeOccIds = scopeMod?.occurrences || [];
+    occs = occs.filter(o => scopeOccIds.includes(o.id));
   }
 
   // ---- CONTAINER_ITEMS: all occurrences in container, exposing instance label + fields ----
@@ -785,7 +786,9 @@ function gatherLoopItems(step, context, $vars) {
         const weekStart = new Date(activeDate);
         weekStart.setDate(activeDate.getDate() - activeDate.getDay());
         weekStart.setHours(0, 0, 0, 0);
-        return d >= weekStart;
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 7);
+        return d >= weekStart && d < weekEnd;
       }
       if (timeFilter === "monthly") return d.getMonth() === activeDate.getMonth() && d.getFullYear() === activeDate.getFullYear();
       if (timeFilter === "yearly") return d.getFullYear() === activeDate.getFullYear();

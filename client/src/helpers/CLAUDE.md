@@ -1,6 +1,11 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-03-25. Check this file before re-reading source._
+_Updated: 2026-03-26. Check this file before re-reading source._
+
+## Recent Changes (Mar 26 2026 — Bug Fixes: OS File Drop + Panel Cycler)
+- **DragProvider.jsx**: Bug #13 — OS file drops now upload via `/api/artifacts/upload` (fetch + FormData). Creates new artifact panel at drop location, or switches active doc if dropping on existing artifact panel. FILE type removed from old text-instance handler. Deduplication updated: `__file__` drops deduplicate by payload id alone (ignoring containerId), preventing double uploads when both container-list and panel-content fire.
+- **DragProvider.jsx**: Bug #14 — `cyclePanelStack` now cycles N+1 states (N panels + "all hidden"). Accepts `cellKey` param for calling from empty-pocket button. `visibleIdx === -1` treated as "all hidden" state at index N.
+- **DragProvider.jsx**: Bug (canvas drag-out) — Added `|| payload?.sourceType === "canvas"` to module drop handler condition so CanvasCard drag-out works.
 
 ## Recent Changes (Mar 25 2026 — onLoad Trigger + Time Filter Fix)
 - **operationExecutor.js**: `shouldTrigger` — added backward compat for old operations (no `triggerTypes` array) to fire on load. Uses `hasExplicitArray` flag: legacy `triggerType`-only operations auto-fire on load unless manual-only. New operations with explicit `triggerTypes` array are respected literally.

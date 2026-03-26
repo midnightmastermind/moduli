@@ -528,56 +528,57 @@ export async function createDefaultUserData(userId) {
       siblingLinks: [], // Will be linked to journalQuestion after creation
     },
 
-    // === EVENING REFLECTION Q&A FIELDS (converted to editable text) ===
+    // === EVENING REFLECTION Q&A FIELDS (markdown — attached to container header/body) ===
+    // question fields are attached to the container header, answer fields to the body.
+    // Pool containers (wentWellQPool etc.) hold question instances; operations pick one randomly onLoad each day.
     wentWellQuestion: {
       id: uid(),
       name: "Question",
-      type: "select",
+      type: "markdown",
       inputEnabled: true,
       displayEnabled: false,
-      meta: { sourceType: "pool", poolContainerId: wentWellQPoolId },
+      meta: { placeholder: "Type your question..." },
     },
     wentWellAnswer: {
       id: uid(),
-      name: "Went Well",
-      type: "text",
+      name: "Answer",
+      type: "markdown",
       inputEnabled: true,
       displayEnabled: false,
-      meta: { placeholder: "What went well..." },
+      meta: { placeholder: "What went well today?", rows: 4 },
     },
     improvedQuestion: {
       id: uid(),
       name: "Question",
-      type: "select",
+      type: "markdown",
       inputEnabled: true,
       displayEnabled: false,
-      meta: { sourceType: "pool", poolContainerId: improvedQPoolId },
+      meta: { placeholder: "Type your question..." },
     },
     improvedAnswer: {
       id: uid(),
-      name: "Improvement",
-      type: "text",
+      name: "Answer",
+      type: "markdown",
       inputEnabled: true,
       displayEnabled: false,
-      meta: { placeholder: "What could be improved..." },
+      meta: { placeholder: "What could be improved?", rows: 4 },
     },
     gratitudeQuestion: {
       id: uid(),
       name: "Question",
-      type: "select",
+      type: "markdown",
       inputEnabled: true,
       displayEnabled: false,
-      meta: { sourceType: "pool", poolContainerId: gratitudeQPoolId },
+      meta: { placeholder: "Type your question..." },
     },
     gratitudeAnswer: {
       id: uid(),
-      name: "Gratitude",
-      type: "text",
+      name: "Answer",
+      type: "markdown",
       inputEnabled: true,
       displayEnabled: false,
-      meta: { placeholder: "What are you grateful for..." },
+      meta: { placeholder: "What are you grateful for?", rows: 4 },
     },
-
     // === FINANCIAL: Account select field ===
     accountSelect: {
       id: uid(),
@@ -2016,9 +2017,10 @@ export async function createDefaultUserData(userId) {
     roomsPool:      { id: roomsPoolId,      label: "Rooms",       _viewId: uid(), occurrences: [] },
     cbtPool:        { id: cbtPoolId,        label: "CBT Skills",  _viewId: uid(), occurrences: [] },
     bookmarksPool:  { id: bookmarksPoolId,  label: "Bookmarks",   _viewId: uid(), occurrences: [] },
-    wentWellQPool:  { id: wentWellQPoolId,  label: "Went Well Questions",    _viewId: uid(), occurrences: [] },
-    improvedQPool:  { id: improvedQPoolId,  label: "Improvement Questions",  _viewId: uid(), occurrences: [] },
-    gratitudeQPool: { id: gratitudeQPoolId, label: "Gratitude Prompts",      _viewId: uid(), occurrences: [] },
+    // Journal question pools — operations pick a random question onLoad each day
+    wentWellQPool:  { id: wentWellQPoolId,  label: "Went Well Questions",  _viewId: uid(), occurrences: [] },
+    improvedQPool:  { id: improvedQPoolId,  label: "Improvement Questions", _viewId: uid(), occurrences: [] },
+    gratitudeQPool: { id: gratitudeQPoolId, label: "Gratitude Questions",   _viewId: uid(), occurrences: [] },
     // Enrichment use-case container
     enrichment:     { id: uid(),            label: "Enrichment",  occurrences: [] },
     // Macro Reference — locked doc with nutrition table (demonstrates table + lock features)
@@ -2073,14 +2075,21 @@ export async function createDefaultUserData(userId) {
   // Notebook Containers — 3 journal Q&A sections, Stan stanzas, morenotes, gospel sections
   const notebookDocContainers = {};
 
-  // 3 Journal Q&A containers
+  // 3 Journal Q&A containers — question attached to header, answer attached to body
   const journalQADefs = [
-    { key: "journalQA_wentWell",  label: "What Went Well?",          instKey: "wentWellDocInst",  questionFieldKey: "wentWellQuestion",  answerFieldKey: "wentWellAnswer"  },
-    { key: "journalQA_improved",  label: "What Could Be Improved?",  instKey: "improvedDocInst",  questionFieldKey: "improvedQuestion",  answerFieldKey: "improvedAnswer"  },
-    { key: "journalQA_gratitude", label: "Gratitude",                instKey: "gratitudeDocInst", questionFieldKey: "gratitudeQuestion", answerFieldKey: "gratitudeAnswer" },
+    { key: "journalQA_wentWell",  label: "What Went Well?",          questionFieldKey: "wentWellQuestion",  answerFieldKey: "wentWellAnswer",  seedQuestion: "What went well today?"         },
+    { key: "journalQA_improved",  label: "What Could Be Improved?",  questionFieldKey: "improvedQuestion",  answerFieldKey: "improvedAnswer",  seedQuestion: "What could be improved?"       },
+    { key: "journalQA_gratitude", label: "Gratitude",                questionFieldKey: "gratitudeQuestion", answerFieldKey: "gratitudeAnswer", seedQuestion: "What are you grateful for?"    },
   ];
   for (const def of journalQADefs) {
-    notebookDocContainers[def.key] = { id: uid(), label: def.label, _viewId: uid(), occurrences: [], ownStyle: { bg: "#b56800" }, styleMode: "own", fieldBindings: [{ fieldId: fields[def.questionFieldKey].id, role: "input", order: 0 }] };
+    const qFieldId = fields[def.questionFieldKey].id;
+    const aFieldId = fields[def.answerFieldKey].id;
+    notebookDocContainers[def.key] = {
+      id: uid(), label: def.label, _viewId: uid(), occurrences: [],
+      ownStyle: { bg: "#b56800" }, styleMode: "own",
+      fieldBindings: [],
+      attachedFields: { header: [qFieldId], body: [aFieldId] },
+    };
   }
 
   // Stan stanza containers (lyrics directly in body textmap — no instances)
@@ -2887,14 +2896,6 @@ export async function createDefaultUserData(userId) {
       { type: "moduleEmbed", attrs: { occurrenceId: qaContainerOccIds.journalQA_gratitude } },
       { type: "paragraph" },
 
-      // ── Daily Answer ─────────────────────────────
-      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Daily Answer" }] },
-      { type: "paragraph", content: [
-        fp(fields.journalQuestion.id, "Daily Question", "derived"),
-        { type: "text", text: " — " },
-        fp(fields.journalAnswer.id, "Answer", "input"),
-      ]},
-
       // ── Brain Dump ────────────────────────────────
       { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Brain Dump" }] },
       { type: "paragraph", content: [
@@ -2903,13 +2904,6 @@ export async function createDefaultUserData(userId) {
       { type: "paragraph" },
       { type: "paragraph" },
 
-      // ── Stats ────────────────────────────────────
-      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Stats" }] },
-      { type: "paragraph", content: [
-        { type: "text", text: "Use " },
-        { type: "text", marks: [{ type: "code" }], text: "@" },
-        { type: "text", text: " to embed live field values here (steps, water, nutrition macros, time spent...)." },
-      ]},
     ],
   };
 
@@ -2997,68 +2991,23 @@ export async function createDefaultUserData(userId) {
     }).save();
   }
 
-  // Journal Q&A containers: H2 = question fieldPill, body = docInstance pill (answer)
+  // Journal Q&A containers: header = question markdown field, body = answer markdown field
   for (const def of journalQADefs) {
-    const inst = journalDocInstances[def.instKey];
     const container = notebookDocContainers[def.key];
-    const instOccId = uid();
-
-    // DocInstance occurrence (H2 "Answer" + answer fieldPill in body)
-    const answerDocContent = makeNotebookContainerDocContent("Answer", [{
-      type: "paragraph",
-      content: [{
-        type: "fieldPill",
-        attrs: {
-          fieldId: fields[def.answerFieldKey].id,
-          fieldName: fields[def.answerFieldKey].name,
-          fieldType: "text",
-          fieldMode: "input",
-          showValue: true,
-          showLabel: false,
-        },
-      }],
-    }]);
-    await new Occurrence({
-      id: instOccId, userId, targetType: "module", targetId: inst.id, gridId,
-      iteration: { key: "time", value: new Date(), timeValue: new Date(), timeFilter: "daily", mode: "persistent" },
-      timestamp: new Date(), fields: {}, textmap: answerDocContent,
-      meta: { containerId: container.id },
-    }).save();
-    containerInstOccs[container.id] = [instOccId];
-
-    // DocContainer occurrence — label IS the question (rendered by embedded container header).
-    // Body contains only the answer fieldPill so the user can type their response.
-    const containerDocContent = {
-      type: "doc",
-      content: [
-        {
-          type: "paragraph",
-          content: [
-            {
-              type: "fieldPill",
-              attrs: {
-                fieldId: fields[def.answerFieldKey].id,
-                fieldName: fields[def.answerFieldKey].name,
-                fieldType: "text",
-                fieldMode: "input",
-                showValue: true,
-                showLabel: false,
-                occurrenceId: instOccId,
-              },
-            },
-          ],
-        },
-      ],
-    };
+    const qFieldId  = fields[def.questionFieldKey].id;
+    const aFieldId  = fields[def.answerFieldKey].id;
     const contOccId = qaContainerOccIds[def.key];
+
+    // Seed the question text into the header-attached field value
     await new Occurrence({
       id: contOccId, userId, targetType: "module", targetId: container.id, gridId,
       viewId: container._viewId || null,
       parentId: dayPageDocOccId,
-      iteration: { key: "time", value: new Date(), timeValue: new Date(), timeFilter: "daily", mode: "persistent" },
-      timestamp: new Date(),
-      fields: {},
-      textmap: containerDocContent,
+      iteration: { mode: "persistent" },
+      fields: {
+        [qFieldId]: { value: def.seedQuestion, flow: "in" },
+        [aFieldId]: { value: "",                flow: "in" },
+      },
       meta: { panelId: panels.dayPage.id },
     }).save();
     notebookPanelOccIds.push(contOccId);
@@ -3720,6 +3669,93 @@ export async function createDefaultUserData(userId) {
   });
   await scheduleMoveOutOp.save();
 
+  // Daily Question Randomizer operations — one per Q&A container.
+  // Fires onLoad; checks if the question was already picked today before randomizing.
+  const journalQAOpDefs = [
+    {
+      name: "Daily Question: What Went Well",
+      poolContainerId: wentWellQPoolId,
+      questionFieldId: fields.wentWellQuestion.id,
+      occurrenceId: qaContainerOccIds.journalQA_wentWell,
+    },
+    {
+      name: "Daily Question: Improvement",
+      poolContainerId: improvedQPoolId,
+      questionFieldId: fields.improvedQuestion.id,
+      occurrenceId: qaContainerOccIds.journalQA_improved,
+    },
+    {
+      name: "Daily Question: Gratitude",
+      poolContainerId: gratitudeQPoolId,
+      questionFieldId: fields.gratitudeQuestion.id,
+      occurrenceId: qaContainerOccIds.journalQA_gratitude,
+    },
+  ];
+
+  for (const def of journalQAOpDefs) {
+    const op = new Operation({
+      id: uid(),
+      userId, gridId,
+      name: def.name,
+      description: "Picks a random question from the pool unless one was already set today.",
+      triggerType: "onLoad",
+      triggerTypes: ["onLoad", "onNavigation"],
+      enabled: true,
+      pipeline: {
+        sources: [],
+        steps: [
+          // Check if question was already randomized for the active nav date
+          {
+            id: uid(), type: "if",
+            condition: {
+              operator: "AND",
+              rules: [{
+                left: `occ:${def.occurrenceId}.${scheduledDateFieldId}.value`,
+                comparator: "IS",
+                right: "$activeDate",
+              }],
+            },
+            then: [],  // Already set for this date — skip
+            else: [
+              // Pick a random question label from the pool
+              {
+                id: uid(), type: "action",
+                config: {
+                  type: "PICK_RANDOM_FROM_POOL",
+                  poolId: def.poolContainerId,
+                  varName: "$question",
+                },
+              },
+              // Write it to the question field on the Q&A container occurrence
+              {
+                id: uid(), type: "action",
+                config: {
+                  type: "SET_FIELD_VALUE",
+                  occurrenceIdExpr: `literal:${def.occurrenceId}`,
+                  fieldId: def.questionFieldId,
+                  valueExpr: "$question",
+                  flow: "replace",
+                },
+              },
+              // Stamp scheduledDate = $activeDate so we don't re-randomize when navigating back
+              {
+                id: uid(), type: "action",
+                config: {
+                  type: "SET_FIELD_VALUE",
+                  occurrenceIdExpr: `literal:${def.occurrenceId}`,
+                  fieldId: scheduledDateFieldId,
+                  valueExpr: "$activeDate",
+                  flow: "replace",
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    await op.save();
+  }
+
   // ===================================================================
   // STEP 8: Save a sample template (Morning Routine bundle)
   // ===================================================================
@@ -3927,7 +3963,55 @@ export async function createDefaultUserData(userId) {
   await Occurrence.findOneAndUpdate({ targetId: panels.dailyGoals.id, gridId }, { $set: { occurrences: goalPanelOccIds } });
   await Occurrence.findOneAndUpdate({ targetId: panels.accounts.id, gridId }, { $set: { occurrences: accountPanelOccIds } });
   await Occurrence.findOneAndUpdate({ targetId: panels.dayPage.id, gridId }, { $set: { occurrences: notebookPanelOccIds } });
-  await Occurrence.findOneAndUpdate({ targetId: panels.freepad.id, gridId }, { $set: { occurrences: [] } });
+  // Freepad panel: canvas tree (ManifestTree sidebar + CanvasDrawSection per page)
+  const freepadRootFolderId = uid();
+  await new Folder({ id: freepadRootFolderId, userId, parentId: null, name: "Canvas Root", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
+  const freepadManifestId = uid();
+  await new Manifest({ id: freepadManifestId, userId, name: "Canvas", manifestType: "files", rootFolderId: freepadRootFolderId }).save();
+
+  // Canvas pages — each is a canvas container module; occurrence has parentId = rootFolder (shows in tree)
+  const canvasPageDefs = [
+    {
+      label: "Ideas Board",
+      cards: [
+        { label: "Brainstorm", x: 24,  y: 32  },
+        { label: "Inspiration", x: 210, y: 28  },
+        { label: "Projects",   x: 390, y: 30  },
+      ],
+    },
+    {
+      label: "Task Map",
+      cards: [
+        { label: "Backlog",    x: 24,  y: 32  },
+        { label: "In Progress", x: 200, y: 28  },
+        { label: "Done",       x: 380, y: 30  },
+      ],
+    },
+  ];
+
+  let freepadFirstPageOccId = null;
+  for (let pi = 0; pi < canvasPageDefs.length; pi++) {
+    const pageDef = canvasPageDefs[pi];
+    const pageMod = new Module({ id: uid(), userId, gridId, role: "container", kind: "canvas", label: pageDef.label, defaultDragMode: "move" });
+    await pageMod.save();
+    // Page occurrence lives in the tree folder (parentId = freepadRootFolderId)
+    const pageOccId = uid();
+    const cardOccIds = [];
+    for (const card of pageDef.cards) {
+      const cardMod = new Module({ id: uid(), userId, gridId, role: "instance", kind: "list", label: card.label, fieldBindings: [] });
+      await cardMod.save();
+      const cardOccId = await createOccurrence({ targetType: "module", targetId: cardMod.id, meta: { x: card.x, y: card.y, containerId: pageMod.id } });
+      cardOccIds.push(cardOccId);
+    }
+    await new Occurrence({ id: pageOccId, userId, targetType: "module", targetId: pageMod.id, gridId, parentId: freepadRootFolderId, sortOrder: pi, occurrences: cardOccIds, iteration: { mode: "persistent" }, fields: {}, meta: {} }).save();
+    if (pi === 0) freepadFirstPageOccId = pageOccId;
+  }
+
+  // View for freepad panel — canvas tree with sidebar
+  const freepadViewId = uid();
+  await new View({ id: freepadViewId, userId, gridId, viewType: "canvas", hasTree: true, manifestId: freepadManifestId, activeOccurrenceId: freepadFirstPageOccId, layout: {} }).save();
+  // Update the freepad panel occurrence to use this view (find it by targetId)
+  await Occurrence.findOneAndUpdate({ targetId: panels.freepad.id, gridId }, { $set: { viewId: freepadViewId, occurrences: [] } });
 
   // Return summary
   return {

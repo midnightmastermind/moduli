@@ -1,6 +1,12 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: Mar 23 2026. This folder implements occurrence-based view routing._
+_Updated: Mar 26 2026. This folder implements occurrence-based view routing._
+
+## Recent Changes (Mar 26 2026 — Canvas Drag Fix)
+- **containerHelpers.jsx**: `CanvasCard` — changed `draggable()` type from `"module"` to `DragType.INSTANCE`. Added `containerId` + `panelId` props and includes `context: { containerId, panelId, instanceId, occurrenceId }`. Drag-out now goes through INSTANCE handler (MOVE), not MODULE handler (COPY). Grip handle gets `pointerEvents: "auto"` to stay interactive in draw mode. Added `data-dnd-handle="true"` attr.
+- **containerHelpers.jsx**: `CanvasDrawSection` — moved `onPointerDown/Move/Up` from `<canvas>` element to parent div (with `listDropRef`). Canvas element is now always `pointer-events: none` — drag-and-drop events reach the drop zone div in all draw modes. Drawing capture uses `e.currentTarget.setPointerCapture` on the div. Draw handler guards against grip handle clicks via `e.target.closest("[data-dnd-handle]")`. Added `panelId` prop, threads it to each CanvasCard.
+- **Container.jsx**: Passes `containerId={module.id}` + `panelId={panelId}` to `CanvasDrawSection`.
+- **Panel.jsx**: `CanvasTreePanelContent` passes `panelId={panelId}` to `CanvasDrawSection`.
 
 ## Recent Changes (Mar 25 2026 — Batch 3 Fixes)
 - **Panel.jsx**: TreePanelContent: added mount-only `useEffect` that resets `activeOccurrenceId` to `resolvedView.defaultOccurrenceId` when configured (Bug 3 — daypage default page).

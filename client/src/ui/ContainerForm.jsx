@@ -46,7 +46,20 @@ export default function ContainerForm({
   templates,         // Array of available templates
 }) {
   const iter = iteration || { mode: "inherit", timeFilter: "daily" };
-  const { occurrencesById, modulesById } = useContext(GridActionsContext);
+  const { occurrencesById, modulesById, fieldsById } = useContext(GridActionsContext);
+
+  // All markdown fields available for attaching
+  const markdownFieldOptions = useMemo(() => {
+    if (!fieldsById) return [];
+    return Object.values(fieldsById)
+      .filter(f => f.type === "markdown")
+      .map(f => ({ value: f.id, label: f.name }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [fieldsById]);
+
+  const attachedHeader = container?.attachedFields?.header || [];
+  const attachedBody   = container?.attachedFields?.body   || [];
+
   const otherPlacements = useMemo(
     () => getOtherOccurrences(occurrencesById, modulesById, containerId, occurrence?.id),
     [occurrencesById, modulesById, containerId, occurrence?.id]
@@ -87,6 +100,63 @@ export default function ContainerForm({
             value={value}
             onChange={onChange}
           />
+
+          {/* Attached Fields */}
+          {markdownFieldOptions.length > 0 && (
+            <>
+              <Separator />
+              <div className="py-2">
+                <h4 className="text-xs font-semibold text-foregroundScale-2 mb-2">Attached Fields</h4>
+                <p className="text-[10px] text-muted-foreground mb-2">
+                  Fields whose content becomes the header or body of this container. All fields in each slot share the same value.
+                </p>
+                {[
+                  { label: "Header fields", key: "header", current: attachedHeader },
+                  { label: "Body fields",   key: "body",   current: attachedBody   },
+                ].map(({ label, key, current }) => (
+                  <div key={key} className="mb-2">
+                    <span className="text-[10px] text-muted-foreground font-semibold">{label}</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {current.map(fId => {
+                        const fname = fieldsById?.[fId]?.name || fId;
+                        return (
+                          <span key={fId} style={{
+                            display: "inline-flex", alignItems: "center", gap: 3,
+                            padding: "1px 6px", borderRadius: 999, fontSize: 10,
+                            background: "var(--accent-blue-bg)", border: "1px solid var(--accent-blue-border)",
+                            color: "var(--accent-blue-text)", fontFamily: "var(--font-mono)",
+                          }}>
+                            {fname}
+                            <button type="button"
+                              onClick={() => {
+                                const next = current.filter(id => id !== fId);
+                                onContainerUpdate?.({ attachedFields: { ...(container?.attachedFields || {}), [key]: next } });
+                              }}
+                              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, lineHeight: 0, color: "inherit", opacity: 0.6 }}
+                            >×</button>
+                          </span>
+                        );
+                      })}
+                      <select
+                        className="text-[10px] h-5 px-1 rounded border border-border bg-input text-foreground"
+                        value=""
+                        onChange={e => {
+                          const fId = e.target.value;
+                          if (!fId || current.includes(fId)) return;
+                          onContainerUpdate?.({ attachedFields: { ...(container?.attachedFields || {}), [key]: [...current, fId] } });
+                        }}
+                      >
+                        <option value="">+ Add field</option>
+                        {markdownFieldOptions.filter(o => !current.includes(o.value)).map(o => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           <Separator />
 

@@ -623,25 +623,25 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     }
 
     // ---- ADD_TO_POOL: create a new instance + add to pool container ----
-    // cfg: { poolContainerId, label?, labelExpr? }
+    // cfg: { poolId, label?, labelExpr? }
     case "ADD_TO_POOL": {
-      const poolContainerId = resolveExpr(cfg.poolContainerId || cfg.poolContainerIdExpr, $vars);
+      const poolId = resolveExpr(cfg.poolId, $vars);
       const label = resolveExpr(cfg.labelExpr, $vars) ?? cfg.label ?? "New Item";
-      if (poolContainerId) {
-        updates.push({ _effect: "ADD_TO_POOL", poolContainerId, label });
+      if (poolId) {
+        updates.push({ _effect: "ADD_TO_POOL", poolId, label });
       }
       break;
     }
 
     // ---- REMOVE_FROM_POOL: delete an occurrence from a pool container ----
-    // cfg: { poolContainerId, moduleIdExpr? }
+    // cfg: { poolId, moduleIdExpr? }
     // Finds the specific pool occurrence (targetId === moduleId) within the pool container.
     // Only removes that one canonical pool occurrence — not schedule copies.
     case "REMOVE_FROM_POOL": {
       const moduleId = resolveExpr(cfg.moduleIdExpr || "$trigger.instanceId", $vars);
-      const poolContainerId = cfg.poolContainerId;
-      if (moduleId && poolContainerId) {
-        updates.push({ _effect: "REMOVE_FROM_POOL", moduleId, poolContainerId });
+      const poolId = resolveExpr(cfg.poolId, $vars);
+      if (moduleId && poolId) {
+        updates.push({ _effect: "REMOVE_FROM_POOL", moduleId, poolId });
       }
       break;
     }
@@ -689,8 +689,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       const name = resolveExpr(cfg.nameExpr, $vars);
       if (!name) break;
       const allModules = $vars.$allModules || {};
-      const found = Object.values(allModules).find(m => m.name === name && !m.deleted && !m.trashed)
-        || Object.values(allModules).find(m => m.label === name && !m.deleted && !m.trashed);
+      const found = Object.values(allModules).find(m => m.name === name && !m.trashed)
+        || Object.values(allModules).find(m => m.label === name && !m.trashed);
       $vars[cfg.resultVar || "$foundModule"] = found || null;
       $vars[cfg.resultIdVar || "$foundModuleId"] = found?.id || null;
       break;
@@ -729,6 +729,35 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         moduleId, occurrenceId, name, role, kind, parentId, viewId,
         ...(cfg.extra || {}),
       });
+      break;
+    }
+
+    // ---- PICK_RANDOM_FROM_POOL: pick a random child from a pool container ----
+    // cfg: { poolId, varName? }
+    // Stores the picked module's label in $vars[varName] (default: "$pickedLabel").
+    // Uses the pool container's occurrence.occurrences array for ordering.
+    case "PICK_RANDOM_FROM_POOL": {
+      const containerId = resolveExpr(cfg.poolId, $vars);
+      const varName = cfg.varName || "$pickedLabel";
+      if (!containerId) break;
+
+      // Find the pool container's occurrence to get ordered child IDs
+      const containerOcc = Object.values(occurrencesById).find(o => o.targetId === containerId);
+      if (!containerOcc?.occurrences?.length) break;
+
+      const childOccIds = containerOcc.occurrences;
+      const randomIdx = Math.floor(Math.random() * childOccIds.length);
+      const pickedOcc = occurrencesById[childOccIds[randomIdx]];
+      if (!pickedOcc) break;
+
+      // Prefer a specific field value if fieldId given; fall back to module label
+      if (cfg.fieldId) {
+        const fv = pickedOcc.fields?.[cfg.fieldId];
+        $vars[varName] = fv?.value !== undefined ? fv.value : (fv ?? "");
+      } else {
+        const mod = (context.state?.modulesById || {})[pickedOcc.targetId];
+        $vars[varName] = mod?.label ?? "";
+      }
       break;
     }
 

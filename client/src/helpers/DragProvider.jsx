@@ -459,12 +459,12 @@ export function DragProvider({
       const cell = getCellFromPoint(clientX, clientY);
 
       // Only re-render if panel/container/instance changed (not on every pixel)
+      // NOTE: setDropHighlight is intentionally NOT called here — elementsFromPoint can return null
+      // when the drag clone covers the container, causing the highlight to blink. handleDragOver
+      // (which uses Pragmatic DnD's accurate drop target tracking) handles highlighting instead.
       const last = lastHotRef.current;
       if (last.panelId !== panelId || last.containerId !== containerId || last.instanceId !== instanceId) {
         lastHotRef.current = { panelId, containerId, instanceId };
-        // Only highlight containers when dragging instances (containers are valid drop targets for instances)
-        const shouldHighlight = s.payload?.type === DragType.INSTANCE || s.payload?.type === DragType.EXTERNAL;
-        setDropHighlight(shouldHighlight ? (containerId || null) : null);
       }
 
       if (s.payload?.type === DragType.PANEL) {
@@ -747,7 +747,8 @@ export function DragProvider({
     const last = lastDropRef.current;
     const isDuplicate =
       last.payload === payload?.id &&
-      last.containerId === containerId &&
+      // FILE drops deduplicate by payload id alone (both container-list and panel-content fire)
+      (last.containerId === containerId || payload?.id === "__file__") &&
       (now - last.timestamp) < 100; // 100ms window for duplicate detection
 
     if (isDuplicate) {
@@ -1228,6 +1229,15 @@ export function DragProvider({
         // Get gridId for creating new occurrences
         const gridId = state?.gridId || state?.grid?._id;
 
+        // For canvas containers, compute drop position relative to the canvas area
+        const getCanvasMeta = (container, cx, cy) => {
+          if (container?.kind !== "canvas") return null;
+          const el = document.querySelector(`[data-container-id="${container.id}"]`);
+          if (!el) return null;
+          const rect = el.getBoundingClientRect();
+          return { x: Math.max(0, Math.round(cx - rect.left)), y: Math.max(0, Math.round(cy - rect.top)) };
+        };
+
         // Get current iteration date for new occurrences
         const grid = state?.grid;
         const iterations = grid?.iterations || [];
@@ -1281,6 +1291,7 @@ export function DragProvider({
             iterationMode: "specific",
             iterationValue: currentIterationDate,
             sourceOccurrence: occurrenceId ? occurrencesById[occurrenceId] : null,
+            initialMeta: getCanvasMeta(toC, clientX, clientY),
           });
         } else if (isCopyMode) {
           // COPY MODE: Create a new occurrence in the target container
@@ -1297,6 +1308,7 @@ export function DragProvider({
             iterationMode: "specific",  // Copies are specific to this date
             iterationValue: currentIterationDate,
             sourceOccurrence: occurrenceId ? occurrencesById[occurrenceId] : null,
+            initialMeta: getCanvasMeta(toC, clientX, clientY),
           });
 
           // Auto-check boolean fields on drop
@@ -1354,6 +1366,19 @@ export function DragProvider({
               emit: true,
             });
 
+            // If dropping into a canvas container, stamp drop position onto the occurrence
+            const canvasMeta = getCanvasMeta(toC, clientX, clientY);
+            if (canvasMeta) {
+              const occ = occurrencesById[occurrenceId];
+              if (occ) {
+                CommitHelpers.updateOccurrence({
+                  dispatch, socket,
+                  occurrence: { ...occ, meta: { ...(occ.meta || {}), ...canvasMeta } },
+                  emit: true,
+                });
+              }
+            }
+
             // Fire OccurrenceMoveOp so operations with onMove trigger can react
             const allOccs = Object.values(occurrencesById);
             const fromPanelOcc = fromCOcc.parentId ? allOccs.find(o => o.id === fromCOcc.parentId) : null;
@@ -1405,12 +1430,76 @@ export function DragProvider({
     }
 
     // ============================================================
-    // EXTERNAL (FILE/TEXT/URL) → CONTAINER
+    // EXTERNAL FILE DROP → UPLOAD AND CREATE ARTIFACT PANEL
     // ============================================================
-    if ([DragType.FILE, DragType.TEXT, DragType.URL, DragType.EXTERNAL].includes(payload?.type) && containerId) {
+    if (payload?.type === DragType.FILE && payload?.data?.files?.length > 0) {
+      const file = payload.data.files[0];
+      const cell = getCellFromPoint(x, y);
+      const fileGridId = state?.gridId || state?.grid?._id;
+      const fileUserId = state?.userId;
+      const fileGrid = state?.grid;
+
+      if (fileGridId && fileUserId && fileGrid) {
+        // Capture panel state before async (closure may be stale after fetch resolves)
+        const capturedPanelOcc = panelId
+          ? Object.values(occurrencesById).find(o => o.targetId === panelId)
+          : null;
+        const capturedPanelView = capturedPanelOcc?.viewId ? state?.viewsById?.[capturedPanelOcc.viewId] : null;
+        const isExistingArtifactPanel = capturedPanelView?.viewType === "artifact" || capturedPanelView?.hasTree;
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("userId", fileUserId);
+        formData.append("gridId", fileGridId);
+
+        fetch("/api/artifacts/upload", { method: "POST", body: formData })
+          .then(r => r.json())
+          .then(({ occurrence: uploadedOcc }) => {
+            if (!uploadedOcc?.id) return;
+            if (isExistingArtifactPanel && capturedPanelView) {
+              // Drop onto existing artifact panel → switch active doc
+              CommitHelpers.updateView({
+                dispatch, socket,
+                view: { ...capturedPanelView, activeOccurrenceId: uploadedOcc.id },
+              });
+            } else {
+              // Create new artifact panel at the drop cell
+              const targetCell = cell || { row: 0, col: 0 };
+              const newPanelModule = { id: makeUUID(), label: file.name || "Uploaded File", role: "panel", kind: "list" };
+              const panelResult = LayoutHelpers.createPanelInGrid({
+                dispatch, socket, grid: fileGrid,
+                panel: newPanelModule,
+                placement: { row: targetCell.row, col: targetCell.col, width: 1, height: 1 },
+                userId: fileUserId, emit: true,
+              });
+              if (panelResult?.occurrence) {
+                const viewId = makeUUID();
+                CommitHelpers.createView({
+                  dispatch, socket,
+                  view: { id: viewId, userId: fileUserId, gridId: fileGridId, viewType: "artifact", hasTree: false, manifestId: null, activeOccurrenceId: uploadedOcc.id },
+                  emit: true,
+                });
+                CommitHelpers.updateOccurrence({
+                  dispatch, socket,
+                  occurrence: { ...panelResult.occurrence, viewId },
+                  emit: true,
+                });
+              }
+            }
+          })
+          .catch(err => console.error("[FILE DROP] Upload error:", err));
+      }
+
+      clearSession();
+      return;
+    }
+
+    // ============================================================
+    // EXTERNAL (TEXT/URL) → CONTAINER
+    // ============================================================
+    if ([DragType.TEXT, DragType.URL, DragType.EXTERNAL].includes(payload?.type) && containerId) {
       let label = "Untitled";
-      if (payload.type === DragType.FILE) label = payload.data?.name || "File";
-      else if (payload.type === DragType.TEXT) label = (payload.data?.text || "").slice(0, 80) || "Text";
+      if (payload.type === DragType.TEXT) label = (payload.data?.text || "").slice(0, 80) || "Text";
       else if (payload.type === DragType.URL) label = payload.data?.url || "Link";
 
       const id = makeUUID();
@@ -1580,7 +1669,7 @@ export function DragProvider({
     // MODULE FROM COMMAND CENTER → CONTAINER, PANEL, or INSTANCE
     // Handles all module roles (instance, container, panel) from the EntityTreeTab.
     // ============================================================
-    if (payload?.type === "module" && (payload?.sourceType === "command-center" || payload?.sourceType === "pool" || payload?.sourceType === "doc")) {
+    if (payload?.type === "module" && (payload?.sourceType === "command-center" || payload?.sourceType === "pool" || payload?.sourceType === "doc" || payload?.sourceType === "canvas")) {
       const role = payload?.data?.role || payload?.role;
       const gridId = state?.gridId || state?.grid?._id?.toString() || state?.grid?.id;
 
@@ -1622,6 +1711,7 @@ export function DragProvider({
             userId: state?.userId,
             iterationMode: "persistent",
             emit: true,
+            initialMeta: getCanvasMeta(targetContainer, clientX, clientY),
           });
         }
       }
@@ -1952,21 +2042,30 @@ export function DragProvider({
     });
   }, [dispatch, socket, getWorkingPanels]);
 
-  const cyclePanelStack = useCallback(({ panelId, dir = 1 }) => {
+  const cyclePanelStack = useCallback(({ panelId, cellKey, dir = 1 }) => {
     const panels = getWorkingPanels();
-    const anchor = panels.find((p) => p.id === panelId);
-    if (!anchor) return;
 
-    const stack = getStackForPanel(anchor);
-    if (stack.length <= 1) return;
+    // Resolve stack — either by panelId anchor or by cellKey (for empty-pocket button)
+    let stack;
+    if (panelId) {
+      const anchor = panels.find((p) => p.id === panelId);
+      if (!anchor) return;
+      stack = getStackForPanel(anchor);
+    } else if (cellKey) {
+      stack = panels.filter((p) => cellKeyFromPanel(p) === cellKey);
+    }
+    if (!stack || stack.length <= 1) return;
 
-    const currIdx = stack.findIndex((p) => p.id === panelId);
-    const nextIdx = (currIdx + (dir >= 0 ? 1 : -1) + stack.length) % stack.length;
+    // Find currently visible panel index. -1 = all hidden (empty pocket showing).
+    const visibleIdx = stack.findIndex((p) => (p?.layout?.style?.display ?? "block") !== "none");
+    // Total states = stack.length panels + 1 "all hidden" state (index = stack.length)
+    const effectiveCurrIdx = visibleIdx === -1 ? stack.length : visibleIdx;
+    const nextIdx = (effectiveCurrIdx + (dir >= 0 ? 1 : -1) + stack.length + 1) % (stack.length + 1);
 
-    // Build all updated panels — single dispatch instead of N
+    // nextIdx === stack.length means "all hidden"; otherwise show panel at nextIdx
     const updatedModules = stack.map((p, idx) => ({
       ...p,
-      layout: { ...(p.layout || {}), style: { ...(p.layout?.style || {}), display: idx === nextIdx ? "block" : "none" } },
+      layout: { ...(p.layout || {}), style: { ...(p.layout?.style || {}), display: (nextIdx < stack.length && idx === nextIdx) ? "block" : "none" } },
     }));
 
     dispatch(batchUpdateModulesAction(updatedModules));

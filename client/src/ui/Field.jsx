@@ -520,6 +520,29 @@ function Field({
       );
     }
 
+    if (type === "markdown") {
+      return (
+        <div className="field-input field-input-markdown" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {showLabel && <span style={inputLabelStyle}>{name}</span>}
+          <textarea
+            value={localValue ?? ""}
+            disabled={disabled}
+            placeholder={meta?.placeholder || ""}
+            onChange={e => handleChange(e.target.value)}
+            onBlur={handleCommit}
+            rows={meta?.rows || 3}
+            style={{
+              width: "100%", resize: "vertical", padding: "4px 8px",
+              fontSize: compact ? 11 : 12, fontFamily: "var(--font-mono)",
+              background: "var(--input-bg)", border: "1px solid var(--input-border)",
+              borderRadius: 4, color: "var(--text-primary)", outline: "none",
+              lineHeight: 1.5, minHeight: compact ? 28 : 60,
+            }}
+          />
+        </div>
+      );
+    }
+
     if (type === "boolean") {
       const useSwitch = meta?.variant !== "checkbox" && binding?.display?.variant !== "checkbox";
       return (
@@ -847,11 +870,42 @@ function Field({
       );
     }
 
+    if (type === "markdown") {
+      const firstLine = (rawDisplayValue || "").split("\n").find(l => l.trim()) || "";
+      // Strip common markdown symbols for compact preview
+      const stripped = firstLine.replace(/^#+\s*/, "").replace(/\*\*/g, "").replace(/\*/g, "").replace(/`/g, "");
+      return (
+        <div className="field-display field-display-compact" style={{ ...pillBase, maxWidth: 180 }}>
+          {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stripped || "—"}</span>
+        </div>
+      );
+    }
+
     return (
       <div className="field-display field-display-compact" style={{ ...pillBase }}>
         {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
         <span>{valueDisplay}</span>
         {showUnit && <span style={{ opacity: 0.5 }}>{unit}</span>}
+      </div>
+    );
+  }
+
+  // Markdown — display as plain text (read-only textarea-like block)
+  if (type === "markdown") {
+    const text = rawDisplayValue || "";
+    return (
+      <div className="field-display field-display-markdown" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {showLabel && <span style={labelStyle}>{name}</span>}
+        <div style={{
+          whiteSpace: "pre-wrap", wordBreak: "break-word",
+          fontSize: 12, fontFamily: "var(--font-mono)", lineHeight: 1.6,
+          color: "var(--text-primary)", padding: "4px 8px",
+          background: "var(--input-bg)", borderRadius: 4,
+          border: "1px solid var(--border-subtle)", minHeight: 36,
+        }}>
+          {text || <span style={{ color: "var(--text-faint)", fontStyle: "italic" }}>—</span>}
+        </div>
       </div>
     );
   }

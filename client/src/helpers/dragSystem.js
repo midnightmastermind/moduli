@@ -578,6 +578,11 @@ export function useDroppable({
         },
         onDragLeave: () => {
           setIsOver(false);
+          // Clear container highlight when leaving. If pointer enters another container
+          // immediately after, its onDrag fires handleDragOver and cancels the RAF clear.
+          if (context.containerId) {
+            dragCtx.handleDragOver?.({ type, id, context: { ...context, containerId: null } });
+          }
         },
         onDrop: ({ self, source, location, nativeEvent }) => {
           setIsOver(false);
@@ -611,6 +616,9 @@ export function useDroppable({
         },
         onDragLeave: () => {
           setIsOver(false);
+          if (context.containerId) {
+            dragCtx.handleDragOver?.({ type, id, context: { ...context, containerId: null } });
+          }
         },
         onDrop: ({ location, source }) => {
           setIsOver(false);

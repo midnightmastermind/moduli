@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 
 import Container from "./Container.jsx";
+import { CanvasDrawSection } from "./containerHelpers.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 
 // ============================================================
@@ -135,6 +136,88 @@ function TreePanelContent({ resolvedView, activeOcc, activeOccView, dispatch, so
           view={resolvedView}
           onScrollHighlight={setScrollHighlightId}
         />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// CANVAS TREE PANEL — ManifestTree sidebar + CanvasDrawSection per page
+// ============================================================
+function CanvasTreePanelContent({ resolvedView, activeOcc, dispatch, socket, panelId }) {
+  const { occurrencesById, modulesById } = useContext(GridActionsContext);
+  const { state: ctxState } = useContext(GridDataContext);
+  const [treeCollapsed, setTreeCollapsed] = useState(true);
+
+  const canvasContainerId = activeOcc ? modulesById?.[activeOcc.targetId]?.id : null;
+  const { ref: listDropRef } = useDroppable({
+    type: "container-list",
+    id: `container-list:${canvasContainerId || "canvas"}`,
+    context: { panelId, containerId: canvasContainerId },
+    accepts: DropAccepts.CONTAINER_LIST,
+    disabled: !canvasContainerId,
+  });
+
+  const canvasModule = activeOcc ? modulesById?.[activeOcc.targetId] : null;
+  const canvasItems = useMemo(() => {
+    if (!activeOcc || !occurrencesById) return [];
+    return (activeOcc.occurrences || []).map(occId => {
+      const occ = occurrencesById[occId];
+      const inst = occ ? modulesById?.[occ.targetId] : null;
+      return occ && inst ? { instance: inst, occurrence: occ } : null;
+    }).filter(Boolean);
+  }, [activeOcc, occurrencesById, modulesById]);
+
+  const handleDoubleClickBackground = useCallback((e) => {
+    if (e.target !== e.currentTarget) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.round(e.clientX - rect.left);
+    const y = Math.round(e.clientY - rect.top);
+    const grid = ctxState?.grid;
+    const userId = ctxState?.userId;
+    const gridId = grid?._id;
+    if (!userId || !gridId || !canvasModule) return;
+    const instanceId = crypto.randomUUID();
+    CommitHelpers.createInstanceInContainer({
+      dispatch, socket,
+      containerId: canvasModule.id,
+      instance: { id: instanceId, role: "instance", kind: "list", label: "New card", userId, gridId, fieldBindings: [] },
+      initialMeta: { x, y },
+      emit: true,
+    });
+  }, [ctxState, canvasModule, dispatch, socket]);
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 100, pointerEvents: "auto" }}>
+        <ManifestTree
+          manifestId={resolvedView.manifestId}
+          view={resolvedView}
+          dispatch={dispatch}
+          socket={socket}
+          collapsed={treeCollapsed}
+          onToggleCollapse={() => setTreeCollapsed(v => !v)}
+        />
+      </div>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+        {activeOcc && canvasModule ? (
+          <CanvasDrawSection
+            containerOccurrence={activeOcc}
+            itemsWithOccurrences={canvasItems}
+            dispatch={dispatch}
+            socket={socket}
+            module={canvasModule}
+            listDropRef={listDropRef}
+            ctxState={ctxState}
+            containerId={canvasModule.id}
+            panelId={panelId}
+            onDoubleClickBackground={handleDoubleClickBackground}
+          />
+        ) : (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12 }}>
+            Select a canvas page from the sidebar
+          </div>
+        )}
       </div>
     </div>
   );
@@ -631,7 +714,7 @@ function Panel({
           <QuickAddMenu
             targetRole="container"
             onSelect={handleQuickAddContainer}
-            onCreateNew={() => addContainerToPanel?.(module.id, "list")}
+            onCreateNew={() => addContainerToPanel?.(module.id, module.kind === "canvas" ? "canvas" : "list")}
             createLabel="New container"
           />
         </div>
@@ -655,6 +738,24 @@ function Panel({
       {(() => {
         const resolvedView = resolvedViewId ? viewsById[resolvedViewId] : null;
         const viewType = resolvedView?.viewType;
+
+        // Canvas tree panel — ManifestTree sidebar + CanvasDrawSection per page
+        if (resolvedView?.hasTree && resolvedView?.viewType === "canvas") {
+          const activeOccId = resolvedView?.activeOccurrenceId;
+          let activeOcc = activeOccId ? occurrencesById?.[activeOccId] : null;
+          if (!activeOcc && resolvedView.manifestId) {
+            const manifest = manifestsById?.[resolvedView.manifestId];
+            const rootFolder = manifest?.rootFolderId ? foldersById?.[manifest.rootFolderId] : null;
+            if (rootFolder) {
+              const firstPage = Object.values(occurrencesById || {}).find(o => o.parentId === rootFolder.id);
+              if (firstPage) {
+                activeOcc = firstPage;
+                CommitHelpers.updateView({ dispatch, socket, view: { ...resolvedView, activeOccurrenceId: firstPage.id } });
+              }
+            }
+          }
+          return <CanvasTreePanelContent resolvedView={resolvedView} activeOcc={activeOcc} dispatch={dispatch} socket={socket} panelId={module.id} />;
+        }
 
         // Tree panel — ManifestTree sidebar + active artifact content
         if (resolvedView?.hasTree && resolvedView?.manifestId) {

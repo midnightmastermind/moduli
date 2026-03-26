@@ -262,6 +262,11 @@ const Editor = forwardRef(function Editor({
     const $pos = editor.state.doc.resolve(result.pos);
     if ($pos.depth === 0) { scheduleBlockHide(); return; }
 
+    // Hide block handle when inside a table — use right-click context menu for table actions instead
+    const inTable = Array.from({ length: $pos.depth }, (_, i) => $pos.node(i + 1))
+      .some(n => n.type.name === "table" || n.type.name === "tableRow" || n.type.name === "tableCell" || n.type.name === "tableHeader");
+    if (inTable) { scheduleBlockHide(); return; }
+
     const nodeStart = $pos.before(1);
 
     let domResult;
@@ -290,6 +295,8 @@ const Editor = forwardRef(function Editor({
     e.preventDefault(); e.stopPropagation();
     const hasSelection = !editor.state.selection.empty;
     const { $from } = editor.state.selection;
+    const inTable = Array.from({ length: $from.depth }, (_, i) => $from.node(i + 1))
+      .some(n => n.type.name === "table" || n.type.name === "tableRow" || n.type.name === "tableCell" || n.type.name === "tableHeader");
     const inList = $from.depth > 0 && (
       $from.node($from.depth - 1)?.type?.name === "bulletList" ||
       $from.node($from.depth - 1)?.type?.name === "orderedList" ||
@@ -351,6 +358,14 @@ const Editor = forwardRef(function Editor({
             .run();
         },
       },
+      inTable && { separator: true },
+      inTable && { label: "Insert row above", onClick: () => editor.chain().focus().addRowBefore().run() },
+      inTable && { label: "Insert row below", onClick: () => editor.chain().focus().addRowAfter().run() },
+      inTable && { label: "Delete row", danger: true, onClick: () => editor.chain().focus().deleteRow().run() },
+      inTable && { separator: true },
+      inTable && { label: "Insert column left", onClick: () => editor.chain().focus().addColumnBefore().run() },
+      inTable && { label: "Insert column right", onClick: () => editor.chain().focus().addColumnAfter().run() },
+      inTable && { label: "Delete column", danger: true, onClick: () => editor.chain().focus().deleteColumn().run() },
       { label: "Insert field (@)", icon: AtSign, onClick: () => editor.chain().focus().insertContent("@").run() },
     ].filter(Boolean);
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
@@ -723,6 +738,7 @@ const Editor = forwardRef(function Editor({
                   { label: "Heading 3", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).setNode("heading", { level: 3 }).run() },
                   { label: "Bullet list", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).toggleBulletList().run() },
                   { label: "Quote", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).toggleBlockquote().run() },
+                  { label: "Code block", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).toggleCodeBlock().run() },
                   null,
                   { label: "Insert field", fn: () => {
                     if (!editor || blockHandle == null) return;

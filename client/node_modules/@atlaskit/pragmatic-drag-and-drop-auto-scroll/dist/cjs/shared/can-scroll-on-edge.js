@@ -1,0 +1,31 @@
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.canScrollOnEdge = void 0;
+var canScrollOnEdge = exports.canScrollOnEdge = {
+  // Notes:
+  //
+  // 🌏 Chrome 115.0: uses fractional units for `scrollLeft` and `scrollTop`
+  //    (and fractional units don't reach true integer maximum when zoomed in / out)
+  // 🍎 Safari 16.5.2: no fractional units
+  // 🦊 Firefox 115.0: no fractional units
+
+  // we have some scroll we can move backwards into
+  top: function top(element) {
+    return element.scrollTop > 0;
+  },
+  // We have some scroll we can move forward into
+  right: function right(element) {
+    return Math.ceil(element.scrollLeft) + element.clientWidth < element.scrollWidth;
+  },
+  // We have some scroll we can move forwards into
+  bottom: function bottom(element) {
+    return Math.ceil(element.scrollTop) + element.clientHeight < element.scrollHeight;
+  },
+  // we have some scroll we can move back into.
+  left: function left(element) {
+    return element.scrollLeft > 0;
+  }
+};

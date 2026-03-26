@@ -62,6 +62,25 @@ function tiptapToMarkdown(node, depth = 0) {
       }
       return t;
     }
+    case "table": {
+      const rows = node.content || [];
+      return rows.map((row, ri) => {
+        const cells = (row.content || []).map(cell => {
+          const cellText = (cell.content || []).map(p => tiptapToMarkdown(p)).join("").replace(/\n+/g, " ").trim();
+          return ` ${cellText} `;
+        });
+        const line = "|" + cells.join("|") + "|";
+        if (ri === 0) {
+          const sep = "|" + cells.map(() => " --- ").join("|") + "|";
+          return line + "\n" + sep;
+        }
+        return line;
+      }).join("\n") + "\n\n";
+    }
+    case "tableRow":
+    case "tableCell":
+    case "tableHeader":
+      return children;
     case "fieldPill": return `#${node.attrs?.fieldName || node.attrs?.fieldId || "field"}`;
     case "instancePill": return node.attrs?.instanceLabel || node.attrs?.instanceId || "";
     default: return children;

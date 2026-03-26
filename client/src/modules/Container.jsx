@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 
 import Instance from "./Instance.jsx";
-import { DocEditorShell, PoolPill, CanvasCard } from "./containerHelpers.jsx";
+import { DocEditorShell, PoolPill, CanvasCard, CanvasDrawSection } from "./containerHelpers.jsx";
 import { FilterOverridePopup, TemplatePickerPopup } from "./containerPopups.jsx";
 import ModuleInstance from "./ModuleInstance.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
@@ -67,6 +67,52 @@ function lightenHex(hex, amount) {
   const lg = Math.round(g + (255 - g) * amount);
   const lb = Math.round(b + (255 - b) * amount);
   return `rgb(${lr},${lg},${lb})`;
+}
+
+// ─── AttachedFieldTextarea ────────────────────────────────────
+// Inline textarea used when a field is attached to the header or body of a container.
+// Uncontrolled locally — commits on blur. `grow` enables auto-resize to content.
+function AttachedFieldTextarea({ value, placeholder, onCommit, rows = 1, grow = false }) {
+  const [local, setLocal] = React.useState(value ?? "");
+  const ref = React.useRef(null);
+
+  React.useEffect(() => { setLocal(value ?? ""); }, [value]);
+
+  React.useEffect(() => {
+    if (grow && ref.current) {
+      ref.current.style.height = "auto";
+      ref.current.style.height = `${ref.current.scrollHeight}px`;
+    }
+  }, [local, grow]);
+
+  return (
+    <textarea
+      ref={ref}
+      value={local}
+      placeholder={placeholder}
+      rows={rows}
+      onChange={e => {
+        setLocal(e.target.value);
+        if (grow && ref.current) {
+          ref.current.style.height = "auto";
+          ref.current.style.height = `${ref.current.scrollHeight}px`;
+        }
+      }}
+      onBlur={() => onCommit(local)}
+      onKeyDown={e => {
+        if (e.key === "Escape") { setLocal(value ?? ""); e.currentTarget.blur(); }
+        e.stopPropagation();
+      }}
+      onPointerDown={e => e.stopPropagation()}
+      style={{
+        width: "100%", resize: grow ? "none" : "vertical",
+        padding: "2px 4px",
+        fontSize: 12, fontFamily: "var(--font-mono)", lineHeight: 1.5,
+        background: "transparent", border: "none", outline: "none",
+        color: "var(--text-primary)", overflowY: grow ? "hidden" : "auto",
+      }}
+    />
+  );
 }
 
 // ============================================================
@@ -171,6 +217,47 @@ function Container({
       .filter(item => item.field)
       .sort((a, b) => (a.binding.order || 0) - (b.binding.order || 0));
   }, [module?.fieldBindings, fieldsById]);
+
+  // Attached fields — fields whose content IS the header/body of this module.
+  // header/body are arrays of fieldIds; all share the same typed value.
+  const attachedHeaderFields = useMemo(() => {
+    const ids = module?.attachedFields?.header || [];
+    return ids.map(id => fieldsById[id]).filter(Boolean);
+  }, [module?.attachedFields?.header, fieldsById]);
+
+  const attachedBodyFields = useMemo(() => {
+    const ids = module?.attachedFields?.body || [];
+    return ids.map(id => fieldsById[id]).filter(Boolean);
+  }, [module?.attachedFields?.body, fieldsById]);
+
+  // Read the header/body content from the first attached field's value in the occurrence
+  const attachedHeaderValue = useMemo(() => {
+    if (!attachedHeaderFields.length || !containerOccurrence) return null;
+    const fieldId = attachedHeaderFields[0].id;
+    const raw = containerOccurrence.fields?.[fieldId];
+    return raw && typeof raw === "object" && "value" in raw ? raw.value : raw ?? null;
+  }, [attachedHeaderFields, containerOccurrence]);
+
+  const attachedBodyValue = useMemo(() => {
+    if (!attachedBodyFields.length || !containerOccurrence) return null;
+    const fieldId = attachedBodyFields[0].id;
+    const raw = containerOccurrence.fields?.[fieldId];
+    return raw && typeof raw === "object" && "value" in raw ? raw.value : raw ?? null;
+  }, [attachedBodyFields, containerOccurrence]);
+
+  // Commit a new value to all attached fields simultaneously
+  const commitAttachedFieldValue = useCallback((fieldGroup, newValue) => {
+    if (!containerOccurrence?.id || !fieldGroup.length) return;
+    const fieldUpdates = {};
+    for (const f of fieldGroup) {
+      fieldUpdates[f.id] = { value: newValue, flow: "in" };
+    }
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: containerOccurrence.id, fields: { ...(containerOccurrence.fields || {}), ...fieldUpdates } },
+      emit: true,
+    });
+  }, [containerOccurrence, dispatch, socket]);
 
   const removeMe = useCallback(() => {
     if (!containerOccurrence?.id) return;
@@ -622,12 +709,29 @@ function Container({
                 : <ChevronDown style={{ width: 14, height: 14 }} />
               }
             </button>
-            <span className="truncate" style={{ fontSize: "0.75rem", fontWeight: 500 }}>
-              {module.label || "Container"}
-              {containerOccurrence?.linkedGroupId && (
-                <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0 inline ml-1" title="Linked" />
-              )}
-            </span>
+            {attachedHeaderFields.length > 0 ? (
+              /* Attached header field — inline editable markdown textarea */
+              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }} onPointerDown={e => e.stopPropagation()}>
+                {attachedHeaderFields[0] && (
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", fontFamily: "var(--font-mono)", lineHeight: 1, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {attachedHeaderFields[0].name}
+                  </span>
+                )}
+                <AttachedFieldTextarea
+                  value={attachedHeaderValue ?? ""}
+                  placeholder={attachedHeaderFields[0]?.meta?.placeholder || ""}
+                  onCommit={v => commitAttachedFieldValue(attachedHeaderFields, v)}
+                  rows={1}
+                />
+              </div>
+            ) : (
+              <span className="truncate" style={{ fontSize: "0.75rem", fontWeight: 500 }}>
+                {module.label || "Container"}
+                {containerOccurrence?.linkedGroupId && (
+                  <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0 inline ml-1" title="Linked" />
+                )}
+              </span>
+            )}
 
             <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
               <QuickAddMenu
@@ -723,6 +827,22 @@ function Container({
             )}
           </div>
         </div>
+      ) : attachedBodyFields.length > 0 ? (
+        /* Attached body field — markdown textarea replaces the body editor */
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "4px 8px 8px 8px", gap: 2 }}>
+          {attachedBodyFields[0] && (
+            <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {attachedBodyFields[0].name}
+            </span>
+          )}
+          <AttachedFieldTextarea
+            value={attachedBodyValue ?? ""}
+            placeholder={attachedBodyFields[0]?.meta?.placeholder || ""}
+            onCommit={v => commitAttachedFieldValue(attachedBodyFields, v)}
+            rows={4}
+            grow
+          />
+        </div>
       ) : isDocContainer ? (
         <div ref={listDropRef} className="container-doc" style={{ flex: 1, minHeight: 100, overflow: embedded ? "visible" : "auto", position: "relative" }}>
           <DocEditorShell
@@ -734,13 +854,18 @@ function Container({
           />
         </div>
       ) : isCanvasContainer ? (
-        /* Canvas Container: free-form spatial layout */
-        <div
-          ref={listDropRef}
-          style={{ flex: 1, position: "relative", overflow: "hidden", background: "var(--surface-overlay)", minHeight: 200,
-            backgroundImage: "radial-gradient(circle, var(--border-subtle) 1px, transparent 1px)",
-            backgroundSize: "24px 24px" }}
-          onDoubleClick={(e) => {
+        /* Canvas Container: free-form spatial layout + draw toolbar */
+        <CanvasDrawSection
+          containerOccurrence={containerOccurrence}
+          itemsWithOccurrences={itemsWithOccurrences}
+          dispatch={dispatch}
+          socket={socket}
+          module={module}
+          listDropRef={listDropRef}
+          ctxState={ctxState}
+          containerId={module.id}
+          panelId={panelId}
+          onDoubleClickBackground={(e) => {
             if (e.target !== e.currentTarget) return;
             const rect = e.currentTarget.getBoundingClientRect();
             const x = Math.round(e.clientX - rect.left);
@@ -758,24 +883,7 @@ function Container({
               emit: true,
             });
           }}
-        >
-          {itemsWithOccurrences.map(({ instance, occurrence: occ }) => (
-            <CanvasCard
-              key={occ.id}
-              instance={instance}
-              occurrence={occ}
-              dispatch={dispatch}
-              socket={socket}
-              container={module}
-              panel={panel}
-            />
-          ))}
-          {itemsWithOccurrences.length === 0 && (
-            <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 11, color: "var(--text-faint)", fontFamily: "var(--font-mono)", pointerEvents: "none" }}>
-              Double-click to add cards
-            </div>
-          )}
-        </div>
+        />
       ) : focusedItem ? (() => {
         const { instance: fi, occurrence: fo } = focusedItem;
 

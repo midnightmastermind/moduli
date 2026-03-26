@@ -95,6 +95,17 @@ const ModuleSchema = new mongoose.Schema(
       droppable: { type: Boolean, default: true },   // accepts drops from outside
     },
 
+    // ─── Attached fields ─────────────────────────────────────
+    // Fields whose content IS the structural part of this module.
+    // The field holds the value; the module declares where it renders.
+    // header: array of fieldIds — all share the same value when the header is edited.
+    // body:   array of fieldIds — all share the same value when the body is edited.
+    // Display reads from the first fieldId. Writes go to all fieldIds in the array.
+    attachedFields: {
+      header: { type: [String], default: [] },
+      body:   { type: [String], default: [] },
+    },
+
     // ─── Split partner (panels) ──────────────────────────────
     splitPartnerId: { type: String, default: null },
 
