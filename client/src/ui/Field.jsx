@@ -29,7 +29,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, Equal, Shuffle } from "lucide-react";
+import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, Equal, Shuffle, Link2 } from "lucide-react";
 import { calculateDerivedField } from "../state/selectors";
 import {
   getDerivedFieldCacheKey,
@@ -442,6 +442,49 @@ function Field({
       );
     }
 
+    if (compact && type === "module") {
+      const options = meta?._moduleOptions || [];
+      const currentLabel = options.find(o => o.value === localValue)?.label || localValue || "—";
+      const displayLabel = meta?.label ? `${meta.label}: ${currentLabel}` : currentLabel;
+      return (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" disabled={disabled}
+              className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
+                ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
+              style={{ background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(103,232,249)" }}
+              title={`${name}: ${displayLabel}`}
+            >
+              <Link2 style={{ width: 10, height: 10, opacity: 0.6 }} />
+              {!hideName && name && <span style={{ opacity: 0.7 }}>{name}:</span>}
+              <span>{displayLabel}</span>
+              <ChevronDown style={{ width: 10, height: 10, opacity: 0.5 }} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-1" align="start" side="bottom">
+            <div style={{ maxHeight: 200, overflowY: "auto" }}>
+              {options.length === 0
+                ? <div style={{ padding: "16px 0", textAlign: "center", fontSize: 11, color: "var(--text-faint)" }}>No modules available</div>
+                : options.map(o => (
+                    <button key={o.value} type="button"
+                      onClick={() => { handleChange(o.value); onCommit?.(o.value); }}
+                      style={{
+                        width: "100%", display: "flex", alignItems: "center", padding: "4px 8px",
+                        borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)",
+                        background: localValue === o.value ? "rgba(6,182,212,0.15)" : "transparent",
+                        color: localValue === o.value ? "rgb(103,232,249)" : "var(--text-muted)",
+                        border: "none", cursor: "pointer", textAlign: "left",
+                      }}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      );
+    }
+
     // Shared label style for full (non-compact) inputs
     const inputLabelStyle = { fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginBottom: 2 };
 
@@ -621,6 +664,28 @@ function Field({
       );
     }
 
+    if (type === "module") {
+      const options = meta?._moduleOptions || [];
+      return (
+        <div className="field-input field-input-module" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {showLabel && <span style={inputLabelStyle}>{name}</span>}
+          <select
+            value={localValue ?? ""}
+            disabled={disabled}
+            onChange={e => { handleChange(e.target.value || null); onCommit?.(e.target.value || null); }}
+            style={{
+              height: compact ? 24 : 28, fontSize: compact ? 10 : 12, fontFamily: "var(--font-mono)",
+              background: "rgba(6,182,212,0.08)", border: "1px solid rgba(6,182,212,0.25)",
+              borderRadius: 5, color: "rgb(103,232,249)", padding: "0 8px", outline: "none",
+            }}
+          >
+            <option value="">{meta?.label ? `Select ${meta.label}...` : "Select module..."}</option>
+            {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+      );
+    }
+
     return <div style={{ fontSize: 11, color: "var(--text-faint)" }}>Unknown field type: {type}</div>;
   }
 
@@ -671,6 +736,11 @@ function Field({
         return `${h}h ${m}m`;
       }
       case "rating": return rawDisplayValue;
+      case "module": {
+        const options = meta?._moduleOptions || [];
+        const refLabel = options.find(o => o.value === rawDisplayValue)?.label || rawDisplayValue;
+        return meta?.label && refLabel ? `${meta.label}: ${refLabel}` : (refLabel || "—");
+      }
       default: return rawDisplayValue !== undefined && rawDisplayValue !== null ? String(rawDisplayValue) : "—";
     }
   }, [field, rawDisplayValue, compact, binding, type]);
@@ -761,6 +831,18 @@ function Field({
         }}>
           {!hideName && name && <span style={{ opacity: 0.7 }}>{name}:</span>}
           <span>{isOn ? "yes" : "no"}</span>
+        </div>
+      );
+    }
+
+    if (type === "module") {
+      return (
+        <div className="field-display field-display-compact" style={{ ...pillBase,
+          background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(103,232,249)",
+        }}>
+          <Link2 style={{ width: 10, height: 10, opacity: 0.6 }} />
+          {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
+          <span>{valueDisplay}</span>
         </div>
       );
     }

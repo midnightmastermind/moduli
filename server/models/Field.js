@@ -18,7 +18,7 @@ const FieldSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ["number", "text", "boolean", "select", "date", "rating", "duration"],
+      enum: ["number", "text", "boolean", "select", "date", "rating", "duration", "module"],
       default: "text"
     },
 

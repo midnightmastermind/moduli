@@ -44,11 +44,6 @@ export function GridSettingsTab() {
     CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { cols: num }, emit: true });
   }, [dispatch, socket, gridId]);
 
-  const commitDayPageTemplate = useCallback((templateId) => {
-    if (!gridId) return;
-    CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { defaultDayPageTemplateId: templateId || null }, emit: true });
-  }, [dispatch, socket, gridId]);
-
   const deleteGrid = useCallback(() => {
     if (!gridId) return;
     const ok = window.confirm(`Delete this grid${gridId ? ` (${gridId})` : ""}? This cannot be undone.`);
@@ -115,29 +110,6 @@ export function GridSettingsTab() {
           />
         </div>
       </div>
-
-      {/* Day Page Template */}
-      {(grid.templates || []).length > 0 && (
-        <>
-          <Separator className="mb-3" />
-          <div className="mb-3">
-            <label className="text-[10px] text-foregroundScale-2 block mb-1">Day page template</label>
-            <p className="text-[10px] text-foregroundScale-2/70 mb-2">
-              Auto-fill new day pages from this template.
-            </p>
-            <select
-              className="w-full text-[11px] bg-background border border-border rounded px-2 py-1 text-foreground"
-              value={grid.defaultDayPageTemplateId || ""}
-              onChange={e => commitDayPageTemplate(e.target.value || null)}
-            >
-              <option value="">None</option>
-              {(grid.templates || []).map(t => (
-                <option key={t.id} value={t.id}>{t.name || t.id}</option>
-              ))}
-            </select>
-          </div>
-        </>
-      )}
 
       <Separator className="mb-3" />
 

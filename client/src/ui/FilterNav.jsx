@@ -4,7 +4,7 @@
 // Otherwise date nav is grayed out.
 // Replaces IterationNav.jsx.
 
-import React, { useMemo, useCallback, useState } from "react";
+import React, { useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -109,7 +109,6 @@ function QuickDatePicker({ currentDate, timeScale, onSelect }) {
  *   onFilterValueChange — (fieldId, value) => void   called when date nav changes
  */
 export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFilterValueChange, compact = false, isMobile = false }) {
-  const [dateNavVisible, setDateNavVisible] = useState(!isMobile);
   const namedFilters = grid?.namedFilters || [];
   const activeFilterId = grid?.activeFilterId || namedFilters[0]?.id || null;
   const activeFilterValues = grid?.activeFilterValues || {};
@@ -177,6 +176,65 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
   const h = compact ? "h-6" : "h-7";
   const textSz = compact ? "text-[10px]" : "text-xs";
 
+  // Mobile: single Filter button → popover with full filter UI
+  if (isMobile) {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button size="sm" variant="ghost" style={{ height: 26, width: 26, padding: 0 }} title="Filters">
+            <Filter className="h-3.5 w-3.5" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-2 settings-sheet" align="end" side="bottom" collisionPadding={8}>
+          <div className="flex flex-col gap-2" style={{ minWidth: 180 }}>
+            {/* Filter selector */}
+            {namedFilters.length > 0 && (
+              <Select value={activeFilterId || ""} onValueChange={onSelectFilter}>
+                <SelectTrigger className="px-1 w-full h-7 text-xs bg-inputScale-2 border border-borderScale-0 rounded">
+                  <SelectValue placeholder="Filter" />
+                </SelectTrigger>
+                <SelectContent style={{ zIndex: 1300 }}>
+                  {namedFilters.map(f => (
+                    <SelectItem key={f.id} value={f.id}>{f.name || "Untitled"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Date navigation */}
+            {hasDateNav && (
+              <div className="flex items-center gap-0">
+                <Button size="sm" className="px-0.5 h-7" onClick={handlePrev}>
+                  <ChevronLeft className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleToday}
+                  className={`px-1 flex-1 h-7 text-xs ${isCurrentPeriod ? "text-primary" : ""}`}
+                >
+                  <CalendarDays className="h-3 w-3 mr-1" />
+                  {formatDateDisplay(currentDate, timeScale)}
+                </Button>
+                <Button size="sm" className="px-0.5 h-7" onClick={handleNext}>
+                  <ChevronRight className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+
+            {/* Quick date picker */}
+            {hasDateNav && (
+              <>
+                <div className="h-px bg-border" />
+                <QuickDatePicker currentDate={currentDate} timeScale={timeScale} onSelect={handleDateSelect} />
+              </>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  // Desktop: inline filter + date nav
   return (
     <div className="filter-nav flex items-center gap-0.5">
       {/* Filter selector */}
@@ -193,17 +251,7 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
         </Select>
       )}
 
-      {/* Date nav toggle button — on mobile, collapsed by default */}
-      {isMobile && hasDateNav && (
-        <Button size="sm" variant="ghost" className="h-5 w-5 p-0"
-          onClick={() => setDateNavVisible(v => !v)}
-          title={dateNavVisible ? "Hide date nav" : "Show date nav"}>
-          <Filter className={`h-3 w-3 ${dateNavVisible ? "text-blue-400" : "opacity-40"}`} />
-        </Button>
-      )}
-
       {/* Date navigation — only shown when active filter has a date field + timeScale */}
-      {dateNavVisible && (
       <div className={`flex items-center gap-0 ${!hasDateNav ? "opacity-30 pointer-events-none" : ""}`}>
         <Button size="sm" className={`px-0.5 ${h}`} onClick={handlePrev} disabled={!hasDateNav}>
           <ChevronLeft className="h-3 w-3" />
@@ -236,7 +284,6 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
           <ChevronRight className="h-3 w-3" />
         </Button>
       </div>
-      )}
     </div>
   );
 }

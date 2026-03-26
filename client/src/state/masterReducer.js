@@ -19,6 +19,7 @@ import { ActionTypes } from "./actions";
 function deriveRoleArrays(modules = []) {
   const panels = [], containers = [], instances = [];
   for (const m of modules) {
+    if (m.trashed) continue;
     if (m.role === "panel") panels.push(m);
     else if (m.role === "container") containers.push(m);
     else if (m.role === "instance") instances.push(m);

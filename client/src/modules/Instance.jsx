@@ -6,6 +6,7 @@
 import React, { useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { GridDataContext } from "../GridDataContext";
 import { GridActionsContext } from "../GridActionsContext";
+import { GridLiveContext } from "../GridLiveContext";
 
 import InstanceForm from "../ui/InstanceForm";
 import FieldRenderer from "../ui/FieldRenderer";
@@ -17,7 +18,7 @@ import {
   PopoverAnchor,
 } from "@/components/ui/popover";
 
-import { Link2, Unlink, Settings, Copy, Move, Play, Zap, ArrowBigDown, Eye, EyeOff } from "lucide-react";
+import { Link2, Unlink, Settings, Copy, Move, Play, Zap, ArrowBigDown, Eye, EyeOff, ChevronRight, ChevronDown, X } from "lucide-react";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useDragContext } from "../helpers/dragSystem";
 import { resolveInstanceStyle, styleToCSS } from "../helpers/StyleHelpers";
@@ -41,7 +42,8 @@ function InstanceInner({
   socket,
 }) {
   const { state } = useContext(GridDataContext);
-  const { fieldsById, addInstanceToContainer, occurrencesById, instancesById, operationsById, computedValues } = useContext(GridActionsContext);
+  const { fieldsById, addInstanceToContainer, occurrencesById, linkedGroupIndex, instancesById, operationsById } = useContext(GridActionsContext);
+  const { computedValues } = useContext(GridLiveContext);
   const isOriginalActive = !overlay && state?.activeId === id;
 
   const dragCtx = useDragContext();
@@ -55,13 +57,12 @@ function InstanceInner({
   const [linksPopoverOpen, setLinksPopoverOpen] = useState(false);
   const [showLabel, setShowLabel] = useState(true);
 
-  // Find all sibling occurrences sharing the same linkedGroupId
+  // C3: O(1) linked sibling lookup via pre-indexed map
   const linkedSiblings = useMemo(() => {
-    if (!occurrence?.linkedGroupId || !occurrencesById) return [];
-    return Object.values(occurrencesById).filter(
-      o => o.linkedGroupId === occurrence.linkedGroupId && o.id !== occurrence.id
-    );
-  }, [occurrence?.linkedGroupId, occurrencesById]);
+    if (!occurrence?.linkedGroupId) return [];
+    const group = linkedGroupIndex?.[occurrence.linkedGroupId] || [];
+    return group.filter(o => o.id !== occurrence.id);
+  }, [occurrence?.linkedGroupId, linkedGroupIndex]);
 
   useEffect(() => {
     setDraft({ label: label ?? "" });
@@ -212,15 +213,13 @@ function InstanceInner({
       {...(!overlay ? dragAttributes : {})}
       {...(!overlay ? dragListeners : {})}
     >
-      {/* Right side: [radial + label] anchored left + fields in remaining space */}
+      {/* Content: [radial + label] on top, fields below */}
       <div
         style={{
           flex: 1,
           display: "flex",
-          flexDirection: "row",
-          flexWrap: "nowrap",
-          alignItems: "center",
-          gap: 4,
+          flexDirection: "column",
+          gap: 2,
           minWidth: 0,
           paddingLeft: 2,
           paddingRight: 8,
@@ -232,25 +231,26 @@ function InstanceInner({
             <PopoverAnchor asChild>
               <div
                 ref={dragHandleRef}
-                className="module-handle"
+                className="module-drag-handle"
                 draggable={false}
-                style={{ position: "relative", alignSelf: "center", cursor: "grab", flexShrink: 0, width: 16, height: 16 }}
               >
-                <span className="module-dot" />
+                <div className="drag-handle-ball" />
+                <div className="drag-handle-stem" />
                 <RadialMenu
                   dragMode={entityDragMode}
                   onToggleDragMode={toggleEntityDragMode}
-                  onToggleCollapse={toggleDoc}
                   onSettings={() => setSettingsOpen(true)}
                   addLabel="Item"
                   size="sm"
+                  forceDirection="down"
                   items={radialItems}
                   onToggleHeader={!occurrence?.linkedGroupId ? () => setShowLabel(v => !v) : undefined}
                   showHeader={showLabel}
                 />
               </div>
             </PopoverAnchor>
-            <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0">
+            <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
+              <button type="button" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
               <InstanceForm
                 value={draft}
                 onChange={setDraft}
@@ -264,6 +264,16 @@ function InstanceInner({
               />
             </PopoverContent>
           </Popover>
+          {toggleDoc && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); toggleDoc(); }}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", flexShrink: 0, color: "var(--text-muted)", opacity: 0.5 }}
+              title="Toggle doc"
+            >
+              <ChevronRight style={{ width: 12, height: 12 }} />
+            </button>
+          )}
           {showLabel && hasLabel && (
             <div
               style={{
@@ -272,6 +282,7 @@ function InstanceInner({
                 color: "var(--text-primary)",
                 overflowWrap: "anywhere",
                 paddingTop: 2,
+                paddingLeft: 2,
               }}
             >
             {label}

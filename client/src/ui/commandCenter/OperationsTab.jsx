@@ -335,7 +335,7 @@ export function TriggerDataHint({ eventType, subjectType }) {
 export function OperationEditor({ operation, fields, onSave, onDelete, onRun, categoryFolders = [], isDuplicate = false }) {
   const { modulesById, operationsById, roleByModuleId } = useContext(GridActionsContext);
   const [local, setLocal] = useState(operation);
-  useMemo(() => setLocal(operation), [operation.id]);
+  useMemo(() => setLocal(operation), [operation?.id]);
 
   // Helper to update triggerConfig sub-keys
   const setTriggerConfig = (triggerKey, patch) =>
@@ -420,8 +420,30 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
       {/* ── Triggers ── */}
       <div>
         <span style={labelStyle}>Triggers</span>
+        {/* On Load switch — separate from configurable trigger rows */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, padding: "4px 8px", borderRadius: 5, background: "var(--input-bg)", border: "1px solid var(--border-subtle)" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)", flex: 1 }}>
+            <span
+              onClick={() => toggleTriggerType("onLoad")}
+              style={{
+                display: "inline-block", width: 28, height: 14, borderRadius: 7, cursor: "pointer",
+                background: isTriggerActive("onLoad") ? "rgb(52,211,153)" : "var(--border-default)",
+                position: "relative", transition: "background 0.15s",
+              }}
+            >
+              <span style={{
+                position: "absolute", top: 2, left: isTriggerActive("onLoad") ? 14 : 2,
+                width: 10, height: 10, borderRadius: "50%", background: "#fff",
+                transition: "left 0.15s",
+              }} />
+            </span>
+            Run on load
+          </label>
+          <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "monospace" }}>fires once when grid opens</span>
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {activeTriggerTypes.map((trigType, idx) => {
+          {activeTriggerTypes.filter(t => t !== "onLoad").map((trigType) => {
+            const idx = activeTriggerTypes.indexOf(trigType);
             const trigObj = local.triggerObjects?.[idx] || {};
             const eventType = trigObj.eventType || trigType;
             const subjectType = trigObj.subjectType || "module";
@@ -447,7 +469,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                   onChange={e => { toggleTriggerType(trigType); toggleTriggerType(e.target.value); updateTrigObj({ eventType: e.target.value }); }}
                   style={{ ...inputStyle, width: "auto", minWidth: 110, fontSize: 10 }}
                 >
-                  {EVENT_TYPES.map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
+                  {EVENT_TYPES.filter(et => et.value !== "onLoad").map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
                 </select>
                 {/* Subject type */}
                 <select
@@ -744,7 +766,7 @@ export function OperationsTab() {
   }, []);
 
   const handleCreate = (folderId = null) => {
-    const newOp = { id: uid(), gridId, name: "New Operation", description: "", pipeline: { sources: [], steps: [] }, targetFieldId: null, triggerType: "manual", enabled: true, sortOrder: gridOperations.length, folderId };
+    const newOp = { id: uid(), gridId, name: "New Operation", description: "", pipeline: { sources: [], steps: [] }, targetFieldId: null, triggerType: "onChange", triggerTypes: ["onChange", "onLoad"], enabled: true, sortOrder: gridOperations.length, folderId };
     CommitHelpers.createOperation({ dispatch, socket, operation: newOp });
     setSelectedOpId(newOp.id);
   };
@@ -819,6 +841,8 @@ export function OperationsTab() {
   );
 
   // Drill-down: if an operation is selected, show editor full-pane with back button
+  // Guard: if the operation was deleted while selected, clear selection
+  if (selectedOpId && !selectedOp) { setSelectedOpId(null); }
   if (selectedOp) {
     return (
       <div style={{ display: "flex", flexDirection: "column" }}>

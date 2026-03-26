@@ -948,14 +948,14 @@ export default function LayoutForm({
           className="w-full text-xs"
           onClick={() => {
             const ok = window.confirm(
-              `Delete this panel${panelId ? ` (${panelId})` : ""}? This cannot be undone.`
+              `Remove this panel from the grid? The module will remain in the Command Center.`
             );
             if (!ok) return;
             onDeletePanel?.();
           }}
           disabled={!onDeletePanel}
         >
-          Delete panel
+          Remove from grid
         </Button>
       </div>
     </div>

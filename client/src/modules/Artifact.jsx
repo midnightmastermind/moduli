@@ -4,10 +4,13 @@
 // viewType: "artifact" + artifactType: "image"|"pdf"|"audio"|"video" → file renderer
 // viewType: "code" → syntax-highlighted code block (fetches raw file content)
 // view: passed from Panel — used to trigger scrollAnchor scroll in the editor
-import { useContext, useRef, useEffect, useState } from "react";
+import { useContext, useRef, useEffect, useState, useCallback } from "react";
 import { GridActionsContext } from "../GridActionsContext.js";
 import Editor from "../ui/Editor.jsx";
 import { hexToRgba } from "../helpers/colorHelpers.js";
+import * as CommitHelpers from "../helpers/CommitHelpers.js";
+import RadialMenu from "../ui/RadialMenu.jsx";
+import { Settings } from "lucide-react";
 
 function CodeViewer({ fileRef, label }) {
   const [code, setCode] = useState(null);
@@ -44,12 +47,31 @@ function CodeViewer({ fileRef, label }) {
   );
 }
 
-export default function Artifact({ occurrence, viewType, artifactType, embedded = false, dispatch, socket, view }) {
+export default function Artifact({ occurrence, viewType, artifactType, embedded = false, dispatch, socket, view, onScrollHighlight }) {
   const { modulesById } = useContext(GridActionsContext);
   const module = occurrence?.targetId ? modulesById?.[occurrence.targetId] : null;
   const fileRef = module?.fileRef;
   const docAccentBg = hexToRgba(module?.ownStyle?.bg, 0.1) ?? null;
   const scrollRef = useRef(null);
+
+  // Doc name editing state
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+  const nameInputRef = useRef(null);
+
+  const handleStartRename = useCallback(() => {
+    setNameValue(module?.label || "");
+    setEditingName(true);
+    setTimeout(() => nameInputRef.current?.select(), 0);
+  }, [module?.label]);
+
+  const handleSaveName = useCallback(() => {
+    setEditingName(false);
+    const trimmed = nameValue.trim();
+    if (trimmed && trimmed !== module?.label) {
+      CommitHelpers.updateModule({ dispatch, socket, module: { id: module.id, label: trimmed } });
+    }
+  }, [nameValue, module, dispatch, socket]);
 
   // Normalize: if old-style viewType was image/pdf/audio/video, treat as artifact
   const normalizedArtifactType = artifactType
@@ -57,11 +79,64 @@ export default function Artifact({ occurrence, viewType, artifactType, embedded 
   const isArtifact = viewType === "artifact" || normalizedArtifactType;
 
   // Scroll to embedded container by data-occ-id when scrollAnchor changes
+  const suppressAutoSyncRef = useRef(false);
   useEffect(() => {
     if (!view?.scrollAnchor) return;
     const target = scrollRef.current?.querySelector(`[data-occ-id="${view.scrollAnchor}"]`);
-    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (target) {
+      suppressAutoSyncRef.current = true;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      setTimeout(() => { suppressAutoSyncRef.current = false; }, 600);
+    }
   }, [view?.scrollAnchor]);
+
+  // Auto-highlight sidebar anchor based on scroll position (IntersectionObserver)
+  // Uses onScrollHighlight callback — does NOT modify activeOccurrenceId (which controls rendering)
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || !onScrollHighlight) return;
+
+    // Suppress for 600ms on mount — prevents firing during initial render
+    suppressAutoSyncRef.current = true;
+    const initTimer = setTimeout(() => { suppressAutoSyncRef.current = false; }, 600);
+
+    let debounceTimer = null;
+    let lastReportedId = null;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (suppressAutoSyncRef.current) return;
+        let topEntry = null;
+        let topY = Infinity;
+        for (const entry of entries) {
+          if (entry.isIntersecting && entry.boundingClientRect.top < topY) {
+            topY = entry.boundingClientRect.top;
+            topEntry = entry;
+          }
+        }
+        if (!topEntry) return;
+        const occId = topEntry.target.getAttribute("data-occ-id");
+        if (!occId || occId === lastReportedId) return;
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          lastReportedId = occId;
+          onScrollHighlight(occId);
+        }, 200);
+      },
+      { root: container, rootMargin: "-10% 0px -70% 0px", threshold: 0 }
+    );
+
+    const observe = () => {
+      observer.disconnect();
+      container.querySelectorAll("[data-occ-id]").forEach(el => observer.observe(el));
+    };
+    observe();
+
+    const mo = new MutationObserver(observe);
+    mo.observe(container, { childList: true, subtree: true });
+
+    return () => { clearTimeout(initTimer); clearTimeout(debounceTimer); observer.disconnect(); mo.disconnect(); };
+  }, [onScrollHighlight]);
 
   if (viewType === "code") {
     return <CodeViewer fileRef={fileRef} label={module?.label} />;
@@ -71,23 +146,70 @@ export default function Artifact({ occurrence, viewType, artifactType, embedded 
   // Embedded containers are moduleEmbed TipTap nodes — no React elements appended after editor
   if (!isArtifact || !normalizedArtifactType) {
     const docLabel = module?.label;
+
+    const radialItems = [
+      {
+        icon: Settings,
+        label: "Rename",
+        onClick: handleStartRename,
+        color: "bg-slate-600 hover:bg-slate-500",
+      },
+    ];
+
     return (
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden", position: "relative", ...(docAccentBg ? { background: docAccentBg } : {}) }}>
-        {docLabel && (
-          <div style={{ position: "absolute", top: 6, right: 10, zIndex: 10, fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-faint)", userSelect: "none", pointerEvents: "none", letterSpacing: "0.03em" }}>
-            {docLabel}
-          </div>
-        )}
-        <div ref={scrollRef} className="artifact-markdown" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-          <Editor
-            occurrence={occurrence}
-            content={occurrence?.textmap ?? null}
-            dispatch={dispatch}
-            socket={socket}
-            showToolbar
-            stickyToolbar
-            placeholder="Start writing…"
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden", position: "relative", padding: "20px 3px 3px 3px", ...(docAccentBg ? { background: docAccentBg } : {}) }}>
+        {/* Drag handle — outside bordered div so overflow:hidden doesn't clip it */}
+        <div className="module-drag-handle module-grab-zone" style={{ top: 3, left: "50%", transform: "translateX(-50%)", zIndex: 300 }}>
+          <div className="drag-handle-stem" />
+          <div className="drag-handle-ball" />
+          <RadialMenu
+            items={radialItems}
+            handleIcon={Settings}
+            handleTitle="Document settings"
+            forceDirection="down"
+            size="sm"
           />
+        </div>
+
+        {/* Doc card with border */}
+        <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", border: "1px solid var(--border-subtle)", borderRadius: 4, overflow: "hidden" }}>
+
+          {/* Rename input — appears below handle when editing */}
+          {editingName && (
+            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderBottom: "1px solid var(--border-subtle)", flexShrink: 0 }}>
+              <input
+                ref={nameInputRef}
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onBlur={handleSaveName}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSaveName(); if (e.key === "Escape") setEditingName(false); }}
+                style={{
+                  background: "var(--input-bg)", border: "1px solid var(--border-default)",
+                  borderRadius: 3, padding: "2px 8px", fontSize: 11, fontFamily: "var(--font-mono)",
+                  color: "var(--text-primary)", outline: "none", flex: 1,
+                }}
+                placeholder="Document name"
+                autoFocus
+              />
+            </div>
+          )}
+
+          {/* Doc label badge — top right */}
+          {docLabel && !editingName && (
+            <div style={{ position: "absolute", top: 2, right: 10, zIndex: 10, fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-faint)", userSelect: "none", pointerEvents: "none", letterSpacing: "0.03em" }}>
+              {docLabel}
+            </div>
+          )}
+
+          <div ref={scrollRef} className="artifact-markdown" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+            <Editor
+              occurrence={occurrence}
+              content={occurrence?.textmap ?? null}
+              dispatch={dispatch}
+              socket={socket}
+              placeholder="Start writing…"
+            />
+          </div>
         </div>
       </div>
     );

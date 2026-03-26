@@ -54,9 +54,10 @@ export function FieldPill({ field, selected, onClick, compact = false }) {
   }, [field]);
 
   const isInput = field.inputEnabled !== false && field.mode !== "derived";
-  const base = isInput ? "59,130,246" : "168,85,247"; // blue / purple
-  const textColor = isInput ? "rgb(147,197,253)" : "rgb(216,180,254)";
-  const dotColor = isInput ? "rgb(96,165,250)" : "rgb(192,132,252)";
+  const isModule = field.type === "module";
+  const base = isModule ? "6,182,212" : isInput ? "59,130,246" : "168,85,247"; // cyan / blue / purple
+  const textColor = isModule ? "rgb(103,232,249)" : isInput ? "rgb(147,197,253)" : "rgb(216,180,254)";
+  const dotColor = isModule ? "rgb(34,211,238)" : isInput ? "rgb(96,165,250)" : "rgb(192,132,252)";
 
   if (compact) {
     // Compact list-item style for category columns
@@ -160,7 +161,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
             onChange={(e) => setLocal((p) => ({ ...p, type: e.target.value }))}
             style={{ ...inputStyle, width: "auto", minWidth: 90 }}
           >
-            {["number", "text", "boolean", "select", "date", "rating", "duration"].map((t) => (
+            {["number", "text", "boolean", "select", "date", "rating", "duration", "module"].map((t) => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
@@ -251,6 +252,34 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
               onClick={() => { if (newOpt.trim()) { setMeta("options", [...(local.meta?.options || []), newOpt.trim()]); setNewOpt(""); } }}
               style={{ padding: "0 10px", borderRadius: 4, fontSize: 10, fontFamily: "monospace", background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-muted)", cursor: "pointer" }}
             >Add</button>
+          </div>
+        </div>
+      )}
+
+      {/* Module field config */}
+      {local.type === "module" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div>
+            <span style={labelStyle}>Link Label</span>
+            <input
+              value={local.meta?.label || ""}
+              onChange={(e) => setMeta("label", e.target.value || undefined)}
+              placeholder="e.g. Project, Time Slot, Assigned To"
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <span style={labelStyle}>Filter by role (optional)</span>
+            <select
+              value={local.meta?.roleFilter || ""}
+              onChange={(e) => setMeta("roleFilter", e.target.value || undefined)}
+              style={{ ...inputStyle, width: "auto", minWidth: 120 }}
+            >
+              <option value="">All modules</option>
+              <option value="panel">Panels</option>
+              <option value="container">Containers</option>
+              <option value="instance">Instances</option>
+            </select>
           </div>
         </div>
       )}

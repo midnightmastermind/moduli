@@ -122,6 +122,36 @@ export function deleteOccurrence({ dispatch, socket, occurrenceId, emit = true }
   if (shouldEmit(emit)) socket?.emit("delete_occurrence", { occurrenceId });
 }
 
+// Remove occurrence from grid + clean up parent reference (optimistic)
+export function removeOccurrence({ dispatch, socket, occurrenceId, parentOccurrence, grid, emit = true }) {
+  if (!occurrenceId) return;
+  // Update parent's occurrences array optimistically
+  if (parentOccurrence) {
+    const updatedOccs = (parentOccurrence.occurrences || []).filter(id => id !== occurrenceId);
+    dispatch?.(updateOccurrenceAction({ id: parentOccurrence.id, occurrences: updatedOccs }));
+  } else if (grid) {
+    const gid = grid._id?.toString?.() || grid.id;
+    const updatedGridOccs = (grid.occurrences || []).filter(id => id !== occurrenceId);
+    dispatch?.(updateGridAction({ gridId: gid, grid: { occurrences: updatedGridOccs } }));
+  }
+  // Delete the occurrence (server cascades children + cleans parent)
+  dispatch?.(deleteOccurrenceAction(occurrenceId));
+  if (shouldEmit(emit)) socket?.emit("delete_occurrence", { occurrenceId });
+}
+
+// ===== TRASH (soft delete) =====
+export function trashModule({ dispatch, socket, moduleId, emit = true }) {
+  if (!moduleId) return;
+  dispatch?.(updateModuleAction({ id: moduleId, trashed: true }));
+  if (shouldEmit(emit)) socket?.emit("trash_module", { moduleId });
+}
+
+export function restoreModule({ dispatch, socket, moduleId, emit = true }) {
+  if (!moduleId) return;
+  dispatch?.(updateModuleAction({ id: moduleId, trashed: false }));
+  if (shouldEmit(emit)) socket?.emit("restore_module", { moduleId });
+}
+
 // ===== FIELD =====
 export function createField({ dispatch, socket, field, emit = true }) {
   if (!field?.id) return;

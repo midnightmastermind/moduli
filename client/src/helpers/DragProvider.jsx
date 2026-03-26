@@ -114,6 +114,9 @@ export function DragProvider({
   });
 
   const pointerRef = useRef({ x: 0, y: 0 });
+  // B3: Stable ref for values that change but don't need to recreate callbacks
+  const dragConfigRef = useRef({ activeCell, setActiveCell, rows, cols, isMobile });
+  dragConfigRef.current = { activeCell, setActiveCell, rows, cols, isMobile };
   const rafRef = useRef(0);
   const lastDropRef = useRef({ payload: null, containerId: null, timestamp: 0 });
   // Mobile drag-to-edge cell navigation timer
@@ -121,6 +124,8 @@ export function DragProvider({
   const dragEdgeIndicatorRef = useRef(null);
   // Track last hot target to skip redundant DOM updates on every mouse-move
   const lastHotRef = useRef({ panelId: null, containerId: null, instanceId: null });
+  // B2: Cache last preview target to skip redundant draft mutations
+  const lastPreviewRef = useRef({ containerId: null, instanceId: null, panelId: null });
 
   // Direct DOM highlight — bypasses React state for zero-lag container outline
   const highlightedContainerRef = useRef(null);
@@ -225,20 +230,32 @@ export function DragProvider({
   }, [gridRef, rows, cols, rowSizes, colSizes]);
 
   // ============================================================
-  // HIT TESTING
+  // HIT TESTING — single elementsFromPoint per frame (B1)
   // ============================================================
-  const getTopmostAttr = useCallback((x, y, attr) => {
+  const getHoveredIds = useCallback((x, y) => {
     const elements = document.elementsFromPoint(x, y);
+    let panelId = null, containerId = null, instanceId = null;
+    for (const el of elements) {
+      if (!panelId) { const v = el.getAttribute("data-panel-id"); if (v) panelId = v; }
+      if (!containerId) { const v = el.getAttribute("data-container-id"); if (v) containerId = v; }
+      if (!instanceId) { const v = el.getAttribute("data-instance-id"); if (v) instanceId = v; }
+      if (panelId && containerId && instanceId) break;
+    }
+    return { panelId, containerId, instanceId };
+  }, []);
+
+  // Keep individual getters for one-off callers (e.g. handleDrop fallbacks)
+  const getTopmostAttr = useCallback((attr) => {
+    const elements = document.elementsFromPoint(pointerRef.current.x, pointerRef.current.y);
     for (const el of elements) {
       const val = el.getAttribute(attr);
       if (val) return val;
     }
     return null;
   }, []);
-
-  const getHoveredPanelId = useCallback(() => getTopmostAttr(pointerRef.current.x, pointerRef.current.y, "data-panel-id"), [getTopmostAttr]);
-  const getHoveredContainerId = useCallback(() => getTopmostAttr(pointerRef.current.x, pointerRef.current.y, "data-container-id"), [getTopmostAttr]);
-  const getHoveredInstanceId = useCallback(() => getTopmostAttr(pointerRef.current.x, pointerRef.current.y, "data-instance-id"), [getTopmostAttr]);
+  const getHoveredPanelId = useCallback(() => getTopmostAttr("data-panel-id"), [getTopmostAttr]);
+  const getHoveredContainerId = useCallback(() => getTopmostAttr("data-container-id"), [getTopmostAttr]);
+  const getHoveredInstanceId = useCallback(() => getTopmostAttr("data-instance-id"), [getTopmostAttr]);
 
   // ============================================================
   // SESSION MANAGEMENT
@@ -326,6 +343,7 @@ export function DragProvider({
     setActivePayload(null);
     setPanelOverCellId(null);
     lastHotRef.current = { panelId: null, containerId: null, instanceId: null };
+    lastPreviewRef.current = { containerId: null, instanceId: null, panelId: null };
     setDropHighlight(null);
 
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -408,7 +426,7 @@ export function DragProvider({
     pointerRef.current = { x: clientX, y: clientY };
 
     // Prevent Android split-screen gesture from intercepting drags on mobile.
-    if (isMobile) {
+    if (dragConfigRef.current.isMobile) {
       document.documentElement.style.touchAction = 'none';
       document.documentElement.style.overscrollBehavior = 'none';
       spawnEdgeBarriers();
@@ -425,7 +443,7 @@ export function DragProvider({
     }
 
     onTick?.();
-  }, [startSession, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId, onTick, isMobile, spawnEdgeBarriers]);
+  }, [startSession, getCellFromPoint, onTick, spawnEdgeBarriers]);
 
   const handleDragMove = useCallback((clientX, clientY) => {
     const s = sessionRef.current;
@@ -437,16 +455,16 @@ export function DragProvider({
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = 0;
 
-      const panelId = getHoveredPanelId();
-      const containerId = getHoveredContainerId();
-      const instanceId = getHoveredInstanceId();
+      const { panelId, containerId, instanceId } = getHoveredIds(clientX, clientY);
       const cell = getCellFromPoint(clientX, clientY);
 
       // Only re-render if panel/container/instance changed (not on every pixel)
       const last = lastHotRef.current;
       if (last.panelId !== panelId || last.containerId !== containerId || last.instanceId !== instanceId) {
         lastHotRef.current = { panelId, containerId, instanceId };
-        setDropHighlight(containerId || null);
+        // Only highlight containers when dragging instances (containers are valid drop targets for instances)
+        const shouldHighlight = s.payload?.type === DragType.INSTANCE || s.payload?.type === DragType.EXTERNAL;
+        setDropHighlight(shouldHighlight ? (containerId || null) : null);
       }
 
       if (s.payload?.type === DragType.PANEL) {
@@ -480,16 +498,17 @@ export function DragProvider({
         }
       }
 
-      // Mobile drag-to-edge cell navigation
-      if (isMobile && activeCell && setActiveCell) {
-        const edgeZone = 40;
+      // Mobile drag-to-edge cell navigation (B3: reads from dragConfigRef)
+      const dc = dragConfigRef.current;
+      if (dc.isMobile && dc.activeCell && dc.setActiveCell) {
+        const edgeZone = 60;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
         let dir = null;
-        if (clientX < edgeZone && activeCell.col > 0) dir = { dCol: -1, dRow: 0, edge: "left" };
-        else if (clientX > vw - edgeZone && activeCell.col < cols - 1) dir = { dCol: 1, dRow: 0, edge: "right" };
-        else if (clientY < edgeZone + 30 && activeCell.row > 0) dir = { dCol: 0, dRow: -1, edge: "up" };
-        else if (clientY > vh - edgeZone && activeCell.row < rows - 1) dir = { dCol: 0, dRow: 1, edge: "down" };
+        if (clientX < edgeZone && dc.activeCell.col > 0) dir = { dCol: -1, dRow: 0, edge: "left" };
+        else if (clientX > vw - edgeZone && dc.activeCell.col < dc.cols - 1) dir = { dCol: 1, dRow: 0, edge: "right" };
+        else if (clientY < edgeZone + 30 && dc.activeCell.row > 0) dir = { dCol: 0, dRow: -1, edge: "up" };
+        else if (clientY > vh - edgeZone && dc.activeCell.row < dc.rows - 1) dir = { dCol: 0, dRow: 1, edge: "down" };
 
         if (dir && !dragEdgeTimerRef.current) {
           // Show edge glow indicator
@@ -500,16 +519,16 @@ export function DragProvider({
             dragEdgeIndicatorRef.current = el;
           }
           dragEdgeTimerRef.current = setTimeout(() => {
-            setActiveCell(prev => ({
-              row: clamp(prev.row + dir.dRow, 0, rows - 1),
-              col: clamp(prev.col + dir.dCol, 0, cols - 1),
+            dc.setActiveCell(prev => ({
+              row: clamp(prev.row + dir.dRow, 0, dc.rows - 1),
+              col: clamp(prev.col + dir.dCol, 0, dc.cols - 1),
             }));
             dragEdgeTimerRef.current = null;
             if (dragEdgeIndicatorRef.current) {
               dragEdgeIndicatorRef.current.remove();
               dragEdgeIndicatorRef.current = null;
             }
-          }, 600);
+          }, 300);
         } else if (!dir) {
           if (dragEdgeTimerRef.current) {
             clearTimeout(dragEdgeTimerRef.current);
@@ -522,9 +541,11 @@ export function DragProvider({
         }
       }
 
-      // Live preview for instance sorting
+      // Live preview for instance sorting (B2: skip if same target)
       // Ordering is in draftOccurrences (occurrence.occurrences), not draftContainers.
-      if (s.payload?.type === DragType.INSTANCE && containerId) {
+      if (s.payload?.type === DragType.INSTANCE && containerId &&
+          (lastPreviewRef.current.containerId !== containerId || lastPreviewRef.current.instanceId !== instanceId)) {
+        lastPreviewRef.current = { containerId, instanceId, panelId };
         const toC = s.draftContainers?.find((c) => c.id === containerId);
         const fromC = s.startContainers?.find((c) => c.id === s.payload.context?.containerId);
         let toIndex = null;
@@ -590,12 +611,14 @@ export function DragProvider({
         }
       }
 
-      // Live preview for container sorting
+      // Live preview for container sorting (B2: skip if same target)
       // Ordering is in draftOccurrences (occurrence.occurrences), not draftPanels.
-      if (s.payload?.type === DragType.CONTAINER && panelId) {
+      if (s.payload?.type === DragType.CONTAINER && panelId &&
+          (lastPreviewRef.current.panelId !== panelId || lastPreviewRef.current.containerId !== containerId)) {
+        lastPreviewRef.current = { containerId, instanceId, panelId };
         const toPanel = s.draftPanels?.find((p) => p.id === panelId);
         const fromPanel = s.startPanels?.find((p) => p.id === s.payload.context?.panelId);
-        const hoveredContainerId = getHoveredContainerId();
+        const hoveredContainerId = containerId; // Already resolved by getHoveredIds above
         let toIndex = null;
 
         // Find panel occurrences via draftOccurrences (panel occ = occ with targetId === panel.id)
@@ -667,7 +690,7 @@ export function DragProvider({
 
       onTick?.();
     });
-  }, [getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId, previewMoveInstance, previewMoveContainer, occurrencesById, onTick]);
+  }, [getCellFromPoint, getHoveredIds, previewMoveInstance, previewMoveContainer, occurrencesById, onTick]);
 
   const handleDragOver = useCallback((target) => {
     // Called by useDroppable/useDragDrop on dragover.
@@ -686,7 +709,9 @@ export function DragProvider({
     }
 
     lastHotRef.current = { panelId: newPanelId, containerId: newContainerId, instanceId: newInstanceId };
-    setDropHighlight(newContainerId || null);
+    // Only highlight containers for instance/external drags, not container drags
+    const shouldHighlight = s.payload?.type === DragType.INSTANCE || s.payload?.type === DragType.EXTERNAL;
+    setDropHighlight(shouldHighlight ? (newContainerId || null) : null);
   }, []);
 
   // ============================================================
@@ -1052,11 +1077,11 @@ export function DragProvider({
               occurrencesById
             );
             if (fromIndex !== -1) {
-              const finalToIndex = toIndex !== null ? toIndex : (fromPanelOcc.occurrences || []).length;
-              if (fromIndex !== finalToIndex) {
+              if (toIndex === null) { clearSession(); return; }
+              if (fromIndex !== toIndex) {
                 LayoutHelpers.reorderContainersInPanel({
                   dispatch, socket, panelOccurrence: fromPanelOcc,
-                  fromIndex, toIndex: finalToIndex, emit: true,
+                  fromIndex, toIndex, emit: true,
                 });
               }
             }
@@ -1082,14 +1107,17 @@ export function DragProvider({
             );
 
             if (fromIndex !== -1) {
-              // If toIndex is null, append to end
-              const finalToIndex = toIndex !== null ? toIndex : (fromPanelOcc.occurrences || []).length;
+              // If toIndex is null (dropped on empty space, not over a sibling), keep in place
+              if (toIndex === null) {
+                clearSession();
+                return;
+              }
 
-              if (fromIndex !== finalToIndex) {
+              if (fromIndex !== toIndex) {
                 LayoutHelpers.reorderContainersInPanel({
                   dispatch, socket, panelOccurrence: fromPanelOcc,
                   fromIndex,
-                  toIndex: finalToIndex,
+                  toIndex,
                   emit: true,
                 });
               }
@@ -1228,11 +1256,11 @@ export function DragProvider({
               occurrencesById
             );
             if (fromIndex !== -1) {
-              const finalToIndex = toIndex !== null ? toIndex : (fromCOcc.occurrences || []).length;
-              if (fromIndex !== finalToIndex) {
+              if (toIndex === null) { clearSession(); return; }
+              if (fromIndex !== toIndex) {
                 LayoutHelpers.reorderInstancesInContainer({
                   dispatch, socket, containerOccurrence: fromCOcc,
-                  fromIndex, toIndex: finalToIndex, emit: true,
+                  fromIndex, toIndex, emit: true,
                 });
               }
             }
@@ -1299,14 +1327,15 @@ export function DragProvider({
               occurrencesById
             );
             if (fromIndex !== -1) {
-              const finalToIndex = toIndex !== null ? toIndex : (fromCOcc.occurrences || []).length;
-              if (fromIndex !== finalToIndex) {
+              // If toIndex is null (dropped on empty space, not over a sibling), keep in place
+              if (toIndex === null) { clearSession(); return; }
+              if (fromIndex !== toIndex) {
                 LayoutHelpers.reorderInstancesInContainer({
                   dispatch,
                   socket,
                   containerOccurrence: fromCOcc,
                   fromIndex,
-                  toIndex: finalToIndex,
+                  toIndex,
                   emit: true,
                 });
               }
@@ -1941,7 +1970,9 @@ export function DragProvider({
     }));
 
     dispatch(batchUpdateModulesAction(updatedModules));
-    socket?.emit("update_module", { module: updatedModules[nextIdx] });
+    for (const mod of updatedModules) {
+      socket?.emit("update_module", { module: mod });
+    }
   }, [dispatch, socket, getWorkingPanels, getStackForPanel]);
 
   // ============================================================

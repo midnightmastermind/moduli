@@ -1,0 +1,2842 @@
+[
+  {
+    "_id": "69c288cfe56661f84e2e25aa",
+    "id": "Wbi3wo_IrWfr",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Completed Today",
+    "description": "Count completed (true) Completed Today occurrences (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "KG7PSrkpzHPg"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "JLqHltaRTTUr",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$count",
+            "value": 0
+          }
+        },
+        {
+          "id": "tprBcMHn0u1K",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "KG7PSrkpzHPg",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "Vcb-Td_wVgOb",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS",
+                    "left": "$item.value",
+                    "right": true
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "I9tunMS8hPDs",
+                  "type": "action",
+                  "config": {
+                    "type": "INCREMENT_VAR",
+                    "name": "$count",
+                    "by": 1
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "kbv1CgnICd9k",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "EY5b64q5FQu7",
+            "sourceExpr": "$count"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:27.020Z",
+    "updatedAt": "2026-03-24T12:51:27.020Z"
+  },
+  {
+    "_id": "69c288cfe56661f84e2e25ac",
+    "id": "72-eLG9sjnmk",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Task Count Today",
+    "description": "Count of non-empty Task Count Today occurrences (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "KG7PSrkpzHPg"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "U9k-uwLf6mPP",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$count",
+            "value": 0
+          }
+        },
+        {
+          "id": "xZ88qbFmD-Mp",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "KG7PSrkpzHPg",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "0M456_xFBfaW",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "-xFF57uIM_tO",
+                  "type": "action",
+                  "config": {
+                    "type": "INCREMENT_VAR",
+                    "name": "$count",
+                    "by": 1
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "Z2lbxjhfaGks",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "GdbOzgurbPDk",
+            "sourceExpr": "$count"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:27.136Z",
+    "updatedAt": "2026-03-24T12:51:27.136Z"
+  },
+  {
+    "_id": "69c288cfe56661f84e2e25ae",
+    "id": "ECYzd3MGZ5ZQ",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Latest Mood",
+    "description": "Last recorded Latest Mood value (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "5rmi5O14GKKB"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "t1oyD4FSc5p1",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$latest",
+            "value": null
+          }
+        },
+        {
+          "id": "dtr3wxDtIhVi",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "5rmi5O14GKKB",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "gaZXhxHQFKoG",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "Kyvj_xAbsU8j",
+                  "type": "action",
+                  "config": {
+                    "type": "SET_VAR",
+                    "name": "$latest",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "rKMR-McvxmBo",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "F0Ty3Dk-cdo_",
+            "sourceExpr": "$latest"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:27.271Z",
+    "updatedAt": "2026-03-24T12:51:27.271Z"
+  },
+  {
+    "_id": "69c288cfe56661f84e2e25b0",
+    "id": "teV2KrcnwaMm",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Steps Today",
+    "description": "Sum of Steps Today values (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "aEKOn7_yLcHl"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "uW9DQ4druj-B",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "KZAcs493Enrp",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "aEKOn7_yLcHl",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "iuUpkV3lm-EZ",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "ENzh9FvnrA7o",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "_s9XvG_4IqQi",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "L5fwbW_0y2Kg",
+            "sourceExpr": "$total",
+            "targetValue": 10000,
+            "targetPeriod": "daily"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:27.403Z",
+    "updatedAt": "2026-03-24T12:51:27.403Z"
+  },
+  {
+    "_id": "69c288cfe56661f84e2e25b2",
+    "id": "2C0sZFtw3eHn",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Water Today",
+    "description": "Sum of Water Today values (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "9RWuVXMHC-op"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "rUSlLG5lqXVn",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "hYMwRyzZ0HuZ",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "9RWuVXMHC-op",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "Hdp3Et5TDDxZ",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "Bau4UekGsYwi",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "uXcrmS2s2uZq",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "zZVeg6-Y9o5D",
+            "sourceExpr": "$total",
+            "targetValue": 64,
+            "targetPeriod": "daily"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:27.537Z",
+    "updatedAt": "2026-03-24T12:51:27.537Z"
+  },
+  {
+    "_id": "69c288cfe56661f84e2e25b4",
+    "id": "XoAbQ1kW8N3O",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Time Spent Today",
+    "description": "Sum of Time Spent Today values (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "nWjx4QfWkSuz"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "mxVQac2VKYXH",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "5uKUWn-duAR2",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "nWjx4QfWkSuz",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "0xZ4pl35WyBl",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "Y2RIuDDp22Tl",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "Y5sVsUBfrfas",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "a1846vIpVCDB",
+            "sourceExpr": "$total",
+            "targetValue": 120,
+            "targetPeriod": "daily"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:27.657Z",
+    "updatedAt": "2026-03-24T12:51:27.657Z"
+  },
+  {
+    "_id": "69c288d0e56661f84e2e25b6",
+    "id": "huVjcGZaGcN1",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Pages Today",
+    "description": "Sum of Pages Today values (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "7Ty_yjUK25jR"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "eUeOoeI8zmrb",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "ZHA0zeJEWgWk",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "7Ty_yjUK25jR",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "yh0gb-1a_V78",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "qVznXY0EO95u",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "1kByOQ6MMore",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "dV11hgD-0sR3",
+            "sourceExpr": "$total",
+            "targetValue": 30,
+            "targetPeriod": "daily"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:28.040Z",
+    "updatedAt": "2026-03-24T12:51:28.040Z"
+  },
+  {
+    "_id": "69c288d0e56661f84e2e25b8",
+    "id": "jP3Cl_VqZ3Ox",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Spent Today",
+    "description": "Sum of Spent Today values (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "DS5gTH54NeXH"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "JknOo5U_EKr2",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "rno1lvzbul1T",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "DS5gTH54NeXH",
+          "timeFilter": "daily",
+          "flowFilter": "out",
+          "as": "$item",
+          "body": [
+            {
+              "id": "J6-9diHbTXbt",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "kcdiTNv9cRl9",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "p_J61QAqJIWL",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "rhGYPhMHKKri",
+            "sourceExpr": "$total"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:28.129Z",
+    "updatedAt": "2026-03-24T12:51:28.129Z"
+  },
+  {
+    "_id": "69c288d0e56661f84e2e25ba",
+    "id": "SOS-bJQfj35c",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Earned Today",
+    "description": "Sum of Earned Today values (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "L0AV7Np3Zrxv"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "jZ1ds1t-l__B",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "0cZ9HJVp0uLg",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "L0AV7Np3Zrxv",
+          "timeFilter": "daily",
+          "flowFilter": "in",
+          "as": "$item",
+          "body": [
+            {
+              "id": "dg7QCPSOMF4B",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "ZMAC8otbZa3l",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "T3V_N8VxOHn8",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "E3JM2_mUddye",
+            "sourceExpr": "$total"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:28.236Z",
+    "updatedAt": "2026-03-24T12:51:28.236Z"
+  },
+  {
+    "_id": "69c288d0e56661f84e2e25bc",
+    "id": "MQIZcOsG3paB",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Calories Today",
+    "description": "Sum of Calories Today values (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "r8f4dlHruVFr"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "SL_EEReFLQ7A",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "8wHnRU3ouvpe",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "r8f4dlHruVFr",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "11_IqfIRlYJL",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "bBvg0BGKOdH0",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "OK-upHnajZhR",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "r8f4dlHruVFr",
+            "sourceExpr": "$total",
+            "targetValue": 2500,
+            "targetPeriod": "daily"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": "TXqSYFUXunHx",
+    "createdAt": "2026-03-24T12:51:28.403Z",
+    "updatedAt": "2026-03-24T12:51:28.403Z"
+  },
+  {
+    "_id": "69c288d0e56661f84e2e25be",
+    "id": "ylFKBqu8Ulah",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Protein Today",
+    "description": "Sum of Protein Today values (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "xtRrknMdpPBj"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "ulqraoort8Y4",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "nicbJR1YMRsL",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "xtRrknMdpPBj",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "atzE-K35D4Qt",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "6JDrYkh1ZZNB",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "wpde7T2l8bjM",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "ZI9_8aPS3ahP",
+            "sourceExpr": "$total",
+            "targetValue": 180,
+            "targetPeriod": "daily"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": "TXqSYFUXunHx",
+    "createdAt": "2026-03-24T12:51:28.610Z",
+    "updatedAt": "2026-03-24T12:51:28.610Z"
+  },
+  {
+    "_id": "69c288d0e56661f84e2e25c0",
+    "id": "zQg3tSGQdZp8",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Carbs Today",
+    "description": "Sum of Carbs Today values (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "lz_tTQHKejyU"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "Ufo92ibJhSg1",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "EOjJ8089msSo",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "lz_tTQHKejyU",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "e26-kAP8JViW",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "SMON0dsce9wk",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "P04HjiFonEvJ",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "0AAEcN-hload",
+            "sourceExpr": "$total",
+            "targetValue": 280,
+            "targetPeriod": "daily"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": "TXqSYFUXunHx",
+    "createdAt": "2026-03-24T12:51:28.789Z",
+    "updatedAt": "2026-03-24T12:51:28.789Z"
+  },
+  {
+    "_id": "69c288d1e56661f84e2e25c2",
+    "id": "_WYOiYdZLeRk",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Fats Today",
+    "description": "Sum of Fats Today values (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "fcEkgCSQcIpY"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "iZYGVxzGWlpk",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "jN5C3WAeFvLY",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "fcEkgCSQcIpY",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "L4hH4-s-58Zw",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "dNKHktvuEGLM",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "s3XTSPdEmLSt",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "33-jN_V9rU_5",
+            "sourceExpr": "$total",
+            "targetValue": 80,
+            "targetPeriod": "daily"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": "TXqSYFUXunHx",
+    "createdAt": "2026-03-24T12:51:29.149Z",
+    "updatedAt": "2026-03-24T12:51:29.149Z"
+  },
+  {
+    "_id": "69c288d1e56661f84e2e25c4",
+    "id": "aTeGZux_OuE6",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Total Reps Today",
+    "description": "Sum of 3 source fields (daily) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "9EhMXKmfs43X",
+          "rZGFagxxFKq2",
+          "eiWBMql7cvrs"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "FwBh3ASZ0D20",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "TX-ovyaq4RsJ",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "9EhMXKmfs43X",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "b0MROi97GuUo",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "wZWcbbyf4ddl",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "ojTAnlPr3izu",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "rZGFagxxFKq2",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "svYffCIAMdS1",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "EDsdhr_tlMhA",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "dbkpi0baHcy2",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "eiWBMql7cvrs",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "QNFMlKgILGe1",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "2OLsysOIOqvU",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "DZmd23Oo9nZ0",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "Hf7YPoe700LZ",
+            "sourceExpr": "$total",
+            "targetValue": 150,
+            "targetPeriod": "daily"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": "H_93AFtNkGa-",
+    "createdAt": "2026-03-24T12:51:29.246Z",
+    "updatedAt": "2026-03-24T12:51:29.246Z"
+  },
+  {
+    "_id": "69c288d1e56661f84e2e25c6",
+    "id": "88hflSP8uzyE",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Net Balance",
+    "description": "Net balance = Σ income (flow:in) − Σ spent (flow:out), all time — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "L0AV7Np3Zrxv",
+          "DS5gTH54NeXH"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "JCvvD2A6hikW",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$income",
+            "value": 0
+          }
+        },
+        {
+          "id": "h0_1haHT50FO",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$spent",
+            "value": 0
+          }
+        },
+        {
+          "id": "lqjn0spsh9RX",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$net",
+            "value": 0
+          }
+        },
+        {
+          "id": "wAKoUFhui8xg",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "L0AV7Np3Zrxv",
+          "timeFilter": "all",
+          "flowFilter": "in",
+          "as": "$item",
+          "body": [
+            {
+              "id": "7vDEU4j2odkz",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "nynh2KULC1J7",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$income",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "0P_q05GA49nM",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "DS5gTH54NeXH",
+          "timeFilter": "all",
+          "flowFilter": "out",
+          "as": "$item",
+          "body": [
+            {
+              "id": "cbTt5QHVFQDw",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "ti7Xf3PdgtOq",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$spent",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "b-9m5fnddt6m",
+          "type": "action",
+          "config": {
+            "type": "SET_VAR",
+            "name": "$net",
+            "expr": "$income"
+          }
+        },
+        {
+          "id": "12U5AiDHGXBD",
+          "type": "action",
+          "config": {
+            "type": "MULTIPLY_VAR",
+            "name": "$spent",
+            "expr": -1
+          }
+        },
+        {
+          "id": "Sv6bfKSClr8P",
+          "type": "action",
+          "config": {
+            "type": "ADD_TO_VAR",
+            "name": "$net",
+            "expr": "$spent"
+          }
+        },
+        {
+          "id": "QcPcCQu7C0-W",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "vlSCDy0spdSO",
+            "sourceExpr": "$net"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:29.776Z",
+    "updatedAt": "2026-03-24T12:51:29.776Z"
+  },
+  {
+    "_id": "69c288d1e56661f84e2e25c8",
+    "id": "Guq-itNnjdHS",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Mom's Account Balance",
+    "description": "Sum of Mom's Account Balance values (all) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "DS5gTH54NeXH"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "GOINKtu02iWd",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "CKOj2WncVvhc",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "DS5gTH54NeXH",
+          "timeFilter": "all",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "oyFa_S2FGpS2",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "mxgH7LgQlnMm",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "jM7puGCLyZcz",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "9ynAbfCWBxFW",
+            "sourceExpr": "$total"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:29.889Z",
+    "updatedAt": "2026-03-24T12:51:29.889Z"
+  },
+  {
+    "_id": "69c288d2e56661f84e2e25ca",
+    "id": "HfDXJN7Nxk-h",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Total Workouts",
+    "description": "Count completed (true) Total Workouts occurrences (all) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "KG7PSrkpzHPg"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "U4x1P-KYGbAk",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$count",
+            "value": 0
+          }
+        },
+        {
+          "id": "WZ6JsmNxrkD6",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "KG7PSrkpzHPg",
+          "timeFilter": "all",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "ryNHuBHXDagl",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS",
+                    "left": "$item.value",
+                    "right": true
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "cZdhyIY4NJKV",
+                  "type": "action",
+                  "config": {
+                    "type": "INCREMENT_VAR",
+                    "name": "$count",
+                    "by": 1
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "pO-SH136YMp7",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "sMT36QGYdqRK",
+            "sourceExpr": "$count"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:30.006Z",
+    "updatedAt": "2026-03-24T12:51:30.006Z"
+  },
+  {
+    "_id": "69c288d2e56661f84e2e25cc",
+    "id": "-fvRfLb5qhxA",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Total Reading Time",
+    "description": "Sum of Total Reading Time values (all) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "nWjx4QfWkSuz"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "YqGNP8F_RAf6",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "Ds-M0hZR9H5H",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "nWjx4QfWkSuz",
+          "timeFilter": "all",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "vFfn1rVfdRTS",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "Ggyt3tBbRa3u",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "aR2ofKZsawvs",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "PK6bRfGV5KXE",
+            "sourceExpr": "$total"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:30.129Z",
+    "updatedAt": "2026-03-24T12:51:30.129Z"
+  },
+  {
+    "_id": "69c288d2e56661f84e2e25ce",
+    "id": "qUMxqzvW5Du5",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Completion Rate",
+    "description": "Completion rate % (all) — counts done vs total, divides, shows % — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "KG7PSrkpzHPg"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "6fbdz-yhCraG",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "Pge5GZDCwVXX",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$done",
+            "value": 0
+          }
+        },
+        {
+          "id": "3LRKyk5R_NSQ",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "KG7PSrkpzHPg",
+          "timeFilter": "all",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "03tYX170C8TR",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "9fyZKwfglrLW",
+                  "type": "action",
+                  "config": {
+                    "type": "INCREMENT_VAR",
+                    "name": "$total",
+                    "by": 1
+                  }
+                },
+                {
+                  "id": "WqjTWWQ-lMKF",
+                  "type": "if",
+                  "condition": {
+                    "operator": "AND",
+                    "rules": [
+                      {
+                        "comparator": "IS",
+                        "left": "$item.value",
+                        "right": true
+                      }
+                    ]
+                  },
+                  "then": [
+                    {
+                      "id": "Ee5inRkd7IU_",
+                      "type": "action",
+                      "config": {
+                        "type": "INCREMENT_VAR",
+                        "name": "$done",
+                        "by": 1
+                      }
+                    }
+                  ],
+                  "else": []
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "kY-5s2irUsnf",
+          "type": "action",
+          "config": {
+            "type": "MULTIPLY_VAR",
+            "name": "$done",
+            "expr": 100
+          }
+        },
+        {
+          "id": "RTRkobZHbNby",
+          "type": "action",
+          "config": {
+            "type": "DIV_VAR",
+            "name": "$done",
+            "by": "$total"
+          }
+        },
+        {
+          "id": "JxFPnbWvws0D",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "jZXlgb5xy_37",
+            "sourceExpr": "$done"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:30.261Z",
+    "updatedAt": "2026-03-24T12:51:30.261Z"
+  },
+  {
+    "_id": "69c288d2e56661f84e2e25d0",
+    "id": "LBD1JVheDmqR",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Daily Question Cycle",
+    "description": "Cycles journalQuestion through the question pool based on day-of-year",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onNavigation",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onNavigation",
+      "onLoad"
+    ],
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "JW2LXu6AnSgR",
+          "type": "action",
+          "config": {
+            "type": "CYCLE_FIELD_VALUE",
+            "sourceFieldId": "1nKep_eHx5WT",
+            "targetFieldId": "r8ORuMaFPViW"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:30.380Z",
+    "updatedAt": "2026-03-24T12:51:30.380Z"
+  },
+  {
+    "_id": "69c288d2e56661f84e2e25d2",
+    "id": "EG15uMrjURxl",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Days Until Due",
+    "description": "Computes days until due date — writes per-occurrence to display field",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onNavigation",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onNavigation",
+      "onChange"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "d1pWlMBPQpM1"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "wtF0ZFvwVRQI",
+          "type": "action",
+          "config": {
+            "type": "DATE_DIFF",
+            "dateFieldId": "d1pWlMBPQpM1",
+            "targetFieldId": "PZNGIDMpMuKF",
+            "perOccurrence": true
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:30.492Z",
+    "updatedAt": "2026-03-24T12:51:30.492Z"
+  },
+  {
+    "_id": "69c288d2e56661f84e2e25d4",
+    "id": "qH-IMobNo0d6",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Overdue Tasks Count",
+    "description": "Counts tasks with a dueDate that has already passed",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onNavigation",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onNavigation"
+    ],
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "EbncLQgPlMNU",
+          "type": "action",
+          "config": {
+            "type": "COUNT_DATE_OVERDUE",
+            "dateFieldId": "d1pWlMBPQpM1",
+            "targetFieldId": "s4Agu1WLgeqf"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:30.851Z",
+    "updatedAt": "2026-03-24T12:51:30.851Z"
+  },
+  {
+    "_id": "69c288d2e56661f84e2e25d6",
+    "id": "Chn3ihaGC81N",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Due This Week",
+    "description": "Counts tasks with a dueDate within the next 7 days",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onNavigation",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onNavigation"
+    ],
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "6SJKAsuGEBkF",
+          "type": "action",
+          "config": {
+            "type": "COUNT_DATE_UPCOMING",
+            "dateFieldId": "d1pWlMBPQpM1",
+            "targetFieldId": "sAPr_Mpl32sr",
+            "withinDays": 7
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:30.949Z",
+    "updatedAt": "2026-03-24T12:51:30.949Z"
+  },
+  {
+    "_id": "69c288d3e56661f84e2e25d8",
+    "id": "Tb38ft7uETW9",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Time Spent This Week",
+    "description": "Sum of Time Spent This Week values (weekly) — granular LOOP pipeline",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onIteration"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "nWjx4QfWkSuz"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "1-gMtC5VUZ2o",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$total",
+            "value": 0
+          }
+        },
+        {
+          "id": "Y6kBlwcbOeMR",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "nWjx4QfWkSuz",
+          "timeFilter": "weekly",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "2N5AZ-Sc9L5S",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "comparator": "IS_NOT_EMPTY",
+                    "left": "$item.value"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "HTLGJIP7H7sG",
+                  "type": "action",
+                  "config": {
+                    "type": "ADD_TO_VAR",
+                    "name": "$total",
+                    "expr": "$item.value"
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "k0K_hrO3GEt0",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "a1846vIpVCDB",
+            "sourceExpr": "$total",
+            "targetValue": 840,
+            "targetPeriod": "weekly"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:31.111Z",
+    "updatedAt": "2026-03-24T12:51:31.111Z"
+  },
+  {
+    "_id": "69c288d3e56661f84e2e25da",
+    "id": "x9-9MYbUo6i-",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Doctor Checkup Reset",
+    "description": "Auto-reset \"Doctor Checkup Reset\": clears completed and advances dueDate by 365 days",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onComplete",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onComplete"
+    ],
+    "triggerConfig": {
+      "onComplete": {
+        "fieldId": "KG7PSrkpzHPg"
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "VW0we3fMuZj2",
+          "type": "action",
+          "config": {
+            "type": "RESET_RECURRING_TASK",
+            "completionFieldId": "KG7PSrkpzHPg",
+            "dueDateFieldId": "d1pWlMBPQpM1",
+            "recurrenceDays": 365
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:31.263Z",
+    "updatedAt": "2026-03-24T12:51:31.263Z"
+  },
+  {
+    "_id": "69c288d3e56661f84e2e25dc",
+    "id": "5uUoWsDJgsZ1",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Car Insurance Renewal Reset",
+    "description": "Auto-reset \"Car Insurance Renewal Reset\": clears completed and advances dueDate by 365 days",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onComplete",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onComplete"
+    ],
+    "triggerConfig": {
+      "onComplete": {
+        "fieldId": "KG7PSrkpzHPg"
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "Kze0mSf7MoYI",
+          "type": "action",
+          "config": {
+            "type": "RESET_RECURRING_TASK",
+            "completionFieldId": "KG7PSrkpzHPg",
+            "dueDateFieldId": "d1pWlMBPQpM1",
+            "recurrenceDays": 365
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:31.356Z",
+    "updatedAt": "2026-03-24T12:51:31.356Z"
+  },
+  {
+    "_id": "69c288d3e56661f84e2e25de",
+    "id": "VeCEFvCvV76f",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "File Taxes Reset",
+    "description": "Auto-reset \"File Taxes Reset\": clears completed and advances dueDate by 365 days",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onComplete",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onComplete"
+    ],
+    "triggerConfig": {
+      "onComplete": {
+        "fieldId": "KG7PSrkpzHPg"
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "8C1fJ1rylPhX",
+          "type": "action",
+          "config": {
+            "type": "RESET_RECURRING_TASK",
+            "completionFieldId": "KG7PSrkpzHPg",
+            "dueDateFieldId": "d1pWlMBPQpM1",
+            "recurrenceDays": 365
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:31.451Z",
+    "updatedAt": "2026-03-24T12:51:31.451Z"
+  },
+  {
+    "_id": "69c288d3e56661f84e2e25e0",
+    "id": "JB2FpN-E9o1n",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Quarterly Review Reset",
+    "description": "Auto-reset \"Quarterly Review Reset\": clears completed and advances dueDate by 90 days",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onComplete",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onComplete"
+    ],
+    "triggerConfig": {
+      "onComplete": {
+        "fieldId": "KG7PSrkpzHPg"
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "fl2f778Lr0tW",
+          "type": "action",
+          "config": {
+            "type": "RESET_RECURRING_TASK",
+            "completionFieldId": "KG7PSrkpzHPg",
+            "dueDateFieldId": "d1pWlMBPQpM1",
+            "recurrenceDays": 90
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T12:51:31.863Z",
+    "updatedAt": "2026-03-24T12:51:31.863Z"
+  },
+  {
+    "_id": "69c28b79e56661f84e2e320d",
+    "id": "HPkuBgtRZbsp",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Day Page Auto-Create",
+    "description": "On load/navigation, find or create a day page for the active date and show it in the notebook panel",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onLoad",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onLoad",
+      "onNavigation"
+    ],
+    "pipeline": {
+      "sources": [
+        {
+          "type": "grid"
+        }
+      ],
+      "steps": [
+        {
+          "id": "Z48xreurRxGh",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$pageName",
+            "expr": "daypage ${$activeDate}"
+          }
+        },
+        {
+          "id": "p8_KI_zNfJtj",
+          "type": "action",
+          "config": {
+            "type": "FIND_MODULE",
+            "nameExpr": "$pageName",
+            "resultVar": "$existingModule",
+            "resultIdVar": "$existingModuleId"
+          }
+        },
+        {
+          "id": "PmFnqKffkedR",
+          "type": "if",
+          "condition": {
+            "operator": "AND",
+            "rules": [
+              {
+                "left": "$existingModule",
+                "comparator": "IS_EMPTY"
+              }
+            ]
+          },
+          "then": [
+            {
+              "id": "dDC5D5sX6AMr",
+              "type": "action",
+              "config": {
+                "type": "CREATE_MODULE",
+                "nameExpr": "$pageName",
+                "role": "container",
+                "kind": "doc",
+                "parentId": "kKtL2cDiRA47"
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "a3c8H1VYiY9L",
+              "type": "action",
+              "config": {
+                "type": "FIND_OCCURRENCE",
+                "targetIdExpr": "$existingModuleId",
+                "resultIdVar": "$lastCreatedOccurrenceId"
+              }
+            }
+          ]
+        },
+        {
+          "id": "ES-V_ZUrlWgi",
+          "type": "action",
+          "config": {
+            "type": "UPDATE_VIEW",
+            "viewId": "HU620uLq6rAw",
+            "activeOccurrenceId": "$lastCreatedOccurrenceId"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T13:02:49.321Z",
+    "updatedAt": "2026-03-24T13:02:49.321Z"
+  },
+  {
+    "_id": "69c28b79e56661f84e2e320f",
+    "id": "iacddCP9zf6G",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Count Completed Tasks",
+    "description": "Loops all occurrences today, counts those with completed = true",
+    "blockTree": null,
+    "targetFieldId": "EY5b64q5FQu7",
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onNavigation"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "KG7PSrkpzHPg"
+        ]
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "VVXypNAZykFF",
+          "type": "action",
+          "config": {
+            "type": "INIT_VAR",
+            "name": "$count",
+            "value": 0
+          }
+        },
+        {
+          "id": "S533AtlZmhhX",
+          "type": "loop",
+          "over": "field_occurrences",
+          "fieldId": "KG7PSrkpzHPg",
+          "timeFilter": "daily",
+          "flowFilter": "any",
+          "as": "$item",
+          "body": [
+            {
+              "id": "xj0IKj_WsRxl",
+              "type": "if",
+              "condition": {
+                "operator": "AND",
+                "rules": [
+                  {
+                    "id": "vDWgQ3CHikCo",
+                    "left": "$item.value",
+                    "comparator": "IS",
+                    "right": "true"
+                  }
+                ]
+              },
+              "then": [
+                {
+                  "id": "1D-_VjBojcK6",
+                  "type": "action",
+                  "config": {
+                    "type": "INCREMENT_VAR",
+                    "name": "$count",
+                    "by": 1
+                  }
+                }
+              ],
+              "else": []
+            }
+          ]
+        },
+        {
+          "id": "93JpKZY56R0V",
+          "type": "action",
+          "config": {
+            "type": "SHOW_VALUE",
+            "targetFieldId": "EY5b64q5FQu7",
+            "sourceExpr": "$count"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 0,
+    "folderId": null,
+    "createdAt": "2026-03-24T13:02:49.638Z",
+    "updatedAt": "2026-03-24T13:02:49.638Z"
+  },
+  {
+    "_id": "69c28b79e56661f84e2e3211",
+    "id": "srv-pTX8QKkL",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Budget Alert",
+    "description": "Notifies when daily spending exceeds $50",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "manual",
+    "triggerObjects": null,
+    "triggerTypes": null,
+    "triggerConfig": null,
+    "pipeline": {
+      "sources": [
+        {
+          "id": "V3lancCkIBXj",
+          "variableName": "summary",
+          "entityType": "grid",
+          "entityId": "69c288bee56661f84e2e2504"
+        }
+      ],
+      "steps": [
+        {
+          "id": "EAqgPTwkGKx1",
+          "type": "if",
+          "condition": {
+            "operator": "AND",
+            "rules": [
+              {
+                "id": "he0IQG6D0RzV",
+                "left": "$summary.rhGYPhMHKKri",
+                "comparator": "GREATER",
+                "right": "50"
+              }
+            ]
+          },
+          "then": [
+            {
+              "id": "1Sgo1AV5nhFh",
+              "type": "action",
+              "config": {
+                "type": "NOTIFY",
+                "message": "Daily spending exceeds $50 — check your budget!"
+              }
+            },
+            {
+              "id": "seQlcYWIK0tw",
+              "type": "action",
+              "config": {
+                "type": "SHOW_VALUE",
+                "targetFieldId": "rhGYPhMHKKri",
+                "sourceExpr": "$summary.rhGYPhMHKKri"
+              }
+            }
+          ],
+          "else": []
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 1,
+    "folderId": null,
+    "createdAt": "2026-03-24T13:02:49.781Z",
+    "updatedAt": "2026-03-24T13:02:49.781Z"
+  },
+  {
+    "_id": "69c28b79e56661f84e2e3213",
+    "id": "XUuH7aNXZA3Z",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Schedule: Completion Tracker",
+    "description": "Recalculates tasks completed and time spent when completed is checked or an item is dropped into the schedule",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onChange",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onChange",
+      "onDrop"
+    ],
+    "triggerConfig": {
+      "onChange": {
+        "allowedFields": [
+          "KG7PSrkpzHPg"
+        ]
+      },
+      "onDrop": {
+        "targetPanelId": "1-iFSHwTTsZu"
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "sA8AIs23joy2",
+          "type": "if",
+          "condition": {
+            "operator": "OR",
+            "rules": [
+              {
+                "id": "9LU-Gy69SLyU",
+                "left": "$trigger.value",
+                "comparator": "IS",
+                "right": "true"
+              },
+              {
+                "id": "3-V_TDpdGqjt",
+                "left": "$trigger.toContainerId",
+                "comparator": "IS_NOT_EMPTY",
+                "right": ""
+              }
+            ]
+          },
+          "then": [
+            {
+              "id": "STsGCBiXOMiH",
+              "type": "action",
+              "config": {
+                "type": "INIT_VAR",
+                "name": "$done",
+                "value": 0
+              }
+            },
+            {
+              "id": "n6B6vT-CIMcd",
+              "type": "loop",
+              "over": "field_occurrences",
+              "fieldId": "KG7PSrkpzHPg",
+              "timeFilter": "daily",
+              "flowFilter": "any",
+              "as": "$item",
+              "body": [
+                {
+                  "id": "eRMu6CiwBH40",
+                  "type": "if",
+                  "condition": {
+                    "operator": "AND",
+                    "rules": [
+                      {
+                        "id": "gz9ESM58Qw2G",
+                        "left": "$item.value",
+                        "comparator": "IS",
+                        "right": "true"
+                      }
+                    ]
+                  },
+                  "then": [
+                    {
+                      "id": "eTS5V3d8dcy9",
+                      "type": "action",
+                      "config": {
+                        "type": "INCREMENT_VAR",
+                        "name": "$done",
+                        "by": 1
+                      }
+                    }
+                  ],
+                  "else": []
+                }
+              ]
+            },
+            {
+              "id": "rRDQVLEwabBf",
+              "type": "action",
+              "config": {
+                "type": "SHOW_VALUE",
+                "targetFieldId": "EY5b64q5FQu7",
+                "sourceExpr": "$done"
+              }
+            },
+            {
+              "id": "KtUUvYM7UUyS",
+              "type": "action",
+              "config": {
+                "type": "INIT_VAR",
+                "name": "$mins",
+                "value": 0
+              }
+            },
+            {
+              "id": "3ztQRAf1ATCR",
+              "type": "loop",
+              "over": "field_occurrences",
+              "fieldId": "nWjx4QfWkSuz",
+              "timeFilter": "daily",
+              "flowFilter": "any",
+              "as": "$item",
+              "body": [
+                {
+                  "id": "tq1RaZuNfNzN",
+                  "type": "if",
+                  "condition": {
+                    "operator": "AND",
+                    "rules": [
+                      {
+                        "id": "5Mjq6GZ15Jj4",
+                        "left": "$item.value",
+                        "comparator": "IS_NOT_EMPTY",
+                        "right": ""
+                      }
+                    ]
+                  },
+                  "then": [
+                    {
+                      "id": "NiHuK_4lcXQU",
+                      "type": "action",
+                      "config": {
+                        "type": "ADD_TO_VAR",
+                        "name": "$mins",
+                        "expr": "$item.value"
+                      }
+                    }
+                  ],
+                  "else": []
+                }
+              ]
+            },
+            {
+              "id": "M1Qy3qxMnYpn",
+              "type": "action",
+              "config": {
+                "type": "SHOW_VALUE",
+                "targetFieldId": "a1846vIpVCDB",
+                "sourceExpr": "$mins",
+                "targetValue": 480,
+                "targetPeriod": "daily"
+              }
+            },
+            {
+              "id": "GpNiwWOGKsVf",
+              "type": "action",
+              "config": {
+                "type": "NOTIFY",
+                "message": "Schedule updated"
+              }
+            }
+          ],
+          "else": []
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 2,
+    "folderId": null,
+    "createdAt": "2026-03-24T13:02:50.003Z",
+    "updatedAt": "2026-03-24T13:02:50.003Z"
+  },
+  {
+    "_id": "69c28b7ae56661f84e2e3215",
+    "id": "AMQ_G0wuT6RF",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Schedule: Stamp Date & Time Slot",
+    "description": "When dropped into the schedule, sets scheduledDate = active filter date and timeslot = container label",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onCreate",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onCreate"
+    ],
+    "triggerConfig": {
+      "onCreate": {
+        "panelId": "1-iFSHwTTsZu"
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "57C9XVVzoJ00",
+          "type": "action",
+          "config": {
+            "type": "SET_FIELD_VALUE",
+            "fieldId": "QnrA81e_JnJt",
+            "valueExpr": "$activeDate"
+          }
+        },
+        {
+          "id": "9hvGV3kMJXom",
+          "type": "action",
+          "config": {
+            "type": "SET_FIELD_VALUE",
+            "fieldId": "8nbH0j9SHmMS",
+            "valueExpr": "$trigger.containerLabel"
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 3,
+    "folderId": null,
+    "createdAt": "2026-03-24T13:02:50.263Z",
+    "updatedAt": "2026-03-24T13:02:50.263Z"
+  },
+  {
+    "_id": "69c28b7ae56661f84e2e3217",
+    "id": "QAao_vqd13XC",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Schedule: Clear Date & Time Slot",
+    "description": "When moved out of the schedule panel, clears scheduledDate and timeslot fields",
+    "blockTree": null,
+    "targetFieldId": null,
+    "triggerType": "onMove",
+    "triggerObjects": null,
+    "triggerTypes": [
+      "onMove"
+    ],
+    "triggerConfig": {
+      "onMove": {
+        "fromPanelId": "1-iFSHwTTsZu"
+      }
+    },
+    "pipeline": {
+      "sources": [],
+      "steps": [
+        {
+          "id": "Sm7UM7IrvCzK",
+          "type": "action",
+          "config": {
+            "type": "SET_FIELD_VALUE",
+            "fieldId": "QnrA81e_JnJt",
+            "value": null
+          }
+        },
+        {
+          "id": "7immzY096sUw",
+          "type": "action",
+          "config": {
+            "type": "SET_FIELD_VALUE",
+            "fieldId": "8nbH0j9SHmMS",
+            "value": null
+          }
+        }
+      ]
+    },
+    "intervalMs": null,
+    "enabled": true,
+    "sortOrder": 4,
+    "folderId": null,
+    "createdAt": "2026-03-24T13:02:50.566Z",
+    "updatedAt": "2026-03-24T13:02:50.566Z"
+  }
+]

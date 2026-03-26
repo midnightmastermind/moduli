@@ -1,11 +1,13 @@
 // forms/ContainerForm.jsx
-import React from "react";
+import React, { useContext, useMemo } from "react";
 import { Separator } from "@/components/ui/separator";
 import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
 import IterationSettings from "./IterationSettings";
 import StyleEditor from "./StyleEditor";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { GridActionsContext } from "../GridActionsContext";
+import { getOtherOccurrences } from "../state/selectors";
 
 const ITERATION_MODES = [
   { value: "inherit", label: "Inherit from Panel" },
@@ -44,6 +46,11 @@ export default function ContainerForm({
   templates,         // Array of available templates
 }) {
   const iter = iteration || { mode: "inherit", timeFilter: "daily" };
+  const { occurrencesById, modulesById } = useContext(GridActionsContext);
+  const otherPlacements = useMemo(
+    () => getOtherOccurrences(occurrencesById, modulesById, containerId, occurrence?.id),
+    [occurrencesById, modulesById, containerId, occurrence?.id]
+  );
 
   return (
     <div className="font-mono flex flex-col w-72">
@@ -200,6 +207,24 @@ export default function ContainerForm({
               </p>
             )}
           </div>
+
+          {/* Other Placements */}
+          {otherPlacements.length > 0 && (
+            <>
+              <Separator />
+              <div className="py-2">
+                <h4 className="text-xs font-semibold text-foreground/70 mb-2">Other Placements ({otherPlacements.length})</h4>
+                <div className="space-y-1">
+                  {otherPlacements.map(({ occurrence: occ, parentLabel }) => (
+                    <div key={occ.id} className="flex items-center gap-2 text-[10px] text-muted-foreground px-1 py-0.5 rounded bg-muted/20">
+                      <span className="text-muted-foreground/50">&#x2192;</span>
+                      <span className="truncate">{parentLabel}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </TabsContent>
 
         {/* STYLE TAB */}
@@ -296,14 +321,14 @@ export default function ContainerForm({
           className="w-full text-xs"
           onClick={() => {
             const ok = window.confirm(
-              `Delete this container${containerId ? ` (${containerId})` : ""}? This cannot be undone.`
+              `Remove this container from the grid? The module will remain in the Command Center.`
             );
             if (!ok) return;
             onDeleteContainer?.();
           }}
           disabled={!onDeleteContainer}
         >
-          Delete Container
+          Remove from grid
         </Button>
       </div>
     </div>

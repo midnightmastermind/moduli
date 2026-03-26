@@ -1,6 +1,6 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-03-11. Check this file before re-reading source._
+_Updated: 2026-03-20. Check this file before re-reading source._
 
 ## Key Files
 
@@ -12,7 +12,11 @@ _Updated: 2026-03-11. Check this file before re-reading source._
 | `FieldPillExtension.js` | TipTap extension: fieldPill atom node. attrs: fieldId, fieldName, fieldType, occurrenceId, displayMode. | Stable |
 | `InstancePillExtension.js` | TipTap extension: instancePill atom node. attrs: instanceId, instanceLabel, occurrenceId. | Stable |
 | `DocLinkExtension.js` | TipTap extension: [[brackets]] doc links. | Stable |
-| `hooks/useDocFieldValues.js` | Hook: extracts fieldPill IDs from doc JSON, computes live values. Bug fix: `vals[vals.length-1]` for non-numeric (not `"first"` aggregation key). | **Feb 22** |
+| `hooks/useDocFieldValues.js` | Hook: extracts fieldPill IDs from doc JSON, computes live values. **Mar 20: computedValues migrated to GridLiveContext** (was incorrectly reading from GridActionsContext which no longer provides it). Both `useDocFieldValues` and `useFieldValue` hooks fixed. | **Mar 20** |
+
+## Recent Changes (Mar 20 2026 — C4 Context Split Fix)
+- **pills/ExprPillNode.jsx**: Migrated `computedValues` from GridActionsContext to GridLiveContext. Was reading empty default (`{}`) since C4 split removed computedValues from GridActionsContext. All expression pills were evaluating field references to `0`.
+- **hooks/useDocFieldValues.js**: Same fix — both `useDocFieldValues()` and `useFieldValue()` hooks now read `computedValues` from GridLiveContext. Fixes field pills in docs showing stale/empty computed values.
 
 ## Recent Changes (Mar 17 2026 — Editor UX + CommandPalette Close)
 - **Editor.jsx**: Block handle ⋮ menu now closes on Escape or any printable keypress, then refocuses editor. Added `blockMenuOpen` to the popup key-handling useEffect condition and dep array.

@@ -1,7 +1,7 @@
 // modules/View.jsx
 // Owns layout decisions: sidebar tree (hasTree), routes to inner module component.
 // Inner modules (Panel/Container/Instance/Artifact) are pure content renderers.
-import { useContext } from "react";
+import { useContext, useState, useCallback } from "react";
 import { GridActionsContext } from "../GridActionsContext.js";
 import Panel from "./Panel.jsx";
 import Container from "./Container.jsx";
@@ -53,6 +53,7 @@ export default function View({ occurrence, embedded = false, dispatch, socket, .
         embedded={embedded}
         dispatch={dispatch}
         socket={socket}
+        view={resolvedView}
         {...props}
       />
     );
@@ -67,6 +68,7 @@ export default function View({ occurrence, embedded = false, dispatch, socket, .
         embedded={embedded}
         dispatch={dispatch}
         socket={socket}
+        view={resolvedView}
         {...props}
       />
     );
@@ -79,16 +81,33 @@ export default function View({ occurrence, embedded = false, dispatch, socket, .
   }
 
   // If this occurrence has a view with hasTree, render sidebar alongside content
+  // Sidebar is collapsed by default and overlays the doc (not push)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const toggleSidebar = useCallback(() => setSidebarCollapsed(v => !v), []);
+
   if (resolvedView?.hasTree && resolvedView?.manifestId) {
     return (
-      <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
-        <ManifestTree
-          manifestId={resolvedView.manifestId}
-          view={resolvedView}
-          dispatch={dispatch}
-          socket={socket}
-        />
-        <div style={{ flex: 1, overflow: "hidden" }}>{Inner}</div>
+      <div style={{ position: "relative", height: "100%", overflow: "hidden" }}>
+        {/* Sidebar overlays the doc */}
+        <div style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          bottom: 0,
+          zIndex: 20,
+          pointerEvents: sidebarCollapsed ? "none" : "auto",
+        }}>
+          <ManifestTree
+            manifestId={resolvedView.manifestId}
+            view={resolvedView}
+            dispatch={dispatch}
+            socket={socket}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={toggleSidebar}
+          />
+        </div>
+        {/* Content fills full width */}
+        <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>{Inner}</div>
       </div>
     );
   }

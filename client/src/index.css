@@ -459,6 +459,7 @@ body {
   border: 1px solid hsl(var(--border-1));
   background: hsl(var(--surface-1));
   overflow: hidden;
+  margin-top: 4px;
   height: 100%;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.03),
@@ -474,7 +475,7 @@ body {
 .container-header {
   display: flex;
   justify-content: start;
-  align-items: start;
+  align-items: center;
   cursor: grab;
 }
 
@@ -504,7 +505,21 @@ body {
   flex: 1;
   min-height: 85px;
   position: relative;
-  padding: 10px 5px 15px 5px;
+  padding: 10px 5px 24px 5px;
+}
+
+/* Notebook continuous scroll — embedded containers expand naturally,
+   parent .artifact-markdown handles scrolling */
+.artifact-markdown .container-shell {
+  height: auto;
+}
+.artifact-markdown .container-list {
+  overflow-y: visible !important;
+  height: auto;
+}
+.artifact-markdown .container-list-wrap {
+  height: auto;
+  overflow: visible;
 }
 
 .container-list.over {
@@ -525,7 +540,7 @@ body {
 .containers-col {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 10px;
+  gap: 19px;
   align-content: start;
   grid-auto-flow: row;
   padding-top: 3px;
@@ -534,7 +549,7 @@ body {
 /* Row layout */
 .containers-row {
   display: flex;
-  gap: 12px;
+  gap: 19px;
 }
 
 /* Prevent overflow in flex/grid parents */
@@ -569,6 +584,7 @@ body {
   width: 100%;
   z-index: 3;
   position: relative;
+  margin-top: 6px;
   margin-bottom: 5px;
 }
 
@@ -582,6 +598,7 @@ body {
   border-radius: 8px;
   border: 1px solid hsl(var(--border));
   background: rgba(12, 53, 70, 0.55);
+  padding: 3px;
   box-shadow:
     0 2px 10px rgba(0, 0, 0, 0.35),
     0 1px 0 rgba(255, 255, 255, 0.04) inset;
@@ -603,60 +620,70 @@ body {
    9. MODULE HANDLES (drag handles, radial menu reveal)
    ============================================================================= */
 
-/* Fixed-width handle — reserves space, no text shift */
-.module-handle {
-  width: 32px;
-  flex-shrink: 0;
+/* Drag handle — antenna centered above every module (ball on top, stem connects to module) */
+.module-drag-handle {
+  position: absolute;
+  top: -17px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
   pointer-events: auto;
   cursor: grab;
-  position: relative;
-  touch-action: none; /* Prevent Android split-screen + faster drag activation */
+  touch-action: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0px;
 }
 
-/* Dot indicator at rest */
-.module-dot {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 5px;
-  height: 5px;
+/* Ball = antenna tip (on top) */
+.drag-handle-ball {
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.35);
   pointer-events: none;
-  display: block;
-  z-index: 1;
 }
 
-/* RadialMenu hidden at rest */
-.module-handle .radial-menu {
+/* Stem = connects ball to module top edge */
+.drag-handle-stem {
+  width: 4px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 1px;
+  pointer-events: none;
+  margin-top: -1px;
+  order: 2;
+}
+
+/* The plain ball div is replaced by the radial handle (which has the icon inside) */
+.module-drag-handle .drag-handle-ball {
   display: none;
 }
 
-/* Panel header hover → show RadialMenu, hide dot (only innermost) */
-.panel-header:hover:not(:has(.panel-header:hover)) > .module-handle .radial-menu {
-  display: flex;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+/* RadialMenu always visible — the radial handle is the ball */
+.module-drag-handle .radial-menu {
+  display: flex !important;
+  order: 1;
+  flex: none !important;
+  justify-content: flex-start !important;
+  height: auto !important;
+  min-height: 0 !important;
 }
 
-.panel-header:hover:not(:has(.panel-header:hover)) > .module-handle .module-dot {
-  display: none;
-}
-
-/* Container header hover → show RadialMenu, hide dot (only innermost) */
-.container-header:hover:not(:has(.container-header:hover)) > .module-handle .radial-menu {
-  display: flex;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.container-header:hover:not(:has(.container-header:hover)) > .module-handle .module-dot {
-  display: none;
+/* The ball — 18px circle with mode icon inside */
+.module-drag-handle .radial-handle {
+  width: 18px !important;
+  height: 18px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  flex: none !important;
+  min-width: unset !important;
+  max-width: 18px !important;
+  align-self: center !important;
+  background: rgba(255, 255, 255, 0.22);
 }
 
 /* Cog handle — shown when header is hidden; absolute top-left, reveals on shell hover */
@@ -676,7 +703,12 @@ body {
   opacity: 1;
 }
 
+/* Cog: radial hidden at rest, stem+ball visible. On hover: radial shown, stem+ball hidden. */
 .container-cog-handle .radial-menu {
+  display: none;
+}
+
+.container-shell:hover:not(:has(.container-shell:hover)) .container-cog-handle .radial-menu {
   display: flex;
   position: absolute;
   top: 50%;
@@ -684,25 +716,15 @@ body {
   transform: translate(-50%, -50%);
 }
 
-.container-cog-handle .module-dot {
+.container-shell:hover:not(:has(.container-shell:hover)) .container-cog-handle .drag-handle-stem,
+.container-shell:hover:not(:has(.container-shell:hover)) .container-cog-handle .drag-handle-ball {
   display: none;
 }
 
-/* Instance row hover */
-.instance-wrap:hover .module-handle .radial-menu {
-  display: flex;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.instance-wrap:hover .module-handle .module-dot {
-  display: none;
-}
+/* Instance row — no overrides needed, radial menu flows naturally */
 
 /* Hide all handles during drag */
-.dragging .module-handle {
+.dragging .module-drag-handle {
   visibility: hidden;
   pointer-events: none !important;
 }
@@ -1120,11 +1142,9 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   position: relative;
 }
 
-/* Grab zone inside header */
+/* Grab zone inside header — no position: relative (would override .module-drag-handle absolute) */
 .module-grab-zone {
-  position: relative;
   z-index: 50;
-  height: 100%;
   cursor: grab;
   touch-action: none; /* Prevent Android split-screen + faster drag activation */
 }
@@ -1171,6 +1191,12 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 .collapse-lip:hover {
   background: rgba(160, 160, 160, 0.45);
+}
+
+/* Tree sidebar thumb handle */
+.tree-thumb-handle:hover,
+.tree-thumb-handle:active {
+  background: var(--text-muted) !important;
 }
 
 /* Flex helpers */
@@ -1243,18 +1269,44 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .mobile-grid-slider { will-change: transform; backface-visibility: hidden; }
 .mobile-grid-slider.animating { transition: transform 80ms ease-out; }
 
-/* Lip buttons — semi-transparent edge overlays */
-.mobile-lip-btn {
-  position: absolute; z-index: 50; display: flex; align-items: center;
-  justify-content: center; background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.15);
-  backdrop-filter: blur(4px); color: var(--text-muted); cursor: pointer;
+/* Rail buttons — full-length edge overlays, inset from OS gesture zones */
+.mobile-rail-btn {
+  position: absolute;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  color: var(--text-faint);
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  backdrop-filter: blur(1px);
 }
-.mobile-lip-btn:active { background: rgba(50,150,255,0.35); color: var(--text-primary); }
-.mobile-lip-btn-left   { left:0; top:50%; transform:translateY(-50%); width:16px; height:40px; border-radius:0 6px 6px 0; border-left:none; }
-.mobile-lip-btn-right  { right:0; top:50%; transform:translateY(-50%); width:16px; height:40px; border-radius:6px 0 0 6px; border-right:none; }
-.mobile-lip-btn-up     { top:0; left:50%; transform:translateX(-50%); width:40px; height:16px; border-radius:0 0 6px 6px; border-top:none; }
-.mobile-lip-btn-down   { bottom:0; left:50%; transform:translateX(-50%); width:40px; height:16px; border-radius:6px 6px 0 0; border-bottom:none; }
+.mobile-rail-btn:active {
+  background: rgba(50,150,255,0.25);
+  color: var(--text-primary);
+}
+
+/* Left/Right: full viewport height, narrow width, inset from edge */
+.mobile-rail-left {
+  left: 4px; top: 0; bottom: 0; width: 24px;
+  border-radius: 0 3px 3px 0; border-left: none;
+}
+.mobile-rail-right {
+  right: 4px; top: 0; bottom: 0; width: 24px;
+  border-radius: 3px 0 0 3px; border-right: none;
+}
+
+/* Up/Down: full viewport width, narrow height */
+.mobile-rail-up {
+  top: 0; left: 0; right: 0; height: 24px;
+  border-radius: 0 0 3px 3px; border-top: none;
+}
+.mobile-rail-down {
+  bottom: 0; left: 0; right: 0; height: 24px;
+  border-radius: 3px 3px 0 0; border-bottom: none;
+}
 
 /* Drag edge glow indicator */
 .mobile-edge-indicator { position:fixed; z-index:9999; pointer-events:none; animation:edge-pulse 1s ease-in-out infinite; }
@@ -1263,6 +1315,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .mobile-edge-up     { top:0; left:0; right:0; height:4px; background:linear-gradient(to bottom, rgba(50,150,255,0.6), transparent); }
 .mobile-edge-down   { bottom:0; left:0; right:0; height:4px; background:linear-gradient(to top, rgba(50,150,255,0.6), transparent); }
 @keyframes edge-pulse { 0%,100% { opacity:0.5 } 50% { opacity:1 } }
+@keyframes slide-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
 /* Zoomed-out mode — content non-interactive */
 .mobile-grid-slider.zoomed-out { pointer-events: none; }
@@ -1289,14 +1342,13 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .cc-tab-bar { scrollbar-width: none; -ms-overflow-style: none; flex-wrap: nowrap; }
 .cc-tab-bar::-webkit-scrollbar { display: none; }
 
-/* CC drawer handle — touch target on mobile */
-.cc-drawer-handle { touch-action: none; }
-
 /* Panel stack cycler — inline in panel header + empty grid cell pocket */
 .panel-stack-btn-inline {
   display: flex; align-items: center; justify-content: center; gap: 2px;
   height: 20px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 55;
   background: transparent;
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 4px;
@@ -1400,33 +1452,79 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   /* Prevent Android split-screen gesture from intercepting drags.
      touch-action: none on handles BEFORE touch starts — JS handleDragStart is too late.
      !important to beat inline styles on ancestors. */
-  .module-handle, .module-grab-zone { touch-action: none !important; }
+  .module-drag-handle, .module-grab-zone { touch-action: none !important; }
   .mobile-grid-viewport { touch-action: manipulation; }
 
   /* Prevent pull-to-refresh and overscroll system gestures */
   html, body { overscroll-behavior: none !important; }
 
-  /* Lip buttons: position: fixed so overflow: hidden on viewport/grid-frame doesn't clip them */
-  .mobile-lip-btn {
-    position: fixed !important;
-    z-index: 9999 !important;
-  }
-  .mobile-lip-btn-left   { left: 0 !important; top: 50% !important; }
-  .mobile-lip-btn-right  { right: 0 !important; top: 50% !important; }
-  .mobile-lip-btn-up     { top: 50px !important; left: 50% !important; }
-  .mobile-lip-btn-down   {
-    bottom: 0 !important;
-    left: 50% !important;
-    height: 28px !important;
-    width: 48px !important;
-  }
+  /* Rail buttons: position: fixed so overflow: hidden on viewport/grid-frame doesn't clip them */
+  .mobile-rail-btn { position: fixed !important; z-index: 9999 !important; }
+  .mobile-rail-left { left: 4px !important; top: 40px !important; bottom: 0 !important; }
+  .mobile-rail-right { right: 4px !important; top: 40px !important; bottom: 0 !important; }
+  .mobile-rail-up { top: 30px !important; left: 0 !important; right: 0 !important; }
+  .mobile-rail-down { bottom: 0 !important; left: 0 !important; right: 0 !important; padding-bottom: env(safe-area-inset-bottom, 0px); }
 
   /* Safe-area viewport padding for devices with gesture nav bars */
   .mobile-grid-viewport {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  /* Boundary hints — gradient showing more content in adjacent cell for multi-cell panels */
+  .boundary-hint {
+    position: absolute;
+    pointer-events: none;
+    z-index: 45;
+  }
+  .boundary-hint-down {
+    bottom: 0; left: 0; right: 0; height: 20px;
+    background: linear-gradient(to bottom, transparent, rgba(50,150,255,0.12));
+  }
+  .boundary-hint-up {
+    top: 0; left: 0; right: 0; height: 20px;
+    background: linear-gradient(to top, transparent, rgba(50,150,255,0.12));
+  }
+  .boundary-hint-right {
+    top: 0; right: 0; bottom: 0; width: 20px;
+    background: linear-gradient(to right, transparent, rgba(50,150,255,0.12));
+  }
+  .boundary-hint-left {
+    top: 0; left: 0; bottom: 0; width: 20px;
+    background: linear-gradient(to left, transparent, rgba(50,150,255,0.12));
+  }
+
   /* Extra bottom padding on mobile so content scrolls past overlays (only on .panel-content, not .panel-scroll — avoids double padding) */
   .panel-content { padding-bottom: 48px !important; }
+
+  /* Settings popovers: full-screen sheet on mobile */
+  [data-radix-popper-content-wrapper]:has(.settings-sheet) {
+    position: fixed !important;
+    inset: 0 !important;
+    transform: none !important;
+    z-index: 1200 !important;
+    background: rgba(0, 0, 0, 0.5);
+  }
+  .settings-sheet {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    max-height: 100vh !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    border-radius: 0 !important;
+    overflow-y: auto !important;
+  }
+  /* Force tab content to fit within viewport */
+  .settings-sheet [role="tablist"] {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    display: flex !important;
+  }
+  .settings-sheet [role="tabpanel"] {
+    max-height: calc(100vh - 120px) !important;
+    overflow-y: auto !important;
+  }
 
 }

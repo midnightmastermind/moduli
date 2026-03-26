@@ -10,6 +10,8 @@ import {
   Box,
   Layers,
   LayoutPanelLeft,
+  Trash2,
+  RotateCcw,
 } from "lucide-react";
 
 import { GridActionsContext } from "../../GridActionsContext";
@@ -205,28 +207,26 @@ export function EntityTreeTab() {
     commitTemplates(templates.map(t => t.id === template.id ? { ...t, name: trimmed } : t));
   }, [templates, editName, commitTemplates]);
 
-  // Track which instance IDs appear in the tree (to compute unsorted)
-  const placedInstanceIds = useMemo(() => {
+  // Track which module IDs appear on the grid (to compute uncategorized)
+  const placedModuleIds = useMemo(() => {
     const ids = new Set();
     const gridOccIds = state?.grid?.occurrences || [];
     for (const panelOccId of gridOccIds) {
       const panelOcc = occurrencesById?.[panelOccId];
       if (!panelOcc) continue;
-      const panel = getEntity(panelOcc.targetId);
-      if (!panel) continue;
-      for (const contOccId of (panel.occurrences || [])) {
+      if (panelOcc.targetId) ids.add(panelOcc.targetId);
+      for (const contOccId of (panelOcc.occurrences || [])) {
         const contOcc = occurrencesById?.[contOccId];
         if (!contOcc) continue;
-        const cont = getEntity(contOcc.targetId);
-        if (!cont) continue;
-        for (const instOccId of (cont.occurrences || [])) {
+        if (contOcc.targetId) ids.add(contOcc.targetId);
+        for (const instOccId of (contOcc.occurrences || [])) {
           const instOcc = occurrencesById?.[instOccId];
           if (instOcc?.targetId) ids.add(instOcc.targetId);
         }
       }
     }
     return ids;
-  }, [state?.grid?.occurrences, occurrencesById, getEntity]);
+  }, [state?.grid?.occurrences, occurrencesById]);
 
   // Build tree from grid occurrences
   const tree = useMemo(() => {
@@ -239,13 +239,13 @@ export function EntityTreeTab() {
       const panel = getEntity(panelOcc.targetId);
       if (!panel) return null;
 
-      const containers = (panel.occurrences || []).map(contOccId => {
+      const containers = (panelOcc.occurrences || []).map(contOccId => {
         const contOcc = occurrencesById?.[contOccId];
         if (!contOcc) return null;
         const cont = getEntity(contOcc.targetId);
         if (!cont) return null;
 
-        const instances = (cont.occurrences || []).map(instOccId => {
+        const instances = (contOcc.occurrences || []).map(instOccId => {
           const instOcc = occurrencesById?.[instOccId];
           if (!instOcc) return null;
           const inst = getEntity(instOcc.targetId);
@@ -356,46 +356,139 @@ export function EntityTreeTab() {
         );
       })}
 
-      {/* Unsorted — instances not on the grid */}
+      {/* Uncategorized — modules not on the grid */}
       {(() => {
         const sq = search.toLowerCase();
-        const unsorted = Object.values(instancesById || {}).filter(inst => {
-          const id = inst.id || inst._id?.toString();
-          return !placedInstanceIds.has(id);
-        }).filter(inst => {
-          if (!sq) return true;
-          const lbl = inst.label || inst.name || "";
-          return lbl.toLowerCase().includes(sq);
+        const uncategorized = Object.values(modulesById || {}).filter(m => {
+          if (!m.id || m.trashed) return false;
+          if (placedModuleIds.has(m.id)) return false;
+          if (sq) {
+            const lbl = (m.label || m.name || "").toLowerCase();
+            if (!lbl.includes(sq)) return false;
+          }
+          return true;
         });
-        if (unsorted.length === 0) return null;
-        const unsortedOpen = !collapsed["__unsorted__"];
+        if (uncategorized.length === 0) return null;
+        const isOpen = !collapsed["__uncategorized__"];
         return (
           <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 6, marginTop: 2 }}>
             <div
-              style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 0 4px 0", cursor: "default", userSelect: "none" }}
-              onClick={() => toggle("__unsorted__")}
+              style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 0 4px 0", cursor: "pointer", userSelect: "none" }}
+              onClick={() => toggle("__uncategorized__")}
             >
-              {unsortedOpen
+              {isOpen
                 ? <ChevronDown style={{ width: 9, height: 9, color: "var(--text-faint)" }} />
                 : <ChevronRight style={{ width: 9, height: 9, color: "var(--text-faint)" }} />
               }
               <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-faint)" }}>
-                Unsorted ({unsorted.length})
+                Uncategorized ({uncategorized.length})
               </span>
             </div>
-            {unsortedOpen && unsorted.map(inst => {
-              const id = inst.id || inst._id?.toString();
-              const lbl = inst.label || inst.name || id?.slice(-6);
+            {isOpen && uncategorized.map(m => {
+              const id = m.id || m._id?.toString();
+              const lbl = m.label || m.name || id?.slice(-6);
+              const role = m.role || "instance";
+              const trashBtn = (
+                <button
+                  onClick={(e) => { e.stopPropagation(); CommitHelpers.trashModule({ dispatch, socket, moduleId: id }); }}
+                  title="Move to Recycle Bin"
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", color: "var(--text-faint)", flexShrink: 0, opacity: 0.5 }}
+                >
+                  <Trash2 style={{ width: 10, height: 10 }} />
+                </button>
+              );
+              if (role === "panel") {
+                return (
+                  <div key={id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <DraggableEntityRow entity={m} role="panel" icon={LayoutPanelLeft}
+                        iconColor={iconColor.panel} label={lbl} rightLabel="" isOpen={false}
+                        onExpand={() => {}} search={search} depth={0} />
+                    </div>
+                    {trashBtn}
+                  </div>
+                );
+              }
+              if (role === "container") {
+                return (
+                  <div key={id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <DraggableEntityRow entity={m} role="container" icon={Layers}
+                        iconColor={iconColor.container} label={lbl} rightLabel="" isOpen={false}
+                        onExpand={() => {}} search={search} depth={0} />
+                    </div>
+                    {trashBtn}
+                  </div>
+                );
+              }
               return (
-                <DraggableInstanceRow
-                  key={id}
-                  entity={inst}
-                  depth={0}
-                  label={lbl}
-                  treeNodeStyle={treeNodeStyle}
-                  iconColor={iconColor}
-                  search={search}
-                />
+                <div key={id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <DraggableInstanceRow entity={m} depth={0} label={lbl}
+                      treeNodeStyle={treeNodeStyle} iconColor={iconColor} search={search} />
+                  </div>
+                  {trashBtn}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* Recycle Bin — trashed modules */}
+      {(() => {
+        const trashed = Object.values(modulesById || {}).filter(m => m.trashed);
+        if (trashed.length === 0) return null;
+        const isOpen = !collapsed["__trash__"];
+        return (
+          <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 6, marginTop: 2 }}>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 0 4px 0", cursor: "pointer", userSelect: "none" }}
+              onClick={() => toggle("__trash__")}
+            >
+              {isOpen
+                ? <ChevronDown style={{ width: 9, height: 9, color: "var(--text-faint)" }} />
+                : <ChevronRight style={{ width: 9, height: 9, color: "var(--text-faint)" }} />
+              }
+              <Trash2 style={{ width: 9, height: 9, color: "var(--text-faint)" }} />
+              <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-faint)" }}>
+                Recycle Bin ({trashed.length})
+              </span>
+            </div>
+            {isOpen && trashed.map(m => {
+              const id = m.id || m._id?.toString();
+              const lbl = m.label || m.name || id?.slice(-6);
+              const role = m.role || "instance";
+              const roleIcon = role === "panel" ? LayoutPanelLeft : role === "container" ? Layers : Box;
+              const roleColor = role === "panel" ? iconColor.panel : role === "container" ? iconColor.container : iconColor.instance;
+              return (
+                <div key={id} style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "4px 8px", marginBottom: 3, borderRadius: 6,
+                  border: "1px solid var(--border-default)", background: "var(--input-bg)",
+                  fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)",
+                }}>
+                  {React.createElement(roleIcon, { style: { width: 10, height: 10, color: roleColor, flexShrink: 0, opacity: 0.5 } })}
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lbl}</span>
+                  <button
+                    onClick={() => CommitHelpers.restoreModule({ dispatch, socket, moduleId: id })}
+                    title="Restore"
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", color: "var(--accent-blue-text)" }}
+                  >
+                    <RotateCcw style={{ width: 11, height: 11 }} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Permanently delete "${lbl}"? This cannot be undone.`)) {
+                        CommitHelpers.deleteModule({ dispatch, socket, moduleId: id, emit: true });
+                      }
+                    }}
+                    title="Delete permanently"
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", color: "var(--danger-text, rgb(252,165,165))" }}
+                  >
+                    <Trash2 style={{ width: 11, height: 11 }} />
+                  </button>
+                </div>
               );
             })}
           </div>

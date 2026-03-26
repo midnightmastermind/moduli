@@ -3,7 +3,7 @@
 // Renders a container header and its instances.
 // Handles doc containers, focused instance view, list view, sorting.
 
-import React, { useRef, useMemo, useState, useCallback, useEffect, useContext } from "react";
+import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useContext } from "react";
 import { createPortal } from "react-dom";
 import RadialMenu from "../ui/RadialMenu";
 import LocalIterationNav from "../ui/LocalIterationNav";
@@ -32,6 +32,7 @@ import { resolveEffectiveFilters, isOccurrenceVisible } from "../state/selectors
 
 import {
   ChevronRight,
+  ChevronDown,
   Copy,
   Link2,
   Unlink,
@@ -48,10 +49,13 @@ import { DocEditorShell, PoolPill, CanvasCard } from "./containerHelpers.jsx";
 import { FilterOverridePopup, TemplatePickerPopup } from "./containerPopups.jsx";
 import ModuleInstance from "./ModuleInstance.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
+import FieldRenderer from "../ui/FieldRenderer.jsx";
 
 // ============================================================
 // HELPERS
 // ============================================================
+
+const ALL_EDGES = ["top", "bottom", "left", "right"];
 
 // Blend hex color toward white by amount (0=original, 1=white)
 function lightenHex(hex, amount) {
@@ -81,24 +85,39 @@ function Container({
   embedded = false,
   occurrenceOverride = null,
 }) {
-  const { occurrencesById, instancesById, viewsById, state: ctxState } = useContext(GridActionsContext);
+  const { occurrencesById, instancesById, viewsById, fieldsById, state: ctxState } = useContext(GridActionsContext);
   const dragCtx = useDragContext();
   const { isContainerDrag, isInstanceDrag, isExternalDrag, isPanelDrag } = dragCtx;
 
   const [draft, setDraft] = useState(() => ({ label: module.label ?? "" }));
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [ctxMenu, setCtxMenu] = useState(null);
-  const [focusedStack, setFocusedStack] = useState([]);
-  const [historyExpanded, setHistoryExpanded] = useState(false);
-  const [isBodyCollapsed, setIsBodyCollapsed] = useState(false);
-  const [showHeader, setShowHeader] = useState(true);
-  const [poolSearch, setPoolSearch] = useState("");
-  const [poolAddLabel, setPoolAddLabel] = useState("");
-  const [isPoolAdding, setIsPoolAdding] = useState(false);
-  const [showEmbeddedIterNav, setShowEmbeddedIterNav] = useState(false);
-  const [filterPopupPos, setFilterPopupPos] = useState(null);
-  const [templatePopupPos, setTemplatePopupPos] = useState(null);
+
+  // C5: Consolidated UI state — single reducer instead of 13 separate useState
+  const [ui, uiDispatch] = useReducer((s, a) => {
+    if (typeof a === "function") return { ...s, ...a(s) };
+    return { ...s, ...a };
+  }, {
+    settingsOpen: false, historyOpen: false, ctxMenu: null,
+    focusedStack: [], historyExpanded: false, isBodyCollapsed: false,
+    showHeader: true, poolSearch: "", poolAddLabel: "", isPoolAdding: false,
+    showEmbeddedIterNav: false, filterPopupPos: null, templatePopupPos: null,
+  });
+  const { settingsOpen, historyOpen, ctxMenu, focusedStack, historyExpanded,
+    isBodyCollapsed, showHeader, poolSearch, poolAddLabel, isPoolAdding,
+    showEmbeddedIterNav, filterPopupPos, templatePopupPos } = ui;
+  // Setter wrappers — same API as useState setters, delegates to single reducer
+  const setSettingsOpen = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ settingsOpen: v(s.settingsOpen) }) : { settingsOpen: v }), []);
+  const setHistoryOpen = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ historyOpen: v(s.historyOpen) }) : { historyOpen: v }), []);
+  const setCtxMenu = useCallback(v => uiDispatch({ ctxMenu: v }), []);
+  const setFocusedStack = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ focusedStack: v(s.focusedStack) }) : { focusedStack: v }), []);
+  const setHistoryExpanded = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ historyExpanded: v(s.historyExpanded) }) : { historyExpanded: v }), []);
+  const setIsBodyCollapsed = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ isBodyCollapsed: v(s.isBodyCollapsed) }) : { isBodyCollapsed: v }), []);
+  const setShowHeader = useCallback(v => uiDispatch({ showHeader: v }), []);
+  const setPoolSearch = useCallback(v => uiDispatch({ poolSearch: v }), []);
+  const setPoolAddLabel = useCallback(v => uiDispatch({ poolAddLabel: v }), []);
+  const setIsPoolAdding = useCallback(v => uiDispatch({ isPoolAdding: v }), []);
+  const setShowEmbeddedIterNav = useCallback(v => uiDispatch({ showEmbeddedIterNav: v }), []);
+  const setFilterPopupPos = useCallback(v => uiDispatch({ filterPopupPos: v }), []);
+  const setTemplatePopupPos = useCallback(v => uiDispatch({ templatePopupPos: v }), []);
   const containerHandleRef = useRef(null);
   const containerDragMode = module?.defaultDragMode || "move";
   const focusedItem = focusedStack[focusedStack.length - 1] || null;
@@ -130,10 +149,6 @@ function Container({
     CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next }, emit: true });
   }, [draft?.label, module, dispatch, socket]);
 
-  const deleteMe = useCallback(() => {
-    CommitHelpers.deleteModule({ dispatch, socket, moduleId: module.id, emit: true });
-  }, [module.id, dispatch, socket]);
-
   const commitIteration = useCallback((nextIteration) => {
     CommitHelpers.updateModule({ dispatch, socket, module: { ...module, iteration: nextIteration }, emit: true });
   }, [module, dispatch, socket]);
@@ -146,6 +161,24 @@ function Container({
     if (occurrenceOverride) return occurrencesById[occurrenceOverride.id] || occurrenceOverride;
     return Object.values(occurrencesById).find(occ => occ.targetId === module.id);
   }, [occurrenceOverride, occurrencesById, module.id]);
+
+  // Resolve fields bound to this container (for header display)
+  const containerFields = useMemo(() => {
+    if (!module?.fieldBindings || !fieldsById) return [];
+    return (module.fieldBindings || [])
+      .filter(b => !b.hidden)
+      .map(b => ({ field: fieldsById[b.fieldId], binding: b }))
+      .filter(item => item.field)
+      .sort((a, b) => (a.binding.order || 0) - (b.binding.order || 0));
+  }, [module?.fieldBindings, fieldsById]);
+
+  const removeMe = useCallback(() => {
+    if (!containerOccurrence?.id) return;
+    const parentOcc = Object.values(occurrencesById).find(occ =>
+      Array.isArray(occ.occurrences) && occ.occurrences.includes(containerOccurrence.id)
+    );
+    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: containerOccurrence.id, parentOccurrence: parentOcc || null, emit: true });
+  }, [containerOccurrence, occurrencesById, dispatch, socket]);
 
   // Quick-add: create an occurrence of an existing instance module in this container
   const handleQuickAddInstance = useCallback((instanceModule) => {
@@ -229,7 +262,7 @@ function Container({
     CommitHelpers.fillFromTemplate({ socket, gridId, templateId, containerId: module.id });
   }, [ctxGrid, module.id, socket]);
 
-  const containerAllowedEdges = useMemo(() => ["top", "bottom", "left", "right"], []);
+  const containerAllowedEdges = ALL_EDGES;
 
   const containerWithInstances = useMemo(() => {
     const instanceObjects = getContainerItems(module, occurrencesById, instancesById);
@@ -315,6 +348,7 @@ function Container({
     <div
       ref={containerRef}
       data-container-id={module.id}
+      data-occ-id={containerOccurrence?.id}
       data-testid="container-shell"
       className={`container-shell bg-background2 rounded-md border border-border shadow-inner mod-${module.id}`}
       style={{
@@ -340,8 +374,9 @@ function Container({
       {!showHeader && (
         <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
           <PopoverAnchor asChild>
-            <div ref={containerHandleRef} className="container-cog-handle module-handle module-grab-zone">
-              <span className="module-dot" />
+            <div ref={containerHandleRef} className="container-cog-handle module-drag-handle module-grab-zone">
+              <div className="drag-handle-ball" />
+              <div className="drag-handle-stem" />
               <RadialMenu
                 dragMode={containerDragMode}
                 onToggleDragMode={toggleContainerDragModeQuick}
@@ -349,7 +384,8 @@ function Container({
                 onAddChild={onAdd}
                 addLabel="Item"
                 size="sm"
-                onToggleCollapse={isDocContainer ? () => setIsBodyCollapsed(v => !v) : null}
+                forceDirection="down"
+                onToggleCollapse={null}
                 isCollapsed={isBodyCollapsed}
                 onToggleHeader={() => setShowHeader(true)}
                 showHeader={false}
@@ -357,12 +393,12 @@ function Container({
               />
             </div>
           </PopoverAnchor>
-          <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0">
+          <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet">
             <ContainerForm
               value={draft}
               onChange={setDraft}
               onCommitLabel={commitLabel}
-              onDeleteContainer={deleteMe}
+              onDeleteContainer={removeMe}
               containerId={module.id}
               container={module}
               onContainerUpdate={commitContainerStyleUpdate}
@@ -387,9 +423,10 @@ function Container({
         className={`container-header module-header-row no-select ${embedded ? "embedded-container-header" : "border-b border-gray-700 border-solid"}`}
         style={embedded
           ? { padding: "0", alignItems: "stretch", flexDirection: "column", ...embeddedHeaderStyle }
-          : { height: "20px" }
+          : { height: "20px", gap: 6, paddingLeft: 3 }
         }
         onContextMenu={(e) => {
+          if ("ontouchstart" in window) return;
           e.preventDefault();
           e.stopPropagation();
           setCtxMenu({
@@ -408,7 +445,7 @@ function Container({
               },
               { label: "Save as Template", icon: BookMarked, onClick: handleSaveAsTemplate },
               { separator: true },
-              { label: "Delete container", icon: Trash2, danger: true, onClick: deleteMe },
+              { label: "Remove from grid", icon: Trash2, danger: true, onClick: removeMe },
             ].filter(Boolean),
           });
         }}
@@ -417,11 +454,12 @@ function Container({
           /* Embedded: two-row layout — icon row + label row */
           <>
             {/* Row 1: radial handle (left) + link icon (right) */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0px 4px 0px 2px", minHeight: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0px 4px 0px 2px", minHeight: 12 }}>
               <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <PopoverAnchor asChild>
-                  <div ref={containerHandleRef} className="module-handle module-grab-zone" style={{ minWidth: 14, maxWidth: 18 }}>
-                    <span className="module-dot" />
+                  <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" draggable={false}>
+                    <div className="drag-handle-ball" />
+                    <div className="drag-handle-stem" />
                     <RadialMenu
                       dragMode={containerDragMode}
                       onToggleDragMode={toggleContainerDragModeQuick}
@@ -429,6 +467,7 @@ function Container({
                       onAddChild={onAdd}
                       addLabel="Item"
                       size="sm"
+                      forceDirection="down"
                       onToggleCollapse={isDocContainer ? () => setIsBodyCollapsed(v => !v) : null}
                       isCollapsed={isBodyCollapsed}
                       onToggleHeader={() => setShowHeader(false)}
@@ -437,12 +476,13 @@ function Container({
                     />
                   </div>
                 </PopoverAnchor>
-                <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0">
+                <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
+                  <button type="button" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
                   <ContainerForm
                     value={draft}
                     onChange={setDraft}
                     onCommitLabel={commitLabel}
-                    onDeleteContainer={deleteMe}
+                    onDeleteContainer={removeMe}
                     containerId={module.id}
                     container={module}
                     onContainerUpdate={commitContainerStyleUpdate}
@@ -468,8 +508,8 @@ function Container({
                 />
               </div>
             </div>
-            {/* Row 2: label */}
-            <div style={{ padding: "0px 8px 3px 12px", display: "flex", alignItems: "baseline", gap: 4 }}>
+            {/* Row 2: label + collapse chevron on right */}
+            <div style={{ padding: "0px 8px 3px 12px", display: "flex", alignItems: "center", gap: 4 }}>
               <span className="embedded-hash" style={{ fontSize: 12, color: embeddedAccent, flexShrink: 0, fontFamily: "var(--font-mono)" }}>#</span>
               <span
                 contentEditable
@@ -487,19 +527,49 @@ function Container({
                   e.stopPropagation();
                 }}
                 onPointerDown={(e) => e.stopPropagation()}
-                style={{ outline: "none", cursor: "text", fontFamily: "var(--font-mono)", fontSize: 15, fontWeight: 600, color: embeddedAccent, lineHeight: 1.3, wordBreak: "break-word", flex: 1 }}
+                style={{ outline: "none", cursor: "text", fontFamily: "var(--font-mono)", fontSize: 15, fontWeight: 600, color: embeddedAccent, lineHeight: 1.3, wordBreak: "break-word", flex: 1, minWidth: 0 }}
               >
                 {module.label || "Container"}
               </span>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setIsBodyCollapsed(v => !v); }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", flexShrink: 0, color: embeddedAccent, opacity: 0.6, marginLeft: "auto" }}
+                title={isBodyCollapsed ? "Expand" : "Collapse"}
+              >
+                {isBodyCollapsed
+                  ? <ChevronRight style={{ width: 14, height: 14 }} />
+                  : <ChevronDown style={{ width: 14, height: 14 }} />
+                }
+              </button>
             </div>
+            {/* Row 3: Container-bound fields (below label, prevents mobile crush) */}
+            {containerFields.length > 0 && !isBodyCollapsed && (
+              <div style={{ padding: "0px 12px 4px 28px", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }} onPointerDown={(e) => e.stopPropagation()}>
+                {containerFields.map(({ field, binding }) => (
+                  <FieldRenderer
+                    key={field.id}
+                    field={field}
+                    binding={binding}
+                    occurrence={containerOccurrence}
+                    instance={module}
+                    state={ctxState}
+                    dispatch={dispatch}
+                    socket={socket}
+                    compact={true}
+                  />
+                ))}
+              </div>
+            )}
           </>
         ) : (
           /* Standard single-row layout */
           <>
             <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverAnchor asChild>
-                <div ref={containerHandleRef} className="module-handle module-grab-zone">
-                  <span className="module-dot" />
+                <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" draggable={false}>
+                  <div className="drag-handle-ball" />
+                  <div className="drag-handle-stem" />
                   <RadialMenu
                     dragMode={containerDragMode}
                     onToggleDragMode={toggleContainerDragModeQuick}
@@ -507,6 +577,7 @@ function Container({
                     onAddChild={onAdd}
                     addLabel="Item"
                     size="sm"
+                    forceDirection="down"
                     onToggleCollapse={isDocContainer ? () => setIsBodyCollapsed(v => !v) : null}
                     isCollapsed={isBodyCollapsed}
                     onToggleHeader={() => setShowHeader(false)}
@@ -517,12 +588,13 @@ function Container({
                   />
                 </div>
               </PopoverAnchor>
-              <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0">
+              <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
+                <button type="button" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
                 <ContainerForm
                   value={draft}
                   onChange={setDraft}
                   onCommitLabel={commitLabel}
-                  onDeleteContainer={deleteMe}
+                  onDeleteContainer={removeMe}
                   containerId={module.id}
                   container={module}
                   onContainerUpdate={commitContainerStyleUpdate}
@@ -539,7 +611,18 @@ function Container({
               </PopoverContent>
             </Popover>
 
-            <span className="truncate pl-1" style={{ fontSize: "0.75rem", fontWeight: 500 }}>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIsBodyCollapsed(v => !v); }}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", flexShrink: 0, color: "var(--text-muted)" }}
+              title={isBodyCollapsed ? "Expand" : "Collapse"}
+            >
+              {isBodyCollapsed
+                ? <ChevronRight style={{ width: 14, height: 14 }} />
+                : <ChevronDown style={{ width: 14, height: 14 }} />
+              }
+            </button>
+            <span className="truncate" style={{ fontSize: "0.75rem", fontWeight: 500 }}>
               {module.label || "Container"}
               {containerOccurrence?.linkedGroupId && (
                 <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0 inline ml-1" title="Linked" />
@@ -570,15 +653,6 @@ function Container({
           <div className="drop-indicator drop-indicator-insert" style={{ left: 4, right: 4 }} />
         )}
       </div>
-      )}
-
-      {/* Collapse lip — sits between header and body */}
-      {showHeader && (
-        <div
-          className="collapse-lip"
-          onClick={() => setIsBodyCollapsed(v => !v)}
-          title={isBodyCollapsed ? "Expand" : "Collapse"}
-        />
       )}
 
       {/* CONTENT AREA */}
@@ -650,7 +724,7 @@ function Container({
           </div>
         </div>
       ) : isDocContainer ? (
-        <div ref={listDropRef} className="container-doc" style={{ flex: 1, minHeight: 100, overflow: "auto", position: "relative" }}>
+        <div ref={listDropRef} className="container-doc" style={{ flex: 1, minHeight: 100, overflow: embedded ? "visible" : "auto", position: "relative" }}>
           <DocEditorShell
             occurrence={containerOccurrence}
             dispatch={dispatch}
@@ -893,7 +967,7 @@ function Container({
           <div
             role="list"
             aria-label={`${module.label || "Container"} items`}
-            style={{ padding: "5px", flex: 1, display: "flex", flexDirection: "column" }}
+            style={{ padding: "14px 5px 5px 5px", flex: 1, display: "flex", flexDirection: "column" }}
           >
             {itemsWithOccurrences.map(({ instance, occurrence }) => (
               <ModuleInstance
@@ -904,6 +978,7 @@ function Container({
                 panelId={panelId}
                 panel={panel}
                 container={module}
+                containerOccurrence={containerOccurrence}
                 dispatch={dispatch}
                 socket={socket}
                 allowedEdges={containerAllowedEdges}

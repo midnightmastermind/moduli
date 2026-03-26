@@ -17,6 +17,7 @@ export const GridActionsContext = createContext({
   roleByModuleId: Object.create(null),
   instancesById: Object.create(null),
   occurrencesById: Object.create(null),
+  linkedGroupIndex: Object.create(null),
   containersById: Object.create(null),
   fieldsById: Object.create(null),
   panelsById: Object.create(null),
@@ -37,14 +38,9 @@ export const GridActionsContext = createContext({
   updateField: () => {},
   deleteField: () => {},
 
-  // Computed values: written by operation executor, read by display fields
-  // key = fieldId (global) or "fieldId:occurrenceId" (occurrence-specific)
-  computedValues: Object.create(null),
-
-  // Undo/Redo state (lifted to App.jsx)
-  canUndo: false,
-  canRedo: false,
-  undo: () => {},
-  redo: () => {},
-  isProcessing: false,
+  // Filter system handlers
+  onSelectFilter: () => {},
+  onFilterValueChange: () => {},
+  // NOTE: computedValues, undo/redo, isMobile, activeCell, zoomedOut
+  // moved to GridLiveContext (C4 context split)
 });

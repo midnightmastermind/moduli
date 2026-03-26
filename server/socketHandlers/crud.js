@@ -185,13 +185,20 @@ export function registerCrudHandlers(socket, {
       const uc = ensureUserCache(userId);
       const id = occurrence?.id;
       if (!id) return;
-      const occurrenceData = createOccurrenceData({
-        id, userId,
-        targetType: occurrence.targetType, targetId: occurrence.targetId,
-        gridId: occurrence.gridId,
-        placement: occurrence.placement, fields: occurrence.fields,
-        meta: occurrence.meta, linkedGroupId: occurrence.linkedGroupId || null,
-      });
+      const occurrenceData = {
+        ...createOccurrenceData({
+          id, userId,
+          targetType: occurrence.targetType, targetId: occurrence.targetId,
+          gridId: occurrence.gridId,
+          placement: occurrence.placement, fields: occurrence.fields,
+          meta: occurrence.meta, linkedGroupId: occurrence.linkedGroupId || null,
+        }),
+        // Pass through additional fields not in createOccurrenceData
+        ...(occurrence.parentId != null && { parentId: occurrence.parentId }),
+        ...(occurrence.textmap != null && { textmap: occurrence.textmap }),
+        ...(occurrence.viewId != null && { viewId: occurrence.viewId }),
+        ...(Array.isArray(occurrence.occurrences) && { occurrences: occurrence.occurrences }),
+      };
       uc.occurrencesById[id] = occurrenceData;
       await Occurrence.findOneAndUpdate({ id, userId }, occurrenceData, { upsert: true });
       socket.to(userRoom(userId)).emit("occurrence_created", { occurrence: occurrenceData });
@@ -206,12 +213,75 @@ export function registerCrudHandlers(socket, {
       if (!userId || !occurrenceId) return;
       if (!userCacheReady(userId)) await loadUserIntoCache(userId);
       const uc = ensureUserCache(userId);
-      if (uc.occurrencesById?.[occurrenceId]) delete uc.occurrencesById[occurrenceId];
-      await Occurrence.findOneAndDelete({ id: occurrenceId, userId });
-      socket.to(userRoom(userId)).emit("occurrence_deleted", { occurrenceId });
+
+      // Recursively collect all descendant occurrence IDs
+      const toDelete = new Set();
+      function collectDescendants(id) {
+        toDelete.add(id);
+        const occ = uc.occurrencesById?.[id];
+        if (occ?.occurrences) {
+          for (const childId of occ.occurrences) collectDescendants(childId);
+        }
+      }
+      collectDescendants(occurrenceId);
+
+      // Delete all collected occurrences from cache + DB
+      for (const id of toDelete) {
+        delete uc.occurrencesById[id];
+        await Occurrence.findOneAndDelete({ id, userId });
+        socket.to(userRoom(userId)).emit("occurrence_deleted", { occurrenceId: id });
+      }
+
+      // Clean up parent occurrence references
+      for (const occ of Object.values(uc.occurrencesById || {})) {
+        if (!Array.isArray(occ.occurrences)) continue;
+        if (!occ.occurrences.some(id => toDelete.has(id))) continue;
+        const next = { ...occ, occurrences: occ.occurrences.filter(id => !toDelete.has(id)) };
+        uc.occurrencesById[next.id] = next;
+        await Occurrence.findOneAndUpdate({ id: next.id, userId }, next, { upsert: true });
+        socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: next });
+      }
+
+      // Clean up grid.occurrences if this was a panel occurrence
+      for (const grid of Object.values(uc.gridsById || {})) {
+        if (!Array.isArray(grid.occurrences)) continue;
+        if (!grid.occurrences.includes(occurrenceId)) continue;
+        grid.occurrences = grid.occurrences.filter(id => id !== occurrenceId);
+        await Grid.findOneAndUpdate({ id: grid.id, userId }, { occurrences: grid.occurrences });
+        socket.to(userRoom(userId)).emit("grid_updated", { gridId: grid.id, grid: { occurrences: grid.occurrences } });
+      }
     } catch (err) {
       console.error("delete_occurrence error:", err);
       socket.emit("server_error", "Failed to delete occurrence");
+    }
+  });
+
+  // ── TRASH / RESTORE MODULE (soft delete) ─────────────────
+  socket.on("trash_module", async ({ moduleId } = {}) => {
+    try {
+      if (!userId || !moduleId) return;
+      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
+      const uc = ensureUserCache(userId);
+      if (uc.modulesById?.[moduleId]) uc.modulesById[moduleId].trashed = true;
+      await Module.findOneAndUpdate({ id: moduleId, userId }, { trashed: true });
+      socket.to(userRoom(userId)).emit("module_updated", { module: { id: moduleId, trashed: true } });
+    } catch (err) {
+      console.error("trash_module error:", err);
+      socket.emit("server_error", "Failed to trash module");
+    }
+  });
+
+  socket.on("restore_module", async ({ moduleId } = {}) => {
+    try {
+      if (!userId || !moduleId) return;
+      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
+      const uc = ensureUserCache(userId);
+      if (uc.modulesById?.[moduleId]) uc.modulesById[moduleId].trashed = false;
+      await Module.findOneAndUpdate({ id: moduleId, userId }, { trashed: false });
+      socket.to(userRoom(userId)).emit("module_updated", { module: { id: moduleId, trashed: false } });
+    } catch (err) {
+      console.error("restore_module error:", err);
+      socket.emit("server_error", "Failed to restore module");
     }
   });
 

@@ -1,0 +1,162 @@
+[
+  {
+    "_id": "69c288bee56661f84e2e2504",
+    "rows": 2,
+    "cols": 3,
+    "colSizes": [],
+    "rowSizes": [],
+    "userId": "{{USER_ID}}",
+    "occurrences": [
+      "B2h9Y2NgARZY",
+      "IAO5saY4dvpc",
+      "0FPhweZkRH2c",
+      "iJHrZNMS5KsO",
+      "TTz1FU3JpB_m",
+      "IHhCn6i-k5wD",
+      "_CSH4m2tmYD2"
+    ],
+    "namedFilters": [
+      {
+        "id": "filter_daily",
+        "name": "Daily",
+        "conditions": [
+          {
+            "fieldId": "QnrA81e_JnJt",
+            "comparator": "same_day"
+          }
+        ],
+        "timeScale": "daily",
+        "_id": "69c288bee56661f84e2e2505"
+      },
+      {
+        "id": "filter_weekly",
+        "name": "Weekly",
+        "conditions": [
+          {
+            "fieldId": "QnrA81e_JnJt",
+            "comparator": "same_week"
+          }
+        ],
+        "timeScale": "weekly",
+        "_id": "69c288bee56661f84e2e2506"
+      },
+      {
+        "id": "filter_all",
+        "name": "All",
+        "conditions": [],
+        "timeScale": null,
+        "_id": "69c288bee56661f84e2e2507"
+      }
+    ],
+    "activeFilterId": "filter_all",
+    "activeFilterValues": {
+      "QnrA81e_JnJt": "2026-03-24T17:00:00.000Z"
+    },
+    "fieldIds": [
+      "KG7PSrkpzHPg",
+      "nWjx4QfWkSuz",
+      "ZkPBkZln1IX-",
+      "XpMIH9HGA6SV",
+      "DS5gTH54NeXH",
+      "L0AV7Np3Zrxv",
+      "r8f4dlHruVFr",
+      "aEKOn7_yLcHl",
+      "9RWuVXMHC-op",
+      "5rmi5O14GKKB",
+      "UHDX9FJ4w9_b",
+      "7Ty_yjUK25jR",
+      "d1pWlMBPQpM1",
+      "QnrA81e_JnJt",
+      "8nbH0j9SHmMS",
+      "pIy5KBP398CA",
+      "v-DId9zq89RA",
+      "mjpcEIS5TuaW",
+      "Vp8HFQKMUFk3",
+      "g9dhjGGhidDP",
+      "q1JbpGUedwqI",
+      "7FGGwnrurKLi",
+      "6tgdqrmcGYqz",
+      "MGxUBqIVIEq2",
+      "xRj4F-XRHl6O",
+      "zDps_H9PDRLK",
+      "6h2w8mbhAxDh",
+      "10HggLXfsyY2",
+      "r37JBwDKbhVL",
+      "wzes6oMeJalc",
+      "aEYDhIL7QoZQ",
+      "-zDSrzHsxGDO",
+      "4alccdW1N-Mm",
+      "1nKep_eHx5WT",
+      "r8ORuMaFPViW",
+      "GG93s7m1c1z9",
+      "7-YjUwJIZ6fy",
+      "G_jjgCVhNyUE",
+      "H0q1EBNmk1Kl",
+      "8ZRmzc7S1kB7",
+      "5hYOqnSXFdg_",
+      "29-kqQ7mia8U",
+      "owx-hWbmQw7t",
+      "EY5b64q5FQu7",
+      "a1846vIpVCDB",
+      "rhGYPhMHKKri",
+      "E3JM2_mUddye",
+      "L5fwbW_0y2Kg",
+      "zZVeg6-Y9o5D",
+      "F0Ty3Dk-cdo_",
+      "dV11hgD-0sR3",
+      "GdbOzgurbPDk",
+      "vlSCDy0spdSO",
+      "9ynAbfCWBxFW",
+      "sMT36QGYdqRK",
+      "PK6bRfGV5KXE",
+      "jZXlgb5xy_37",
+      "PZNGIDMpMuKF",
+      "s4Agu1WLgeqf",
+      "sAPr_Mpl32sr",
+      "9EhMXKmfs43X",
+      "rZGFagxxFKq2",
+      "eiWBMql7cvrs",
+      "2CtsAwkG_cnN",
+      "ASaKDq5jzsnE",
+      "Hf7YPoe700LZ",
+      "xtRrknMdpPBj",
+      "lz_tTQHKejyU",
+      "fcEkgCSQcIpY",
+      "jcdnyJets6Uj",
+      "ZI9_8aPS3ahP",
+      "0AAEcN-hload",
+      "33-jN_V9rU_5",
+      "wNR6FhYPvMVH"
+    ],
+    "templates": [
+      {
+        "id": "nxIjhYtGRNfi",
+        "name": "Morning Routine",
+        "items": [
+          {
+            "instanceId": "g7TojdT5MVJA"
+          },
+          {
+            "instanceId": "0PVU7GhuszgY"
+          },
+          {
+            "instanceId": "V_Gxv0iYSKz3"
+          },
+          {
+            "instanceId": "pocRigoqfnGM"
+          },
+          {
+            "instanceId": "V7gzB8oNOjmA"
+          },
+          {
+            "instanceId": "yfbYSF5HZ7mN"
+          }
+        ],
+        "createdAt": "2026-03-24T13:02:50.667Z",
+        "_id": "69c28b7ae56661f84e2e3219"
+      }
+    ],
+    "createdAt": "2026-03-24T12:51:10.558Z",
+    "updatedAt": "2026-03-24T13:04:03.122Z"
+  }
+]

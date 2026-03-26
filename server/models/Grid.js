@@ -6,7 +6,7 @@ const GridSchema = new mongoose.Schema({
   cols: { type: Number, default: 3 },
   colSizes: { type: [Number], default: [] },
   rowSizes: { type: [Number], default: [] },
-  userId: { type: String, required: true },
+  userId: { type: String, required: true, index: true },
 
   // Phase 1: Occurrences (array of occurrence IDs)
   occurrences: { type: [String], default: [] },  // Panel occurrences in this grid
@@ -49,8 +49,6 @@ const GridSchema = new mongoose.Schema({
     default: []
   },
 
-  // Default template for auto-created day pages (matches a template.id in templates[])
-  defaultDayPageTemplateId: { type: String, default: null },
 }, { timestamps: true });
 
 export default mongoose.model("Grid", GridSchema);

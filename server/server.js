@@ -50,7 +50,7 @@ import { registerCrudHandlers } from "./socketHandlers/crud.js";
 import { registerOccurrenceHandlers } from "./socketHandlers/occurrences.js";
 import { registerTransactionHandlers } from "./socketHandlers/transactions.js";
 import { registerTemplateHandlers } from "./socketHandlers/templates.js";
-import { registerDayPageHandlers } from "./socketHandlers/dayPages.js";
+
 
 // ========================================================
 // JWT
@@ -153,6 +153,15 @@ function ensureUserCache(userId) {
 }
 
 async function getAllGridsForUser(userId) {
+  // Use cache if available — avoids extra DB round trip during full_state
+  const uc = cacheByUser[userId];
+  if (uc?.gridsById && Object.keys(uc.gridsById).length > 0) {
+    return Object.values(uc.gridsById).map((g) => ({
+      id: (g._id || g.id || "").toString(),
+      name: g.name,
+      createdAt: g.createdAt,
+    }));
+  }
   const all = await Grid.find({ userId }).sort({ createdAt: 1 }).lean();
   return all.map((g) => ({ id: g._id.toString(), name: g.name, createdAt: g.createdAt }));
 }
@@ -162,32 +171,33 @@ async function loadUserIntoCache(userId) {
   console.log("📥 loadUserIntoCache START", { userId });
   console.log("===============================\n");
   const uc = ensureUserCache(userId);
+  // .lean() returns plain JS objects (skips Mongoose document hydration — 2-5x faster)
   const [grids, modules, occurrences, fields, manifests, views, folders, operations] = await Promise.all([
-    Grid.find({ userId }).sort({ createdAt: 1 }),
-    Module.find({ userId }).sort({ createdAt: 1 }),
-    Occurrence.find({ userId }).sort({ timestamp: -1 }),
-    Field.find({ userId }).sort({ createdAt: 1 }),
-    Manifest.find({ userId }).sort({ createdAt: 1 }),
-    View.find({ userId }).sort({ createdAt: 1 }),
-    Folder.find({ userId }).sort({ createdAt: 1 }),
-    Operation.find({ userId }).sort({ createdAt: 1 }),
+    Grid.find({ userId }).sort({ createdAt: 1 }).lean(),
+    Module.find({ userId }).sort({ createdAt: 1 }).lean(),
+    Occurrence.find({ userId }).sort({ timestamp: -1 }).lean(),
+    Field.find({ userId }).sort({ createdAt: 1 }).lean(),
+    Manifest.find({ userId }).sort({ createdAt: 1 }).lean(),
+    View.find({ userId }).sort({ createdAt: 1 }).lean(),
+    Folder.find({ userId }).sort({ createdAt: 1 }).lean(),
+    Operation.find({ userId }).sort({ createdAt: 1 }).lean(),
   ]);
   uc.gridsById = {};
-  grids.forEach((g) => { const obj = g.toObject(); uc.gridsById[obj._id.toString()] = obj; });
+  grids.forEach((g) => { uc.gridsById[(g._id || g.id).toString()] = g; });
   uc.modulesById = {};
-  modules.forEach((m) => { const obj = m.toObject(); const id = obj.id || obj._id.toString(); uc.modulesById[id] = { ...obj, id, label: obj.label ?? "" }; });
+  modules.forEach((m) => { const id = m.id || m._id.toString(); uc.modulesById[id] = { ...m, id, label: m.label ?? "" }; });
   uc.occurrencesById = {};
-  occurrences.forEach((o) => { const obj = o.toObject(); const id = obj.id || obj._id.toString(); uc.occurrencesById[id] = { ...obj, id }; });
+  occurrences.forEach((o) => { const id = o.id || o._id.toString(); uc.occurrencesById[id] = { ...o, id }; });
   uc.fieldsById = {};
-  fields.forEach((f) => { const obj = f.toObject(); const id = obj.id || obj._id.toString(); uc.fieldsById[id] = { ...obj, id }; });
+  fields.forEach((f) => { const id = f.id || f._id.toString(); uc.fieldsById[id] = { ...f, id }; });
   uc.manifestsById = {};
-  manifests.forEach((m) => { const obj = m.toObject(); const id = obj.id || obj._id.toString(); uc.manifestsById[id] = { ...obj, id }; });
+  manifests.forEach((m) => { const id = m.id || m._id.toString(); uc.manifestsById[id] = { ...m, id }; });
   uc.viewsById = {};
-  views.forEach((v) => { const obj = v.toObject(); const id = obj.id || obj._id.toString(); uc.viewsById[id] = { ...obj, id }; });
+  views.forEach((v) => { const id = v.id || v._id.toString(); uc.viewsById[id] = { ...v, id }; });
   uc.foldersById = {};
-  folders.forEach((f) => { const obj = f.toObject(); const id = obj.id || obj._id.toString(); uc.foldersById[id] = { ...obj, id }; });
+  folders.forEach((f) => { const id = f.id || f._id.toString(); uc.foldersById[id] = { ...f, id }; });
   uc.operationsById = {};
-  operations.forEach((o) => { const obj = o.toObject(); const id = obj.id || obj._id.toString(); uc.operationsById[id] = { ...obj, id }; });
+  operations.forEach((o) => { const id = o.id || o._id.toString(); uc.operationsById[id] = { ...o, id }; });
   console.log("✅ CACHE READY FOR USER:", userId, "Grids:", Object.keys(uc.gridsById).length, "Modules:", Object.keys(uc.modulesById).length, "Occurrences:", Object.keys(uc.occurrencesById).length);
   return uc;
 }
@@ -225,7 +235,6 @@ io.on("connection", (socket) => {
   registerOccurrenceHandlers(socket, ctx);
   registerTransactionHandlers(socket, ctx);
   registerTemplateHandlers(socket, ctx);
-  registerDayPageHandlers(socket, ctx);
 
   socket.on("disconnect", () => {
     console.log("❌ Client disconnected:", socket.id);

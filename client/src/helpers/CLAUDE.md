@@ -1,6 +1,16 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-03-18. Check this file before re-reading source._
+_Updated: 2026-03-25. Check this file before re-reading source._
+
+## Recent Changes (Mar 25 2026 — onLoad Trigger + Time Filter Fix)
+- **operationExecutor.js**: `shouldTrigger` — added backward compat for old operations (no `triggerTypes` array) to fire on load. Uses `hasExplicitArray` flag: legacy `triggerType`-only operations auto-fire on load unless manual-only. New operations with explicit `triggerTypes` array are respected literally.
+- **operationExecutor.js**: `gatherLoopItems` time filter — now checks occurrence's date-type field values (scheduledDate) in addition to legacy `iteration.timeValue`. Walks up parent chain (instance → container → panel) via `findDateValue()` to find a date when the occurrence itself has none. Uses `$activeDate` from filter nav as the comparison target instead of hardcoded `new Date()`. Occurrences with no date at all treated as persistent (pass any time filter).
+
+## Recent Changes (Mar 23 2026 — Panel Cycler Persistence Fix)
+- **DragProvider.jsx**: `cyclePanelStack` now emits `update_module` for ALL panels in the stack (was only emitting for the next visible panel). Hidden panels' `display: "none"` is now persisted to server, fixing position loss on reload.
+
+## Recent Changes (Mar 22 2026 — Dynamic Page Creation via Operations Pipeline)
+- **operationActions.js**: Added template string interpolation to `resolveExpr` — `"daypage ${$today}"` resolves vars inside `${...}` patterns. Added `FIND_MODULE` action (searches `$allModules` by name/label, sets `$foundModule`/`$foundModuleId`). Added `FIND_OCCURRENCE` action (searches by targetId, sets `$foundOccurrence`/`$foundOccurrenceId`). Added `CREATE_MODULE` action (creates module + occurrence in one shot, sets `$lastCreatedModuleId`/`$lastCreatedOccurrenceId`). Removed `CREATE_OCCURRENCE_WITH_ITERATION` and `NAVIGATE_DAY_PAGE` action types (replaced by generic pipeline).
 
 ## Key Files
 
@@ -10,7 +20,7 @@ _Updated: 2026-03-18. Check this file before re-reading source._
 | `CommitHelpers.js` | All CRUD operations. **ONLY place that calls socket.emit**. Exports: createInstanceInContainer, deleteOccurrence, updatePanel, deletePanel, updateContainer, deleteContainer, createView, updateView, updateOccurrence, updateGrid, etc. | Stable |
 | `CalculationHelpers.js` | All 15 aggregation types. `calculateDerivedField` checks `metric.blockTree` first (evaluateBlockTree via require()), falls back to flat `allowedFields`. | Recent |
 | `LayoutHelpers.js` | Occurrence filtering (getPanelContainers, getContainerItems, getContainerItemsWithOccurrences, occurrenceMatchesIteration). Panel duplication/linking/splitting. **Mar 10: Major refactor — occurrence.occurrences is the SOLE source of ordering. All add/remove/reorder/move functions now take `panelOccurrence`/`containerOccurrence` params and call updateOccurrence (not updatePanel/updateContainer). No module.occurrences fallback anywhere.** | Mar 2026 |
-| `dragSystem.js` | Pragmatic DnD hooks: useDraggable, useDroppable, useDragDrop. DragType enum (PANEL, CONTAINER, INSTANCE, FIELD, ARTIFACT, EXTERNAL). DropAccepts map. `dragHandleRef` param restricts drag origin to specific element. | Stable |
+| `dragSystem.js` | Pragmatic DnD hooks: useDraggable, useDroppable, useDragDrop. DragType enum (PANEL, CONTAINER, INSTANCE, FIELD, ARTIFACT, EXTERNAL). DropAccepts map. `dragHandleRef` param restricts drag origin to specific element. **Mar 19: Phase A perf — haptic vibrate(15) on drag start, vibrate([8,30,8]) on drop, 80ms hold delay, 32ms hit-test throttle, 4px hit-test cache.** | Mar 19 |
 | `StyleHelpers.js` | `resolveContainerStyle`, `resolveInstanceStyle`, `styleToCSS`. Cascading style resolution: panel defaults → container overrides → instance overrides. | Recent |
 | `CommitHelpers.js` exports (key): | createInstanceInContainer, deleteOccurrence, deletePanel, deleteContainer, updatePanel, updateContainer, updateOccurrence, updateGrid, createView, updateView, saveTemplate, fillFromTemplate | Stable |
 | `blockTypes.js` | **MOVED here from blocks/** — Block type constants for visual operations builder. | Mar 2026 |
@@ -28,6 +38,25 @@ _Updated: 2026-03-18. Check this file before re-reading source._
 - DragProvider reads session refs (not React state) for immediate access during async drop handling.
 - LayoutHelpers.normalizeId is a private function (not exported).
 - splitPartnerId stored on panel entity to track split relationships.
+
+## Recent Changes (Mar 20 2026 — Post-Review Cleanup)
+- **dragSystem.js**: Removed dead `rect` variable in both `useDraggable` (was line 363) and `useDragDrop` (was line 750). Assigned but never read after `offsetX`/`offsetY` were hardcoded.
+
+## Recent Changes (Mar 20 2026 — Phase B DragProvider Performance)
+- **DragProvider.jsx**:
+  - **B1**: Consolidated 3 `elementsFromPoint` calls into `getHoveredIds(x, y)` — single walk extracts panelId+containerId+instanceId. Individual getters kept for handleDrop fallbacks.
+  - **B2**: `lastPreviewRef` caches last preview target — instance/container preview blocks skip draft mutations when same target still hovered.
+  - **B3**: `dragConfigRef` holds `activeCell`, `setActiveCell`, `rows`, `cols`, `isMobile`. `handleDragMove` dep array reduced from 13 to 6. `handleDragStart` also uses ref for isMobile.
+
+## Recent Changes (Mar 19 2026 — Phase A Drag Performance)
+- **dragSystem.js**: Both `useDraggable` and `useDragDrop` mobile touch handlers:
+  - **A1 Haptic**: `navigator.vibrate(15)` on drag start, `navigator.vibrate([8, 30, 8])` on successful drop (double-tap feel).
+  - **A2 Hold delay**: `_TOUCH_HOLD_MS = 80` — touchmove returns early if finger held < 80ms. Prevents accidental drags from scrolling.
+  - **A3 Throttle**: `_HIT_TEST_INTERVAL = 32` — expensive `_findDropTarget` (elementsFromPoint + DOM walk) runs at most every 32ms. Pill position still updates at 60fps.
+  - **A4 Cache**: `_HIT_CACHE_DIST = 4` — skip hit-test if pointer moved < 4px since last check (squared distance comparison, no sqrt).
+
+## Recent Changes (Mar 19 2026 — Mobile Drag + UI Fixes)
+- **dragSystem.js**: Both `useDraggable` and `useDragDrop` mobile touch handlers: (1) Removed `e.preventDefault()` from `onStart` — CSS `touch-action:none` on triggerEl handles OS gesture suppression, native click/pointer events now fire for taps. (2) Cache `getBoundingClientRect()` at touchstart (`cachedRect`), not first-move. (3) Only `e.preventDefault()` in `onMove` AFTER threshold crossed (sub-threshold jitter doesn't cancel native click). (4) `document.documentElement.style.touchAction/overscrollBehavior` only set when drag actually starts, cleared on drag end only. (5) Removed synthetic `MouseEvent('click')` dispatch from `onEnd` — no longer needed since touchstart doesn't preventDefault. (6) Removed `touchStartTime` variable.
 
 ## Recent Changes (Mar 18 2026 — Mobile Fixes)
 - **DragProvider.jsx**: `handleDragStart` now sets `document.documentElement.style.touchAction = 'none'` when `isMobile` — prevents Android split-screen gesture from intercepting drags. `clearSession` restores `touchAction = ''`. Added `isMobile` to `handleDragStart` dependency array.

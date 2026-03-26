@@ -1,6 +1,25 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-03-17. Check this file before re-reading source._
+_Updated: 2026-03-25. Check this file before re-reading source._
+
+## Recent Changes (Mar 25 2026 — Module Reference Field Type)
+- **models/Field.js**: Added `"module"` to type enum (now 8 types). Value stores `{ value: moduleId, flow: "in" }` — references another module by ID.
+
+## Recent Changes (Mar 25 2026 — Schedule Slot Iteration Fields)
+- **createDefaultUserData.js**: Schedule time slot container occurrences now get `scheduledDate` + `timeslot` fields (were empty). Container is now the source of truth for iteration context. Instance occurrences in schedule slots also get `timeslot` field (matching their container). Historical seed instances (30-day data) also get `timeslot` field for each slot they're in.
+
+## Recent Changes (Mar 23 2026 — Phil Stone viewId + Q/A Pool Fields)
+- **createDefaultUserData.js**: (1) Added `viewId: container._viewId || null` to Phil Stone section occurrence creation (was missing — caused sections to render as empty list containers). (2) Added 3 question pool containers (wentWellQPool, improvedQPool, gratitudeQPool) with 5 questions each. (3) Changed Q/A question fields from `type: "text"` to `type: "select"` with `meta: { sourceType: "pool", poolContainerId }`. (4) Q/A container fieldBinding role changed from "display" to "input". (5) Removed hardcoded field value (was set to field name) from Q/A container occurrences.
+
+## Recent Changes (Mar 22 2026 — Philosopher's Stone Preamble Fix)
+- **utils/mdParsers.js**: Both `parseSections` and `parseSectionsWithInstances` now capture content before the first heading as an "Introduction" section. Previously, pre-heading lines were silently dropped. Fixes Philosopher's Stone intro text ("the real bridge") not appearing in the notebook.
+
+## Recent Changes (Mar 22 2026 — Dynamic Page Creation via Operations Pipeline)
+- **dayPages.js**: DEPRECATED — all handlers removed. `update_view` already handled by generic CRUD in crud.js. `create_day_page_occurrence` and `navigate_day_page` replaced by generic pipeline actions (FIND_MODULE + CREATE_MODULE + UPDATE_VIEW).
+- **server.js**: Removed `registerDayPageHandlers` import and registration call.
+- **Grid.js**: Removed `defaultDayPageTemplateId` field from schema.
+- **crud.js**: `create_occurrence` handler now passes through `parentId`, `textmap`, `viewId`, `occurrences` fields (were previously stripped by `createOccurrenceData`).
+- **createDefaultUserData.js**: "Day Page Auto-Create" operation rewritten to use generic pipeline: `INIT_VAR` (build page name with `${$activeDate}` interpolation) → `FIND_MODULE` (check if exists) → IF empty: `CREATE_MODULE` + ELSE: `FIND_OCCURRENCE` → `UPDATE_VIEW` (always show the right page). No more `NAVIGATE_DAY_PAGE` action type.
 
 ## Key Files
 
@@ -15,7 +34,7 @@ _Updated: 2026-03-17. Check this file before re-reading source._
 | Model | Key Fields | Notes |
 |-------|-----------|-------|
 | `Module.js` | **role** (optional string, deprecated — inferred from occurrence hierarchy on client), **kind** (optional string, deprecated — use View.viewType instead), label, userId, gridId, fieldBindings[], operationBindings[], defaultDragMode, styleMode, ownStyle, iteration, siblingLinks[], meta, behaviorMode, behavior{sortable,draggable,droppable}, **fileRef** | Unified model. role/kind are soft-deprecated: still stored for existing data, but the client uses roleByModuleId (hierarchy inference) and view.viewType as canonical sources. |
-| `Occurrence.js` | targetId, targetType, parentId, **occurrences[]**, **viewId**, **textmap**, fields{}, iteration, linkedGroupId, placement | viewId → View (separate model). textmap = TipTap JSON (replaces old docContent). parentId = folder.id for artifacts, parent occurrence for instances. |
+| `Occurrence.js` | targetId, targetType, parentId, **occurrences[]**, **viewId**, **textmap**, fields{}, iteration, linkedGroupId, placement, **sortOrder** | viewId → View (separate model). textmap = TipTap JSON (replaces old docContent). parentId = folder.id for artifacts, parent occurrence for instances. sortOrder used by ManifestTree for anchor/folder ordering. |
 | `View.js` | viewType ("list"\|"artifact"\|"markdown"\|"canvas"), **artifactType** ("image"\|"pdf"\|"audio"\|"video"\|null), **hasTree**, **manifestId**, **activeOccurrenceId**, layout | Separate model — occurrence.viewId → View. NO panelId or activeDocId/activeArtifactId. |
 | `Manifest.js` | rootFolderId, userId, gridId, name, manifestType | Root of artifact folder tree |
 | `Folder.js` | name, parentId, sortOrder, isExpanded, folderType, userId, gridId | folderType: "normal"\|"trash"\|"templates"\|"day-pages"\|"category" |
@@ -48,6 +67,20 @@ _Updated: 2026-03-17. Check this file before re-reading source._
 - `GET /api/connections/:id/files` — returns `[{ name, isDirectory, size, mtime }]` for a connection path
 - `POST /api/connections/:id/import` — imports a named file from a connection into Artifact records; body: `{ fileName, userId, gridId, folderId }`
 - `POST /api/storage-settings` — saves `manifest.meta.storageSettings` (existing)
+
+## Recent Changes (Mar 20 2026 — Occurrence sortOrder)
+- **Occurrence.js**: Added `sortOrder: { type: Number, default: 0 }` to schema. Was previously set in createDefaultUserData.js but silently dropped by Mongoose strict mode. Now persisted — fixes ManifestTree anchor ordering (was appearing bottom-up).
+
+## Recent Changes (Mar 20 2026 — Module Lifecycle: Trash + Cascade Delete)
+- **Module.js**: Added `trashed: { type: Boolean, default: false, index: true }` field for soft-delete.
+- **crud.js `delete_occurrence`**: Enhanced with cascade — recursively collects all descendant occurrence IDs, deletes them all, cleans up parent occurrence `occurrences[]` arrays, and updates `grid.occurrences` if a panel occurrence was removed. Broadcasts `occurrence_deleted` for each, `occurrence_updated` for affected parents, `grid_updated` if grid changed.
+- **crud.js**: Added `trash_module` handler (sets `trashed: true`, broadcasts `module_updated`) and `restore_module` handler (sets `trashed: false`, broadcasts `module_updated`).
+
+## Recent Changes (Mar 20 2026 — Load Speed Optimization)
+- **server.js `loadUserIntoCache`**: Added `.lean()` to all 8 DB queries — returns plain JS objects instead of Mongoose documents, skipping hydration overhead (2-5x faster for large datasets). Removed `.toObject()` calls since `.lean()` already returns POJOs.
+- **server.js `getAllGridsForUser`**: Now checks in-memory cache first before hitting DB. During `full_state` flow the cache is already populated, so this eliminates a redundant DB round trip.
+- **Module.js**: Added `index: true` to `userId` field (was missing — every `Module.find({ userId })` was a full collection scan).
+- **Grid.js**: Added `index: true` to `userId` field (same issue).
 
 ## Recent Changes (Mar 17 2026 — Flat Notes Parsing Fix)
 - **createDefaultUserData.js**: Added `secLevel`/`instLevel` per def in `_flatNotesDefs`. `aispecs.md` now uses `secLevel:1, instLevel:3` (H1 → containers, H3 → instances). `banglespecs.md` uses `secLevel:1, instLevel:2` (H1 → containers, H2 → instances). `uses.md` and `PRAGMATIC.md` stay at `2,3`. `_flatNotesSections` now passes `def.secLevel, def.instLevel` to `parseSectionsWithInstances`.

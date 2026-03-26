@@ -13,6 +13,7 @@ import React, { useCallback, useContext, useMemo, useRef, useState, useEffect } 
 import Field from "./Field";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { GridActionsContext } from "../GridActionsContext";
+import { GridLiveContext } from "../GridLiveContext";
 import { createInstanceInContainer } from "../helpers/CommitHelpers";
 
 function FieldRenderer({
@@ -27,18 +28,33 @@ function FieldRenderer({
   compact = false,
   disabled = false,
 }) {
-  const { computedValues, occurrencesById, modulesById, state: ctxState } = useContext(GridActionsContext);
+  const { occurrencesById, modulesById, state: ctxState } = useContext(GridActionsContext);
+  const { computedValues } = useContext(GridLiveContext);
 
-  // For pool-sourced select fields: resolve options from pool container occurrence children.
-  // Supports meta.poolContainerId (single) or meta.poolContainerIds (array of multiple pools).
+  // Resolve dynamic options for pool-sourced selects and module-reference fields.
   const effectiveField = useMemo(() => {
+    // Module reference field: build options from all (non-trashed) modules
+    if (field?.type === "module") {
+      let filtered = Object.values(modulesById || {}).filter(m => !m.trashed);
+      if (field.meta?.roleFilter) {
+        filtered = filtered.filter(m => m.role === field.meta.roleFilter);
+      }
+      const moduleOptions = filtered.map(m => ({ value: m.id, label: m.label || "Untitled" }));
+      return { ...field, meta: { ...field.meta, _moduleOptions: moduleOptions } };
+    }
+    // Pool-sourced select fields
     if (field?.type !== "select" || field?.meta?.sourceType !== "pool") return field;
     const poolIds = field.meta.poolContainerIds || (field.meta.poolContainerId ? [field.meta.poolContainerId] : []);
     if (!poolIds.length) return field;
+    // Build targetId → occurrence map once for O(1) lookups (avoids O(n) scan per pool)
+    const byTargetId = Object.create(null);
+    for (const occ of Object.values(occurrencesById)) {
+      if (occ.targetId) byTargetId[occ.targetId] = occ;
+    }
     const poolOptions = [];
     const seenModIds = new Set();
     for (const poolContainerId of poolIds) {
-      const poolOcc = Object.values(occurrencesById).find(o => o.targetId === poolContainerId);
+      const poolOcc = byTargetId[poolContainerId];
       const childOccIds = poolOcc?.occurrences || [];
       for (const occId of childOccIds) {
         const occ = occurrencesById[occId];
@@ -150,6 +166,14 @@ function FieldRenderer({
   const isPoolSourced = field?.meta?.sourceType === "pool";
   const onAddOption = isPoolSourced ? handlePoolAddOption : undefined;
 
+  // Randomize: pick a random option from pool-sourced select
+  const handleRandomize = useCallback(() => {
+    const opts = effectiveField?.meta?.options;
+    if (!opts?.length || !inputEnabled) return;
+    const pick = opts[Math.floor(Math.random() * opts.length)];
+    if (pick) handleCommit(pick.value);
+  }, [effectiveField?.meta?.options, inputEnabled, handleCommit]);
+
   // Display-only: no onCommit
   if (displayEnabled && !inputEnabled) {
     return (
@@ -213,19 +237,30 @@ function FieldRenderer({
           hidePostfix={hidePostfix}
         />
       )}
-      <Field
-        field={effectiveField}
-        binding={binding}
-        value={inputValue}
-        flow={currentFlow}
-        onCommit={handleCommit}
-        onFlowChange={handleFlowChange}
-        onAddOption={onAddOption}
-        compact={compact}
-        hideName={hideName}
-        hidePrefix={hidePrefix}
-        hidePostfix={hidePostfix}
-      />
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+        <Field
+          field={effectiveField}
+          binding={binding}
+          value={inputValue}
+          flow={currentFlow}
+          onCommit={handleCommit}
+          onFlowChange={handleFlowChange}
+          onAddOption={onAddOption}
+          compact={compact}
+          hideName={hideName}
+          hidePrefix={hidePrefix}
+          hidePostfix={hidePostfix}
+        />
+        {isPoolSourced && inputEnabled && (
+          <button
+            onClick={handleRandomize}
+            title="Random"
+            style={{ background: "none", border: "none", cursor: "pointer", padding: "0 2px", color: "var(--text-faint)", fontSize: 11, flexShrink: 0, lineHeight: 1 }}
+          >
+            &#x1F3B2;
+          </button>
+        )}
+      </div>
     </div>
   );
 }

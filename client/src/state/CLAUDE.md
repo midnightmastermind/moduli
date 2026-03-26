@@ -1,6 +1,17 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-03-19. Check this file before re-reading source._
+_Updated: 2026-03-22. Check this file before re-reading source._
+
+## Recent Changes (Mar 22 2026 — Dynamic Page Creation via Operations Pipeline)
+- **bindSocketToStore.js**: Added `CREATE_MODULE` effect handler — emits `create_module` + `create_occurrence` socket events to create module + occurrence in one shot. Removed `CREATE_DAY_PAGE_OCCURRENCE` and `NAVIGATE_DAY_PAGE` effect handlers (replaced by generic CREATE_MODULE + UPDATE_VIEW pipeline).
+
+## Recent Changes (Mar 20 2026 — Trash Filtering in Selectors)
+- **selectors.js**: `createLookupsFromState` fallback loop (line 46) now skips `m.trashed` modules — trashed modules no longer appear in `panelsById`/`containersById`/`instancesById` role buckets.
+- **selectors.js**: `computeRoleByModuleId` fallback loop (line 91) now skips `mod.trashed` — trashed modules excluded from role map.
+
+## Recent Changes (Mar 20 2026 — Load Speed Optimization)
+- **bindSocketToStore.js**: Operation execution on `full_state` now deferred via double `requestAnimationFrame` instead of `Promise.resolve().then()`. The grid renders and paints FIRST, then computed values populate. Users see the grid layout immediately instead of waiting for all operations to finish.
+- **socket.js**: Added `reconnectionDelay: 100` (was default 1000), `reconnectionDelayMax: 2000` (was 5000), `timeout: 5000` (was 20000) for faster initial connection and retry on flaky networks.
 
 ## Recent Changes (Mar 19 2026 — Batch Module Update)
 - **actions.js**: Added `BATCH_UPDATE_MODULES` to `ActionTypes`. Added `batchUpdateModulesAction(modules)` action creator.

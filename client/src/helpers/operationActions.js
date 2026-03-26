@@ -128,6 +128,15 @@ export function resolveExpr(expr, $vars) {
     return Math.round((d - today) / 86400000);
   }
 
+  // Template string interpolation: "daypage ${$today}" → "daypage 2026-03-22"
+  // Detect ${...} patterns and replace each with resolved inner expression.
+  if (expr.includes("${")) {
+    return expr.replace(/\$\{([^}]+)\}/g, (_, inner) => {
+      const resolved = resolveExpr(inner.trim(), $vars);
+      return resolved != null ? String(resolved) : "";
+    });
+  }
+
   if (expr.startsWith("$")) {
     // "$varName.fieldId" or "$varName"
     const parts = expr.slice(1).split(".");
@@ -514,48 +523,6 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
-    // ---- CREATE_OCCURRENCE_WITH_ITERATION: day-page occurrence creation ----
-    // Creates an occurrence of a module for a specific iteration date.
-    // Idempotent: server should upsert (find-or-create by targetId + iteration).
-    // Sets $lastCreatedOccurrenceId in $vars so subsequent steps can reference the new/found ID.
-    case "CREATE_OCCURRENCE_WITH_ITERATION": {
-      const moduleId = resolveExpr(cfg.moduleId || cfg.moduleIdExpr, $vars);
-      const containerId = cfg.containerId ? resolveExpr(cfg.containerId, $vars) : null;
-      const iterationValue = resolveExpr(cfg.iterationValue ?? "$iterationValue", $vars)
-        ?? new Date().toISOString().slice(0, 10);
-      const timeFilter = resolveExpr(cfg.timeFilter ?? "$iterationFilter", $vars) ?? "daily";
-      if (moduleId) {
-        // Pre-generate the occurrence ID so subsequent pipeline steps can reference it via $lastCreatedOccurrenceId.
-        // The server uses this ID when creating new; on existing-find it returns the real ID via occurrence_created.
-        const occurrenceId = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
-        $vars["$lastCreatedOccurrenceId"] = occurrenceId;
-        updates.push({
-          _effect: "CREATE_OCCURRENCE_WITH_ITERATION",
-          occurrenceId,
-          moduleId,
-          containerId,
-          iterationValue,
-          timeFilter,
-          fields: cfg.fields || {},
-        });
-      }
-      break;
-    }
-
-    // ---- NAVIGATE_DAY_PAGE: find/create occurrence for current date + update view ----
-    // Atomic shortcut: wraps CREATE_OCCURRENCE_WITH_ITERATION + UPDATE_VIEW for the day-page pattern.
-    // cfg: { moduleId, viewId, moduleIdExpr?, viewIdExpr? }
-    case "NAVIGATE_DAY_PAGE": {
-      const moduleId = resolveExpr(cfg.moduleId || cfg.moduleIdExpr, $vars);
-      const viewId = resolveExpr(cfg.viewId || cfg.viewIdExpr, $vars);
-      const iterationValue = resolveExpr(cfg.iterationValue ?? "$iterationValue", $vars)
-        ?? new Date().toISOString();
-      if (moduleId && viewId) {
-        updates.push({ _effect: "NAVIGATE_DAY_PAGE", moduleId, viewId, date: iterationValue });
-      }
-      break;
-    }
-
     // ---- UPDATE_VIEW: update a view record (e.g. set activeOccurrenceId) ----
     // cfg: { viewId, viewIdExpr?, activeOccurrenceId?, patch? }
     case "UPDATE_VIEW": {
@@ -713,6 +680,55 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       if (chosen && cfg.targetFieldId) {
         updates.push({ fieldId: cfg.targetFieldId, value: chosen.label ?? chosen.value ?? "" });
       }
+      break;
+    }
+
+    // ---- FIND_MODULE: search $allModules by name, store result in $vars ----
+    // cfg: { nameExpr, resultVar?, resultIdVar? }
+    case "FIND_MODULE": {
+      const name = resolveExpr(cfg.nameExpr, $vars);
+      if (!name) break;
+      const allModules = $vars.$allModules || {};
+      const found = Object.values(allModules).find(m => m.name === name && !m.deleted && !m.trashed)
+        || Object.values(allModules).find(m => m.label === name && !m.deleted && !m.trashed);
+      $vars[cfg.resultVar || "$foundModule"] = found || null;
+      $vars[cfg.resultIdVar || "$foundModuleId"] = found?.id || null;
+      break;
+    }
+
+    // ---- FIND_OCCURRENCE: search $allOccurrences by targetId, store result in $vars ----
+    // cfg: { targetIdExpr?, nameExpr?, resultVar?, resultIdVar? }
+    case "FIND_OCCURRENCE": {
+      const targetId = resolveExpr(cfg.targetIdExpr, $vars);
+      const allOccurrences = $vars.$allOccurrences || occurrencesById || {};
+      let found = null;
+      if (targetId) {
+        found = Object.values(allOccurrences).find(o => o.targetId === targetId && !o.deleted);
+      }
+      $vars[cfg.resultVar || "$foundOccurrence"] = found || null;
+      $vars[cfg.resultIdVar || "$foundOccurrenceId"] = found?.id || null;
+      break;
+    }
+
+    // ---- CREATE_MODULE: create module + occurrence in one shot ----
+    // cfg: { nameExpr, role?, kind?, parentIdExpr?, parentId?, viewIdExpr?, viewId?, extra? }
+    // Sets $lastCreatedModuleId and $lastCreatedOccurrenceId in $vars.
+    case "CREATE_MODULE": {
+      const name = resolveExpr(cfg.nameExpr, $vars);
+      if (!name) break;
+      const role = cfg.role || "container";
+      const kind = cfg.kind || "doc";
+      const parentId = resolveExpr(cfg.parentIdExpr || cfg.parentId, $vars) || null;
+      const viewId = resolveExpr(cfg.viewIdExpr || cfg.viewId, $vars) || null;
+      const moduleId = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
+      const occurrenceId = globalThis.crypto?.randomUUID?.() ?? String(Date.now() + 1);
+      $vars.$lastCreatedModuleId = moduleId;
+      $vars.$lastCreatedOccurrenceId = occurrenceId;
+      updates.push({
+        _effect: "CREATE_MODULE",
+        moduleId, occurrenceId, name, role, kind, parentId, viewId,
+        ...(cfg.extra || {}),
+      });
       break;
     }
 

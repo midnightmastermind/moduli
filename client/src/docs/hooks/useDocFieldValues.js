@@ -6,6 +6,7 @@
 
 import { useMemo, useContext } from "react";
 import { GridActionsContext } from "../../GridActionsContext";
+import { GridLiveContext } from "../../GridLiveContext";
 import * as CalculationHelpers from "../../helpers/CalculationHelpers";
 
 /**
@@ -43,9 +44,9 @@ export function useDocFieldValues(docContent) {
   const {
     fieldsById = {},
     occurrencesById = {},
-    computedValues = {},
     state = {},
   } = context;
+  const { computedValues = {} } = useContext(GridLiveContext) || {};
 
   // Extract all field IDs from the document
   const fieldIds = useMemo(() => {
@@ -171,9 +172,9 @@ export function useFieldValue(fieldId) {
   const {
     fieldsById = {},
     occurrencesById = {},
-    computedValues = {},
     state = {},
   } = context;
+  const { computedValues = {} } = useContext(GridLiveContext) || {};
 
   return useMemo(() => {
     const field = fieldsById[fieldId];

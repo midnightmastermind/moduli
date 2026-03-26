@@ -29,7 +29,7 @@ function getDocHeading(textmap) {
 // ─── DocNode — occurrence item ──────────────────────────────────────────────
 // isAnchor=false: renders as a clickable file row (opens the doc)
 // isAnchor=true: renders as a small anchor chip (scrolls to heading in parent doc)
-function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesById, activeOccurrenceId, onSelect, onScrollTo, collapseGen = 0 }) {
+function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesById, activeOccurrenceId, onSelect, onScrollTo, collapseGen = 0, onSetDefault, defaultOccurrenceId }) {
   const childOccs = useMemo(() =>
     Object.values(occurrencesById ?? {})
       .filter(o => o.parentId === occ.id)
@@ -57,7 +57,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
   const heading = getDocHeading(occ.textmap);
   const displayLabel = heading || label;
   const isActive = occ.id === activeOccurrenceId;
-  const indent = depth * 8;
+  const indent = depth * 4;
 
   // Draggable file rows (not anchors)
   useEffect(() => {
@@ -102,10 +102,10 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
               border: `1px solid ${chipBorder}`,
               background: chipBg,
               cursor: "pointer",
-              fontSize: 9,
+              fontSize: 11,
               color: chipColor,
               userSelect: "none",
-              maxWidth: "100%",
+              maxWidth: 100,
               overflow: "hidden",
               fontFamily: "var(--font-mono)",
             }}
@@ -144,6 +144,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
       <div
         ref={rowRef}
         onClick={() => onSelect(occ.id)}
+        onContextMenu={(e) => { if (onSetDefault) { e.preventDefault(); onSetDefault(occ.id); } }}
         style={{
           display: "flex",
           alignItems: "center",
@@ -153,7 +154,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
           paddingTop: 1,
           paddingBottom: 1,
           cursor: "pointer",
-          fontSize: 10,
+          fontSize: 12,
           color: isActive ? "rgba(100,180,255,1)" : "var(--text-primary)",
           background: isActive ? "rgba(100,180,255,0.12)" : "transparent",
           borderRadius: 3,
@@ -170,6 +171,9 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {displayLabel}
         </span>
+        {defaultOccurrenceId === occ.id && (
+          <span style={{ fontSize: 8, color: "var(--text-faint)", flexShrink: 0 }} title="Default page">&#x1F4CC;</span>
+        )}
       </div>
       {open && hasChildren && (
         <div style={{ paddingBottom: 6 }}>
@@ -195,7 +199,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
 }
 
 // ─── FolderNode ──────────────────────────────────────────────────────────────
-function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, activeOccurrenceId, onSelect, onScrollTo }) {
+function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId }) {
   const { dispatch, socket, state } = useContext(GridActionsContext);
   const [open, setOpen] = useState(folder?.isExpanded !== false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -240,7 +244,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   }, [folder.id, artifactOccs, dispatch, socket]);
 
   const hasChildren = childFolders.length > 0 || artifactOccs.length > 0;
-  const indent = depth * 8;
+  const indent = depth * 4;
 
   const handleNewDoc = useCallback((e) => {
     e.stopPropagation();
@@ -282,7 +286,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
           paddingTop: 1,
           paddingBottom: 1,
           cursor: hasChildren ? "pointer" : "default",
-          fontSize: 10,
+          fontSize: 12,
           color: isDragOver ? "rgba(134,239,172,0.9)" : "var(--text-muted)",
           letterSpacing: "0.04em",
           textTransform: "uppercase",
@@ -320,6 +324,8 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
               activeOccurrenceId={activeOccurrenceId}
               onSelect={onSelect}
               onScrollTo={onScrollTo}
+              onSetDefault={onSetDefault}
+              defaultOccurrenceId={defaultOccurrenceId}
             />
           ))}
           {artifactOccs.map(occ => (
@@ -334,6 +340,8 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
               activeOccurrenceId={activeOccurrenceId}
               onSelect={onSelect}
               onScrollTo={onScrollTo}
+              onSetDefault={onSetDefault}
+              defaultOccurrenceId={defaultOccurrenceId}
             />
           ))}
         </div>
@@ -343,7 +351,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
 }
 
 // ─── ManifestTree ─────────────────────────────────────────────────────────────
-export default function ManifestTree({ manifestId, view, dispatch, socket, collapsed, onToggleCollapse }) {
+export default function ManifestTree({ manifestId, view, dispatch, socket, collapsed, onToggleCollapse, scrollHighlightId }) {
   const { manifestsById, foldersById, occurrencesById, modulesById } = useContext(GridActionsContext);
   const manifest = manifestsById?.[manifestId];
   const rootFolder = manifest?.rootFolderId ? foldersById?.[manifest.rootFolderId] : null;
@@ -360,100 +368,98 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
     CommitHelpers.updateView({ dispatch, socket, view: { ...view, activeOccurrenceId: parentOccId, scrollAnchor: headingText } });
   }, [view, dispatch, socket]);
 
-  // Collapsed: render narrow strip with expand button
-  if (collapsed) {
-    return (
-      <div
-        style={{
-          width: 24,
-          flexShrink: 0,
-          borderRight: "1px solid var(--border-subtle)",
-          background: "var(--border-subtle)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          paddingTop: 6,
-        }}
-      >
-        <button
-          onClick={onToggleCollapse}
-          title="Expand sidebar"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-muted)",
-            padding: "2px 4px",
-            borderRadius: 4,
-            fontSize: 10,
-          }}
-        >
-          <ChevronRight size={14} />
-        </button>
-      </div>
-    );
-  }
+  // Set a doc as the default landing page for this tree panel
+  const handleSetDefault = useCallback((occId) => {
+    if (!view?.id) return;
+    CommitHelpers.updateView({ dispatch, socket, view: { ...view, defaultOccurrenceId: occId } });
+  }, [view, dispatch, socket]);
+
+  // Touch drag to open/close sidebar
+  const handleThumbTouchStart = useCallback((e) => {
+    const startX = e.touches[0].clientX;
+    const threshold = 50;
+    const onMove = (ev) => {
+      const dx = ev.touches[0].clientX - startX;
+      if (collapsed && dx > threshold) { onToggleCollapse(); cleanup(); }
+      else if (!collapsed && dx < -threshold) { onToggleCollapse(); cleanup(); }
+    };
+    const cleanup = () => {
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", cleanup);
+    };
+    window.addEventListener("touchmove", onMove, { passive: true });
+    window.addEventListener("touchend", cleanup, { passive: true });
+  }, [collapsed, onToggleCollapse]);
 
   return (
     <div
       style={{
-        width: 164,
-        flexShrink: 0,
-        borderRight: "1px solid var(--border-subtle)",
-        overflowY: "auto",
-        background: "var(--border-subtle)",
+        width: collapsed ? 24 : 154,
+        height: "100%",
+        borderRight: "1px solid var(--border-default)",
+        background: "var(--surface-card)",
         display: "flex",
         flexDirection: "column",
+        overflow: "hidden",
+        transition: "width 0.2s ease-out",
+        flexShrink: 0,
+        position: "relative",
+        pointerEvents: "auto",
       }}
     >
-      {/* Header with label + collapse button */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "4px 8px 3px",
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ fontSize: 10, color: "var(--text-faint)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-          {manifest?.name || "Files"}
-        </span>
-        <button
+      {collapsed ? (
+        /* Vertically centered thumb + arrow */
+        <div
+          style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "e-resize" }}
+          onTouchStart={handleThumbTouchStart}
           onClick={onToggleCollapse}
-          title="Collapse sidebar"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-muted)",
-            padding: "2px 2px",
-            borderRadius: 4,
-            display: "flex",
-            alignItems: "center",
-          }}
         >
-          <ChevronRight size={12} style={{ transform: "rotate(180deg)" }} />
-        </button>
-      </div>
+          <div className="tree-thumb-handle" style={{ width: 4, height: 40, borderRadius: 2, background: "var(--text-faint)", transition: "background 0.15s" }} />
+          <ChevronRight size={12} style={{ color: "var(--text-muted)", marginTop: 6 }} />
+        </div>
+      ) : (
+        <>
+          {/* Header with label + collapse button */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px 3px", flexShrink: 0 }}>
+            <span style={{ fontSize: 12, color: "var(--text-faint)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              {manifest?.name || "Files"}
+            </span>
+            <button
+              onClick={onToggleCollapse}
+              title="Collapse sidebar"
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: "2px 2px", borderRadius: 4, display: "flex", alignItems: "center" }}
+            >
+              <ChevronRight size={12} style={{ transform: "rotate(180deg)" }} />
+            </button>
+          </div>
 
-      {/* Tree content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "1px 0 4px" }}>
-        {(!manifest || !rootFolder) ? (
-          <div style={{ fontSize: 11, color: "var(--text-faint)", padding: "0 8px" }}>No files</div>
-        ) : (
-          <FolderNode
-            folder={rootFolder}
-            depth={0}
-            foldersById={foldersById}
-            occurrencesById={occurrencesById}
-            modulesById={modulesById}
-            activeOccurrenceId={view?.activeOccurrenceId}
-            onSelect={handleSelect}
-            onScrollTo={handleScrollTo}
+          {/* Tree content */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "1px 0 4px" }}>
+            {(!manifest || !rootFolder) ? (
+              <div style={{ fontSize: 11, color: "var(--text-faint)", padding: "0 8px" }}>No files</div>
+            ) : (
+              <FolderNode
+                folder={rootFolder}
+                depth={0}
+                foldersById={foldersById}
+                occurrencesById={occurrencesById}
+                modulesById={modulesById}
+                activeOccurrenceId={scrollHighlightId || view?.activeOccurrenceId}
+                onSelect={handleSelect}
+                onScrollTo={handleScrollTo}
+                onSetDefault={handleSetDefault}
+                defaultOccurrenceId={view?.defaultOccurrenceId}
+              />
+            )}
+          </div>
+
+          {/* Touch-drag edge on right border to collapse */}
+          <div
+            style={{ position: "absolute", top: 0, right: -4, bottom: 0, width: 8, cursor: "w-resize", zIndex: 101 }}
+            onTouchStart={handleThumbTouchStart}
           />
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }

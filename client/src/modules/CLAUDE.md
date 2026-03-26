@@ -1,6 +1,18 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: Mar 18 2026. This folder implements occurrence-based view routing._
+_Updated: Mar 23 2026. This folder implements occurrence-based view routing._
+
+## Recent Changes (Mar 25 2026 — Batch 3 Fixes)
+- **Panel.jsx**: TreePanelContent: added mount-only `useEffect` that resets `activeOccurrenceId` to `resolvedView.defaultOccurrenceId` when configured (Bug 3 — daypage default page).
+- **ManifestTree.jsx**: (1) Added `handleSetDefault` callback — right-click doc row sets `view.defaultOccurrenceId`. (2) Pin icon (📌) shown next to default page doc. (3) `onSetDefault` + `defaultOccurrenceId` threaded through FolderNode → DocNode. (4) Unified collapsed/expanded into single wrapper div with `transition: "width 0.2s ease-out"` — smooth slide animation. (5) Collapsed strip: vertically centered thumb bar (4×40px) + ChevronRight, `cursor: e-resize`. (6) `handleThumbTouchStart` — touch drag right (>50px) opens sidebar, drag left closes. (7) Expanded state: invisible drag-edge div on right border for touch-to-collapse.
+
+## Recent Changes (Mar 23 2026 — 4 Bug Fixes)
+- **Container.jsx**: Added `data-occ-id={containerOccurrence?.id}` to outer shell div (needed for IntersectionObserver scroll tracking). Moved containerFields (Q/A question select) from inline with label (Row 2) to its own row below (Row 3) — prevents mobile layout crush where field `flexShrink:0` squeezes label to vertical text.
+- **View.jsx**: Both Artifact branches now pass `view={resolvedView}` explicitly (was relying on `...props` which didn't have it). Required for scroll auto-sync.
+- **Artifact.jsx**: Added IntersectionObserver for auto-sync of `activeOccurrenceId` on scroll. Watches `[data-occ-id]` elements in `.artifact-markdown` scroll container. 200ms debounce, local-only updateView (emit:false). `suppressAutoSyncRef` prevents observer from fighting programmatic scrolls (scrollAnchor).
+
+## Recent Changes (Mar 22 2026 — Notebook Continuous Scroll Fix)
+- **Container.jsx**: `.container-doc` div now uses `overflow: "visible"` when `embedded=true` (was `overflow: "auto"`). Embedded doc containers no longer capture scroll independently — the parent `.artifact-markdown` div is the single scroll context. Fixes notebook continuous scroll between embedded sections.
 
 ## Architecture
 
@@ -37,6 +49,38 @@ The new system links views to occurrences (`occurrence.viewId → View`) instead
 - `Editor.jsx` new prop: `stickyToolbar` — wraps DocToolbar in `.doc-toolbar-sticky` div when true.
 - `Instance.jsx`: label `flexShrink:0`, fields container `flex:1` — no wrapping around label.
 - `ManifestTree.jsx`: anchor child block `paddingBottom: 6`.
+
+## Recent Changes (Mar 20 2026 — Doc/Tree/Drag UI Overhaul)
+- **View.jsx**: Sidebar now defaults to collapsed. Changed from flex push layout to absolute overlay — sidebar sits on top of doc content instead of pushing it right. Added `sidebarCollapsed` state (default `true`) + `toggleSidebar` callback. ManifestTree receives `collapsed` + `onToggleCollapse` props.
+- **ManifestTree.jsx**: Reduced indentation from `depth * 8` to `depth * 4`. Anchor chip `maxWidth: 100px` (was `"100%"`). Collapsed strip gets `pointerEvents: "auto"` for overlay mode.
+
+## Recent Changes (Mar 20 2026 — Module Lifecycle: Remove vs Trash)
+- **Panel.jsx**: "Delete panel" → "Remove from grid". `handleRemovePanel` calls `CommitHelpers.removeOccurrence` (deletes occurrence, keeps module). LayoutForm receives `onDeletePanel={handleRemovePanel}`. Context menu uses same handler.
+- **Container.jsx**: "Delete container" → "Remove from grid". `removeMe` replaces `deleteMe` — calls `removeOccurrence` with parent panel occurrence lookup. ContainerForm gets `onDeleteContainer={removeMe}`. Passes `containerOccurrence` to ModuleInstance.
+- **ModuleInstance.jsx**: "Delete occurrence" → "Remove from container". Now calls `removeOccurrence` with `containerOccurrence` for parent cleanup. Added `containerOccurrence` prop.
+
+## Recent Changes (Mar 20 2026 — Stack Cycler + Delete Fix)
+- **Panel.jsx**: Stack cycler button moved from inside panel header to below header (flush right). Renders only when `stack.length > 1`. Uses `dragCtx.getStackForPanel(module)` + `dragCtx.cyclePanelStack`. Styled with `borderRadius: "0 0 4px 4px"`, no top border (seamless with header).
+
+## Recent Changes (Mar 20 2026 — Post-Review Cleanup)
+- **containerHelpers.jsx**: Wrapped `DocEditorShell`, `PoolPill`, `CanvasCard` in `React.memo`. These render inside Container (already consolidated via useReducer) — memo prevents re-renders when only Container's UI state changes.
+- **Container.jsx**: Moved constant array `["top","bottom","left","right"]` from `useMemo(()=>[...], [])` to module-level `ALL_EDGES` const. Eliminates unnecessary memo overhead.
+
+## Recent Changes (Mar 20 2026 — Phase C4+C5 Context Split + Reducer)
+- **Container.jsx**: C5 — 13 `useState` hooks consolidated into single `useReducer`. Setter wrappers (useCallback) preserve API — 44 call sites unchanged. Paired updates batch through reducer.
+- **Instance.jsx**: C4 — `computedValues` now from `GridLiveContext` (not GridActionsContext).
+- **FieldRenderer.jsx**: C4 — same migration.
+
+## Recent Changes (Mar 20 2026 — Phase C3 linkedGroupIndex)
+- **Instance.jsx**: Replaced O(n) `Object.values(occurrencesById).filter()` scan with O(1) `linkedGroupIndex[linkedGroupId]` lookup. Destructures `linkedGroupIndex` from GridActionsContext.
+
+## Recent Changes (Mar 19 2026 — Phase C1+C2 React.memo)
+- **ModuleInstance.jsx**: `export default React.memo(ModuleInstance)` — prevents sibling re-renders when parent Container state changes.
+- **Panel.jsx**: Changed from `export default function Panel(...)` to `function Panel(...) + export default React.memo(Panel)` — prevents sibling re-renders when parent Grid state changes.
+
+## Recent Changes (Mar 19 2026 — Drag Handle + UI Fixes)
+- **Panel.jsx, Container.jsx, Instance.jsx**: Replaced `.module-handle` + `.module-dot` with `.module-drag-handle` + `.drag-handle-stem` + `.drag-handle-ball` (knob-on-stem visual). All `RadialMenu` instances get `forceDirection="down"`. Cog handle also uses drag-handle visual (stem+ball visible, radial on hover).
+- **Panel.jsx**: `forceDirection` changed from `"right"` to `"down"`.
 
 ## Recent Changes (Mar 18 2026 — Mobile Fixes)
 - **Panel.jsx**: Removed panel cog handle entirely (`.panel-cog-handle` block deleted). Right-click context menu now includes "Show/Hide header" for the same functionality. `onContextMenu` added to panel shell div. ResizeHandle moved from absolute overlay to inline flex bottom bar.

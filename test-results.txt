@@ -1,0 +1,52 @@
+
+> dndkittest2@0.1.0 test
+> vitest run
+
+[1m[43m DEPRECATED [49m[22m [33m"cache.dir" is deprecated, use Vite's "cacheDir" instead if you want to change the cache director. Note caches will be written to "cacheDir/vitest"[39m
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/data/data/com.termux/files/home/moduli/client[39m
+
+ [32m✓[39m src/__tests__/masterReducer.test.js [2m([22m[2m55 tests[22m[2m)[22m[32m 65[2mms[22m[39m
+ [32m✓[39m src/__tests__/CalculationHelpers.test.js [2m([22m[2m58 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+ [32m✓[39m src/__tests__/LayoutHelpers.test.js [2m([22m[2m39 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/__tests__/operationActions.test.js [2m([22m[2m24 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+[90mstderr[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations[2m > [22m[2merrors in one op don't crash other ops
+[22m[39mUnknown block type: bad_block_type
+Unknown block type: bad_block_type
+
+ [32m✓[39m src/__tests__/operationExecutor.test.js [2m([22m[2m110 tests[22m[2m)[22m[32m 106[2mms[22m[39m
+ [32m✓[39m src/__tests__/MobileGridNav.test.jsx [2m([22m[2m5 tests[22m[2m)[22m[32m 219[2mms[22m[39m
+ [32m✓[39m src/__tests__/mobile-fixes.test.jsx [2m([22m[2m19 tests[22m[2m)[22m[33m 347[2mms[22m[39m
+ [32m✓[39m src/__tests__/CommitHelpers.test.js [2m([22m[2m28 tests[22m[2m)[22m[32m 112[2mms[22m[39m
+ [32m✓[39m src/__tests__/mobile-fixes.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 8[2mms[22m[39m
+[90mstdout[2m | src/__tests__/bindSocketToStore.test.js[2m > [22m[2mfull_state[2m > [22m[2mdispatches FULL_STATE action with payload
+[22m[39m[socket] full_state received: {
+  gridId: [32m'g1'[39m,
+  modules: [],
+  occurrences: [],
+  fields: [],
+  operations: []
+}
+
+[90mstdout[2m | src/__tests__/bindSocketToStore.test.js[2m > [22m[2mfull_state[2m > [22m[2mpersists gridId to localStorage
+[22m[39m[socket] full_state received: {
+  gridId: [32m'g42'[39m,
+  modules: [],
+  occurrences: [],
+  fields: [],
+  operations: []
+}
+
+[90mstdout[2m | src/__tests__/bindSocketToStore.test.js[2m > [22m[2mfull_state[2m > [22m[2mdoes not crash when payload is empty
+[22m[39m[socket] full_state received: {}
+
+ [32m✓[39m src/__tests__/bindSocketToStore.test.js [2m([22m[2m24 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/__tests__/DragProvider.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/__tests__/RadialMenu.test.js [2m([22m[2m10 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/__tests__/MobileGridNav.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m13 passed[39m[22m[90m (13)[39m
+[2m      Tests [22m [1m[32m378 passed[39m[22m[90m (378)[39m
+[2m   Start at [22m 01:45:17
+[2m   Duration [22m 9.09s[2m (transform 3.01s, setup 3.06s, import 7.29s, tests 1.04s, environment 35.55s)[22m
+

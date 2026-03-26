@@ -1,6 +1,28 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-03-18 (Mobile fixes). Check this file before re-reading source._
+_Updated: 2026-03-23. Check this file before re-reading source._
+
+## Recent Changes (Mar 25 2026 — Module Reference Field Type)
+- **Field.jsx**: Added `type: "module"` rendering. Compact input: cyan-tinted Popover pill with Link2 icon, searchable module list. Full input: native `<select>` dropdown from `meta._moduleOptions`. Display: `formattedValue` resolves moduleId → label via `_moduleOptions`, with optional `meta.label` prefix. Compact display: cyan pill with Link2 icon.
+- **FieldRenderer.jsx**: Extended `effectiveField` useMemo to handle `type === "module"` — builds `_moduleOptions` from `modulesById` (filtered by optional `meta.roleFilter`).
+- **commandCenter/FieldsTab.jsx**: Added `"module"` to type dropdown. Module-specific meta config: Label prefix input (`meta.label`) + optional Role filter select (`meta.roleFilter`). FieldPill cyan color for module-type fields.
+
+## Recent Changes (Mar 25 2026 — onLoad Switch in Operations UI)
+- **commandCenter/OperationsTab.jsx**: `handleCreate` now defaults new operations to `triggerType: "onChange", triggerTypes: ["onChange", "onLoad"]` (was `triggerType: "manual"`). `OperationEditor` trigger section now has a separate toggle switch for "Run on load" above the trigger rows — green toggle, defaults ON for new ops. `onLoad` filtered out of the configurable trigger row list and the event type dropdown to avoid duplication.
+
+## Recent Changes (Mar 25 2026 — Escape Key Handlers)
+- **RadialMenu.jsx**: Added `keydown` listener for Escape inside outside-click `useEffect`. Calls `e.preventDefault()` so parent handlers know it was consumed. Menu now closable via Escape key.
+- **QuickAddMenu.jsx**: Added `keydown` listener for Escape inside outside-click `useEffect`. Same `preventDefault` pattern. Menu now closable via Escape key.
+
+## Recent Changes (Mar 23 2026 — Pool Randomize Button)
+- **FieldRenderer.jsx**: Added `handleRandomize` callback — picks random option from pool-sourced select fields. Dice button (&#x1F3B2;) renders inline next to pool-sourced select input fields when `inputEnabled`. Input Field now wrapped in `inline-flex` div with the randomize button.
+
+## Recent Changes (Mar 20 2026 — Editor Block Handle + CSS)
+- **Editor.jsx**: Increased left padding on `doc-editor-wrapper` from `p-3` to `py-3 pr-3 pl-10` (40px left) — creates space for the block handle buttons so they don't overlap content. Added "Insert module" item to block menu — triggers the existing `@:` embed container picker, positioned at the block handle location.
+- **index.css**: Drag handle ball increased from 7×7 to 24×24px (matches radial menu button size). Stem scaled from 3×5 to 5×8px. `.module-drag-handle` top offset changed from -10px to -20px. `.module-drag-handle .radial-handle` increased from 10×10 to 24×24px — flush with ball position.
+
+## Recent Changes (Mar 20 2026 — Pool Lookup Performance)
+- **FieldRenderer.jsx**: Pool-sourced select fields had O(n) `Object.values(occurrencesById).find()` inside a loop over pool IDs. Replaced with O(1) `byTargetId` map built once inside the useMemo (only for pool fields — non-pool fields early-return before map construction).
 
 ## Recent Changes (Mar 18 2026 — Mobile Fixes)
 - **RadialMenu.jsx**: Arc item viewport clamping — each item's final absolute position is clamped to stay within viewport bounds (prevents off-screen items near edges). Arc spread capped to `min(45, 180/(count-1))` degrees to prevent wraparound with 5+ items.

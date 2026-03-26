@@ -69,6 +69,9 @@ const OccurrenceSchema = new mongoose.Schema(
     // occurrences sharing the same linkedGroupId
     linkedGroupId: { type: String, default: null, index: true },
 
+    // Sort order within parent (used by ManifestTree anchors, folder items, etc.)
+    sortOrder: { type: Number, default: 0 },
+
     // Optional metadata
     meta: { type: mongoose.Schema.Types.Mixed, default: {} },
   },

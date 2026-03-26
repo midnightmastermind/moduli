@@ -1,0 +1,2035 @@
+[
+  {
+    "_id": "69c288bee56661f84e2e250b",
+    "id": "KG7PSrkpzHPg",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Completed",
+    "type": "boolean",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "variant": "switch",
+      "defaultValue": false
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:10.662Z",
+    "updatedAt": "2026-03-24T12:51:10.662Z"
+  },
+  {
+    "_id": "69c288bfe56661f84e2e2510",
+    "id": "nWjx4QfWkSuz",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Duration",
+    "type": "duration",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:11.768Z",
+    "updatedAt": "2026-03-24T12:51:11.768Z"
+  },
+  {
+    "_id": "69c288bfe56661f84e2e2514",
+    "id": "ZkPBkZln1IX-",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Priority",
+    "type": "rating",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "max": 5
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:11.905Z",
+    "updatedAt": "2026-03-24T12:51:11.905Z"
+  },
+  {
+    "_id": "69c288c0e56661f84e2e2516",
+    "id": "XpMIH9HGA6SV",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Notes",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "placeholder": "Add notes..."
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:12.071Z",
+    "updatedAt": "2026-03-24T12:51:12.071Z"
+  },
+  {
+    "_id": "69c288c0e56661f84e2e2518",
+    "id": "DS5gTH54NeXH",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Amount",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "$",
+      "postfix": "",
+      "increment": 5,
+      "flow": "out"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:12.208Z",
+    "updatedAt": "2026-03-24T12:51:12.208Z"
+  },
+  {
+    "_id": "69c288c0e56661f84e2e251a",
+    "id": "L0AV7Np3Zrxv",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Income",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "$",
+      "postfix": "",
+      "increment": 10,
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:12.316Z",
+    "updatedAt": "2026-03-24T12:51:12.316Z"
+  },
+  {
+    "_id": "69c288c0e56661f84e2e251c",
+    "id": "r8f4dlHruVFr",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Calories",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "postfix": " cal",
+      "increment": 50,
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:12.433Z",
+    "updatedAt": "2026-03-24T12:51:12.433Z"
+  },
+  {
+    "_id": "69c288c0e56661f84e2e251e",
+    "id": "aEKOn7_yLcHl",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Steps",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "postfix": " steps",
+      "increment": 500,
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:12.552Z",
+    "updatedAt": "2026-03-24T12:51:12.552Z"
+  },
+  {
+    "_id": "69c288c0e56661f84e2e2520",
+    "id": "9RWuVXMHC-op",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Water",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "postfix": " oz",
+      "increment": 8,
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:12.703Z",
+    "updatedAt": "2026-03-24T12:51:12.703Z"
+  },
+  {
+    "_id": "69c288c0e56661f84e2e2522",
+    "id": "5rmi5O14GKKB",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Mood",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "multiSelect": true,
+      "options": [
+        {
+          "value": "joyful",
+          "label": "Joyful"
+        },
+        {
+          "value": "happy",
+          "label": "Happy"
+        },
+        {
+          "value": "content",
+          "label": "Content"
+        },
+        {
+          "value": "cheerful",
+          "label": "Cheerful"
+        },
+        {
+          "value": "proud",
+          "label": "Proud"
+        },
+        {
+          "value": "optimistic",
+          "label": "Optimistic"
+        },
+        {
+          "value": "playful",
+          "label": "Playful"
+        },
+        {
+          "value": "excited",
+          "label": "Excited"
+        },
+        {
+          "value": "trusting",
+          "label": "Trusting"
+        },
+        {
+          "value": "accepting",
+          "label": "Accepting"
+        },
+        {
+          "value": "peaceful",
+          "label": "Peaceful"
+        },
+        {
+          "value": "serene",
+          "label": "Serene"
+        },
+        {
+          "value": "grateful",
+          "label": "Grateful"
+        },
+        {
+          "value": "anxious",
+          "label": "Anxious"
+        },
+        {
+          "value": "scared",
+          "label": "Scared"
+        },
+        {
+          "value": "worried",
+          "label": "Worried"
+        },
+        {
+          "value": "nervous",
+          "label": "Nervous"
+        },
+        {
+          "value": "insecure",
+          "label": "Insecure"
+        },
+        {
+          "value": "surprised",
+          "label": "Surprised"
+        },
+        {
+          "value": "amazed",
+          "label": "Amazed"
+        },
+        {
+          "value": "confused",
+          "label": "Confused"
+        },
+        {
+          "value": "stunned",
+          "label": "Stunned"
+        },
+        {
+          "value": "sad",
+          "label": "Sad"
+        },
+        {
+          "value": "lonely",
+          "label": "Lonely"
+        },
+        {
+          "value": "disappointed",
+          "label": "Disappointed"
+        },
+        {
+          "value": "depressed",
+          "label": "Depressed"
+        },
+        {
+          "value": "hopeless",
+          "label": "Hopeless"
+        },
+        {
+          "value": "guilty",
+          "label": "Guilty"
+        },
+        {
+          "value": "disgusted",
+          "label": "Disgusted"
+        },
+        {
+          "value": "disapproving",
+          "label": "Disapproving"
+        },
+        {
+          "value": "bored",
+          "label": "Bored"
+        },
+        {
+          "value": "angry",
+          "label": "Angry"
+        },
+        {
+          "value": "frustrated",
+          "label": "Frustrated"
+        },
+        {
+          "value": "irritated",
+          "label": "Irritated"
+        },
+        {
+          "value": "annoyed",
+          "label": "Annoyed"
+        },
+        {
+          "value": "resentful",
+          "label": "Resentful"
+        },
+        {
+          "value": "jealous",
+          "label": "Jealous"
+        },
+        {
+          "value": "anticipating",
+          "label": "Anticipating"
+        },
+        {
+          "value": "interested",
+          "label": "Interested"
+        },
+        {
+          "value": "curious",
+          "label": "Curious"
+        },
+        {
+          "value": "eager",
+          "label": "Eager"
+        },
+        {
+          "value": "neutral",
+          "label": "Neutral"
+        },
+        {
+          "value": "tired",
+          "label": "Tired"
+        },
+        {
+          "value": "stressed",
+          "label": "Stressed"
+        },
+        {
+          "value": "overwhelmed",
+          "label": "Overwhelmed"
+        },
+        {
+          "value": "calm",
+          "label": "Calm"
+        },
+        {
+          "value": "focused",
+          "label": "Focused"
+        }
+      ]
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:12.814Z",
+    "updatedAt": "2026-03-24T12:51:12.814Z"
+  },
+  {
+    "_id": "69c288c0e56661f84e2e2524",
+    "id": "UHDX9FJ4w9_b",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Energy",
+    "type": "rating",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "max": 5
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:12.946Z",
+    "updatedAt": "2026-03-24T12:51:12.946Z"
+  },
+  {
+    "_id": "69c288c1e56661f84e2e2526",
+    "id": "7Ty_yjUK25jR",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Pages",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "postfix": " pages",
+      "increment": 5,
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:13.054Z",
+    "updatedAt": "2026-03-24T12:51:13.054Z"
+  },
+  {
+    "_id": "69c288c1e56661f84e2e2528",
+    "id": "d1pWlMBPQpM1",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Due",
+    "type": "date",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:13.285Z",
+    "updatedAt": "2026-03-24T12:51:13.285Z"
+  },
+  {
+    "_id": "69c288c1e56661f84e2e252a",
+    "id": "QnrA81e_JnJt",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Scheduled Date",
+    "type": "date",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "siblingLinks": [],
+    "meta": {},
+    "createdAt": "2026-03-24T12:51:13.433Z",
+    "updatedAt": "2026-03-24T12:51:13.433Z"
+  },
+  {
+    "_id": "69c288c1e56661f84e2e252c",
+    "id": "8nbH0j9SHmMS",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Time Slot",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "siblingLinks": [],
+    "meta": {},
+    "createdAt": "2026-03-24T12:51:13.642Z",
+    "updatedAt": "2026-03-24T12:51:13.642Z"
+  },
+  {
+    "_id": "69c288c1e56661f84e2e252e",
+    "id": "pIy5KBP398CA",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Rating",
+    "type": "rating",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "max": 5
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:13.804Z",
+    "updatedAt": "2026-03-24T12:51:13.804Z"
+  },
+  {
+    "_id": "69c288c1e56661f84e2e2530",
+    "id": "v-DId9zq89RA",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Last Watched",
+    "type": "date",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "siblingLinks": [],
+    "meta": {},
+    "createdAt": "2026-03-24T12:51:13.945Z",
+    "updatedAt": "2026-03-24T12:51:13.945Z"
+  },
+  {
+    "_id": "69c288c2e56661f84e2e2532",
+    "id": "mjpcEIS5TuaW",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "List",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "options": [
+        {
+          "value": "movies",
+          "label": "Movies"
+        },
+        {
+          "value": "tvshows",
+          "label": "TV Shows"
+        },
+        {
+          "value": "books",
+          "label": "Books"
+        },
+        {
+          "value": "music",
+          "label": "Music"
+        },
+        {
+          "value": "podcasts",
+          "label": "Podcasts"
+        },
+        {
+          "value": "games",
+          "label": "Games"
+        },
+        {
+          "value": "activities",
+          "label": "Activities"
+        },
+        {
+          "value": "rooms",
+          "label": "Rooms"
+        },
+        {
+          "value": "cbt",
+          "label": "CBT Skills"
+        },
+        {
+          "value": "bookmarks",
+          "label": "Bookmarks"
+        }
+      ]
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:14.092Z",
+    "updatedAt": "2026-03-24T12:51:14.092Z"
+  },
+  {
+    "_id": "69c288c2e56661f84e2e2534",
+    "id": "Vp8HFQKMUFk3",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Title",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "multiSelect": true,
+      "sourceType": "pool",
+      "poolContainerIds": [
+        "TksPOkG7Zkfd",
+        "-QdgUWWL2_FB"
+      ]
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:14.170Z",
+    "updatedAt": "2026-03-24T12:51:14.170Z"
+  },
+  {
+    "_id": "69c288c2e56661f84e2e2536",
+    "id": "g9dhjGGhidDP",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Title",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "multiSelect": true,
+      "sourceType": "pool",
+      "poolContainerId": "_yhWbujynF7q"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:14.482Z",
+    "updatedAt": "2026-03-24T12:51:14.482Z"
+  },
+  {
+    "_id": "69c288c2e56661f84e2e2538",
+    "id": "q1JbpGUedwqI",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Title",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "multiSelect": true,
+      "sourceType": "pool",
+      "poolContainerIds": [
+        "U6dNpZBFPqOm",
+        "EZnV2H3oIILQ"
+      ]
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:14.707Z",
+    "updatedAt": "2026-03-24T12:51:14.707Z"
+  },
+  {
+    "_id": "69c288c2e56661f84e2e253a",
+    "id": "7FGGwnrurKLi",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Title",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "multiSelect": true,
+      "sourceType": "pool",
+      "poolContainerIds": [
+        "jrZZajid51JX",
+        "0PVHWqhEPoIz"
+      ]
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:14.897Z",
+    "updatedAt": "2026-03-24T12:51:14.897Z"
+  },
+  {
+    "_id": "69c288c3e56661f84e2e253c",
+    "id": "6tgdqrmcGYqz",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Room",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "multiSelect": true,
+      "sourceType": "pool",
+      "poolContainerId": "xZnzmhqkdJoY"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:15.127Z",
+    "updatedAt": "2026-03-24T12:51:15.127Z"
+  },
+  {
+    "_id": "69c288c3e56661f84e2e253e",
+    "id": "MGxUBqIVIEq2",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Skill",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "multiSelect": true,
+      "sourceType": "pool",
+      "poolContainerId": "iMLtQnEm5GQE"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:15.351Z",
+    "updatedAt": "2026-03-24T12:51:15.351Z"
+  },
+  {
+    "_id": "69c288c3e56661f84e2e2540",
+    "id": "xRj4F-XRHl6O",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Link",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "multiSelect": true,
+      "sourceType": "pool",
+      "poolContainerId": "y6AIbTZ9DFog"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:15.588Z",
+    "updatedAt": "2026-03-24T12:51:15.588Z"
+  },
+  {
+    "_id": "69c288c3e56661f84e2e2542",
+    "id": "zDps_H9PDRLK",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Movie",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "placeholder": "Movie title..."
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:15.779Z",
+    "updatedAt": "2026-03-24T12:51:15.779Z"
+  },
+  {
+    "_id": "69c288c3e56661f84e2e2544",
+    "id": "6h2w8mbhAxDh",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Book",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "placeholder": "Book title..."
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:15.982Z",
+    "updatedAt": "2026-03-24T12:51:15.982Z"
+  },
+  {
+    "_id": "69c288c4e56661f84e2e2546",
+    "id": "10HggLXfsyY2",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Podcast",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "placeholder": "Podcast name..."
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:16.118Z",
+    "updatedAt": "2026-03-24T12:51:16.118Z"
+  },
+  {
+    "_id": "69c288c4e56661f84e2e2548",
+    "id": "r37JBwDKbhVL",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Workout",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "placeholder": "Workout type..."
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:16.412Z",
+    "updatedAt": "2026-03-24T12:51:16.412Z"
+  },
+  {
+    "_id": "69c288c4e56661f84e2e254a",
+    "id": "wzes6oMeJalc",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Meal",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "placeholder": "What did you eat..."
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:16.859Z",
+    "updatedAt": "2026-03-24T12:51:16.859Z"
+  },
+  {
+    "_id": "69c288c5e56661f84e2e254c",
+    "id": "aEYDhIL7QoZQ",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Activity",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "placeholder": "Describe activity..."
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:17.248Z",
+    "updatedAt": "2026-03-24T12:51:17.248Z"
+  },
+  {
+    "_id": "69c288c5e56661f84e2e254e",
+    "id": "-zDSrzHsxGDO",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Watchlist",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "multiSelect": true,
+      "quickAdd": true,
+      "removeOnComplete": true,
+      "randomize": true,
+      "options": [
+        {
+          "value": "inception",
+          "label": "Inception"
+        },
+        {
+          "value": "interstellar",
+          "label": "Interstellar"
+        },
+        {
+          "value": "the_matrix",
+          "label": "The Matrix"
+        },
+        {
+          "value": "blade_runner",
+          "label": "Blade Runner 2049"
+        },
+        {
+          "value": "dune",
+          "label": "Dune"
+        },
+        {
+          "value": "the_godfather",
+          "label": "The Godfather"
+        },
+        {
+          "value": "parasite",
+          "label": "Parasite"
+        },
+        {
+          "value": "oppenheimer",
+          "label": "Oppenheimer"
+        }
+      ]
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:17.577Z",
+    "updatedAt": "2026-03-24T12:51:17.577Z"
+  },
+  {
+    "_id": "69c288c5e56661f84e2e2550",
+    "id": "4alccdW1N-Mm",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Reading List",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "multiSelect": true,
+      "quickAdd": true,
+      "removeOnComplete": true,
+      "randomize": true,
+      "options": [
+        {
+          "value": "atomic_habits",
+          "label": "Atomic Habits"
+        },
+        {
+          "value": "deep_work",
+          "label": "Deep Work"
+        },
+        {
+          "value": "thinking_fast_slow",
+          "label": "Thinking, Fast and Slow"
+        },
+        {
+          "value": "4_hour_workweek",
+          "label": "The 4-Hour Workweek"
+        },
+        {
+          "value": "mans_search",
+          "label": "Man's Search for Meaning"
+        },
+        {
+          "value": "meditations",
+          "label": "Meditations"
+        },
+        {
+          "value": "sapiens",
+          "label": "Sapiens"
+        }
+      ]
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:17.948Z",
+    "updatedAt": "2026-03-24T12:51:17.948Z"
+  },
+  {
+    "_id": "69c288c6e56661f84e2e2552",
+    "id": "1nKep_eHx5WT",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Question Pool",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "options": [
+        {
+          "value": "q1",
+          "label": "What are you most grateful for today?"
+        },
+        {
+          "value": "q2",
+          "label": "What's one thing you want to accomplish?"
+        },
+        {
+          "value": "q3",
+          "label": "What's been on your mind lately?"
+        },
+        {
+          "value": "q4",
+          "label": "What made you smile today?"
+        },
+        {
+          "value": "q5",
+          "label": "What lesson did you learn recently?"
+        },
+        {
+          "value": "q6",
+          "label": "Who do you want to connect with this week?"
+        },
+        {
+          "value": "q7",
+          "label": "What habit are you trying to build?"
+        },
+        {
+          "value": "q8",
+          "label": "What would make today great?"
+        },
+        {
+          "value": "q9",
+          "label": "What are you avoiding that you should face?"
+        },
+        {
+          "value": "q10",
+          "label": "What's one kind thing you can do for yourself?"
+        }
+      ]
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:18.337Z",
+    "updatedAt": "2026-03-24T12:51:18.337Z"
+  },
+  {
+    "_id": "69c288c6e56661f84e2e2554",
+    "id": "r8ORuMaFPViW",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Daily Question",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": [
+      "1nKep_eHx5WT"
+    ],
+    "createdAt": "2026-03-24T12:51:18.549Z",
+    "updatedAt": "2026-03-24T12:51:26.570Z"
+  },
+  {
+    "_id": "69c288c6e56661f84e2e2556",
+    "id": "GG93s7m1c1z9",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Answer",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "placeholder": "Write your answer..."
+    },
+    "siblingLinks": [
+      "r8ORuMaFPViW"
+    ],
+    "createdAt": "2026-03-24T12:51:18.848Z",
+    "updatedAt": "2026-03-24T12:51:26.686Z"
+  },
+  {
+    "_id": "69c288c6e56661f84e2e2558",
+    "id": "7-YjUwJIZ6fy",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Question",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "sourceType": "pool",
+      "poolContainerId": "bkr8MglpsJAW"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:18.984Z",
+    "updatedAt": "2026-03-24T12:51:18.984Z"
+  },
+  {
+    "_id": "69c288c7e56661f84e2e255a",
+    "id": "G_jjgCVhNyUE",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Went Well",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "placeholder": "What went well..."
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:19.139Z",
+    "updatedAt": "2026-03-24T12:51:19.139Z"
+  },
+  {
+    "_id": "69c288c7e56661f84e2e255c",
+    "id": "H0q1EBNmk1Kl",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Question",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "sourceType": "pool",
+      "poolContainerId": "c1TYiRWiB39F"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:19.528Z",
+    "updatedAt": "2026-03-24T12:51:19.528Z"
+  },
+  {
+    "_id": "69c288c7e56661f84e2e255e",
+    "id": "8ZRmzc7S1kB7",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Improvement",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "placeholder": "What could be improved..."
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:19.641Z",
+    "updatedAt": "2026-03-24T12:51:19.641Z"
+  },
+  {
+    "_id": "69c288c8e56661f84e2e2560",
+    "id": "5hYOqnSXFdg_",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Question",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "sourceType": "pool",
+      "poolContainerId": "Dw2MuICUXjed"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:20.191Z",
+    "updatedAt": "2026-03-24T12:51:20.191Z"
+  },
+  {
+    "_id": "69c288c8e56661f84e2e2562",
+    "id": "29-kqQ7mia8U",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Gratitude",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "placeholder": "What are you grateful for..."
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:20.550Z",
+    "updatedAt": "2026-03-24T12:51:20.550Z"
+  },
+  {
+    "_id": "69c288c8e56661f84e2e2564",
+    "id": "owx-hWbmQw7t",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Account",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "options": [
+        {
+          "value": "checking",
+          "label": "Checking"
+        },
+        {
+          "value": "savings",
+          "label": "Savings"
+        },
+        {
+          "value": "moms",
+          "label": "Mom's Account"
+        }
+      ]
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:20.675Z",
+    "updatedAt": "2026-03-24T12:51:20.675Z"
+  },
+  {
+    "_id": "69c288c8e56661f84e2e2566",
+    "id": "EY5b64q5FQu7",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Tasks Completed",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "",
+      "postfix": " done"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:20.786Z",
+    "updatedAt": "2026-03-24T12:51:20.786Z"
+  },
+  {
+    "_id": "69c288c8e56661f84e2e2568",
+    "id": "a1846vIpVCDB",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Time Spent Today",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "",
+      "postfix": " min"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:20.909Z",
+    "updatedAt": "2026-03-24T12:51:20.909Z"
+  },
+  {
+    "_id": "69c288c9e56661f84e2e256a",
+    "id": "rhGYPhMHKKri",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Spent Today",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "$",
+      "postfix": ""
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:21.033Z",
+    "updatedAt": "2026-03-24T12:51:21.033Z"
+  },
+  {
+    "_id": "69c288c9e56661f84e2e256c",
+    "id": "E3JM2_mUddye",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Earned Today",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "$",
+      "postfix": ""
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:21.148Z",
+    "updatedAt": "2026-03-24T12:51:21.148Z"
+  },
+  {
+    "_id": "69c288c9e56661f84e2e256e",
+    "id": "L5fwbW_0y2Kg",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Daily Steps",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "postfix": " steps"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:21.275Z",
+    "updatedAt": "2026-03-24T12:51:21.275Z"
+  },
+  {
+    "_id": "69c288c9e56661f84e2e2570",
+    "id": "zZVeg6-Y9o5D",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Daily Water",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "postfix": " oz"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:21.411Z",
+    "updatedAt": "2026-03-24T12:51:21.411Z"
+  },
+  {
+    "_id": "69c288c9e56661f84e2e2572",
+    "id": "F0Ty3Dk-cdo_",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Latest Mood",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:21.556Z",
+    "updatedAt": "2026-03-24T12:51:21.556Z"
+  },
+  {
+    "_id": "69c288c9e56661f84e2e2574",
+    "id": "dV11hgD-0sR3",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Pages Read Today",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "postfix": " pages"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:21.958Z",
+    "updatedAt": "2026-03-24T12:51:21.958Z"
+  },
+  {
+    "_id": "69c288cae56661f84e2e2576",
+    "id": "GdbOzgurbPDk",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Task Count Today",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "",
+      "postfix": " tasks"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:22.048Z",
+    "updatedAt": "2026-03-24T12:51:22.048Z"
+  },
+  {
+    "_id": "69c288cae56661f84e2e2578",
+    "id": "vlSCDy0spdSO",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Net Balance",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "$",
+      "postfix": ""
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:22.383Z",
+    "updatedAt": "2026-03-24T12:51:22.383Z"
+  },
+  {
+    "_id": "69c288cae56661f84e2e257a",
+    "id": "9ynAbfCWBxFW",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Mom's Account",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "$",
+      "postfix": ""
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:22.691Z",
+    "updatedAt": "2026-03-24T12:51:22.691Z"
+  },
+  {
+    "_id": "69c288cae56661f84e2e257c",
+    "id": "sMT36QGYdqRK",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Workouts",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "",
+      "postfix": " total"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:22.781Z",
+    "updatedAt": "2026-03-24T12:51:22.781Z"
+  },
+  {
+    "_id": "69c288cae56661f84e2e257e",
+    "id": "PK6bRfGV5KXE",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Reading Time",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "",
+      "postfix": " hrs"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:22.881Z",
+    "updatedAt": "2026-03-24T12:51:22.881Z"
+  },
+  {
+    "_id": "69c288cbe56661f84e2e2580",
+    "id": "jZXlgb5xy_37",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Completion Rate",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "",
+      "postfix": "%"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:23.228Z",
+    "updatedAt": "2026-03-24T12:51:23.228Z"
+  },
+  {
+    "_id": "69c288cbe56661f84e2e2582",
+    "id": "PZNGIDMpMuKF",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Days Until Due",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "postfix": " days"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:23.442Z",
+    "updatedAt": "2026-03-24T12:51:23.442Z"
+  },
+  {
+    "_id": "69c288cbe56661f84e2e2584",
+    "id": "s4Agu1WLgeqf",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Overdue Tasks",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "postfix": " overdue"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:23.797Z",
+    "updatedAt": "2026-03-24T12:51:23.797Z"
+  },
+  {
+    "_id": "69c288cbe56661f84e2e2586",
+    "id": "sAPr_Mpl32sr",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Due This Week",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "postfix": " tasks"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:23.941Z",
+    "updatedAt": "2026-03-24T12:51:23.941Z"
+  },
+  {
+    "_id": "69c288cce56661f84e2e2588",
+    "id": "9EhMXKmfs43X",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Set 1",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": "H_93AFtNkGa-",
+    "meta": {
+      "postfix": " reps",
+      "increment": 1,
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:24.081Z",
+    "updatedAt": "2026-03-24T12:51:24.081Z"
+  },
+  {
+    "_id": "69c288cce56661f84e2e258a",
+    "id": "rZGFagxxFKq2",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Set 2",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": "H_93AFtNkGa-",
+    "meta": {
+      "postfix": " reps",
+      "increment": 1,
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:24.532Z",
+    "updatedAt": "2026-03-24T12:51:24.532Z"
+  },
+  {
+    "_id": "69c288cce56661f84e2e258c",
+    "id": "eiWBMql7cvrs",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Set 3",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": "H_93AFtNkGa-",
+    "meta": {
+      "postfix": " reps",
+      "increment": 1,
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:24.665Z",
+    "updatedAt": "2026-03-24T12:51:24.665Z"
+  },
+  {
+    "_id": "69c288cde56661f84e2e258e",
+    "id": "2CtsAwkG_cnN",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Weight",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": "H_93AFtNkGa-",
+    "meta": {
+      "postfix": " lbs",
+      "increment": 5,
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:25.331Z",
+    "updatedAt": "2026-03-24T12:51:25.331Z"
+  },
+  {
+    "_id": "69c288cde56661f84e2e2590",
+    "id": "ASaKDq5jzsnE",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Muscle Group",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": "H_93AFtNkGa-",
+    "meta": {
+      "options": [
+        {
+          "value": "chest",
+          "label": "Chest"
+        },
+        {
+          "value": "back",
+          "label": "Back"
+        },
+        {
+          "value": "legs",
+          "label": "Legs"
+        },
+        {
+          "value": "shoulders",
+          "label": "Shoulders"
+        },
+        {
+          "value": "arms",
+          "label": "Arms"
+        },
+        {
+          "value": "cardio",
+          "label": "Cardio"
+        },
+        {
+          "value": "core",
+          "label": "Core"
+        }
+      ],
+      "multiple": false
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:25.444Z",
+    "updatedAt": "2026-03-24T12:51:25.444Z"
+  },
+  {
+    "_id": "69c288cde56661f84e2e2592",
+    "id": "Hf7YPoe700LZ",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Total Reps Today",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": true,
+      "arrowColor": null
+    },
+    "folderId": "H_93AFtNkGa-",
+    "meta": {
+      "postfix": " reps"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:25.516Z",
+    "updatedAt": "2026-03-24T12:51:25.516Z"
+  },
+  {
+    "_id": "69c288cde56661f84e2e2594",
+    "id": "xtRrknMdpPBj",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Protein",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": "TXqSYFUXunHx",
+    "meta": {
+      "postfix": "g",
+      "increment": 5,
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:25.596Z",
+    "updatedAt": "2026-03-24T12:51:25.596Z"
+  },
+  {
+    "_id": "69c288cde56661f84e2e2596",
+    "id": "lz_tTQHKejyU",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Carbs",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": "TXqSYFUXunHx",
+    "meta": {
+      "postfix": "g",
+      "increment": 5,
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:25.674Z",
+    "updatedAt": "2026-03-24T12:51:25.674Z"
+  },
+  {
+    "_id": "69c288cde56661f84e2e2598",
+    "id": "fcEkgCSQcIpY",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Fats",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": "TXqSYFUXunHx",
+    "meta": {
+      "postfix": "g",
+      "increment": 2,
+      "flow": "in"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:25.791Z",
+    "updatedAt": "2026-03-24T12:51:25.791Z"
+  },
+  {
+    "_id": "69c288cde56661f84e2e259a",
+    "id": "jcdnyJets6Uj",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Meal Type",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": "TXqSYFUXunHx",
+    "meta": {
+      "options": [
+        {
+          "value": "Breakfast",
+          "label": "Breakfast"
+        },
+        {
+          "value": "Lunch",
+          "label": "Lunch"
+        },
+        {
+          "value": "Snack",
+          "label": "Snack"
+        },
+        {
+          "value": "Dinner",
+          "label": "Dinner"
+        },
+        {
+          "value": "Ingredient",
+          "label": "Ingredient"
+        }
+      ],
+      "multiple": false
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:25.891Z",
+    "updatedAt": "2026-03-24T12:51:25.891Z"
+  },
+  {
+    "_id": "69c288cde56661f84e2e259c",
+    "id": "ZI9_8aPS3ahP",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Protein Today",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": "TXqSYFUXunHx",
+    "meta": {
+      "postfix": "g"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:26.001Z",
+    "updatedAt": "2026-03-24T12:51:26.001Z"
+  },
+  {
+    "_id": "69c288cee56661f84e2e259e",
+    "id": "0AAEcN-hload",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Carbs Today",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": "TXqSYFUXunHx",
+    "meta": {
+      "postfix": "g"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:26.113Z",
+    "updatedAt": "2026-03-24T12:51:26.113Z"
+  },
+  {
+    "_id": "69c288cee56661f84e2e25a0",
+    "id": "33-jN_V9rU_5",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Fats Today",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": "TXqSYFUXunHx",
+    "meta": {
+      "postfix": "g"
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:26.207Z",
+    "updatedAt": "2026-03-24T12:51:26.207Z"
+  },
+  {
+    "_id": "69c288cee56661f84e2e25a2",
+    "id": "wNR6FhYPvMVH",
+    "userId": "{{USER_ID}}",
+    "gridId": "69c288bee56661f84e2e2504",
+    "name": "Category",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "options": [
+        "physical",
+        "intellectual",
+        "emotional",
+        "social",
+        "spiritual",
+        "occupational",
+        "financial",
+        "environmental",
+        "health",
+        "work",
+        "personal",
+        "home",
+        "finance"
+      ],
+      "multiple": false
+    },
+    "siblingLinks": [],
+    "createdAt": "2026-03-24T12:51:26.327Z",
+    "updatedAt": "2026-03-24T12:51:26.327Z"
+  }
+]

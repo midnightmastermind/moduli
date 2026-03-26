@@ -104,6 +104,10 @@ export async function createDefaultUserData(userId) {
   const roomsPoolId      = uid();
   const cbtPoolId        = uid();
   const bookmarksPoolId  = uid();
+  // Pre-generated question pool IDs — needed before fields so field meta can reference them
+  const wentWellQPoolId  = uid();
+  const improvedQPoolId  = uid();
+  const gratitudeQPoolId = uid();
   // Pre-generate ID for special doc containers that need stable references
   const macroRefId     = uid(); // locked nutrition table doc
 
@@ -527,11 +531,11 @@ export async function createDefaultUserData(userId) {
     // === EVENING REFLECTION Q&A FIELDS (converted to editable text) ===
     wentWellQuestion: {
       id: uid(),
-      name: "What went well today?",
-      type: "text",
+      name: "Question",
+      type: "select",
       inputEnabled: true,
       displayEnabled: false,
-      meta: { placeholder: "What went well today?" },
+      meta: { sourceType: "pool", poolContainerId: wentWellQPoolId },
     },
     wentWellAnswer: {
       id: uid(),
@@ -543,11 +547,11 @@ export async function createDefaultUserData(userId) {
     },
     improvedQuestion: {
       id: uid(),
-      name: "What could be improved?",
-      type: "text",
+      name: "Question",
+      type: "select",
       inputEnabled: true,
       displayEnabled: false,
-      meta: { placeholder: "What could be improved?" },
+      meta: { sourceType: "pool", poolContainerId: improvedQPoolId },
     },
     improvedAnswer: {
       id: uid(),
@@ -559,11 +563,11 @@ export async function createDefaultUserData(userId) {
     },
     gratitudeQuestion: {
       id: uid(),
-      name: "Gratitude:",
-      type: "text",
+      name: "Question",
+      type: "select",
       inputEnabled: true,
       displayEnabled: false,
-      meta: { placeholder: "What are you grateful for?" },
+      meta: { sourceType: "pool", poolContainerId: gratitudeQPoolId },
     },
     gratitudeAnswer: {
       id: uid(),
@@ -869,9 +873,8 @@ export async function createDefaultUserData(userId) {
       description: `Computes days until due date — writes per-occurrence to display field`,
       folderId,
       triggerType: "onNavigation",
-      triggerTypes: ["onNavigation", "onChange"],
+      triggerTypes: ["onNavigation", "onChange", "onLoad"],
       triggerConfig: {
-        onNavigation: {},
         onChange: { allowedFields: [dateFieldId] },
       },
       enabled: true,
@@ -919,7 +922,7 @@ export async function createDefaultUserData(userId) {
     // D5: Question cycling — rotate through journalQuestionPool options by day-of-year
     { id: uid(), userId, gridId, name: "Daily Question Cycle",
       description: "Cycles journalQuestion through the question pool based on day-of-year",
-      triggerType: "onNavigation", triggerTypes: ["onNavigation", "onLoad"], triggerConfig: { onNavigation: {}, onLoad: {} }, enabled: true,
+      triggerType: "onNavigation", triggerTypes: ["onNavigation", "onLoad"], triggerConfig: {}, enabled: true,
       pipeline: { sources: [], steps: [{ id: uid(), type: "action", config: { type: "CYCLE_FIELD_VALUE", sourceFieldId: fields.journalQuestionPool.id, targetFieldId: fields.journalQuestion.id } }] },
     },
 
@@ -927,12 +930,12 @@ export async function createDefaultUserData(userId) {
     makeCountdownOp({ name: "Days Until Due", dateFieldId: fields.dueDate.id, targetFieldId: fields.daysUntilDue.id }),
     { id: uid(), userId, gridId, name: "Overdue Tasks Count",
       description: "Counts tasks with a dueDate that has already passed",
-      triggerType: "onNavigation", triggerTypes: ["onNavigation"], triggerConfig: { onNavigation: {} }, enabled: true,
+      triggerType: "onNavigation", triggerTypes: ["onNavigation", "onLoad"], triggerConfig: {}, enabled: true,
       pipeline: { sources: [], steps: [{ id: uid(), type: "action", config: { type: "COUNT_DATE_OVERDUE", dateFieldId: fields.dueDate.id, targetFieldId: fields.overdueTasks.id } }] },
     },
     { id: uid(), userId, gridId, name: "Due This Week",
       description: "Counts tasks with a dueDate within the next 7 days",
-      triggerType: "onNavigation", triggerTypes: ["onNavigation"], triggerConfig: { onNavigation: {} }, enabled: true,
+      triggerType: "onNavigation", triggerTypes: ["onNavigation", "onLoad"], triggerConfig: {}, enabled: true,
       pipeline: { sources: [], steps: [{ id: uid(), type: "action", config: { type: "COUNT_DATE_UPCOMING", dateFieldId: fields.dueDate.id, targetFieldId: fields.upcomingThisWeek.id, withinDays: 7 } }] },
     },
 
@@ -1892,6 +1895,28 @@ export async function createDefaultUserData(userId) {
     bookmarkRecipes: { id: uid(), label: "Recipe Collection",       kind: "list", defaultDragMode: "copy", fieldBindings: [] },
     bookmarkHealth:  { id: uid(), label: "Health Research",         kind: "list", defaultDragMode: "copy", fieldBindings: [] },
   };
+  // Journal question pool instances — each pool feeds a Q/A select dropdown
+  const wentWellQInstances = {
+    wwq1: { id: uid(), label: "What went well today?",              kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    wwq2: { id: uid(), label: "What made you smile?",               kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    wwq3: { id: uid(), label: "What progress did you make?",        kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    wwq4: { id: uid(), label: "What are you proud of?",             kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    wwq5: { id: uid(), label: "What positive interaction did you have?", kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+  };
+  const improvedQInstances = {
+    iq1: { id: uid(), label: "What could be improved?",             kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    iq2: { id: uid(), label: "What challenged you today?",          kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    iq3: { id: uid(), label: "What would you do differently?",      kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    iq4: { id: uid(), label: "Where did you feel stuck?",           kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    iq5: { id: uid(), label: "What drained your energy?",           kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+  };
+  const gratitudeQInstances = {
+    gq1: { id: uid(), label: "What are you grateful for?",          kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    gq2: { id: uid(), label: "Who made a difference today?",        kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    gq3: { id: uid(), label: "What simple pleasure did you enjoy?", kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    gq4: { id: uid(), label: "What opportunity are you thankful for?", kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    gq5: { id: uid(), label: "What did you learn today?",           kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+  };
 
   const listTypeBinding = { fieldId: fields.listType.id, order: 0 };
   const enrichmentInstances = {
@@ -1912,7 +1937,7 @@ export async function createDefaultUserData(userId) {
   };
 
   // Save all instances (with gridId)
-  const allInstances = { ...toolkitInstances, ...workoutInstances, ...nutritionInstances, ...todoInstances, ...planningInstances, ...goalInstances, ...accountInstances, workoutGoal: workoutGoalInstance, nutritionGoal: nutritionGoalInstance, ...journalDocInstances, ...notebookNoteInstancesFlat, ...moviePoolInstances, ...tvShowPoolInstances, ...booksPoolInstances, ...musicPoolInstances, ...podcastsPoolInstances, ...gamesPoolInstances, ...activitiesPoolInstances, ...roomsPoolInstances, ...cbtPoolInstances, ...bookmarksPoolInstances, ...enrichmentInstances };
+  const allInstances = { ...toolkitInstances, ...workoutInstances, ...nutritionInstances, ...todoInstances, ...planningInstances, ...goalInstances, ...accountInstances, workoutGoal: workoutGoalInstance, nutritionGoal: nutritionGoalInstance, ...journalDocInstances, ...notebookNoteInstancesFlat, ...moviePoolInstances, ...tvShowPoolInstances, ...booksPoolInstances, ...musicPoolInstances, ...podcastsPoolInstances, ...gamesPoolInstances, ...activitiesPoolInstances, ...roomsPoolInstances, ...cbtPoolInstances, ...bookmarksPoolInstances, ...wentWellQInstances, ...improvedQInstances, ...gratitudeQInstances, ...enrichmentInstances };
 
   // Inject hidden category field into every instance
   for (const key in allInstances) {
@@ -1936,6 +1961,9 @@ export async function createDefaultUserData(userId) {
       || Object.keys(roomsPoolInstances).includes(key)
       || Object.keys(cbtPoolInstances).includes(key)
       || Object.keys(bookmarksPoolInstances).includes(key)
+      || Object.keys(wentWellQInstances).includes(key)
+      || Object.keys(improvedQInstances).includes(key)
+      || Object.keys(gratitudeQInstances).includes(key)
       || Object.keys(enrichmentInstances).includes(key);
     const instData = allInstances[key];
     // Ensure every instance has scheduledDate in its fieldBindings so the date filter works
@@ -1988,6 +2016,9 @@ export async function createDefaultUserData(userId) {
     roomsPool:      { id: roomsPoolId,      label: "Rooms",       _viewId: uid(), occurrences: [] },
     cbtPool:        { id: cbtPoolId,        label: "CBT Skills",  _viewId: uid(), occurrences: [] },
     bookmarksPool:  { id: bookmarksPoolId,  label: "Bookmarks",   _viewId: uid(), occurrences: [] },
+    wentWellQPool:  { id: wentWellQPoolId,  label: "Went Well Questions",    _viewId: uid(), occurrences: [] },
+    improvedQPool:  { id: improvedQPoolId,  label: "Improvement Questions",  _viewId: uid(), occurrences: [] },
+    gratitudeQPool: { id: gratitudeQPoolId, label: "Gratitude Prompts",      _viewId: uid(), occurrences: [] },
     // Enrichment use-case container
     enrichment:     { id: uid(),            label: "Enrichment",  occurrences: [] },
     // Macro Reference — locked doc with nutrition table (demonstrates table + lock features)
@@ -2049,7 +2080,7 @@ export async function createDefaultUserData(userId) {
     { key: "journalQA_gratitude", label: "Gratitude",                instKey: "gratitudeDocInst", questionFieldKey: "gratitudeQuestion", answerFieldKey: "gratitudeAnswer" },
   ];
   for (const def of journalQADefs) {
-    notebookDocContainers[def.key] = { id: uid(), label: def.label, _viewId: uid(), occurrences: [], ownStyle: { bg: "#b56800" }, styleMode: "own" };
+    notebookDocContainers[def.key] = { id: uid(), label: def.label, _viewId: uid(), occurrences: [], ownStyle: { bg: "#b56800" }, styleMode: "own", fieldBindings: [{ fieldId: fields[def.questionFieldKey].id, role: "input", order: 0 }] };
   }
 
   // Stan stanza containers (lyrics directly in body textmap — no instances)
@@ -2090,7 +2121,7 @@ export async function createDefaultUserData(userId) {
   // Create View records for all doc/pool containers (_viewId marks which need one)
   // pool containers → viewType: "pool"; doc containers → viewType: "doc"
   // Pool containers are in toolkitContainers; doc containers are in notebookDocContainers + macroRef
-  const poolContainerKeys = new Set(["moviePool", "tvShowPool", "booksPool", "musicPool", "podcastsPool", "gamesPool", "activitiesPool", "roomsPool", "cbtPool", "bookmarksPool"]);
+  const poolContainerKeys = new Set(["moviePool", "tvShowPool", "booksPool", "musicPool", "podcastsPool", "gamesPool", "activitiesPool", "roomsPool", "cbtPool", "bookmarksPool", "wentWellQPool", "improvedQPool", "gratitudeQPool"]);
   const docContainerViewRecords = [];
   for (const key in allContainers) {
     const c = allContainers[key];
@@ -2458,6 +2489,21 @@ export async function createDefaultUserData(userId) {
     containerInstOccs[toolkitContainers.bookmarksPool.id] = occIds;
   }
 
+  // Wire Journal Question pool instances
+  for (const [poolInstances, poolContainer] of [
+    [wentWellQInstances, toolkitContainers.wentWellQPool],
+    [improvedQInstances, toolkitContainers.improvedQPool],
+    [gratitudeQInstances, toolkitContainers.gratitudeQPool],
+  ]) {
+    const occIds = [];
+    for (const instKey of Object.keys(poolInstances)) {
+      const inst = poolInstances[instKey];
+      const occId = await createOccurrence({ targetType: "module", targetId: inst.id, meta: { containerId: poolContainer.id } });
+      occIds.push(occId);
+    }
+    containerInstOccs[poolContainer.id] = occIds;
+  }
+
   // Wire enrichment instances
   {
     const occIds = [];
@@ -2641,7 +2687,8 @@ export async function createDefaultUserData(userId) {
     });
     todoPanelOccIds.push(occId);
   }
-  // Wire time slot containers to Schedule panel
+  // Wire time slot containers to Schedule panel — each gets scheduledDate + timeslot
+  // so the container is the source of truth for iteration context
   const scheduleOccIds = [];
   for (const slot of timeSlots) {
     const key = `slot_${slot.hour}_${slot.minute}`;
@@ -2649,6 +2696,10 @@ export async function createDefaultUserData(userId) {
       targetType: "module",
       targetId: scheduleContainers[key].id,
       meta: { panelId: panels.schedule.id },
+      scheduledDate: today.toISOString(),
+      fields: {
+        [fields.timeslot.id]: { value: slot.label, flow: "in" },
+      },
     });
     scheduleOccIds.push(occId);
   }
@@ -2726,7 +2777,10 @@ export async function createDefaultUserData(userId) {
       meta: { containerId: scheduleContainers[slotKey].id },
       scheduledDate: today.toISOString(),
       linkedGroupId,
-      fields: preFilledFields,
+      fields: {
+        ...preFilledFields,
+        [fields.timeslot.id]: { value: scheduleContainers[slotKey].label, flow: "in" },
+      },
     });
     // Collect into deferred wiring for this time slot container
     if (!containerInstOccs[scheduleContainers[slotKey].id]) containerInstOccs[scheduleContainers[slotKey].id] = [];
@@ -3002,7 +3056,9 @@ export async function createDefaultUserData(userId) {
       viewId: container._viewId || null,
       parentId: dayPageDocOccId,
       iteration: { key: "time", value: new Date(), timeValue: new Date(), timeFilter: "daily", mode: "persistent" },
-      timestamp: new Date(), fields: {}, textmap: containerDocContent,
+      timestamp: new Date(),
+      fields: {},
+      textmap: containerDocContent,
       meta: { panelId: panels.dayPage.id },
     }).save();
     notebookPanelOccIds.push(contOccId);
@@ -3140,6 +3196,7 @@ export async function createDefaultUserData(userId) {
 
     await new Occurrence({
       id: contOccId, userId, targetType: "module", targetId: container.id, gridId,
+      viewId: container._viewId || null,
       parentId: philParentOccId,
       sortOrder: notesSectionOccIds.length + i,
       iteration: { mode: "persistent" },
@@ -3409,29 +3466,38 @@ export async function createDefaultUserData(userId) {
   await dayPageView.save();
 
   // ── DAY PAGE AUTO-CREATE OPERATION ──
-  // Triggers on navigation (onNavigation) — fires when the user navigates to a new day.
-  // Uses the NAVIGATE_DAY_PAGE action which atomically finds-or-creates the day page occurrence
-  // for the current iteration date and updates the Day Page panel view to show it.
-  // Also triggers on midnight schedule (onSchedule) to proactively pre-create tomorrow's page.
+  // Dynamic page creation via generic pipeline actions (no hardcoded day page logic).
+  // Triggers on load + navigation. Checks if a module with today's page name exists,
+  // creates it if not, and updates the view to show it.
   const dayPageAutoCreateOp = new Operation({
     id: uid(), userId, gridId,
     name: "Day Page Auto-Create",
-    description: "When iteration changes, find/create day page occurrence for that date and navigate the Day Page panel view to it",
+    description: "On load/navigation, find or create a day page for the active date and show it in the notebook panel",
     triggerType: "onNavigation",
-    triggerTypes: ["onNavigation", "onSchedule"],
-    triggerConfig: { onNavigation: {}, onSchedule: { hour: 0, minute: 0 } },
+    triggerTypes: ["onNavigation", "onLoad"],
+    triggerConfig: {},
     enabled: true,
     pipeline: {
-      sources: [],
-      steps: [{
-        id: uid(), type: "action",
-        config: {
-          type: "NAVIGATE_DAY_PAGE",
-          moduleId: dayPageModuleId,
-          viewId: dayPageViewId,
-          iterationValue: "$iterationValue",
+      sources: [{ type: "grid" }],
+      steps: [
+        // Build the page name using activeDate from iteration/filter system
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$pageName", expr: "daypage ${$activeDate}" } },
+        // Check if a module with that name already exists
+        { id: uid(), type: "action", config: { type: "FIND_MODULE", nameExpr: "$pageName", resultVar: "$existingModule", resultIdVar: "$existingModuleId" } },
+        // If not found → create module + occurrence; if found → find its occurrence
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ left: "$existingModule", comparator: "IS_EMPTY" }] },
+          then: [
+            { id: uid(), type: "action", config: { type: "CREATE_MODULE", nameExpr: "$pageName", role: "container", kind: "doc", parentId: dayPagesFolderIdForManifest } },
+          ],
+          else: [
+            { id: uid(), type: "action", config: { type: "FIND_OCCURRENCE", targetIdExpr: "$existingModuleId", resultIdVar: "$lastCreatedOccurrenceId" } },
+          ],
         },
-      }],
+        // Always update the view to show the right page
+        { id: uid(), type: "action", config: { type: "UPDATE_VIEW", viewId: dayPageViewId, activeOccurrenceId: "$lastCreatedOccurrenceId" } },
+      ],
     },
   });
   await dayPageAutoCreateOp.save();
@@ -3733,6 +3799,7 @@ export async function createDefaultUserData(userId) {
         [fields.completed.id]: fv(true, "in"),
         [fields.duration.id]: fv(day.duration, "in"),
         [fields.calories.id]: fv(day.calories, "in"),
+        [fields.timeslot.id]: { value: "7:00am", flow: "in" },
       },
     });
 
@@ -3746,6 +3813,7 @@ export async function createDefaultUserData(userId) {
         [fields.completed.id]: fv(day.steps > 9000, "in"),
         [fields.steps.id]: fv(day.steps, "in"),
         [fields.duration.id]: fv(Math.round(day.duration * 0.4), "in"),
+        [fields.timeslot.id]: { value: "6:30pm", flow: "in" },
       },
     });
 
@@ -3758,6 +3826,7 @@ export async function createDefaultUserData(userId) {
       fields: {
         [fields.completed.id]: fv(day.water >= 64, "in"),
         [fields.water.id]: fv(day.water, "in"),
+        [fields.timeslot.id]: { value: "5:00pm", flow: "in" },
       },
     });
 
@@ -3772,6 +3841,7 @@ export async function createDefaultUserData(userId) {
           [fields.completed.id]: fv(true, "in"),
           [fields.pages.id]: fv(day.pages, "in"),
           [fields.duration.id]: fv(Math.round(day.pages * 1.5), "in"),
+          [fields.timeslot.id]: { value: "9:00am", flow: "in" },
         },
       });
     }

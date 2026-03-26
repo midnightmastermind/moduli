@@ -21,6 +21,7 @@ import GridRadialMenu from "./ui/GridRadialMenu";
 
 import { GridDataContext } from "./GridDataContext";
 import { GridActionsContext } from "./GridActionsContext";
+import { GridLiveContext } from "./GridLiveContext";
 
 import { DragProvider } from "./helpers/DragProvider";
 import { useDragContext, useDragHotContext, useDroppable, DragType, DropAccepts } from "./helpers/dragSystem";
@@ -308,19 +309,20 @@ function GridInner() {
     createField,
     updateField,
     deleteField,
-    // Undo/Redo state (lifted to App.jsx, accessed via context)
+  } = useContext(GridActionsContext);
+
+  const {
     canUndo,
     canRedo,
     undo,
     redo,
     isProcessing,
-    // Mobile grid navigation (lifted to App.jsx)
     isMobile,
     activeCell,
     setActiveCell,
     zoomedOut,
     setZoomedOut,
-  } = useContext(GridActionsContext);
+  } = useContext(GridLiveContext);
 
   const grid = state.grid;
   const gridId = grid?._id;
@@ -587,6 +589,7 @@ function GridInner() {
           isMobile={isMobile}
           zoomedOut={zoomedOut}
           setZoomedOut={setZoomedOut}
+          visiblePanels={visiblePanels}
         >
           <GridRender
             gridRef={gridRef}

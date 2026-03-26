@@ -2,8 +2,10 @@
 // Dropdown menu for quickly adding existing modules to a panel or container.
 // Panel mode: shows containers available to add
 // Container mode: shows instances available to add
+// Uses portal to prevent layout push on parent containers.
 
-import { useState, useMemo, useContext, useRef, useEffect } from "react";
+import { useState, useMemo, useContext, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Plus } from "lucide-react";
 import { GridActionsContext } from "../GridActionsContext";
 
@@ -17,10 +19,23 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   const { modulesById, roleByModuleId } = useContext(GridActionsContext);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [pos, setPos] = useState({ top: 0, left: 0 });
   const menuRef = useRef(null);
   const btnRef = useRef(null);
 
-  // Close on outside click
+  // Position the portal dropdown below the button
+  const handleOpen = useCallback((e) => {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      // Clamp left so menu doesn't overflow viewport right edge
+      const left = Math.min(rect.left, window.innerWidth - 208);
+      setPos({ top: rect.bottom + 2, left: Math.max(0, left) });
+    }
+    setOpen(v => !v);
+  }, [open]);
+
+  // Close on outside click or Escape
   useEffect(() => {
     if (!open) return;
     const handle = (e) => {
@@ -29,14 +44,27 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
         setSearch("");
       }
     };
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); setOpen(false); setSearch(""); }
+    };
     document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => { document.removeEventListener("mousedown", handle); document.removeEventListener("keydown", handleKeyDown); };
+  }, [open]);
+
+  // Close on scroll (parent may reposition)
+  useEffect(() => {
+    if (!open) return;
+    const handle = () => { setOpen(false); setSearch(""); };
+    window.addEventListener("scroll", handle, true);
+    return () => window.removeEventListener("scroll", handle, true);
   }, [open]);
 
   // Filter modules by target role
   const modules = useMemo(() => {
     const all = Object.values(modulesById || {});
     return all
+      .filter(m => !m.trashed)
       .filter(m => {
         const role = roleByModuleId?.[m.id] || m.role || "instance";
         return role === targetRole;
@@ -52,10 +80,10 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   const roleColor = ROLE_COLORS[targetRole] || ROLE_COLORS.instance;
 
   return (
-    <div style={{ position: "relative", display: "inline-flex" }}>
+    <>
       <button
         ref={btnRef}
-        onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+        onClick={handleOpen}
         title={`Add ${targetRole}`}
         style={{
           background: "none",
@@ -76,13 +104,13 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
         <Plus size={12} />
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           ref={menuRef}
           style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
+            position: "fixed",
+            top: pos.top,
+            left: pos.left,
             zIndex: 1100,
             background: "var(--body-bg, #1a1c1e)",
             border: "1px solid var(--border-default)",
@@ -181,8 +209,9 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
               </button>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }

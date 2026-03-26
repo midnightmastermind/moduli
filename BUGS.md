@@ -16,6 +16,7 @@
 14. we should be able to cycle to empty grid cell in the panel cycler. 
 15. we should add in and option that pomodoros create a instancemodule and puts it in whatever container we select (with the option to base it on a time field (i put in the time field thats connected to the container))
 16. that reminds me, in the example data, i dont see any fields. we need the date field and the time field. and those should work with the filters.
+17. we should have toasts always show up on the panel we are currently on, on mobile (if we arent already)
 ---
 
 ## 🔴 Open

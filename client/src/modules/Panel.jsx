@@ -45,6 +45,7 @@ import {
   SplitSquareHorizontal,
   Merge,
   Layers,
+  X,
 } from "lucide-react";
 
 import Container from "./Container.jsx";
@@ -89,18 +90,42 @@ function mergeLayout(panelLayout) {
 
 // Separate component so useState for treeCollapsed doesn't re-run on every panel render
 function TreePanelContent({ resolvedView, activeOcc, activeOccView, dispatch, socket }) {
-  const [treeCollapsed, setTreeCollapsed] = useState(false);
+  const [treeCollapsed, setTreeCollapsed] = useState(true);
+  const [scrollHighlightId, setScrollHighlightId] = useState(null);
+  // Reset scroll highlight when active doc changes (user clicked a different doc)
+  const activeOccId = activeOcc?.id;
+  useEffect(() => { setScrollHighlightId(null); }, [activeOccId]);
+
+  // On mount: reset to default landing page if configured
+  useEffect(() => {
+    if (!resolvedView?.defaultOccurrenceId || !resolvedView?.id) return;
+    if (resolvedView.activeOccurrenceId === resolvedView.defaultOccurrenceId) return;
+    CommitHelpers.updateView({ dispatch, socket, view: { ...resolvedView, activeOccurrenceId: resolvedView.defaultOccurrenceId, scrollAnchor: null } });
+  }, []); // mount only
+
   return (
-    <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
-      <ManifestTree
-        manifestId={resolvedView.manifestId}
-        view={resolvedView}
-        dispatch={dispatch}
-        socket={socket}
-        collapsed={treeCollapsed}
-        onToggleCollapse={() => setTreeCollapsed(v => !v)}
-      />
-      <div style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative", display: "flex", flexDirection: "column" }}>
+    <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
+      {/* Sidebar overlays doc content — absolute so it doesn't push */}
+      <div style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        bottom: 0,
+        zIndex: 100,
+        pointerEvents: "auto",
+      }}>
+        <ManifestTree
+          manifestId={resolvedView.manifestId}
+          view={resolvedView}
+          dispatch={dispatch}
+          socket={socket}
+          collapsed={treeCollapsed}
+          onToggleCollapse={() => setTreeCollapsed(v => !v)}
+          scrollHighlightId={scrollHighlightId}
+        />
+      </div>
+      {/* Content fills full width */}
+      <div style={{ width: "100%", height: "100%", overflow: "auto", display: "flex", flexDirection: "column" }}>
         <Artifact
           occurrence={activeOcc}
           viewType={activeOccView?.viewType ?? "markdown"}
@@ -108,6 +133,7 @@ function TreePanelContent({ resolvedView, activeOcc, activeOccView, dispatch, so
           dispatch={dispatch}
           socket={socket}
           view={resolvedView}
+          onScrollHighlight={setScrollHighlightId}
         />
       </div>
     </div>
@@ -117,7 +143,7 @@ function TreePanelContent({ resolvedView, activeOcc, activeOccView, dispatch, so
 // ============================================================
 // PANEL COMPONENT
 // ============================================================
-export default function Panel({
+function Panel({
   module,
   dispatch,
   socket,
@@ -140,7 +166,7 @@ export default function Panel({
   const [showHeader, setShowHeader] = useState(true);
   const panelDragMode = module?.defaultDragMode || "move";
 
-  const { occurrencesById, instancesById, containersById, viewsById, modulesById } = useContext(GridActionsContext);
+  const { occurrencesById, instancesById, containersById, viewsById, modulesById, manifestsById, foldersById } = useContext(GridActionsContext);
   const { state } = useContext(GridDataContext);
   const dragCtx = useDragContext();
   const {
@@ -287,7 +313,13 @@ export default function Panel({
     unsplitPanel({ dispatch, socket, grid, panel: module, splitPartnerPanel, splitPartnerOccurrenceId });
   }, [dispatch, socket, grid, module, splitPartnerPanel, splitPartnerOccurrenceId]);
 
+  const handleRemovePanel = useCallback(() => {
+    if (!panelOccurrence?.id) return;
+    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: panelOccurrence.id, grid: state?.grid, emit: true });
+  }, [panelOccurrence, dispatch, socket, state?.grid]);
+
   const handlePanelContextMenu = useCallback((e) => {
+    if ("ontouchstart" in window) return;
     e.preventDefault();
     e.stopPropagation();
     setCtxMenu({
@@ -305,10 +337,10 @@ export default function Panel({
           ? { label: "Merge back", icon: Merge, onClick: handleUnsplitPanel }
           : { label: "Split panel", icon: SplitSquareHorizontal, onClick: handleSplitPanel },
         { separator: true },
-        { label: "Delete panel", icon: Trash2, danger: true, onClick: () => CommitHelpers.deleteModule({ dispatch, socket, moduleId: module.id, emit: true }) },
+        { label: "Remove from grid", icon: Trash2, danger: true, onClick: handleRemovePanel },
       ].filter(Boolean),
     });
-  }, [handleCopyPanel, handleCopylinkPanel, handleSplitPanel, handleUnsplitPanel, isSplit, panelOccurrence, module.id, dispatch, socket, showHeader]);
+  }, [handleCopyPanel, handleCopylinkPanel, handleSplitPanel, handleUnsplitPanel, handleRemovePanel, isSplit, panelOccurrence, module.id, dispatch, socket, showHeader]);
 
   // DISPLAY STATE
   const display = layout?.style?.display ?? "block";
@@ -481,11 +513,11 @@ export default function Panel({
         position: "relative",
         display: "flex",
         flexDirection: "column",
-        overflow: "hidden",
+        overflow: "visible",
         minHeight: 0,
         minWidth: 0,
         opacity: isDragging ? 0.4 : 1,
-        margin: isFullscreen ? 0 : "6px",
+        margin: isFullscreen ? 0 : "19px 6px 6px 6px",
         zIndex: isForeground ? 70 : (isExtended ? 60 : 1),
         pointerEvents: isPanelDrag && !isDragging ? "none" : "auto",
         ...(isFullscreen && {
@@ -515,9 +547,11 @@ export default function Panel({
           <PopoverAnchor asChild>
             <div
               ref={panelHandleRef}
-              className="module-handle module-grab-zone"
+              className="module-drag-handle module-grab-zone"
+              draggable={false}
             >
-              <span className="module-dot" />
+              <div className="drag-handle-ball" />
+              <div className="drag-handle-stem" />
               <RadialMenu
                 dragMode={panelDragMode}
                 onToggleDragMode={togglePanelDragModeQuick}
@@ -530,14 +564,15 @@ export default function Panel({
                 }}
                 addLabel="Container"
                 size="sm"
-                forceDirection="right"
+                forceDirection="down"
                 onToggleHeader={() => setShowHeader(false)}
                 showHeader={showHeader}
                 onHistory={() => setHistoryOpen(true)}
               />
             </div>
           </PopoverAnchor>
-          <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0">
+          <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
+            <button type="button" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
             <LayoutForm
               value={layout}
               onChange={setLayout}
@@ -558,6 +593,7 @@ export default function Panel({
               onSplitPanel={handleSplitPanel}
               onUnsplitPanel={isSplit ? handleUnsplitPanel : null}
               isSplit={isSplit}
+              onDeletePanel={handleRemovePanel}
             />
           </PopoverContent>
         </Popover>
@@ -566,14 +602,7 @@ export default function Panel({
           <div className="drop-indicator drop-indicator-insert" />
         )}
 
-        <span className="text-sm font-small pl-1 truncate flex-1 flex items-center gap-1" style={{ minWidth: 0 }}>
-          {layout.name || module.id}
-          {panelOccurrence?.linkedGroupId && (
-            <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0" title="Linked" />
-          )}
-        </span>
-
-        {/* Stack cycler — only when multiple panels in this cell */}
+        {/* Stack cycler — left of label */}
         {(() => {
           const stack = dragCtx.getStackForPanel?.(module) || [];
           if (stack.length <= 1) return null;
@@ -583,12 +612,20 @@ export default function Panel({
               onClick={(e) => { e.stopPropagation(); dragCtx.cyclePanelStack?.({ panelId: module.id, dir: 1 }); }}
               onPointerDown={(e) => e.stopPropagation()}
               title="Cycle panels"
+              style={{ borderRadius: "4px", padding: "2px 6px", flexShrink: 0 }}
             >
               <Layers size={10} />
               <span style={{ fontSize: 9, fontWeight: 600, lineHeight: 1 }}>{stack.length}</span>
             </button>
           );
         })()}
+
+        <span className="text-sm font-small pl-1 truncate flex-1 flex items-center gap-1" style={{ minWidth: 0 }}>
+          {layout.name || module.id}
+          {panelOccurrence?.linkedGroupId && (
+            <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0" title="Linked" />
+          )}
+        </span>
 
         <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
           <QuickAddMenu
@@ -612,6 +649,8 @@ export default function Panel({
       </div>
       )}
 
+      {/* Stack cycler removed from here — now in header row */}
+
       {/* CONTENT */}
       {(() => {
         const resolvedView = resolvedViewId ? viewsById[resolvedViewId] : null;
@@ -620,7 +659,21 @@ export default function Panel({
         // Tree panel — ManifestTree sidebar + active artifact content
         if (resolvedView?.hasTree && resolvedView?.manifestId) {
           const activeOccId = resolvedView?.activeOccurrenceId;
-          const activeOcc = activeOccId ? occurrencesById?.[activeOccId] : null;
+          let activeOcc = activeOccId ? occurrencesById?.[activeOccId] : null;
+
+          // Fallback: if no active doc, auto-select first doc in manifest
+          if (!activeOcc && resolvedView.manifestId) {
+            const manifest = manifestsById?.[resolvedView.manifestId];
+            const rootFolder = manifest?.rootFolderId ? foldersById?.[manifest.rootFolderId] : null;
+            if (rootFolder) {
+              const firstDoc = Object.values(occurrencesById || {}).find(o => o.parentId === rootFolder.id);
+              if (firstDoc) {
+                activeOcc = firstDoc;
+                CommitHelpers.updateView({ dispatch, socket, view: { ...resolvedView, activeOccurrenceId: firstDoc.id } });
+              }
+            }
+          }
+
           const activeOccView = activeOcc?.viewId ? viewsById[activeOcc.viewId] : null;
           return (
             <TreePanelContent
@@ -706,3 +759,5 @@ export default function Panel({
     </div>
   );
 }
+
+export default React.memo(Panel);

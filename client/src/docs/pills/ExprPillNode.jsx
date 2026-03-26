@@ -8,6 +8,7 @@
 import { useContext, useMemo, useState, useCallback, useRef } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { GridActionsContext } from "../../GridActionsContext";
+import { GridLiveContext } from "../../GridLiveContext";
 import { Trash2, Settings } from "lucide-react";
 import RadialMenu from "../../ui/RadialMenu";
 
@@ -54,8 +55,8 @@ function evalExpr(expr, valueMap) {
 }
 
 export default function ExprPillNode({ node, updateAttributes, selected, deleteNode }) {
-  const ctx = useContext(GridActionsContext) || {};
-  const { fieldsById = {}, computedValues = {} } = ctx;
+  const { fieldsById = {} } = useContext(GridActionsContext) || {};
+  const { computedValues = {} } = useContext(GridLiveContext) || {};
 
   const { expr } = node.attrs;
   const [hovered, setHovered] = useState(false);

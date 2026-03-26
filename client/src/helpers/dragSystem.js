@@ -39,6 +39,31 @@ import { MOBILE_BREAKPOINT } from "../hooks/useMobileDetect";
 
 const _isMobile = () => window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
 
+// Create a small pill element for mobile drag ghost
+function _createDragPill(label, type) {
+  const pill = document.createElement('div');
+  pill.textContent = label || type || 'item';
+  Object.assign(pill.style, {
+    position: 'fixed', left: '0', top: '0',
+    maxWidth: '140px',
+    padding: '4px 10px',
+    borderRadius: '6px',
+    fontSize: '11px',
+    fontFamily: 'var(--font-mono, monospace)',
+    color: '#fff',
+    background: 'rgba(30,60,90,0.92)',
+    border: '1px solid rgba(100,160,255,0.4)',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+    pointerEvents: 'none',
+    zIndex: '2147483646',
+    willChange: 'transform',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  });
+  return pill;
+}
+
 // ============================================================
 // CONSTANTS & TYPES
 // ============================================================
@@ -210,6 +235,9 @@ export function parseExternalDrop(source) {
 // - No native drag event = nothing for the OS to intercept
 
 const _TOUCH_THRESHOLD = 8; // px movement before drag starts
+const _TOUCH_HOLD_MS = 80;  // minimum hold time before drag activates
+const _HIT_TEST_INTERVAL = 32; // ms between expensive hit-test calls
+const _HIT_CACHE_DIST = 4; // px — skip hit-test if pointer barely moved
 
 // Global drop target registry — maps DOM elements to their drop config.
 // Used by touch move handler to find drop targets via elementFromPoint.
@@ -297,52 +325,68 @@ export function useDraggable({
       let dragging = false;
       let startX, startY, offsetX, offsetY;
       let curTarget = null;
+      let cachedRect = null;
       let touchStartTime = 0;
+      let lastHitTestTime = 0;
+      let lastHitX = 0, lastHitY = 0;
 
       const onStart = (e) => {
         if (e.touches.length !== 1) return;
-        e.preventDefault(); // Claim gesture immediately — blocks OS interception
-        document.documentElement.style.touchAction = 'none';
-        document.documentElement.style.overscrollBehavior = 'none';
+        // NO e.preventDefault() — triggerEl CSS touch-action:none handles OS gesture suppression
+        // This lets the browser fire native click/pointer events for taps
         const t = e.touches[0];
         startX = t.clientX;
         startY = t.clientY;
+        cachedRect = el.getBoundingClientRect(); // Cache rect NOW while layout is fresh
+        touchStartTime = performance.now();
         dragging = false;
-        touchStartTime = Date.now();
       };
 
       const onMove = (e) => {
         if (e.touches.length !== 1) return;
-        e.preventDefault(); // Always prevent — blocks OS gesture recognition even sub-threshold
         const t = e.touches[0];
 
         if (!dragging) {
+          // A2: Hold delay — don't start drag until finger held long enough
+          if (performance.now() - touchStartTime < _TOUCH_HOLD_MS) return;
           if (Math.sqrt((t.clientX - startX) ** 2 + (t.clientY - startY) ** 2) < _TOUCH_THRESHOLD) return;
+          // Threshold crossed — NOW claim the gesture
+          e.preventDefault();
           dragging = true;
+          document.documentElement.style.touchAction = 'none';
+          document.documentElement.style.overscrollBehavior = 'none';
           setIsDragging(true);
 
-          const rect = el.getBoundingClientRect();
-          offsetX = startX - rect.left;
-          offsetY = startY - rect.top;
-          clone = el.cloneNode(true);
-          Object.assign(clone.style, {
-            position: 'fixed', left: '0', top: '0',
-            width: rect.width + 'px',
-            pointerEvents: 'none',
-            zIndex: '2147483646',
-            opacity: '0.8',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-            willChange: 'transform',
-            transform: `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`,
-          });
+          // A1: Haptic feedback on drag start
+          if (navigator.vibrate) navigator.vibrate(15);
+
+          offsetX = 40;
+          offsetY = 14;
+          clone = _createDragPill(data?.label || data?.name || type, type);
+          clone.style.transform = `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`;
           document.body.appendChild(clone);
+          lastHitX = t.clientX; lastHitY = t.clientY;
+          lastHitTestTime = performance.now();
           dragCtx.handleDragStart(payload, startX, startY);
           return;
         }
 
+        e.preventDefault(); // Active drag — prevent scroll
+        // Pill follows finger at 60fps (cheap DOM update)
         if (clone) {
           clone.style.transform = `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`;
         }
+
+        // A3+A4: Throttle hit-testing + cache when pointer barely moved
+        const now = performance.now();
+        const dx = t.clientX - lastHitX, dy = t.clientY - lastHitY;
+        if (now - lastHitTestTime < _HIT_TEST_INTERVAL || (dx * dx + dy * dy < _HIT_CACHE_DIST * _HIT_CACHE_DIST)) {
+          // Still update DragProvider position (for auto-scroll etc)
+          dragCtx.handleDragMove(t.clientX, t.clientY);
+          return;
+        }
+        lastHitTestTime = now;
+        lastHitX = t.clientX; lastHitY = t.clientY;
 
         // Hit-test drop targets
         const target = _findDropTarget(t.clientX, t.clientY, payload.type, el);
@@ -370,27 +414,15 @@ export function useDraggable({
 
       const onEnd = (e) => {
         if (!dragging) {
-          // Restore touch defaults on tap (no drag)
-          document.documentElement.style.touchAction = '';
-          document.documentElement.style.overscrollBehavior = '';
-          // Synthetic click for tap — preserves RadialMenu tap-to-open
-          const elapsed = Date.now() - touchStartTime;
-          if (elapsed < 300) {
-            const t = e.changedTouches[0];
-            const target = document.elementFromPoint(t.clientX, t.clientY);
-            if (target) {
-              target.dispatchEvent(new MouseEvent('click', {
-                bubbles: true, cancelable: true,
-                clientX: t.clientX, clientY: t.clientY,
-              }));
-            }
-          }
+          // Tap — browser fires native click since we never preventDefault'd
           return;
         }
         const t = e.changedTouches[0];
         if (clone) { clone.remove(); clone = null; }
 
         if (curTarget) {
+          // A1: Haptic double-tap on successful drop
+          if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
           const edge = curTarget.allowedEdges
             ? _computeClosestEdge(curTarget.el, t.clientX, t.clientY, curTarget.allowedEdges)
             : null;
@@ -680,45 +712,47 @@ export function useDragDrop({
       let dragging = false;
       let startX, startY, offsetX, offsetY;
       let curTarget = null;
+      let cachedRect = null;
       let touchStartTime = 0;
+      let lastHitTestTime = 0;
+      let lastHitX = 0, lastHitY = 0;
 
       const onStart = (e) => {
         if (e.touches.length !== 1) return;
-        e.preventDefault(); // Claim gesture immediately — blocks OS interception
-        document.documentElement.style.touchAction = 'none';
-        document.documentElement.style.overscrollBehavior = 'none';
+        // NO e.preventDefault() — triggerEl CSS touch-action:none handles OS gesture suppression
         const t = e.touches[0];
         startX = t.clientX;
         startY = t.clientY;
+        cachedRect = el.getBoundingClientRect(); // Cache rect NOW while layout is fresh
+        touchStartTime = performance.now();
         dragging = false;
-        touchStartTime = Date.now();
       };
 
       const onMove = (e) => {
         if (e.touches.length !== 1) return;
-        e.preventDefault(); // Always prevent — blocks OS gesture recognition even sub-threshold
         const t = e.touches[0];
 
         if (!dragging) {
+          // A2: Hold delay — don't start drag until finger held long enough
+          if (performance.now() - touchStartTime < _TOUCH_HOLD_MS) return;
           if (Math.sqrt((t.clientX - startX) ** 2 + (t.clientY - startY) ** 2) < _TOUCH_THRESHOLD) return;
+          // Threshold crossed — NOW claim the gesture
+          e.preventDefault();
           dragging = true;
+          document.documentElement.style.touchAction = 'none';
+          document.documentElement.style.overscrollBehavior = 'none';
           setIsDragging(true);
 
-          const rect = el.getBoundingClientRect();
-          offsetX = startX - rect.left;
-          offsetY = startY - rect.top;
-          clone = el.cloneNode(true);
-          Object.assign(clone.style, {
-            position: 'fixed', left: '0', top: '0',
-            width: rect.width + 'px',
-            pointerEvents: 'none',
-            zIndex: '2147483646',
-            opacity: '0.8',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-            willChange: 'transform',
-            transform: `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`,
-          });
+          // A1: Haptic feedback on drag start
+          if (navigator.vibrate) navigator.vibrate(15);
+
+          offsetX = 40;
+          offsetY = 14;
+          clone = _createDragPill(data?.label || data?.name || type, type);
+          clone.style.transform = `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`;
           document.body.appendChild(clone);
+          lastHitX = t.clientX; lastHitY = t.clientY;
+          lastHitTestTime = performance.now();
 
           // Per-occurrence dragMode overrides entity's defaultDragMode
           const mode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? 'move';
@@ -726,9 +760,22 @@ export function useDragDrop({
           return;
         }
 
+        e.preventDefault(); // Active drag — prevent scroll
+        // Pill follows finger at 60fps (cheap DOM update)
         if (clone) {
           clone.style.transform = `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`;
         }
+
+        // A3+A4: Throttle hit-testing + cache when pointer barely moved
+        const now = performance.now();
+        const dx = t.clientX - lastHitX, dy = t.clientY - lastHitY;
+        if (now - lastHitTestTime < _HIT_TEST_INTERVAL || (dx * dx + dy * dy < _HIT_CACHE_DIST * _HIT_CACHE_DIST)) {
+          // Still update DragProvider position (for auto-scroll etc)
+          dragCtx.handleDragMove(t.clientX, t.clientY);
+          return;
+        }
+        lastHitTestTime = now;
+        lastHitX = t.clientX; lastHitY = t.clientY;
 
         // Hit-test drop targets
         const target = _findDropTarget(t.clientX, t.clientY, payload.type, el);
@@ -756,27 +803,15 @@ export function useDragDrop({
 
       const onEnd = (e) => {
         if (!dragging) {
-          // Restore touch defaults on tap (no drag)
-          document.documentElement.style.touchAction = '';
-          document.documentElement.style.overscrollBehavior = '';
-          // Synthetic click for tap — preserves RadialMenu tap-to-open
-          const elapsed = Date.now() - touchStartTime;
-          if (elapsed < 300) {
-            const t = e.changedTouches[0];
-            const target = document.elementFromPoint(t.clientX, t.clientY);
-            if (target) {
-              target.dispatchEvent(new MouseEvent('click', {
-                bubbles: true, cancelable: true,
-                clientX: t.clientX, clientY: t.clientY,
-              }));
-            }
-          }
+          // Tap — browser fires native click since we never preventDefault'd
           return;
         }
         const t = e.changedTouches[0];
         if (clone) { clone.remove(); clone = null; }
 
         if (curTarget) {
+          // A1: Haptic double-tap on successful drop
+          if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
           const edge = curTarget.allowedEdges
             ? _computeClosestEdge(curTarget.el, t.clientX, t.clientY, curTarget.allowedEdges)
             : null;

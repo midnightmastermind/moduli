@@ -130,22 +130,27 @@ export default function RadialMenu({
     setAnchor({ x: clampedX, y: clampedY });
   }, [forceDirection]);
 
-  // Close menu when clicking outside (includes portal!)
+  // Close menu when clicking outside (includes portal!) or pressing Escape
   useEffect(() => {
     const handlePointerDown = (e) => {
       const inMenu = menuRef.current?.contains(e.target);
       const inPortal = portalRef.current?.contains(e.target);
       if (!inMenu && !inPortal) setIsOpen(false);
     };
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); setIsOpen(false); }
+    };
 
     if (isOpen) {
       document.addEventListener("mousedown", handlePointerDown);
       document.addEventListener("touchstart", handlePointerDown);
+      document.addEventListener("keydown", handleKeyDown);
     }
 
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen]);
 
@@ -421,8 +426,8 @@ export default function RadialMenu({
   return (
     <div
       ref={menuRef}
-      className={`radial-menu relative items-center flex-1 flex flex-col justify-center ${className}`}
-      style={{ zIndex: isOpen ? 99999 : 1000 }}
+      className={`radial-menu relative items-center flex flex-col ${className}`}
+      style={{ zIndex: isOpen ? 99999 : 1000, flex: "none", justifyContent: "flex-start" }}
     >
       {/* Central drag handle button with mode indicator */}
       <button
@@ -437,7 +442,6 @@ export default function RadialMenu({
           flex items-center justify-center
           px-2
           w-8
-          flex-1
           rounded-l-[6px]
           rounded-r-none
           border-r-2 border-solid
@@ -449,7 +453,7 @@ export default function RadialMenu({
         `}
         style={{
           alignSelf: "center",
-          flex: 1,
+          flex: "none",
           paddingTop: 0,
           paddingBottom: 0,
         }}

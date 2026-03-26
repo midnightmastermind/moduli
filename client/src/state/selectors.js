@@ -44,7 +44,7 @@ export function createLookupsFromState(state) {
 
   // Fallback: use module.role for unplaced modules (templates, new items not yet in hierarchy)
   (state.modules || []).forEach(m => {
-    if (!m.id) return;
+    if (!m.id || m.trashed) return;
     if (m.role === "panel" && !panelsById[m.id]) panelsById[m.id] = m;
     else if (m.role === "container" && !containersById[m.id]) containersById[m.id] = m;
     else if (m.role === "instance" && !instancesById[m.id]) instancesById[m.id] = m;
@@ -90,7 +90,7 @@ export function computeRoleByModuleId(grid, occurrencesById, modulesById) {
   // Fallback: use module.role for unplaced modules (e.g. templates, unplaced CC items)
   if (modulesById) {
     for (const [id, mod] of Object.entries(modulesById)) {
-      if (!map[id] && mod.role) map[id] = mod.role;
+      if (!map[id] && mod.role && !mod.trashed) map[id] = mod.role;
     }
   }
   return map;
@@ -218,6 +218,21 @@ function isSameDayStr(a, b) {
            da.getMonth() === db.getMonth() &&
            da.getDate() === db.getDate();
   } catch { return false; }
+}
+
+/**
+ * Find all other occurrences of the same module (excluding the current one).
+ * Returns [{ occurrence, parentLabel }] for display in settings forms.
+ */
+export function getOtherOccurrences(occurrencesById, modulesById, moduleId, excludeOccId) {
+  if (!occurrencesById || !moduleId) return [];
+  return Object.values(occurrencesById)
+    .filter(o => o.targetId === moduleId && o.id !== excludeOccId)
+    .map(o => {
+      const parent = o.parentId ? occurrencesById[o.parentId] : null;
+      const parentMod = parent?.targetId ? modulesById?.[parent.targetId] : null;
+      return { occurrence: o, parentLabel: parentMod?.label || parent?.id || "root" };
+    });
 }
 
 export function isOccurrenceVisible(occurrence, effectiveFilters) {

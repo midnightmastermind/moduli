@@ -26,6 +26,7 @@ function ModuleInstance({
   panelId,
   panel,
   container,
+  containerOccurrence,
   dispatch,
   socket,
   allowedEdges = ["top", "bottom"],
@@ -37,6 +38,7 @@ function ModuleInstance({
   const [showDoc, setShowDoc] = useState(false);
 
   const handleContextMenu = useCallback((e) => {
+    if ("ontouchstart" in window) return;
     e.preventDefault();
     e.stopPropagation();
     const items = [
@@ -51,15 +53,15 @@ function ModuleInstance({
         },
       },
       {
-        label: "Delete occurrence", icon: Trash2, danger: true,
+        label: "Remove from container", icon: Trash2, danger: true,
         onClick: () => {
           if (!occurrence?.id) return;
-          CommitHelpers.deleteOccurrence({ dispatch, socket, occurrenceId: occurrence.id, emit: true });
+          CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, parentOccurrence: containerOccurrence || null, emit: true });
         },
       },
     ].filter(Boolean);
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
-  }, [module, occurrence, containerId, onInstanceFocus, dispatch, socket]);
+  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket]);
 
   const handleRef = useRef(null);
 
@@ -118,12 +120,6 @@ function ModuleInstance({
         toggleDoc={toggleDoc}
         onDoubleClick={onInstanceFocus ? () => onInstanceFocus(module, occurrence) : undefined}
       />
-      {/* Collapse lip — sits between instance row and body */}
-      <div
-        className="collapse-lip"
-        onClick={toggleDoc}
-        title={showDoc ? "Collapse body" : "Expand body"}
-      />
       {occurrence && showDoc && (() => {
         const bg = container?.ownStyle?.bg || null;
         return (
@@ -140,4 +136,4 @@ function ModuleInstance({
   );
 }
 
-export default ModuleInstance;
+export default React.memo(ModuleInstance);

@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import os from "os";
 
 export default defineConfig({
   plugins: [react()],
@@ -48,6 +49,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/__tests__/setup.js"],
     include: ["src/__tests__/**/*.test.{js,jsx}"],
+    cache: {
+      dir: path.join(os.tmpdir(), "vitest-client"),
+    },
     coverage: {
       reporter: ["text", "json", "html"],
     },

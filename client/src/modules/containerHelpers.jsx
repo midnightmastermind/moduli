@@ -11,7 +11,7 @@ import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 // ============================================================
 // DOC EDITOR SHELL — thin wrapper: adds click-to-edit state
 // ============================================================
-export function DocEditorShell({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false }) {
+export const DocEditorShell = React.memo(function DocEditorShell({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showLockBtn, setShowLockBtn] = useState(false);
   const wrapRef = useRef(null);
@@ -51,19 +51,17 @@ export function DocEditorShell({ occurrence, dispatch, socket, onConvertListToIn
         dispatch={dispatch}
         socket={socket}
         editable={!isLocked}
-        showToolbar={isEditing && !hideToolbar && !isLocked}
-        stickyToolbar={!hideToolbar}
         className="flex-1"
         onConvertListToInstances={onConvertListToInstances}
       />
     </div>
   );
-}
+});
 
 // ============================================================
 // POOL PILL — draggable item in a pool container
 // ============================================================
-export function PoolPill({ instanceModule, occurrence, onDelete }) {
+export const PoolPill = React.memo(function PoolPill({ instanceModule, occurrence, onDelete }) {
   const ref = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -125,12 +123,12 @@ export function PoolPill({ instanceModule, occurrence, onDelete }) {
       </button>
     </div>
   );
-}
+});
 
 // ============================================================
 // CANVAS CARD — free-positioned instance card on a canvas container
 // ============================================================
-export function CanvasCard({ instance, occurrence, dispatch, socket }) {
+export const CanvasCard = React.memo(function CanvasCard({ instance, occurrence, dispatch, socket }) {
   const dragRef = useRef(null);
   const startPosRef = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
   const [pos, setPos] = useState({ x: occurrence?.meta?.x ?? 20, y: occurrence?.meta?.y ?? 20 });
@@ -199,4 +197,4 @@ export function CanvasCard({ instance, occurrence, dispatch, socket }) {
       ))}
     </div>
   );
-}
+});

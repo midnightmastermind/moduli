@@ -9,7 +9,7 @@ import mongoose from "mongoose";
 const ModuleSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, index: true, unique: true },
-    userId: { type: String, required: true },
+    userId: { type: String, required: true, index: true },
     gridId: { type: String, index: true },
 
     // ─── Hierarchy (deprecated — role is inferred from occurrence hierarchy on client) ─
@@ -104,6 +104,9 @@ const ModuleSchema = new mongoose.Schema(
     // ─── Custom CSS (CS6a) ───────────────────────────────────
     // Scoped CSS injected as <style>.mod-{id} { ... }</style> in Module.jsx
     customCss: { type: String, default: "" },
+
+    // ─── Trash (soft delete) ────────────────────────────────
+    trashed: { type: Boolean, default: false, index: true },
 
     // ─── Meta ────────────────────────────────────────────────
     meta: { type: mongoose.Schema.Types.Mixed, default: {} },

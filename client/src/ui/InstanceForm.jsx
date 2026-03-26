@@ -11,6 +11,7 @@ import MultiSelectPills from "./MultiSelectPills";
 import IterationSettings from "./IterationSettings";
 import StyleEditor from "./StyleEditor";
 import { GridActionsContext } from "../GridActionsContext";
+import { getOtherOccurrences } from "../state/selectors";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { uid } from "../uid";
 import { INPUT_FLOWS } from "../helpers/CalculationHelpers";
@@ -42,7 +43,7 @@ export default function InstanceForm({
   dispatch,
   socket,
 }) {
-  const { fieldsById, containersById, panelsById } = useContext(GridActionsContext);
+  const { fieldsById, containersById, panelsById, occurrencesById, modulesById } = useContext(GridActionsContext);
 
   const handleOccurrenceUpdate = useCallback((updates) => {
     if (!occurrence?.id) return;
@@ -241,6 +242,16 @@ export default function InstanceForm({
               <p className="text-[10px] text-muted-foreground">Inheriting drag behavior from parent container.</p>
             )}
           </div>
+
+          {/* Other Placements */}
+          {instance && (
+            <OtherPlacements
+              moduleId={instance.id}
+              excludeOccId={occurrence?.id}
+              occurrencesById={occurrencesById}
+              modulesById={modulesById}
+            />
+          )}
         </TabsContent>
 
         {/* STYLE TAB */}
@@ -298,14 +309,14 @@ export default function InstanceForm({
           className="w-full text-xs"
           onClick={() => {
             const ok = window.confirm(
-              `Delete this instance${instanceId ? ` (${instanceId})` : ""}? This cannot be undone.`
+              `Remove this instance from the container? The module will remain in the Command Center.`
             );
             if (!ok) return;
             onDeleteInstance?.();
           }}
           disabled={!onDeleteInstance}
         >
-          Delete Instance
+          Remove from container
         </Button>
       </div>
     </div>
@@ -438,6 +449,33 @@ function SiblingLinksSection({ instance, dispatch, socket }) {
         </Button>
       )}
     </div>
+  );
+}
+
+/**
+ * OtherPlacements — shows where else this module appears in the grid
+ */
+function OtherPlacements({ moduleId, excludeOccId, occurrencesById, modulesById }) {
+  const placements = useMemo(
+    () => getOtherOccurrences(occurrencesById, modulesById, moduleId, excludeOccId),
+    [occurrencesById, modulesById, moduleId, excludeOccId]
+  );
+  if (placements.length === 0) return null;
+  return (
+    <>
+      <Separator />
+      <div className="py-2">
+        <h4 className="text-xs font-semibold text-foreground/70 mb-2">Other Placements ({placements.length})</h4>
+        <div className="space-y-1">
+          {placements.map(({ occurrence: occ, parentLabel }) => (
+            <div key={occ.id} className="flex items-center gap-2 text-[10px] text-muted-foreground px-1 py-0.5 rounded bg-muted/20">
+              <span className="text-muted-foreground/50">&#x2192;</span>
+              <span className="truncate">{parentLabel}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }
 

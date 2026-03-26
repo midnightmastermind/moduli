@@ -1,0 +1,15 @@
+[
+  {
+    "_id": "69c28b78e56661f84e2e3209",
+    "id": "RupKW9LxYQEI",
+    "userId": "{{USER_ID}}",
+    "name": "Files",
+    "rootFolderId": "0Lzt7izmnMep",
+    "manifestType": "files",
+    "icon": "folder-tree",
+    "sortOrder": 0,
+    "meta": {},
+    "createdAt": "2026-03-24T13:02:48.981Z",
+    "updatedAt": "2026-03-24T13:02:48.981Z"
+  }
+]

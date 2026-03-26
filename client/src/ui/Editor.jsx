@@ -42,7 +42,7 @@ import DocToolbar from "../docs/DocToolbar";
 import ContextMenu from "./ContextMenu";
 import { GridActionsContext } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, GripVertical, MoreVertical } from "lucide-react";
+import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, GripVertical } from "lucide-react";
 
 const Editor = forwardRef(function Editor({
   content = null,
@@ -686,7 +686,7 @@ const Editor = forwardRef(function Editor({
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
 
-      {/* D12: Block handle — drag ⠿ + options ⋮ */}
+      {/* D12: Block handle — single grip icon opens block menu */}
       {blockHandle && editable && (
         <div
           ref={blockHandleRef}
@@ -695,31 +695,19 @@ const Editor = forwardRef(function Editor({
           style={{
             position: "absolute",
             top: blockHandle.top,
-            left: 0,
+            left: 5,
             display: "flex",
-            alignItems: "flex-start",
-            gap: 1,
+            alignItems: "center",
             zIndex: 50,
-            paddingTop: 3,
           }}
         >
-          <button
-            style={{ background: "none", border: "none", cursor: "grab", padding: "2px 2px", color: "var(--text-faint)", borderRadius: 3, display: "flex", lineHeight: 1 }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              if (blockHandle && editor) editor.commands.setNodeSelection(blockHandle.nodeStart);
-            }}
-            title="Drag to reorder"
-          >
-            <GripVertical size={13} />
-          </button>
           <div style={{ position: "relative" }}>
             <button
               style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 2px", color: "var(--text-faint)", borderRadius: 3, display: "flex", lineHeight: 1 }}
               onMouseDown={(e) => { e.preventDefault(); setBlockMenuOpen(v => !v); }}
               title="Block options"
             >
-              <MoreVertical size={13} />
+              <GripVertical size={15} />
             </button>
             {blockMenuOpen && (
               <div style={{
@@ -735,6 +723,28 @@ const Editor = forwardRef(function Editor({
                   { label: "Heading 3", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).setNode("heading", { level: 3 }).run() },
                   { label: "Bullet list", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).toggleBulletList().run() },
                   { label: "Quote", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).toggleBlockquote().run() },
+                  null,
+                  { label: "Insert field", fn: () => {
+                    if (!editor || blockHandle == null) return;
+                    const node = editor.state.doc.nodeAt(blockHandle.nodeStart);
+                    const insertPos = node ? blockHandle.nodeStart + node.nodeSize : blockHandle.nodeStart + 1;
+                    editor.commands.setTextSelection(insertPos);
+                    setShowSuggestion(true);
+                    setSuggestionQuery("");
+                    setSuggestionPos({ top: blockHandle.top, left: 40 });
+                  }},
+                  { label: "Insert module", fn: () => {
+                    if (!editor || blockHandle == null) return;
+                    // Position cursor at block end, then trigger embed picker
+                    const node = editor.state.doc.nodeAt(blockHandle.nodeStart);
+                    const insertPos = node ? blockHandle.nodeStart + node.nodeSize : blockHandle.nodeStart + 1;
+                    editor.commands.setTextSelection(insertPos);
+                    // Show embed picker positioned at block handle
+                    const wrap = wrapperRef.current?.getBoundingClientRect();
+                    setEmbedPos({ top: blockHandle.top, left: wrap ? 40 : 0 });
+                    setShowEmbedPicker(true);
+                    setEmbedQuery("");
+                  }},
                   null,
                   { label: "Duplicate", fn: () => {
                     if (!editor || blockHandle == null) return;
@@ -786,12 +796,9 @@ const Editor = forwardRef(function Editor({
       )}
 
       <div
-        className={`doc-editor-wrapper min-h-[100px] p-3 flex-1${stickyToolbar ? " overflow-auto" : ""}`}
-        onClick={(e) => {
-          // D8: clicking empty space below content moves cursor to end
-          if (e.target === e.currentTarget && editor && editable) {
-            editor.commands.focus("end");
-          }
+        className={`doc-editor-wrapper min-h-[100px] py-3 pr-3 pl-8 flex-1${stickyToolbar ? " overflow-auto" : ""}`}
+        onClick={() => {
+          // D8 removed: no jump-to-end on empty space click
         }}
       >
         <EditorContent editor={editor} />

@@ -1,20 +1,18 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useMemo } from "react";
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 
-function LipButton({ direction, onClick }) {
-  const icons = {
-    left: <ChevronLeft size={10} />,
-    right: <ChevronRight size={10} />,
-    up: <ChevronUp size={10} />,
-    down: <ChevronDown size={10} />,
-  };
+function RailButton({ direction, onClick, disabled }) {
+  if (disabled) return null;
   return (
     <button
-      className={`mobile-lip-btn mobile-lip-btn-${direction}`}
+      className={`mobile-rail-btn mobile-rail-${direction}`}
       onClick={onClick}
       aria-label={`Navigate ${direction}`}
     >
-      {icons[direction]}
+      {direction === 'left' && <ChevronLeft size={14} />}
+      {direction === 'right' && <ChevronRight size={14} />}
+      {direction === 'up' && <ChevronUp size={14} />}
+      {direction === 'down' && <ChevronDown size={14} />}
     </button>
   );
 }
@@ -47,6 +45,38 @@ function CellOverlay({ rows, cols, activeCell, onSelect }) {
   );
 }
 
+// --- Auto-scroll helpers ---
+
+function findPanelForCell(panels, row, col) {
+  if (!panels) return null;
+  return panels.find(p =>
+    row >= p.row && row < p.row + (p.height || 1) &&
+    col >= p.col && col < p.col + (p.width || 1)
+  ) || null;
+}
+
+function findScrollableAncestor(el, stopAt) {
+  let node = el;
+  while (node && node !== stopAt) {
+    if (node.scrollHeight > node.clientHeight + 1) return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
+function isAtScrollBoundary(el, direction) {
+  if (!el) return true; // no scrollable content = always at boundary
+  const threshold = 5;
+  if (direction === 'down') return el.scrollTop + el.clientHeight >= el.scrollHeight - threshold;
+  if (direction === 'up') return el.scrollTop <= threshold;
+  if (direction === 'right') return el.scrollLeft + el.clientWidth >= el.scrollWidth - threshold;
+  if (direction === 'left') return el.scrollLeft <= threshold;
+  return false;
+}
+
+const OVERSCROLL_THRESHOLD = 60;
+const NAVIGATE_COOLDOWN = 400;
+
 export default function MobileGridNav({
   children,
   rows,
@@ -56,6 +86,7 @@ export default function MobileGridNav({
   isMobile,
   zoomedOut,
   setZoomedOut,
+  visiblePanels = [],
 }) {
   const sliderRef = useRef(null);
   const viewportRef = useRef(null);
@@ -98,6 +129,140 @@ export default function MobileGridNav({
     [setActiveCell, setZoomedOut]
   );
 
+  // --- Auto-scroll: detect overscroll at panel boundaries for multi-cell panels ---
+  const touchRef = useRef({ startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, axis: null, scrollEl: null, panelEl: null });
+  const cooldownRef = useRef(false);
+  // Stable ref for activeCell so the touch handler always sees the latest value
+  const activeCellRef = useRef(activeCell);
+  activeCellRef.current = activeCell;
+
+  useEffect(() => {
+    if (!isMobile || zoomedOut) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const onTouchStart = (e) => {
+      const touch = e.touches[0];
+      const panelEl = e.target.closest?.('[data-panel-id]');
+      const scrollEl = panelEl ? findScrollableAncestor(e.target, panelEl) : null;
+
+      touchRef.current = {
+        startY: touch.clientY,
+        startX: touch.clientX,
+        lastY: touch.clientY,
+        lastX: touch.clientX,
+        delta: 0,
+        axis: null,
+        scrollEl,
+        panelEl,
+      };
+    };
+
+    const onTouchMove = (e) => {
+      if (cooldownRef.current) return;
+      const t = touchRef.current;
+      if (!t.panelEl) return;
+
+      const touch = e.touches[0];
+      const dy = touch.clientY - t.startY;
+      const dx = touch.clientX - t.startX;
+
+      // Determine dominant axis on first significant move
+      if (!t.axis && (Math.abs(dy) > 10 || Math.abs(dx) > 10)) {
+        t.axis = Math.abs(dy) > Math.abs(dx) ? 'vertical' : 'horizontal';
+      }
+      if (!t.axis) return;
+
+      const panelId = t.panelEl.getAttribute('data-panel-id');
+      const panel = visiblePanels.find(p => p.id === panelId || p._occurrenceId === panelId);
+      if (!panel) return;
+
+      const cell = activeCellRef.current;
+
+      if (t.axis === 'vertical') {
+        const direction = dy < 0 ? 'down' : 'up';
+        const canExtend = direction === 'down'
+          ? (panel.row + (panel.height || 1) > cell.row + 1)
+          : (panel.row < cell.row);
+
+        if (canExtend && isAtScrollBoundary(t.scrollEl, direction)) {
+          // Accumulate delta since last frame
+          const frameDelta = Math.abs(touch.clientY - t.lastY);
+          t.delta += frameDelta;
+
+          if (t.delta > OVERSCROLL_THRESHOLD) {
+            const dRow = direction === 'down' ? 1 : -1;
+            navigate(dRow, 0);
+
+            // Reset scroll for continuity
+            if (t.scrollEl) {
+              if (direction === 'down') t.scrollEl.scrollTop = 0;
+              else t.scrollEl.scrollTop = t.scrollEl.scrollHeight;
+            }
+
+            cooldownRef.current = true;
+            setTimeout(() => { cooldownRef.current = false; }, NAVIGATE_COOLDOWN);
+            // Reset tracking
+            t.delta = 0;
+            t.startY = touch.clientY;
+            t.startX = touch.clientX;
+            t.axis = null;
+          }
+        } else {
+          // Not at boundary — reset delta
+          t.delta = 0;
+        }
+      } else {
+        // Horizontal
+        const direction = dx < 0 ? 'right' : 'left';
+        const canExtend = direction === 'right'
+          ? (panel.col + (panel.width || 1) > cell.col + 1)
+          : (panel.col < cell.col);
+
+        if (canExtend && isAtScrollBoundary(t.scrollEl, direction)) {
+          const frameDelta = Math.abs(touch.clientX - t.lastX);
+          t.delta += frameDelta;
+
+          if (t.delta > OVERSCROLL_THRESHOLD) {
+            const dCol = direction === 'right' ? 1 : -1;
+            navigate(0, dCol);
+
+            if (t.scrollEl) {
+              if (direction === 'right') t.scrollEl.scrollLeft = 0;
+              else t.scrollEl.scrollLeft = t.scrollEl.scrollWidth;
+            }
+
+            cooldownRef.current = true;
+            setTimeout(() => { cooldownRef.current = false; }, NAVIGATE_COOLDOWN);
+            t.delta = 0;
+            t.startY = touch.clientY;
+            t.startX = touch.clientX;
+            t.axis = null;
+          }
+        } else {
+          t.delta = 0;
+        }
+      }
+
+      t.lastY = touch.clientY;
+      t.lastX = touch.clientX;
+    };
+
+    const onTouchEnd = () => {
+      touchRef.current = { startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, axis: null, scrollEl: null, panelEl: null };
+    };
+
+    viewport.addEventListener('touchstart', onTouchStart, { passive: true });
+    viewport.addEventListener('touchmove', onTouchMove, { passive: true });
+    viewport.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      viewport.removeEventListener('touchstart', onTouchStart);
+      viewport.removeEventListener('touchmove', onTouchMove);
+      viewport.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isMobile, zoomedOut, visiblePanels, navigate]);
+
   // Desktop passthrough — zero overhead
   if (!isMobile) return children;
 
@@ -107,6 +272,13 @@ export default function MobileGridNav({
   const hasRight = col < cols - 1;
   const hasUp = row > 0;
   const hasDown = row < rows - 1;
+
+  // Boundary hints for multi-cell panels
+  const currentPanel = findPanelForCell(visiblePanels, row, col);
+  const hasMoreDown = currentPanel && (currentPanel.row + (currentPanel.height || 1) > row + 1);
+  const hasMoreUp = currentPanel && (currentPanel.row < row);
+  const hasMoreRight = currentPanel && (currentPanel.col + (currentPanel.width || 1) > col + 1);
+  const hasMoreLeft = currentPanel && (currentPanel.col < col);
 
   // Zoomed-in: translate to show active cell
   // Zoomed-out: scale entire grid to fit viewport
@@ -129,11 +301,17 @@ export default function MobileGridNav({
         {children}
       </div>
 
-      {/* Lip buttons — hidden when zoomed out */}
-      {!zoomedOut && hasLeft && <LipButton direction="left" onClick={() => navigate(0, -1)} />}
-      {!zoomedOut && hasRight && <LipButton direction="right" onClick={() => navigate(0, 1)} />}
-      {!zoomedOut && hasUp && <LipButton direction="up" onClick={() => navigate(-1, 0)} />}
-      {!zoomedOut && hasDown && <LipButton direction="down" onClick={() => navigate(1, 0)} />}
+      {/* Rail buttons — full-length edge overlays, inset from OS gesture zones */}
+      {!zoomedOut && <RailButton direction="left" onClick={() => navigate(0, -1)} disabled={!hasLeft} />}
+      {!zoomedOut && <RailButton direction="right" onClick={() => navigate(0, 1)} disabled={!hasRight} />}
+      {!zoomedOut && <RailButton direction="up" onClick={() => navigate(-1, 0)} disabled={!hasUp} />}
+      {!zoomedOut && <RailButton direction="down" onClick={() => navigate(1, 0)} disabled={!hasDown} />}
+
+      {/* Boundary hints — gradient showing more content in adjacent cell */}
+      {!zoomedOut && hasMoreDown && <div className="boundary-hint boundary-hint-down" />}
+      {!zoomedOut && hasMoreUp && <div className="boundary-hint boundary-hint-up" />}
+      {!zoomedOut && hasMoreRight && <div className="boundary-hint boundary-hint-right" />}
+      {!zoomedOut && hasMoreLeft && <div className="boundary-hint boundary-hint-left" />}
 
       {/* Zoomed-out cell selection overlay */}
       {zoomedOut && (

@@ -8,6 +8,9 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL || window.location.origin;
 export const socket = io(SERVER_URL, {
   autoConnect: true,
   transports: ["websocket"],
+  reconnectionDelay: 100,       // start retrying quickly (default 1000)
+  reconnectionDelayMax: 2000,   // cap at 2s (default 5000)
+  timeout: 5000,                // connection timeout (default 20000)
   auth: {
     token: localStorage.getItem("moduli-token") || null,
   },

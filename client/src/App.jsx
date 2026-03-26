@@ -12,6 +12,7 @@ import LoginScreen from "./LoginScreen";
 
 import { GridDataContext } from "./GridDataContext";
 import { GridActionsContext } from "./GridActionsContext";
+import { GridLiveContext } from "./GridLiveContext";
 
 import { useBoardState } from "./state/useBoardState";
 
@@ -103,6 +104,17 @@ export default function App() {
     [state.occurrences]
   );
 
+  // C3: Pre-index linked groups for O(1) sibling lookup in Instance.jsx
+  const linkedGroupIndex = useMemo(() => {
+    const idx = Object.create(null);
+    for (const occ of state.occurrences || []) {
+      if (occ.linkedGroupId) {
+        (idx[occ.linkedGroupId] || (idx[occ.linkedGroupId] = [])).push(occ);
+      }
+    }
+    return idx;
+  }, [state.occurrences]);
+
   const containersById = useMemo(
     () => buildLookup(state.containers),
     [state.containers]
@@ -152,6 +164,19 @@ export default function App() {
       },
     });
   }, []);
+
+  // Global Escape key: close history dialog first, then CommandCenter
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.contentEditable === "true") return;
+      if (historyOpen) { setHistoryOpen(false); return; }
+      if (commandCenterOpen) { setCommandCenterOpen(false); return; }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [commandCenterOpen, historyOpen]);
 
   const { captureAllPositions, animateToNewPositions, flashElement } = useAnimations();
   useTheme(); // Applies data-theme + dark class from localStorage on mount
@@ -246,11 +271,28 @@ export default function App() {
     socket.emit("request_full_state");
   };
 
-  // Reset activeCell + zoomedOut when grid changes
+  // Reset activeCell + zoomedOut when grid changes — restore from localStorage if available
   useEffect(() => {
-    setActiveCell({ row: 0, col: 0 });
+    if (!state.gridId) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem("moduli-activeCell-" + state.gridId));
+      const rows = state.grid?.rows ?? 1;
+      const cols = state.grid?.cols ?? 1;
+      if (saved && typeof saved.row === "number" && typeof saved.col === "number") {
+        setActiveCell({ row: Math.min(saved.row, rows - 1), col: Math.min(saved.col, cols - 1) });
+      } else {
+        setActiveCell({ row: 0, col: 0 });
+      }
+    } catch { setActiveCell({ row: 0, col: 0 }); }
     setZoomedOut(false);
-  }, [state.gridId]);
+  }, [state.gridId, state.grid?.rows, state.grid?.cols]);
+
+  // Persist activeCell to localStorage when it changes
+  // Guard: only save when grid is loaded (prevents overwriting saved position with {0,0} during init)
+  useEffect(() => {
+    if (!state.gridId || !state.grid) return;
+    localStorage.setItem("moduli-activeCell-" + state.gridId, JSON.stringify(activeCell));
+  }, [activeCell, state.gridId, state.grid]);
 
 
   const addNewPanel = useCallback((kind = "board") => {
@@ -438,6 +480,7 @@ export default function App() {
       roleByModuleId,
       instancesById,
       occurrencesById,
+      linkedGroupIndex,
       containersById,
       fieldsById,
       panelsById,
@@ -445,8 +488,6 @@ export default function App() {
       viewsById,
       foldersById,
       operationsById,
-      // Computed values: written by operation executor, read by display fields
-      computedValues: state.computedValues || {},
       addContainerToPanel,
       addInstanceToContainer,
       // Field CRUD
@@ -456,27 +497,20 @@ export default function App() {
       // Filter system handlers
       onSelectFilter: handleSelectFilter,
       onFilterValueChange: handleFilterValueChange,
-
-      // Undo/Redo state (lifted to App so Toolbar + Grid can both access)
-      canUndo,
-      canRedo,
-      undo,
-      redo,
-      isProcessing,
-      // Mobile grid navigation
-      isMobile,
-      activeCell,
-      setActiveCell,
-      zoomedOut,
-      setZoomedOut,
     }),
     [
       dispatch,
-      state,
+      // Granular state deps — deliberately excludes state.computedValues
+      // so that frequent computedValues changes (via GridLiveContext) don't
+      // force all GridActionsContext consumers to re-render.
+      state.grid, state.occurrences, state.containers, state.instances,
+      state.fields, state.modules, state.panels,
+      state.userId, state.gridId, state.activeId, state.softTick,
       modulesById,
       roleByModuleId,
       instancesById,
       occurrencesById,
+      linkedGroupIndex,
       containersById,
       fieldsById,
       panelsById,
@@ -491,12 +525,32 @@ export default function App() {
       deleteField,
       handleSelectFilter,
       handleFilterValueChange,
+    ]
+  );
+
+  // C4: Frequently-changing values in separate context — only consumers
+  // that need computedValues/undo/mobile state subscribe here
+  const liveValue = useMemo(
+    () => ({
+      computedValues: state.computedValues || {},
       canUndo,
       canRedo,
       undo,
       redo,
       isProcessing,
+      isMobile,
+      activeCell,
+      setActiveCell,
+      zoomedOut,
+      setZoomedOut,
+    }),
+    [
       state.computedValues,
+      canUndo,
+      canRedo,
+      undo,
+      redo,
+      isProcessing,
       isMobile,
       activeCell,
       setActiveCell,
@@ -509,6 +563,7 @@ export default function App() {
 
   return (
     <GridActionsContext.Provider value={actionsValue}>
+      <GridLiveContext.Provider value={liveValue}>
       <GridDataContext.Provider value={dataValue}>
         {/* ── Header wrapper — relative so CommandCenter can overlay grid below ── */}
         <div style={{ position: "relative", flexShrink: 0, zIndex: 1050 }}>
@@ -534,47 +589,6 @@ export default function App() {
           zoomedOut={zoomedOut}
           setZoomedOut={setZoomedOut}
         />
-
-        {/* DrawerHandle — pill-style dock handle below Toolbar. Taller on mobile for swipe. */}
-        <div
-          className="cc-drawer-handle"
-          onClick={() => setCommandCenterOpen((prev) => !prev)}
-          onTouchStart={(e) => {
-            if (!isMobile) return;
-            const startY = e.touches[0].clientY;
-            const wasOpen = commandCenterOpen;
-            const onMove = (ev) => {
-              const dy = ev.touches[0].clientY - startY;
-              if (!wasOpen && dy > 8) { setCommandCenterOpen(true); cleanup(); }
-              if (wasOpen && dy < -8) { setCommandCenterOpen(false); cleanup(); }
-            };
-            const cleanup = () => {
-              window.removeEventListener("touchmove", onMove);
-              window.removeEventListener("touchend", cleanup);
-            };
-            window.addEventListener("touchmove", onMove, { passive: true });
-            window.addEventListener("touchend", cleanup, { passive: true });
-          }}
-          title={commandCenterOpen ? "Collapse command center" : "Pull down command center"}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: isMobile ? 14 : 14,
-            background: "var(--surface-card)",
-            cursor: "pointer",
-            flexShrink: 0,
-            userSelect: "none",
-          }}
-        >
-          <div style={{
-            width: 36,
-            height: 4,
-            borderRadius: 2,
-            background: commandCenterOpen ? "rgba(80,140,220,0.55)" : "var(--text-faint)",
-            transition: "background 0.2s ease, width 0.2s ease",
-          }} />
-        </div>
 
         {/* CommandCenter — keep mounted once opened so slide-up animation works on close */}
         {commandCenterEverOpened && (
@@ -614,7 +628,10 @@ export default function App() {
             <Grid />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 20 }}>
-              <img src="/moduli_logo_true_vector.svg" alt="Moduli" style={{ width: 72, height: 72, opacity: 0.65 }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: 0.65 }}>
+                <img src="/moduli_logo.png" alt="Moduli" style={{ height: 24, width: "auto" }} />
+                <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>+moduli+</span>
+              </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, borderRadius: 8, border: "1px solid var(--border-default)", background: "var(--surface-card)", padding: "8px 16px" }}>
                 <Spinner size="md" />
                 <span style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "monospace" }}>Syncing grid…</span>
@@ -626,6 +643,7 @@ export default function App() {
         {/* Toast notifications */}
         <Toaster position="bottom-right" />
       </GridDataContext.Provider>
+      </GridLiveContext.Provider>
     </GridActionsContext.Provider>
   );
 }

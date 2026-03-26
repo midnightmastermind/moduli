@@ -51,6 +51,9 @@ const ViewSchema = new mongoose.Schema(
     activeOccurrenceId: { type: String, default: null },
     scrollAnchor: { type: String, default: null },
 
+    // Default landing page — if set, TreePanelContent resets to this on mount
+    defaultOccurrenceId: { type: String, default: null },
+
     // Layout overrides (e.g. sidebar width, split ratios)
     layout: { type: mongoose.Schema.Types.Mixed, default: {} },
 

@@ -1,6 +1,6 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-03-18. Check this file before re-reading source._
+_Updated: 2026-03-20. Check this file before re-reading source._
 
 ## Key Files
 
@@ -30,6 +30,25 @@ _Updated: 2026-03-18. Check this file before re-reading source._
 - Context menus use `<ContextMenu>` portal. Pattern: `useState(null)` + `onContextMenu` + `<ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />`.
 - No component calls socket directly — all mutations go through CommitHelpers.
 - Filter system (not iteration): `grid.namedFilters`, `grid.activeFilterId`, `grid.activeFilterValues`. FilterNav.jsx is the nav component.
+
+## Recent Changes (Mar 25 2026 — Batch 3: Escape + Default Page + Tree Thumb)
+- **App.jsx**: Added global Escape key `useEffect` — closes history dialog first (if open), then CommandCenter. Checks `e.defaultPrevented` so inner menus (RadialMenu, QuickAddMenu) get priority. Skips when focus is in input/textarea/contentEditable.
+
+## Recent Changes (Mar 20 2026 — C4 Context Split + Post-Review Fixes)
+- **GridLiveContext.js** (NEW): Frequently-changing values split from GridActionsContext: `computedValues`, `canUndo/canRedo/undo/redo/isProcessing`, `isMobile/activeCell/setActiveCell/zoomedOut/setZoomedOut`.
+- **App.jsx**: `actionsValue` dep array uses granular state subfields (`state.grid`, `state.occurrences`, etc.) instead of full `state` — deliberately excludes `state.computedValues` so computedValues changes don't force all GridActionsContext consumers to re-render. `liveValue` useMemo provides the live values. `GridLiveContext.Provider` wraps children alongside existing providers.
+- **GridActionsContext.js**: Removed `computedValues`, undo/redo, mobile state from defaults.
+- **Grid.jsx**: Split context consumption — stable values from GridActionsContext, live values from GridLiveContext.
+- **docs/pills/ExprPillNode.jsx**: Migrated `computedValues` read from GridActionsContext → GridLiveContext (was broken — reading empty default).
+- **docs/hooks/useDocFieldValues.js**: Same migration for both `useDocFieldValues()` and `useFieldValue()` hooks.
+- **Impact**: When `computedValues` changes (every operation run), only Instance.jsx + FieldRenderer.jsx + doc pills re-render — not all 200+ context consumers.
+
+## Recent Changes (Mar 19 2026 — Mobile Drag + UI Fixes)
+- **dragSystem.js**: Fixed 3 mobile touch issues: (1) Removed `e.preventDefault()` from `onStart` — native click/pointer events now fire for taps (fixes RadialMenu/Popover). (2) Cache `getBoundingClientRect()` at touchstart (fixes clone stuck at top-left). (3) Only `preventDefault` in `onMove` after threshold. Removed synthetic click dispatch. Removed `touchStartTime`.
+- **Panel.jsx, Container.jsx, Instance.jsx**: `.module-handle` + `.module-dot` replaced with `.module-drag-handle` + `.drag-handle-stem` + `.drag-handle-ball` (knob-on-stem). All RadialMenu `forceDirection` set to `"down"`.
+- **App.jsx**: Removed `cc-drawer-handle` div (Terminal button in Toolbar already toggles CC).
+- **MobileGridNav.jsx**: `LipButton` replaced with `RailButton` — full-height/width edge rails, inset 4px from screen edges (avoids Samsung back-gesture zone).
+- **index.css**: (1) `.module-handle`/`.module-dot` → `.module-drag-handle`/`.drag-handle-stem`/`.drag-handle-ball` with updated hover selectors. (2) `.cc-drawer-handle` removed. (3) `.mobile-lip-btn` replaced with `.mobile-rail-btn` (full-length, fixed, inset from edges). (4) Cog handle now shows stem+ball at rest, radial on hover.
 
 ## Recent Changes (Mar 18 2026 — Mobile UX Fixes v4)
 - **Panel.jsx**: Stack cycler button added INSIDE panel header, left of QuickAddMenu (+). Uses `dragCtx.getStackForPanel(module)` for count. Only renders when `stack.length > 1`. Added `Layers` import. Added `forceDirection="right"` to panel RadialMenu. Label span gets `minWidth: 0` for proper truncation.

@@ -39,8 +39,9 @@ import { resolveExpr, evalRule, evalGroup, extractFieldValuesFiltered, executeAc
 export function shouldTrigger(operation, transactionType, transaction) {
   if (!operation?.enabled) return false;
 
+  const hasExplicitArray = Array.isArray(operation.triggerTypes);
   // Support both single string and array of trigger types
-  const types = Array.isArray(operation.triggerTypes)
+  const types = hasExplicitArray
     ? operation.triggerTypes
     : [operation.triggerType].filter(Boolean);
 
@@ -51,7 +52,20 @@ export function shouldTrigger(operation, transactionType, transaction) {
 
   const cfg = operation.triggerConfig || {};
 
-  return types.some(t => matchesTrigger(t, cfg, transactionType, transaction));
+  // Normal check — does any declared trigger match?
+  if (types.some(t => matchesTrigger(t, cfg, transactionType, transaction))) {
+    return true;
+  }
+
+  // Backward compat: old operations using legacy triggerType string (no
+  // triggerTypes array) should still fire on load even though they don't
+  // explicitly list "onLoad". New operations created via the UI always have
+  // a triggerTypes array — respect those literally.
+  if (transactionType == null && !hasExplicitArray && types[0] !== "manual") {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -61,8 +75,11 @@ function matchesTrigger(t, cfg, transactionType, transaction) {
   switch (t) {
     case "onChange": {
       if (transactionType !== "MeasureOp") return false;
+      // Support both singular fieldId and plural allowedFields array
       const fieldFilter = cfg.onChange?.fieldId || cfg.fieldId;
       if (fieldFilter && transaction?.fieldId !== fieldFilter) return false;
+      const allowedFields = cfg.onChange?.allowedFields;
+      if (allowedFields?.length > 0 && !allowedFields.includes(transaction?.fieldId)) return false;
       const instanceFilter = cfg.onChange?.instanceId || cfg.instanceId;
       if (instanceFilter && transaction?.instanceId !== instanceFilter) return false;
       return true;
@@ -727,22 +744,51 @@ function gatherLoopItems(step, context, $vars) {
     occs = occs.filter(o => o.fields?.[fieldId] != null);
   }
 
-  // Time filter
+  // Time filter — checks legacy iteration.timeValue, then date-type field
+  // values on the occurrence OR its parent chain (scheduledDate lives on the
+  // container occurrence, not the instance occurrence inside it).
   if (timeFilter && timeFilter !== "all" && timeFilter !== "inherit") {
-    const today = new Date();
+    // Use the active filter date as reference (falls back to today)
+    const activeDate = $vars?.$activeDate
+      ? new Date($vars.$activeDate + "T00:00:00")
+      : new Date();
+    // Collect date-type field IDs for fallback lookup
+    const dateFieldIds = Object.values(context.fieldsById || {})
+      .filter(f => f.type === "date")
+      .map(f => f.id);
+
+    // Walk up parent chain to find a date field value
+    const findDateValue = (occ) => {
+      let cur = occ;
+      // Check up to 4 levels (instance → container → panel → grid)
+      for (let depth = 0; depth < 4 && cur; depth++) {
+        for (const dfId of dateFieldIds) {
+          const fv = cur.fields?.[dfId];
+          const val = fv?.value !== undefined ? fv.value : fv;
+          if (val) return val;
+        }
+        cur = cur.parentId ? occurrencesById[cur.parentId] : null;
+      }
+      return null;
+    };
+
     occs = occs.filter(occ => {
-      const iterVal = occ.iteration?.timeValue || occ.iteration?.value;
-      if (!iterVal) return timeFilter === "all";
+      // 1) Legacy: iteration-based date
+      let iterVal = occ.iteration?.timeValue || occ.iteration?.value;
+      // 2) New filter system: walk up parent chain for date field
+      if (!iterVal) iterVal = findDateValue(occ);
+      // No date at all → treat as persistent (matches any time filter)
+      if (!iterVal) return true;
       const d = new Date(iterVal);
-      if (timeFilter === "daily") return d.toDateString() === today.toDateString();
+      if (timeFilter === "daily") return d.toDateString() === activeDate.toDateString();
       if (timeFilter === "weekly") {
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay());
+        const weekStart = new Date(activeDate);
+        weekStart.setDate(activeDate.getDate() - activeDate.getDay());
         weekStart.setHours(0, 0, 0, 0);
         return d >= weekStart;
       }
-      if (timeFilter === "monthly") return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-      if (timeFilter === "yearly") return d.getFullYear() === today.getFullYear();
+      if (timeFilter === "monthly") return d.getMonth() === activeDate.getMonth() && d.getFullYear() === activeDate.getFullYear();
+      if (timeFilter === "yearly") return d.getFullYear() === activeDate.getFullYear();
       return true;
     });
   }

@@ -68,7 +68,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }
     const hydratedState = { ...stateRef.current, ...payload, occurrencesById, operations, fields: payload.fields || [] };
 
-    Promise.resolve().then(() => {
+    // Defer operation execution until after the first paint so the grid renders immediately.
+    // requestAnimationFrame fires before next paint, the nested rAF fires AFTER paint.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
       const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById });
       const displayUpdates = allUpdates.filter(u => !u._effect);
       const effects = allUpdates.filter(u => u._effect);
@@ -78,7 +80,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       for (const eff of effects) {
         applyOperationEffect(eff, hydratedState);
       }
-    });
+    }));
   }
 
   socket.on("full_state", onFullState);
@@ -467,29 +469,40 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         });
         break;
 
-      case "CREATE_DAY_PAGE_OCCURRENCE":
-        // Creates (or finds existing) occurrence of a module for a specific date.
-        // Date stored in meta.date. Server handles upsert.
-        socket?.emit("create_day_page_occurrence", {
-          occurrenceId: effect.occurrenceId,
-          moduleId: effect.moduleId,
-          containerId: effect.containerId,
-          date: effect.date,
-          fields: effect.fields || {},
-          gridId: state.grid?._id || state.gridId,
-          userId: state.userId,
-        });
+      case "CREATE_MODULE": {
+        // Creates a module + its occurrence in one shot via generic CRUD handlers.
+        const gridId = state.grid?._id || state.gridId;
+        const userId = state.userId;
+        if (gridId && userId) {
+          socket?.emit("create_module", {
+            module: {
+              id: effect.moduleId,
+              role: effect.role || "container",
+              kind: effect.kind || "doc",
+              label: effect.name,
+              name: effect.name,
+              userId,
+              gridId,
+              fieldBindings: [],
+            },
+          });
+          socket?.emit("create_occurrence", {
+            occurrence: {
+              id: effect.occurrenceId,
+              targetType: "module",
+              targetId: effect.moduleId,
+              gridId,
+              parentId: effect.parentId || null,
+              viewId: effect.viewId || null,
+              fields: {},
+              meta: { createdByOperation: true },
+              textmap: effect.kind === "doc" ? { type: "doc", content: [] } : null,
+              occurrences: [],
+            },
+          });
+        }
         break;
-
-      case "NAVIGATE_DAY_PAGE":
-        // Atomic: find/create day page occurrence for date + update view.activeOccurrenceId
-        socket?.emit("navigate_day_page", {
-          moduleId: effect.moduleId,
-          viewId: effect.viewId,
-          date: effect.date || new Date().toISOString(),
-          gridId: state.grid?._id || state.gridId,
-        });
-        break;
+      }
 
       case "UPDATE_VIEW":
         socket?.emit("update_view", { view: { id: effect.viewId, ...effect.patch } });
