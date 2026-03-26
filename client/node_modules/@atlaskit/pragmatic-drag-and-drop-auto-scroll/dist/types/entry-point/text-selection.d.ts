@@ -1,2 +1,0 @@
-export declare const autoScrollForTextSelection: (args: import("../internal-types").ElementAutoScrollArgs<import("@atlaskit/pragmatic-drag-and-drop/types").TextSelectionDragType>) => import("@atlaskit/pragmatic-drag-and-drop/types").CleanupFn;
-export declare const autoScrollWindowForTextSelection: (args?: import("../internal-types").WindowAutoScrollArgs<import("@atlaskit/pragmatic-drag-and-drop/types").TextSelectionDragType>) => import("@atlaskit/pragmatic-drag-and-drop/types").CleanupFn;
