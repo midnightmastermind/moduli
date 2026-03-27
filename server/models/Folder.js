@@ -33,9 +33,12 @@ const FolderSchema = new mongoose.Schema(
     // Special folder types
     folderType: {
       type: String,
-      enum: ["normal", "trash", "templates", "day-pages", "category"],
+      enum: ["normal", "trash", "templates", "day-pages", "category", "global", "grid", "panel"],
       default: "normal",
     },
+
+    // Links panel folder to its panel module (only for folderType: "panel")
+    panelId: { type: String, default: null, index: true },
 
     // Optional metadata
     meta: { type: mongoose.Schema.Types.Mixed, default: {} },

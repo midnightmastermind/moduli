@@ -10,6 +10,7 @@ import {
   Box,
   Layers,
   LayoutPanelLeft,
+  FileText,
   Trash2,
   RotateCcw,
 } from "lucide-react";
@@ -211,22 +212,38 @@ export function EntityTreeTab() {
   const placedModuleIds = useMemo(() => {
     const ids = new Set();
     const gridOccIds = state?.grid?.occurrences || [];
-    for (const panelOccId of gridOccIds) {
-      const panelOcc = occurrencesById?.[panelOccId];
-      if (!panelOcc) continue;
-      if (panelOcc.targetId) ids.add(panelOcc.targetId);
-      for (const contOccId of (panelOcc.occurrences || [])) {
-        const contOcc = occurrencesById?.[contOccId];
-        if (!contOcc) continue;
-        if (contOcc.targetId) ids.add(contOcc.targetId);
-        for (const instOccId of (contOcc.occurrences || [])) {
-          const instOcc = occurrencesById?.[instOccId];
-          if (instOcc?.targetId) ids.add(instOcc.targetId);
-        }
+    const collectChildren = (occIds) => {
+      for (const occId of (occIds || [])) {
+        const occ = occurrencesById?.[occId];
+        if (!occ) continue;
+        if (occ.targetId) ids.add(occ.targetId);
+        collectChildren(occ.occurrences);
       }
-    }
+    };
+    collectChildren(gridOccIds);
     return ids;
   }, [state?.grid?.occurrences, occurrencesById]);
+
+  // Build container+instances subtree from a container occurrence
+  const buildContainer = useCallback((contOccId, sq) => {
+    const contOcc = occurrencesById?.[contOccId];
+    if (!contOcc) return null;
+    const cont = getEntity(contOcc.targetId);
+    if (!cont) return null;
+
+    const instances = (contOcc.occurrences || []).map(instOccId => {
+      const instOcc = occurrencesById?.[instOccId];
+      if (!instOcc) return null;
+      const inst = getEntity(instOcc.targetId);
+      if (!inst) return null;
+      return { id: instOccId, label: inst.label || inst.name || instOcc.targetId?.slice(-6), entity: inst, occ: instOcc };
+    }).filter(Boolean);
+
+    const contLabel = cont.label || cont.name || contOcc.targetId?.slice(-6);
+    if (sq && !contLabel?.toLowerCase().includes(sq) && !instances.some(i => i.label?.toLowerCase().includes(sq))) return null;
+
+    return { id: contOccId, label: contLabel, entity: cont, occ: contOcc, instances };
+  }, [occurrencesById, getEntity]);
 
   // Build tree from grid occurrences
   const tree = useMemo(() => {
@@ -239,32 +256,41 @@ export function EntityTreeTab() {
       const panel = getEntity(panelOcc.targetId);
       if (!panel) return null;
 
-      const containers = (panelOcc.occurrences || []).map(contOccId => {
-        const contOcc = occurrencesById?.[contOccId];
-        if (!contOcc) return null;
-        const cont = getEntity(contOcc.targetId);
-        if (!cont) return null;
+      // Detect if panel children are pages or containers
+      const childOccIds = panelOcc.occurrences || [];
+      const firstChildOcc = childOccIds.length > 0 ? occurrencesById?.[childOccIds[0]] : null;
+      const firstChildEntity = firstChildOcc ? getEntity(firstChildOcc.targetId) : null;
+      const hasPages = firstChildEntity?.role === "page";
 
-        const instances = (contOcc.occurrences || []).map(instOccId => {
-          const instOcc = occurrencesById?.[instOccId];
-          if (!instOcc) return null;
-          const inst = getEntity(instOcc.targetId);
-          if (!inst) return null;
-          return { id: instOccId, label: inst.label || inst.name || instOcc.targetId?.slice(-6), entity: inst, occ: instOcc };
+      let pages = null;
+      let containers = null;
+
+      if (hasPages) {
+        // Panel → Pages → Containers → Instances
+        pages = childOccIds.map(pageOccId => {
+          const pageOcc = occurrencesById?.[pageOccId];
+          if (!pageOcc) return null;
+          const page = getEntity(pageOcc.targetId);
+          if (!page) return null;
+
+          const pageContainers = (pageOcc.occurrences || []).map(cid => buildContainer(cid, sq)).filter(Boolean);
+          const pageLabel = page.label || page.name || pageOcc.targetId?.slice(-6);
+          if (sq && !pageLabel?.toLowerCase().includes(sq) && !pageContainers.some(c => c)) return null;
+
+          return { id: pageOccId, label: pageLabel, entity: page, occ: pageOcc, containers: pageContainers };
         }).filter(Boolean);
-
-        const contLabel = cont.label || cont.name || contOcc.targetId?.slice(-6);
-        if (sq && !contLabel?.toLowerCase().includes(sq) && !instances.some(i => i.label?.toLowerCase().includes(sq))) return null;
-
-        return { id: contOccId, label: contLabel, entity: cont, occ: contOcc, instances };
-      }).filter(Boolean);
+      } else {
+        // Legacy: Panel → Containers → Instances
+        containers = childOccIds.map(cid => buildContainer(cid, sq)).filter(Boolean);
+      }
 
       const panelLabel = panel.label || panel.name || panelOcc.targetId?.slice(-6);
-      if (sq && !panelLabel?.toLowerCase().includes(sq) && !containers.some(c => c)) return null;
+      const hasContent = hasPages ? pages.length > 0 : containers.length > 0;
+      if (sq && !panelLabel?.toLowerCase().includes(sq) && !hasContent) return null;
 
-      return { id: panelOccId, label: panelLabel, entity: panel, occ: panelOcc, containers };
+      return { id: panelOccId, label: panelLabel, entity: panel, occ: panelOcc, hasPages, pages, containers };
     }).filter(Boolean);
-  }, [state?.grid?.occurrences, occurrencesById, getEntity, search]);
+  }, [state?.grid?.occurrences, occurrencesById, getEntity, search, buildContainer]);
 
   const treeNodeStyle = (depth) => ({
     display: "flex", alignItems: "center", gap: 4,
@@ -275,7 +301,7 @@ export function EntityTreeTab() {
     userSelect: "none",
   });
 
-  const iconColor = { panel: "#60a5fa", container: "#34d399", instance: "#a78bfa" };
+  const iconColor = { panel: "#60a5fa", page: "#06b6d4", container: "#34d399", instance: "#a78bfa" };
 
   return (
     <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8, height: "100%", overflowY: "auto" }}>
@@ -301,6 +327,9 @@ export function EntityTreeTab() {
 
       {tree.map(panelNode => {
         const panelOpen = !collapsed[panelNode.id];
+        const childCount = panelNode.hasPages
+          ? (panelNode.pages?.length || 0) + "p"
+          : (panelNode.containers?.length || 0) + "c";
         return (
           <div key={panelNode.id}>
             {/* Panel row — draggable when collapsed, tree header when open */}
@@ -310,19 +339,71 @@ export function EntityTreeTab() {
               icon={LayoutPanelLeft}
               iconColor={iconColor.panel}
               label={panelNode.label}
-              rightLabel={`${panelNode.containers.length}c`}
+              rightLabel={childCount}
               onExpand={() => toggle(panelNode.id)}
               isOpen={panelOpen}
               search={search}
               depth={0}
             />
 
-            {/* Containers — only shown when panel is open */}
-            {panelOpen && panelNode.containers.map(contNode => {
+            {/* Panel with pages: Panel → Pages → Containers → Instances */}
+            {panelOpen && panelNode.hasPages && panelNode.pages?.map(pageNode => {
+              const pageOpen = !collapsed[pageNode.id];
+              return (
+                <div key={pageNode.id}>
+                  <DraggableEntityRow
+                    entity={pageNode.entity}
+                    role="page"
+                    icon={FileText}
+                    iconColor={iconColor.page}
+                    label={pageNode.label}
+                    rightLabel={`${pageNode.containers.length}c`}
+                    onExpand={() => toggle(pageNode.id)}
+                    isOpen={pageOpen}
+                    search={search}
+                    depth={1}
+                  />
+
+                  {pageOpen && pageNode.containers.map(contNode => {
+                    const contOpen = !collapsed[contNode.id];
+                    return (
+                      <div key={contNode.id}>
+                        <DraggableEntityRow
+                          entity={contNode.entity}
+                          role="container"
+                          icon={Layers}
+                          iconColor={iconColor.container}
+                          label={contNode.label}
+                          rightLabel={`${contNode.instances.length}i`}
+                          onExpand={() => toggle(contNode.id)}
+                          isOpen={contOpen}
+                          search={search}
+                          depth={2}
+                        />
+                        {contOpen && contNode.instances.map(instNode => (
+                          <DraggableInstanceRow
+                            key={instNode.id}
+                            entity={instNode.entity}
+                            depth={3}
+                            label={instNode.label}
+                            treeNodeStyle={treeNodeStyle}
+                            iconColor={iconColor}
+                            search={search}
+                            ancestry={`${panelNode.label} › ${pageNode.label} › ${contNode.label}`}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+
+            {/* Legacy panels without pages: Panel → Containers → Instances */}
+            {panelOpen && !panelNode.hasPages && panelNode.containers?.map(contNode => {
               const contOpen = !collapsed[contNode.id];
               return (
                 <div key={contNode.id}>
-                  {/* Container row — draggable when collapsed, tree header when open */}
                   <DraggableEntityRow
                     entity={contNode.entity}
                     role="container"
@@ -335,8 +416,6 @@ export function EntityTreeTab() {
                     search={search}
                     depth={1}
                   />
-
-                  {/* Instances — draggable to containers */}
                   {contOpen && contNode.instances.map(instNode => (
                     <DraggableInstanceRow
                       key={instNode.id}
@@ -397,24 +476,18 @@ export function EntityTreeTab() {
                   <Trash2 style={{ width: 10, height: 10 }} />
                 </button>
               );
-              if (role === "panel") {
+              const entityRoleMap = {
+                panel: { icon: LayoutPanelLeft, color: iconColor.panel },
+                page: { icon: FileText, color: iconColor.page },
+                container: { icon: Layers, color: iconColor.container },
+              };
+              if (entityRoleMap[role]) {
+                const { icon, color } = entityRoleMap[role];
                 return (
                   <div key={id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <DraggableEntityRow entity={m} role="panel" icon={LayoutPanelLeft}
-                        iconColor={iconColor.panel} label={lbl} rightLabel="" isOpen={false}
-                        onExpand={() => {}} search={search} depth={0} />
-                    </div>
-                    {trashBtn}
-                  </div>
-                );
-              }
-              if (role === "container") {
-                return (
-                  <div key={id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <DraggableEntityRow entity={m} role="container" icon={Layers}
-                        iconColor={iconColor.container} label={lbl} rightLabel="" isOpen={false}
+                      <DraggableEntityRow entity={m} role={role} icon={icon}
+                        iconColor={color} label={lbl} rightLabel="" isOpen={false}
                         onExpand={() => {}} search={search} depth={0} />
                     </div>
                     {trashBtn}

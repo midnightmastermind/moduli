@@ -2,6 +2,11 @@
 
 _Updated: Mar 26 2026. This folder implements occurrence-based view routing._
 
+## Recent Changes (Mar 26 2026 — Page Module Integration)
+- **Page.jsx** (NEW): Page is a navigable content unit inside a panel. Shell has drag handle + radial menu + page name (like docs). Routes content by `kind`: board (sortable containers), doc (TipTap via Artifact), display (artifact viewer). Supports inline label editing, context menu, QuickAddMenu for board pages.
+- **View.jsx**: Added `Page` import. Added `role === "page"` routing — renders `<Page>` component for page occurrences.
+- **Panel.jsx**: Added `Page` import. Panel now detects whether children are pages or containers (legacy). `hasPages`/`pagesList`/`containersList` computed from panel child occurrences. When `hasPages=true`, renders page list instead of container list. Panel header dynamically shows active page label (`pagesList[0]?.page?.label`), falls back to `layout.name`. QuickAdd: when `hasPages`, creates pages (`targetRole="page"`) with `parentId=globalFolderId`; legacy panels create containers. `globalFolderId` resolved from `grid.manifestId → manifest → rootFolder → folderType "global"`. Legacy container panels unchanged.
+
 ## Recent Changes (Mar 26 2026 — Canvas Drag Fix)
 - **containerHelpers.jsx**: `CanvasCard` — changed `draggable()` type from `"module"` to `DragType.INSTANCE`. Added `containerId` + `panelId` props and includes `context: { containerId, panelId, instanceId, occurrenceId }`. Drag-out now goes through INSTANCE handler (MOVE), not MODULE handler (COPY). Grip handle gets `pointerEvents: "auto"` to stay interactive in draw mode. Added `data-dnd-handle="true"` attr.
 - **containerHelpers.jsx**: `CanvasDrawSection` — moved `onPointerDown/Move/Up` from `<canvas>` element to parent div (with `listDropRef`). Canvas element is now always `pointer-events: none` — drag-and-drop events reach the drop zone div in all draw modes. Drawing capture uses `e.currentTarget.setPointerCapture` on the div. Draw handler guards against grip handle clicks via `e.target.closest("[data-dnd-handle]")`. Added `panelId` prop, threads it to each CanvasCard.

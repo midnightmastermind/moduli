@@ -38,6 +38,9 @@ const GridSchema = new mongoose.Schema({
 
   // Templates: saved snapshots of container contents that can be re-applied
   // Each template stores which instances go in which container with field defaults
+  // User manifest ID (one per user, created on first grid setup)
+  manifestId: { type: String, default: null },
+
   templates: {
     type: [{
       id: { type: String, required: true },

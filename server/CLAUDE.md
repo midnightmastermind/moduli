@@ -1,6 +1,13 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-03-25. Check this file before re-reading source._
+_Updated: 2026-03-26. Check this file before re-reading source._
+
+## Recent Changes (Mar 26 2026 — Page Module Integration in Sample Data)
+- **createDefaultUserData.js**: Panels renamed to generic "Panel A"–"Panel G" (label + layout.name). Old panel labels become page names. Deferred wiring creates page modules (`role: "page"`, `kind: "board"`) + page occurrences (with `parentId: userGlobalFolderId`) between the 5 board panels and their container occurrences. Notebook (Panel F) and Freepad (Panel G) keep direct container wiring. User manifest simplified: Root + Global folder only (no per-panel folders). Global folder = page library. Panel-local pages tracked via `panelOcc.occurrences[]`.
+- **socketHandlers/crud.js**: 5 new composite page handlers: `create_page`, `delete_page`, `move_page`, `pin_page_to_panel`, `unpin_page_from_panel`.
+- **models/Folder.js**: Added "global", "grid", "panel" to folderType enum; added panelId field.
+- **models/Manifest.js**: Added "user" to manifestType enum.
+- **models/Grid.js**: Added manifestId field.
 
 ## Recent Changes (Mar 25 2026 — Module Reference Field Type)
 - **models/Field.js**: Added `"module"` to type enum (now 8 types). Value stores `{ value: moduleId, flow: "in" }` — references another module by ID.

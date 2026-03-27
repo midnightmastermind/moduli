@@ -11,6 +11,7 @@ import { GridActionsContext } from "../GridActionsContext";
 
 const ROLE_COLORS = {
   panel: "rgba(59,130,246,0.7)",
+  page: "rgba(6,182,212,0.7)",
   container: "rgba(34,197,94,0.7)",
   instance: "rgba(168,85,247,0.7)",
 };

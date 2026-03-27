@@ -4,6 +4,7 @@
 import { useContext, useState, useCallback } from "react";
 import { GridActionsContext } from "../GridActionsContext.js";
 import Panel from "./Panel.jsx";
+import Page from "./Page.jsx";
 import Container from "./Container.jsx";
 import Instance from "./Instance.jsx";
 import Artifact from "./Artifact.jsx";
@@ -74,6 +75,8 @@ export default function View({ occurrence, embedded = false, dispatch, socket, .
     );
   } else if (role === "panel") {
     Inner = <Panel occurrence={occurrence} embedded={embedded} dispatch={dispatch} socket={socket} {...props} />;
+  } else if (role === "page") {
+    Inner = <Page occurrence={occurrence} dispatch={dispatch} socket={socket} {...props} />;
   } else if (role === "container") {
     Inner = <Container occurrence={occurrence} embedded={embedded} dispatch={dispatch} socket={socket} {...props} />;
   } else if (role === "instance") {

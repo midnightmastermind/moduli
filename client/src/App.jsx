@@ -468,6 +468,11 @@ export default function App() {
     [state.panels]
   );
 
+  const pagesById = useMemo(
+    () => buildLookup(state.pages),
+    [state.pages]
+  );
+
   const actionsValue = useMemo(
     () => ({
       socket,
@@ -483,6 +488,7 @@ export default function App() {
       linkedGroupIndex,
       containersById,
       fieldsById,
+      pagesById,
       panelsById,
       manifestsById,
       viewsById,
@@ -504,7 +510,7 @@ export default function App() {
       // so that frequent computedValues changes (via GridLiveContext) don't
       // force all GridActionsContext consumers to re-render.
       state.grid, state.occurrences, state.containers, state.instances,
-      state.fields, state.modules, state.panels,
+      state.fields, state.modules, state.panels, state.pages,
       state.userId, state.gridId, state.activeId, state.softTick,
       modulesById,
       roleByModuleId,
@@ -513,6 +519,7 @@ export default function App() {
       linkedGroupIndex,
       containersById,
       fieldsById,
+      pagesById,
       panelsById,
       manifestsById,
       viewsById,

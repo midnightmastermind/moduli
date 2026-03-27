@@ -32,10 +32,10 @@ client/src/
     selectors.js           — Occurrence resolution helpers
     actions.js             — Action type constants + creators
 
-  modules/                 — Primary rendering: Panel → Container → Instance
+  modules/                 — Primary rendering: Panel → Page → Container → Instance
     Module.jsx             — Thin router to Panel/Container/Instance
-    Panel.jsx, Container.jsx, Instance.jsx, ModuleInstance.jsx
-    View.jsx               — Layout routing (artifact sidebar, etc.)
+    Panel.jsx, Page.jsx, Container.jsx, Instance.jsx, ModuleInstance.jsx
+    View.jsx               — Layout routing (page, artifact sidebar, etc.)
     Artifact.jsx           — File renderer (md/image/pdf/audio/video)
     ManifestTree.jsx       — Sidebar folder tree for artifacts
     containerHelpers.jsx   — Sub-components (DocEditorShell, PoolPill, CanvasCard)
@@ -118,12 +118,20 @@ Stores `namedFilters[]`, `activeFilterId`, `activeFilterValues{}`, `templates[]`
 ```
 Grid
  └── panel occurrence  (placement: col/row, viewId → View?)
-      └── occurrences: [containerOccId, ...]
-           └── container occurrence  (textmap for docs, viewId → View?)
-                └── occurrences: [instanceOccId, ...]
-                     └── instance occurrence  (fields: { fieldId: { value, flow } })
-                          └── targetId → Module (fieldBindings, operationBindings)
+      └── occurrences: [pageOccId, ...]
+           └── page occurrence  (role: "page", kind: "board"|"doc"|"display")
+                └── occurrences: [containerOccId, ...]
+                     └── container occurrence  (textmap for docs, viewId → View?)
+                          └── occurrences: [instanceOccId, ...]
+                               └── instance occurrence  (fields: { fieldId: { value, flow } })
+                                    └── targetId → Module (fieldBindings, operationBindings)
 ```
+
+**Legacy support:** Panels with direct container children (no page layer) still render correctly. The client detects whether panel children are pages or containers and routes accordingly.
+
+**Special panels:** Notebook (artifact view with ManifestTree sidebar) and Freepad (canvas) bypass the page system — their viewId triggers artifact/canvas routing in View.jsx before Panel.jsx is reached.
+
+**Page manifest:** Grid stores `manifestId` → user manifest with a Global folder. Page occurrences have `parentId` pointing to the Global folder (page library). Panel-local pages are tracked via `panelOcc.occurrences[]`. The Global manifest works like the Components tab but with folder organization. Dragging a page to another panel creates/moves an occurrence (copy/move) — the Module stays in Global.
 
 ---
 
@@ -179,7 +187,9 @@ Two hard rules:
 
 `Grid.jsx` renders a CSS grid. Each cell holds a panel occurrence. Rendering cascades downward:
 
-**Grid** → iterates panel occurrences → **Panel.jsx** → iterates `panelOcc.occurrences` → **Container.jsx** → iterates `containerOcc.occurrences` → **Instance.jsx** → renders field renderers from `module.fieldBindings` + `occurrence.fields`.
+**Grid** → iterates panel occurrences → **Panel.jsx** → iterates pages → **Page.jsx** → iterates `pageOcc.occurrences` → **Container.jsx** → iterates `containerOcc.occurrences` → **Instance.jsx** → renders field renderers from `module.fieldBindings` + `occurrence.fields`.
+
+**Page.jsx** is a navigable content unit inside a panel. Each page has a drag handle, radial menu, and label (like a doc header). Pages route content by `kind`: board (sortable container list), doc (TipTap editor via Artifact), display (artifact viewer). The panel header dynamically shows the active page's label.
 
 **ModuleInstance.jsx** wraps Instance with a drag handle (RadialMenu) and context menu.
 
@@ -365,7 +375,7 @@ These are load-bearing constraints. Breaking them will cause bugs that are hard 
 2. **bindSocketToStore.js is the ONLY file that listens to socket events**
 3. **Components never touch the socket directly** — always through CommitHelpers
 4. **Ordering lives in `occurrence.occurrences[]`** — never on module arrays
-5. **`role`/`kind` on Module are soft-deprecated** — use hierarchy position + `view.viewType`
+5. **`role`/`kind` on Module are soft-deprecated** — use hierarchy position + `view.viewType`. Exception: `role: "page"` is canonical (pages are detected by role in Panel.jsx and selectors.js)
 6. **DragProvider reads state via stateRef (session ref), not React state** — stale closures will bite you otherwise
 7. **computedValues lives in GridLiveContext**, not GridActionsContext — this is a performance boundary
 8. **No feature flags or backwards-compat shims** — just change the code directly
@@ -377,8 +387,9 @@ These are load-bearing constraints. Breaking them will cause bugs that are hard 
 `server/utils/createDefaultUserData.js` (~2000 lines) generates everything. It is the single best reference for understanding how modules, occurrences, fields, operations, and views wire together. Run `cd server && node scripts/resetData.js` to reset.
 
 What it creates:
-- 4-column grid with panels: Schedule, Toolkit, Goals, Notebook, Freepad
-- ~131 instances, ~82 containers, ~26 operations
+- 4-column grid with 7 panels (Panel A–G), each containing a page with the descriptive label (e.g., Panel A has a "Daily Toolkit" page, Panel C has a "Schedule" page)
+- Panel → Page → Container hierarchy for the 5 board panels; Notebook and Freepad panels use special artifact/canvas views
+- ~131 instances, ~82 containers, ~26 operations, 5 page modules
 - Fields across all 8 types (reps, protein, money, steps, mood, muscle group, energy, workout time, etc.)
 - Named filters: Daily (by scheduledDate), Weekly, All Time
 - Notebook panel with TipTap docs parsed from markdown files

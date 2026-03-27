@@ -11,6 +11,7 @@ export function createLookupsFromState(state) {
   const panelsById = {};
   const containersById = {};
   const instancesById = {};
+  const pagesById = {};
   const occurrencesById = {};
   const fieldsById = {};
   const modulesById = {};
@@ -21,23 +22,44 @@ export function createLookupsFromState(state) {
   // Build modulesById from all modules
   (state.modules || []).forEach(m => { if (m.id) modulesById[m.id] = m; });
 
+  // Helper: traverse container → instance children
+  function traverseContainerChildren(containerOcc) {
+    for (const instanceOccId of containerOcc.occurrences || []) {
+      const instanceOcc = occurrencesById[instanceOccId];
+      if (!instanceOcc) continue;
+      const instance = modulesById[instanceOcc.targetId];
+      if (instance) instancesById[instance.id] = instance;
+    }
+  }
+
   // Populate role buckets from occurrence hierarchy (canonical)
+  // Supports both legacy (panel → container → instance) and new (panel → page → container → instance)
   const panelOccIds = state.grid?.occurrences || [];
   for (const panelOccId of panelOccIds) {
     const panelOcc = occurrencesById[panelOccId];
     if (!panelOcc) continue;
     const panel = modulesById[panelOcc.targetId];
     if (panel) panelsById[panel.id] = panel;
-    for (const containerOccId of panelOcc.occurrences || []) {
-      const containerOcc = occurrencesById[containerOccId];
-      if (!containerOcc) continue;
-      const container = modulesById[containerOcc.targetId];
-      if (container) containersById[container.id] = container;
-      for (const instanceOccId of containerOcc.occurrences || []) {
-        const instanceOcc = occurrencesById[instanceOccId];
-        if (!instanceOcc) continue;
-        const instance = modulesById[instanceOcc.targetId];
-        if (instance) instancesById[instance.id] = instance;
+    for (const childOccId of panelOcc.occurrences || []) {
+      const childOcc = occurrencesById[childOccId];
+      if (!childOcc) continue;
+      const childMod = modulesById[childOcc.targetId];
+      if (!childMod) continue;
+
+      if (childMod.role === "page") {
+        // New hierarchy: panel → page → container → instance
+        pagesById[childMod.id] = childMod;
+        for (const containerOccId of childOcc.occurrences || []) {
+          const containerOcc = occurrencesById[containerOccId];
+          if (!containerOcc) continue;
+          const container = modulesById[containerOcc.targetId];
+          if (container) containersById[container.id] = container;
+          traverseContainerChildren(containerOcc);
+        }
+      } else {
+        // Legacy hierarchy: panel → container → instance
+        containersById[childMod.id] = childMod;
+        traverseContainerChildren(childOcc);
       }
     }
   }
@@ -46,6 +68,7 @@ export function createLookupsFromState(state) {
   (state.modules || []).forEach(m => {
     if (!m.id || m.trashed) return;
     if (m.role === "panel" && !panelsById[m.id]) panelsById[m.id] = m;
+    else if (m.role === "page" && !pagesById[m.id]) pagesById[m.id] = m;
     else if (m.role === "container" && !containersById[m.id]) containersById[m.id] = m;
     else if (m.role === "instance" && !instancesById[m.id]) instancesById[m.id] = m;
   });
@@ -59,6 +82,7 @@ export function createLookupsFromState(state) {
     panelsById,
     containersById,
     instancesById,
+    pagesById,
     occurrencesById,
     fieldsById,
   };
@@ -71,19 +95,38 @@ export function createLookupsFromState(state) {
  */
 export function computeRoleByModuleId(grid, occurrencesById, modulesById) {
   const map = {};
+
+  function traverseContainerChildren(containerOcc) {
+    for (const instanceOccId of containerOcc.occurrences || []) {
+      const instanceOcc = occurrencesById[instanceOccId];
+      if (!instanceOcc) continue;
+      if (instanceOcc.targetId) map[instanceOcc.targetId] = "instance";
+    }
+  }
+
   const panelOccIds = grid?.occurrences || [];
   for (const panelOccId of panelOccIds) {
     const panelOcc = occurrencesById[panelOccId];
     if (!panelOcc) continue;
     if (panelOcc.targetId) map[panelOcc.targetId] = "panel";
-    for (const containerOccId of panelOcc.occurrences || []) {
-      const containerOcc = occurrencesById[containerOccId];
-      if (!containerOcc) continue;
-      if (containerOcc.targetId) map[containerOcc.targetId] = "container";
-      for (const instanceOccId of containerOcc.occurrences || []) {
-        const instanceOcc = occurrencesById[instanceOccId];
-        if (!instanceOcc) continue;
-        if (instanceOcc.targetId) map[instanceOcc.targetId] = "instance";
+    for (const childOccId of panelOcc.occurrences || []) {
+      const childOcc = occurrencesById[childOccId];
+      if (!childOcc) continue;
+      const childMod = modulesById?.[childOcc.targetId];
+
+      if (childMod?.role === "page") {
+        // New hierarchy: panel → page → container → instance
+        map[childOcc.targetId] = "page";
+        for (const containerOccId of childOcc.occurrences || []) {
+          const containerOcc = occurrencesById[containerOccId];
+          if (!containerOcc) continue;
+          if (containerOcc.targetId) map[containerOcc.targetId] = "container";
+          traverseContainerChildren(containerOcc);
+        }
+      } else {
+        // Legacy hierarchy: panel → container → instance
+        if (childOcc.targetId) map[childOcc.targetId] = "container";
+        traverseContainerChildren(childOcc);
       }
     }
   }
@@ -109,6 +152,7 @@ export function autofillOccurrence(occurrence, lookups) {
     filled.module = mod;
     // Use lookups (hierarchy-based) as canonical role source; module.role as fallback
     if (lookups.panelsById?.[mod.id] || mod.role === "panel") filled.panel = mod;
+    else if (lookups.pagesById?.[mod.id] || mod.role === "page") filled.page = mod;
     else if (lookups.containersById?.[mod.id] || mod.role === "container") filled.container = mod;
     else if (lookups.instancesById?.[mod.id] || mod.role === "instance") filled.instance = mod;
   };

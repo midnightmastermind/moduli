@@ -604,6 +604,170 @@ export function registerCrudHandlers(socket, {
     }
   });
 
+  // ── PAGE (composite operations) ──────────────────────────
+  // create_page: Creates Module (role: "page") + View + Occurrence, adds occ to panel's occurrences[]
+  socket.on("create_page", async ({ module: moduleData, view: viewData, occurrence: occData, panelOccurrenceId } = {}) => {
+    try {
+      if (!userId) return;
+      if (!moduleData?.id || !occData?.id) return;
+      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
+      const uc = ensureUserCache(userId);
+
+      // 1. Save Module
+      const mod = { ...moduleData, userId, role: "page" };
+      uc.modulesById[mod.id] = mod;
+      await Module.findOneAndUpdate({ id: mod.id, userId }, mod, { upsert: true });
+
+      // 2. Save View (if provided)
+      let savedView = null;
+      if (viewData?.id) {
+        savedView = { ...viewData, userId };
+        uc.viewsById[savedView.id] = savedView;
+        await View.findOneAndUpdate({ id: savedView.id, userId }, savedView, { upsert: true });
+      }
+
+      // 3. Save Occurrence
+      const occ = {
+        ...createOccurrenceData({
+          id: occData.id, userId,
+          targetType: "module", targetId: moduleData.id,
+          gridId: occData.gridId,
+          fields: occData.fields || {},
+        }),
+        ...(occData.parentId != null && { parentId: occData.parentId }),
+        ...(occData.viewId != null && { viewId: occData.viewId }),
+        ...(occData.sortOrder != null && { sortOrder: occData.sortOrder }),
+        ...(Array.isArray(occData.occurrences) && { occurrences: occData.occurrences }),
+      };
+      uc.occurrencesById[occ.id] = occ;
+      await Occurrence.findOneAndUpdate({ id: occ.id, userId }, occ, { upsert: true });
+
+      // 4. Add page occ to panel's occurrences[]
+      if (panelOccurrenceId) {
+        const panelOcc = uc.occurrencesById[panelOccurrenceId];
+        if (panelOcc) {
+          const updated = { ...panelOcc, occurrences: [...(panelOcc.occurrences || []), occ.id] };
+          uc.occurrencesById[panelOccurrenceId] = updated;
+          await Occurrence.findOneAndUpdate({ id: panelOccurrenceId, userId }, { occurrences: updated.occurrences });
+          socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: updated });
+        }
+      }
+
+      // 5. Broadcast
+      socket.to(userRoom(userId)).emit("module_created", { module: mod });
+      if (savedView) socket.to(userRoom(userId)).emit("view_created", { view: savedView });
+      socket.to(userRoom(userId)).emit("occurrence_created", { occurrence: occ });
+    } catch (err) {
+      console.error("create_page error:", err);
+      socket.emit("server_error", "Failed to create page");
+    }
+  });
+
+  // delete_page: Removes page occ from panel's occurrences[], deletes occurrence tree, trashes module
+  socket.on("delete_page", async ({ pageOccurrenceId, panelOccurrenceId } = {}) => {
+    try {
+      if (!userId || !pageOccurrenceId) return;
+      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
+      const uc = ensureUserCache(userId);
+
+      // 1. Remove from panel's occurrences[]
+      if (panelOccurrenceId) {
+        const panelOcc = uc.occurrencesById[panelOccurrenceId];
+        if (panelOcc) {
+          const updated = { ...panelOcc, occurrences: (panelOcc.occurrences || []).filter(id => id !== pageOccurrenceId) };
+          uc.occurrencesById[panelOccurrenceId] = updated;
+          await Occurrence.findOneAndUpdate({ id: panelOccurrenceId, userId }, { occurrences: updated.occurrences });
+          socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: updated });
+        }
+      }
+
+      // 2. Trash the module
+      const pageOcc = uc.occurrencesById[pageOccurrenceId];
+      if (pageOcc?.targetId && uc.modulesById[pageOcc.targetId]) {
+        uc.modulesById[pageOcc.targetId].trashed = true;
+        await Module.findOneAndUpdate({ id: pageOcc.targetId, userId }, { trashed: true });
+        socket.to(userRoom(userId)).emit("module_updated", { module: { id: pageOcc.targetId, trashed: true } });
+      }
+
+      // 3. Recursively delete occurrence tree
+      const toDelete = new Set();
+      function collectDescendants(id) {
+        toDelete.add(id);
+        const occ = uc.occurrencesById?.[id];
+        if (occ?.occurrences) {
+          for (const childId of occ.occurrences) collectDescendants(childId);
+        }
+      }
+      collectDescendants(pageOccurrenceId);
+      for (const id of toDelete) {
+        delete uc.occurrencesById[id];
+        await Occurrence.findOneAndDelete({ id, userId });
+        socket.to(userRoom(userId)).emit("occurrence_deleted", { occurrenceId: id });
+      }
+    } catch (err) {
+      console.error("delete_page error:", err);
+      socket.emit("server_error", "Failed to delete page");
+    }
+  });
+
+  // move_page: Updates page occurrence parentId + sortOrder (manifest tree drag)
+  socket.on("move_page", async ({ pageOccurrenceId, targetFolderId, sortOrder } = {}) => {
+    try {
+      if (!userId || !pageOccurrenceId) return;
+      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
+      const uc = ensureUserCache(userId);
+      const occ = uc.occurrencesById[pageOccurrenceId];
+      if (!occ) return;
+      const patch = {};
+      if (targetFolderId !== undefined) patch.parentId = targetFolderId;
+      if (sortOrder !== undefined) patch.sortOrder = sortOrder;
+      const updated = { ...occ, ...patch };
+      uc.occurrencesById[pageOccurrenceId] = updated;
+      await Occurrence.findOneAndUpdate({ id: pageOccurrenceId, userId }, patch);
+      socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: updated });
+    } catch (err) {
+      console.error("move_page error:", err);
+      socket.emit("server_error", "Failed to move page");
+    }
+  });
+
+  // pin_page_to_panel: Adds page occ ID to panel's occurrences[] (transient pin)
+  socket.on("pin_page_to_panel", async ({ pageOccurrenceId, panelOccurrenceId } = {}) => {
+    try {
+      if (!userId || !pageOccurrenceId || !panelOccurrenceId) return;
+      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
+      const uc = ensureUserCache(userId);
+      const panelOcc = uc.occurrencesById[panelOccurrenceId];
+      if (!panelOcc) return;
+      if ((panelOcc.occurrences || []).includes(pageOccurrenceId)) return; // already pinned
+      const updated = { ...panelOcc, occurrences: [...(panelOcc.occurrences || []), pageOccurrenceId] };
+      uc.occurrencesById[panelOccurrenceId] = updated;
+      await Occurrence.findOneAndUpdate({ id: panelOccurrenceId, userId }, { occurrences: updated.occurrences });
+      socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: updated });
+    } catch (err) {
+      console.error("pin_page_to_panel error:", err);
+      socket.emit("server_error", "Failed to pin page to panel");
+    }
+  });
+
+  // unpin_page_from_panel: Removes page occ ID from panel's occurrences[] (only transient pins)
+  socket.on("unpin_page_from_panel", async ({ pageOccurrenceId, panelOccurrenceId } = {}) => {
+    try {
+      if (!userId || !pageOccurrenceId || !panelOccurrenceId) return;
+      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
+      const uc = ensureUserCache(userId);
+      const panelOcc = uc.occurrencesById[panelOccurrenceId];
+      if (!panelOcc) return;
+      const updated = { ...panelOcc, occurrences: (panelOcc.occurrences || []).filter(id => id !== pageOccurrenceId) };
+      uc.occurrencesById[panelOccurrenceId] = updated;
+      await Occurrence.findOneAndUpdate({ id: panelOccurrenceId, userId }, { occurrences: updated.occurrences });
+      socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: updated });
+    } catch (err) {
+      console.error("unpin_page_from_panel error:", err);
+      socket.emit("server_error", "Failed to unpin page from panel");
+    }
+  });
+
   // update_occurrence_hidden: set by HIDE_OCCURRENCE / SHOW_OCCURRENCE operation effects
   socket.on("update_occurrence_hidden", async ({ occurrenceId, hidden } = {}) => {
     try {

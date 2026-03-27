@@ -2,6 +2,11 @@
 
 _Updated: 2026-03-22. Check this file before re-reading source._
 
+## Recent Changes (Mar 26 2026 — Page Module Integration)
+- **selectors.js**: `autofillOccurrence.fillFromModule` now includes page role check: `lookups.pagesById?.[mod.id] || mod.role === "page"` → `filled.page = mod`. Was missing — page occurrences didn't get role metadata.
+- **selectors.js**: `createLookupsFromState` already populates `pagesById` bucket for page modules.
+- **masterReducer.js**: `deriveRoleArrays` includes `pages` array. LOGOUT clears `pages: []`. `_appendOcc`/`_removeOcc` hints work for page operations.
+
 ## Recent Changes (Mar 22 2026 — Dynamic Page Creation via Operations Pipeline)
 - **bindSocketToStore.js**: Added `CREATE_MODULE` effect handler — emits `create_module` + `create_occurrence` socket events to create module + occurrence in one shot. Removed `CREATE_DAY_PAGE_OCCURRENCE` and `NAVIGATE_DAY_PAGE` effect handlers (replaced by generic CREATE_MODULE + UPDATE_VIEW pipeline).
 

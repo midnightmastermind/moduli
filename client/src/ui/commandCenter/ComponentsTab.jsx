@@ -24,10 +24,11 @@ const inputStyle = {
 
 const ROLE_COLORS = {
   panel: "rgba(59,130,246,0.7)",
+  page: "rgba(6,182,212,0.7)",
   container: "rgba(34,197,94,0.7)",
   instance: "rgba(168,85,247,0.7)",
 };
-const ROLE_LABELS = { panel: "panel", container: "container", instance: "instance" };
+const ROLE_LABELS = { panel: "panel", page: "page", container: "container", instance: "instance" };
 
 export function ModulePill({ module, inferredRole }) {
   const ref = useRef(null);
@@ -186,7 +187,7 @@ export function ComponentsTab() {
       if (search && !label.includes(search.toLowerCase())) return false;
       return true;
     }).sort((a, b) => {
-      const roleOrder = { panel: 0, container: 1, instance: 2 };
+      const roleOrder = { panel: 0, page: 1, container: 2, instance: 3 };
       const ra = roleByModuleId?.[a.id] || a.role || "instance";
       const rb = roleByModuleId?.[b.id] || b.role || "instance";
       const ro = (roleOrder[ra] ?? 3) - (roleOrder[rb] ?? 3);
@@ -223,7 +224,7 @@ export function ComponentsTab() {
           placeholder="Search modules…"
           style={{ ...inputStyle, flex: 1, height: 26 }}
         />
-        {["all", "panel", "container", "instance"].map(r => (
+        {["all", "panel", "page", "container", "instance"].map(r => (
           <button
             key={r}
             onClick={() => setRoleFilter(r)}

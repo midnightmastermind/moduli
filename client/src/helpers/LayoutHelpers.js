@@ -344,6 +344,87 @@ export function createInstanceInContainer({
 }
 
 // ============================================================================
+// PAGE HELPERS
+// ============================================================================
+
+/**
+ * Gets the pages for a panel by looking up its child occurrences that target page modules.
+ * Returns [{ page, occurrence }] for all pages in a panel.
+ */
+export function getPanelPages(panelOccurrence, occurrencesLookup, modulesLookup) {
+  const ids = resolveChildOccurrenceIds(panelOccurrence);
+  if (!ids.length) return [];
+  return ids
+    .map(occId => {
+      const occ = getItemById(occId, occurrencesLookup);
+      if (!occ) return null;
+      const mod = getItemById(occ.targetId, modulesLookup);
+      if (!mod || mod.role !== "page") return null;
+      return { page: mod, occurrence: occ };
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Gets containers inside a page occurrence.
+ */
+export function getPageContainers(pageOccurrence, occurrencesLookup, containersLookup) {
+  const ids = resolveChildOccurrenceIds(pageOccurrence);
+  if (!ids.length) return [];
+  return ids
+    .map(occId => {
+      const occ = getItemById(occId, occurrencesLookup);
+      if (!occ) return null;
+      return getItemById(occ.targetId, containersLookup);
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Creates a page module + view + occurrence inside a panel.
+ */
+export function createPageInPanel({
+  dispatch,
+  socket,
+  gridId,
+  panelOccurrence,
+  page,
+  view,
+  userId,
+  folderId,
+  index = null,
+  emit = true,
+}) {
+  if (!gridId || !panelOccurrence || !page?.id || !userId) return;
+
+  const occurrenceId = uid();
+
+  const occurrence = {
+    id: occurrenceId,
+    userId,
+    targetType: "module",
+    targetId: page.id,
+    gridId,
+    timestamp: new Date(),
+    fields: {},
+    occurrences: [],
+    ...(view?.id ? { viewId: view.id } : {}),
+    ...(folderId ? { parentId: folderId } : {}),
+  };
+
+  CommitHelpers.createPage({
+    dispatch, socket,
+    module: { ...page, role: "page" },
+    view: view || null,
+    occurrence,
+    panelOccurrenceId: panelOccurrence.id,
+    emit,
+  });
+
+  return { page, occurrence, view };
+}
+
+// ============================================================================
 // BEHAVIOR RESOLUTION (Phase 5.2)
 // ============================================================================
 

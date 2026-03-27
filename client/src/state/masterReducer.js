@@ -17,14 +17,15 @@ import { ActionTypes } from "./actions";
 
 // Helper: split a flat modules array into role-based derived arrays
 function deriveRoleArrays(modules = []) {
-  const panels = [], containers = [], instances = [];
+  const panels = [], containers = [], instances = [], pages = [];
   for (const m of modules) {
     if (m.trashed) continue;
     if (m.role === "panel") panels.push(m);
+    else if (m.role === "page") pages.push(m);
     else if (m.role === "container") containers.push(m);
     else if (m.role === "instance") instances.push(m);
   }
-  return { panels, containers, instances };
+  return { panels, containers, instances, pages };
 }
 
 export function masterReducer(state, action) {
@@ -92,6 +93,7 @@ export function masterReducer(state, action) {
                 grid: null,
                 modules: [],
                 panels: [],
+                pages: [],
                 availableGrids: [],
                 containers: [],
                 instances: [],
@@ -245,14 +247,28 @@ export function masterReducer(state, action) {
             const occurrence = action.payload?.occurrence ?? action.payload;
             if (!occurrence?.id) return state;
 
-            const exists = (state.occurrences || []).some((o) => o.id === occurrence.id);
+            // Handle _appendOcc / _removeOcc hints for optimistic parent updates
+            const { _appendOcc, _removeOcc, ...occData } = occurrence;
 
-            return {
-                ...state,
-                occurrences: exists
-                    ? state.occurrences.map((o) => (o.id === occurrence.id ? { ...o, ...occurrence } : o))
-                    : [...(state.occurrences || []), occurrence],
-            };
+            const exists = (state.occurrences || []).some((o) => o.id === occData.id);
+
+            let nextOccurrences;
+            if (_appendOcc || _removeOcc) {
+                // Optimistic: append or remove a child occ ID from this occurrence's list
+                nextOccurrences = (state.occurrences || []).map((o) => {
+                    if (o.id !== occData.id) return o;
+                    let children = [...(o.occurrences || [])];
+                    if (_appendOcc && !children.includes(_appendOcc)) children.push(_appendOcc);
+                    if (_removeOcc) children = children.filter(id => id !== _removeOcc);
+                    return { ...o, ...occData, occurrences: children };
+                });
+            } else {
+                nextOccurrences = exists
+                    ? state.occurrences.map((o) => (o.id === occData.id ? { ...o, ...occData } : o))
+                    : [...(state.occurrences || []), occData];
+            }
+
+            return { ...state, occurrences: nextOccurrences };
         }
 
         case ActionTypes.DELETE_OCCURRENCE: {

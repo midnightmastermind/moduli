@@ -223,6 +223,65 @@ export function deleteFolder({ dispatch, socket, folderId, emit = true }) {
 }
 
 
+// ===== PAGE (composite: module + view + occurrence + panel wiring) =====
+export function createPage({ dispatch, socket, module, view, occurrence, panelOccurrenceId, emit = true }) {
+  if (!module?.id || !occurrence?.id) return;
+  // Optimistic: create module, view, occurrence, update panel
+  dispatch?.(createModuleAction(module));
+  if (view?.id) dispatch?.(createViewAction(view));
+  dispatch?.(createOccurrenceAction(occurrence));
+  if (panelOccurrenceId) {
+    dispatch?.(updateOccurrenceAction({
+      id: panelOccurrenceId,
+      _appendOcc: occurrence.id, // reducer handles append
+    }));
+  }
+  if (shouldEmit(emit)) {
+    socket?.emit("create_page", { module, view, occurrence, panelOccurrenceId });
+  }
+}
+
+export function deletePage({ dispatch, socket, pageOccurrenceId, panelOccurrenceId, emit = true }) {
+  if (!pageOccurrenceId) return;
+  dispatch?.(deleteOccurrenceAction(pageOccurrenceId));
+  if (shouldEmit(emit)) {
+    socket?.emit("delete_page", { pageOccurrenceId, panelOccurrenceId });
+  }
+}
+
+export function movePage({ dispatch, socket, pageOccurrenceId, targetFolderId, sortOrder, emit = true }) {
+  if (!pageOccurrenceId) return;
+  const patch = { id: pageOccurrenceId };
+  if (targetFolderId !== undefined) patch.parentId = targetFolderId;
+  if (sortOrder !== undefined) patch.sortOrder = sortOrder;
+  dispatch?.(updateOccurrenceAction(patch));
+  if (shouldEmit(emit)) {
+    socket?.emit("move_page", { pageOccurrenceId, targetFolderId, sortOrder });
+  }
+}
+
+export function pinPageToPanel({ dispatch, socket, pageOccurrenceId, panelOccurrenceId, emit = true }) {
+  if (!pageOccurrenceId || !panelOccurrenceId) return;
+  dispatch?.(updateOccurrenceAction({
+    id: panelOccurrenceId,
+    _appendOcc: pageOccurrenceId,
+  }));
+  if (shouldEmit(emit)) {
+    socket?.emit("pin_page_to_panel", { pageOccurrenceId, panelOccurrenceId });
+  }
+}
+
+export function unpinPageFromPanel({ dispatch, socket, pageOccurrenceId, panelOccurrenceId, emit = true }) {
+  if (!pageOccurrenceId || !panelOccurrenceId) return;
+  dispatch?.(updateOccurrenceAction({
+    id: panelOccurrenceId,
+    _removeOcc: pageOccurrenceId,
+  }));
+  if (shouldEmit(emit)) {
+    socket?.emit("unpin_page_from_panel", { pageOccurrenceId, panelOccurrenceId });
+  }
+}
+
 // ===== GRID FILTER =====
 export function updateGridFilter({ dispatch, socket, gridId, patch, emit = true }) {
   if (!gridId || !patch) return;

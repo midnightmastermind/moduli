@@ -71,9 +71,10 @@ export const NATIVE_DND_MIME = "application/x-daytracker-dnd";
 
 export const DragType = {
   PANEL: "panel",
+  PAGE: "page",
   CONTAINER: "container",
   INSTANCE: "instance",
-  MODULE: "module",     // CC module drag (all roles: panel/container/instance)
+  MODULE: "module",     // CC module drag (all roles: panel/container/instance/page)
   ARTIFACT: "artifact",
   EXTERNAL: "external",
   FILE: "file",
@@ -83,8 +84,9 @@ export const DragType = {
 
 // What each drop zone accepts
 export const DropAccepts = {
-  GRID_CELL: [DragType.PANEL, DragType.MODULE, DragType.ARTIFACT],  // panels, modules, and artifacts drop to grid cells
-  PANEL_CONTENT: [DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
+  GRID_CELL: [DragType.PANEL, DragType.MODULE, DragType.ARTIFACT],
+  PANEL_CONTENT: [DragType.PAGE, DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
+  PAGE_CONTENT: [DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
   CONTAINER_LIST: [DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
   INSTANCE: [DragType.INSTANCE, DragType.ARTIFACT, DragType.FILE, DragType.TEXT, DragType.URL],
 };

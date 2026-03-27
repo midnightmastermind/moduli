@@ -20,6 +20,7 @@ export const GridActionsContext = createContext({
   linkedGroupIndex: Object.create(null),
   containersById: Object.create(null),
   fieldsById: Object.create(null),
+  pagesById: Object.create(null),
   panelsById: Object.create(null),
   manifestsById: Object.create(null),
   viewsById: Object.create(null),

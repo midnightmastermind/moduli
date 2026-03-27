@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 
 import Container from "./Container.jsx";
+import Page from "./Page.jsx";
 import { CanvasDrawSection } from "./containerHelpers.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 
@@ -314,7 +315,35 @@ function Panel({
   const currentView = resolvedViewId ? viewsById[resolvedViewId] : null;
   const currentViewType = currentView?.viewType || "list";
 
-  // Quick-add: create an occurrence of an existing container module in this panel
+  // Global folder ID for the user manifest (page library)
+  const globalFolderId = useMemo(() => {
+    const manifestId = state?.grid?.manifestId;
+    if (!manifestId) return null;
+    const manifest = manifestsById[manifestId];
+    if (!manifest?.rootFolderId) return null;
+    return Object.values(foldersById).find(f => f.parentId === manifest.rootFolderId && f.folderType === "global")?.id || null;
+  }, [state?.grid?.manifestId, manifestsById, foldersById]);
+
+  // Quick-add: create an occurrence of an existing page module in this panel
+  const handleQuickAddPage = useCallback((pageModule) => {
+    if (!panelOccurrence || !pageModule?.id) return;
+    const occId = crypto.randomUUID();
+    const occ = {
+      id: occId,
+      userId: module.userId,
+      gridId: module.gridId,
+      targetId: pageModule.id,
+      targetType: "module",
+      parentId: globalFolderId,
+      iteration: { mode: "persistent" },
+      fields: {},
+    };
+    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
+    const updatedOccs = [...(panelOccurrence.occurrences || []), occId];
+    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, occurrences: updatedOccs }, emit: true });
+  }, [panelOccurrence, module, globalFolderId, dispatch, socket]);
+
+  // Quick-add: create an occurrence of an existing container module in this panel (legacy)
   const handleQuickAddContainer = useCallback((containerModule) => {
     if (!panelOccurrence || !containerModule?.id) return;
     const occId = crypto.randomUUID();
@@ -328,7 +357,6 @@ function Panel({
       fields: {},
     };
     CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
-    // Add to panel's occurrence list
     const updatedOccs = [...(panelOccurrence.occurrences || []), occId];
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, occurrences: updatedOccs }, emit: true });
   }, [panelOccurrence, module, dispatch, socket]);
@@ -486,16 +514,32 @@ function Panel({
     [panelOccurrence, state?.grid?.activeFilterValues]
   );
 
-  const containersList = useMemo(() => {
-    const allContainers = getPanelContainers(module, occurrencesById, containersById, panelOccurrence);
-    // Find each container's occurrence to check visibility
+  // Detect whether this panel has page children or container children (legacy)
+  const { hasPages, pagesList, containersList } = useMemo(() => {
     const panelChildOccIds = panelOccurrence?.occurrences || [];
-    return allContainers.filter(container => {
-      const containerOccId = panelChildOccIds.find(occId => occurrencesById[occId]?.targetId === container.id);
-      const containerOcc = containerOccId ? occurrencesById[containerOccId] : null;
-      return isOccurrenceVisible(containerOcc ?? { id: container.id }, panelEffectiveFilters);
-    });
-  }, [module, occurrencesById, containersById, panelOccurrence, panelEffectiveFilters]);
+    const pages = [];
+    const containers = [];
+    let foundPage = false;
+
+    for (const occId of panelChildOccIds) {
+      const occ = occurrencesById[occId];
+      if (!occ) continue;
+      const mod = modulesById[occ.targetId];
+      if (!mod) continue;
+      if (mod.role === "page") {
+        foundPage = true;
+        pages.push({ page: mod, occurrence: occ });
+      } else {
+        // Legacy: direct container children
+        if (!containersById[mod.id]) continue;
+        const containerOcc = occ;
+        if (!isOccurrenceVisible(containerOcc, panelEffectiveFilters)) continue;
+        containers.push(mod);
+      }
+    }
+
+    return { hasPages: foundPage, pagesList: pages, containersList: containers };
+  }, [panelOccurrence, occurrencesById, modulesById, containersById, panelEffectiveFilters]);
 
   const getLayoutStyles = () => {
     const l = layout;
@@ -539,6 +583,21 @@ function Panel({
   const isPanelDrag = dragCtx.isPanelDrag;
 
   const panelChildOccIds = panelOccurrence?.occurrences || [];
+
+  // Pages JSX (new hierarchy)
+  const pagesListJSX = hasPages ? pagesList.map(({ page, occurrence: pageOcc }) => (
+    <Page
+      key={pageOcc.id}
+      occurrence={pageOcc}
+      panelId={module.id}
+      panelOccurrence={panelOccurrence}
+      addInstanceToContainer={addInstanceToContainer}
+      dispatch={dispatch}
+      socket={socket}
+    />
+  )) : null;
+
+  // Containers JSX (legacy hierarchy)
   const containerListJSX = containersList.map((container) => {
     const containerOccId = panelChildOccIds.find(occId => occurrencesById[occId]?.targetId === container.id);
     return (<Container
@@ -704,19 +763,39 @@ function Panel({
         })()}
 
         <span className="text-sm font-small pl-1 truncate flex-1 flex items-center gap-1" style={{ minWidth: 0 }}>
-          {layout.name || module.id}
+          {(hasPages && pagesList[0]?.page?.label) || layout.name || module.id}
           {panelOccurrence?.linkedGroupId && (
             <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0" title="Linked" />
           )}
         </span>
 
         <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
-          <QuickAddMenu
-            targetRole="container"
-            onSelect={handleQuickAddContainer}
-            onCreateNew={() => addContainerToPanel?.(module.id, module.kind === "canvas" ? "canvas" : "list")}
-            createLabel="New container"
-          />
+          {hasPages ? (
+            <QuickAddMenu
+              targetRole="page"
+              onSelect={handleQuickAddPage}
+              onCreateNew={() => {
+                if (!panelOccurrence?.id || !module?.userId || !module?.gridId) return;
+                const modId = crypto.randomUUID();
+                const occId = crypto.randomUUID();
+                CommitHelpers.createPage({
+                  dispatch, socket,
+                  module: { id: modId, role: "page", kind: "board", label: `Page ${(panelOccurrence.occurrences || []).length + 1}` },
+                  occurrence: { id: occId, gridId: module.gridId, parentId: globalFolderId },
+                  panelOccurrenceId: panelOccurrence.id,
+                  emit: true,
+                });
+              }}
+              createLabel="New page"
+            />
+          ) : (
+            <QuickAddMenu
+              targetRole="container"
+              onSelect={handleQuickAddContainer}
+              onCreateNew={() => addContainerToPanel?.(module.id, module.kind === "canvas" ? "canvas" : "list")}
+              createLabel="New container"
+            />
+          )}
         </div>
 
         <div className="ml-auto mr-2 flex items-center" onPointerDown={(e) => e.stopPropagation()}>
@@ -804,7 +883,32 @@ function Panel({
           );
         }
 
-        // Default: container list
+        // Default: pages (new) or container list (legacy)
+        if (hasPages) {
+          return (
+            <div
+              ref={dropRef}
+              className="panel-content"
+              style={{
+                flex: 1, minHeight: 0,
+                overflowY: "auto",
+                padding: "5px",
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+              }}
+            >
+              {pagesListJSX}
+              {pagesList.length === 0 && (
+                <div className="text-xs text-muted-foreground text-center empty-placeholder">
+                  Drop pages here
+                </div>
+              )}
+            </div>
+          );
+        }
+
         return (
           <div
             ref={dropRef}

@@ -87,6 +87,20 @@ export async function createDefaultUserData(userId) {
   const gridId = grid._id.toString();
 
   // ===================================================================
+  // STEP 0b: Create User Manifest for pages
+  // Global folder = page library (all page modules live here).
+  // Panel-local pages are just occurrences in panelOcc.occurrences[].
+  // ===================================================================
+  const userManifestRootFolderId = uid();
+  const userGlobalFolderId = uid();
+  const userManifestId = uid();
+
+  await new Folder({ id: userManifestRootFolderId, userId, parentId: null, name: "Root", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: userGlobalFolderId, userId, parentId: userManifestRootFolderId, name: "Global", folderType: "global", sortOrder: 0, isExpanded: true }).save();
+  await new Manifest({ id: userManifestId, userId, name: "Pages", manifestType: "user", rootFolderId: userManifestRootFolderId }).save();
+  await Grid.findByIdAndUpdate(grid._id, { $set: { manifestId: userManifestId } });
+
+  // ===================================================================
   // Category folder IDs — generated here so they can be referenced in field
   // definitions below. Actual Folder records are saved in STEP 6.
   // ===================================================================
@@ -2157,11 +2171,11 @@ export async function createDefaultUserData(userId) {
   const panels = {
     dailyToolkit: {
       id: uid(),
-      name: "Daily Toolkit",
+      label: "Panel A",
       kind: "board",
       defaultDragMode: "copy", // Toolkit items are templates - copy by default
       layout: {
-        name: "Daily Toolkit",
+        name: "Panel A",
         display: "flex",
         flow: "column",
         wrap: "nowrap",
@@ -2173,11 +2187,11 @@ export async function createDefaultUserData(userId) {
     },
     todoList: {
       id: uid(),
-      name: "Todo List",
+      label: "Panel B",
       kind: "board",
       defaultDragMode: "move", // Todo items are one-off - move by default
       layout: {
-        name: "Todo List",
+        name: "Panel B",
         display: "flex",
         flow: "column",
         wrap: "nowrap",
@@ -2189,11 +2203,11 @@ export async function createDefaultUserData(userId) {
     },
     schedule: {
       id: uid(),
-      name: "Schedule",
+      label: "Panel C",
       kind: "board",
       defaultDragMode: "move",
       layout: {
-        name: "Schedule",
+        name: "Panel C",
         display: "flex",
         flow: "column",
         wrap: "nowrap",
@@ -2210,11 +2224,11 @@ export async function createDefaultUserData(userId) {
     },
     dailyGoals: {
       id: uid(),
-      name: "Daily Goals",
+      label: "Panel D",
       kind: "board",
       defaultDragMode: "move",
       layout: {
-        name: "Daily Goals",
+        name: "Panel D",
         display: "flex",
         flow: "column",
         wrap: "nowrap",
@@ -2229,11 +2243,11 @@ export async function createDefaultUserData(userId) {
     },
     accounts: {
       id: uid(),
-      name: "Accounts",
+      label: "Panel E",
       kind: "board",
       defaultDragMode: "move",
       layout: {
-        name: "Accounts",
+        name: "Panel E",
         display: "flex",
         flow: "column",
         wrap: "nowrap",
@@ -2245,11 +2259,11 @@ export async function createDefaultUserData(userId) {
     },
     dayPage: {
       id: uid(),
-      name: "Notebook",
+      label: "Panel F",
       kind: "board",  // Board panel showing doc containers as sections
       defaultDragMode: "move",
       layout: {
-        name: "Notebook",
+        name: "Panel F",
         display: "flex",
         flow: "column",
         wrap: "nowrap",
@@ -2261,11 +2275,11 @@ export async function createDefaultUserData(userId) {
     },
     freepad: {
       id: uid(),
-      name: "Freepad",
+      label: "Panel G",
       kind: "canvas",
       defaultDragMode: "move",
       layout: {
-        name: "Freepad",
+        name: "Panel G",
         display: "flex",
         flow: "column",
         wrap: "nowrap",
@@ -3940,6 +3954,9 @@ export async function createDefaultUserData(userId) {
 
   await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccs } });
 
+  // Panel-local pages are tracked via panelOcc.occurrences[] — no per-panel folders needed.
+  // The Global folder in the user manifest serves as the page library.
+
   // ===================================================================
   // DEFERRED WIRING: Apply all occurrence ordering now that ALL occurrences exist
   // Panel occurrences (created above in panelPlacements loop) can now be found by targetId.
@@ -3956,12 +3973,36 @@ export async function createDefaultUserData(userId) {
     }
   }
 
-  // Wire panel occurrences: set container occurrence ordering
-  await Occurrence.findOneAndUpdate({ targetId: panels.dailyToolkit.id, gridId }, { $set: { occurrences: toolkitPanelOccIds } });
-  await Occurrence.findOneAndUpdate({ targetId: panels.todoList.id, gridId }, { $set: { occurrences: todoPanelOccIds } });
-  await Occurrence.findOneAndUpdate({ targetId: panels.schedule.id, gridId }, { $set: { occurrences: scheduleOccIds } });
-  await Occurrence.findOneAndUpdate({ targetId: panels.dailyGoals.id, gridId }, { $set: { occurrences: goalPanelOccIds } });
-  await Occurrence.findOneAndUpdate({ targetId: panels.accounts.id, gridId }, { $set: { occurrences: accountPanelOccIds } });
+  // Wire panel occurrences via page modules (Panel → Page → Containers)
+  // Each board panel gets a page module whose label = the old panel name.
+  const pageWiring = [
+    { panelKey: "dailyToolkit", pageLabel: "Daily Toolkit", containerOccIds: toolkitPanelOccIds },
+    { panelKey: "todoList", pageLabel: "Todo List", containerOccIds: todoPanelOccIds },
+    { panelKey: "schedule", pageLabel: "Schedule", containerOccIds: scheduleOccIds },
+    { panelKey: "dailyGoals", pageLabel: "Daily Goals", containerOccIds: goalPanelOccIds },
+    { panelKey: "accounts", pageLabel: "Accounts", containerOccIds: accountPanelOccIds },
+  ];
+
+  for (const [pi, { panelKey, pageLabel, containerOccIds }] of pageWiring.entries()) {
+    const pageModId = uid();
+    await new Module({ id: pageModId, userId, gridId, role: "page", kind: "board", label: pageLabel }).save();
+    const pageOccId = uid();
+    await new Occurrence({
+      id: pageOccId, userId, gridId,
+      targetId: pageModId, targetType: "module",
+      parentId: userGlobalFolderId,
+      sortOrder: pi,
+      occurrences: containerOccIds,
+      iteration: { mode: "persistent" },
+      fields: {}, meta: {},
+    }).save();
+    await Occurrence.findOneAndUpdate(
+      { targetId: panels[panelKey].id, gridId },
+      { $set: { occurrences: [pageOccId] } }
+    );
+  }
+
+  // Notebook panel: artifact view with tree sidebar (bypasses page system in View.jsx)
   await Occurrence.findOneAndUpdate({ targetId: panels.dayPage.id, gridId }, { $set: { occurrences: notebookPanelOccIds } });
   // Freepad panel: canvas tree (ManifestTree sidebar + CanvasDrawSection per page)
   const freepadRootFolderId = uid();
@@ -4021,9 +4062,9 @@ export async function createDefaultUserData(userId) {
       instances: Object.keys(allInstances).length,
       containers: Object.keys(allContainers).length,
       panels: Object.keys(panels).length,
-      manifests: 1,
+      manifests: 2,  // existing + user manifest
       views: 1,
-      folders: 7,  // Root, DayPages, Documents, Profile, QuickNotes + Fitness + Nutrition (category folders)
+      folders: "dynamic",  // Root, DayPages, Documents, Profile, QuickNotes, Fitness, Nutrition, user manifest root/global/grid + panel folders
       textmapDocs: "dynamic",  // 1 welcome + 1 sample journal + 3 journal Q&A containers + stan sections + morenotes sections (8) + gospel sections (8). Each written to uploads/md/{occurrenceId}.md
       namedFilters: 3,
       operations: displayOperations.length + 3,  // display ops + sampleOperation + budgetAlertOp + scheduleCompletionOp
