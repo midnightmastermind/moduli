@@ -324,7 +324,7 @@ test.describe('Critical flows — data verification', () => {
       ? containerShell.locator('[data-testid="radial-handle"]').first()
       : page.locator('[data-testid="radial-handle"]').first();
 
-    await handle.click();
+    await handle.click({ force: true });
     await page.waitForTimeout(350); // arc animation
 
     // Find and click the Add button

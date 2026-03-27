@@ -721,6 +721,39 @@ body {
   display: none;
 }
 
+/* Page cog handle — mirrors container-cog-handle for page-shell */
+.page-cog-handle {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.15s;
+  width: 20px;
+  height: 20px;
+}
+
+.page-shell:hover .page-cog-handle {
+  opacity: 1;
+}
+
+.page-cog-handle .radial-menu {
+  display: none;
+}
+
+.page-shell:hover .page-cog-handle .radial-menu {
+  display: flex;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.page-shell:hover .page-cog-handle .drag-handle-stem,
+.page-shell:hover .page-cog-handle .drag-handle-ball {
+  display: none;
+}
+
 /* Instance row — no overrides needed, radial menu flows naturally */
 
 /* Hide all handles during drag */

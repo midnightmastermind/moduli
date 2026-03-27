@@ -2259,11 +2259,11 @@ export async function createDefaultUserData(userId) {
     },
     dayPage: {
       id: uid(),
-      label: "Panel F",
+      label: "Notebook",
       kind: "board",  // Board panel showing doc containers as sections
       defaultDragMode: "move",
       layout: {
-        name: "Panel F",
+        name: "Notebook",
         display: "flex",
         flow: "column",
         wrap: "nowrap",
@@ -2275,11 +2275,11 @@ export async function createDefaultUserData(userId) {
     },
     freepad: {
       id: uid(),
-      label: "Panel G",
+      label: "Freepad",
       kind: "canvas",
       defaultDragMode: "move",
       layout: {
-        name: "Panel G",
+        name: "Freepad",
         display: "flex",
         flow: "column",
         wrap: "nowrap",
@@ -4015,17 +4015,42 @@ export async function createDefaultUserData(userId) {
     {
       label: "Ideas Board",
       cards: [
-        { label: "Brainstorm", x: 24,  y: 32  },
-        { label: "Inspiration", x: 210, y: 28  },
-        { label: "Projects",   x: 390, y: 30  },
+        { label: "Brainstorm",    x: 24,  y: 32  },
+        { label: "Inspiration",   x: 210, y: 28  },
+        { label: "Projects",      x: 390, y: 30  },
+        { label: "Quick Notes",   x: 24,  y: 180 },
+        { label: "Research",      x: 210, y: 185 },
+        { label: "Experiments",   x: 390, y: 178 },
+        { label: "Side Projects", x: 24,  y: 330 },
+        { label: "Archive",       x: 210, y: 335 },
       ],
     },
     {
       label: "Task Map",
       cards: [
-        { label: "Backlog",    x: 24,  y: 32  },
+        { label: "Backlog",     x: 24,  y: 32  },
         { label: "In Progress", x: 200, y: 28  },
-        { label: "Done",       x: 380, y: 30  },
+        { label: "Done",        x: 380, y: 30  },
+        { label: "Fix login bug",      x: 24,  y: 180 },
+        { label: "Add dark mode",      x: 24,  y: 270 },
+        { label: "Write tests",        x: 200, y: 178 },
+        { label: "Update docs",        x: 200, y: 268 },
+        { label: "Deploy v1.0",        x: 380, y: 178 },
+        { label: "Code review",        x: 380, y: 268 },
+      ],
+    },
+    {
+      label: "Mind Map",
+      cards: [
+        { label: "Core Goal",    x: 210, y: 140 },
+        { label: "Health",       x: 24,  y: 32  },
+        { label: "Work",         x: 390, y: 32  },
+        { label: "Learning",     x: 24,  y: 240 },
+        { label: "Relationships",x: 390, y: 240 },
+        { label: "Exercise",     x: 24,  y: 150 },
+        { label: "Nutrition",    x: 24,  y: 330 },
+        { label: "Deep Work",    x: 390, y: 150 },
+        { label: "Side Projects",x: 390, y: 330 },
       ],
     },
   ];

@@ -18,6 +18,7 @@ import {
 import { GridActionsContext } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { TemplatePill } from "./ComponentsTab";
+import GlobalTree from "../../modules/GlobalTree.jsx";
 
 const inputStyle = {
   height: 28,

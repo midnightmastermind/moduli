@@ -642,7 +642,12 @@ export function registerCrudHandlers(socket, {
       uc.occurrencesById[occ.id] = occ;
       await Occurrence.findOneAndUpdate({ id: occ.id, userId }, occ, { upsert: true });
 
-      // 4. Add page occ to panel's occurrences[]
+      // 4. Broadcast new entities first — other windows must have the occ before the panel refs it
+      socket.to(userRoom(userId)).emit("module_created", { module: mod });
+      if (savedView) socket.to(userRoom(userId)).emit("view_created", { view: savedView });
+      socket.to(userRoom(userId)).emit("occurrence_created", { occurrence: occ });
+
+      // 5. Add page occ to panel's occurrences[] (after occ is in other windows' stores)
       if (panelOccurrenceId) {
         const panelOcc = uc.occurrencesById[panelOccurrenceId];
         if (panelOcc) {
@@ -652,11 +657,6 @@ export function registerCrudHandlers(socket, {
           socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: updated });
         }
       }
-
-      // 5. Broadcast
-      socket.to(userRoom(userId)).emit("module_created", { module: mod });
-      if (savedView) socket.to(userRoom(userId)).emit("view_created", { view: savedView });
-      socket.to(userRoom(userId)).emit("occurrence_created", { occurrence: occ });
     } catch (err) {
       console.error("create_page error:", err);
       socket.emit("server_error", "Failed to create page");

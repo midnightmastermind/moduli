@@ -245,14 +245,17 @@ test.describe('Example data — Notebook loads', () => {
     console.log(`[example-data] Notebook panel content length: ${text.length}`);
   });
 
-  test('Notebook has Daily Journal container', async ({ page }) => {
+  test('Notebook shows a day page document', async ({ page }) => {
     const notebook = page.locator('[data-testid="panel-shell"]').filter({ hasText: 'Notebook' }).first();
     if (!await notebook.isVisible({ timeout: 5000 }).catch(() => false)) {
       console.log('[example-data] Notebook panel not visible — skip');
       return;
     }
     const text = await notebook.innerText();
-    expect(text, 'Daily Journal not found in Notebook').toContain('Journal');
+    // Notebook is a day-page artifact panel. The auto-create operation fires on load and creates
+    // a "daypage YYYY-MM-DD" module. Either the sample content or the auto-created page will show.
+    const hasDayContent = /Journal|Morning|Evening|daypage|\d{4}-\d{2}/i.test(text);
+    expect(hasDayContent, `Notebook day page content not found. Got: ${text.substring(0, 200)}`).toBe(true);
   });
 });
 

@@ -2,10 +2,42 @@
 
 _Updated: Mar 26 2026. This folder implements occurrence-based view routing._
 
+## Recent Changes (Mar 26 2026 — Page Drag Handle + Panel Page Sidebar)
+- **ModulePage.jsx**: Page shell now has `data-page-occ-id={occurrence.id}` for scroll targeting. When `showHeader=false`, renders an absolute `.page-cog-handle` div (always-visible drag handle) with RadialMenu toggle. Mirrors the container-cog-handle pattern.
+- **ModulePanel.jsx**: Added `PanelPageSidebar` component — collapsible sidebar (20px→150px) for page-based panels. Shows page names with kind glyphs. Clicking scrolls to the page via `data-page-occ-id`. Added `ChevronLeft/ChevronRight` imports and `pageSidebarCollapsed` state. The `hasPages` branch now wraps content in a flex row with `PanelPageSidebar` + existing scroll area.
+- **index.css**: Added `.page-cog-handle` rules (position absolute, opacity reveal on `.page-shell:hover`, radial menu show pattern) — mirrors `.container-cog-handle`.
+
+## Recent Changes (Mar 26 2026 — Rename Refactor)
+- **ArtifactContent.jsx** (NEW): Implementation extracted from Artifact.jsx. Artifact.jsx is now a re-export stub.
+- **PreviewContent.jsx** (NEW): Implementation extracted from PreviewCard.jsx. PreviewCard.jsx is now a re-export stub.
+- **ModulePanel.jsx** (NEW): Implementation extracted from Panel.jsx. Panel.jsx is now a re-export stub.
+- **ModulePage.jsx** (NEW): Implementation extracted from Page.jsx. Page.jsx is now a re-export stub.
+- **ModuleRouter.jsx** (NEW): Merged Module.jsx + View.jsx into single router. Module.jsx and View.jsx are now re-export stubs.
+- **ModuleContainer.jsx** (NEW): Implementation extracted from Container.jsx. Container.jsx is now a re-export stub.
+- **DocContent.jsx** (NEW): DocEditorShell extracted from containerHelpers.jsx. Exports `DocContent` (default) + `DocEditorShell` (alias).
+- **PoolContent.jsx** (NEW): PoolPill extracted from containerHelpers.jsx. Exports `PoolContent` (default) + `PoolPill` (alias).
+- **CanvasContent.jsx** (NEW): CanvasDrawSection extracted from containerHelpers.jsx. Exports `CanvasContent` (default) + `CanvasDrawSection` (alias).
+- **containerHelpers.jsx**: Now a re-export stub for DocContent/PoolContent/CanvasContent. CanvasCard still lives here (pending ModuleInstance canvas absorption).
+- **ModuleInstance.jsx**: Merged with Instance.jsx — now contains both InstanceInner (inner row) and ModuleInstance (drag wrapper). Exports `MemoInstanceInner` as named export.
+- **Instance.jsx**: Now a re-export stub for `MemoInstanceInner` (the inner row component).
+
+**All old filenames still work via re-export stubs — no import sites need updating.**
+
+## Recent Changes (Mar 26 2026 — Page Bug Fixes)
+- **Page.jsx**: (1) Added `kind === "canvas"` handler — renders `<Container module={pageModule} occurrenceOverride={occurrence}>` so the page itself IS the canvas container. (2) Board rendering now passes `occurrenceOverride={containerOcc}` to each `<Container>` — fixes wrong occurrence lookup when same module appears in multiple pages. (3) Removed dead imports: `CanvasDrawSection`, `getContainerItems`, `instancesById`.
+- **server/socketHandlers/crud.js `create_page`**: Fixed broadcast order — emits `module_created`/`view_created`/`occurrence_created` BEFORE `occurrence_updated` for the panel, so second-window clients have the new occurrence in their store before the panel reference arrives.
+- **server/utils/createDefaultUserData.js**: Canvas sample data expanded — "Ideas Board" (8 cards), "Task Map" (9 cards), new "Mind Map" page (9 cards). Cards have varied positions across 3 rows.
+
 ## Recent Changes (Mar 26 2026 — Page Module Integration)
-- **Page.jsx** (NEW): Page is a navigable content unit inside a panel. Shell has drag handle + radial menu + page name (like docs). Routes content by `kind`: board (sortable containers), doc (TipTap via Artifact), display (artifact viewer). Supports inline label editing, context menu, QuickAddMenu for board pages.
+- **Page.jsx** (NEW): Page is a navigable content unit inside a panel. Shell has drag handle + radial menu + page name (like docs). Routes content by `kind`: board (sortable containers), canvas (free-form via Container), doc (TipTap via Artifact), display (artifact viewer). Supports inline label editing, context menu, QuickAddMenu for board pages.
 - **View.jsx**: Added `Page` import. Added `role === "page"` routing — renders `<Page>` component for page occurrences.
 - **Panel.jsx**: Added `Page` import. Panel now detects whether children are pages or containers (legacy). `hasPages`/`pagesList`/`containersList` computed from panel child occurrences. When `hasPages=true`, renders page list instead of container list. Panel header dynamically shows active page label (`pagesList[0]?.page?.label`), falls back to `layout.name`. QuickAdd: when `hasPages`, creates pages (`targetRole="page"`) with `parentId=globalFolderId`; legacy panels create containers. `globalFolderId` resolved from `grid.manifestId → manifest → rootFolder → folderType "global"`. Legacy container panels unchanged.
+
+## Recent Changes (Mar 26 2026 — Canvas Cards Refactor)
+- **containerHelpers.jsx**: `CanvasCard` now accepts `children` prop instead of custom label+chip rendering. Props renamed: `instance` → `module` (supports both instances and containers). DnD drag-out uses `DragType.CONTAINER` for containers, `DragType.INSTANCE` for everything else. `onPointerDown` now guards interactive elements (`input, button, textarea, [contenteditable], .radial-handle`). Card is a pure positioning/DnD wrapper — content comes from children.
+- **containerHelpers.jsx**: Added `import Instance from "./Instance.jsx"` — no circular dep (Instance.jsx doesn't import containerHelpers).
+- **containerHelpers.jsx**: `CanvasDrawSection` now accepts `renderCard` prop. Card rendering moved to caller (Container.jsx). Map iterates `{ module, occurrence }` (was `{ instance, occurrence }`).
+- **Container.jsx**: Added `modulesById` to GridActionsContext destructuring. Added `canvasItemsWithOccurrences` useMemo — uses `modulesById` (not just `instancesById`) so both instances AND container modules can be placed on canvas. Added `renderCanvasCard` useCallback — renders `<CanvasCard>` with `<Instance>` (for instances) or `<Container embedded>` (for containers) as children. Updated CanvasDrawSection call to use `canvasItemsWithOccurrences` and `renderCard={renderCanvasCard}`.
 
 ## Recent Changes (Mar 26 2026 — Canvas Drag Fix)
 - **containerHelpers.jsx**: `CanvasCard` — changed `draggable()` type from `"module"` to `DragType.INSTANCE`. Added `containerId` + `panelId` props and includes `context: { containerId, panelId, instanceId, occurrenceId }`. Drag-out now goes through INSTANCE handler (MOVE), not MODULE handler (COPY). Grip handle gets `pointerEvents: "auto"` to stay interactive in draw mode. Added `data-dnd-handle="true"` attr.
@@ -33,16 +65,27 @@ The new system links views to occurrences (`occurrence.viewId → View`) instead
 
 | File | Purpose |
 |------|---------|
-| `Module.jsx` | Thin router — passes occurrence to `<View>` |
-| `View.jsx` | Layout + sidebar routing. Reads `viewsById[occurrence.viewId]`. Handles `hasTree` sidebar. Routes to Panel/Container/Instance/Artifact |
-| `Panel.jsx` | Panel shell renderer (extracted from `client/src/Module.jsx` `ModulePanel`). Uses `occurrence.viewId || module.viewId` for view lookup |
-| `Container.jsx` | Container orchestrator — state, hooks, full render tree. 940 lines. |
-| `containerHelpers.jsx` | **DocEditorShell** + **PoolPill** + **CanvasCard** sub-components used by Container.jsx. |
-| `containerPopups.jsx` | **FilterOverridePopup** + **TemplatePickerPopup** portal popups used by Container.jsx. |
-| `ModuleInstance.jsx` | Instance drag wrapper within Container. Handles DnD, context menu, doc toggle. |
-| `Instance.jsx` | Instance inner row (extracted from `client/src/Instance.jsx`). Label + field pills + operation widgets |
-| `Artifact.jsx` | File content renderer. `viewType="markdown"` → Editor.jsx (TipTap, auto-saves textmap). `viewType="artifact"` + `artifactType="image|pdf|audio|video"` → file viewer. |
-| `PreviewCard.jsx` | Preview view renderer. `viewType="preview"` → thumbnail card + label + "View Full" button. Draggable (type: "module", sourceType: "preview-card"). Click "View Full" → `updateView({ viewType: "artifact" })`. |
+| `ModuleRouter.jsx` | **PRIMARY ENTRY POINT** — merged Module.jsx + View.jsx. Routes occurrence by role to the correct renderer. |
+| `Module.jsx` | Re-export stub → ModuleRouter.jsx |
+| `View.jsx` | Re-export stub → ModuleRouter.jsx |
+| `ModulePanel.jsx` | Panel shell renderer. Uses `occurrence.viewId || module.viewId` for view lookup. |
+| `Panel.jsx` | Re-export stub → ModulePanel.jsx |
+| `ModulePage.jsx` | Page content unit inside a panel. Routes by `kind`: board/canvas/doc/display. |
+| `Page.jsx` | Re-export stub → ModulePage.jsx |
+| `ModuleContainer.jsx` | Container orchestrator — state, hooks, full render tree. ~1180 lines. |
+| `Container.jsx` | Re-export stub → ModuleContainer.jsx |
+| `ModuleInstance.jsx` | Merged instance: InstanceInner (inner row) + ModuleInstance (drag wrapper). |
+| `Instance.jsx` | Re-export stub → MemoInstanceInner from ModuleInstance.jsx |
+| `ArtifactContent.jsx` | File content renderer. viewType="markdown"→TipTap, viewType="artifact"→file viewer. |
+| `Artifact.jsx` | Re-export stub → ArtifactContent.jsx |
+| `PreviewContent.jsx` | Preview view renderer. viewType="preview" → thumbnail card + "View Full" button. |
+| `PreviewCard.jsx` | Re-export stub → PreviewContent.jsx |
+| `DocContent.jsx` | DocEditorShell — TipTap editor wrapper with lock toggle. |
+| `PoolContent.jsx` | PoolPill — draggable pool library item. |
+| `CanvasContent.jsx` | CanvasDrawSection — draw toolbar + HTML5 canvas overlay + floating cards. |
+| `containerHelpers.jsx` | Re-export stub for DocContent/PoolContent/CanvasContent + CanvasCard (not yet extracted). |
+| `containerPopups.jsx` | **FilterOverridePopup** + **TemplatePickerPopup** portal popups used by ModuleContainer. |
+| `ManifestTree.jsx` | Manifest/folder tree sidebar for artifact panels. |
 
 ## Key Differences from Legacy Module.jsx
 
