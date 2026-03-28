@@ -377,7 +377,7 @@ function Panel({
   // View: check occurrence.viewId first (new system), fall back to module.viewId (legacy)
   const resolvedViewId = panelOccurrence?.viewId || module.viewId;
   const currentView = resolvedViewId ? viewsById[resolvedViewId] : null;
-  const currentViewType = currentView?.viewType || "list";
+  const currentViewType = currentView?.viewType || "board";
 
   // Global folder ID for the user manifest (page library)
   const globalFolderId = useMemo(() => {
@@ -610,7 +610,7 @@ function Panel({
     if (!hasPages || resolvedViewId) return;
     if (!panelOccurrence?.id || !module?.userId || !module?.gridId) return;
     const viewId = crypto.randomUUID();
-    CommitHelpers.createView({ dispatch, socket, view: { id: viewId, userId: module.userId, gridId: module.gridId, viewType: "page", activeOccurrenceId: null } });
+    CommitHelpers.createView({ dispatch, socket, view: { id: viewId, userId: module.userId, gridId: module.gridId, viewType: "board", activeOccurrenceId: null } });
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, viewId }, emit: true });
   }, [hasPages, resolvedViewId, panelOccurrence?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -792,7 +792,7 @@ function Panel({
               ref={panelHandleRef}
               className="module-drag-handle module-grab-zone"
               draggable={false}
-              style={{ position: "static", transform: "none", flexShrink: 0 }}
+              style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}
             >
               <div className="drag-handle-ball" />
               <div className="drag-handle-stem" />
@@ -868,7 +868,7 @@ function Panel({
                   occurrence: { id: occId, userId: module.userId, gridId: module.gridId, targetId: modId, parentId: globalFolderId, iteration: { mode: "persistent" }, fields: {} },
                   panelOccurrenceId: panelOccurrence.id,
                   ...(!resolvedViewId && {
-                    panelViewData: { id: crypto.randomUUID(), userId: module.userId, gridId: module.gridId, viewType: "page", activeOccurrenceId: occId },
+                    panelViewData: { id: crypto.randomUUID(), userId: module.userId, gridId: module.gridId, viewType: "board", activeOccurrenceId: occId },
                   }),
                   emit: true,
                 });
@@ -1002,8 +1002,8 @@ function Panel({
           );
         }
 
-        // Artifact panel — find the active occurrence and delegate to Artifact
-        if (viewType === "artifact" || viewType === "markdown" || viewType === "image" || viewType === "pdf" || viewType === "audio" || viewType === "video") {
+        // Display panel — find the active occurrence and delegate to Artifact
+        if (viewType === "display" || viewType === "markdown" || viewType === "image" || viewType === "pdf" || viewType === "audio" || viewType === "video") {
           const activeOccId = resolvedView?.activeOccurrenceId;
           const activeOcc = activeOccId ? occurrencesById?.[activeOccId] : null;
           return (

@@ -44,7 +44,7 @@ export default function ModuleRouter({ occurrence, embedded = false, dispatch, s
 
   // Route to inner component by role (hierarchy-inferred) + view.viewType / module.kind
   // module.kind is the legacy fallback; view.viewType is the forward-looking source
-  const isArtifact = module?.kind === "artifact" || resolvedView?.viewType === "artifact" || resolvedView?.hasTree;
+  const isArtifact = module?.kind === "artifact" || resolvedView?.viewType === "display" || resolvedView?.hasTree;
 
   let Inner = null;
   if (isArtifact && role !== "panel") {

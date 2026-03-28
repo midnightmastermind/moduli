@@ -1,6 +1,9 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-03-26. Check this file before re-reading source._
+_Updated: 2026-03-27. Check this file before re-reading source._
+
+## Recent Changes (Mar 27 2026 — ViewType Rename: artifact→display)
+- **DragProvider.jsx**: `isExistingArtifactPanel` check `viewType === "artifact"` → `viewType === "display"`. Both `createView` calls that set `viewType: "artifact"` updated to `viewType: "display"` (OS file drop handler + artifact grid-cell drop handler).
 
 ## Recent Changes (Mar 26 2026 — Bug Fixes: OS File Drop + Panel Cycler)
 - **DragProvider.jsx**: Bug #13 — OS file drops now upload via `/api/artifacts/upload` (fetch + FormData). Creates new artifact panel at drop location, or switches active doc if dropping on existing artifact panel. FILE type removed from old text-instance handler. Deduplication updated: `__file__` drops deduplicate by payload id alone (ignoring containerId), preventing double uploads when both container-list and panel-content fire.

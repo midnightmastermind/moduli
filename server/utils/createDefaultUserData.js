@@ -3400,7 +3400,7 @@ export async function createDefaultUserData(userId) {
     id: centerHubViewId,
     userId,
     gridId,
-    viewType: "page",
+    viewType: "board",
     hasTree: false,
     activeOccurrenceId: schedPageOccId,
     layout: {},

@@ -15,23 +15,21 @@ const ViewSchema = new mongoose.Schema(
 
     gridId: { type: String, required: true },
     // View type — determines which renderer to use
-    // "list"     = list/board of children (default panel/container view)
-    // "artifact" = file content viewer (image/pdf/audio/video — see artifactType below)
+    // "board"    = children rendered as list/board (default panel/container view)
+    // "display"  = file content viewer (image/pdf/audio/video — see artifactType below)
     // "markdown" = TipTap rich text editor (occurrence.textmap → Editor.jsx)
     // "code"     = syntax-highlighted code block (fetches raw file via /uploads/)
-    // "canvas"   = freeform canvas (future)
-    // "doc"      = TipTap doc container (replaces module.kind === "doc")
-    // "pool"     = draggable pill library container (replaces module.kind === "pool")
-    // "board"    = kanban board columns (replaces module.kind === "board")
-    // "log"      = append-only log
-    // "smart"    = smart/filtered list
+    // "canvas"   = freeform canvas
+    // "doc"      = TipTap doc container with embedded children
+    // "pool"     = draggable pill library container
+    // "preview"  = thumbnail card with drilldown
     viewType: {
       type: String,
-      enum: ["list", "artifact", "markdown", "canvas", "code", "doc", "pool", "board", "log", "smart", "preview"],
-      default: "list",
+      enum: ["board", "display", "markdown", "canvas", "code", "doc", "pool", "preview"],
+      default: "board",
     },
 
-    // Artifact sub-type — only used when viewType === "artifact"
+    // Display sub-type — only used when viewType === "display"
     // "image" | "pdf" | "audio" | "video"
     artifactType: {
       type: String,

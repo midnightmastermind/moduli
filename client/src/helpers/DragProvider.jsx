@@ -1445,7 +1445,7 @@ export function DragProvider({
           ? Object.values(occurrencesById).find(o => o.targetId === panelId)
           : null;
         const capturedPanelView = capturedPanelOcc?.viewId ? state?.viewsById?.[capturedPanelOcc.viewId] : null;
-        const isExistingArtifactPanel = capturedPanelView?.viewType === "artifact" || capturedPanelView?.hasTree;
+        const isExistingArtifactPanel = capturedPanelView?.viewType === "display" || capturedPanelView?.hasTree;
 
         const formData = new FormData();
         formData.append("file", file);
@@ -1476,7 +1476,7 @@ export function DragProvider({
                 const viewId = makeUUID();
                 CommitHelpers.createView({
                   dispatch, socket,
-                  view: { id: viewId, userId: fileUserId, gridId: fileGridId, viewType: "artifact", hasTree: false, manifestId: null, activeOccurrenceId: uploadedOcc.id },
+                  view: { id: viewId, userId: fileUserId, gridId: fileGridId, viewType: "display", hasTree: false, manifestId: null, activeOccurrenceId: uploadedOcc.id },
                   emit: true,
                 });
                 CommitHelpers.updateOccurrence({
@@ -1913,7 +1913,7 @@ export function DragProvider({
           const viewId = makeUUID();
           CommitHelpers.createView({
             dispatch, socket,
-            view: { id: viewId, userId, viewType: "artifact", hasTree: false, manifestId: null, activeOccurrenceId: payload.occurrenceId },
+            view: { id: viewId, userId, viewType: "display", hasTree: false, manifestId: null, activeOccurrenceId: payload.occurrenceId },
             emit: true,
           });
 

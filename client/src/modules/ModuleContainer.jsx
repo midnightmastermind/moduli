@@ -578,7 +578,7 @@ function Container({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0px 4px 0px 2px", minHeight: 12 }}>
               <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <PopoverAnchor asChild>
-                  <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" draggable={false} style={{ position: "static", transform: "none", flexShrink: 0 }}>
+                  <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" draggable={false} style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}>
                     <div className="drag-handle-ball" />
                     <div className="drag-handle-stem" />
                     <RadialMenu

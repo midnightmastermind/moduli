@@ -1,0 +1,1 @@
+export declare const unsafeOverflowAutoScrollForTextSelection: (args: import("../../unsafe-overflow/types").UnsafeOverflowAutoScrollArgs<import("@atlaskit/pragmatic-drag-and-drop/types").TextSelectionDragType>) => import("@atlaskit/pragmatic-drag-and-drop/types").CleanupFn;

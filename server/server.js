@@ -261,10 +261,10 @@ if (!fs.existsSync(mdDir)) fs.mkdirSync(mdDir, { recursive: true });
 
 const CODE_EXTENSIONS = new Set([".js",".jsx",".ts",".tsx",".py",".sh",".bash",".json",".yaml",".yml",".toml",".css",".html",".xml",".sql",".go",".rs",".c",".cpp",".h",".rb",".php",".swift",".kt"]);
 function mimeToViewType(mime, filename = "") {
-  if (mime?.startsWith("image/")) return { viewType: "artifact", artifactType: "image" };
-  if (mime?.startsWith("video/")) return { viewType: "artifact", artifactType: "video" };
-  if (mime?.startsWith("audio/")) return { viewType: "artifact", artifactType: "audio" };
-  if (mime === "application/pdf") return { viewType: "artifact", artifactType: "pdf" };
+  if (mime?.startsWith("image/")) return { viewType: "display", artifactType: "image" };
+  if (mime?.startsWith("video/")) return { viewType: "display", artifactType: "video" };
+  if (mime?.startsWith("audio/")) return { viewType: "display", artifactType: "audio" };
+  if (mime === "application/pdf") return { viewType: "display", artifactType: "pdf" };
   const ext = filename.includes(".") ? "." + filename.split(".").pop().toLowerCase() : "";
   if (CODE_EXTENSIONS.has(ext)) return { viewType: "code", artifactType: null };
   return { viewType: "markdown", artifactType: null };

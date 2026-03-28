@@ -32,7 +32,7 @@ export default function PreviewContent({ occurrence, view, dispatch, socket }) {
   const fileUrl = fileRef ? `/uploads/${fileRef}` : null;
 
   // Full view type to switch to when clicking "View Full"
-  const fullViewType = artifactType ? "artifact" : (view?.viewType === "preview" ? "markdown" : view?.viewType ?? "artifact");
+  const fullViewType = artifactType ? "display" : (view?.viewType === "preview" ? "markdown" : view?.viewType ?? "display");
 
   // Wire Pragmatic DnD so card can be dropped into docs or onto the grid
   useEffect(() => {

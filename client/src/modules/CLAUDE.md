@@ -2,6 +2,14 @@
 
 _Updated: Mar 27 2026. This folder implements occurrence-based view routing._
 
+## Recent Changes (Mar 27 2026 — ViewType Rename: artifact→display, list→board, page→board)
+- **ModulePanel.jsx**: `currentViewType` fallback `"list"` → `"board"`. Auto-create view for page panels now uses `viewType: "board"` (was `"page"`). `panelViewData` in QuickAdd also uses `"board"`. Artifact panel branch condition: `viewType === "artifact"` → `viewType === "display"`. Comment updated to "Display panel".
+- **ManifestTree.jsx**: `panelViewData.viewType` `"page"` → `"board"` when creating a new page.
+- **ModulePage.jsx**: Display page fallback `viewType ?? "artifact"` → `viewType ?? "display"`.
+- **ModuleRouter.jsx**: `isArtifact` check `viewType === "artifact"` → `viewType === "display"`.
+- **ArtifactContent.jsx**: `isArtifact` check `viewType === "artifact"` → `viewType === "display"`. Comment updated.
+- **PreviewContent.jsx**: `fullViewType` fallback `"artifact"` → `"display"` (×2).
+
 ## Recent Changes (Mar 27 2026 — Centered Handles + Page Tabs Draggable + Sidebar)
 
 ### Drag handles centered in headers

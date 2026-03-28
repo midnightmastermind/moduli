@@ -73,10 +73,10 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
     }
   }, [nameValue, module, dispatch, socket]);
 
-  // Normalize: if old-style viewType was image/pdf/audio/video, treat as artifact
+  // Normalize: if old-style viewType was image/pdf/audio/video, treat as display
   const normalizedArtifactType = artifactType
     || (["image", "pdf", "audio", "video"].includes(viewType) ? viewType : null);
-  const isArtifact = viewType === "artifact" || normalizedArtifactType;
+  const isArtifact = viewType === "display" || normalizedArtifactType;
 
   // Scroll to embedded container by data-occ-id when scrollAnchor changes
   const suppressAutoSyncRef = useRef(false);

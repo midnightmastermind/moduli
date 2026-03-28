@@ -1,6 +1,11 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-03-26. Check this file before re-reading source._
+_Updated: 2026-03-27. Check this file before re-reading source._
+
+## Recent Changes (Mar 27 2026 — ViewType Cleanup + resetData Fix)
+- **models/View.js**: Cleaned up `viewType` enum. Removed `"list"`, `"artifact"`, `"log"`, `"smart"`. Renamed `"artifact"` → `"display"` (file viewer). Renamed `"list"` → `"board"` (default children view). Default is now `"board"`. Updated comment for `artifactType` field to say "Display sub-type" instead of "Artifact sub-type". Final enum: `["board", "display", "markdown", "canvas", "code", "doc", "pool", "preview"]`.
+- **server.js `mimeToViewType`**: `viewType: "artifact"` → `viewType: "display"` for all 4 mime types (image/video/audio/pdf).
+- **createDefaultUserData.js**: centerHub View record was using `viewType: "page"` (invalid). Fixed to `viewType: "board"` — the view only tracks `activeOccurrenceId`, `hasPages` detection is done via child occurrence roles on the client.
 
 ## Recent Changes (Mar 26 2026 — Page Module Integration in Sample Data)
 - **createDefaultUserData.js**: Panels renamed to generic "Panel A"–"Panel G" (label + layout.name). Old panel labels become page names. Deferred wiring creates page modules (`role: "page"`, `kind: "board"`) + page occurrences (with `parentId: userGlobalFolderId`) between the 5 board panels and their container occurrences. Notebook (Panel F) and Freepad (Panel G) keep direct container wiring. User manifest simplified: Root + Global folder only (no per-panel folders). Global folder = page library. Panel-local pages tracked via `panelOcc.occurrences[]`.

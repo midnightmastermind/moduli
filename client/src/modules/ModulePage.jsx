@@ -179,7 +179,7 @@ function Page({
     content = (
       <Artifact
         occurrence={occurrence}
-        viewType={pageView?.viewType ?? "artifact"}
+        viewType={pageView?.viewType ?? "display"}
         artifactType={pageView?.artifactType ?? null}
         dispatch={dispatch}
         socket={socket}
@@ -261,7 +261,7 @@ function Page({
           ref={handleRef}
           className="module-drag-handle module-grab-zone"
           draggable={false}
-          style={{ position: "static", transform: "none", flexShrink: 0 }}
+          style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}
         >
           <div className="drag-handle-ball" />
           <div className="drag-handle-stem" />

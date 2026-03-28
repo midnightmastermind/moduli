@@ -467,7 +467,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
       occurrence: { id: occId, userId, gridId, targetId: modId, parentId: manifest?.rootFolderId ?? null, iteration: { mode: "persistent" }, fields: {} },
       panelOccurrenceId: panelOccurrence.id,
       ...(!view?.id && {
-        panelViewData: { id: crypto.randomUUID(), userId, gridId, viewType: "page", activeOccurrenceId: occId },
+        panelViewData: { id: crypto.randomUUID(), userId, gridId, viewType: "board", activeOccurrenceId: occId },
       }),
       emit: true,
     });
