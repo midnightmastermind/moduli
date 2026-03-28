@@ -2,12 +2,54 @@
 
 _Updated: Mar 27 2026. This folder implements occurrence-based view routing._
 
-## Recent Changes (Mar 27 2026 — Page Tabs Draggable + Sidebar Local Section)
-- **ModulePanel.jsx**: `PageTabStrip` now accepts `onReorder` prop. Tabs have `draggable={true}` with HTML5 drag handlers (onDragStart/onDragEnd/onDragOver/onDragLeave/onDrop). Drag-over shows blue left border + bg highlight. `handlePageTabReorder` reorders `panelOccurrence.occurrences` array via `CommitHelpers.updateOccurrence`. Cursor changed to `grab`.
-- **ModulePanel.jsx**: Page content wrapper now has `paddingTop: activePageEntry?.page?.kind === "doc" ? 10 : 12` for handle visibility + top padding on pages.
-- **ModulePage.jsx**: Board content `paddingTop` changed from `8px` to `14px` (5px visible gap above containers, 9px for handle at top:-9px).
-- **ManifestTree.jsx**: Added `PageTreeNode` component — shows a page occurrence as a tree row with container anchor chips (click = open page + scroll to container). Added "Open" section below folder tree when `isPagePanel` — lists open page tabs with expandable container chips. Added `handleCreatePage(kind)` + `handleCreateFolder()` callbacks. Sidebar header now shows `<RadialMenu handleIcon={<Plus>} items={[Board/Doc/Canvas/Folder]}>` when `isPagePanel`. Added `state` to GridActionsContext destructuring. Imported `RadialMenu`, `Plus, Layout, FileText, Paintbrush, FolderPlus`.
+## Recent Changes (Mar 27 2026 — Centered Handles + Page Tabs Draggable + Sidebar)
+
+### Drag handles centered in headers
+- **ModulePanel.jsx** panel handle: added `style={{ position: "static", transform: "none", flexShrink: 0 }}` — handle is now in-flow inside the panel header flex row (was absolute at top:-9px).
+- **ModuleContainer.jsx** container handles (both embedded row 1 and standard row): same `position: static` override — handle is now in-flow inside the container header. The `container-cog-handle` (shown when header is hidden) is **unchanged** — stays absolute.
+- **ModulePage.jsx**: Removed standalone handle div. Combined handle + page name into one header row for ALL page kinds. Handle is first item in row (`position: static`). Doc pages show just the handle; board/canvas/display show handle + kind icon + label + (board only) QuickAddMenu. `padding: "3px 10px 2px 4px"` on the row.
 - **index.css**: `.module-drag-handle` now has `z-index: 10` (fixes handles hiding behind sibling containers).
+
+### Page tabs — draggable to reorder
+- **ModulePanel.jsx** `PageTabStrip`: accepts `onReorder` prop. Each tab is `draggable={true}` with HTML5 handlers. Drag-over shows blue left border + bg. `handlePageTabReorder` callback reorders `panelOccurrence.occurrences` via `CommitHelpers.updateOccurrence({ emit: true })`. Tab cursor = `grab`.
+- **ModulePanel.jsx**: Page content wrapper has `paddingTop: kind === "doc" ? 10 : 12` — gives handles room + breathing space below tab strip.
+- **ModulePage.jsx**: Board content `paddingTop` = `14px` (5px visible gap above containers + 9px for handle at top:-9px).
+
+### ManifestTree — local section + RadialMenu plus button
+- Added `PageTreeNode` component — page occurrence as tree row; expands to show container anchor chips; clicking chip opens page + scrolls to container via `data-occ-id`.
+- "Open" section below folder tree when `isPagePanel` and pages are open.
+- Header `+` replaced with `<RadialMenu handleIcon={<Plus>} items={[Board page/Doc page/Canvas page/Folder]}>` when `isPagePanel`. `handleCreatePage(kind)` calls `CommitHelpers.createPage`. `handleCreateFolder` emits `create_folder` socket event.
+- Added `state` to GridActionsContext destructure. Imported `RadialMenu`, `Plus, Layout, FileText, Paintbrush, FolderPlus`.
+
+### Test checklist (Mar 27 2026)
+**Drag handles centered**
+- [ ] Panel: radial circle is inside the panel header row (not floating above)
+- [ ] Container: radial circle is inside the container header row
+- [ ] Page (board/canvas/display): handle is on the left of the page name row
+- [ ] Page (doc): handle appears in a small header row alone (no name text)
+- [ ] Instance handles unchanged (left side of instance rows)
+- [ ] Container cog (hidden-header mode) still absolute-positioned at top-left
+
+**Page tab drag reorder**
+- [ ] Tab cursor is `grab`
+- [ ] Dragging a tab over another shows blue left border on target
+- [ ] Dropping reorders tabs immediately (optimistic)
+- [ ] Order persists after page reload
+
+**ManifestTree sidebar — page panel**
+- [ ] `+` RadialMenu button visible in sidebar header
+- [ ] Clicking `+` opens arc: Board page / Doc page / Canvas page / Folder
+- [ ] Creating a page adds a new tab to the panel
+- [ ] "Open" section appears below folder tree, lists current tabs
+- [ ] Clicking a page in "Open" switches to that page
+- [ ] Expanding a page node shows container anchor chips
+- [ ] Clicking a chip opens the page and scrolls to that container
+
+**Padding / spacing**
+- [ ] ~5px visible gap above first container in board pages
+- [ ] Non-doc pages: ~12px breathing room below tab strip
+- [ ] Doc pages: ~10px breathing room below tab strip
+- [ ] Handles not clipped by sibling containers (z-index: 10)
 
 ## Recent Changes (Mar 26 2026 — Page Drag Handle + Panel Page Sidebar)
 - **ModulePage.jsx**: Page shell now has `data-page-occ-id={occurrence.id}` for scroll targeting. When `showHeader=false`, renders an absolute `.page-cog-handle` div (always-visible drag handle) with RadialMenu toggle. Mirrors the container-cog-handle pattern.
