@@ -1,2 +1,0 @@
-export declare const autoScrollForElements: (args: import("../internal-types").ElementAutoScrollArgs<import("@atlaskit/pragmatic-drag-and-drop/types").ElementDragType>) => import("@atlaskit/pragmatic-drag-and-drop/types").CleanupFn;
-export declare const autoScrollWindowForElements: (args?: import("../internal-types").WindowAutoScrollArgs<import("@atlaskit/pragmatic-drag-and-drop/types").ElementDragType>) => import("@atlaskit/pragmatic-drag-and-drop/types").CleanupFn;
