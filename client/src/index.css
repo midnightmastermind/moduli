@@ -620,11 +620,12 @@ body {
    9. MODULE HANDLES (drag handles, radial menu reveal)
    ============================================================================= */
 
-/* Drag handle — antenna centered above every module (ball on top, stem connects to module) */
+/* Drag handle — ball straddles the module top edge (half above, half on) */
 .module-drag-handle {
   position: absolute;
-  top: -17px;
+  top: -9px;
   left: 50%;
+  z-index: 10;
   transform: translateX(-50%);
   z-index: 200;
   pointer-events: auto;
@@ -633,10 +634,9 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0px;
 }
 
-/* Ball = antenna tip (on top) */
+/* Ball */
 .drag-handle-ball {
   width: 18px;
   height: 18px;
@@ -646,15 +646,9 @@ body {
   pointer-events: none;
 }
 
-/* Stem = connects ball to module top edge */
+/* Stem — hidden, no stem design */
 .drag-handle-stem {
-  width: 4px;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 1px;
-  pointer-events: none;
-  margin-top: -1px;
-  order: 2;
+  display: none;
 }
 
 /* The plain ball div is replaced by the radial handle (which has the icon inside) */

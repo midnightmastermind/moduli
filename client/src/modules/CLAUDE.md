@@ -1,6 +1,13 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: Mar 26 2026. This folder implements occurrence-based view routing._
+_Updated: Mar 27 2026. This folder implements occurrence-based view routing._
+
+## Recent Changes (Mar 27 2026 — Page Tabs Draggable + Sidebar Local Section)
+- **ModulePanel.jsx**: `PageTabStrip` now accepts `onReorder` prop. Tabs have `draggable={true}` with HTML5 drag handlers (onDragStart/onDragEnd/onDragOver/onDragLeave/onDrop). Drag-over shows blue left border + bg highlight. `handlePageTabReorder` reorders `panelOccurrence.occurrences` array via `CommitHelpers.updateOccurrence`. Cursor changed to `grab`.
+- **ModulePanel.jsx**: Page content wrapper now has `paddingTop: activePageEntry?.page?.kind === "doc" ? 10 : 12` for handle visibility + top padding on pages.
+- **ModulePage.jsx**: Board content `paddingTop` changed from `8px` to `14px` (5px visible gap above containers, 9px for handle at top:-9px).
+- **ManifestTree.jsx**: Added `PageTreeNode` component — shows a page occurrence as a tree row with container anchor chips (click = open page + scroll to container). Added "Open" section below folder tree when `isPagePanel` — lists open page tabs with expandable container chips. Added `handleCreatePage(kind)` + `handleCreateFolder()` callbacks. Sidebar header now shows `<RadialMenu handleIcon={<Plus>} items={[Board/Doc/Canvas/Folder]}>` when `isPagePanel`. Added `state` to GridActionsContext destructuring. Imported `RadialMenu`, `Plus, Layout, FileText, Paintbrush, FolderPlus`.
+- **index.css**: `.module-drag-handle` now has `z-index: 10` (fixes handles hiding behind sibling containers).
 
 ## Recent Changes (Mar 26 2026 — Page Drag Handle + Panel Page Sidebar)
 - **ModulePage.jsx**: Page shell now has `data-page-occ-id={occurrence.id}` for scroll targeting. When `showHeader=false`, renders an absolute `.page-cog-handle` div (always-visible drag handle) with RadialMenu toggle. Mirrors the container-cog-handle pattern.

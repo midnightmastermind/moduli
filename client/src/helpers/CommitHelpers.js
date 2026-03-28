@@ -224,20 +224,20 @@ export function deleteFolder({ dispatch, socket, folderId, emit = true }) {
 
 
 // ===== PAGE (composite: module + view + occurrence + panel wiring) =====
-export function createPage({ dispatch, socket, module, view, occurrence, panelOccurrenceId, emit = true }) {
+export function createPage({ dispatch, socket, module, view, occurrence, panelOccurrenceId, panelViewData, emit = true }) {
   if (!module?.id || !occurrence?.id) return;
-  // Optimistic: create module, view, occurrence, update panel
   dispatch?.(createModuleAction(module));
   if (view?.id) dispatch?.(createViewAction(view));
   dispatch?.(createOccurrenceAction(occurrence));
   if (panelOccurrenceId) {
-    dispatch?.(updateOccurrenceAction({
-      id: panelOccurrenceId,
-      _appendOcc: occurrence.id, // reducer handles append
-    }));
+    dispatch?.(updateOccurrenceAction({ id: panelOccurrenceId, _appendOcc: occurrence.id }));
+  }
+  if (panelViewData?.id) {
+    dispatch?.(createViewAction(panelViewData));
+    dispatch?.(updateOccurrenceAction({ id: panelOccurrenceId, viewId: panelViewData.id }));
   }
   if (shouldEmit(emit)) {
-    socket?.emit("create_page", { module, view, occurrence, panelOccurrenceId });
+    socket?.emit("create_page", { module, view, occurrence, panelOccurrenceId, panelViewData });
   }
 }
 

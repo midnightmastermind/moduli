@@ -92,11 +92,12 @@ export async function createDefaultUserData(userId) {
   // Panel-local pages are just occurrences in panelOcc.occurrences[].
   // ===================================================================
   const userManifestRootFolderId = uid();
-  const userGlobalFolderId = uid();
   const userManifestId = uid();
+  // Pre-generate centerHub view ID + first page occ ID so they can be referenced before creation
+  const centerHubViewId = uid();
+  const schedPageOccId = uid();
 
   await new Folder({ id: userManifestRootFolderId, userId, parentId: null, name: "Root", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
-  await new Folder({ id: userGlobalFolderId, userId, parentId: userManifestRootFolderId, name: "Global", folderType: "global", sortOrder: 0, isExpanded: true }).save();
   await new Manifest({ id: userManifestId, userId, name: "Pages", manifestType: "user", rootFolderId: userManifestRootFolderId }).save();
   await Grid.findByIdAndUpdate(grid._id, { $set: { manifestId: userManifestId } });
 
@@ -2201,7 +2202,7 @@ export async function createDefaultUserData(userId) {
       },
       occurrences: [],
     },
-    schedule: {
+    centerHub: {
       id: uid(),
       label: "Panel C",
       kind: "board",
@@ -2211,15 +2212,10 @@ export async function createDefaultUserData(userId) {
         display: "flex",
         flow: "column",
         wrap: "nowrap",
-        gapPx: 2,
+        gapPx: 4,
         scrollY: "auto",
-        padding: "none",
-        alignItems: "stretch",  // Full width containers
-        containerWidth: "full",  // Containers take full width
+        padding: "sm",
       },
-      // Cascading style: containers in this panel get a subtle blue tint
-      childContainerStyle: { bg: "rgba(59,130,246,0.08)", borderRadius: "6px" },
-      childInstanceStyle: null,
       occurrences: [],
     },
     dailyGoals: {
@@ -2254,38 +2250,6 @@ export async function createDefaultUserData(userId) {
         gapPx: 8,
         scrollY: "auto",
         padding: "sm",
-      },
-      occurrences: [],
-    },
-    dayPage: {
-      id: uid(),
-      label: "Notebook",
-      kind: "board",  // Board panel showing doc containers as sections
-      defaultDragMode: "move",
-      layout: {
-        name: "Notebook",
-        display: "flex",
-        flow: "column",
-        wrap: "nowrap",
-        gapPx: 6,
-        scrollY: "auto",
-        padding: "sm",
-      },
-      occurrences: [],
-    },
-    freepad: {
-      id: uid(),
-      label: "Freepad",
-      kind: "canvas",
-      defaultDragMode: "move",
-      layout: {
-        name: "Freepad",
-        display: "flex",
-        flow: "column",
-        wrap: "nowrap",
-        gapPx: 0,
-        scrollY: "auto",
-        padding: "none",
       },
       occurrences: [],
     },
@@ -2718,7 +2682,7 @@ export async function createDefaultUserData(userId) {
     const occId = await createOccurrence({
       targetType: "module",
       targetId: scheduleContainers[key].id,
-      meta: { panelId: panels.schedule.id },
+      meta: { panelId: panels.centerHub.id },
       scheduledDate: today.toISOString(),
       fields: {
         [fields.timeslot.id]: { value: slot.label, flow: "in" },
@@ -3022,7 +2986,7 @@ export async function createDefaultUserData(userId) {
         [qFieldId]: { value: def.seedQuestion, flow: "in" },
         [aFieldId]: { value: "",                flow: "in" },
       },
-      meta: { panelId: panels.dayPage.id },
+      meta: { panelId: panels.centerHub.id },
     }).save();
     notebookPanelOccIds.push(contOccId);
     notebookTreeOccIds.push(contOccId);
@@ -3054,7 +3018,7 @@ export async function createDefaultUserData(userId) {
       parentId: dayPageDocOccId,
       iteration: { mode: "persistent" },
       fields: {}, textmap: weeklyReviewTextmap,
-      meta: { panelId: panels.dayPage.id },
+      meta: { panelId: panels.centerHub.id },
     }).save();
     notebookPanelOccIds.push(contOccId);
     notebookTreeOccIds.push(contOccId);
@@ -3072,7 +3036,7 @@ export async function createDefaultUserData(userId) {
       sortOrder: i,
       iteration: { mode: "persistent" },
       fields: {}, textmap: { type: "doc", content: makeDocContent(section.lines).content },
-      meta: { panelId: panels.dayPage.id },
+      meta: { panelId: panels.centerHub.id },
     }).save();
     notebookPanelOccIds.push(contOccId);
     notebookTreeOccIds.push(contOccId);
@@ -3119,7 +3083,7 @@ export async function createDefaultUserData(userId) {
       sortOrder: i,
       iteration: { mode: "persistent" },
       fields: {}, textmap: bodyContent,
-      meta: { panelId: panels.dayPage.id },
+      meta: { panelId: panels.centerHub.id },
     }).save();
     notebookPanelOccIds.push(contOccId);
     notebookTreeOccIds.push(contOccId);
@@ -3164,7 +3128,7 @@ export async function createDefaultUserData(userId) {
       sortOrder: notesSectionOccIds.length + i,
       iteration: { mode: "persistent" },
       fields: {}, textmap: bodyContent,
-      meta: { panelId: panels.dayPage.id },
+      meta: { panelId: panels.centerHub.id },
     }).save();
     notebookPanelOccIds.push(contOccId);
     notebookTreeOccIds.push(contOccId);
@@ -3208,7 +3172,7 @@ export async function createDefaultUserData(userId) {
         viewId: container._viewId || null,
         parentId: parentOccId, sortOrder: i, iteration: { mode: "persistent" },
         fields: {}, textmap: bodyContent,
-        meta: { panelId: panels.dayPage.id },
+        meta: { panelId: panels.centerHub.id },
       }).save();
       notebookPanelOccIds.push(contOccId);
       notebookTreeOccIds.push(contOccId);
@@ -3306,7 +3270,7 @@ export async function createDefaultUserData(userId) {
       sortOrder: gospelEmbedSortOrder++,
       iteration: { mode: "persistent" },
       fields: {}, textmap: { type: "doc", content: mainBodyNodes.length > 0 ? mainBodyNodes : [{ type: "paragraph" }] },
-      meta: { panelId: panels.dayPage.id },
+      meta: { panelId: panels.centerHub.id },
     }).save();
     notebookPanelOccIds.push(gd.mainOccId);
     notebookTreeOccIds.push(gd.mainOccId);
@@ -3324,7 +3288,7 @@ export async function createDefaultUserData(userId) {
           sortOrder: gospelEmbedSortOrder++,
           iteration: { mode: "persistent" },
           fields: {}, textmap: { type: "doc", content: whyBodyNodes.length > 0 ? whyBodyNodes : [{ type: "paragraph" }] },
-          meta: { panelId: panels.dayPage.id },
+          meta: { panelId: panels.centerHub.id },
         }).save();
         notebookPanelOccIds.push(gd.whyOccId);
         notebookTreeOccIds.push(gd.whyOccId);
@@ -3414,7 +3378,7 @@ export async function createDefaultUserData(userId) {
   });
   await manifest.save();
 
-  // View for the Day Page panel — artifact view with tree sidebar
+  // View for the Day Page (Notebook page) — artifact view with tree sidebar
   const dayPageViewId = uid();
   const dayPageView = new View({
     id: dayPageViewId,
@@ -3427,6 +3391,20 @@ export async function createDefaultUserData(userId) {
     activeOccurrenceId: dayPageDocOccId,
   });
   await dayPageView.save();
+
+  // View for the centerHub page panel — tracks which page tab is active.
+  // IMPORTANT: hasTree:false + no manifestId — adding hasTree would cause the panel to render
+  // as a TreePanelContent (notebook branch) instead of the hasPages branch.
+  // activeOccurrenceId will be updated to notebookPageOccId after page occurrences are created.
+  await new View({
+    id: centerHubViewId,
+    userId,
+    gridId,
+    viewType: "page",
+    hasTree: false,
+    activeOccurrenceId: schedPageOccId,
+    layout: {},
+  }).save();
 
   // ── DAY PAGE AUTO-CREATE OPERATION ──
   // Dynamic page creation via generic pipeline actions (no hardcoded day page logic).
@@ -3582,7 +3560,7 @@ export async function createDefaultUserData(userId) {
     triggerTypes: ["onChange", "onDrop"],
     triggerConfig: {
       onChange: { allowedFields: [fields.completed.id] },
-      onDrop: { targetPanelId: panels.schedule.id },
+      onDrop: { targetPanelId: panels.centerHub.id },
     },
     enabled: true,
     pipeline: {
@@ -3648,7 +3626,7 @@ export async function createDefaultUserData(userId) {
     description: "When dropped into the schedule, sets scheduledDate = active filter date and timeslot = container label",
     triggerType: "onCreate",
     triggerTypes: ["onCreate"],
-    triggerConfig: { onCreate: { panelId: panels.schedule.id } },
+    triggerConfig: { onCreate: { panelId: panels.centerHub.id } },
     enabled: true,
     pipeline: {
       sources: [],
@@ -3670,7 +3648,7 @@ export async function createDefaultUserData(userId) {
     description: "When moved out of the schedule panel, clears scheduledDate and timeslot fields",
     triggerType: "onMove",
     triggerTypes: ["onMove"],
-    triggerConfig: { onMove: { fromPanelId: panels.schedule.id } },
+    triggerConfig: { onMove: { fromPanelId: panels.centerHub.id } },
     enabled: true,
     pipeline: {
       sources: [],
@@ -3796,7 +3774,7 @@ export async function createDefaultUserData(userId) {
   await createProfileData({
     userId,
     gridId,
-    notebookPanelId: panels.dayPage.id,
+    notebookPanelId: panels.centerHub.id,
   });
 
   // ===================================================================
@@ -3927,16 +3905,15 @@ export async function createDefaultUserData(userId) {
 
   // Wire panels to grid with placement
   // Layout:
-  // | Toolkit(0,0) | Schedule/Notebook(0,1 h=2) | Goals(0,2)    | Freepad(0,3 h=2) |
-  // | Todo(1,0)    | Schedule/Notebook cont.    | Accounts(1,2) | Freepad cont.    |
+  // | Toolkit(0,0) | CenterHub(0,1 h=2) | Goals(0,2)    |
+  // | Todo(1,0)    | CenterHub cont.    | Accounts(1,2) |
+  // CenterHub is a page panel with 3 tabs: Schedule / Notebook / Freepad
   const panelPlacements = [
     { key: "dailyToolkit", row: 0, col: 0, width: 1, height: 1 },
     { key: "todoList", row: 1, col: 0, width: 1, height: 1 },
-    { key: "schedule", row: 0, col: 1, width: 1, height: 2, filterOverride: { [scheduledDateFieldId]: today.toISOString() } },
+    { key: "centerHub", row: 0, col: 1, width: 1, height: 2, viewId: centerHubViewId, filterOverride: { [scheduledDateFieldId]: today.toISOString() } },
     { key: "dailyGoals", row: 0, col: 2, width: 1, height: 1 },
     { key: "accounts", row: 1, col: 2, width: 1, height: 1 },
-    { key: "dayPage", row: 0, col: 1, width: 1, height: 2, viewId: dayPageViewId },  // Same position as Schedule - user toggles
-    { key: "freepad", row: 0, col: 1, width: 1, height: 2 },  // Same cell as Schedule/Notebook - user toggles
   ];
 
   const gridOccs = [];
@@ -3974,11 +3951,11 @@ export async function createDefaultUserData(userId) {
   }
 
   // Wire panel occurrences via page modules (Panel → Page → Containers)
-  // Each board panel gets a page module whose label = the old panel name.
+  // Each board panel (Toolkit, Todo, Goals, Accounts) gets a single page module.
+  // centerHub is handled separately below (3 pages: Schedule, Notebook, Freepad).
   const pageWiring = [
     { panelKey: "dailyToolkit", pageLabel: "Daily Toolkit", containerOccIds: toolkitPanelOccIds },
     { panelKey: "todoList", pageLabel: "Todo List", containerOccIds: todoPanelOccIds },
-    { panelKey: "schedule", pageLabel: "Schedule", containerOccIds: scheduleOccIds },
     { panelKey: "dailyGoals", pageLabel: "Daily Goals", containerOccIds: goalPanelOccIds },
     { panelKey: "accounts", pageLabel: "Accounts", containerOccIds: accountPanelOccIds },
   ];
@@ -3990,7 +3967,7 @@ export async function createDefaultUserData(userId) {
     await new Occurrence({
       id: pageOccId, userId, gridId,
       targetId: pageModId, targetType: "module",
-      parentId: userGlobalFolderId,
+      parentId: userManifestRootFolderId,
       sortOrder: pi,
       occurrences: containerOccIds,
       iteration: { mode: "persistent" },
@@ -4002,9 +3979,8 @@ export async function createDefaultUserData(userId) {
     );
   }
 
-  // Notebook panel: artifact view with tree sidebar (bypasses page system in View.jsx)
-  await Occurrence.findOneAndUpdate({ targetId: panels.dayPage.id, gridId }, { $set: { occurrences: notebookPanelOccIds } });
-  // Freepad panel: canvas tree (ManifestTree sidebar + CanvasDrawSection per page)
+  // ── centerHub: 3-page panel (Schedule / Notebook / Freepad) ──
+  // Freepad canvas manifest (tree sidebar for canvas pages)
   const freepadRootFolderId = uid();
   await new Folder({ id: freepadRootFolderId, userId, parentId: null, name: "Canvas Root", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
   const freepadManifestId = uid();
@@ -4073,11 +4049,66 @@ export async function createDefaultUserData(userId) {
     if (pi === 0) freepadFirstPageOccId = pageOccId;
   }
 
-  // View for freepad panel — canvas tree with sidebar
+  // Canvas view for Freepad page — tracks active canvas sub-page
   const freepadViewId = uid();
   await new View({ id: freepadViewId, userId, gridId, viewType: "canvas", hasTree: true, manifestId: freepadManifestId, activeOccurrenceId: freepadFirstPageOccId, layout: {} }).save();
-  // Update the freepad panel occurrence to use this view (find it by targetId)
-  await Occurrence.findOneAndUpdate({ targetId: panels.freepad.id, gridId }, { $set: { viewId: freepadViewId, occurrences: [] } });
+
+  // Create the 3 page modules for centerHub
+  const schedPageMod = new Module({ id: uid(), userId, gridId, role: "page", kind: "board", label: "Schedule" });
+  await schedPageMod.save();
+  const notebookPageMod = new Module({ id: uid(), userId, gridId, role: "page", kind: "board", label: "Notebook" });
+  await notebookPageMod.save();
+  const freepadPageMod = new Module({ id: uid(), userId, gridId, role: "page", kind: "canvas", label: "Freepad" });
+  await freepadPageMod.save();
+
+  // Schedule page occurrence (uses pre-generated ID so centerHubView can reference it)
+  await new Occurrence({
+    id: schedPageOccId, userId, gridId,
+    targetId: schedPageMod.id, targetType: "module",
+    parentId: userManifestRootFolderId,
+    sortOrder: 0,
+    occurrences: scheduleOccIds,
+    iteration: { mode: "persistent" },
+    fields: {}, meta: {},
+  }).save();
+
+  // Notebook page occurrence
+  const notebookPageOccId = uid();
+  await new Occurrence({
+    id: notebookPageOccId, userId, gridId,
+    targetId: notebookPageMod.id, targetType: "module",
+    parentId: userManifestRootFolderId,
+    sortOrder: 1,
+    occurrences: notebookPanelOccIds,
+    viewId: dayPageViewId,
+    iteration: { mode: "persistent" },
+    fields: {}, meta: {},
+  }).save();
+
+  // Freepad page occurrence (canvas view handles sub-page navigation)
+  const freepadPageOccId = uid();
+  await new Occurrence({
+    id: freepadPageOccId, userId, gridId,
+    targetId: freepadPageMod.id, targetType: "module",
+    parentId: userManifestRootFolderId,
+    sortOrder: 2,
+    viewId: freepadViewId,
+    occurrences: [],
+    iteration: { mode: "persistent" },
+    fields: {}, meta: {},
+  }).save();
+
+  // Wire centerHub panel occurrence with all 3 page occurrence IDs
+  await Occurrence.findOneAndUpdate(
+    { targetId: panels.centerHub.id, gridId },
+    { $set: { occurrences: [schedPageOccId, notebookPageOccId, freepadPageOccId] } }
+  );
+
+  // Update centerHub view to default to the Notebook page (dayPage content) on first load
+  await View.findOneAndUpdate(
+    { id: centerHubViewId },
+    { $set: { activeOccurrenceId: notebookPageOccId } }
+  );
 
   // Return summary
   return {

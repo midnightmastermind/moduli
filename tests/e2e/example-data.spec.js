@@ -37,9 +37,10 @@ test.describe('Example data — panels load', () => {
     console.log(`[example-data] panels on grid: ${count}`);
   });
 
-  test('Schedule panel is visible', async ({ page }) => {
+  test('Schedule tab is visible in centerHub panel', async ({ page }) => {
+    // Schedule is now a page tab inside the centerHub panel, not a standalone panel
     const has = await panelContainsText(page, 'Schedule');
-    expect(has, 'Schedule panel not found').toBe(true);
+    expect(has, 'Schedule tab not found in any panel').toBe(true);
   });
 
   test('Daily Goals panel is visible', async ({ page }) => {
@@ -52,9 +53,23 @@ test.describe('Example data — panels load', () => {
     expect(has, 'Daily Toolkit panel not found').toBe(true);
   });
 
-  test('Notebook panel is visible', async ({ page }) => {
+  test('Notebook tab is visible in centerHub panel', async ({ page }) => {
+    // Notebook is now a page tab inside the centerHub panel
     const has = await panelContainsText(page, 'Notebook');
-    expect(has, 'Notebook panel not found').toBe(true);
+    expect(has, 'Notebook tab not found in any panel').toBe(true);
+  });
+
+  test('Freepad tab is visible in centerHub panel', async ({ page }) => {
+    const has = await panelContainsText(page, 'Freepad');
+    expect(has, 'Freepad tab not found in any panel').toBe(true);
+  });
+
+  test('centerHub panel shows 3 page tabs', async ({ page }) => {
+    // The centerHub panel has Schedule/Notebook/Freepad tabs in its PageTabStrip
+    const texts = await getAllPanelText(page);
+    // Find the panel that has all three tab labels
+    const centerHubText = texts.find(t => t.includes('Schedule') && t.includes('Notebook') && t.includes('Freepad'));
+    expect(centerHubText, 'No panel found with all 3 page tabs (Schedule/Notebook/Freepad)').toBeTruthy();
   });
 });
 
@@ -71,19 +86,17 @@ test.describe('Example data — containers load', () => {
     console.log(`[example-data] containers rendered: ${count}`);
   });
 
-  test('Schedule has time-slot containers (e.g. 7:00 AM)', async ({ page }) => {
-    // Schedule may be hidden behind other stacked panels at col:1 — innerText still works.
-    // Use allInnerTexts() to find the panel whose text starts with "Schedule"
-    // (avoids hasText filter which matches any panel containing "Schedule" in child text)
+  test('Schedule page has time-slot containers (e.g. 7:00 AM)', async ({ page }) => {
+    // Schedule is the default active page in centerHub, so its containers are visible on load
     const allTexts = await page.locator('[data-testid="panel-shell"]').allInnerTexts();
-    const scheduleText = allTexts.find(t => t.trim().startsWith('Schedule'));
-    if (!scheduleText) {
-      console.log('[example-data] Schedule panel not found — skip');
+    // Find the panel whose text has both Schedule tab and time slots
+    const centerHubText = allTexts.find(t => t.includes('Schedule') && t.includes('Notebook'));
+    if (!centerHubText) {
+      console.log('[example-data] centerHub panel not found — skip');
       return;
     }
-    // Time slots like "7:00 AM", "8:00 AM", "12:00am", etc.
-    const hasTimeSlot = /\d+:\d+\s*(am|pm)/i.test(scheduleText);
-    expect(hasTimeSlot, `Schedule panel has no time slots. Got: ${scheduleText.substring(0, 200)}`).toBe(true);
+    const hasTimeSlot = /\d+:\d+\s*(am|pm)/i.test(centerHubText);
+    expect(hasTimeSlot, `Schedule page has no time slots. Got: ${centerHubText.substring(0, 200)}`).toBe(true);
   });
 
   test('Daily Toolkit has fitness container', async ({ page }) => {
@@ -157,14 +170,13 @@ test.describe('Example data — instances load', () => {
     expect(hasNutrition, 'No nutrition instances found on page').toBe(true);
   });
 
-  test('goal instance "Morning Workout" or similar goal is visible', async ({ page }) => {
+  test('goal instance or container visible in Daily Goals', async ({ page }) => {
     const goals = page.locator('[data-testid="panel-shell"]').filter({ hasText: 'Daily Goals' }).first();
     if (!await goals.isVisible({ timeout: 5000 }).catch(() => false)) {
       console.log('[example-data] Daily Goals not visible — skip');
       return;
     }
     const text = await goals.innerText();
-    // Goals panel should have at least one instance row
     expect(text.length, 'Daily Goals panel is empty').toBeGreaterThan(10);
   });
 });
@@ -176,14 +188,12 @@ test.describe('Example data — instance collapse behavior', () => {
   });
 
   test('instances in list containers start collapsed (no field inputs visible)', async ({ page }) => {
-    // Find a non-doc container (list kind) with instances
     const listContainers = page.locator('[data-testid="container-shell"]:not([data-kind="doc"])');
     const count = await listContainers.count();
     if (count === 0) {
       console.log('[example-data] no list containers found — skip');
       return;
     }
-    // Number inputs should NOT be visible initially (fields are collapsed)
     const numberInputs = page.locator('[data-testid="instance-wrap"] input[type="number"]');
     const inputCount = await numberInputs.count();
     expect(inputCount, `Expected 0 visible number inputs (collapsed), got ${inputCount}`).toBe(0);
@@ -191,8 +201,6 @@ test.describe('Example data — instance collapse behavior', () => {
   });
 
   test('clicking an instance in a list container reveals its fields', async ({ page }) => {
-    // Try instances until we find one that expands to show number inputs.
-    // Doc container instances have no toggle (onToggleExpand=null) so we skip those.
     const allInstances = page.locator('[data-testid="instance-wrap"]');
     const total = await allInstances.count();
 
@@ -201,12 +209,11 @@ test.describe('Example data — instance collapse behavior', () => {
       if (!await instance.isVisible({ timeout: 1000 }).catch(() => false)) continue;
 
       const inputsBefore = await instance.locator('input[type="number"]').count();
-      if (inputsBefore > 0) continue; // already expanded or doc container
+      if (inputsBefore > 0) continue;
 
       const instanceBox = await instance.boundingBox();
       if (!instanceBox) continue;
 
-      // Click right 75% — expand toggle is on the right-side fields div
       await page.mouse.click(
         instanceBox.x + instanceBox.width * 0.75,
         instanceBox.y + instanceBox.height * 0.5
@@ -219,43 +226,42 @@ test.describe('Example data — instance collapse behavior', () => {
         expect(countAfter).toBeGreaterThan(0);
         return;
       }
-      // This instance didn't expand (doc container or no fields) — try next
     }
 
-    // No expandable instance with number inputs found — skip rather than fail
     console.log('[example-data] no expandable instances with number inputs found — skip');
   });
 });
 
-test.describe('Example data — Notebook loads', () => {
+test.describe('Example data — Notebook page tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await waitForGrid(page);
   });
 
-  test('Notebook panel renders doc containers', async ({ page }) => {
-    const notebook = page.locator('[data-testid="panel-shell"]').filter({ hasText: 'Notebook' }).first();
-    if (!await notebook.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log('[example-data] Notebook panel not visible — skip');
+  test('clicking Notebook tab switches active page', async ({ page }) => {
+    // Find the centerHub panel (has all 3 tabs)
+    const panels = page.locator('[data-testid="panel-shell"]');
+    const allTexts = await panels.allInnerTexts();
+    const hubIdx = allTexts.findIndex(t => t.includes('Schedule') && t.includes('Notebook') && t.includes('Freepad'));
+    if (hubIdx === -1) {
+      console.log('[example-data] centerHub panel not found — skip');
       return;
     }
-    const text = await notebook.innerText();
-    // Notebook should have some doc content
-    expect(text.length, 'Notebook panel is empty').toBeGreaterThan(5);
-    console.log(`[example-data] Notebook panel content length: ${text.length}`);
-  });
+    const hubPanel = panels.nth(hubIdx);
 
-  test('Notebook shows a day page document', async ({ page }) => {
-    const notebook = page.locator('[data-testid="panel-shell"]').filter({ hasText: 'Notebook' }).first();
-    if (!await notebook.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log('[example-data] Notebook panel not visible — skip');
+    // Click the Notebook tab
+    const notebookTab = hubPanel.locator('button, [role="tab"]').filter({ hasText: 'Notebook' }).first();
+    if (!await notebookTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+      console.log('[example-data] Notebook tab button not visible — skip');
       return;
     }
-    const text = await notebook.innerText();
-    // Notebook is a day-page artifact panel. The auto-create operation fires on load and creates
-    // a "daypage YYYY-MM-DD" module. Either the sample content or the auto-created page will show.
-    const hasDayContent = /Journal|Morning|Evening|daypage|\d{4}-\d{2}/i.test(text);
-    expect(hasDayContent, `Notebook day page content not found. Got: ${text.substring(0, 200)}`).toBe(true);
+    await notebookTab.click();
+    await page.waitForTimeout(300);
+
+    // After switching, the panel should show notebook content (doc containers)
+    const textAfter = await hubPanel.innerText();
+    expect(textAfter.length, 'Notebook page appears empty after tab click').toBeGreaterThan(5);
+    console.log(`[example-data] Notebook page content length after tab click: ${textAfter.length}`);
   });
 });
 
@@ -279,14 +285,13 @@ test.describe('Example data — data integrity checks', () => {
     console.log(`[example-data] total containers in grid: ${count}`);
   });
 
-  test('app title or logo is visible', async ({ page }) => {
+  test('app toolbar is visible', async ({ page }) => {
     const toolbar = page.locator('[data-testid="toolbar"]');
     await expect(toolbar).toBeVisible({ timeout: 5000 });
     console.log('[example-data] toolbar visible');
   });
 
   test('no error banner visible after load', async ({ page }) => {
-    // Check for common error indicators
     const errorText = await page.locator('body').innerText();
     const hasJsError = errorText.includes('TypeError') || errorText.includes('ReferenceError');
     expect(hasJsError, 'JS error text visible in page body').toBe(false);

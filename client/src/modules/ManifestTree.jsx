@@ -6,9 +6,10 @@
 import { useContext, useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { GridActionsContext } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus } from "lucide-react";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { hexToRgba } from "../helpers/colorHelpers.js";
+import RadialMenu from "../ui/RadialMenu.jsx";
 
 // Extract first heading text from a TipTap textmap — strips markdown, ignores field pills
 function getDocHeading(textmap) {
@@ -350,17 +351,95 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   );
 }
 
+// ─── PageTreeNode — one open page tab + its containers as anchor chips ────────
+function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, modulesById }) {
+  const [open, setOpen] = useState(true);
+  const pageOcc = occurrencesById?.[pageOccId];
+  const pageMod = pageOcc ? modulesById?.[pageOcc.targetId] : null;
+  if (!pageOcc || !pageMod || pageMod.role !== "page") return null;
+
+  const label = pageMod.label || "Untitled";
+  const isActive = pageOccId === activeOccId;
+  const containerOccs = (pageOcc.occurrences || [])
+    .map(id => occurrencesById?.[id])
+    .filter(o => o && modulesById?.[o.targetId]);
+  const hasChildren = containerOccs.length > 0;
+
+  return (
+    <div>
+      <div
+        onClick={() => onOpenPage?.(pageOccId)}
+        style={{
+          display: "flex", alignItems: "center", gap: 3,
+          paddingLeft: 6, paddingRight: 4, paddingTop: 1, paddingBottom: 1,
+          cursor: "pointer", fontSize: 12,
+          color: isActive ? "rgba(100,180,255,1)" : "var(--text-primary)",
+          background: isActive ? "rgba(100,180,255,0.12)" : "transparent",
+          borderRadius: 3, userSelect: "none", fontWeight: isActive ? 500 : 400,
+        }}
+      >
+        <span
+          style={{ fontSize: 9, color: "var(--text-faint)", width: 10, textAlign: "center", flexShrink: 0, cursor: hasChildren ? "pointer" : "default" }}
+          onClick={hasChildren ? (e) => { e.stopPropagation(); setOpen(v => !v); } : undefined}
+        >
+          {hasChildren ? (open ? "▾" : "▸") : "›"}
+        </span>
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {label}
+        </span>
+      </div>
+      {hasChildren && open && (
+        <div style={{ paddingBottom: 4 }}>
+          {containerOccs.map(contOcc => {
+            const contMod = modulesById?.[contOcc.targetId];
+            const contLabel = contMod?.label || contOcc.id;
+            return (
+              <div key={contOcc.id} style={{ paddingLeft: 8, paddingRight: 4, paddingTop: 1, paddingBottom: 2, display: "flex", alignItems: "center", gap: 2 }}>
+                <span style={{ width: 8, flexShrink: 0 }} />
+                <div
+                  onClick={() => {
+                    onOpenPage?.(pageOccId);
+                    setTimeout(() => {
+                      document.querySelector(`[data-occ-id="${contOcc.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                    }, 150);
+                  }}
+                  style={{
+                    display: "inline-flex", alignItems: "center",
+                    padding: "1px 6px 1px 5px", borderRadius: 999,
+                    border: "1px solid rgba(134,239,172,0.32)",
+                    background: "rgba(134,239,172,0.08)",
+                    cursor: "pointer", fontSize: 11, color: "rgba(134,239,172,0.8)",
+                    userSelect: "none", maxWidth: 110, overflow: "hidden",
+                    fontFamily: "var(--font-mono)",
+                  }}
+                >
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{contLabel}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── ManifestTree ─────────────────────────────────────────────────────────────
-export default function ManifestTree({ manifestId, view, dispatch, socket, collapsed, onToggleCollapse, scrollHighlightId }) {
-  const { manifestsById, foldersById, occurrencesById, modulesById } = useContext(GridActionsContext);
+export default function ManifestTree({ manifestId, view, dispatch, socket, collapsed, onToggleCollapse, scrollHighlightId, panelOccurrence, onOpenPage, onClosePage }) {
+  const { manifestsById, foldersById, occurrencesById, modulesById, state } = useContext(GridActionsContext);
   const manifest = manifestsById?.[manifestId];
   const rootFolder = manifest?.rootFolderId ? foldersById?.[manifest.rootFolderId] : null;
+  const isPagePanel = !!panelOccurrence;
 
-  // Clicking a doc file → open it (switch activeOccurrenceId)
+  // Clicking a doc — opens page (page panels) or sets active doc (artifact panels)
   const handleSelect = useCallback((occId) => {
-    if (!view?.id) return;
-    CommitHelpers.updateView({ dispatch, socket, view: { ...view, activeOccurrenceId: occId, scrollAnchor: null } });
-  }, [view, dispatch, socket]);
+    if (isPagePanel) {
+      onOpenPage?.(occId);
+    } else {
+      if (!view?.id) return;
+      CommitHelpers.updateView({ dispatch, socket, view: { ...view, activeOccurrenceId: occId, scrollAnchor: null } });
+    }
+  }, [isPagePanel, onOpenPage, view, dispatch, socket]);
 
   // Clicking an anchor chip → keep parent doc open, scroll to heading
   const handleScrollTo = useCallback((parentOccId, headingText) => {
@@ -373,6 +452,45 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
     if (!view?.id) return;
     CommitHelpers.updateView({ dispatch, socket, view: { ...view, defaultOccurrenceId: occId } });
   }, [view, dispatch, socket]);
+
+  // Create a new page and pin it to the panel
+  const handleCreatePage = useCallback((kind) => {
+    if (!panelOccurrence?.id || !state?.userId || !state?.grid?._id) return;
+    const userId = state.userId;
+    const gridId = state.grid._id;
+    const modId = crypto.randomUUID();
+    const occId = crypto.randomUUID();
+    const label = `${kind.charAt(0).toUpperCase() + kind.slice(1)} Page`;
+    CommitHelpers.createPage({
+      dispatch, socket,
+      module: { id: modId, userId, gridId, role: "page", kind, label },
+      occurrence: { id: occId, userId, gridId, targetId: modId, parentId: manifest?.rootFolderId ?? null, iteration: { mode: "persistent" }, fields: {} },
+      panelOccurrenceId: panelOccurrence.id,
+      ...(!view?.id && {
+        panelViewData: { id: crypto.randomUUID(), userId, gridId, viewType: "page", activeOccurrenceId: occId },
+      }),
+      emit: true,
+    });
+  }, [panelOccurrence, state, dispatch, socket, manifest, view]);
+
+  // Create a new folder in the manifest root
+  const handleCreateFolder = useCallback(() => {
+    if (!state?.userId || !state?.grid?._id || !manifest?.rootFolderId) return;
+    const id = crypto.randomUUID();
+    const folderData = { id, name: "New Folder", parentId: manifest.rootFolderId, gridId: state.grid._id, userId: state.userId, folderType: "normal" };
+    socket?.emit("create_folder", folderData);
+  }, [state, socket, manifest]);
+
+  // Open pages list for the local section
+  const localPageOccs = useMemo(() => {
+    if (!isPagePanel) return [];
+    return (panelOccurrence.occurrences || [])
+      .filter(id => {
+        const occ = occurrencesById?.[id];
+        const mod = occ ? modulesById?.[occ.targetId] : null;
+        return mod?.role === "page";
+      });
+  }, [isPagePanel, panelOccurrence?.occurrences, occurrencesById, modulesById]);
 
   // Touch drag to open/close sidebar
   const handleThumbTouchStart = useCallback((e) => {
@@ -419,15 +537,29 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
         </div>
       ) : (
         <>
-          {/* Header with label + collapse button */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px 3px", flexShrink: 0 }}>
-            <span style={{ fontSize: 12, color: "var(--text-faint)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-              {manifest?.name || "Files"}
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 4px 3px 6px", flexShrink: 0, borderBottom: "1px solid var(--border-default)" }}>
+            <span style={{ fontSize: 12, color: "var(--text-faint)", letterSpacing: "0.05em", textTransform: "uppercase", flex: 1 }}>
+              {isPagePanel ? "Pages" : (manifest?.name || "Files")}
             </span>
+            {isPagePanel && (
+              <div style={{ flexShrink: 0, position: "relative" }}>
+                <RadialMenu
+                  handleIcon={<Plus size={11} />}
+                  forceDirection="down"
+                  items={[
+                    { label: "Board page", icon: Layout, onClick: () => handleCreatePage("board") },
+                    { label: "Doc page", icon: FileText, onClick: () => handleCreatePage("doc") },
+                    { label: "Canvas page", icon: Paintbrush, onClick: () => handleCreatePage("canvas") },
+                    { label: "Folder", icon: FolderPlus, onClick: handleCreateFolder },
+                  ]}
+                />
+              </div>
+            )}
             <button
               onClick={onToggleCollapse}
               title="Collapse sidebar"
-              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: "2px 2px", borderRadius: 4, display: "flex", alignItems: "center" }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: "2px 2px", borderRadius: 4, display: "flex", alignItems: "center", flexShrink: 0 }}
             >
               <ChevronRight size={12} style={{ transform: "rotate(180deg)" }} />
             </button>
@@ -450,6 +582,26 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                 onSetDefault={handleSetDefault}
                 defaultOccurrenceId={view?.defaultOccurrenceId}
               />
+            )}
+
+            {/* Local section — open page tabs with their containers */}
+            {isPagePanel && localPageOccs.length > 0 && (
+              <>
+                <div style={{ borderTop: "1px solid var(--border-default)", margin: "4px 0 2px" }} />
+                <div style={{ fontSize: 10, color: "var(--text-faint)", letterSpacing: "0.05em", textTransform: "uppercase", padding: "2px 6px 1px" }}>
+                  Open
+                </div>
+                {localPageOccs.map(pageOccId => (
+                  <PageTreeNode
+                    key={pageOccId}
+                    pageOccId={pageOccId}
+                    activeOccId={view?.activeOccurrenceId}
+                    onOpenPage={onOpenPage}
+                    occurrencesById={occurrencesById}
+                    modulesById={modulesById}
+                  />
+                ))}
+              </>
             )}
           </div>
 

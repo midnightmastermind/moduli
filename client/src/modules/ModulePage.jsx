@@ -195,7 +195,7 @@ function Page({
         style={{
           flex: 1, minHeight: 0,
           overflowY: "auto",
-          padding: "5px",
+          padding: "14px 5px 5px 5px",
           position: "relative",
           outline: isOver ? "2px solid rgba(50,150,255,0.5)" : "none",
           outlineOffset: -2,
@@ -241,111 +241,84 @@ function Page({
         flex: 1,
         minHeight: 0,
         opacity: isDragging ? 0.4 : 1,
-        borderRadius: "6px",
-        border: "1px solid var(--border-default)",
-        background: "var(--surface-overlay)",
-        overflow: "hidden",
+        overflow: "visible",
         position: "relative",
       }}
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
 
-      {/* Cog handle — shown when header is hidden, always provides drag grip */}
-      {!showHeader && (
+      {/* Page header row — handle + name on same row for all kinds */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "3px 10px 2px 4px",
+          flexShrink: 0,
+        }}
+      >
         <div
           ref={handleRef}
-          className="module-drag-handle module-grab-zone page-cog-handle"
+          className="module-drag-handle module-grab-zone"
           draggable={false}
+          style={{ position: "static", transform: "none", flexShrink: 0 }}
         >
           <div className="drag-handle-ball" />
           <div className="drag-handle-stem" />
           <RadialMenu
-            onToggleHeader={() => setShowHeader(true)}
-            showHeader={showHeader}
+            onSettings={() => setSettingsOpen(true)}
             size="sm"
             forceDirection="down"
           />
         </div>
-      )}
-
-      {/* Page header — same pattern as doc containers */}
-      {showHeader && (
-        <div
-          className="page-header module-header-row no-select"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
-            padding: "3px 6px",
-            borderBottom: "1px solid var(--border-default)",
-            minHeight: "24px",
-          }}
-        >
-          <div
-            ref={handleRef}
-            className="module-drag-handle module-grab-zone"
-            draggable={false}
-          >
-            <div className="drag-handle-ball" />
-            <div className="drag-handle-stem" />
-            <RadialMenu
-              onSettings={() => setSettingsOpen(true)}
-              onToggleHeader={() => setShowHeader(false)}
-              showHeader={showHeader}
-              size="sm"
-              forceDirection="down"
+        {kind !== "doc" && (
+          <>
+            <KindIcon size={10} style={{ opacity: 0.35, flexShrink: 0 }} />
+            {isEditing ? (
+              <input
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                onBlur={commitLabel}
+                onKeyDown={(e) => { if (e.key === "Enter") commitLabel(); if (e.key === "Escape") setIsEditing(false); }}
+                autoFocus
+                style={{
+                  flex: 1, minWidth: 0,
+                  background: "transparent", border: "none", outline: "none",
+                  color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-mono)",
+                  letterSpacing: "0.03em",
+                }}
+              />
+            ) : (
+              <span
+                style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, color: "var(--text-faint)", fontFamily: "var(--font-mono)", letterSpacing: "0.03em", cursor: "text", userSelect: "none" }}
+                onDoubleClick={startEdit}
+              >
+                {pageModule.label || "Untitled"}
+              </span>
+            )}
+          </>
+        )}
+        {kind === "board" && (
+          <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0, marginLeft: kind === "doc" ? 0 : "auto" }}>
+            <QuickAddMenu
+              targetRole="container"
+              onSelect={handleQuickAddContainer}
+              onCreateNew={() => {
+                if (!occurrence?.id || !state?.userId || !state?.grid?._id) return;
+                const id = crypto.randomUUID();
+                const mod = { id, role: "container", kind: "list", label: `List ${containersList.length + 1}` };
+                CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
+                const occId = crypto.randomUUID();
+                const occ = { id: occId, userId: state.userId, gridId: state.grid._id, targetId: id, targetType: "module", fields: {} };
+                CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
+                const updatedOccs = [...(occurrence.occurrences || []), occId];
+                CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });
+              }}
+              createLabel="New container"
             />
           </div>
-
-          <KindIcon size={12} style={{ opacity: 0.5, flexShrink: 0 }} />
-
-          {isEditing ? (
-            <input
-              className="text-sm"
-              value={editLabel}
-              onChange={(e) => setEditLabel(e.target.value)}
-              onBlur={commitLabel}
-              onKeyDown={(e) => { if (e.key === "Enter") commitLabel(); if (e.key === "Escape") setIsEditing(false); }}
-              autoFocus
-              style={{
-                flex: 1, minWidth: 0,
-                background: "transparent", border: "none", outline: "none",
-                color: "inherit", fontSize: "inherit", fontFamily: "inherit",
-              }}
-            />
-          ) : (
-            <span
-              className="text-sm truncate flex-1"
-              style={{ minWidth: 0, cursor: "text" }}
-              onDoubleClick={startEdit}
-            >
-              {pageModule.label || "Untitled Page"}
-            </span>
-          )}
-
-          {kind === "board" && (
-            <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
-              <QuickAddMenu
-                targetRole="container"
-                onSelect={handleQuickAddContainer}
-                onCreateNew={() => {
-                  // Create a new container inside this page
-                  if (!occurrence?.id || !state?.userId || !state?.gridId) return;
-                  const id = crypto.randomUUID();
-                  const mod = { id, role: "container", kind: "list", label: `List ${containersList.length + 1}` };
-                  CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
-                  const occId = crypto.randomUUID();
-                  const occ = { id: occId, userId: state.userId, gridId: state.gridId, targetId: id, targetType: "module", fields: {} };
-                  CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
-                  const updatedOccs = [...(occurrence.occurrences || []), occId];
-                  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });
-                }}
-                createLabel="New container"
-              />
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Content */}
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative", display: "flex", flexDirection: "column" }}>

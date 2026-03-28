@@ -606,7 +606,7 @@ export function registerCrudHandlers(socket, {
 
   // ── PAGE (composite operations) ──────────────────────────
   // create_page: Creates Module (role: "page") + View + Occurrence, adds occ to panel's occurrences[]
-  socket.on("create_page", async ({ module: moduleData, view: viewData, occurrence: occData, panelOccurrenceId } = {}) => {
+  socket.on("create_page", async ({ module: moduleData, view: viewData, occurrence: occData, panelOccurrenceId, panelViewData } = {}) => {
     try {
       if (!userId) return;
       if (!moduleData?.id || !occData?.id) return;
@@ -647,15 +647,29 @@ export function registerCrudHandlers(socket, {
       if (savedView) socket.to(userRoom(userId)).emit("view_created", { view: savedView });
       socket.to(userRoom(userId)).emit("occurrence_created", { occurrence: occ });
 
-      // 5. Add page occ to panel's occurrences[] (after occ is in other windows' stores)
+      // 5. Update panel occurrence: add occ + optionally set viewId
       if (panelOccurrenceId) {
         const panelOcc = uc.occurrencesById[panelOccurrenceId];
         if (panelOcc) {
-          const updated = { ...panelOcc, occurrences: [...(panelOcc.occurrences || []), occ.id] };
+          const patch = { occurrences: [...(panelOcc.occurrences || []), occ.id] };
+          if (panelViewData?.id) patch.viewId = panelViewData.id;
+          const updated = { ...panelOcc, ...patch };
           uc.occurrencesById[panelOccurrenceId] = updated;
-          await Occurrence.findOneAndUpdate({ id: panelOccurrenceId, userId }, { occurrences: updated.occurrences });
-          socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: updated });
+          await Occurrence.findOneAndUpdate({ id: panelOccurrenceId, userId }, patch);
+          if (!panelViewData?.id) {
+            socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: updated });
+          }
         }
+      }
+
+      // 6. Create panel View if provided, then emit combined occurrence_updated
+      if (panelViewData?.id) {
+        const panelView = { ...panelViewData, userId };
+        uc.viewsById[panelView.id] = panelView;
+        await View.findOneAndUpdate({ id: panelView.id, userId }, panelView, { upsert: true });
+        socket.to(userRoom(userId)).emit("view_created", { view: panelView });
+        const panelOcc = uc.occurrencesById[panelOccurrenceId];
+        if (panelOcc) socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: panelOcc });
       }
     } catch (err) {
       console.error("create_page error:", err);

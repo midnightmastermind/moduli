@@ -33,7 +33,7 @@ import { Layers } from "lucide-react";
 // ============================================================
 // GRID CELL - Drop zone for panels
 // ============================================================
-const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack }) {
+const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack, stackCount }) {
   const { isPanelDrag, cyclePanelStack } = useDragContext();
   const { panelOverCellId } = useDragHotContext();
 
@@ -61,8 +61,22 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
       style={{
         gridRow: r + 1,
         gridColumn: c + 1,
+        overflow: "visible",
       }}
     >
+      {/* Panel switcher — always top-left, cycles through stack including empty */}
+      {stackCount > 0 && (
+        <button
+          className="panel-stack-btn-inline"
+          style={{ position: "absolute", top: 2, left: 4, zIndex: 90, pointerEvents: "auto" }}
+          onClick={(e) => { e.stopPropagation(); cyclePanelStack?.({ cellKey: cellId, dir: 1 }); }}
+          title="Cycle panels"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <Layers size={9} />
+          <span style={{ fontSize: 9, fontWeight: 600 }}>{stackCount}</span>
+        </button>
+      )}
       {/* Show pocket effect when cell is empty */}
       {!hasPanel && (
         <div
@@ -73,27 +87,15 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
             background: "rgba(69, 72, 74, 0.4)",
             border: "1px solid rgba(0, 0, 0, 0.5)",
             boxShadow: "inset 0 2px 4px rgba(0, 0, 0, 0.3)",
-            pointerEvents: hasHiddenStack ? "auto" : "none",
+            pointerEvents: "none",
           }}
         >
-          {hasHiddenStack ? (
-            <button
-              className="panel-stack-btn-inline"
-              style={{ position: "absolute", top: 4, right: 4 }}
-              onClick={(e) => { e.stopPropagation(); cyclePanelStack?.({ cellKey: cellId, dir: 1 }); }}
-              title="Show hidden panels"
-            >
-              <Layers size={10} />
-              <span style={{ fontSize: 9 }}>show</span>
-            </button>
-          ) : (
-            <div
-              className="text-xs text-muted-foreground p-2 text-center"
-              style={{ fontStyle: "italic", opacity: 0.6, width: "100%", position: "absolute", top: "50%", transform: "translateY(-50%)" }}
-            >
-              Drop panel here
-            </div>
-          )}
+          <div
+            className="text-xs text-muted-foreground p-2 text-center"
+            style={{ fontStyle: "italic", opacity: 0.6, width: "100%", position: "absolute", top: "50%", transform: "translateY(-50%)" }}
+          >
+            Drop panel here
+          </div>
         </div>
       )}
     </div>
@@ -155,9 +157,9 @@ function GridRender({
         const cellPanels = panelsRender.filter((p) => p.row === r && p.col === c);
         const visiblePanel = cellPanels.find((p) => (p?.layout?.style?.display ?? "block") !== "none");
         const hasPanel = !!visiblePanel;
-        // Hidden stack = there are panels but none are visible (all display:none)
         const hasHiddenStack = !hasPanel && cellPanels.length > 1;
-        arr.push({ r, c, dark: (r + c) % 2 === 0, hasPanel, hasHiddenStack });
+        const stackCount = cellPanels.length;
+        arr.push({ r, c, dark: (r + c) % 2 === 0, hasPanel, hasHiddenStack, stackCount });
       }
     }
     return arr;
@@ -190,13 +192,15 @@ function GridRender({
         width: "100%",
         height: "100%",
         position: "relative",
-        overflow: "hidden",
+        overflow: "visible",
         borderRadius: 12,
         transition: "opacity 0.15s ease",
+        paddingTop: 10,
+        boxSizing: "border-box",
       }}
     >
-      {cellsData.map(({ r, c, dark, hasPanel, hasHiddenStack }) => (
-        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} hasHiddenStack={hasHiddenStack} />
+      {cellsData.map(({ r, c, dark, hasPanel, hasHiddenStack, stackCount }) => (
+        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} hasHiddenStack={hasHiddenStack} stackCount={stackCount} />
       ))}
 
       {/* Vertical resize handles (between columns) — hidden on mobile */}

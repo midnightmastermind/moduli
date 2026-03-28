@@ -2054,7 +2054,7 @@ export function DragProvider({
     } else if (cellKey) {
       stack = panels.filter((p) => cellKeyFromPanel(p) === cellKey);
     }
-    if (!stack || stack.length <= 1) return;
+    if (!stack || stack.length === 0) return;
 
     // Find currently visible panel index. -1 = all hidden (empty pocket showing).
     const visibleIdx = stack.findIndex((p) => (p?.layout?.style?.display ?? "block") !== "none");

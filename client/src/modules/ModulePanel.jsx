@@ -44,9 +44,7 @@ import {
   Trash2,
   SplitSquareHorizontal,
   Merge,
-  Layers,
   X,
-  ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 
@@ -227,52 +225,64 @@ function CanvasTreePanelContent({ resolvedView, activeOcc, dispatch, socket, pan
 }
 
 // ============================================================
-// PAGE TREE SIDEBAR — collapsible overlay sidebar for page panels
+// PAGE TAB STRIP — browser-style scrollable tabs for open pages
 // ============================================================
-function PageTreeSidebar({ pages, activeOccId, onSelect, collapsed, onToggleCollapse }) {
-  if (collapsed) {
-    return (
-      <div
-        onClick={onToggleCollapse}
-        style={{ width: 20, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "e-resize", background: "var(--surface-base)", borderRight: "1px solid var(--border-default)" }}
-      >
-        <div style={{ width: 4, height: 40, borderRadius: 2, background: "var(--border-default)", opacity: 0.5 }} />
-      </div>
-    );
-  }
+const PAGE_KIND_GLYPH = { canvas: "∿", doc: "≋", display: "□", board: "≡" };
+
+function PageTabStrip({ pages, activeOccId, onSelect, onClose, onReorder }) {
+  const dragOccIdRef = useRef(null);
+  const [dragOverId, setDragOverId] = useState(null);
+
+  if (pages.length === 0) return null;
   return (
-    <div style={{ width: 160, height: "100%", display: "flex", flexDirection: "column", background: "var(--surface-base)", borderRight: "1px solid var(--border-default)", overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 4px 3px 8px", borderBottom: "1px solid var(--border-default)", flexShrink: 0 }}>
-        <span style={{ fontSize: 9, opacity: 0.4, letterSpacing: "0.06em", textTransform: "uppercase" }}>Pages</span>
-        <ChevronLeft size={10} style={{ cursor: "pointer", opacity: 0.4, flexShrink: 0 }} onClick={onToggleCollapse} />
-      </div>
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        {pages.map(({ page, occurrence }) => {
-          const isActive = occurrence.id === activeOccId;
-          return (
-            <div
-              key={occurrence.id}
-              onClick={() => onSelect(occurrence.id)}
-              style={{
-                paddingLeft: 8, paddingRight: 4, paddingTop: 3, paddingBottom: 3,
-                display: "flex", gap: 4, cursor: "pointer", alignItems: "center",
-                background: isActive ? "rgba(96,165,250,0.15)" : "transparent",
-                overflow: "hidden",
-              }}
-            >
-              <span style={{ opacity: 0.4, fontSize: 10, flexShrink: 0 }}>
-                {page.kind === "canvas" ? "∿" : page.kind === "doc" ? "≋" : page.kind === "display" ? "□" : "≡"}
-              </span>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, opacity: isActive ? 1 : 0.8 }}>
-                {page.label || "Untitled"}
-              </span>
-            </div>
-          );
-        })}
-        {pages.length === 0 && (
-          <div style={{ padding: "8px", fontSize: 10, opacity: 0.3, textAlign: "center" }}>No pages</div>
-        )}
-      </div>
+    <div style={{
+      display: "flex",
+      flexDirection: "row",
+      overflowX: "auto",
+      flexShrink: 0,
+      borderBottom: "1px solid var(--border-default)",
+      background: "hsl(var(--background))",
+      scrollbarWidth: "none",
+    }}>
+      {pages.map(({ page, occurrence }) => {
+        const isActive = occurrence.id === activeOccId;
+        const isDragOver = dragOverId === occurrence.id;
+        return (
+          <div
+            key={occurrence.id}
+            draggable
+            onDragStart={(e) => { dragOccIdRef.current = occurrence.id; e.dataTransfer.effectAllowed = "move"; }}
+            onDragEnd={() => { dragOccIdRef.current = null; setDragOverId(null); }}
+            onDragOver={(e) => { e.preventDefault(); if (dragOccIdRef.current && dragOccIdRef.current !== occurrence.id) setDragOverId(occurrence.id); }}
+            onDragLeave={() => setDragOverId(null)}
+            onDrop={(e) => { e.preventDefault(); if (dragOccIdRef.current && dragOccIdRef.current !== occurrence.id) { onReorder?.(dragOccIdRef.current, occurrence.id); } dragOccIdRef.current = null; setDragOverId(null); }}
+            onClick={() => onSelect(occurrence.id)}
+            style={{
+              display: "flex", alignItems: "center", gap: 4,
+              padding: "4px 8px 4px 10px",
+              cursor: "grab",
+              borderRight: "1px solid var(--border-default)",
+              borderBottom: isActive ? "2px solid rgba(96,165,250,0.8)" : "2px solid transparent",
+              background: isDragOver ? "rgba(96,165,250,0.18)" : isActive ? "rgba(96,165,250,0.10)" : "transparent",
+              borderLeft: isDragOver ? "2px solid rgba(96,165,250,0.6)" : "2px solid transparent",
+              flexShrink: 0,
+              maxWidth: 140,
+              minWidth: 60,
+              userSelect: "none",
+              transition: "background 0.1s, border-left 0.1s",
+            }}
+          >
+            <span style={{ opacity: 0.4, fontSize: 10, flexShrink: 0 }}>{PAGE_KIND_GLYPH[page.kind] || "≡"}</span>
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, color: isActive ? "rgba(96,165,250,1)" : "var(--text-primary)" }}>
+              {page.label || "Untitled"}
+            </span>
+            <span
+              onClick={(e) => { e.stopPropagation(); onClose(occurrence.id); }}
+              style={{ opacity: 0.35, fontSize: 11, cursor: "pointer", flexShrink: 0, padding: "0 2px", lineHeight: 1 }}
+            >×</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -301,8 +311,7 @@ function Panel({
   const [ctxMenu, setCtxMenu] = useState(null);
   const [panelHeaderHovered, setPanelHeaderHovered] = useState(false);
   const [showHeader, setShowHeader] = useState(true);
-  const [pageSidebarCollapsed, setPageSidebarCollapsed] = useState(true);
-  const [activePageOccId, setActivePageOccId] = useState(null);
+  const [pagePanelSidebarCollapsed, setPagePanelSidebarCollapsed] = useState(true);
   const panelDragMode = module?.defaultDragMode || "move";
 
   const { occurrencesById, instancesById, containersById, viewsById, modulesById, manifestsById, foldersById } = useContext(GridActionsContext);
@@ -376,7 +385,7 @@ function Panel({
     if (!manifestId) return null;
     const manifest = manifestsById[manifestId];
     if (!manifest?.rootFolderId) return null;
-    return Object.values(foldersById).find(f => f.parentId === manifest.rootFolderId && f.folderType === "global")?.id || null;
+    return manifest?.rootFolderId || null;
   }, [state?.grid?.manifestId, manifestsById, foldersById]);
 
   // Quick-add: create an occurrence of an existing page module in this panel
@@ -596,11 +605,50 @@ function Panel({
     return { hasPages: foundPage, pagesList: pages, containersList: containers };
   }, [panelOccurrence, occurrencesById, modulesById, containersById, panelEffectiveFilters]);
 
+  // Auto-create panel View for page panels that don't have one yet
   useEffect(() => {
-    if (!hasPages || pagesList.length === 0) return;
-    if (activePageOccId && pagesList.some(p => p.occurrence.id === activePageOccId)) return;
-    setActivePageOccId(pagesList[0].occurrence.id);
-  }, [hasPages, pagesList]);
+    if (!hasPages || resolvedViewId) return;
+    if (!panelOccurrence?.id || !module?.userId || !module?.gridId) return;
+    const viewId = crypto.randomUUID();
+    CommitHelpers.createView({ dispatch, socket, view: { id: viewId, userId: module.userId, gridId: module.gridId, viewType: "page", activeOccurrenceId: null } });
+    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, viewId }, emit: true });
+  }, [hasPages, resolvedViewId, panelOccurrence?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-select first page if view has no active page yet
+  useEffect(() => {
+    if (!hasPages || pagesList.length === 0 || !currentView?.id || currentView.activeOccurrenceId) return;
+    CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: pagesList[0].occurrence.id }, emit: true });
+  }, [hasPages, pagesList, currentView?.id, currentView?.activeOccurrenceId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePageTabReorder = useCallback((fromOccId, toOccId) => {
+    if (!panelOccurrence?.id || fromOccId === toOccId) return;
+    const occs = [...(panelOccurrence.occurrences || [])];
+    const fromIdx = occs.indexOf(fromOccId);
+    const toIdx = occs.indexOf(toOccId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    occs.splice(fromIdx, 1);
+    occs.splice(toIdx, 0, fromOccId);
+    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, occurrences: occs }, emit: true });
+  }, [panelOccurrence, dispatch, socket]);
+
+  const openPage = useCallback((occId) => {
+    if (!occId || !panelOccurrence?.id) return;
+    if (!(panelOccurrence.occurrences || []).includes(occId)) {
+      CommitHelpers.pinPageToPanel({ dispatch, socket, pageOccurrenceId: occId, panelOccurrenceId: panelOccurrence.id });
+    }
+    if (currentView?.id) {
+      CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: occId }, emit: true });
+    }
+  }, [panelOccurrence, currentView, dispatch, socket]);
+
+  const closePage = useCallback((occId) => {
+    if (!occId || !panelOccurrence?.id) return;
+    CommitHelpers.unpinPageFromPanel({ dispatch, socket, pageOccurrenceId: occId, panelOccurrenceId: panelOccurrence.id });
+    if (currentView?.id && currentView.activeOccurrenceId === occId) {
+      const remaining = (panelOccurrence.occurrences || []).filter(id => id !== occId);
+      CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: remaining[0] ?? null } });
+    }
+  }, [panelOccurrence, currentView, dispatch, socket]);
 
   const getLayoutStyles = () => {
     const l = layout;
@@ -647,7 +695,7 @@ function Panel({
 
   // Pages JSX (new hierarchy — single active page)
   const activePageEntry = hasPages
-    ? (pagesList.find(p => p.occurrence.id === activePageOccId) || pagesList[0] || null)
+    ? (pagesList.find(p => p.occurrence.id === currentView?.activeOccurrenceId) || pagesList[0] || null)
     : null;
 
   // Containers JSX (legacy hierarchy)
@@ -712,7 +760,7 @@ function Panel({
         minHeight: 0,
         minWidth: 0,
         opacity: isDragging ? 0.4 : 1,
-        margin: isFullscreen ? 0 : "19px 6px 6px 6px",
+        margin: isFullscreen ? 0 : "3px 6px 6px 6px",
         zIndex: isForeground ? 70 : (isExtended ? 60 : 1),
         pointerEvents: isPanelDrag && !isDragging ? "none" : "auto",
         ...(isFullscreen && {
@@ -744,6 +792,7 @@ function Panel({
               ref={panelHandleRef}
               className="module-drag-handle module-grab-zone"
               draggable={false}
+              style={{ position: "static", transform: "none", flexShrink: 0 }}
             >
               <div className="drag-handle-ball" />
               <div className="drag-handle-stem" />
@@ -797,26 +846,8 @@ function Panel({
           <div className="drop-indicator drop-indicator-insert" />
         )}
 
-        {/* Stack cycler — left of label */}
-        {(() => {
-          const stack = dragCtx.getStackForPanel?.(module) || [];
-          if (stack.length <= 1) return null;
-          return (
-            <button
-              className="panel-stack-btn-inline"
-              onClick={(e) => { e.stopPropagation(); dragCtx.cyclePanelStack?.({ panelId: module.id, dir: 1 }); }}
-              onPointerDown={(e) => e.stopPropagation()}
-              title="Cycle panels"
-              style={{ borderRadius: "4px", padding: "2px 6px", flexShrink: 0 }}
-            >
-              <Layers size={10} />
-              <span style={{ fontSize: 9, fontWeight: 600, lineHeight: 1 }}>{stack.length}</span>
-            </button>
-          );
-        })()}
-
-        <span className="text-sm font-small pl-1 truncate flex-1 flex items-center gap-1" style={{ minWidth: 0 }}>
-          {(hasPages && pagesList[0]?.page?.label) || layout.name || module.id}
+<span className="text-sm font-small pl-1 truncate flex-1 flex items-center gap-1" style={{ minWidth: 0 }}>
+          {(hasPages && (activePageEntry?.page?.label || pagesList[0]?.page?.label)) || layout.name || module.id}
           {panelOccurrence?.linkedGroupId && (
             <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0" title="Linked" />
           )}
@@ -833,9 +864,12 @@ function Panel({
                 const occId = crypto.randomUUID();
                 CommitHelpers.createPage({
                   dispatch, socket,
-                  module: { id: modId, role: "page", kind: "board", label: `Page ${(panelOccurrence.occurrences || []).length + 1}` },
-                  occurrence: { id: occId, gridId: module.gridId, parentId: globalFolderId },
+                  module: { id: modId, userId: module.userId, gridId: module.gridId, role: "page", kind: "board", label: `Page ${(panelOccurrence.occurrences || []).length + 1}` },
+                  occurrence: { id: occId, userId: module.userId, gridId: module.gridId, targetId: modId, parentId: globalFolderId, iteration: { mode: "persistent" }, fields: {} },
                   panelOccurrenceId: panelOccurrence.id,
+                  ...(!resolvedViewId && {
+                    panelViewData: { id: crypto.randomUUID(), userId: module.userId, gridId: module.gridId, viewType: "page", activeOccurrenceId: occId },
+                  }),
                   emit: true,
                 });
               }}
@@ -870,6 +904,55 @@ function Panel({
       {(() => {
         const resolvedView = resolvedViewId ? viewsById[resolvedViewId] : null;
         const viewType = resolvedView?.viewType;
+
+        // Page panel — always takes priority so hasTree on the view doesn't hijack rendering
+        if (hasPages) {
+          const manifestId = state?.grid?.manifestId;
+          return (
+            <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
+              {/* Sidebar overlays content — absolute so it doesn't push */}
+              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 100, pointerEvents: "auto" }}>
+                <ManifestTree
+                  manifestId={manifestId}
+                  view={resolvedView}
+                  dispatch={dispatch}
+                  socket={socket}
+                  collapsed={pagePanelSidebarCollapsed}
+                  onToggleCollapse={() => setPagePanelSidebarCollapsed(v => !v)}
+                  panelOccurrence={panelOccurrence}
+                  onOpenPage={openPage}
+                  onClosePage={closePage}
+                />
+              </div>
+              {/* Content fills full width — tab strip at top, page below */}
+              <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", paddingLeft: pagePanelSidebarCollapsed ? 26 : 0, boxSizing: "border-box" }}>
+                <PageTabStrip
+                  pages={pagesList}
+                  activeOccId={resolvedView?.activeOccurrenceId}
+                  onSelect={openPage}
+                  onClose={closePage}
+                  onReorder={handlePageTabReorder}
+                />
+                <div style={{ flex: 1, minHeight: 0, overflow: "auto", paddingTop: activePageEntry?.page?.kind === "doc" ? 10 : 12 }}>
+                  {activePageEntry ? (
+                    <Page
+                      occurrence={activePageEntry.occurrence}
+                      panelId={module.id}
+                      panelOccurrence={panelOccurrence}
+                      addInstanceToContainer={addInstanceToContainer}
+                      dispatch={dispatch}
+                      socket={socket}
+                    />
+                  ) : (
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12, height: "100%" }}>
+                      Select or create a page
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        }
 
         // Canvas tree panel — ManifestTree sidebar + CanvasDrawSection per page
         if (resolvedView?.hasTree && resolvedView?.viewType === "canvas") {
@@ -936,38 +1019,7 @@ function Panel({
           );
         }
 
-        // Default: pages (new) or container list (legacy)
-        if (hasPages) {
-          return (
-            <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 100, pointerEvents: "auto" }}>
-                <PageTreeSidebar
-                  pages={pagesList}
-                  activeOccId={activePageOccId}
-                  onSelect={setActivePageOccId}
-                  collapsed={pageSidebarCollapsed}
-                  onToggleCollapse={() => setPageSidebarCollapsed(v => !v)}
-                />
-              </div>
-              <div style={{ width: "100%", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column" }}>
-                {activePageEntry ? (
-                  <Page
-                    occurrence={activePageEntry.occurrence}
-                    panelId={module.id}
-                    panelOccurrence={panelOccurrence}
-                    addInstanceToContainer={addInstanceToContainer}
-                    dispatch={dispatch}
-                    socket={socket}
-                  />
-                ) : (
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12 }}>
-                    No pages — add one with +
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        }
+        // Default: container list (legacy — hasPages handled above)
 
         return (
           <div
