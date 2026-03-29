@@ -1,6 +1,10 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-03-27. Check this file before re-reading source._
+_Updated: 2026-03-28. Check this file before re-reading source._
+
+## Recent Changes (Mar 28 2026 — Dual Sidebar Drag Support)
+- **dragSystem.js**: Added `FOLDER: "folder"` to `DragType`. Added `DragType.FOLDER` to `DropAccepts.GRID_CELL`, `PANEL_CONTENT`, `PAGE_CONTENT`.
+- **DragProvider.jsx**: Added folder drop handler (lines ~1929-1951) — when `type === "folder"` dropped on panel, iterates `childOccurrenceIds`, creates a page module for each child doc, adds page occurrences to panel. **Bug fix**: used `(state?.modules || []).find(m => m.id === childOcc.targetId)` instead of `state?.modulesById?.[...]` (state has `modules` array, not `modulesById` map). Added `"tree-anchor"` and `"tree-page"` to module sourceType whitelist in the MODULE drop handler condition (line ~1672).
 
 ## Recent Changes (Mar 27 2026 — ViewType Rename: artifact→display)
 - **DragProvider.jsx**: `isExistingArtifactPanel` check `viewType === "artifact"` → `viewType === "display"`. Both `createView` calls that set `viewType: "artifact"` updated to `viewType: "display"` (OS file drop handler + artifact grid-cell drop handler).

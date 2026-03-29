@@ -1,6 +1,12 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-03-27. Check this file before re-reading source._
+_Updated: 2026-03-29. Check this file before re-reading source._
+
+## Recent Changes (Mar 29 2026 — Folder Restructure + Past Day Pages)
+- **createDefaultUserData.js**: User manifest folders restructured: Notebook→**Docs** (doc pages + DayPages subfolder), Tracking→**Trackers** (Daily Toolkit, Daily Goals, Accounts, Schedule, Todo List), Tasks folder REMOVED, **Drawing** folder added (Freepad). 3 past day pages created (yesterday, 2 days ago, 3 days ago) — today's NOT pre-created (auto-create operation handles it). CenterHub panel defaults to **Schedule** (was Day Page). Variable `notebookFolderId`→`docsFolderId_um`, `tasksFolderId` removed, `drawingFolderId` added.
+
+## Recent Changes (Mar 28 2026 — User Manifest Folders + Notebook as Folder)
+- **createDefaultUserData.js**: User manifest folders: Notebook (doc pages + Freepad + DayPages subfolder), Tracking (Daily Toolkit, Daily Goals, Accounts, Schedule), Tasks (Todo List). Hub folder REMOVED. Notebook/DayPages/ subfolder (folderType: "day-pages") holds Day Page. Schedule moved to Tracking. Freepad moved to Notebook. Day Page is `role: "page", kind: "doc"`. CenterHub panel has 3 pages (Day Page + Schedule + Freepad), defaults to Day Page.
 
 ## Recent Changes (Mar 27 2026 — ViewType Cleanup + resetData Fix)
 - **models/View.js**: Cleaned up `viewType` enum. Removed `"list"`, `"artifact"`, `"log"`, `"smart"`. Renamed `"artifact"` → `"display"` (file viewer). Renamed `"list"` → `"board"` (default children view). Default is now `"board"`. Updated comment for `artifactType` field to say "Display sub-type" instead of "Artifact sub-type". Final enum: `["board", "display", "markdown", "canvas", "code", "doc", "pool", "preview"]`.

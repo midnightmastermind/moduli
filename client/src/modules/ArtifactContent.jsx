@@ -85,7 +85,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
     const target = scrollRef.current?.querySelector(`[data-occ-id="${view.scrollAnchor}"]`);
     if (target) {
       suppressAutoSyncRef.current = true;
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.scrollIntoView({ behavior: "smooth", block: "nearest" });
       setTimeout(() => { suppressAutoSyncRef.current = false; }, 600);
     }
   }, [view?.scrollAnchor]);

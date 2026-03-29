@@ -15,6 +15,7 @@ import Artifact from "./Artifact.jsx";
 
 import { GridActionsContext } from "../GridActionsContext";
 import { GridDataContext } from "../GridDataContext";
+import { GridLiveContext } from "../GridLiveContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   getPageContainers,
@@ -45,16 +46,26 @@ function Page({
 }) {
   const { occurrencesById, modulesById, containersById, viewsById } = useContext(GridActionsContext);
   const { state } = useContext(GridDataContext);
+  const { isMobile } = useContext(GridLiveContext);
 
   const pageModule = occurrence?.targetId ? modulesById[occurrence.targetId] : null;
   const pageView = occurrence?.viewId ? viewsById[occurrence.viewId] : null;
   const kind = pageModule?.kind || "board";
+
+  // Tree view detection — page with hasTree + manifestId renders Artifact content only
+  // (the ManifestTree sidebar is handled by the parent panel, not duplicated here)
+  const isTreeView = !!(pageView?.hasTree && pageView?.manifestId);
 
   const [ctxMenu, setCtxMenu] = useState(null);
   const [showHeader, setShowHeader] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editLabel, setEditLabel] = useState("");
+
+  // Tree view: resolve active occurrence from page view
+  const treeActiveOccId = isTreeView ? pageView?.activeOccurrenceId : null;
+  const treeActiveOcc = treeActiveOccId ? occurrencesById[treeActiveOccId] : null;
+  const treeActiveOccView = treeActiveOcc?.viewId ? viewsById[treeActiveOcc.viewId] : null;
   const handleRef = useRef(null);
 
   // Drag handle for the page
@@ -148,9 +159,27 @@ function Page({
 
   const KindIcon = KIND_ICONS[kind] || FileText;
 
-  // Render content based on kind
+  // Render content based on kind (tree view takes priority)
   let content = null;
-  if (kind === "canvas") {
+  if (isTreeView) {
+    // Tree view — render only the active document content.
+    // The ManifestTree sidebar is rendered by the parent panel (ModulePanel.jsx),
+    // not duplicated here. Doc clicks in the sidebar update pageView.activeOccurrenceId.
+    content = treeActiveOcc ? (
+      <Artifact
+        occurrence={treeActiveOcc}
+        viewType={treeActiveOccView?.viewType ?? "markdown"}
+        artifactType={treeActiveOccView?.artifactType ?? null}
+        dispatch={dispatch}
+        socket={socket}
+        view={pageView}
+      />
+    ) : (
+      <div className="text-xs text-muted-foreground text-center empty-placeholder" style={{ paddingTop: 40 }}>
+        Select a document
+      </div>
+    );
+  } else if (kind === "canvas") {
     // Canvas page — the page occurrence IS the canvas container
     content = (
       <Container
@@ -195,7 +224,8 @@ function Page({
         style={{
           flex: 1, minHeight: 0,
           overflowY: "auto",
-          padding: "14px 5px 5px 5px",
+          WebkitOverflowScrolling: "touch",
+          padding: isMobile ? "6px 28px 80px 28px" : "14px 5px 80px 5px",
           position: "relative",
           outline: isOver ? "2px solid rgba(50,150,255,0.5)" : "none",
           outlineOffset: -2,
@@ -241,38 +271,41 @@ function Page({
         flex: 1,
         minHeight: 0,
         opacity: isDragging ? 0.4 : 1,
-        overflow: "visible",
+        overflow: "hidden",
         position: "relative",
+        border: "1px solid var(--border-default)",
+        borderRadius: 6,
+        background: "var(--surface-card)",
       }}
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
 
-      {/* Page header row — handle + name on same row for all kinds */}
+      {/* Page header row — handle centered, name below for non-doc */}
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "3px 10px 2px 4px",
+          position: "relative",
           flexShrink: 0,
         }}
       >
-        <div
-          ref={handleRef}
-          className="module-drag-handle module-grab-zone"
-          draggable={false}
-          style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}
-        >
-          <div className="drag-handle-ball" />
-          <div className="drag-handle-stem" />
-          <RadialMenu
-            onSettings={() => setSettingsOpen(true)}
-            size="sm"
-            forceDirection="down"
-          />
+        {/* Handle — centered horizontally */}
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <div
+            ref={handleRef}
+            className="module-drag-handle module-grab-zone"
+            draggable={false}
+            style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}
+          >
+            <div className="drag-handle-ball" />
+            <div className="drag-handle-stem" />
+            <RadialMenu
+              onSettings={() => setSettingsOpen(true)}
+              size="sm"
+              forceDirection="down"
+            />
+          </div>
         </div>
         {kind !== "doc" && (
-          <>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 10px 2px 12px" }}>
             <KindIcon size={10} style={{ opacity: 0.35, flexShrink: 0 }} />
             {isEditing ? (
               <input
@@ -296,32 +329,32 @@ function Page({
                 {pageModule.label || "Untitled"}
               </span>
             )}
-          </>
-        )}
-        {kind === "board" && (
-          <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0, marginLeft: kind === "doc" ? 0 : "auto" }}>
-            <QuickAddMenu
-              targetRole="container"
-              onSelect={handleQuickAddContainer}
-              onCreateNew={() => {
-                if (!occurrence?.id || !state?.userId || !state?.grid?._id) return;
-                const id = crypto.randomUUID();
-                const mod = { id, role: "container", kind: "list", label: `List ${containersList.length + 1}` };
-                CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
-                const occId = crypto.randomUUID();
-                const occ = { id: occId, userId: state.userId, gridId: state.grid._id, targetId: id, targetType: "module", fields: {} };
-                CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
-                const updatedOccs = [...(occurrence.occurrences || []), occId];
-                CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });
-              }}
-              createLabel="New container"
-            />
+            {kind === "board" && !isTreeView && (
+              <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0, marginLeft: "auto" }}>
+                <QuickAddMenu
+                  targetRole="container"
+                  onSelect={handleQuickAddContainer}
+                  onCreateNew={() => {
+                    if (!occurrence?.id || !state?.userId || !state?.grid?._id) return;
+                    const id = crypto.randomUUID();
+                    const mod = { id, role: "container", kind: "list", label: `List ${containersList.length + 1}` };
+                    CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
+                    const occId = crypto.randomUUID();
+                    const occ = { id: occId, userId: state.userId, gridId: state.grid._id, targetId: id, targetType: "module", fields: {} };
+                    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
+                    const updatedOccs = [...(occurrence.occurrences || []), occId];
+                    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });
+                  }}
+                  createLabel="New container"
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: isTreeView ? "hidden" : "auto", WebkitOverflowScrolling: isTreeView ? undefined : "touch", position: "relative", display: "flex", flexDirection: "column", paddingBottom: isTreeView ? 0 : 80 }}>
         {content}
       </div>
     </div>

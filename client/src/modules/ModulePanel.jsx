@@ -14,13 +14,12 @@ import Artifact from "./Artifact";
 import ManifestTree from "./ManifestTree";
 import LayoutForm from "../ui/LayoutForm";
 import TransactionHistory from "../ui/TransactionHistory";
-import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
-import { Button } from "../components/ui/button";
+import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 
 import { GridActionsContext } from "../GridActionsContext";
 import { GridDataContext } from "../GridDataContext";
+import { GridLiveContext } from "../GridLiveContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { resolveEffectiveFilters, isOccurrenceVisible } from "../state/selectors";
 import {
   getPanelContainers,
   getContainerItems,
@@ -46,6 +45,9 @@ import {
   Merge,
   X,
   ChevronRight,
+  ChevronUp,
+  Folder,
+  FileText,
 } from "lucide-react";
 
 import Container from "./Container.jsx";
@@ -94,6 +96,7 @@ function mergeLayout(panelLayout) {
 function TreePanelContent({ resolvedView, activeOcc, activeOccView, dispatch, socket }) {
   const [treeCollapsed, setTreeCollapsed] = useState(true);
   const [scrollHighlightId, setScrollHighlightId] = useState(null);
+  const { isMobile } = useContext(GridLiveContext);
   // Reset scroll highlight when active doc changes (user clicked a different doc)
   const activeOccId = activeOcc?.id;
   useEffect(() => { setScrollHighlightId(null); }, [activeOccId]);
@@ -105,39 +108,63 @@ function TreePanelContent({ resolvedView, activeOcc, activeOccView, dispatch, so
     CommitHelpers.updateView({ dispatch, socket, view: { ...resolvedView, activeOccurrenceId: resolvedView.defaultOccurrenceId, scrollAnchor: null } });
   }, []); // mount only
 
+  const tree = (
+    <ManifestTree
+      manifestId={resolvedView.manifestId}
+      view={resolvedView}
+      dispatch={dispatch}
+      socket={socket}
+      collapsed={isMobile ? false : treeCollapsed}
+      onToggleCollapse={() => setTreeCollapsed(v => !v)}
+      scrollHighlightId={scrollHighlightId}
+    />
+  );
+
+  const content = (
+    <div style={{ flex: 1, minHeight: 0, width: "100%", overflow: "auto", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
+      <Artifact
+        occurrence={activeOcc}
+        viewType={activeOccView?.viewType ?? "markdown"}
+        artifactType={activeOccView?.artifactType ?? null}
+        dispatch={dispatch}
+        socket={socket}
+        view={resolvedView}
+        onScrollHighlight={setScrollHighlightId}
+      />
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {!treeCollapsed && (
+          <div style={{ maxHeight: "25vh", overflowY: "auto", WebkitOverflowScrolling: "touch", borderBottom: "1px solid var(--border-default)", flexShrink: 0 }}>
+            {tree}
+          </div>
+        )}
+        <button
+          onClick={() => setTreeCollapsed(v => !v)}
+          style={{
+            flexShrink: 0, height: 20, width: "100%",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+            background: "var(--surface-card)", border: "none", borderBottom: "1px solid var(--border-default)",
+            color: "var(--text-muted)", fontSize: 10, cursor: "pointer",
+          }}
+        >
+          <ChevronRight size={10} style={{ transform: treeCollapsed ? "rotate(90deg)" : "rotate(-90deg)", transition: "transform 0.15s" }} />
+          {treeCollapsed ? "Files" : "Hide"}
+        </button>
+        {content}
+      </div>
+    );
+  }
+
   return (
     <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
-      {/* Sidebar overlays doc content — absolute so it doesn't push */}
-      <div style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        bottom: 0,
-        zIndex: 100,
-        pointerEvents: "auto",
-      }}>
-        <ManifestTree
-          manifestId={resolvedView.manifestId}
-          view={resolvedView}
-          dispatch={dispatch}
-          socket={socket}
-          collapsed={treeCollapsed}
-          onToggleCollapse={() => setTreeCollapsed(v => !v)}
-          scrollHighlightId={scrollHighlightId}
-        />
+      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 100, pointerEvents: "auto" }}>
+        {tree}
       </div>
-      {/* Content fills full width */}
-      <div style={{ width: "100%", height: "100%", overflow: "auto", display: "flex", flexDirection: "column" }}>
-        <Artifact
-          occurrence={activeOcc}
-          viewType={activeOccView?.viewType ?? "markdown"}
-          artifactType={activeOccView?.artifactType ?? null}
-          dispatch={dispatch}
-          socket={socket}
-          view={resolvedView}
-          onScrollHighlight={setScrollHighlightId}
-        />
-      </div>
+      {content}
     </div>
   );
 }
@@ -224,68 +251,6 @@ function CanvasTreePanelContent({ resolvedView, activeOcc, dispatch, socket, pan
   );
 }
 
-// ============================================================
-// PAGE TAB STRIP — browser-style scrollable tabs for open pages
-// ============================================================
-const PAGE_KIND_GLYPH = { canvas: "∿", doc: "≋", display: "□", board: "≡" };
-
-function PageTabStrip({ pages, activeOccId, onSelect, onClose, onReorder }) {
-  const dragOccIdRef = useRef(null);
-  const [dragOverId, setDragOverId] = useState(null);
-
-  if (pages.length === 0) return null;
-  return (
-    <div style={{
-      display: "flex",
-      flexDirection: "row",
-      overflowX: "auto",
-      flexShrink: 0,
-      borderBottom: "1px solid var(--border-default)",
-      background: "hsl(var(--background))",
-      scrollbarWidth: "none",
-    }}>
-      {pages.map(({ page, occurrence }) => {
-        const isActive = occurrence.id === activeOccId;
-        const isDragOver = dragOverId === occurrence.id;
-        return (
-          <div
-            key={occurrence.id}
-            draggable
-            onDragStart={(e) => { dragOccIdRef.current = occurrence.id; e.dataTransfer.effectAllowed = "move"; }}
-            onDragEnd={() => { dragOccIdRef.current = null; setDragOverId(null); }}
-            onDragOver={(e) => { e.preventDefault(); if (dragOccIdRef.current && dragOccIdRef.current !== occurrence.id) setDragOverId(occurrence.id); }}
-            onDragLeave={() => setDragOverId(null)}
-            onDrop={(e) => { e.preventDefault(); if (dragOccIdRef.current && dragOccIdRef.current !== occurrence.id) { onReorder?.(dragOccIdRef.current, occurrence.id); } dragOccIdRef.current = null; setDragOverId(null); }}
-            onClick={() => onSelect(occurrence.id)}
-            style={{
-              display: "flex", alignItems: "center", gap: 4,
-              padding: "4px 8px 4px 10px",
-              cursor: "grab",
-              borderRight: "1px solid var(--border-default)",
-              borderBottom: isActive ? "2px solid rgba(96,165,250,0.8)" : "2px solid transparent",
-              background: isDragOver ? "rgba(96,165,250,0.18)" : isActive ? "rgba(96,165,250,0.10)" : "transparent",
-              borderLeft: isDragOver ? "2px solid rgba(96,165,250,0.6)" : "2px solid transparent",
-              flexShrink: 0,
-              maxWidth: 140,
-              minWidth: 60,
-              userSelect: "none",
-              transition: "background 0.1s, border-left 0.1s",
-            }}
-          >
-            <span style={{ opacity: 0.4, fontSize: 10, flexShrink: 0 }}>{PAGE_KIND_GLYPH[page.kind] || "≡"}</span>
-            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, color: isActive ? "rgba(96,165,250,1)" : "var(--text-primary)" }}>
-              {page.label || "Untitled"}
-            </span>
-            <span
-              onClick={(e) => { e.stopPropagation(); onClose(occurrence.id); }}
-              style={{ opacity: 0.35, fontSize: 11, cursor: "pointer", flexShrink: 0, padding: "0 2px", lineHeight: 1 }}
-            >×</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 // ============================================================
 // PANEL COMPONENT
@@ -309,13 +274,14 @@ function Panel({
   const [kindSelectorOpen, setKindSelectorOpen] = useState(false);
   const [kindSelectorPos, setKindSelectorPos] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
-  const [panelHeaderHovered, setPanelHeaderHovered] = useState(false);
   const [showHeader, setShowHeader] = useState(true);
-  const [pagePanelSidebarCollapsed, setPagePanelSidebarCollapsed] = useState(true);
+  const [rootTreeOpen, setRootTreeOpen] = useState(false);
+  const [localTreeOpen, setLocalTreeOpen] = useState(false);
   const panelDragMode = module?.defaultDragMode || "move";
 
   const { occurrencesById, instancesById, containersById, viewsById, modulesById, manifestsById, foldersById } = useContext(GridActionsContext);
   const { state } = useContext(GridDataContext);
+  const { isMobile } = useContext(GridLiveContext);
   const dragCtx = useDragContext();
   const {
     isContainerDrag,
@@ -406,24 +372,6 @@ function Panel({
     const updatedOccs = [...(panelOccurrence.occurrences || []), occId];
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, occurrences: updatedOccs }, emit: true });
   }, [panelOccurrence, module, globalFolderId, dispatch, socket]);
-
-  // Quick-add: create an occurrence of an existing container module in this panel (legacy)
-  const handleQuickAddContainer = useCallback((containerModule) => {
-    if (!panelOccurrence || !containerModule?.id) return;
-    const occId = crypto.randomUUID();
-    const occ = {
-      id: occId,
-      userId: module.userId,
-      gridId: module.gridId,
-      targetId: containerModule.id,
-      targetType: "module",
-      iteration: { mode: "persistent" },
-      fields: {},
-    };
-    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
-    const updatedOccs = [...(panelOccurrence.occurrences || []), occId];
-    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, occurrences: updatedOccs }, emit: true });
-  }, [panelOccurrence, module, dispatch, socket]);
 
   const handleViewTypeChange = useCallback((e) => {
     const newViewType = e.target.value;
@@ -525,13 +473,6 @@ function Panel({
 
   // STACK (nav arrows moved to GridCell overlay)
 
-  // LAYOUT ORIENTATION
-  const panelLayoutOrientation = useMemo(() => {
-    const l = layout;
-    if (l.display === "flex") return l.flow === "row" ? "horizontal" : "vertical";
-    if (l.display === "grid") return (l.columns || 0) > 1 ? "horizontal" : "vertical";
-    return "vertical";
-  }, [layout]);
 
   // DRAG
   const isChildDrag = isContainerDrag || isInstanceDrag || isExternalDrag;
@@ -556,80 +497,38 @@ function Panel({
     dragHandleRef: panelHandleRef,
   });
 
-  const { ref: headerDropRef, isOver: isHeaderOver } = useDroppable({
-    type: "panel-header",
-    id: `panel-header:${module.id}`,
-    context: { panelId: module.id, insertAt: 0 },
-    accepts: DropAccepts.PANEL_CONTENT,
-    disabled: hidden || panelLayoutOrientation !== "vertical",
-  });
 
-  const { ref: dropRef, isOver } = useDroppable({
-    type: "panel-content",
-    id: `panel-content:${module.id}`,
-    context: { panelId: module.id },
-    accepts: DropAccepts.PANEL_CONTENT,
-    disabled: hidden,
-  });
-
-  // Effective filters for container-level visibility (panel occurrence can override grid filters)
-  const panelEffectiveFilters = useMemo(
-    () => resolveEffectiveFilters(panelOccurrence, state?.grid?.activeFilterValues || {}),
-    [panelOccurrence, state?.grid?.activeFilterValues]
-  );
-
-  // Detect whether this panel has page children or container children (legacy)
-  const { hasPages, pagesList, containersList } = useMemo(() => {
+  // Build page list from panel children (all children are pages)
+  const pagesList = useMemo(() => {
     const panelChildOccIds = panelOccurrence?.occurrences || [];
     const pages = [];
-    const containers = [];
-    let foundPage = false;
-
     for (const occId of panelChildOccIds) {
       const occ = occurrencesById[occId];
       if (!occ) continue;
       const mod = modulesById[occ.targetId];
       if (!mod) continue;
       if (mod.role === "page") {
-        foundPage = true;
         pages.push({ page: mod, occurrence: occ });
-      } else {
-        // Legacy: direct container children
-        if (!containersById[mod.id]) continue;
-        const containerOcc = occ;
-        if (!isOccurrenceVisible(containerOcc, panelEffectiveFilters)) continue;
-        containers.push(mod);
       }
     }
+    return pages;
+  }, [panelOccurrence, occurrencesById, modulesById]);
 
-    return { hasPages: foundPage, pagesList: pages, containersList: containers };
-  }, [panelOccurrence, occurrencesById, modulesById, containersById, panelEffectiveFilters]);
-
-  // Auto-create panel View for page panels that don't have one yet
+  // Auto-create panel View if it doesn't have one yet
   useEffect(() => {
-    if (!hasPages || resolvedViewId) return;
+    if (pagesList.length === 0 || resolvedViewId) return;
     if (!panelOccurrence?.id || !module?.userId || !module?.gridId) return;
     const viewId = crypto.randomUUID();
     CommitHelpers.createView({ dispatch, socket, view: { id: viewId, userId: module.userId, gridId: module.gridId, viewType: "board", activeOccurrenceId: null } });
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, viewId }, emit: true });
-  }, [hasPages, resolvedViewId, panelOccurrence?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pagesList.length, resolvedViewId, panelOccurrence?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-select first page if view has no active page yet
   useEffect(() => {
-    if (!hasPages || pagesList.length === 0 || !currentView?.id || currentView.activeOccurrenceId) return;
+    if (pagesList.length === 0 || !currentView?.id || currentView.activeOccurrenceId) return;
     CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: pagesList[0].occurrence.id }, emit: true });
-  }, [hasPages, pagesList, currentView?.id, currentView?.activeOccurrenceId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pagesList, currentView?.id, currentView?.activeOccurrenceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handlePageTabReorder = useCallback((fromOccId, toOccId) => {
-    if (!panelOccurrence?.id || fromOccId === toOccId) return;
-    const occs = [...(panelOccurrence.occurrences || [])];
-    const fromIdx = occs.indexOf(fromOccId);
-    const toIdx = occs.indexOf(toOccId);
-    if (fromIdx < 0 || toIdx < 0) return;
-    occs.splice(fromIdx, 1);
-    occs.splice(toIdx, 0, fromOccId);
-    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, occurrences: occs }, emit: true });
-  }, [panelOccurrence, dispatch, socket]);
 
   const openPage = useCallback((occId) => {
     if (!occId || !panelOccurrence?.id) return;
@@ -650,40 +549,6 @@ function Panel({
     }
   }, [panelOccurrence, currentView, dispatch, socket]);
 
-  const getLayoutStyles = () => {
-    const l = layout;
-    const styles = {};
-    if (l.display === "grid") {
-      styles.display = "grid";
-      const minWidth = l.minWidthPx > 0 ? `${l.minWidthPx}px` : "280px";
-      styles.gridTemplateColumns = l.columns > 0 ? `repeat(${l.columns}, 1fr)` : `repeat(auto-fill, minmax(${minWidth}, 1fr))`;
-      if (l.rows > 0) styles.gridTemplateRows = `repeat(${l.rows}, auto)`;
-      if (l.dense) styles.gridAutoFlow = "dense";
-    } else if (l.display === "flex") {
-      styles.display = "flex";
-      styles.flexDirection = (l.flow === "column" || l.flow === "col") ? "column" : "row";
-      styles.flexWrap = l.wrap === "nowrap" ? "nowrap" : "wrap";
-    } else if (l.display === "columns") {
-      styles.display = "block";
-      styles.columnCount = l.columns > 0 ? l.columns : "auto";
-      if (l.minWidthPx > 0) styles.columnWidth = `${l.minWidthPx}px`;
-      styles.columnGap = `${l.gapPx || 12}px`;
-    } else {
-      styles.display = "block";
-    }
-    if (l.display !== "columns") styles.gap = `${l.gapPx || 12}px`;
-    styles.alignItems = l.alignItems || "start";
-    styles.alignContent = l.alignContent || "start";
-    styles.justifyContent = l.justify || "start";
-    if (l.widthMode === "fixed" && l.fixedWidth > 0) styles.width = `${l.fixedWidth}px`;
-    if (l.minWidthPx > 0 && l.display !== "grid") styles.minWidth = `${l.minWidthPx}px`;
-    if (l.maxWidthPx > 0) styles.maxWidth = `${l.maxWidthPx}px`;
-    if (l.heightMode === "fixed" && l.fixedHeight > 0) styles.height = `${l.fixedHeight}px`;
-    if (l.minHeightPx > 0) styles.minHeight = `${l.minHeightPx}px`;
-    if (l.maxHeightPx > 0) styles.maxHeight = `${l.maxHeightPx}px`;
-    return styles;
-  };
-
   if (hidden && !forceFullscreen) return null;
 
   const cellWidth = liveSize.w !== null ? liveSize.w : (module.width || 1);
@@ -693,51 +558,8 @@ function Panel({
 
   const panelChildOccIds = panelOccurrence?.occurrences || [];
 
-  // Pages JSX (new hierarchy — single active page)
-  const activePageEntry = hasPages
-    ? (pagesList.find(p => p.occurrence.id === currentView?.activeOccurrenceId) || pagesList[0] || null)
-    : null;
-
-  // Containers JSX (legacy hierarchy)
-  const containerListJSX = containersList.map((container) => {
-    const containerOccId = panelChildOccIds.find(occId => occurrencesById[occId]?.targetId === container.id);
-    return (<Container
-      key={containerOccId || container.id}
-      module={container}
-      panel={module}
-      panelId={module.id}
-      panelLayoutOrientation={panelLayoutOrientation}
-      addInstanceToContainer={addInstanceToContainer}
-      dispatch={dispatch}
-      socket={socket}
-      gapPx={layout.gapPx || 12}
-    />);
-  });
-
-  const contentInner = (
-    <>
-      <div
-        style={{
-          position: "absolute",
-          inset: "5px",
-          borderRadius: "6px",
-          background: "var(--surface-overlay)",
-          border: "1px solid var(--border-default)",
-          boxShadow: "inset 0 2px 4px rgba(0, 0, 0, 0.3)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
-      <div style={{ ...getLayoutStyles(), position: "relative", minHeight: "100%", zIndex: 1, padding: layout.padding === "none" ? "5px" : "12px" }}>
-        {containerListJSX}
-        {containersList.length === 0 && (
-          <div className="text-xs text-muted-foreground text-center empty-placeholder">
-            Drop containers here
-          </div>
-        )}
-      </div>
-    </>
-  );
+  // Active page entry
+  const activePageEntry = pagesList.find(p => p.occurrence.id === currentView?.activeOccurrenceId) || pagesList[0] || null;
 
   return (
     <div
@@ -760,7 +582,8 @@ function Panel({
         minHeight: 0,
         minWidth: 0,
         opacity: isDragging ? 0.4 : 1,
-        margin: isFullscreen ? 0 : "3px 6px 6px 6px",
+        paddingTop: isFullscreen ? 0 : (isMobile ? 0 : 22),
+        margin: isFullscreen ? 0 : (isMobile ? "0px 2px 2px 2px" : "3px 6px 6px 6px"),
         zIndex: isForeground ? 70 : (isExtended ? 60 : 1),
         pointerEvents: isPanelDrag && !isDragging ? "none" : "auto",
         ...(isFullscreen && {
@@ -772,183 +595,273 @@ function Panel({
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
 
-      {/* Cog handle removed — header is always the access point for panel settings.
-          If header is hidden, user can re-show it via context menu (right-click). */}
-
-      {/* HEADER */}
-      {showHeader && (
-      <div
-        ref={(node) => {
-          if (typeof headerDropRef === "function") headerDropRef(node); else if (headerDropRef) headerDropRef.current = node;
-        }}
-        className={`panel-header module-header-row no-select border-b border-gray-700 border-solid${panelHeaderHovered ? " header-hovered" : ""}`}
-        onContextMenu={handlePanelContextMenu}
-        onMouseOver={(e) => { e.stopPropagation(); setPanelHeaderHovered(true); }}
-        onMouseOut={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setPanelHeaderHovered(false); }}
-      >
-        <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <PopoverAnchor asChild>
-            <div
-              ref={panelHandleRef}
-              className="module-drag-handle module-grab-zone"
-              draggable={false}
-              style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}
-            >
-              <div className="drag-handle-ball" />
-              <div className="drag-handle-stem" />
-              <RadialMenu
-                dragMode={panelDragMode}
-                onToggleDragMode={togglePanelDragModeQuick}
-                onSettings={() => setSettingsOpen(true)}
-                onAddChild={(e) => {
-                  const rect = e?.currentTarget?.getBoundingClientRect?.();
-                  if (rect) setKindSelectorPos({ top: rect.bottom + 8, left: rect.left });
-                  else setKindSelectorPos(null);
-                  setKindSelectorOpen(true);
-                }}
-                addLabel="Container"
-                size="sm"
-                forceDirection="down"
-                onToggleHeader={() => setShowHeader(false)}
-                showHeader={showHeader}
-                onHistory={() => setHistoryOpen(true)}
-              />
-            </div>
-          </PopoverAnchor>
-          <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
-            <button type="button" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
-            <LayoutForm
-              value={layout}
-              onChange={setLayout}
-              onCommit={commitPanelLayout}
-              panelId={module.id}
-              panel={module}
-              onPanelStyleUpdate={commitPanelStyleUpdate}
-              iteration={module.iteration}
-              onIterationChange={commitPanelIteration}
-              defaultDragMode={module.defaultDragMode}
-              onDragModeChange={commitPanelDragMode}
-              occurrence={panelOccurrence}
-              onOccurrenceUpdate={commitOccurrenceUpdate}
-              currentViewType={currentViewType}
-              onViewTypeChange={handleViewTypeChange}
-              onCopyPanel={handleCopyPanel}
-              onCopylinkPanel={handleCopylinkPanel}
-              onSplitPanel={handleSplitPanel}
-              onUnsplitPanel={isSplit ? handleUnsplitPanel : null}
-              isSplit={isSplit}
-              onDeletePanel={handleRemovePanel}
-            />
-          </PopoverContent>
-        </Popover>
-
-        {isHeaderOver && panelLayoutOrientation === "vertical" && containersList.length > 0 && (
-          <div className="drop-indicator drop-indicator-insert" />
-        )}
-
-<span className="text-sm font-small pl-1 truncate flex-1 flex items-center gap-1" style={{ minWidth: 0 }}>
-          {(hasPages && (activePageEntry?.page?.label || pagesList[0]?.page?.label)) || layout.name || module.id}
-          {panelOccurrence?.linkedGroupId && (
-            <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0" title="Linked" />
-          )}
-        </span>
-
-        <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
-          {hasPages ? (
-            <QuickAddMenu
-              targetRole="page"
-              onSelect={handleQuickAddPage}
-              onCreateNew={() => {
-                if (!panelOccurrence?.id || !module?.userId || !module?.gridId) return;
-                const modId = crypto.randomUUID();
-                const occId = crypto.randomUUID();
-                CommitHelpers.createPage({
-                  dispatch, socket,
-                  module: { id: modId, userId: module.userId, gridId: module.gridId, role: "page", kind: "board", label: `Page ${(panelOccurrence.occurrences || []).length + 1}` },
-                  occurrence: { id: occId, userId: module.userId, gridId: module.gridId, targetId: modId, parentId: globalFolderId, iteration: { mode: "persistent" }, fields: {} },
-                  panelOccurrenceId: panelOccurrence.id,
-                  ...(!resolvedViewId && {
-                    panelViewData: { id: crypto.randomUUID(), userId: module.userId, gridId: module.gridId, viewType: "board", activeOccurrenceId: occId },
-                  }),
-                  emit: true,
-                });
-              }}
-              createLabel="New page"
-            />
-          ) : (
-            <QuickAddMenu
-              targetRole="container"
-              onSelect={handleQuickAddContainer}
-              onCreateNew={() => addContainerToPanel?.(module.id, module.kind === "canvas" ? "canvas" : "list")}
-              createLabel="New container"
-            />
-          )}
-        </div>
-
-        <div className="ml-auto mr-2 flex items-center" onPointerDown={(e) => e.stopPropagation()}>
-          <LocalIterationNav
-            occurrence={panelOccurrence}
-            onUpdate={commitOccurrenceUpdate}
-            showModeToggle={true}
-            compact={true}
-          />
-        </div>
-
-        {/* Stack nav moved to GridCell overlay */}
-      </div>
-      )}
-
-      {/* Stack cycler removed from here — now in header row */}
-
       {/* CONTENT */}
       {(() => {
         const resolvedView = resolvedViewId ? viewsById[resolvedViewId] : null;
         const viewType = resolvedView?.viewType;
 
-        // Page panel — always takes priority so hasTree on the view doesn't hijack rendering
-        if (hasPages) {
-          const manifestId = state?.grid?.manifestId;
-          return (
-            <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
-              {/* Sidebar overlays content — absolute so it doesn't push */}
-              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 100, pointerEvents: "auto" }}>
-                <ManifestTree
-                  manifestId={manifestId}
-                  view={resolvedView}
-                  dispatch={dispatch}
-                  socket={socket}
-                  collapsed={pagePanelSidebarCollapsed}
-                  onToggleCollapse={() => setPagePanelSidebarCollapsed(v => !v)}
-                  panelOccurrence={panelOccurrence}
-                  onOpenPage={openPage}
-                  onClosePage={closePage}
+        // Page panel — dual sidebar (root tree left, panel-local right)
+        if (pagesList.length > 0) {
+          const activePageView = activePageEntry?.occurrence?.viewId ? viewsById[activePageEntry.occurrence.viewId] : null;
+
+          // Root tree sidebar (left) — user manifest, global page library
+          const rootTree = (
+            <ManifestTree
+              manifestId={state?.grid?.manifestId}
+              view={resolvedView}
+              dispatch={dispatch}
+              socket={socket}
+              collapsed={false}
+              onToggleCollapse={() => setRootTreeOpen(false)}
+              onOpenPage={openPage}
+            />
+          );
+
+          // Local tree sidebar (right) — page panel mode, shows pages + anchors
+          const localTree = (
+            <ManifestTree
+              manifestId={state?.grid?.manifestId}
+              view={resolvedView}
+              dispatch={dispatch}
+              socket={socket}
+              collapsed={false}
+              onToggleCollapse={() => setLocalTreeOpen(false)}
+              panelOccurrence={panelOccurrence}
+              onOpenPage={openPage}
+              onClosePage={closePage}
+            />
+          );
+
+          // Page panel header — page name + drag handle + QuickAdd + filters
+          const activePageLabel = activePageEntry?.page?.label || "Untitled";
+          const pageHeader = (
+            <div style={{
+              display: "flex", alignItems: "center",
+              flexShrink: 0, padding: "2px 6px", gap: 4,
+              borderBottom: "1px solid var(--border-default)",
+            }}>
+              {/* Active page name */}
+              <span style={{
+                fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)",
+                letterSpacing: "0.03em", overflow: "hidden", textOverflow: "ellipsis",
+                whiteSpace: "nowrap", minWidth: 0, userSelect: "none",
+              }}>
+                {activePageLabel}
+              </span>
+
+              {/* Panel drag handle */}
+              <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
+                <PopoverAnchor asChild>
+                  <div
+                    ref={panelHandleRef}
+                    className="module-drag-handle module-grab-zone"
+                    draggable={false}
+                    style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}
+                  >
+                    <div className="drag-handle-ball" />
+                    <div className="drag-handle-stem" />
+                    <RadialMenu
+                      dragMode={panelDragMode}
+                      onToggleDragMode={togglePanelDragModeQuick}
+                      onSettings={() => setSettingsOpen(true)}
+                      onAddChild={(e) => {
+                        const rect = e?.currentTarget?.getBoundingClientRect?.();
+                        if (rect) setKindSelectorPos({ top: rect.bottom + 8, left: rect.left });
+                        else setKindSelectorPos(null);
+                        setKindSelectorOpen(true);
+                      }}
+                      addLabel="Container"
+                      size="sm"
+                      forceDirection="down"
+                      onToggleHeader={() => setShowHeader(false)}
+                      showHeader={showHeader}
+                      onHistory={() => setHistoryOpen(true)}
+                    />
+                  </div>
+                </PopoverAnchor>
+                <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
+                  <button type="button" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
+                  <LayoutForm
+                    value={layout}
+                    onChange={setLayout}
+                    onCommit={commitPanelLayout}
+                    panelId={module.id}
+                    panel={module}
+                    onPanelStyleUpdate={commitPanelStyleUpdate}
+                    iteration={module.iteration}
+                    onIterationChange={commitPanelIteration}
+                    defaultDragMode={module.defaultDragMode}
+                    onDragModeChange={commitPanelDragMode}
+                    occurrence={panelOccurrence}
+                    onOccurrenceUpdate={commitOccurrenceUpdate}
+                    currentViewType={currentViewType}
+                    onViewTypeChange={handleViewTypeChange}
+                    onCopyPanel={handleCopyPanel}
+                    onCopylinkPanel={handleCopylinkPanel}
+                    onSplitPanel={handleSplitPanel}
+                    onUnsplitPanel={isSplit ? handleUnsplitPanel : null}
+                    isSplit={isSplit}
+                    onDeletePanel={handleRemovePanel}
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <div style={{ flex: 1 }} />
+
+              {/* QuickAdd + Filters */}
+              <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
+                <QuickAddMenu
+                  targetRole="page"
+                  onSelect={handleQuickAddPage}
+                  onCreateNew={() => {
+                    if (!panelOccurrence?.id || !module?.userId || !module?.gridId) return;
+                    const modId = crypto.randomUUID();
+                    const occId = crypto.randomUUID();
+                    CommitHelpers.createPage({
+                      dispatch, socket,
+                      module: { id: modId, userId: module.userId, gridId: module.gridId, role: "page", kind: "board", label: `Page ${(panelOccurrence.occurrences || []).length + 1}` },
+                      occurrence: { id: occId, userId: module.userId, gridId: module.gridId, targetId: modId, parentId: globalFolderId, iteration: { mode: "persistent" }, fields: {} },
+                      panelOccurrenceId: panelOccurrence.id,
+                      ...(!resolvedViewId && {
+                        panelViewData: { id: crypto.randomUUID(), userId: module.userId, gridId: module.gridId, viewType: "board", activeOccurrenceId: occId },
+                      }),
+                      emit: true,
+                    });
+                  }}
+                  createLabel="New page"
                 />
               </div>
-              {/* Content fills full width — tab strip at top, page below */}
-              <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", paddingLeft: pagePanelSidebarCollapsed ? 26 : 0, boxSizing: "border-box" }}>
-                <PageTabStrip
-                  pages={pagesList}
-                  activeOccId={resolvedView?.activeOccurrenceId}
-                  onSelect={openPage}
-                  onClose={closePage}
-                  onReorder={handlePageTabReorder}
+              <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
+                <LocalIterationNav
+                  occurrence={panelOccurrence}
+                  onUpdate={commitOccurrenceUpdate}
+                  showModeToggle={true}
+                  compact={true}
                 />
-                <div style={{ flex: 1, minHeight: 0, overflow: "auto", paddingTop: activePageEntry?.page?.kind === "doc" ? 10 : 12 }}>
-                  {activePageEntry ? (
-                    <Page
-                      occurrence={activePageEntry.occurrence}
-                      panelId={module.id}
-                      panelOccurrence={panelOccurrence}
-                      addInstanceToContainer={addInstanceToContainer}
-                      dispatch={dispatch}
-                      socket={socket}
-                    />
-                  ) : (
-                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12, height: "100%" }}>
-                      Select or create a page
-                    </div>
-                  )}
+              </div>
+            </div>
+          );
+
+          // Sidebar toggle bar — below header, above page content
+          const sidebarToggleBar = (
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              flexShrink: 0, padding: "2px 6px",
+              borderBottom: "1px solid var(--border-default)",
+              background: "var(--surface-card)",
+            }}>
+              <button
+                onClick={() => { setRootTreeOpen(v => !v); setLocalTreeOpen(false); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 3,
+                  padding: "2px 8px", border: "none", borderRadius: 4, cursor: "pointer",
+                  background: rootTreeOpen ? "rgba(100,180,255,0.12)" : "transparent",
+                  color: rootTreeOpen ? "rgba(100,180,255,1)" : "var(--text-muted)",
+                  fontSize: 10, fontFamily: "var(--font-mono)",
+                }}
+              >
+                <Folder size={10} style={{ opacity: 0.7 }} />
+                Root
+              </button>
+              <button
+                onClick={() => { setLocalTreeOpen(v => !v); setRootTreeOpen(false); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 3,
+                  padding: "2px 8px", border: "none", borderRadius: 4, cursor: "pointer",
+                  background: localTreeOpen ? "rgba(6,182,212,0.12)" : "transparent",
+                  color: localTreeOpen ? "#06b6d4" : "var(--text-muted)",
+                  fontSize: 10, fontFamily: "var(--font-mono)",
+                }}
+              >
+                <FileText size={10} style={{ opacity: 0.7 }} />
+                Local
+              </button>
+            </div>
+          );
+
+          const pageContent = (
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              {activePageEntry ? (
+                <Page
+                  occurrence={activePageEntry.occurrence}
+                  panelId={module.id}
+                  panelOccurrence={panelOccurrence}
+                  addInstanceToContainer={addInstanceToContainer}
+                  dispatch={dispatch}
+                  socket={socket}
+                />
+              ) : (
+                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12, height: "100%" }}>
+                  Select or create a page
                 </div>
+              )}
+            </div>
+          );
+
+          return (
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              {pageHeader}
+              {sidebarToggleBar}
+              <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
+                {/* Root tree sidebar — absolute overlay left, 50% height */}
+                {rootTreeOpen && (
+                  <div
+                    style={{
+                      position: "absolute", top: 0, left: 0, zIndex: 100,
+                      width: isMobile ? "100%" : 170, maxWidth: isMobile ? "100%" : "85%",
+                      maxHeight: "50%",
+                      display: "flex", flexDirection: "column",
+                      background: "var(--surface-card)",
+                      borderRight: isMobile ? "none" : "1px solid var(--border-default)",
+                      borderBottom: "1px solid var(--border-default)", borderRadius: isMobile ? 0 : "0 0 6px 0",
+                      pointerEvents: "auto",
+                    }}
+                  >
+                    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
+                      {rootTree}
+                    </div>
+                    <button
+                      onClick={() => setRootTreeOpen(false)}
+                      style={{
+                        flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                        width: "100%", height: 32, border: "none", borderTop: "1px solid var(--border-default)",
+                        background: "transparent", color: "var(--text-muted)", cursor: "pointer",
+                      }}
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                  </div>
+                )}
+                {/* Local tree sidebar — absolute overlay right, 50% height */}
+                {localTreeOpen && (
+                  <div
+                    style={{
+                      position: "absolute", top: 0, left: 0, zIndex: 100,
+                      width: isMobile ? "100%" : 170, maxWidth: isMobile ? "100%" : "85%",
+                      maxHeight: "50%",
+                      display: "flex", flexDirection: "column",
+                      background: "var(--surface-card)",
+                      borderRight: isMobile ? "none" : "1px solid var(--border-default)",
+                      borderBottom: "1px solid var(--border-default)", borderRadius: isMobile ? 0 : "0 0 0 6px",
+                      pointerEvents: "auto",
+                    }}
+                  >
+                    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
+                      {localTree}
+                    </div>
+                    <button
+                      onClick={() => setLocalTreeOpen(false)}
+                      style={{
+                        flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                        width: "100%", height: 32, border: "none", borderTop: "1px solid var(--border-default)",
+                        background: "transparent", color: "var(--text-muted)", cursor: "pointer",
+                      }}
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                  </div>
+                )}
+                {pageContent}
               </div>
             </div>
           );
@@ -1019,22 +932,10 @@ function Panel({
           );
         }
 
-        // Default: container list (legacy — hasPages handled above)
-
+        // Fallback — empty panel
         return (
-          <div
-            ref={dropRef}
-            className="panel-content"
-            style={{
-              flex: 1, minHeight: 0,
-              overflowY: layout.scrollY === "auto" ? "auto" : (layout.scrollY === "scroll" ? "scroll" : "hidden"),
-              overflowX: layout.scrollX === "auto" ? "auto" : (layout.scrollX === "scroll" ? "scroll" : "hidden"),
-              padding: 0,
-              outline: (isOver && isContainerDrag) ? "2px solid rgba(50,150,255,0.5)" : "none",
-              outlineOffset: -2, position: "relative",
-            }}
-          >
-            {contentInner}
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12 }}>
+            No content
           </div>
         );
       })()}

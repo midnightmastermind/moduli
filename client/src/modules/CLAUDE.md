@@ -1,6 +1,25 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: Mar 27 2026. This folder implements occurrence-based view routing._
+_Updated: Mar 29 2026. This folder implements occurrence-based view routing._
+
+## Recent Changes (Mar 29 2026 — Mobile Spacing + Scroll Fixes)
+- **ModulePanel.jsx**: (1) `paddingTop: 0` on mobile (was 22 — wasted space for panel cycler that's in GridCell). (2) `margin: "0px 2px 2px 2px"` on mobile (was `3px 6px 6px 6px`). (3) Page content wrappers: added `overflow: "hidden"` to the flex column + relative container divs — fixes scroll chain so boards/docs can scroll. (4) `pageContent` wrapper changed from `overflow: "auto"` to `overflow: "hidden"` + flex column (Page handles its own scroll). (5) Sidebar overlays `width: 100%` on mobile (was 80%), no side border, no border-radius.
+- **ModulePage.jsx**: Added `GridLiveContext` import + `isMobile`. Board page padding on mobile: `6px 28px 80px 28px` (was `14px 5px 80px 5px`) — more horizontal padding for rail nav buttons.
+- **ManifestTree.jsx**: (1) `showAnchors` prop on DocNode + FolderNode — root tree hides anchor chips/chevrons. (2) Width changed from fixed `154px` to `width: "100%", maxWidth: 180` when expanded — fills container on mobile.
+- **ArtifactContent.jsx**: `scrollIntoView({ block: "start" })` → `block: "nearest"` — prevents viewport jumps.
+
+## Recent Changes (Mar 29 2026 — Grid Mobile Spacing)
+- **Grid.jsx**: `paddingTop: 0` and `borderRadius: 0` on mobile (was 10px and 12px).
+
+## Recent Changes (Mar 28 2026 — Dual Sidebar + Pill Styling + Draggable Tree Items)
+- **ModulePanel.jsx**: Dual `rootTreeOpen` + `localTreeOpen` states. Toggle bar with `📁 Root` (left) and `📄 Local` (right) buttons. Root tree: always uses `state.grid.manifestId` (user manifest), passes `onOpenPage` — shows user-defined folders with pages. Local tree: `<ManifestTree panelOccurrence={...} />` (panel pages only). Both sidebars `position: absolute`, `zIndex: 100`, `maxHeight: 25%`, overlay page content with rounded bottom corner. Touch drag-up-to-close (40px threshold). No `overflow: hidden` on wrapper divs (fixes scroll + popovers). **Panel drag handle moved into toggle bar** (between page switcher and filters) for page panels — old panel header hidden when `hasPages`. Active page label shown to left of drag handle. Toggle bar layout: `[Root] [Local] PageName [DragHandle] [QuickAdd] [Filters]`.
+- **ManifestTree.jsx**: All items use shared `PILL_STYLE`/`PILL_ACTIVE`. `PAGE_KIND_ICON` mapping. **DocNode**: pill with FileText icon (blue). **FolderNode**: accepts `onOpenPage`, renders `pageOccs` (role="page" children) as `PageTreeNode` pills alongside artifact DocNodes. **PageTreeNode**: pill with kind icon (cyan), draggable. **AnchorChip**: draggable copy-mode. Local tree (`isPagePanel`) shows only panel pages, no folder tree. Hooks bugs fixed.
+- **ModulePage.jsx**: Page shell `overflow: "hidden"` (was "visible", broke scroll). Removed `paddingTop` from page header. Border + borderRadius + background still applied.
+
+## Recent Changes (Mar 28 2026 — Notebook Tree View in Pages)
+- **ModulePage.jsx**: Pages with `pageView.hasTree && pageView.manifestId` now render only Artifact content (no sidebar — sidebar is handled by parent panel to avoid duplication). `isTreeView` flag skips `kind` routing, resolves `treeActiveOcc` from `pageView.activeOccurrenceId`, renders `<Artifact>` directly. QuickAddMenu hidden when `isTreeView`. Content wrapper uses `overflow: "hidden"` + no paddingBottom when isTreeView.
+- **ModulePanel.jsx**: When `hasPages` and the active page has a tree view (`activePageView.hasTree && activePageView.manifestId`), passes the page's `manifestId` to the panel sidebar's ManifestTree (instead of grid's). Passes `activePageView` prop so doc clicks route through the page's view.
+- **ManifestTree.jsx**: New `activePageView` prop. When `isPagePanel && activePageView`, doc clicks call `updateView({ activeOccurrenceId })` on the page's view instead of `onOpenPage()`. `handleScrollTo` and `handleSetDefault` also use `activePageView` when set. Active doc highlight reads `activePageView.activeOccurrenceId` first.
 
 ## Recent Changes (Mar 27 2026 — ViewType Rename: artifact→display, list→board, page→board)
 - **ModulePanel.jsx**: `currentViewType` fallback `"list"` → `"board"`. Auto-create view for page panels now uses `viewType: "board"` (was `"page"`). `panelViewData` in QuickAdd also uses `"board"`. Artifact panel branch condition: `viewType === "artifact"` → `viewType === "display"`. Comment updated to "Display panel".

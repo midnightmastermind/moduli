@@ -1669,7 +1669,7 @@ export function DragProvider({
     // MODULE FROM COMMAND CENTER → CONTAINER, PANEL, or INSTANCE
     // Handles all module roles (instance, container, panel) from the EntityTreeTab.
     // ============================================================
-    if (payload?.type === "module" && (payload?.sourceType === "command-center" || payload?.sourceType === "pool" || payload?.sourceType === "doc" || payload?.sourceType === "canvas")) {
+    if (payload?.type === "module" && (payload?.sourceType === "command-center" || payload?.sourceType === "pool" || payload?.sourceType === "doc" || payload?.sourceType === "canvas" || payload?.sourceType === "tree-anchor" || payload?.sourceType === "tree-page")) {
       const role = payload?.data?.role || payload?.role;
       const gridId = state?.gridId || state?.grid?._id?.toString() || state?.grid?.id;
 
@@ -1922,6 +1922,30 @@ export function DragProvider({
             occurrence: { ...panelOcc, viewId },
             emit: true,
           });
+        }
+      }
+    }
+
+    // ── FOLDER drop — add child docs as pages to the panel ──
+    if (payload?.type === "folder" && payload?.childOccurrenceIds?.length > 0) {
+      const panelId = getHoveredPanelId(dropX, dropY);
+      if (panelId) {
+        const panelOcc = Object.values(occurrencesById || {}).find(o => o.targetId === panelId);
+        if (panelOcc) {
+          const existingOccs = [...(panelOcc.occurrences || [])];
+          for (const childOccId of payload.childOccurrenceIds) {
+            const childOcc = occurrencesById[childOccId];
+            if (!childOcc) continue;
+            const childMod = (state?.modules || []).find(m => m.id === childOcc.targetId);
+            if (!childMod) continue;
+            // Create a page module for this doc
+            const pageModId = crypto.randomUUID();
+            const pageOccId = crypto.randomUUID();
+            CommitHelpers.createModule({ dispatch, socket, module: { id: pageModId, role: "page", kind: "doc", label: childMod.label || "Untitled" }, emit: true });
+            CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: pageOccId, userId: state?.userId, gridId: state?.grid?._id, targetId: pageModId, targetType: "module", fields: {} }, emit: true });
+            existingOccs.push(pageOccId);
+          }
+          CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOcc.id, occurrences: existingOccs }, emit: true });
         }
       }
     }

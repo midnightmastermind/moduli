@@ -76,6 +76,7 @@ export const DragType = {
   INSTANCE: "instance",
   MODULE: "module",     // CC module drag (all roles: panel/container/instance/page)
   ARTIFACT: "artifact",
+  FOLDER: "folder",     // Tree folder drag (adds child docs as pages)
   EXTERNAL: "external",
   FILE: "file",
   TEXT: "text",
@@ -84,9 +85,9 @@ export const DragType = {
 
 // What each drop zone accepts
 export const DropAccepts = {
-  GRID_CELL: [DragType.PANEL, DragType.MODULE, DragType.ARTIFACT],
-  PANEL_CONTENT: [DragType.PAGE, DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
-  PAGE_CONTENT: [DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
+  GRID_CELL: [DragType.PANEL, DragType.MODULE, DragType.ARTIFACT, DragType.FOLDER],
+  PANEL_CONTENT: [DragType.PAGE, DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.FOLDER, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
+  PAGE_CONTENT: [DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.FOLDER, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
   CONTAINER_LIST: [DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
   INSTANCE: [DragType.INSTANCE, DragType.ARTIFACT, DragType.FILE, DragType.TEXT, DragType.URL],
 };
