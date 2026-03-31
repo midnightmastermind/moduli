@@ -88,8 +88,6 @@ const Editor = forwardRef(function Editor({
   const [isDropTarget, setIsDropTarget] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
-  // D9: reformat popup — shown when instance/container is dropped
-  const [dropReformat, setDropReformat] = useState(null); // { pos, screenPos, type, id, data, context }
   // D11: convert-to-module prompt
   const [convertPrompt, setConvertPrompt] = useState(null); // { text } or null
   const convertTimerRef = useRef(null);
@@ -481,22 +479,31 @@ const Editor = forwardRef(function Editor({
       element: el,
       canDrop: ({ source }) => {
         const type = source.data?.type;
-        return type === "instance" || type === "field" || type === "container";
+        return type === "instance" || type === "field" || type === "container" || type === "artifact" || type === "module";
       },
       onDragEnter: () => setIsDropTarget(true),
       onDragLeave: () => setIsDropTarget(false),
       onDrop: ({ source }) => {
         setIsDropTarget(false);
         if (source.data?.fromDoc) return;
-        const { type, id, data, context } = source.data || {};
+        const sd = source.data || {};
+        const { type, id, data, context } = sd;
         const insertPos = resolveInsertPos(lastNativeEvent);
-        const screenPos = lastNativeEvent
-          ? { x: lastNativeEvent.clientX, y: lastNativeEvent.clientY }
-          : { x: 200, y: 200 };
 
-        if (type === "instance" || type === "container") {
-          // D9: show reformat popup instead of immediately inserting
-          setDropReformat({ pos: insertPos, screenPos, type, id, data: data || {}, context: context || {} });
+        if (type === "instance" || type === "container" || type === "artifact" || type === "module") {
+          // occurrenceId can be in context (DragProvider items), in data, or at root level (doc pills, tree items)
+          let occurrenceId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
+          // CC drops have no occurrenceId — find an existing occurrence of this module
+          if (!occurrenceId && id) {
+            const existing = Object.values(occurrencesById || {}).find(o => o.targetId === id);
+            if (existing) occurrenceId = existing.id;
+          }
+          if (occurrenceId) {
+            insertAtPos(insertPos, {
+              type: "moduleEmbed",
+              attrs: { occurrenceId },
+            });
+          }
           return;
         }
         if (type === "field") {
@@ -965,77 +972,8 @@ const Editor = forwardRef(function Editor({
         </div>
       )}
 
-      {/* D9: Drop reformat popup */}
-      {dropReformat && (
-        <DropReformatPopup
-          dropReformat={dropReformat}
-          wrapperRef={wrapperRef}
-          onSelect={(node) => {
-            insertAtPos(dropReformat.pos, node);
-            setDropReformat(null);
-          }}
-          onDismiss={() => setDropReformat(null)}
-        />
-      )}
     </div>
   );
 });
-
-function DropReformatPopup({ dropReformat, wrapperRef, onSelect, onDismiss }) {
-  const { screenPos, type, id, data, context } = dropReformat;
-  const wrap = wrapperRef.current?.getBoundingClientRect();
-  const left = wrap ? Math.min(screenPos.x - wrap.left, wrap.width - 180) : screenPos.x;
-  const top = wrap ? screenPos.y - wrap.top + 8 : screenPos.y + 8;
-
-  const label = data?.label || id || "Item";
-
-  const options = type === "instance"
-    ? [
-        { key: "pill",  label: "Pill",  node: { type: "instancePill", attrs: { instanceId: id || data.id, instanceLabel: label, occurrenceId: context?.occurrenceId || null, containerId: context?.containerId || null, showIcon: true, pillDisplay: "block" } } },
-        { key: "embed", label: "Embed", node: { type: "moduleEmbed",  attrs: { occurrenceId: context?.occurrenceId || null } } },
-        { key: "text",  label: "Text",  node: { type: "text", text: label } },
-      ]
-    : [
-        { key: "link",  label: "Link",  node: { type: "docLink", attrs: { targetId: id || data.id, label, linkType: data?.kind === "doc" ? "doc" : "container" } } },
-        { key: "embed", label: "Embed", node: { type: "moduleEmbed", attrs: { occurrenceId: context?.occurrenceId || null } } },
-        { key: "text",  label: "Text",  node: { type: "text", text: label } },
-      ];
-
-  // Dismiss on outside click
-  const ref = useRef(null);
-  useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onDismiss(); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onDismiss]);
-
-  return (
-    <div ref={ref} style={{
-      position: "absolute", zIndex: 300, top, left,
-      background: "var(--surface-card)", border: "1px solid rgba(99,179,237,0.35)",
-      borderRadius: 6, padding: "4px 0",
-      boxShadow: "0 4px 16px rgba(0,0,0,0.55)",
-    }}>
-      <div style={{ padding: "3px 10px 3px", fontSize: 9, color: "rgba(99,179,237,0.5)", letterSpacing: "0.05em", textTransform: "uppercase", borderBottom: "1px solid rgba(99,179,237,0.1)", marginBottom: 2 }}>
-        Insert as
-      </div>
-      {options.map(opt => (
-        <div
-          key={opt.key}
-          onMouseDown={(e) => { e.preventDefault(); onSelect(opt.node); }}
-          style={{
-            padding: "4px 14px", cursor: "pointer", fontSize: 11,
-            color: "var(--text-primary)",
-            display: "flex", alignItems: "center", gap: 8,
-          }}
-          onMouseEnter={e => e.currentTarget.style.background = "rgba(99,179,237,0.12)"}
-          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-        >
-          {opt.label}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export default Editor;

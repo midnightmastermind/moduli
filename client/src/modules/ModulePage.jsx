@@ -12,6 +12,7 @@ import { X, Trash2, Copy, FileText, Layout, Paintbrush, Monitor } from "lucide-r
 
 import Container from "./Container.jsx";
 import Artifact from "./Artifact.jsx";
+import { DocEditorShell } from "./DocContent.jsx";
 
 import { GridActionsContext } from "../GridActionsContext";
 import { GridDataContext } from "../GridDataContext";
@@ -192,15 +193,12 @@ function Page({
       />
     );
   } else if (kind === "doc") {
-    // Doc page — TipTap editor via Artifact
+    // Doc page — TipTap editor directly
     content = (
-      <Artifact
+      <DocEditorShell
         occurrence={occurrence}
-        viewType={pageView?.viewType ?? "markdown"}
-        artifactType={pageView?.artifactType ?? null}
         dispatch={dispatch}
         socket={socket}
-        view={pageView}
       />
     );
   } else if (kind === "display") {
@@ -225,7 +223,7 @@ function Page({
           flex: 1, minHeight: 0,
           overflowY: "auto",
           WebkitOverflowScrolling: "touch",
-          padding: isMobile ? "6px 28px 80px 28px" : "14px 5px 80px 5px",
+          padding: isMobile ? "6px 28px 80px 28px" : "0px 5px 80px 5px",
           position: "relative",
           outline: isOver ? "2px solid rgba(50,150,255,0.5)" : "none",
           outlineOffset: -2,
@@ -285,10 +283,21 @@ function Page({
         style={{
           position: "relative",
           flexShrink: 0,
+          width: "100%",
+          display: "flex",
+          alignItems: "start",
+          flexDirection: "row",
+          justifyContent: "end"
         }}
       >
         {/* Handle — centered horizontally */}
-        <div style={{ display: "flex", justifyContent: "center" }}>
+        <div style={{
+          position: "absolute",
+          top: "3px",
+          left: "calc(50% - 8.88px)",
+          display: "flex",
+          justifyContent: "end"
+        }}>
           <div
             ref={handleRef}
             className="module-drag-handle module-grab-zone"
@@ -304,8 +313,28 @@ function Page({
             />
           </div>
         </div>
-        {kind !== "doc" && (
+        {(
           <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 10px 2px 12px" }}>
+            {(
+              <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0}}>
+                <QuickAddMenu
+                  targetRole="container"
+                  onSelect={handleQuickAddContainer}
+                  onCreateNew={() => {
+                    if (!occurrence?.id || !state?.userId || !state?.grid?._id) return;
+                    const id = crypto.randomUUID();
+                    const mod = { id, role: "container", kind: "list", label: `List ${containersList.length + 1}` };
+                    CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
+                    const occId = crypto.randomUUID();
+                    const occ = { id: occId, userId: state.userId, gridId: state.grid._id, targetId: id, targetType: "module", fields: {} };
+                    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
+                    const updatedOccs = [...(occurrence.occurrences || []), occId];
+                    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });
+                  }}
+                  createLabel="New container"
+                />
+              </div>
+            )}
             <KindIcon size={10} style={{ opacity: 0.35, flexShrink: 0 }} />
             {isEditing ? (
               <input
@@ -329,32 +358,12 @@ function Page({
                 {pageModule.label || "Untitled"}
               </span>
             )}
-            {kind === "board" && !isTreeView && (
-              <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0, marginLeft: "auto" }}>
-                <QuickAddMenu
-                  targetRole="container"
-                  onSelect={handleQuickAddContainer}
-                  onCreateNew={() => {
-                    if (!occurrence?.id || !state?.userId || !state?.grid?._id) return;
-                    const id = crypto.randomUUID();
-                    const mod = { id, role: "container", kind: "list", label: `List ${containersList.length + 1}` };
-                    CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
-                    const occId = crypto.randomUUID();
-                    const occ = { id: occId, userId: state.userId, gridId: state.grid._id, targetId: id, targetType: "module", fields: {} };
-                    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
-                    const updatedOccs = [...(occurrence.occurrences || []), occId];
-                    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });
-                  }}
-                  createLabel="New container"
-                />
-              </div>
-            )}
           </div>
         )}
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, minHeight: 0, overflow: isTreeView ? "hidden" : "auto", WebkitOverflowScrolling: isTreeView ? undefined : "touch", position: "relative", display: "flex", flexDirection: "column", paddingBottom: isTreeView ? 0 : 80 }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: isTreeView ? "hidden" : "auto", WebkitOverflowScrolling: isTreeView ? undefined : "touch", position: "relative", display: "flex", flexDirection: "column", }}>
         {content}
       </div>
     </div>

@@ -226,7 +226,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
         const { occurrenceId } = source.data;
         if (!occurrenceId || !dispatch || !socket) return;
         // Append to end of this folder
-        const maxOrder = artifactOccs.reduce((m, o) => Math.max(m, o.sortOrder ?? 0), -1);
+        const maxOrder = allChildOccs.reduce((m, o) => Math.max(m, o.sortOrder ?? 0), -1);
         CommitHelpers.updateOccurrence({
           dispatch, socket,
           occurrence: { id: occurrenceId, parentId: folder.id, sortOrder: maxOrder + 1 },
@@ -235,7 +235,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
         setOpen(true);
       },
     });
-  }, [folder.id, artifactOccs, dispatch, socket]);
+  }, [folder.id, allChildOccs, dispatch, socket]);
 
   const hasChildren = childFolders.length > 0 || artifactOccs.length > 0 || pageOccs.length > 0;
   const indent = depth * 8;
@@ -259,17 +259,15 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     e.stopPropagation();
     const userId = state?.userId;
     const gridId = state?.grid?._id;
-    if (!userId || !gridId) return;
+    if (!userId || !gridId || !dispatch || !socket) return;
     const modId = crypto.randomUUID();
     const occId = crypto.randomUUID();
-    const maxOrder = artifactOccs.reduce((m, o) => Math.max(m, o.sortOrder ?? 0), -1);
-    socket.emit("create_module", { id: modId, userId, gridId, role: "container", kind: "artifact", label: "Untitled" });
-    socket.emit("create_occurrence", { id: occId, userId, gridId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: maxOrder + 1, iteration: { mode: "persistent" }, textmap: { type: "doc", content: [{ type: "paragraph" }] } });
-    dispatch({ type: "module_created", payload: { id: modId, userId, gridId, role: "container", kind: "artifact", label: "Untitled" } });
-    dispatch({ type: "occurrence_created", payload: { id: occId, userId, gridId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: maxOrder + 1, iteration: { mode: "persistent" }, textmap: { type: "doc", content: [{ type: "paragraph" }] } } });
+    const maxOrder = allChildOccs.reduce((m, o) => Math.max(m, o.sortOrder ?? 0), -1);
+    CommitHelpers.createModule({ dispatch, socket, module: { id: modId, userId, gridId, role: "container", kind: "artifact", label: "Untitled" }, emit: true });
+    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: maxOrder + 1, iteration: { mode: "persistent" }, textmap: { type: "doc", content: [{ type: "paragraph" }] } }, emit: true });
     setOpen(true);
     onSelect(occId);
-  }, [state, socket, dispatch, folder.id, artifactOccs, onSelect]);
+  }, [state, socket, dispatch, folder.id, allChildOccs, onSelect]);
 
   return (
     <div ref={folderRef} style={{ paddingLeft: indent, paddingRight: 2 }}>
@@ -354,7 +352,8 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, mod
   const KindIcon = PAGE_KIND_ICON[kind] || Layout;
   const containerOccs = (pageOcc.occurrences || [])
     .map(id => occurrencesById?.[id])
-    .filter(o => o && modulesById?.[o.targetId]);
+    .filter(o => o && modulesById?.[o.targetId])
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const hasChildren = containerOccs.length > 0;
 
   return (
@@ -493,11 +492,10 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
 
   // Create a new folder in the manifest root
   const handleCreateFolder = useCallback(() => {
-    if (!state?.userId || !state?.grid?._id || !manifest?.rootFolderId) return;
-    const id = crypto.randomUUID();
-    const folderData = { id, name: "New Folder", parentId: manifest.rootFolderId, gridId: state.grid._id, userId: state.userId, folderType: "normal" };
-    socket?.emit("create_folder", folderData);
-  }, [state, socket, manifest]);
+    if (!state?.userId || !state?.grid?._id || !manifest?.rootFolderId || !dispatch || !socket) return;
+    const folder = { id: crypto.randomUUID(), name: "New Folder", parentId: manifest.rootFolderId, gridId: state.grid._id, userId: state.userId, folderType: "normal" };
+    CommitHelpers.createFolder({ dispatch, socket, folder, emit: true });
+  }, [state, socket, dispatch, manifest]);
 
   // Open pages list for the local section
   const localPageOccs = useMemo(() => {
@@ -530,8 +528,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
   return (
     <div
       style={{
-        width: collapsed ? 24 : "100%",
-        maxWidth: collapsed ? 24 : 180,
+        width: collapsed ? 24 : "170px",
         height: "100%",
         borderRight: "1px solid var(--border-default)",
         background: "var(--surface-card)",

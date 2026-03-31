@@ -2,6 +2,12 @@
 
 _Updated: 2026-03-28. Check this file before re-reading source._
 
+## Recent Changes (Mar 30 2026 — Operations Trigger Fixes)
+- **operationExecutor.js**: (1) Added 6 missing trigger cases to `matchesTrigger`: `onAdd` (→ OccurrenceCreateOp), `onRemove` (→ OccurrenceDeleteOp), `onReorder` (→ OccurrenceListOp same-container), `onUncomplete` (→ MeasureOp falsy value), `onButton` (→ ButtonOp), `onNodeInput` (→ NodeInputOp). All 14 EVENT_TYPES in OperationsTab.jsx now have matching executor cases. (2) Fixed `scopeContainerId` in `gatherLoopItems` — was reading `scopeMod?.occurrences` (module, always empty). Now scans `occurrencesById` for occurrences targeting the container module and collects their child IDs.
+
+## Recent Changes (Mar 30 2026 — DnD Cleanup)
+- **DragProvider.jsx**: (1) Removed doc-container skip (`if (toC.kind === "doc") { clearSession(); return; }`) — doc containers now accept drops normally, Editor.jsx handles insertion as `moduleEmbed`. (2) Fixed `shouldHighlight` to highlight containers for ALL drag types except panel drags (was only instance/external). (3) Removed dead `canvasMeta` commented-out code block.
+
 ## Recent Changes (Mar 28 2026 — Dual Sidebar Drag Support)
 - **dragSystem.js**: Added `FOLDER: "folder"` to `DragType`. Added `DragType.FOLDER` to `DropAccepts.GRID_CELL`, `PANEL_CONTENT`, `PAGE_CONTENT`.
 - **DragProvider.jsx**: Added folder drop handler (lines ~1929-1951) — when `type === "folder"` dropped on panel, iterates `childOccurrenceIds`, creates a page module for each child doc, adds page occurrences to panel. **Bug fix**: used `(state?.modules || []).find(m => m.id === childOcc.targetId)` instead of `state?.modulesById?.[...]` (state has `modules` array, not `modulesById` map). Added `"tree-anchor"` and `"tree-page"` to module sourceType whitelist in the MODULE drop handler condition (line ~1672).

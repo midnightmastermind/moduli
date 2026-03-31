@@ -2,6 +2,10 @@
 
 _Updated: Mar 29 2026. This folder implements occurrence-based view routing._
 
+## Recent Changes (Mar 30 2026 — ManifestTree Fixes + Doc Page Direct Rendering)
+- **ManifestTree.jsx**: (1) PageTreeNode now sorts containerOccs by `sortOrder`. (2) `handleNewDoc` and `handleCreateFolder` migrated from direct `socket.emit` to `CommitHelpers.createModule`/`createOccurrence`/`createFolder`. (3) FolderNode drop target `maxOrder` now considers ALL child occs (was only artifacts). (4) `handleNewDoc` `maxOrder` also uses `allChildOccs` for correct sort position.
+- **ModulePage.jsx**: Doc pages (`kind === "doc"`) now render `<DocEditorShell>` directly instead of going through `<Artifact>`. Added `DocEditorShell` import from `./DocContent.jsx`. Artifact import retained for `isTreeView` and `kind === "display"` branches.
+
 ## Recent Changes (Mar 29 2026 — Mobile Spacing + Scroll Fixes)
 - **ModulePanel.jsx**: (1) `paddingTop: 0` on mobile (was 22 — wasted space for panel cycler that's in GridCell). (2) `margin: "0px 2px 2px 2px"` on mobile (was `3px 6px 6px 6px`). (3) Page content wrappers: added `overflow: "hidden"` to the flex column + relative container divs — fixes scroll chain so boards/docs can scroll. (4) `pageContent` wrapper changed from `overflow: "auto"` to `overflow: "hidden"` + flex column (Page handles its own scroll). (5) Sidebar overlays `width: 100%` on mobile (was 80%), no side border, no border-radius.
 - **ModulePage.jsx**: Added `GridLiveContext` import + `isMobile`. Board page padding on mobile: `6px 28px 80px 28px` (was `14px 5px 80px 5px`) — more horizontal padding for rail nav buttons.

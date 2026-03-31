@@ -2,6 +2,9 @@
 
 _Updated: 2026-03-23. Check this file before re-reading source._
 
+## Recent Changes (Mar 30 2026 — Uniform Doc Drops + Remove DropReformatPopup)
+- **Editor.jsx**: Drop handler rewritten. Instance/container/artifact/module drops now insert `moduleEmbed` TipTap nodes (same component rendering everywhere). Removed `DropReformatPopup` component and `dropReformat` state entirely. Field drops still insert `fieldPill` as before. `canDrop` filter expanded to accept `"artifact"` and `"module"` types. **Fix**: `occurrenceId` resolution now checks `context?.occurrenceId || data?.occurrenceId || sd.occurrenceId` (root-level, for doc pills and tree items). CC drops with no occurrenceId fall back to finding an existing occurrence of the module via `occurrencesById`.
+
 ## Recent Changes (Mar 25 2026 — Module Reference Field Type)
 - **Field.jsx**: Added `type: "module"` rendering. Compact input: cyan-tinted Popover pill with Link2 icon, searchable module list. Full input: native `<select>` dropdown from `meta._moduleOptions`. Display: `formattedValue` resolves moduleId → label via `_moduleOptions`, with optional `meta.label` prefix. Compact display: cyan pill with Link2 icon.
 - **FieldRenderer.jsx**: Extended `effectiveField` useMemo to handle `type === "module"` — builds `_moduleOptions` from `modulesById` (filtered by optional `meta.roleFilter`).

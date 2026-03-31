@@ -157,19 +157,9 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
     ];
 
     return (
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden", position: "relative", padding: "20px 3px 3px 3px", ...(docAccentBg ? { background: docAccentBg } : {}) }}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden", position: "relative", padding: "0px 3px 3px 3px", ...(docAccentBg ? { background: docAccentBg } : {}) }}>
         {/* Drag handle — outside bordered div so overflow:hidden doesn't clip it */}
-        <div className="module-drag-handle module-grab-zone" style={{ top: 3, left: "50%", transform: "translateX(-50%)", zIndex: 300 }}>
-          <div className="drag-handle-stem" />
-          <div className="drag-handle-ball" />
-          <RadialMenu
-            items={radialItems}
-            handleIcon={Settings}
-            handleTitle="Document settings"
-            forceDirection="down"
-            size="sm"
-          />
-        </div>
+
 
         {/* Doc card with border */}
         <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", border: "1px solid var(--border-subtle)", borderRadius: 4, overflow: "hidden" }}>

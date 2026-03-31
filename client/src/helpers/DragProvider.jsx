@@ -710,7 +710,7 @@ export function DragProvider({
 
     lastHotRef.current = { panelId: newPanelId, containerId: newContainerId, instanceId: newInstanceId };
     // Only highlight containers for instance/external drags, not container drags
-    const shouldHighlight = s.payload?.type === DragType.INSTANCE || s.payload?.type === DragType.EXTERNAL;
+    const shouldHighlight = s.payload?.type !== DragType.PANEL;
     setDropHighlight(shouldHighlight ? (newContainerId || null) : null);
   }, []);
 
@@ -734,7 +734,7 @@ export function DragProvider({
     }
 
     const { x, y } = pointerRef.current;
-
+    const { clientX, clientY } = pointerRef.current;
     // Resolve targets from hit testing + drop target context
     const panelId = dropTarget.context?.panelId || getHoveredPanelId();
     const containerId = dropTarget.context?.containerId || getHoveredContainerId();
@@ -1166,11 +1166,6 @@ export function DragProvider({
           clearSession();
           return;
         }
-        // If target is a doc container, skip normal move/copy — DocContainer handles pill insertion
-        if (toC.kind === "doc") {
-          clearSession();
-          return;
-        }
 
         // Find the occurrence ID for the dragged instance within the from container occurrence
         const draggedInstanceId = payload.id;
@@ -1230,7 +1225,7 @@ export function DragProvider({
         const gridId = state?.gridId || state?.grid?._id;
 
         // For canvas containers, compute drop position relative to the canvas area
-        const getCanvasMeta = (container, cx, cy) => {
+        const get = (container, cx, cy) => {
           if (container?.kind !== "canvas") return null;
           const el = document.querySelector(`[data-container-id="${container.id}"]`);
           if (!el) return null;
@@ -1291,7 +1286,6 @@ export function DragProvider({
             iterationMode: "specific",
             iterationValue: currentIterationDate,
             sourceOccurrence: occurrenceId ? occurrencesById[occurrenceId] : null,
-            initialMeta: getCanvasMeta(toC, clientX, clientY),
           });
         } else if (isCopyMode) {
           // COPY MODE: Create a new occurrence in the target container
@@ -1308,7 +1302,6 @@ export function DragProvider({
             iterationMode: "specific",  // Copies are specific to this date
             iterationValue: currentIterationDate,
             sourceOccurrence: occurrenceId ? occurrencesById[occurrenceId] : null,
-            initialMeta: getCanvasMeta(toC, clientX, clientY),
           });
 
           // Auto-check boolean fields on drop
@@ -1365,19 +1358,6 @@ export function DragProvider({
               toIndex,
               emit: true,
             });
-
-            // If dropping into a canvas container, stamp drop position onto the occurrence
-            const canvasMeta = getCanvasMeta(toC, clientX, clientY);
-            if (canvasMeta) {
-              const occ = occurrencesById[occurrenceId];
-              if (occ) {
-                CommitHelpers.updateOccurrence({
-                  dispatch, socket,
-                  occurrence: { ...occ, meta: { ...(occ.meta || {}), ...canvasMeta } },
-                  emit: true,
-                });
-              }
-            }
 
             // Fire OccurrenceMoveOp so operations with onMove trigger can react
             const allOccs = Object.values(occurrencesById);
@@ -1711,7 +1691,6 @@ export function DragProvider({
             userId: state?.userId,
             iterationMode: "persistent",
             emit: true,
-            initialMeta: getCanvasMeta(targetContainer, clientX, clientY),
           });
         }
       }

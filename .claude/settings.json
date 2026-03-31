@@ -3,6 +3,12 @@
     "chrome-devtools-mcp@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
-    "firecrawl@claude-plugins-official": true
+    "firecrawl@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "remember@claude-plugins-official": true,
+    "frontend-design@claude-code-plugins": true
   }
 }

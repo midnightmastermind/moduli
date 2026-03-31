@@ -1,10 +1,12 @@
 // docs/ModuleEmbedNode.jsx
-// React NodeView for moduleEmbed — renders a <Container embedded> card
-// with alignment controls (left/center/right/full) and a resize handle.
+// React NodeView for moduleEmbed — renders any module (container, instance, artifact)
+// inline in a doc with alignment controls and a resize handle.
 import { NodeViewWrapper } from "@tiptap/react";
 import { useContext, useRef, useCallback, useState } from "react";
 import { GridActionsContext } from "../GridActionsContext.js";
 import Container from "../modules/Container.jsx";
+import ModuleInstance from "../modules/ModuleInstance.jsx";
+import ArtifactContent from "../modules/ArtifactContent.jsx";
 
 const ALIGN_OPTIONS = [
   { key: "left",   label: "◧", title: "Float left (40%)" },
@@ -24,12 +26,13 @@ function alignStyle(align, width) {
 }
 
 export default function ModuleEmbedNode({ node, updateAttributes, selected }) {
-  const { occurrencesById, modulesById, dispatch, socket } = useContext(GridActionsContext) || {};
+  const { occurrencesById, modulesById, viewsById, dispatch, socket } = useContext(GridActionsContext) || {};
   const occurrenceId = node.attrs.occurrenceId;
   const align = node.attrs.align || "full";
   const width = node.attrs.width || null;
   const occurrence = occurrencesById?.[occurrenceId];
   const mod = occurrence?.targetId ? modulesById?.[occurrence.targetId] : null;
+  const occView = occurrence?.viewId ? viewsById?.[occurrence.viewId] : null;
 
   // Resize drag state
   const resizeRef = useRef(null);
@@ -113,14 +116,32 @@ export default function ModuleEmbedNode({ node, updateAttributes, selected }) {
           </div>
         )}
 
-        <Container
-          module={mod}
-          panel={null}
-          dispatch={dispatch}
-          socket={socket}
-          embedded={true}
-          occurrenceOverride={occurrence}
-        />
+        {mod?.role === "instance" ? (
+          <ModuleInstance
+            module={mod}
+            occurrence={occurrence}
+            dispatch={dispatch}
+            socket={socket}
+          />
+        ) : (mod?.kind === "artifact" || occView?.viewType === "display") ? (
+          <ArtifactContent
+            occurrence={occurrence}
+            viewType={occView?.viewType ?? "display"}
+            artifactType={occView?.artifactType ?? null}
+            dispatch={dispatch}
+            socket={socket}
+            view={occView}
+          />
+        ) : (
+          <Container
+            module={mod}
+            panel={null}
+            dispatch={dispatch}
+            socket={socket}
+            embedded={true}
+            occurrenceOverride={occurrence}
+          />
+        )}
 
         {/* Resize handle — right edge drag */}
         {align !== "full" && (

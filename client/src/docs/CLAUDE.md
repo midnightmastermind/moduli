@@ -1,6 +1,10 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-03-20. Check this file before re-reading source._
+_Updated: 2026-03-30. Check this file before re-reading source._
+
+## Recent Changes (Mar 30 2026 — Uniform Module Rendering in Docs)
+- **ModuleEmbedNode.jsx**: Now role-aware. Renders `<ModuleInstance>` for instances, `<ArtifactContent>` for artifacts, `<Container embedded>` for containers (was container-only). Added `ModuleInstance`, `ArtifactContent` imports. Reads `viewsById` from context for artifact detection.
+- **Impact**: All modules (instance, container, artifact) dropped into docs now render as their real component, not pills.
 
 ## Key Files
 

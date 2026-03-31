@@ -68,7 +68,7 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
       {stackCount > 0 && (
         <button
           className="panel-stack-btn-inline"
-          style={{ position: "absolute", top: 2, left: 4, zIndex: 90, pointerEvents: "auto" }}
+          style={{ border: "none", position: "absolute", top: 2.5, left: 8, minHeight: 21, zIndex: 90, pointerEvents: "auto" }}
           onClick={(e) => { e.stopPropagation(); cyclePanelStack?.({ cellKey: cellId, dir: 1 }); }}
           title="Cycle panels"
           onPointerDown={(e) => e.stopPropagation()}

@@ -623,7 +623,7 @@ body {
 /* Drag handle — ball straddles the module top edge (half above, half on) */
 .module-drag-handle {
   position: absolute;
-  top: -9px;
+  top: -.5px;
   left: 50%;
   z-index: 10;
   transform: translateX(-50%);

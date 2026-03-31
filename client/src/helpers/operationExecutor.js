@@ -131,6 +131,42 @@ function matchesTrigger(t, cfg, transactionType, transaction) {
       if (fieldFilter && transaction?.fieldId !== fieldFilter) return false;
       return true;
     }
+    case "onAdd": {
+      // Synonym for onCreate — fires when an occurrence is added to a parent
+      if (transactionType !== "OccurrenceCreateOp") return false;
+      const containerFilter = cfg.onAdd?.containerId;
+      if (containerFilter && transaction?.containerId !== containerFilter) return false;
+      const panelFilter = cfg.onAdd?.panelId;
+      if (panelFilter && transaction?.panelId !== panelFilter) return false;
+      return true;
+    }
+    case "onRemove": {
+      // Fires when an occurrence is removed from a parent (same event as delete in current arch)
+      if (transactionType !== "OccurrenceDeleteOp") return false;
+      const containerFilter = cfg.onRemove?.containerId;
+      if (containerFilter && transaction?.containerId !== containerFilter) return false;
+      return true;
+    }
+    case "onReorder": {
+      // Fires when occurrences are reordered within the same container
+      if (transactionType !== "OccurrenceListOp") return false;
+      // Only match same-container reorder (from === to)
+      if (transaction?.fromContainerId !== transaction?.toContainerId) return false;
+      const containerFilter = cfg.onReorder?.containerId;
+      if (containerFilter && transaction?.toContainerId !== containerFilter) return false;
+      return true;
+    }
+    case "onUncomplete": {
+      // Inverse of onComplete — fires when a value goes falsy
+      if (transactionType !== "MeasureOp") return false;
+      const val = transaction?.value;
+      if (val) return false; // Only fire when value is falsy
+      const fieldFilter = cfg.onUncomplete?.fieldId;
+      if (fieldFilter && transaction?.fieldId !== fieldFilter) return false;
+      return true;
+    }
+    case "onButton":       return transactionType === "ButtonOp";
+    case "onNodeInput":    return transactionType === "NodeInputOp";
     case "onModuleUpdate": return transactionType === "ModuleOp";
     case "onNavigation":   return transactionType === "NavigationOp" || transactionType == null;
     case "onIteration":    return transactionType === "NavigationOp" || transactionType == null; // legacy alias
@@ -715,9 +751,14 @@ function gatherLoopItems(step, context, $vars) {
   // Scope loop to items within a specific container
   if (scopeContainerId) {
     const resolvedId = resolveExpr(scopeContainerId, $vars) || scopeContainerId;
-    const scopeMod = (state?.modules || []).find(m => m.id === resolvedId && m.role === "container");
-    const scopeOccIds = scopeMod?.occurrences || [];
-    occs = occs.filter(o => scopeOccIds.includes(o.id));
+    // Find occurrence(s) of this container module and collect their child IDs
+    const scopeOccIds = new Set();
+    for (const occ of Object.values(occurrencesById)) {
+      if (occ.targetId === resolvedId && Array.isArray(occ.occurrences)) {
+        for (const childId of occ.occurrences) scopeOccIds.add(childId);
+      }
+    }
+    occs = occs.filter(o => scopeOccIds.has(o.id));
   }
 
   // ---- CONTAINER_ITEMS: all occurrences in container, exposing instance label + fields ----

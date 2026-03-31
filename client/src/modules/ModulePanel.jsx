@@ -582,7 +582,6 @@ function Panel({
         minHeight: 0,
         minWidth: 0,
         opacity: isDragging ? 0.4 : 1,
-        paddingTop: isFullscreen ? 0 : (isMobile ? 0 : 22),
         margin: isFullscreen ? 0 : (isMobile ? "0px 2px 2px 2px" : "3px 6px 6px 6px"),
         zIndex: isForeground ? 70 : (isExtended ? 60 : 1),
         pointerEvents: isPanelDrag && !isDragging ? "none" : "auto",
@@ -634,10 +633,11 @@ function Panel({
 
           // Page panel header — page name + drag handle + QuickAdd + filters
           const activePageLabel = activePageEntry?.page?.label || "Untitled";
+          console.log(activePageLabel);
           const pageHeader = (
             <div style={{
-              display: "flex", alignItems: "center",
-              flexShrink: 0, padding: "2px 6px", gap: 4,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              flexShrink: 0, padding: "0px 6px 0px 30px", gap: 4,
               borderBottom: "1px solid var(--border-default)",
             }}>
               {/* Active page name */}
@@ -656,7 +656,7 @@ function Panel({
                     ref={panelHandleRef}
                     className="module-drag-handle module-grab-zone"
                     draggable={false}
-                    style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}
+                    style={{ top: 0, left: "auto", left: "calc(50% - 20px)", transform: "none", flexShrink: 0 }}
                   >
                     <div className="drag-handle-ball" />
                     <div className="drag-handle-stem" />
@@ -706,10 +706,8 @@ function Panel({
                 </PopoverContent>
               </Popover>
 
-              <div style={{ flex: 1 }} />
-
               {/* QuickAdd + Filters */}
-              <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
+              <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 5 }}>
                 <QuickAddMenu
                   targetRole="page"
                   onSelect={handleQuickAddPage}
@@ -730,8 +728,6 @@ function Panel({
                   }}
                   createLabel="New page"
                 />
-              </div>
-              <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
                 <LocalIterationNav
                   occurrence={panelOccurrence}
                   onUpdate={commitOccurrenceUpdate}
@@ -780,7 +776,7 @@ function Panel({
           );
 
           const pageContent = (
-            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
               {activePageEntry ? (
                 <Page
                   occurrence={activePageEntry.occurrence}
@@ -802,13 +798,12 @@ function Panel({
             <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
               {pageHeader}
               {sidebarToggleBar}
-              <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
+              <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden", display: "flex" }}>
                 {/* Root tree sidebar — absolute overlay left, 50% height */}
                 {rootTreeOpen && (
                   <div
                     style={{
                       position: "absolute", top: 0, left: 0, zIndex: 100,
-                      width: isMobile ? "100%" : 170, maxWidth: isMobile ? "100%" : "85%",
                       maxHeight: "50%",
                       display: "flex", flexDirection: "column",
                       background: "var(--surface-card)",
@@ -836,17 +831,16 @@ function Panel({
                 {localTreeOpen && (
                   <div
                     style={{
-                      position: "absolute", top: 0, left: 0, zIndex: 100,
-                      width: isMobile ? "100%" : 170, maxWidth: isMobile ? "100%" : "85%",
+                      position: "absolute", top: 0, right: 0, zIndex: 100,
                       maxHeight: "50%",
                       display: "flex", flexDirection: "column",
                       background: "var(--surface-card)",
-                      borderRight: isMobile ? "none" : "1px solid var(--border-default)",
+                      borderLeft: isMobile ? "none" : "1px solid var(--border-default)",
                       borderBottom: "1px solid var(--border-default)", borderRadius: isMobile ? 0 : "0 0 0 6px",
                       pointerEvents: "auto",
                     }}
                   >
-                    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
+                    <div style={{ alignSelf: "end", flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
                       {localTree}
                     </div>
                     <button
