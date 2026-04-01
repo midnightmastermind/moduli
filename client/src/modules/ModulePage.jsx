@@ -226,7 +226,7 @@ function Page({
           overflowY: "auto",
           WebkitOverflowScrolling: "touch",
           overscrollBehavior: "contain",
-          padding: isMobile ? "6px 28px 80px 28px" : "0px 5px 80px 5px",
+          padding: isMobile ? "6px 6px 80px 6px" : "0px 5px 80px 5px",
           position: "relative",
           outline: isOver ? "2px solid rgba(50,150,255,0.5)" : "none",
           outlineOffset: -2,

@@ -375,7 +375,9 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
           ))}
           {pageOccs.map(occ => (
             <PageTreeNode key={occ.id} pageOccId={occ.id} activeOccId={activeOccurrenceId}
-              onOpenPage={onOpenPage} occurrencesById={occurrencesById} modulesById={modulesById} />
+              onOpenPage={onOpenPage} occurrencesById={occurrencesById} modulesById={modulesById}
+              childrenByParentId={childrenByParentId} onSelect={onSelect} onScrollTo={onScrollTo}
+              activeOccurrenceId={activeOccurrenceId} />
           ))}
           {artifactOccs.map(occ => (
             <DocNode key={occ.id} occ={occ} depth={depth + 1} isAnchor={false} parentOccId={occ.id}
@@ -392,7 +394,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
 const PAGE_KIND_GLYPH = { canvas: "∿", doc: "≋", display: "□", board: "≡" };
 
 // ─── PageTreeNode — pill style page entry + container anchor chips (draggable) ──
-function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, modulesById }) {
+function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId }) {
   const [open, setOpen] = useState(false);
   const pageRef = useRef(null);
   const pageOcc = occurrencesById?.[pageOccId];
@@ -422,6 +424,9 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, mod
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const hasChildren = containerOccs.length > 0;
 
+  // Whether we have the props needed to render DocNode-style rows (root tree mode)
+  const hasDocNodeProps = !!childrenByParentId;
+
   return (
     <div style={{ paddingLeft: 2, paddingRight: 2 }}>
       {/* Page pill */}
@@ -448,13 +453,22 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, mod
           {label}
         </span>
       </div>
-      {/* Container anchor chips — draggable, copy mode */}
+      {/* Children — DocNode rows (root tree) or AnchorChips (local tree) */}
       {hasChildren && open && (
-        <div style={{ paddingLeft: 10, paddingBottom: 2 }}>
-          {containerOccs.map(contOcc => (
-            <AnchorChip key={contOcc.id} contOcc={contOcc} modulesById={modulesById}
-              onOpenPage={onOpenPage} pageOccId={pageOccId} />
-          ))}
+        <div style={{ paddingLeft: hasDocNodeProps ? 6 : 10, paddingBottom: 2 }}>
+          {hasDocNodeProps ? (
+            containerOccs.map(contOcc => (
+              <DocNode key={contOcc.id} occ={contOcc} depth={1} isAnchor={true} parentOccId={pageOccId}
+                occurrencesById={occurrencesById} modulesById={modulesById} childrenByParentId={childrenByParentId}
+                activeOccurrenceId={activeOccurrenceId || activeOccId}
+                onSelect={onSelect} onScrollTo={onScrollTo} showAnchors={true} />
+            ))
+          ) : (
+            containerOccs.map(contOcc => (
+              <AnchorChip key={contOcc.id} contOcc={contOcc} modulesById={modulesById}
+                onOpenPage={onOpenPage} pageOccId={pageOccId} />
+            ))
+          )}
         </div>
       )}
     </div>
