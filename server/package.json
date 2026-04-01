@@ -6,8 +6,8 @@
   "main": "server.js",
   "scripts": {
     "test": "vitest run --reporter=verbose",
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node --max-old-space-size=4096 server.js",
+    "dev": "nodemon --max-old-space-size=4096 server.js"
   },
   "keywords": [],
   "author": "",

@@ -144,8 +144,22 @@ console.log("🧪 Using MONGO_URI:", MONGO_URI);
 // USER CACHE
 // ========================================================
 const cacheByUser = Object.create(null);
+const cacheLastAccess = Object.create(null);
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+// Periodic cache eviction — runs every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const uid of Object.keys(cacheLastAccess)) {
+    if (now - cacheLastAccess[uid] > CACHE_TTL_MS) {
+      delete cacheByUser[uid];
+      delete cacheLastAccess[uid];
+    }
+  }
+}, 5 * 60 * 1000);
 
 function ensureUserCache(userId) {
+  cacheLastAccess[userId] = Date.now();
   if (!cacheByUser[userId]) {
     cacheByUser[userId] = { gridsById: {}, modulesById: {}, occurrencesById: {}, fieldsById: {}, manifestsById: {}, viewsById: {}, foldersById: {}, operationsById: {} };
   }

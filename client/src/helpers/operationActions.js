@@ -15,39 +15,57 @@ import { toast } from "sonner";
 // Extends extractFieldValues with scope and timeFilter support.
 
 export function extractFieldValuesFiltered(occurrences, fieldId, opts = {}) {
-  const { flowFilter = "any", scope, timeFilter, state = {} } = opts;
+  const { flowFilter = "any", scope, timeFilter, state = {}, activeDate: activeDateStr } = opts;
 
-  // Basic extraction (respects flowFilter)
-  const allVals = extractFieldValues(occurrences, fieldId, { flowFilter });
-
-  // Time filter: filter occurrences by iteration before extracting
-  // (Simplified: if timeFilter is "daily", filter by today's date)
-  if (timeFilter && timeFilter !== "all" && timeFilter !== "inherit") {
-    const today = new Date();
-    const filtered = occurrences.filter(occ => {
-      const iterVal = occ.iteration?.timeValue || occ.iteration?.value;
-      if (!iterVal) return timeFilter === "all";
-      const d = new Date(iterVal);
-      if (timeFilter === "daily") {
-        return d.toDateString() === today.toDateString();
-      }
-      if (timeFilter === "weekly") {
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay());
-        return d >= weekStart;
-      }
-      if (timeFilter === "monthly") {
-        return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-      }
-      if (timeFilter === "yearly") {
-        return d.getFullYear() === today.getFullYear();
-      }
-      return true;
-    });
-    return extractFieldValues(filtered, fieldId, { flowFilter });
+  // No time filtering — just extract with flow filter
+  if (!timeFilter || timeFilter === "all" || timeFilter === "inherit") {
+    return extractFieldValues(occurrences, fieldId, { flowFilter });
   }
 
-  return allVals;
+  // Build date field IDs for parent-chain walk
+  const fieldsById = state.fieldsById || {};
+  const occurrencesById = state.occurrencesById || {};
+  const dateFieldIds = Object.values(fieldsById)
+    .filter(f => f.type === "date")
+    .map(f => f.id);
+
+  // Reference date: use activeDate from filter nav, fall back to today
+  const refDate = activeDateStr ? new Date(activeDateStr + "T00:00:00") : new Date();
+
+  // Walk up parent chain to find a date field value (same logic as gatherLoopItems)
+  const findDateValue = (occ) => {
+    let cur = occ;
+    for (let depth = 0; depth < 4 && cur; depth++) {
+      for (const dfId of dateFieldIds) {
+        const fv = cur.fields?.[dfId];
+        const val = fv?.value !== undefined ? fv.value : fv;
+        if (val) return val;
+      }
+      cur = cur.parentId ? occurrencesById[cur.parentId] : null;
+    }
+    return null;
+  };
+
+  const filtered = occurrences.filter(occ => {
+    const dateVal = findDateValue(occ);
+    // No date at all → treat as persistent (matches any time filter)
+    if (!dateVal) return true;
+    const d = new Date(dateVal);
+    if (timeFilter === "daily") return d.toDateString() === refDate.toDateString();
+    if (timeFilter === "weekly") {
+      const weekStart = new Date(refDate);
+      weekStart.setDate(refDate.getDate() - refDate.getDay());
+      weekStart.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 7);
+      return d >= weekStart && d < weekEnd;
+    }
+    if (timeFilter === "monthly") return d.getMonth() === refDate.getMonth() && d.getFullYear() === refDate.getFullYear();
+    if (timeFilter === "yearly") return d.getFullYear() === refDate.getFullYear();
+    return true;
+  });
+
+  return extractFieldValues(filtered, fieldId, { flowFilter });
 }
 
 // ============================================================

@@ -1,6 +1,12 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-03-28. Check this file before re-reading source._
+_Updated: 2026-03-31. Check this file before re-reading source._
+
+## Recent Changes (Mar 31 2026 — Offline Queue + Optimistic Operations + Highlight Fix)
+- **offlineQueue.js** (NEW): Module-level queue buffers `socket.emit` calls when disconnected. `safeEmit(socket, event, data)` is a drop-in replacement — emits immediately when connected, queues when offline. Deduplicates update events per entity (keeps latest). `flushOfflineQueue(socket)` replays all queued mutations in order.
+- **CommitHelpers.js**: All `socket?.emit()` calls replaced with `safeEmit(socket, ...)` from offlineQueue.js. Added `import { safeEmit } from "./offlineQueue"`. Mutations now buffer automatically when offline and replay after reconnect + full_state.
+- **CommitHelpers.js**: Imported `operationsBridge` from `bindSocketToStore`. `setOccurrenceFieldValue` now calls `operationsBridge.updateLocalOcc(updatedOcc)` + `operationsBridge.fireOperations("MeasureOp", ...)` immediately after local dispatch — operations run instantly without waiting for server echo.
+- **DragProvider.jsx**: Fixed container highlight during instance drags. `handleDragMove` now calls `setDropHighlight(containerId)` when hovered target changes (was intentionally skipped, relying on `handleDragOver` which doesn't fire when hovering over instances inside containers — innermost drop target wins in Pragmatic DnD).
 
 ## Recent Changes (Mar 30 2026 — Operations Trigger Fixes)
 - **operationExecutor.js**: (1) Added 6 missing trigger cases to `matchesTrigger`: `onAdd` (→ OccurrenceCreateOp), `onRemove` (→ OccurrenceDeleteOp), `onReorder` (→ OccurrenceListOp same-container), `onUncomplete` (→ MeasureOp falsy value), `onButton` (→ ButtonOp), `onNodeInput` (→ NodeInputOp). All 14 EVENT_TYPES in OperationsTab.jsx now have matching executor cases. (2) Fixed `scopeContainerId` in `gatherLoopItems` — was reading `scopeMod?.occurrences` (module, always empty). Now scans `occurrencesById` for occurrences targeting the container module and collects their child IDs.
@@ -45,6 +51,7 @@ _Updated: 2026-03-28. Check this file before re-reading source._
 | `blockEvaluator.js` | **MOVED here from blocks/** — Recursive block tree evaluator. | Mar 2026 |
 | `operationActions.js` | **MOVED here from blocks/** — resolveExpr, evalRule, evalGroup, extractFieldValuesFiltered, executeActionItem. | Mar 2026 |
 | `operationExecutor.js` | **MOVED here from blocks/** — executePipeline, runMatchingOperations. Imports operationActions. | Mar 2026 |
+| `offlineQueue.js` | **NEW** Offline mutation queue. `safeEmit(socket, event, data)` buffers when disconnected, deduplicates updates. `flushOfflineQueue(socket)` replays after reconnect. | Mar 31 |
 | `colorHelpers.js` | `hexToRgba(hex, alpha)`, `lightenHex(hex, amount)` — single authoritative source (was duplicated 3x). | Mar 2026 |
 | `useTheme.js` | **NEW** Theme hook. `useTheme()` → `{ theme, setTheme, themes }`. `SYSTEM_THEMES` export (moduli-dark/moduli-light/midnight). Persists to localStorage. Sets `data-theme` attr + `dark` class on `<html>`. Called in App.jsx root. | Mar 2026 |
 | `IterationHelpers.js` | Iteration/time helpers (used by LayoutHelpers). | Stable |

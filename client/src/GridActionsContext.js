@@ -18,6 +18,7 @@ export const GridActionsContext = createContext({
   instancesById: Object.create(null),
   occurrencesById: Object.create(null),
   linkedGroupIndex: Object.create(null),
+  childrenByParentId: Object.create(null),
   containersById: Object.create(null),
   fieldsById: Object.create(null),
   pagesById: Object.create(null),

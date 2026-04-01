@@ -115,6 +115,17 @@ export default function App() {
     return idx;
   }, [state.occurrences]);
 
+  // Pre-index children by parentId for O(1) lookups in ManifestTree
+  const childrenByParentId = useMemo(() => {
+    const idx = Object.create(null);
+    for (const occ of state.occurrences || []) {
+      if (occ.parentId) {
+        (idx[occ.parentId] || (idx[occ.parentId] = [])).push(occ);
+      }
+    }
+    return idx;
+  }, [state.occurrences]);
+
   const containersById = useMemo(
     () => buildLookup(state.containers),
     [state.containers]
@@ -405,9 +416,7 @@ export default function App() {
     const prev = state?.grid?.activeFilterValues || {};
     const next = { ...prev, [fieldId]: value instanceof Date ? value.toISOString() : value };
     CommitHelpers.updateGridFilter({ dispatch, socket, gridId, patch: { activeFilterValues: next } });
-    // Fire onNavigation operations (date navigation changed)
-    // bindSocketToStore.fireOperations is not directly accessible here —
-    // the operation fires on the next socket event cycle via stateRef.
+    // NavigationOp fires automatically via onGridUpdated in bindSocketToStore
   }, [dispatch, socket, state?.gridId, state?.grid?._id, state?.grid?.activeFilterValues]);
 
   // Field CRUD handlers (grid-level field management)
@@ -486,6 +495,7 @@ export default function App() {
       instancesById,
       occurrencesById,
       linkedGroupIndex,
+      childrenByParentId,
       containersById,
       fieldsById,
       pagesById,
@@ -517,6 +527,7 @@ export default function App() {
       instancesById,
       occurrencesById,
       linkedGroupIndex,
+      childrenByParentId,
       containersById,
       fieldsById,
       pagesById,

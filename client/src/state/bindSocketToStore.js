@@ -19,6 +19,13 @@ import {
   deleteModule,
   updateOccurrence,
 } from "../helpers/CommitHelpers";
+import { flushOfflineQueue } from "../helpers/offlineQueue";
+
+/**
+ * Module-level bridge so CommitHelpers can fire operations immediately
+ * after optimistic dispatch (no server round-trip needed).
+ */
+export const operationsBridge = { fireOperations: null };
 
 /**
  * @param {Object} socket
@@ -71,7 +78,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // Defer operation execution until after the first paint so the grid renders immediately.
     // requestAnimationFrame fires before next paint, the nested rAF fires AFTER paint.
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById });
+      const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById }, { onError: (name, err) => toast.error(`Operation "${name}" failed`, { description: err?.message, duration: 4000 }) });
       const displayUpdates = allUpdates.filter(u => !u._effect);
       const effects = allUpdates.filter(u => u._effect);
       if (displayUpdates.length > 0) {
@@ -80,6 +87,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       for (const eff of effects) {
         applyOperationEffect(eff, hydratedState);
       }
+      // Flush any mutations queued while offline — replayed on top of fresh server state
+      flushOfflineQueue(socket);
     }));
   }
 
@@ -159,6 +168,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   function onOccurrenceUpdated({ occurrence } = {}) {
     if (!occurrence?.id) return;
 
+    // Check if field values changed (triggers optimistic operation execution)
+    const prevOcc = localOccsById[occurrence.id];
+    const fieldsChanged = occurrence.fields && (!prevOcc || JSON.stringify(prevOcc.fields) !== JSON.stringify(occurrence.fields));
+
     // Keep local cache current before React re-renders stateRef
     localOccsById[occurrence.id] = occurrence;
 
@@ -166,6 +179,17 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       type: ActionTypes.UPDATE_OCCURRENCE,
       payload: { occurrence },
     });
+
+    // Fire operations on field change — skip if already fired optimistically by CommitHelpers
+    if (fieldsChanged && !optimisticFiredSet.has(occurrence.id)) {
+      fireOperations("MeasureOp", {
+        type: "MeasureOp",
+        occurrenceId: occurrence.id,
+        instanceId: occurrence.targetId,
+      });
+    }
+    // Clear the optimistic flag either way (server echo received)
+    optimisticFiredSet.delete(occurrence.id);
   }
 
   function onOccurrenceDeleted(payload = {}) {
@@ -566,26 +590,42 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }
   }
 
+  // Memoized maps — rebuilt only when the source arrays change (by reference)
+  let _cachedFieldsById = null, _lastFields = null;
+  let _cachedOperationsById = null, _lastOperations = null;
+  let _cachedBaseOccsById = null, _lastOccurrences = null;
+
   function fireOperations(transactionType, transaction) {
     const state = stateRef.current || {};
     const operations = state.operations || [];
-    const fieldsById = {};
-    for (const f of state.fields || []) fieldsById[f.id] = f;
-    const operationsById = {};
-    for (const o of operations) operationsById[o.id] = o;
-    // Build occurrencesById: start from stateRef (may be slightly stale), then
-    // overlay localOccsById which is updated synchronously on each socket event.
-    // This ensures onChange operations always see the latest values even before
-    // React has re-rendered and updated stateRef.current.
-    const occurrencesById = {};
-    for (const o of state.occurrences || []) {
-      const id = o.id || o._id?.toString?.();
-      if (id) occurrencesById[id] = o;
-    }
-    // Local cache overrides stale state entries
-    Object.assign(occurrencesById, localOccsById);
+    const fields = state.fields || [];
+    const occurrences = state.occurrences || [];
 
-    const allUpdates = runMatchingOperations(operations, transactionType, transaction, { state, fieldsById, operationsById, occurrencesById });
+    // Rebuild fieldsById only when fields array changes
+    if (fields !== _lastFields) {
+      _cachedFieldsById = {};
+      for (const f of fields) _cachedFieldsById[f.id] = f;
+      _lastFields = fields;
+    }
+    // Rebuild operationsById only when operations array changes
+    if (operations !== _lastOperations) {
+      _cachedOperationsById = {};
+      for (const o of operations) _cachedOperationsById[o.id] = o;
+      _lastOperations = operations;
+    }
+    // Rebuild base occurrencesById only when occurrences array changes
+    if (occurrences !== _lastOccurrences) {
+      _cachedBaseOccsById = {};
+      for (const o of occurrences) {
+        const id = o.id || o._id?.toString?.();
+        if (id) _cachedBaseOccsById[id] = o;
+      }
+      _lastOccurrences = occurrences;
+    }
+    // Overlay localOccsById on top of cached base (localOccsById is always fresh)
+    const occurrencesById = Object.assign({}, _cachedBaseOccsById, localOccsById);
+
+    const allUpdates = runMatchingOperations(operations, transactionType, transaction, { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById }, { onError: (name, err) => toast.error(`Operation "${name}" failed`, { description: err?.message, duration: 4000 }) });
 
     // Separate display updates (computedValues) from real CRUD effects
     const displayUpdates = allUpdates.filter(u => !u._effect);
@@ -599,6 +639,23 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }
 
   }
+
+  // Track optimistically-fired occurrences to prevent double-firing on server echo
+  const optimisticFiredSet = new Set();
+
+  function fireOperationsOptimistic(transactionType, transaction) {
+    // Mark as optimistically fired so onOccurrenceUpdated skips the duplicate
+    if (transaction.occurrenceId) {
+      optimisticFiredSet.add(transaction.occurrenceId);
+      // Clear after 5s (server echo should arrive well before this)
+      setTimeout(() => optimisticFiredSet.delete(transaction.occurrenceId), 5000);
+    }
+    fireOperations(transactionType, transaction);
+  }
+
+  // Expose on module-level bridge so CommitHelpers can call optimistically
+  operationsBridge.fireOperations = fireOperationsOptimistic;
+  operationsBridge.updateLocalOcc = (occ) => { if (occ?.id) localOccsById[occ.id] = occ; };
 
   // On transaction_created: fire operations + toast notification
   function onTransactionCreated({ transaction } = {}) {
@@ -676,6 +733,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // CLEANUP (important with HMR)
   // ======================================================
   return () => {
+    operationsBridge.fireOperations = null;
+    operationsBridge.updateLocalOcc = null;
     clearInterval(scheduleInterval);
     socket.off("full_state", onFullState);
     socket.off("sync_state", onSyncState);

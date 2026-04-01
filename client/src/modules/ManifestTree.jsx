@@ -6,23 +6,24 @@
 import { useContext, useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { GridActionsContext } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
-import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Monitor, Folder, Hash, GripVertical } from "lucide-react";
+import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Monitor, Folder, Hash, Pencil, Trash2 } from "lucide-react";
+import ContextMenu from "../ui/ContextMenu.jsx";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 
-// Shared pill style (like DraggableEntityRow collapsed)
+// Compact row style — tight padding, small text, minimal visual weight
 const PILL_STYLE = {
-  display: "flex", alignItems: "center", gap: 5,
-  padding: "4px 7px",
-  borderRadius: 6,
-  border: "1px solid var(--border-default)",
-  background: "var(--input-bg)",
-  cursor: "grab",
+  display: "flex", alignItems: "center", gap: 3,
+  padding: "1px 5px 1px 4px",
+  borderRadius: 4,
+  border: "1px solid transparent",
+  background: "transparent",
+  cursor: "pointer",
   userSelect: "none",
-  marginBottom: 2,
+  marginBottom: 0,
 };
 const PILL_ACTIVE = (color = "rgba(100,180,255,0.5)") => ({
   border: `1px solid ${color}`,
-  background: `${color.replace(/[\d.]+\)$/, "0.1)")}`,
+  background: `${color.replace(/[\d.]+\)$/, "0.08)")}`,
 });
 
 // Kind → lucide icon for pages
@@ -49,12 +50,12 @@ function getDocHeading(textmap) {
 // ─── DocNode — occurrence item ──────────────────────────────────────────────
 // isAnchor=false: renders as a clickable file row (opens the doc)
 // isAnchor=true: renders as a small anchor chip (scrolls to heading in parent doc)
-function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesById, activeOccurrenceId, onSelect, onScrollTo, collapseGen = 0, onSetDefault, defaultOccurrenceId, showAnchors = true }) {
+function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, collapseGen = 0, onSetDefault, defaultOccurrenceId, showAnchors = true }) {
   const childOccs = useMemo(() =>
-    Object.values(occurrencesById ?? {})
-      .filter(o => o.parentId === occ.id)
+    (childrenByParentId?.[occ.id] || [])
+      .slice()
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
-    [occurrencesById, occ.id]
+    [childrenByParentId, occ.id]
   );
   const [open, setOpen] = useState(true);
   const [childCollapseGen, setChildCollapseGen] = useState(0);
@@ -111,7 +112,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
           style={{ paddingLeft: indent, paddingRight: 2, paddingTop: 1, paddingBottom: 1, display: "flex", alignItems: "center", gap: 2, overflow: "hidden" }}
         >
           {hasChildren ? (
-            <span onClick={toggleOpen} style={{ fontSize: 8, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, width: 10, textAlign: "center", userSelect: "none" }}>
+            <span onClick={toggleOpen} style={{ fontSize: 8, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, width: 10, textAlign: "center", userSelect: "none", padding: "4px 2px" }}>
               {open ? "▾" : "▸"}
             </span>
           ) : <span style={{ width: 10, flexShrink: 0 }} />}
@@ -119,13 +120,15 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
             onClick={() => onScrollTo(parentOccId, occ.id)}
             title={displayLabel}
             style={{
-              ...PILL_STYLE,
-              cursor: "grab", marginBottom: 0, padding: "2px 6px",
-              ...(isActive ? PILL_ACTIVE("rgba(134,239,172,0.5)") : {}),
+              display: "inline-flex", alignItems: "center", gap: 2,
+              padding: "1px 5px 1px 3px", borderRadius: 999,
+              border: `1px solid ${isActive ? chipColor : "transparent"}`,
+              background: isActive ? `${chipColor.replace(/[\d.]+\)$/, "0.1)")}` : "transparent",
+              cursor: "pointer", userSelect: "none",
             }}
           >
-            <Hash size={9} style={{ color: chipColor, flexShrink: 0, opacity: 0.6 }} />
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, fontFamily: "var(--font-mono)", color: chipColor }}>
+            <Hash size={8} style={{ color: chipColor, flexShrink: 0, opacity: 0.6 }} />
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 9, fontFamily: "var(--font-mono)", color: chipColor }}>
               {displayLabel}
             </span>
           </div>
@@ -134,7 +137,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
           <div>
             {childOccs.map(co => (
               <DocNode key={co.id} occ={co} depth={depth + 1} isAnchor={true} parentOccId={parentOccId}
-                occurrencesById={occurrencesById} modulesById={modulesById} activeOccurrenceId={activeOccurrenceId}
+                occurrencesById={occurrencesById} modulesById={modulesById} childrenByParentId={childrenByParentId} activeOccurrenceId={activeOccurrenceId}
                 onSelect={onSelect} onScrollTo={onScrollTo} collapseGen={childCollapseGen} />
             ))}
           </div>
@@ -156,14 +159,13 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
         }}
       >
         {showAnchors && hasChildren && (
-          <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}
+          <span style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: "pointer" }}
             onClick={(e) => { e.stopPropagation(); toggleOpen(); }}>
             <ChevronRight size={8} style={{ opacity: 0.35, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
           </span>
         )}
-        <GripVertical size={10} style={{ opacity: 0.25, flexShrink: 0 }} />
-        <FileText size={10} style={{ color: "rgba(100,180,255,0.8)", flexShrink: 0 }} />
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, fontFamily: "var(--font-mono)", color: isActive ? "rgba(100,180,255,1)" : "var(--text-primary)" }}>
+        <FileText size={9} style={{ color: "rgba(100,180,255,0.7)", flexShrink: 0 }} />
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, fontFamily: "var(--font-mono)", color: isActive ? "rgba(100,180,255,1)" : "var(--text-secondary)" }}>
           {displayLabel}
         </span>
         {defaultOccurrenceId === occ.id && (
@@ -174,7 +176,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
         <div style={{ paddingLeft: 6, paddingBottom: 4 }}>
           {childOccs.map(co => (
             <DocNode key={co.id} occ={co} depth={depth + 1} isAnchor={true} parentOccId={occ.id}
-              occurrencesById={occurrencesById} modulesById={modulesById} activeOccurrenceId={activeOccurrenceId}
+              occurrencesById={occurrencesById} modulesById={modulesById} childrenByParentId={childrenByParentId} activeOccurrenceId={activeOccurrenceId}
               onSelect={onSelect} onScrollTo={onScrollTo} collapseGen={childCollapseGen} showAnchors={showAnchors} />
           ))}
         </div>
@@ -184,10 +186,13 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
 }
 
 // ─── FolderNode ──────────────────────────────────────────────────────────────
-function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId, onOpenPage, showAnchors = true }) {
+function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId, onOpenPage, showAnchors = true }) {
   const { dispatch, socket, state } = useContext(GridActionsContext);
   const [open, setOpen] = useState(folder?.isExpanded !== false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(folder.name);
+  const [ctxMenu, setCtxMenu] = useState(null);
   const folderRef = useRef(null);
 
   const childFolders = useMemo(() =>
@@ -199,10 +204,10 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
 
   // All child occurrences, split into artifacts vs pages
   const allChildOccs = useMemo(() =>
-    Object.values(occurrencesById ?? {})
-      .filter(occ => occ.parentId === folder.id)
+    (childrenByParentId?.[folder.id] || [])
+      .slice()
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
-    [occurrencesById, folder.id]
+    [childrenByParentId, folder.id]
   );
   const artifactOccs = useMemo(() =>
     allChildOccs.filter(occ => modulesById?.[occ.targetId]?.role !== "page"),
@@ -236,6 +241,43 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
       },
     });
   }, [folder.id, allChildOccs, dispatch, socket]);
+
+  // Rename handler — saves on Enter/blur, cancels on Escape
+  const renameInputRef = useRef(null);
+  const commitRename = useCallback(() => {
+    const trimmed = renameValue.trim();
+    if (trimmed && trimmed !== folder.name) {
+      CommitHelpers.updateFolder({ dispatch, socket, folder: { id: folder.id, name: trimmed }, emit: true });
+    }
+    setIsRenaming(false);
+  }, [renameValue, folder.id, folder.name, dispatch, socket]);
+
+  const handleRenameKeyDown = useCallback((e) => {
+    if (e.key === "Enter") { e.preventDefault(); commitRename(); }
+    else if (e.key === "Escape") { setIsRenaming(false); setRenameValue(folder.name); }
+  }, [commitRename, folder.name]);
+
+  // Delete handler — deletes folder and reparents children to parent folder
+  const handleDelete = useCallback(() => {
+    if (!dispatch || !socket) return;
+    // Reparent child occurrences to the folder's parent
+    for (const occ of allChildOccs) {
+      CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occ.id, parentId: folder.parentId }, emit: true });
+    }
+    // Reparent child folders to the folder's parent
+    for (const cf of childFolders) {
+      CommitHelpers.updateFolder({ dispatch, socket, folder: { id: cf.id, parentId: folder.parentId }, emit: true });
+    }
+    CommitHelpers.deleteFolder({ dispatch, socket, folderId: folder.id, emit: true });
+  }, [dispatch, socket, folder.id, folder.parentId, allChildOccs, childFolders]);
+
+  // Focus input when entering rename mode
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [isRenaming]);
 
   const hasChildren = childFolders.length > 0 || artifactOccs.length > 0 || pageOccs.length > 0;
   const indent = depth * 8;
@@ -274,37 +316,61 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
       {/* Folder pill */}
       <div
         ref={dragRef}
-        onClick={() => hasChildren && setOpen(v => !v)}
+        onClick={() => !isRenaming && hasChildren && setOpen(v => !v)}
+        onDoubleClick={(e) => { e.stopPropagation(); setRenameValue(folder.name); setIsRenaming(true); }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
         style={{
           ...PILL_STYLE,
-          cursor: hasChildren ? "grab" : "default",
+          cursor: isRenaming ? "text" : hasChildren ? "grab" : "default",
           ...(isDragOver ? { border: "1px solid rgba(251,191,36,0.5)", background: "rgba(251,191,36,0.08)" } : {}),
         }}
-        title={folder.name}
+        title={isRenaming ? undefined : folder.name}
       >
         {hasChildren && (
-          <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+          <span style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: "pointer" }}>
             <ChevronRight size={8} style={{ opacity: 0.35, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
           </span>
         )}
-        <GripVertical size={10} style={{ opacity: 0.25, flexShrink: 0 }} />
-        <Folder size={10} style={{ color: "rgba(251,191,36,0.8)", flexShrink: 0 }} />
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>
-          {folder.name}
-        </span>
+        <Folder size={9} style={{ color: "rgba(251,191,36,0.7)", flexShrink: 0 }} />
+        {isRenaming ? (
+          <input
+            ref={renameInputRef}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={handleRenameKeyDown}
+            onBlur={commitRename}
+            onClick={(e) => e.stopPropagation()}
+            style={{ flex: 1, background: "var(--input-bg)", border: "1px solid var(--input-border)", borderRadius: 3, padding: "0 3px", fontSize: 10, fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--text-primary)", outline: "none", minWidth: 0 }}
+          />
+        ) : (
+          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600, fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>
+            {folder.name}
+          </span>
+        )}
         <span
           onClick={handleNewDoc}
           title="New document"
-          style={{ fontSize: 11, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, opacity: 0, transition: "opacity 0.15s", lineHeight: 1, padding: "0 2px" }}
+          style={{ fontSize: 13, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, opacity: 0, transition: "opacity 0.15s", lineHeight: 1, padding: "4px 6px" }}
           className="folder-add-btn"
         >+</span>
       </div>
+
+      {ctxMenu && (
+        <ContextMenu
+          ctx={{ x: ctxMenu.x, y: ctxMenu.y, items: [
+            { label: "Rename", icon: Pencil, onClick: () => { setRenameValue(folder.name); setIsRenaming(true); } },
+            { separator: true },
+            { label: "Delete folder", icon: Trash2, danger: true, onClick: handleDelete },
+          ] }}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
 
       {open && (
         <div style={{ paddingLeft: 4 }}>
           {childFolders.map(cf => (
             <FolderNode key={cf.id} folder={cf} depth={depth + 1} foldersById={foldersById}
-              occurrencesById={occurrencesById} modulesById={modulesById} activeOccurrenceId={activeOccurrenceId}
+              occurrencesById={occurrencesById} modulesById={modulesById} childrenByParentId={childrenByParentId} activeOccurrenceId={activeOccurrenceId}
               onSelect={onSelect} onScrollTo={onScrollTo} onSetDefault={onSetDefault} defaultOccurrenceId={defaultOccurrenceId} onOpenPage={onOpenPage} showAnchors={showAnchors} />
           ))}
           {pageOccs.map(occ => (
@@ -313,7 +379,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
           ))}
           {artifactOccs.map(occ => (
             <DocNode key={occ.id} occ={occ} depth={depth + 1} isAnchor={false} parentOccId={occ.id}
-              occurrencesById={occurrencesById} modulesById={modulesById} activeOccurrenceId={activeOccurrenceId}
+              occurrencesById={occurrencesById} modulesById={modulesById} childrenByParentId={childrenByParentId} activeOccurrenceId={activeOccurrenceId}
               onSelect={onSelect} onScrollTo={onScrollTo} onSetDefault={onSetDefault} defaultOccurrenceId={defaultOccurrenceId} showAnchors={showAnchors} />
           ))}
         </div>
@@ -352,7 +418,7 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, mod
   const KindIcon = PAGE_KIND_ICON[kind] || Layout;
   const containerOccs = (pageOcc.occurrences || [])
     .map(id => occurrencesById?.[id])
-    .filter(o => o && modulesById?.[o.targetId])
+    .filter(o => o && modulesById?.[o.targetId] && modulesById[o.targetId].role !== "page")
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const hasChildren = containerOccs.length > 0;
 
@@ -368,17 +434,16 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, mod
         }}
       >
         {hasChildren && (
-          <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}
+          <span style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: "pointer" }}
             onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}>
             <ChevronRight size={8} style={{ opacity: 0.35, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
           </span>
         )}
-        <GripVertical size={10} style={{ opacity: 0.25, flexShrink: 0 }} />
-        <KindIcon size={10} style={{ color: "#06b6d4", flexShrink: 0 }} />
+        <KindIcon size={9} style={{ color: "#06b6d4", flexShrink: 0 }} />
         <span style={{
           flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          fontSize: 11, fontFamily: "var(--font-mono)",
-          color: isActive ? "#06b6d4" : "var(--text-primary)",
+          fontSize: 10, fontFamily: "var(--font-mono)",
+          color: isActive ? "#06b6d4" : "var(--text-secondary)",
         }}>
           {label}
         </span>
@@ -423,12 +488,14 @@ function AnchorChip({ contOcc, modulesById, onOpenPage, pageOccId }) {
         }, 150);
       }}
       style={{
-        ...PILL_STYLE,
-        padding: "2px 6px", marginBottom: 1, cursor: "grab",
+        display: "inline-flex", alignItems: "center", gap: 2,
+        padding: "1px 5px 1px 3px", borderRadius: 999,
+        background: "transparent", border: "1px solid transparent",
+        cursor: "pointer", userSelect: "none", marginBottom: 0,
       }}
     >
-      <Hash size={9} style={{ color: "rgba(134,239,172,0.7)", flexShrink: 0 }} />
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, fontFamily: "var(--font-mono)", color: "rgba(134,239,172,0.8)" }}>
+      <Hash size={8} style={{ color: "rgba(134,239,172,0.6)", flexShrink: 0 }} />
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 9, fontFamily: "var(--font-mono)", color: "rgba(134,239,172,0.75)" }}>
         {contLabel}
       </span>
     </div>
@@ -437,7 +504,7 @@ function AnchorChip({ contOcc, modulesById, onOpenPage, pageOccId }) {
 
 // ─── ManifestTree ─────────────────────────────────────────────────────────────
 export default function ManifestTree({ manifestId, view, dispatch, socket, collapsed, onToggleCollapse, scrollHighlightId, panelOccurrence, onOpenPage, onClosePage, activePageView }) {
-  const { manifestsById, foldersById, occurrencesById, modulesById, state } = useContext(GridActionsContext);
+  const { manifestsById, foldersById, occurrencesById, modulesById, childrenByParentId, state } = useContext(GridActionsContext);
   const manifest = manifestsById?.[manifestId];
   const rootFolder = manifest?.rootFolderId ? foldersById?.[manifest.rootFolderId] : null;
   const isPagePanel = !!panelOccurrence;
@@ -610,6 +677,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                   foldersById={foldersById}
                   occurrencesById={occurrencesById}
                   modulesById={modulesById}
+                  childrenByParentId={childrenByParentId}
                   activeOccurrenceId={scrollHighlightId || activePageView?.activeOccurrenceId || view?.activeOccurrenceId}
                   onSelect={handleSelect}
                   onScrollTo={handleScrollTo}

@@ -803,9 +803,7 @@ const Editor = forwardRef(function Editor({
       )}
 
       {isDropTarget && (
-        <div className="absolute inset-0 bg-blue-500/10 pointer-events-none z-10 flex items-center justify-center">
-          <span className="text-sm text-blue-400 font-medium">Drop to insert</span>
-        </div>
+        <div className="absolute inset-0 pointer-events-none z-10" style={{ background: "rgba(50,150,255,0.06)" }} />
       )}
 
       {isSaving && (
@@ -820,8 +818,11 @@ const Editor = forwardRef(function Editor({
 
       <div
         className={`doc-editor-wrapper min-h-[100px] py-3 pr-3 pl-8 flex-1${stickyToolbar ? " overflow-auto" : ""}`}
-        onClick={() => {
-          // D8 removed: no jump-to-end on empty space click
+        onClick={(e) => {
+          // Obsidian-style: clicking empty space below content focuses at end
+          if (!editor || !editor.isEditable) return;
+          if (e.target !== e.currentTarget) return; // Only fire on wrapper itself, not content
+          editor.commands.focus("end");
         }}
       >
         <EditorContent editor={editor} />

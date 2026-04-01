@@ -117,11 +117,13 @@ function Page({
     CommitHelpers.updateModule({ dispatch, socket, module: { ...pageModule, label: editLabel }, emit: true });
   }, [pageModule, editLabel, dispatch, socket]);
 
-  // Delete page
+  // Delete page (with confirmation)
   const handleDelete = useCallback(() => {
     if (!occurrence?.id || !panelOccurrence?.id) return;
+    const label = pageModule?.label || "this page";
+    if (!window.confirm(`Delete "${label}"? This will remove the page and all its contents.`)) return;
     CommitHelpers.deletePage({ dispatch, socket, pageOccurrenceId: occurrence.id, panelOccurrenceId: panelOccurrence.id, emit: true });
-  }, [occurrence, panelOccurrence, dispatch, socket]);
+  }, [occurrence, panelOccurrence, pageModule?.label, dispatch, socket]);
 
   // Context menu
   const handleContextMenu = useCallback((e) => {
@@ -223,6 +225,7 @@ function Page({
           flex: 1, minHeight: 0,
           overflowY: "auto",
           WebkitOverflowScrolling: "touch",
+          overscrollBehavior: "contain",
           padding: isMobile ? "6px 28px 80px 28px" : "0px 5px 80px 5px",
           position: "relative",
           outline: isOver ? "2px solid rgba(50,150,255,0.5)" : "none",

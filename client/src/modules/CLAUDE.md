@@ -1,6 +1,13 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: Mar 29 2026. This folder implements occurrence-based view routing._
+_Updated: Mar 31 2026. This folder implements occurrence-based view routing._
+
+## Recent Changes (Mar 31 2026 — Folder CRUD + Touch Targets + Performance + Delete Confirm)
+- **ManifestTree.jsx**: (1) FolderNode: double-click to rename inline (input with Enter/Escape/blur). Right-click context menu with Rename + Delete. Delete reparents children to parent folder. (2) Touch targets: all ChevronRight toggles, anchor ▾/▸ arrows, and folder `+` button get `padding: "4px 2px"` for minimum touch area. (3) `childrenByParentId` index from context replaces O(n) `Object.values(occurrencesById).filter(parentId)` scans in DocNode and FolderNode. (4) Added `ContextMenu`, `Pencil`, `Trash2` imports.
+- **ModulePage.jsx**: `handleDelete` now shows `window.confirm()` before deleting — confirms page name + warns about content removal.
+
+## Recent Changes (Mar 31 2026 — ManifestTree Compact Styling + Anchor Fix)
+- **ManifestTree.jsx**: (1) Restored compact styling — `PILL_STYLE` now uses `padding: "1px 5px"`, `fontSize: 10`, `border: transparent`, `background: transparent` (was padded pill style). (2) Anchor chips use `borderRadius: 999` (full pill), `fontSize: 9`, `display: inline-flex` (was block pill). (3) Removed GripVertical icons from all rows. (4) `PageTreeNode.containerOccs` now filters out `role === "page"` children — day page template no longer shows sibling day-specific pages as anchor chips.
 
 ## Recent Changes (Mar 30 2026 — ManifestTree Fixes + Doc Page Direct Rendering)
 - **ManifestTree.jsx**: (1) PageTreeNode now sorts containerOccs by `sortOrder`. (2) `handleNewDoc` and `handleCreateFolder` migrated from direct `socket.emit` to `CommitHelpers.createModule`/`createOccurrence`/`createFolder`. (3) FolderNode drop target `maxOrder` now considers ALL child occs (was only artifacts). (4) `handleNewDoc` `maxOrder` also uses `allChildOccs` for correct sort position.

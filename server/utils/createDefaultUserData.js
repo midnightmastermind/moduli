@@ -33,7 +33,7 @@ import Operation from "../models/Operation.js";
 
 const __mdFilename = fileURLToPath(import.meta.url);
 const __mdDirname = dirname(__mdFilename);
-const ROOT_DIR_MD = join(__mdDirname, "../../"); // dndtest2/ root
+const ROOT_DIR_MD = join(__mdDirname, "../../docs/"); // moduli/docs/ — source markdown files
 
 /**
  * Creates a complete default grid with 4 panels showcasing all capabilities

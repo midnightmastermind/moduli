@@ -840,7 +840,14 @@ body {
 .doc-editor-content.ProseMirror h3 { font-size: 1.1em; }
 
 /* Section heading colors — # prefix hidden until editing */
-.doc-editor-content.ProseMirror h1::before { content: ""; }
+.doc-editor-content.ProseMirror h1::before {
+  content: "";
+  display: inline-block;
+  max-width: 0;
+  overflow: hidden;
+  vertical-align: bottom;
+  transition: max-width 0.15s, opacity 0.15s;
+}
 .doc-editor-content.ProseMirror h2 {
   color: #4ade80;
   margin-top: 1.4em;
@@ -850,8 +857,12 @@ body {
   content: "# ";
   color: rgba(74, 222, 128, 0.5);
   font-weight: normal;
+  display: inline-block;
+  max-width: 0;
+  overflow: hidden;
+  vertical-align: bottom;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: max-width 0.15s, opacity 0.15s;
 }
 .doc-editor-content.ProseMirror h3 {
   color: #86efac;
@@ -862,30 +873,40 @@ body {
   content: "## ";
   color: rgba(134, 239, 172, 0.4);
   font-weight: normal;
+  display: inline-block;
+  max-width: 0;
+  overflow: hidden;
+  vertical-align: bottom;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: max-width 0.15s, opacity 0.15s;
 }
 
 /* Show # prefix only when cursor is on that heading line (via HeadingFocusExtension) */
 .doc-editor-content.ProseMirror h2.heading-focused::before { opacity: 1; }
 .doc-editor-content.ProseMirror h3.heading-focused::before { opacity: 1; }
 
-/* Obsidian-style # markers on focused headings */
+/* Obsidian-style # markers on focused headings — expand from zero width */
 .doc-editor-content.ProseMirror h1.heading-focused::before {
   content: "# ";
   opacity: 0.35;
   font-weight: normal;
+  display: inline-block;
+  max-width: 2em;
+  overflow: hidden;
+  vertical-align: bottom;
 }
 .doc-editor-content.ProseMirror h2.heading-focused::before {
   content: "# ";
   color: rgba(74, 222, 128, 0.7);
   font-weight: normal;
+  max-width: 2em;
   opacity: 1;
 }
 .doc-editor-content.ProseMirror h3.heading-focused::before {
   content: "## ";
   color: rgba(134, 239, 172, 0.6);
   font-weight: normal;
+  max-width: 3em;
   opacity: 1;
 }
 
@@ -1475,6 +1496,9 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 
   /* Hide cog handles on mobile — no hover to reveal them */
   .container-cog-handle { display: none !important; }
+
+  /* Always show folder add button on mobile (no hover on touch) */
+  .folder-add-btn { opacity: 0.6 !important; }
 
   /* Prevent Android split-screen gesture from intercepting drags.
      touch-action: none on handles BEFORE touch starts — JS handleDragStart is too late.

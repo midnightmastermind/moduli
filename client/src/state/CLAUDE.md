@@ -1,6 +1,10 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-03-22. Check this file before re-reading source._
+_Updated: 2026-03-31. Check this file before re-reading source._
+
+## Recent Changes (Mar 31 2026 — Offline Queue Flush + Optimistic Operations)
+- **bindSocketToStore.js**: Imported `flushOfflineQueue` from `offlineQueue.js`. After `full_state` is processed and operations execute (double-rAF deferred), calls `flushOfflineQueue(socket)` to replay any mutations queued while offline. Ensures queued changes are applied on top of fresh server state, not overwritten by it.
+- **bindSocketToStore.js**: Added `operationsBridge` module-level export (`{ fireOperations, updateLocalOcc }`). `fireOperations` exposed as `fireOperationsOptimistic` which tracks fired occurrences in `optimisticFiredSet` to prevent double-firing on server echo. `onOccurrenceUpdated` skips MeasureOp fire if `optimisticFiredSet.has(occurrence.id)`. Added memoized map caching (`_cachedFieldsById`, `_cachedOperationsById`, `_cachedBaseOccsById`) — maps only rebuilt when source arrays change by reference. Cleared on cleanup.
 
 ## Recent Changes (Mar 26 2026 — Page Module Integration)
 - **selectors.js**: `autofillOccurrence.fillFromModule` now includes page role check: `lookups.pagesById?.[mod.id] || mod.role === "page"` → `filled.page = mod`. Was missing — page occurrences didn't get role metadata.

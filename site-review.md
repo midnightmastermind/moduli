@@ -371,10 +371,37 @@ Three themes (moduli-dark, moduli-light, midnight) via CSS custom properties. `u
 | Themes | Good | Light theme testing, duplicate helpers |
 | Performance | Adequate | Virtualization for large lists, pre-built indexes |
 
-### Top 5 Actions (by impact)
+### Complete Fix & Improvement Checklist
 
-1. **Wire `onButton` / `onNodeInput` fire mechanism** — operations UI exposes these triggers but nothing fires them
-2. **Add `parentId` and `targetId` indexes** to Occurrence model — many O(n) scans in ManifestTree and operations
-3. **Extract DragProvider handlers** into separate functions — 2,151 lines is unmaintainable
-4. **Add folder rename/delete/reorder in ManifestTree** — basic file management is incomplete
-5. **Add offline queue** for socket mutations — any network hiccup loses changes
+#### Priority 1 — Critical Fixes
+- [ ] **Wire `onButton` / `onNodeInput` fire mechanism** — operations UI exposes these triggers but nothing fires them. Instance operation widget needs to emit ButtonOp transaction.
+- [ ] **Fix mobile scrolling** — panel content scroll chain broken on mobile. touch-action conflicts, overflow chain issues.
+- [ ] **Fix `extractFieldValuesFiltered` legacy `iteration.timeValue`** — operationActions.js uses legacy path, inconsistent with gatherLoopItems parent-chain date walk.
+- [ ] **Add operation error reporting** — pipeline step failures caught silently with `console.warn`. Show toast notifications.
+
+#### Priority 2 — Architecture & Performance
+- [ ] **Extract DragProvider handlers** into `dropHandlers.js` — 2,151-line monolith needs extraction into focused handler functions.
+- [ ] **Add `childrenByParentId` index** — DocNode O(n) scan per render (`Object.values(occurrencesById).filter()`). Build pre-computed lookup.
+- [ ] **Remove duplicate `lightenHex`** from ModuleContainer.jsx — import from colorHelpers.js instead.
+- [ ] ~~**Add `parentId` and `targetId` indexes**~~ — ✅ Already indexed in Occurrence.js (lines 19, 61).
+
+#### Priority 3 — Missing Features
+- [ ] **Add folder rename/delete/reorder in ManifestTree** — no rename UI, no delete UI, no drag-to-reorder within folder.
+- [ ] **Add offline queue** for socket mutations — any network hiccup loses changes. Buffer in CommitHelpers, replay on reconnect.
+- [ ] **Add page delete confirmation** — ModulePage handleDelete removes immediately, no undo.
+- [ ] **Add field validation** — number fields accept NaN, no min/max enforcement.
+
+#### Priority 4 — Mobile Polish
+- [ ] **Fix small touch targets** — folder "+", anchor toggle arrows are 8-10px, need 44px minimum.
+
+#### Priority 5 — Future Enhancements (not blocking)
+- [ ] Container kind switching UI
+- [ ] Inline instance label editing in list view
+- [ ] AND/OR filter logic + range filters
+- [ ] Filter hidden-item count indicator
+- [ ] Collaborative editing (Yjs)
+- [ ] Virtualization for large container lists
+- [ ] `OccurrenceMoveOp` server broadcast for multi-window onMove
+- [ ] Server socket event authorization
+- [ ] Server rate limiting
+- [ ] Light theme comprehensive testing pass

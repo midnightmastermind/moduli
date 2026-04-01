@@ -165,7 +165,14 @@ function matchesTrigger(t, cfg, transactionType, transaction) {
       if (fieldFilter && transaction?.fieldId !== fieldFilter) return false;
       return true;
     }
-    case "onButton":       return transactionType === "ButtonOp";
+    case "onButton": {
+      if (transactionType !== "ButtonOp") return false;
+      const opFilter = cfg.onButton?.operationId;
+      if (opFilter && transaction?.operationId !== opFilter) return false;
+      const instanceFilter = cfg.onButton?.instanceId;
+      if (instanceFilter && transaction?.instanceId !== instanceFilter) return false;
+      return true;
+    }
     case "onNodeInput":    return transactionType === "NodeInputOp";
     case "onModuleUpdate": return transactionType === "ModuleOp";
     case "onNavigation":   return transactionType === "NavigationOp" || transactionType == null;
@@ -447,7 +454,7 @@ function traverseStatements(block, ctx) {
  * @param {Object} context        — { state, fieldsById, occurrencesById }
  * @returns {Array} [{ fieldId, occurrenceId?, value }]
  */
-export function runMatchingOperations(operations, transactionType, transaction, context) {
+export function runMatchingOperations(operations, transactionType, transaction, context, { onError } = {}) {
   const updates = [];
   for (const op of operations) {
     if (!shouldTrigger(op, transactionType, transaction)) continue;
@@ -462,6 +469,7 @@ export function runMatchingOperations(operations, transactionType, transaction, 
       }
     } catch (err) {
       console.warn(`[operationExecutor] error in operation "${op.name}":`, err);
+      onError?.(op.name, err);
     }
   }
   return updates;

@@ -26,7 +26,7 @@ import {
   DropAccepts,
 } from "../helpers/dragSystem";
 import { resolveInstanceStyle, styleToCSS } from "../helpers/StyleHelpers";
-import { executeOperation } from "../helpers/operationExecutor";
+import { runMatchingOperations } from "../helpers/operationExecutor";
 import { setComputedValuesAction } from "../state/actions";
 import { DocContent } from "./DocContent.jsx";
 import { hexToRgba } from "../helpers/colorHelpers.js";
@@ -140,9 +140,20 @@ function InstanceInner({
   const handleRunOperation = useCallback((op) => {
     if (!op) return;
     const fieldsLookup = fieldsById || {};
-    const updates = executeOperation(op, "manual", { type: "manual", instanceId: id }, { state, fieldsById: fieldsLookup });
-    if (updates.length > 0) dispatch(setComputedValuesAction(updates));
-  }, [id, state, fieldsById, dispatch]);
+    const operationsLookup = operationsById || {};
+    const occLookup = occurrencesById || {};
+    const transaction = { type: "ButtonOp", operationId: op.id, instanceId: id, occurrenceId: occurrence?.id };
+    const updates = runMatchingOperations(
+      Object.values(operationsLookup),
+      "ButtonOp",
+      transaction,
+      { state, fieldsById: fieldsLookup, operationsById: operationsLookup, occurrencesById: occLookup }
+    );
+    if (updates.length > 0) {
+      const displayUpdates = updates.filter(u => !u._effect);
+      if (displayUpdates.length > 0) dispatch(setComputedValuesAction(displayUpdates));
+    }
+  }, [id, occurrence?.id, state, fieldsById, operationsById, occurrencesById, dispatch]);
 
   // Context for derived field calculations (includes filter timeScale for target scaling)
   const fieldContext = useMemo(() => {

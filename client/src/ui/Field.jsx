@@ -264,8 +264,25 @@ function Field({
     }
   }, [isClickEditing]);
 
-  const handleChange = useCallback((newVal) => { setLocalValue(newVal); onChange?.(newVal); }, [onChange]);
-  const handleCommit = useCallback(() => { setIsClickEditing(false); onCommit?.(localValue); }, [localValue, onCommit]);
+  const handleChange = useCallback((newVal) => {
+    // NaN prevention for number fields
+    if (field?.type === "number" && typeof newVal === "number" && isNaN(newVal)) return;
+    setLocalValue(newVal);
+    onChange?.(newVal);
+  }, [onChange, field?.type]);
+  const handleCommit = useCallback(() => {
+    setIsClickEditing(false);
+    let val = localValue;
+    // Clamp number fields to min/max if defined in meta
+    if (field?.type === "number" && typeof val === "number" && !isNaN(val)) {
+      const min = field.meta?.min;
+      const max = field.meta?.max;
+      if (min != null && val < min) val = min;
+      if (max != null && val > max) val = max;
+      if (val !== localValue) setLocalValue(val);
+    }
+    onCommit?.(val);
+  }, [localValue, onCommit, field?.type, field?.meta?.min, field?.meta?.max]);
   const handleKeyDown = useCallback((e) => {
     if (e.key === "Enter") { e.preventDefault(); handleCommit(); }
     else if (e.key === "Escape") { setIsClickEditing(false); setLocalValue(resolveInputVal(value)); }
