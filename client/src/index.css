@@ -622,11 +622,10 @@ body {
 
 /* Drag handle — ball straddles the module top edge (half above, half on) */
 .module-drag-handle {
-  position: absolute;
-  top: -.5px;
-  left: 50%;
-  z-index: 10;
-  transform: translateX(-50%);
+  position: relative;
+  top: unset;
+  left: unset;
+  transform: none;
   z-index: 200;
   pointer-events: auto;
   cursor: grab;
@@ -634,6 +633,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex-shrink: 0;
 }
 
 /* Ball */
@@ -832,6 +832,55 @@ body {
   font-size: 13px;
   line-height: 1.6;
   overflow: visible;
+  pointer-events: auto;
+  cursor: text;
+}
+
+/* Anchor highlight animation (double-flash when scrolling to anchor) */
+@keyframes anchor-flash {
+  0%, 100% { background: transparent; }
+  20%, 60% { background: rgba(100,180,255,0.25); }
+  40%, 80% { background: transparent; }
+}
+.anchor-highlight {
+  animation: anchor-flash 1.2s ease;
+  border-radius: 4px;
+}
+
+/* Spinner keyframes — used by Spinner component in spinner.jsx */
+@keyframes spin-cw  { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes spin-ccw { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+
+/* Page enter animation — fires on every page-shell mount (key change triggers remount) */
+@keyframes page-enter {
+  0%   { opacity: 0; transform: scale(0.6) translateY(24px); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: scale(1)   translateY(0); }
+}
+.page-shell {
+  animation: page-enter 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: center top;
+}
+
+/* Drilldown zoom-in — card expands (drill in) */
+/* Drill IN — target card grows from tiny, filling view. Dramatic zoom. */
+@keyframes drilldown-fade-in {
+  0%   { opacity: 0; transform: scale(0.15); }
+  60%  { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Drill OUT — siblings return: fade in from slightly smaller */
+@keyframes drilldown-return {
+  0%   { opacity: 0; transform: scale(0.75); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Drill OUT — source card (the one we drilled into) snaps in instantly at full size */
+@keyframes drilldown-source-return {
+  0%   { opacity: 0; transform: scale(1); }
+  15%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 /* Headings */
@@ -1338,21 +1387,21 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 
 /* Left/Right: full viewport height, narrow width, inset from edge */
 .mobile-rail-left {
-  left: 4px; top: 0; bottom: 0; width: 24px;
+  left: 4px; top: 0; bottom: 0; width: 14px;
   border-radius: 0 3px 3px 0; border-left: none;
 }
 .mobile-rail-right {
-  right: 4px; top: 0; bottom: 0; width: 24px;
+  right: 4px; top: 0; bottom: 0; width: 14px;
   border-radius: 3px 0 0 3px; border-right: none;
 }
 
 /* Up/Down: full viewport width, narrow height */
 .mobile-rail-up {
-  top: 0; left: 0; right: 0; height: 24px;
+  top: 0; left: 0; right: 0; height: 14px;
   border-radius: 0 0 3px 3px; border-top: none;
 }
 .mobile-rail-down {
-  bottom: 0; left: 0; right: 0; height: 24px;
+  bottom: 0; left: 0; right: 0; height: 14px;
   border-radius: 3px 3px 0 0; border-bottom: none;
 }
 
@@ -1471,6 +1520,9 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
     font-size: 10px;
   }
 
+  .panel-shell {
+    margin: 0px 20px;
+  }
   .panel-header button {
     font-size: 8px !important;
   }
@@ -1509,8 +1561,8 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   /* Prevent pull-to-refresh and overscroll system gestures */
   html, body { overscroll-behavior: none !important; }
 
-  /* Rail buttons: position: fixed so overflow: hidden on viewport/grid-frame doesn't clip them */
-  .mobile-rail-btn { position: fixed !important; z-index: 9999 !important; }
+  /* Rail buttons: below panel content so clickable elements in modules take precedence */
+  .mobile-rail-btn { position: fixed !important; z-index: 5 !important; }
   .mobile-rail-left { left: 4px !important; top: 40px !important; bottom: 0 !important; }
   .mobile-rail-right { right: 4px !important; top: 40px !important; bottom: 0 !important; }
   .mobile-rail-up { top: 30px !important; left: 0 !important; right: 0 !important; }
@@ -1578,4 +1630,55 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
     overflow-y: auto !important;
   }
 
+}
+
+/* =============================================================================
+   16. PREVIEW NODES & DRILLDOWN
+   ============================================================================= */
+
+.preview-node-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  column-gap: 5px;
+  row-gap: 0;
+  padding: 8px;
+  align-items: start;
+}
+
+.preview-node-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 280ms ease-out, opacity 280ms ease-out;
+  will-change: transform, opacity;
+}
+.preview-node-card:hover {
+  border-color: rgba(100, 180, 255, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.preview-node-preview {
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  position: relative;
+  padding: 0;
+}
+
+.preview-node-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border-default);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

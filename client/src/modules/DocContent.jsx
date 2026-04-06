@@ -1,17 +1,25 @@
 // modules/DocContent.jsx
-// DocEditorShell — thin wrapper around the TipTap Editor: adds click-to-edit state and lock toggle.
+// DocEditorShell — thin wrapper around the TipTap Editor: lock toggle + scroll-to-anchor.
 // Extracted from containerHelpers.jsx.
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import Editor from "../ui/Editor";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { Lock, Unlock } from "lucide-react";
 
-export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false }) {
-  const [isEditing, setIsEditing] = useState(false);
+export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor }) {
   const [showLockBtn, setShowLockBtn] = useState(false);
   const wrapRef = useRef(null);
   const isLocked = !!occurrence?.locked;
+
+  // Scroll-to-anchor: when scrollAnchor is set, find the element and scroll to it
+  useEffect(() => {
+    if (!scrollAnchor) return;
+    const target = wrapRef.current?.querySelector(`[data-occ-id="${scrollAnchor}"]`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [scrollAnchor]);
   const handleToggleLock = (e) => {
     e.stopPropagation();
     if (!occurrence?.id) return;
@@ -20,12 +28,10 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
   return (
     <div
       ref={wrapRef}
-      className={`doc-container flex flex-col flex-1 min-h-0 relative${isEditing ? " is-editing" : ""}`}
-      onClick={() => { if (!isLocked) setIsEditing(true); }}
-      onBlur={(e) => { if (!wrapRef.current?.contains(e.relatedTarget)) setIsEditing(false); }}
+      className="doc-container flex flex-col flex-1 min-h-0 relative"
       onMouseEnter={() => setShowLockBtn(true)}
       onMouseLeave={() => setShowLockBtn(false)}
-      style={{ cursor: isLocked ? "default" : (isEditing ? "text" : "default") }}
+      style={{ cursor: isLocked ? "default" : "text" }}
     >
       {(showLockBtn || isLocked) && (
         <button
@@ -47,6 +53,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         dispatch={dispatch}
         socket={socket}
         editable={!isLocked}
+        showToolbar={false}
         className="flex-1"
         onConvertListToInstances={onConvertListToInstances}
       />

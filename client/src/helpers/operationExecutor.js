@@ -175,8 +175,8 @@ function matchesTrigger(t, cfg, transactionType, transaction) {
     }
     case "onNodeInput":    return transactionType === "NodeInputOp";
     case "onModuleUpdate": return transactionType === "ModuleOp";
-    case "onNavigation":   return transactionType === "NavigationOp" || transactionType == null;
-    case "onIteration":    return transactionType === "NavigationOp" || transactionType == null; // legacy alias
+    case "onNavigation":   return transactionType === "NavigationOp";
+    case "onIteration":    return transactionType === "NavigationOp"; // legacy alias
     case "onLoad":         return transactionType == null;
     case "onWebhook":      return transactionType === "WebhookOp";
     case "onSchedule": {
@@ -520,6 +520,19 @@ export function executePipeline(operation, context, transaction, extraVars) {
       const afv = state?.grid?.activeFilterValues || {};
       const dateVal = Object.values(afv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
       return dateVal ? dateVal.slice(0, 10) : _nowDate.toISOString().slice(0, 10);
+    })(),
+    // Formatted labels for the active date — used in COMPUTE_TEXTMAP_FROM_TEMPLATE tokens
+    $activeDateLabel: (() => {
+      const afv = state?.grid?.activeFilterValues || {};
+      const dateVal = Object.values(afv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
+      const d = dateVal ? new Date(dateVal + "T00:00:00") : _nowDate;
+      return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    })(),
+    $activeDayOfWeek: (() => {
+      const afv = state?.grid?.activeFilterValues || {};
+      const dateVal = Object.values(afv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
+      const d = dateVal ? new Date(dateVal + "T00:00:00") : _nowDate;
+      return d.toLocaleDateString("en-US", { weekday: "long" });
     })(),
     // Templates + iteration definitions
     $templates: state?.grid?.templates ?? [],

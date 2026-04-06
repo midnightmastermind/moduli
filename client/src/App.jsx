@@ -267,6 +267,36 @@ export default function App() {
     };
   }, [dispatch]);
 
+  // BroadcastChannel: respond to preview iframes requesting state
+  useEffect(() => {
+    if (!("BroadcastChannel" in window)) return;
+    const bc = new BroadcastChannel("moduli-preview");
+    bc.onmessage = (e) => {
+      if (e.data?.type === "REQUEST_STATE") {
+        const s = stateRef.current;
+        bc.postMessage({
+          type: "PREVIEW_STATE",
+          payload: {
+            userId: s.userId, gridId: s.gridId, grid: s.grid,
+            modules: s.modules || [],
+            occurrences: s.occurrences || [],
+            instances: s.instances || [],
+            containers: s.containers || [],
+            panels: s.panels || [],
+            views: s.views || [],
+            manifests: s.manifests || [],
+            folders: s.folders || [],
+            fields: s.fields || [],
+            operations: s.operations || [],
+            pages: s.pages || [],
+            computedValues: s.computedValues || {},
+          },
+        });
+      }
+    };
+    return () => bc.close();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleGridChange = (e) => {
     const newGridId = e.target.value;
     if (!newGridId || newGridId === state.gridId) return;
@@ -645,15 +675,8 @@ export default function App() {
           {state.grid?._id ? (
             <Grid />
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 20 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: 0.65 }}>
-                <img src="/moduli_logo.png" alt="Moduli" style={{ height: 24, width: "auto" }} />
-                <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>+moduli+</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, borderRadius: 8, border: "1px solid var(--border-default)", background: "var(--surface-card)", padding: "8px 16px" }}>
-                <Spinner size="md" />
-                <span style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "monospace" }}>Syncing grid…</span>
-              </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+              <Spinner size="xl" />
             </div>
           )}
         </div>

@@ -1,6 +1,99 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: Mar 31 2026. This folder implements occurrence-based view routing._
+_Updated: Apr 6 2026. This folder implements occurrence-based view routing._
+
+## Recent Changes (Apr 6 2026 — Phase E: Inline Preview + Tree Reorder + Folder Pages)
+- **PreviewNode.jsx**: Completely rewritten — removed iframe-based `ThumbnailPreview` (was causing reload loops via extra socket connections). Replaced with `InlinePreview` that renders from store data: doc pages show text snippets from textmap, board/folder pages show child container bars with labels + counts, fallback shows file icon. Deleted `thumbnailCache.js` and `PagePreviewApp.jsx`.
+- **ManifestTree.jsx**: DocNode file rows now act as drop targets for reorder. Dragging an artifact between DocNode rows shows a blue drop indicator (top/bottom edge). On drop, sets `sortOrder` to midpoint between siblings. Uses `dropEdgeRef` to avoid stale closure in onDrop. FolderNode auto-creates folder-page occurrence on click when one doesn't exist (fixes root folder not opening as page).
+- **ModulePage.jsx**: Removed `thumbnailCache.js` prewarm useEffect (was loading iframes for child occurrences).
+
+## Recent Changes (Apr 6 2026 — Delete Fix + Radial Delete)
+- **ModuleInstance.jsx**: `deleteMe` changed from `CommitHelpers.deleteModule` (which deleted the module + ALL occurrences) to `CommitHelpers.removeOccurrence` (only removes this single occurrence). Root cause of "deleting one copy deletes all copies" bug. RadialMenu now has `onDelete` prop wired.
+- **ModuleContainer.jsx**: All 3 RadialMenu instances now have `onDelete={removeMe}` — adds red "Remove" button to radial arc.
+- **ModulePanel.jsx**: RadialMenu now has `onDelete={handleRemovePanel}` — adds red "Remove" button to radial arc.
+
+## Recent Changes (Apr 3 2026 — Iframe Previews + Breadcrumbs + Spinner + Handle Left)
+- **PreviewNode.jsx**: Replaced Puppeteer PNG approach with iframe pointing to `/preview-render/:occId`. Scale = 90/600 = 0.15, iframe 900×600 → visually 135×90px. Fade-in when loaded. Fallback settle timeout 6s. No more `…` per-card placeholder. `useCallback` + `useRef` for settle deduplication.
+- **ModulePanel.jsx**: Added `navHistory` state + `prevActiveOccRef` to track page navigation. useEffect pushes to history on `currentView.activeOccurrenceId` change. Added `breadcrumbBar` JSX between sidebarToggleBar and pageContent — shows `← FolderName › PageName` when 2+ entries. Back button pops history. Breadcrumb labels click to navigate back. Added `ArrowLeft` import.
+- **ModulePanel.jsx**: Root/local tree sidebars extended to full panel height on desktop (`bottom: 0`, `maxHeight: "100%"`). Mobile keeps `maxHeight: "50%"`.
+- **ModulePanel.jsx**: Page panel drag handle moved to the LEFT of the label in pageHeader. Removed `padding-left: 30px`. Handle is now `[handle+radial] [label] [QuickAdd]`.
+- **ModuleContainer.jsx**: Removed standalone chevron `<button>` from both embedded and standard container headers. Collapse/expand now only available via radial menu (`onToggleCollapse`).
+- **spinner.jsx**: Added `xl: 96` size (was max `lg: 36`). Borders: `xl: 4`. Inner mark now uses `left/right: b+3, top: 50%, transform: translateY(-50%)` with `width: "100%", height: "auto"` on SVG — preserves natural aspect ratio instead of forcing square container.
+- **ModulePage.jsx**: Loading overlay uses `size="xl"` (was `lg`).
+- **App.jsx**: Loading spinner uses `size="xl"` (was `lg`).
+
+## Recent Changes (Apr 3 2026 — PreviewNode Server Thumbnails)
+- **PreviewNode.jsx**: Replaced hand-rolled mini-render with `ThumbnailPreview` — loads `/api/thumbnail/:occId` (server-generated PNG). Shows "…" while loading, "preview unavailable" on error. Removed all CSS-scale canvas code.
+- **server/services/thumbnailService.js** (NEW): Puppeteer singleton service. `generateThumbnail(occId, baseUrl)` → screenshots `/preview-render/:occId`, caches to `uploads/thumbnails/{occId}.png`. `invalidateThumbnail(occId)` deletes cached PNG.
+- **server/services/renderPreviewHTML.js** (NEW): Renders occurrence as styled dark-theme HTML. Doc pages: TipTap JSON + `.md` file fallback → HTML. Board pages: container cards with instance rows. Minimal markdown parser included.
+- **server/server.js**: `GET /preview-render/:occId` (internal render page) + `GET /api/thumbnail/:occId` (cached PNG endpoint). Invalidation: occurrence update/create/delete all call `invalidateThumbnail` on the occurrence + its parent.
+- **server/socketHandlers/occurrences.js**: Imports `invalidateThumbnail`, calls it on update.
+- **server/socketHandlers/crud.js**: Imports `invalidateThumbnail`, calls it on create/delete.
+
+## Recent Changes (Apr 3 2026 — PreviewNode + Back Button + Card Size)
+- **PreviewNode.jsx**: CSS scale mini-render. Virtual canvas 280px wide, scale ≈ 0.464. `BoardMini` renders real container cards (border/background/header matching actual UI) + instance rows. `DocMini` renders headings (20/16/13px) + paragraphs from textmap.
+- **ModulePage.jsx** `FolderContent`: Added `handleDrillDown` wrapper — primes `folderPageOccId` into stack before first drill-in so `canDrillOut` becomes true (stack length ≥ 2) and back button shows. `PreviewNode.onDrillDown` now uses `handleDrillDown` instead of raw `startDrillDown`.
+- **index.css**: `.preview-node-grid` gets `align-items: start` so cards don't stretch to fill row height. `.preview-node-preview` is `position: relative; padding: 0`.
+
+## Recent Changes (Apr 2 2026 — Folder Preview + Page Animation + Navigation Fixes)
+- **PreviewNode.jsx**: Board/folder pages now show structural block preview — one row per child container with colored left-border, label, and instance count. Doc pages still show text preview. Replaced dot grid with this mini-replica layout. Single click now triggers drilldown (was double-click only).
+- **ModulePanel.jsx**: `<Page>` now has `key={activePageEntry.occurrence.id}` — forces remount on page switch, triggering the page-enter animation. `openPage` with `drilldownTarget` now also pre-pins `drilldownTarget` to the panel so it appears in `pagesList` when `handleNavigate` switches to it (was silently failing — falling back to `pagesList[0]`).
+- **index.css**: Added `.page-shell { animation: page-enter 300ms cubic-bezier(0.22,1,0.36,1) }` — zoom-from-below-fade-in on every page mount. Added `@keyframes page-enter`.
+- **createDefaultUserData.js**: `journalPageOccId` now has `parentId: null` instead of `parentId: filesDayPagesFolderId`. Journal tab is a panel navigation artifact, not a user content page — should not appear in the tree.
+
+## Recent Changes (Apr 2 2026 — Folder-First Navigation Fixes + Local Tree CSS + Cursor Fix)
+
+### Folder-first navigation — one click, breadcrumb working
+- **useDrilldown.js**: `ANIM_DURATION` increased 150ms → 220ms. Added `resetStack(initial=[])` to the hook's return value — primes the drilldown stack before `startDrillDown` fires.
+- **ModulePage.jsx**: `FolderContent` now receives `panelView` prop directly (from `Page`, which receives it from `ModulePanel`). Removed `viewsById`/`panelOccurrence` lookup — was silently failing when view was on `module.viewId`. `handleNavigate` now uses `panelView` directly. Auto-navigate `useEffect` calls `resetStack([folderPageOccId])` BEFORE `startDrillDown` so stack is `[folderPage, targetPage]` → breadcrumb shows. Timeout reduced from 60ms → 10ms for near-instant switch.
+- **FolderContent** no longer destructures `viewsById` (receives `panelView` directly). Also receives `folderPageOccId={occurrence?.id}` from `Page`.
+
+### Local manifest tree CSS — same as root tree
+- **ManifestTree.jsx**: Local tree `PageTreeNode` instances now receive `childrenByParentId`, `onSelect={handleSelect}`, `onScrollTo={handleScrollTo}`, `activeOccurrenceId`. Previously missing — local tree showed compact AnchorChips only. Now shows full DocNode rows with nested anchor structure, matching root tree treatment.
+
+### Doc cursor exact positioning
+- **index.css**: Removed `user-select: text` from `.doc-editor-content.ProseMirror` — was conflicting with ProseMirror's own selection management, causing cursor to jump to top/bottom only. Now has only `pointer-events: auto; cursor: text;`.
+
+## Recent Changes (Apr 2 2026 — Folder-First Navigation + Anchor Scroll + Zoom Fix)
+
+### Folder-first navigation from tree
+- **ManifestTree.jsx**: `FolderNode` now computes `folderPageOcc` useMemo (finds the folder-page occurrence where `mod.kind === "folder" && mod.role === "page"`). Passes `folderPageOccId={folderPageOcc?.id}` to each `PageTreeNode`.
+- **ManifestTree.jsx**: `PageTreeNode` updated `onClick` — when `folderPageOccId` exists and page is not already active, calls `onOpenPage(folderPageOccId, { drilldownTarget: pageOccId })` for folder-first flow. Otherwise navigates directly.
+- **ModulePanel.jsx**: Added `pendingDrilldown` state. `openPage(occId, options)` now accepts `options.drilldownTarget`, stores it in `pendingDrilldown`. Passes `drilldownTarget={pendingDrilldown}` + `onDrilldownComplete={() => setPendingDrilldown(null)}` to `<Page>`.
+- **ModulePage.jsx**: `Page` accepts `drilldownTarget` + `onDrilldownComplete` props, passes them to `FolderContent`.
+- **ModulePage.jsx**: `FolderContent` accepts `autoNavigateTo` + `onAutoNavigateComplete` props. `useEffect` on `autoNavigateTo`: after 60ms delay, finds card by `[data-occurrence-id]` and calls `startDrillDown`. Shows breadcrumb trail (back arrow + folder › page labels) when `canDrillOut`.
+
+### Anchor scroll + highlight (already-open page)
+- **ManifestTree.jsx**: `handleScrollTo` now detects `pageAlreadyOpen = targetView.activeOccurrenceId === parentOccId`. If already open AND has anchorOccId: does DOM `scrollIntoView` + `.anchor-highlight` CSS animation (double-flash). Only calls `updateView` if page needs to be opened first.
+
+### Zoom animation fix (Windows 7 style)
+- **useDrilldown.js**: `ANIM_DURATION` reduced from 280ms → 150ms. `startDrillDown` now calls `onNavigate(occId)` IMMEDIATELY (before animation), so actual content renders during animation instead of a scaled preview. `cardElement` made optional. `getCardAnimStyle` simplified to fade-in animation on target card + opacity-0 on siblings.
+- **index.css**: Added `@keyframes drilldown-fade-in` (scale 0.92→1, opacity 0→1). Added `@keyframes anchor-flash` + `.anchor-highlight` class.
+
+### Doc cursor fix
+- **Editor.jsx**: Added `useEffect` to call `editor.setEditable(editable, false)` when `editable` prop changes — fixes TipTap not auto-syncing `editable` after initialization.
+- **index.css**: Added `pointer-events: auto; user-select: text; cursor: text;` to `.doc-editor-content.ProseMirror`.
+
+## Recent Changes (Apr 2 2026 — Folder Preview Nodes + Tree Width + Day Page Flow)
+- **ModulePage.jsx**: Added `folderChildOccs` useMemo at component top level — derives folder children from `occurrencesById` filtered by `parentId === occurrence.parentId` (the folder the page represents). Excludes self, `meta.isTemplate`, and `kind="folder"` nav-only occurrences. `FolderContent` now shows real preview nodes instead of empty "Drop items here".
+- **ManifestTree.jsx**: Added `style={{ flex: 1 }}` to all NodePill instances in tree rows (DocNode file row, DocNode anchor, FolderNode, PageTreeNode) — all pills now stretch to the sidebar right edge for uniform visual width.
+- **ManifestTree.jsx**: Fixed 2 bugs in FolderNode's `pageOccs` and `artifactOccs` useMemos:
+  1. **Folder duplication**: `pageOccs` now excludes occurrences where `module.kind === "folder"` — these are "folder-page" navigation occurrences (created by folderPageDefs) that should NOT appear as tree rows. `handleFolderClick` still finds them via `allChildOccs` for navigation.
+  2. **Template visibility**: Both `pageOccs` and `artifactOccs` now exclude `occ.meta?.isTemplate === true` — day page template occurrences no longer appear in the tree.
+
+## Recent Changes (Apr 2 2026 — DocContent Simplification)
+- **DocContent.jsx**: Removed `isEditing` state (was causing unnecessary re-renders on every click, and the `.is-editing` class had no CSS rules). Wrapper now always shows `cursor: text` when not locked (was `cursor: default` until first click). Added `showToolbar={!hideToolbar && !isLocked}` to Editor so the doc formatting toolbar appears on doc pages. Comment updated.
+
+## Recent Changes (Apr 1 2026 — Folder PreviewNode + Drilldown + NodePill Entity Styling)
+- **PreviewNode.jsx** (NEW): Preview card component for folder pages. Shows module content preview (text excerpt, child dots, or icon fallback). Double-click triggers drilldown. Draggable via Pragmatic DnD. Uses `.preview-node-card`/`.preview-node-preview`/`.preview-node-title` CSS classes.
+- **NodePill.jsx**: Added `variant` prop (`"entity"` default, `"compact"` for tight spaces). Entity variant: `padding: "5px 8px"`, `borderRadius: 6`, `border: var(--border-default)`, `background: var(--input-bg)`, `fontSize: 11`, `GripVertical` icon. Depth indent: `depth * 12 + 8` for entity, `depth * 4 + 4` for compact.
+- **ModulePage.jsx**: Folder branch now uses `FolderContent` component with `<PreviewNode>` CSS grid + `useDrilldown` hook for zoom animation. Added `ArrowLeft` import, `PreviewNode` import, `useDrilldown` import.
+- **ManifestTree.jsx**: `handleSelect` simplified — uses `activePageView || view` as target, no `isPagePanel` check. Added `emit: true` to updateView calls. `PageTreeNode.containerOccs` now merges explicit `occurrences[]` with implicit `childrenByParentId` (deduped) — fixes pages whose children are linked via parentId instead of occurrences array.
+- **ModulePanel.jsx**: Removed stray `console.log(activePageLabel)`.
+
+## Recent Changes (Apr 1 2026 — Root Tree Anchors + Mobile Page Margin)
+- **ManifestTree.jsx**: Root tree FolderNode changed `showAnchors={false}` → `showAnchors={true}` — anchors now nest properly under their parent docs instead of appearing as a flat list. PageTreeNode updated to accept `childrenByParentId`/`onSelect`/`onScrollTo`/`activeOccurrenceId` props — when present (root tree mode), renders container children as DocNode rows with proper nesting. FolderNode passes these extra props to PageTreeNode.
+- **ModulePage.jsx**: Mobile board page horizontal padding reduced from 28px to 6px (`"6px 6px 80px 6px"`).
 
 ## Recent Changes (Mar 31 2026 — Folder CRUD + Touch Targets + Performance + Delete Confirm)
 - **ManifestTree.jsx**: (1) FolderNode: double-click to rename inline (input with Enter/Escape/blur). Right-click context menu with Rename + Delete. Delete reparents children to parent folder. (2) Touch targets: all ChevronRight toggles, anchor ▾/▸ arrows, and folder `+` button get `padding: "4px 2px"` for minimum touch area. (3) `childrenByParentId` index from context replaces O(n) `Object.values(occurrencesById).filter(parentId)` scans in DocNode and FolderNode. (4) Added `ContextMenu`, `Pencil`, `Trash2` imports.

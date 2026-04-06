@@ -44,8 +44,8 @@ import {
   SplitSquareHorizontal,
   Merge,
   X,
+  ArrowLeft,
   ChevronRight,
-  ChevronUp,
   Folder,
   FileText,
 } from "lucide-react";
@@ -277,6 +277,10 @@ function Panel({
   const [showHeader, setShowHeader] = useState(true);
   const [rootTreeOpen, setRootTreeOpen] = useState(false);
   const [localTreeOpen, setLocalTreeOpen] = useState(false);
+  const [pendingDrilldown, setPendingDrilldown] = useState(null);
+  // Navigation breadcrumb history — array of occIds in visit order
+  const [navHistory, setNavHistory] = useState([]);
+  const prevActiveOccRef = useRef(null);
   const panelDragMode = module?.defaultDragMode || "move";
 
   const { occurrencesById, instancesById, containersById, viewsById, modulesById, manifestsById, foldersById } = useContext(GridActionsContext);
@@ -529,9 +533,30 @@ function Panel({
     CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: pagesList[0].occurrence.id }, emit: true });
   }, [pagesList, currentView?.id, currentView?.activeOccurrenceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Track navigation history for breadcrumbs
+  useEffect(() => {
+    const newId = currentView?.activeOccurrenceId;
+    if (!newId) return;
+    if (newId === prevActiveOccRef.current) return;
+    prevActiveOccRef.current = newId;
+    setNavHistory(prev => {
+      const idx = prev.indexOf(newId);
+      // Navigating back to a previous entry — truncate to that point
+      if (idx >= 0) return prev.slice(0, idx + 1);
+      return [...prev, newId];
+    });
+  }, [currentView?.activeOccurrenceId]);
 
-  const openPage = useCallback((occId) => {
+  const openPage = useCallback((occId, options = {}) => {
     if (!occId || !panelOccurrence?.id) return;
+    const { drilldownTarget } = options;
+    if (drilldownTarget) {
+      setPendingDrilldown(drilldownTarget);
+      // Pre-pin the drilldown target so it's in pagesList when handleNavigate switches to it
+      if (!(panelOccurrence.occurrences || []).includes(drilldownTarget)) {
+        CommitHelpers.pinPageToPanel({ dispatch, socket, pageOccurrenceId: drilldownTarget, panelOccurrenceId: panelOccurrence.id });
+      }
+    }
     if (!(panelOccurrence.occurrences || []).includes(occId)) {
       CommitHelpers.pinPageToPanel({ dispatch, socket, pageOccurrenceId: occId, panelOccurrenceId: panelOccurrence.id });
     }
@@ -558,8 +583,19 @@ function Panel({
 
   const panelChildOccIds = panelOccurrence?.occurrences || [];
 
-  // Active page entry
-  const activePageEntry = pagesList.find(p => p.occurrence.id === currentView?.activeOccurrenceId) || pagesList[0] || null;
+  // Active page entry — check pagesList first, then fall back to direct lookup
+  // (folder drilldown navigates to child pages not in panelOccurrence.occurrences)
+  const activePageEntry = (() => {
+    const activeId = currentView?.activeOccurrenceId;
+    const fromList = activeId ? pagesList.find(p => p.occurrence.id === activeId) : null;
+    if (fromList) return fromList;
+    if (activeId) {
+      const occ = occurrencesById[activeId];
+      const mod = occ ? modulesById[occ.targetId] : null;
+      if (occ && mod && mod.role === "page") return { occurrence: occ, page: mod };
+    }
+    return pagesList[0] || null;
+  })();
 
   return (
     <div
@@ -613,6 +649,7 @@ function Panel({
               collapsed={false}
               onToggleCollapse={() => setRootTreeOpen(false)}
               onOpenPage={openPage}
+              activePageView={activePageView}
             />
           );
 
@@ -631,32 +668,22 @@ function Panel({
             />
           );
 
-          // Page panel header — page name + drag handle + QuickAdd + filters
+          // Page panel header — drag handle on LEFT, then page name, then QuickAdd + filters
           const activePageLabel = activePageEntry?.page?.label || "Untitled";
-          console.log(activePageLabel);
           const pageHeader = (
             <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              flexShrink: 0, padding: "0px 6px 0px 30px", gap: 4,
+              display: "flex", alignItems: "center",
+              flexShrink: 0, padding: "2px 6px 2px 10px", gap: 6,
               borderBottom: "1px solid var(--border-default)",
             }}>
-              {/* Active page name */}
-              <span style={{
-                fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)",
-                letterSpacing: "0.03em", overflow: "hidden", textOverflow: "ellipsis",
-                whiteSpace: "nowrap", minWidth: 0, userSelect: "none",
-              }}>
-                {activePageLabel}
-              </span>
-
-              {/* Panel drag handle */}
+              {/* Panel drag handle — leftmost */}
               <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <PopoverAnchor asChild>
                   <div
                     ref={panelHandleRef}
                     className="module-drag-handle module-grab-zone"
                     draggable={false}
-                    style={{ top: 0, left: "auto", left: "calc(50% - 20px)", transform: "none", flexShrink: 0 }}
+                    style={{ position: "relative", top: 0, left: -6, transform: "none", flexShrink: 0 }}
                   >
                     <div className="drag-handle-ball" />
                     <div className="drag-handle-stem" />
@@ -676,6 +703,7 @@ function Panel({
                       onToggleHeader={() => setShowHeader(false)}
                       showHeader={showHeader}
                       onHistory={() => setHistoryOpen(true)}
+                      onDelete={handleRemovePanel}
                     />
                   </div>
                 </PopoverAnchor>
@@ -705,6 +733,16 @@ function Panel({
                   />
                 </PopoverContent>
               </Popover>
+
+              {/* Active page name — flex-grows to fill space between handle and actions */}
+              <span style={{
+                flex: 1, minWidth: 0, marginLeft: 18,
+                fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)",
+                letterSpacing: "0.03em", overflow: "hidden", textOverflow: "ellipsis",
+                whiteSpace: "nowrap", userSelect: "none",
+              }}>
+                {activePageLabel}
+              </span>
 
               {/* QuickAdd + Filters */}
               <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 5 }}>
@@ -738,19 +776,49 @@ function Panel({
             </div>
           );
 
-          // Sidebar toggle bar — below header, above page content
-          const sidebarToggleBar = (
+          // sidebarToggleBar removed — Root/Local buttons moved into pageHeader row.
+
+          const pageContent = (
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+              {activePageEntry ? (
+                <Page
+                  key={activePageEntry.occurrence.id}
+                  occurrence={activePageEntry.occurrence}
+                  panelId={module.id}
+                  panelOccurrence={panelOccurrence}
+                  panelView={resolvedView}
+                  addInstanceToContainer={addInstanceToContainer}
+                  dispatch={dispatch}
+                  socket={socket}
+                  drilldownTarget={pendingDrilldown}
+                  onDrilldownComplete={() => setPendingDrilldown(null)}
+                />
+              ) : (
+                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12, height: "100%" }}>
+                  Select or create a page
+                </div>
+              )}
+            </div>
+          );
+
+          // Nav bar — Root toggle (left) | breadcrumb trail (middle, when applicable) | Local toggle (right).
+          // Always visible for page panels.
+          const activeFolderKind = activePageEntry?.page?.kind === "folder";
+          const breadcrumbBar = (
             <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              flexShrink: 0, padding: "2px 6px",
+              display: "flex", alignItems: "center",
+              flexShrink: 0, padding: "2px 4px",
               borderBottom: "1px solid var(--border-default)",
-              background: "var(--surface-card)",
+              background: "var(--surface-base)",
+              gap: 2,
             }}>
+              {/* Root tree toggle — left */}
               <button
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => { setRootTreeOpen(v => !v); setLocalTreeOpen(false); }}
                 style={{
-                  display: "flex", alignItems: "center", gap: 3,
-                  padding: "2px 8px", border: "none", borderRadius: 4, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 3, flexShrink: 0,
+                  padding: "2px 7px", border: "none", borderRadius: 4, cursor: "pointer",
                   background: rootTreeOpen ? "rgba(100,180,255,0.12)" : "transparent",
                   color: rootTreeOpen ? "rgba(100,180,255,1)" : "var(--text-muted)",
                   fontSize: 10, fontFamily: "var(--font-mono)",
@@ -759,11 +827,58 @@ function Panel({
                 <Folder size={10} style={{ opacity: 0.7 }} />
                 Root
               </button>
+
+              {/* Breadcrumb trail — middle, only when applicable */}
+              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 3, overflow: "hidden", minWidth: 0 }}>
+                {!activeFolderKind && navHistory.length >= 2 && (
+                  <>
+                    <button
+                      onClick={() => {
+                        const prevId = navHistory[navHistory.length - 2];
+                        setNavHistory(h => h.slice(0, -1));
+                        if (currentView?.id) CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: prevId }, emit: true });
+                      }}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: "1px 2px", display: "flex", alignItems: "center", color: "var(--text-muted)", flexShrink: 0 }}
+                    >
+                      <ArrowLeft size={10} />
+                    </button>
+                    {navHistory.map((occId, i) => {
+                      const occ = occurrencesById[occId];
+                      const mod = occ ? modulesById[occ.targetId] : null;
+                      const label = mod?.label || "…";
+                      const isLast = i === navHistory.length - 1;
+                      return (
+                        <React.Fragment key={occId}>
+                          {i > 0 && <span style={{ color: "var(--text-faint)", fontSize: 9 }}>›</span>}
+                          <span
+                            style={{
+                              fontSize: 10, fontFamily: "var(--font-mono)",
+                              color: isLast ? "var(--text-primary)" : "var(--text-muted)",
+                              cursor: isLast ? "default" : "pointer",
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 100,
+                            }}
+                            onClick={() => {
+                              if (isLast) return;
+                              setNavHistory(h => h.slice(0, i + 1));
+                              if (currentView?.id) CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: occId }, emit: true });
+                            }}
+                          >
+                            {label}
+                          </span>
+                        </React.Fragment>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+
+              {/* Local tree toggle — right */}
               <button
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => { setLocalTreeOpen(v => !v); setRootTreeOpen(false); }}
                 style={{
-                  display: "flex", alignItems: "center", gap: 3,
-                  padding: "2px 8px", border: "none", borderRadius: 4, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 3, flexShrink: 0,
+                  padding: "2px 7px", border: "none", borderRadius: 4, cursor: "pointer",
                   background: localTreeOpen ? "rgba(6,182,212,0.12)" : "transparent",
                   color: localTreeOpen ? "#06b6d4" : "var(--text-muted)",
                   fontSize: 10, fontFamily: "var(--font-mono)",
@@ -775,84 +890,47 @@ function Panel({
             </div>
           );
 
-          const pageContent = (
-            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-              {activePageEntry ? (
-                <Page
-                  occurrence={activePageEntry.occurrence}
-                  panelId={module.id}
-                  panelOccurrence={panelOccurrence}
-                  addInstanceToContainer={addInstanceToContainer}
-                  dispatch={dispatch}
-                  socket={socket}
-                />
-              ) : (
-                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12, height: "100%" }}>
-                  Select or create a page
-                </div>
-              )}
-            </div>
-          );
-
           return (
             <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
               {pageHeader}
-              {sidebarToggleBar}
+              {breadcrumbBar}
               <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden", display: "flex" }}>
-                {/* Root tree sidebar — absolute overlay left, 50% height */}
+                {/* Root tree sidebar — full height on desktop, 50% on mobile */}
                 {rootTreeOpen && (
                   <div
                     style={{
-                      position: "absolute", top: 0, left: 0, zIndex: 100,
-                      maxHeight: "50%",
+                      position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 100,
+                      maxHeight: isMobile ? "50%" : "100%",
                       display: "flex", flexDirection: "column",
                       background: "var(--surface-card)",
                       borderRight: isMobile ? "none" : "1px solid var(--border-default)",
-                      borderBottom: "1px solid var(--border-default)", borderRadius: isMobile ? 0 : "0 0 6px 0",
+                      borderBottom: isMobile ? "1px solid var(--border-default)" : "none",
+                      borderRadius: isMobile ? 0 : "0 0 6px 0",
                       pointerEvents: "auto",
                     }}
                   >
                     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
                       {rootTree}
                     </div>
-                    <button
-                      onClick={() => setRootTreeOpen(false)}
-                      style={{
-                        flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-                        width: "100%", height: 32, border: "none", borderTop: "1px solid var(--border-default)",
-                        background: "transparent", color: "var(--text-muted)", cursor: "pointer",
-                      }}
-                    >
-                      <ChevronUp size={14} />
-                    </button>
                   </div>
                 )}
-                {/* Local tree sidebar — absolute overlay right, 50% height */}
+                {/* Local tree sidebar — full height on desktop, 50% on mobile */}
                 {localTreeOpen && (
                   <div
                     style={{
-                      position: "absolute", top: 0, right: 0, zIndex: 100,
-                      maxHeight: "50%",
+                      position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 100,
+                      maxHeight: isMobile ? "50%" : "100%",
                       display: "flex", flexDirection: "column",
                       background: "var(--surface-card)",
                       borderLeft: isMobile ? "none" : "1px solid var(--border-default)",
-                      borderBottom: "1px solid var(--border-default)", borderRadius: isMobile ? 0 : "0 0 0 6px",
+                      borderBottom: isMobile ? "1px solid var(--border-default)" : "none",
+                      borderRadius: isMobile ? 0 : "0 0 0 6px",
                       pointerEvents: "auto",
                     }}
                   >
-                    <div style={{ alignSelf: "end", flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
+                    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
                       {localTree}
                     </div>
-                    <button
-                      onClick={() => setLocalTreeOpen(false)}
-                      style={{
-                        flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-                        width: "100%", height: 32, border: "none", borderTop: "1px solid var(--border-default)",
-                        background: "transparent", color: "var(--text-muted)", cursor: "pointer",
-                      }}
-                    >
-                      <ChevronUp size={14} />
-                    </button>
                   </div>
                 )}
                 {pageContent}

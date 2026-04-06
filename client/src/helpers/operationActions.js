@@ -714,14 +714,35 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
-    // ---- FIND_OCCURRENCE: search $allOccurrences by targetId, store result in $vars ----
-    // cfg: { targetIdExpr?, nameExpr?, resultVar?, resultIdVar? }
+    // ---- FIND_OCCURRENCE: search by targetId, with optional date field filter ----
+    // cfg: { targetIdExpr?, dateFieldId?, dateExpr?, resultVar?, resultIdVar? }
+    // Skips template occurrences (meta.isTemplate === true).
     case "FIND_OCCURRENCE": {
       const targetId = resolveExpr(cfg.targetIdExpr, $vars);
       const allOccurrences = $vars.$allOccurrences || occurrencesById || {};
       let found = null;
       if (targetId) {
-        found = Object.values(allOccurrences).find(o => o.targetId === targetId && !o.deleted);
+        const occList = Array.isArray(allOccurrences) ? allOccurrences : Object.values(allOccurrences);
+        // Skip deleted and template occurrences
+        const candidates = occList.filter(o => o.targetId === targetId && !o.deleted && !o.meta?.isTemplate);
+
+        if (cfg.dateFieldId) {
+          // Filter by date field value matching the given date.
+          // $activeDate can be null when no filter is active — fall back to $today.
+          const targetDateStr = resolveExpr(cfg.dateExpr, $vars) || resolveExpr("$today", $vars);
+          if (targetDateStr) {
+            const refDate = new Date(targetDateStr.length <= 10 ? targetDateStr + "T00:00:00" : targetDateStr);
+            found = candidates.find(o => {
+              const fv = o.fields?.[cfg.dateFieldId];
+              const val = fv?.value !== undefined ? fv.value : fv;
+              if (!val) return false;
+              const d = new Date(val);
+              return !isNaN(d.getTime()) && d.toDateString() === refDate.toDateString();
+            }) || null;
+          }
+        } else {
+          found = candidates[0] || null;
+        }
       }
       $vars[cfg.resultVar || "$foundOccurrence"] = found || null;
       $vars[cfg.resultIdVar || "$foundOccurrenceId"] = found?.id || null;
@@ -747,6 +768,97 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         moduleId, occurrenceId, name, role, kind, parentId, viewId,
         ...(cfg.extra || {}),
       });
+      break;
+    }
+
+    // ---- COMPUTE_TEXTMAP_FROM_TEMPLATE: clone template textmap + substitute [tokens] ----
+    // Pure computation — no effect emitted. Stores substituted TipTap JSON in a $var.
+    // cfg: { templateOccIdExpr, tokens: [{ token, valueExpr, value? }], resultVar? }
+    case "COMPUTE_TEXTMAP_FROM_TEMPLATE": {
+      const templateOccId = resolveExpr(cfg.templateOccIdExpr, $vars);
+      const templateOcc = occurrencesById[templateOccId];
+      if (!templateOcc?.textmap) break;
+
+      const textmap = JSON.parse(JSON.stringify(templateOcc.textmap));
+      const tokens = cfg.tokens || [];
+      const substitute = (node) => {
+        if (node.type === "text" && typeof node.text === "string") {
+          for (const tkn of tokens) {
+            const val = String(resolveExpr(tkn.valueExpr, $vars) ?? tkn.value ?? "");
+            node.text = node.text.split(tkn.token).join(val);
+          }
+        }
+        if (Array.isArray(node.content)) {
+          for (const child of node.content) substitute(child);
+        }
+      };
+      substitute(textmap);
+      $vars[cfg.resultVar || "$computedTextmap"] = textmap;
+      break;
+    }
+
+    // ---- CREATE_OCCURRENCE_FOR_MODULE: create a new occurrence for an existing module ----
+    // Unlike CREATE_MODULE (creates both module + occurrence), this creates only an occurrence.
+    // cfg: { moduleIdExpr, dateFieldId?, dateExpr?, textmapVar?, parentIdExpr?, parentId?,
+    //        viewIdExpr?, viewId?, resultVar?, resultIdVar? }
+    // Sets $lastCreatedOccurrenceId + cfg.resultIdVar in $vars.
+    case "CREATE_OCCURRENCE_FOR_MODULE": {
+      const moduleId = resolveExpr(cfg.moduleIdExpr || cfg.moduleId, $vars);
+      if (!moduleId) break;
+
+      const occurrenceId = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
+      $vars[cfg.resultVar || "$foundOccurrence"] = { id: occurrenceId };
+      $vars[cfg.resultIdVar || "$lastCreatedOccurrenceId"] = occurrenceId;
+
+      // Build initial fields
+      const fields = {};
+      if (cfg.dateFieldId) {
+        // $activeDate may be null when no filter is active — fall back to $today
+        const dateVal = resolveExpr(cfg.dateExpr, $vars) || resolveExpr("$today", $vars);
+        if (dateVal) fields[cfg.dateFieldId] = { value: dateVal, flow: "in" };
+      }
+
+      // Optional pre-computed textmap from a $var (e.g. set by COMPUTE_TEXTMAP_FROM_TEMPLATE)
+      const textmap = cfg.textmapVar ? ($vars[cfg.textmapVar] ?? null) : null;
+
+      updates.push({
+        _effect: "CREATE_OCCURRENCE_FOR_MODULE",
+        occurrenceId,
+        moduleId,
+        parentId: resolveExpr(cfg.parentIdExpr || cfg.parentId, $vars) || null,
+        viewId: resolveExpr(cfg.viewIdExpr || cfg.viewId, $vars) || null,
+        fields,
+        textmap,
+      });
+      break;
+    }
+
+    // ---- FILL_FROM_TEMPLATE: apply substituted template textmap to an EXISTING occurrence ----
+    // Use this to refresh an already-created page from the template (re-fill).
+    // For NEW occurrences, use COMPUTE_TEXTMAP_FROM_TEMPLATE + CREATE_OCCURRENCE_FOR_MODULE instead.
+    // cfg: { templateOccIdExpr, targetOccIdExpr, tokens: [{ token, valueExpr, value? }] }
+    case "FILL_FROM_TEMPLATE": {
+      const templateOccId = resolveExpr(cfg.templateOccIdExpr, $vars);
+      const targetOccId = resolveExpr(cfg.targetOccIdExpr || cfg.occurrenceIdExpr, $vars);
+      const templateOcc = occurrencesById[templateOccId];
+      const targetOcc = occurrencesById[targetOccId];
+      if (!templateOcc?.textmap || !targetOcc) break;
+
+      const textmap = JSON.parse(JSON.stringify(templateOcc.textmap));
+      const tokens = cfg.tokens || [];
+      const substitute = (node) => {
+        if (node.type === "text" && typeof node.text === "string") {
+          for (const tkn of tokens) {
+            const val = String(resolveExpr(tkn.valueExpr, $vars) ?? tkn.value ?? "");
+            node.text = node.text.split(tkn.token).join(val);
+          }
+        }
+        if (Array.isArray(node.content)) {
+          for (const child of node.content) substitute(child);
+        }
+      };
+      substitute(textmap);
+      updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { ...targetOcc, textmap } });
       break;
     }
 

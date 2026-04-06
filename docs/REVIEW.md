@@ -1,5 +1,103 @@
 # Moduli — Architecture & Code Review
-_March 2026 — Full system audit_
+_Updated: April 2, 2026 — Ongoing audit + feature tracking_
+
+---
+
+## Recent Session Changes (Apr 1–2, 2026)
+
+### Server / Data (createDefaultUserData.js)
+- **0a — Data structure fix**: Parent doc modules (Stan, Gospel, Phil, flat notes, etc.) changed from `role: "container", kind: "artifact"` to `role: "page", kind: "doc"`. They now appear as page items in the manifest tree with sections nested as anchors. Removed per-section page wrapper loop.
+- **0b — Day Page fix**: "Day Page" wrapper module+occurrence removed. Yesterday's day page changed to `role: "page", kind: "doc"` with readable date label (e.g., "Tue, Mar 31"). Pinned directly to centerHub. Older past day pages (2–3 days back) removed — only yesterday kept.
+- **Folder page modules**: Created `role: "page", kind: "folder"` module + occurrence for each non-root folder (Day Pages, Documents, Notes, Trackers, Drawing) with `parentId = folderId`. Enables folder click → open page.
+
+### Client / ManifestTree
+- **0b — Click handler fix (ManifestTree.jsx)**: `handleSelect` simplified — uses `activePageView || view` as target, removes `isPagePanel` check. Added `emit: true` to `updateView` calls in both `handleSelect` and `handleScrollTo`. `PageTreeNode.containerOccs` now merges explicit `occurrences[]` with implicit `childrenByParentId` children (deduped) — fixes pages whose children use parentId linkage.
+- **Root tree anchors**: FolderNode `showAnchors={false}` → `showAnchors={true}` — anchors now nest under parent docs.
+
+### Client / NodePill + PreviewNode + Drilldown (New Features)
+- **0c — NodePill.jsx**: Added `variant` prop: `"entity"` (default, DraggableEntityRow look) and `"compact"` (tight sidebar). Entity variant: `padding: "5px 8px"`, `borderRadius: 6`, `border: var(--border-default)`, `background: var(--input-bg)`. Depth indent: `depth * 12 + 8` for entity, `depth * 4 + 4` for compact.
+- **Part 1 — PreviewNode.jsx** (NEW): Preview card for folder pages — shows text excerpt, child dots, or icon fallback. Double-click triggers drilldown. Draggable via Pragmatic DnD.
+- **Part 2 — useDrilldown.js** (NEW hook): Windows 7 date-picker-style zoom animation. Navigation stack for nested drill-in/drill-out. `getCardAnimStyle()` helper for per-card transform/opacity.
+- **Part 3 — ModulePage.jsx (FolderContent)**: New `FolderContent` component with `<PreviewNode>` CSS grid + `useDrilldown` hook. Back button when drilled in. Board page horizontal padding reduced from 28px to 6px on mobile.
+- **Part 4 — CSS classes (index.css)**: `.preview-node-grid`, `.preview-node-card`, `.preview-node-preview`, `.preview-node-title` added.
+
+### Client / Editor (Part 6)
+- **Instance drop pill/embed choice (Editor.jsx)**: When an instance is dropped into a doc, a popup appears at drop coordinates with "Pill" (inserts `instancePill` inline) and "Embed" (inserts `moduleEmbed` block). `pendingDrop` state stores `{ occurrenceId, insertPos, dropX, dropY, label }`. Non-instance drops (containers, artifacts, modules) still go straight to `moduleEmbed`.
+
+### Misc
+- **ModulePanel.jsx**: Removed stray `console.log(activePageLabel)`.
+
+---
+
+## Known Active Bugs (as of Apr 2, 2026)
+
+### Critical
+- [x] **Doc editor cursor placement** (FIXED Apr 2): Removed `isEditing` state from `DocContent` which caused unnecessary re-renders on click. Wrapper now always shows `cursor: text` when not locked (was `default` arrow cursor, making it look non-interactive). Doc toolbar now shown via `showToolbar={!hideToolbar && !isLocked}`.
+- [x] **Block handle menu clipped** (FIXED Apr 2): Block handle menu rendered via `createPortal` to `document.body` with `position: fixed` at button viewport coords. Previously the menu was clipped by `overflow: auto` on the page content container. Added `blockMenuPos` state, `cancelBlockHide()` on button mousedown, and `blockMenuPortalRef` for outside-click detection.
+
+### Priority 2 — Polish
+- [ ] Touch gesture optimization for mobile
+- [ ] Performance optimization for 100+ items
+- [ ] React child error: forwardRef icon components (intermittent)
+
+---
+
+## 6 Major Functionality Priorities
+
+These are the core pillars of the system. Every session should assess and improve each.
+
+### F1 — Drag and Drop + Modules
+**Status: 98% complete.**
+- Panel/container/instance DnD, copy vs move, sorting, external drops, mobile — all solid.
+- Multi-window sync (broadcast when copy/move across tabs) — still unstarted.
+- Example data: demo data has draggable toolkit instances, workout/nutrition items — works well.
+
+### F2 — Views (Docs, Boards, Canvases, NodeViews, Module Versions)
+**Status: 85% — bugs present.**
+- **Docs**: TipTap editor with block handles, field pills, instance pills, module embeds. Two active bugs: cursor placement + block handle click (see above).
+- **Boards**: Container-as-column layout — working.
+- **Canvas**: Freepad drawing — working.
+- **NodeViews (PreviewNode + Drilldown)**: Just implemented (Apr 1). PreviewNode grid for folder pages, zoom-in animation via `useDrilldown`. Needs testing.
+- **Module Versions**: Not started.
+- **TODO**: Fix cursor + handle bugs. Test drilldown. Consider per-view toolbar customization.
+
+### F3 — Filters / Time-based + Day Pages
+**Status: 92% — Template model implemented.**
+- Named filters (daily/weekly/monthly) with `namedFilters` on Grid — working.
+- FilterNav.jsx for navigation — working.
+- **Day Pages (IMPLEMENTED Apr 2)**: Single template module model:
+  - One `dayPageTemplateModuleId` module with a `dayDate` date field bound to it
+  - Template occurrence (`meta.isTemplate: true`) holds TipTap textmap with `[Date]` / `[DayOfWeek]` tokens
+  - Operation pipeline (fully atomized lego steps): `FIND_OCCURRENCE` (by dateFieldId+date) → `IF` missing: `COMPUTE_TEXTMAP_FROM_TEMPLATE` + `CREATE_OCCURRENCE_FOR_MODULE` → `UPDATE_VIEW`
+  - Yesterday pre-seeded with full journal content for demo
+- **New pipeline actions**: `COMPUTE_TEXTMAP_FROM_TEMPLATE`, `CREATE_OCCURRENCE_FOR_MODULE`, `FILL_FROM_TEMPLATE`, extended `FIND_OCCURRENCE` with dateFieldId support + template skipping
+- **TODO**: Test full flow (navigate to tomorrow → auto-creates page). Add more template tokens (protein total, task count, etc.) via field pills once fields are configured.
+
+### F4 — Operations + Fields + Transactions
+**Status: 97% complete.**
+- All 15 aggregation types, LOOP/IF/variable pipeline, computedValues, triggers — working.
+- Undo/redo: client side complete, server-side handlers partial.
+- Transactions: recorded on all changes (MeasureOp, OccurrenceListOp, EntityOp, DocEditOp).
+- **TODO**: Complete server-side undo handler. Wire `undo_complete` to trigger operation recalculations. Add slide-back FLIP animation on undo.
+
+### F5 — ManifestTree + Modules
+**Status: 90% — recent major fixes.**
+- Folder tree with nested anchors, page types, drag-to-sort — working.
+- Folder pages (click folder → open page) — just added (Apr 1).
+- DocNode / PageTreeNode / FolderNode / AnchorChip hierarchy — working after Apr 1 fixes.
+- PreviewNode drilldown for folder content — just added (Apr 1).
+- **TODO**: Test folder-page click flow end-to-end. Verify ManifestTree `childrenByParentId` merge is correct for all page types. Add keyboard navigation to tree.
+
+### F6 — Lists + Templates
+**Status: 90% complete.**
+- Save/fill template from container — working.
+- Drag template from Command Center → container — working.
+- EntityTreeTab "Unsorted" section shows unplaced instances — working.
+- **TODO**: Template browser UI (visual preview before filling). Day page template in F3. `allowedFields` UI on containers/instances (lets you restrict which fields show in a panel view).
+
+---
+
+## Original Audit Content (March 2026)
 
 ---
 

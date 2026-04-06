@@ -226,6 +226,7 @@ export function registerCrudHandlers(socket, {
       collectDescendants(occurrenceId);
 
       // Delete all collected occurrences from cache + DB
+      const deletedParentId = uc.occurrencesById[occurrenceId]?.parentId;
       for (const id of toDelete) {
         delete uc.occurrencesById[id];
         await Occurrence.findOneAndDelete({ id, userId });

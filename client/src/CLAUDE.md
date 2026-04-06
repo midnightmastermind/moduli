@@ -1,6 +1,11 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-03-26. Check this file before re-reading source._
+_Updated: 2026-04-06. Check this file before re-reading source._
+
+## Recent Changes (Apr 6 2026 — Phase E: Iframe Removal + Dead Code Cleanup)
+- **main.jsx**: Removed `previewOcc` URL param check and `PagePreviewApp` dynamic import. Always loads `App` directly. Removed dynamic import pattern.
+- **PagePreviewApp.jsx**: DELETED — was the iframe preview app entry point creating extra socket connections.
+- **helpers/thumbnailCache.js**: DELETED — iframe pool manager for preview thumbnails.
 
 ## Recent Changes (Mar 26 2026 — Panel Cycler Empty State)
 - **Grid.jsx**: `GridCell` now accepts `hasHiddenStack` prop. When `!hasPanel && hasHiddenStack`, shows a "show" button (Layers icon) in the pocket that calls `cyclePanelStack({ cellKey, dir: 1 })`. Pocket `pointerEvents: "auto"` when hasHiddenStack. `cellsData` now computes `hasHiddenStack = !hasPanel && cellPanels.length > 1`.

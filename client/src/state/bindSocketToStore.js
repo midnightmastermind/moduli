@@ -66,6 +66,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // Also repopulate localOccsById so subsequent fireOperations have fresh data
     for (const key in localOccsById) delete localOccsById[key];
     const occurrencesById = {};
+    const modulesById = {};
+    for (const m of payload.modules || []) { if (m?.id) modulesById[m.id] = m; }
     for (const o of payload.occurrences || []) {
       const id = o.id || o._id?.toString?.();
       if (id) {
@@ -196,6 +198,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const occurrenceId = payload.occurrenceId || payload.id;
     if (!occurrenceId) return;
 
+    // Save field data BEFORE removing from cache (needed for MeasureOp below)
+    const removedOcc = localOccsById[occurrenceId];
+
     // Remove from local cache immediately
     delete localOccsById[occurrenceId];
 
@@ -211,6 +216,19 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       instanceId: payload.instanceId,
       containerId: payload.containerId,
     });
+
+    // Re-run onChange operations for each field that was set on the deleted occurrence.
+    // This ensures aggregation operations (e.g. water total) recalculate after removal.
+    if (removedOcc?.fields) {
+      for (const fieldId of Object.keys(removedOcc.fields)) {
+        fireOperations("MeasureOp", {
+          type: "MeasureOp",
+          occurrenceId,
+          instanceId: removedOcc.targetId,
+          fieldId,
+        });
+      }
+    }
   }
 
   socket.on("occurrence_created", onOccurrenceCreated);
@@ -445,6 +463,28 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       case "CREATE_OCCURRENCE":
         createOccurrenceInContainer({ socket, instanceId: effect.instanceId, containerId: effect.containerId, fields: effect.fields });
         break;
+
+      case "CREATE_OCCURRENCE_FOR_MODULE": {
+        // Create a new occurrence for an existing module (no new module created).
+        // Used by the Day Page Auto-Create operation pipeline.
+        const gridId = state.grid?._id || state.gridId;
+        if (!gridId || !effect.moduleId) break;
+        socket?.emit("create_occurrence", {
+          occurrence: {
+            id: effect.occurrenceId,
+            targetType: "module",
+            targetId: effect.moduleId,
+            gridId,
+            parentId: effect.parentId || null,
+            viewId: effect.viewId || null,
+            fields: effect.fields || {},
+            meta: { createdByOperation: true },
+            textmap: effect.textmap || null,
+            occurrences: [],
+          },
+        });
+        break;
+      }
 
       case "UPDATE_MODULE": {
         const mod = (state.modules || []).find(m => m.id === effect.moduleId);
@@ -730,12 +770,32 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   }, 60000);
 
   // ======================================================
+  // BROADCASTCHANNEL — preview iframes request state from main app
+  // Runs in the iframe context: sends REQUEST_STATE, hydrates immediately
+  // when the main window responds (avoids waiting for socket round-trip)
+  // ======================================================
+  let bc = null;
+  const isInIframe = (() => { try { return window !== window.parent; } catch (_) { return true; } })();
+  if (isInIframe && "BroadcastChannel" in window) {
+    bc = new BroadcastChannel("moduli-preview");
+    bc.onmessage = (e) => {
+      if (e.data?.type === "PREVIEW_STATE") {
+        onFullState(e.data.payload);
+        bc.close();
+        bc = null;
+      }
+    };
+    bc.postMessage({ type: "REQUEST_STATE" });
+  }
+
+  // ======================================================
   // CLEANUP (important with HMR)
   // ======================================================
   return () => {
     operationsBridge.fireOperations = null;
     operationsBridge.updateLocalOcc = null;
     clearInterval(scheduleInterval);
+    if (bc) { bc.close(); bc = null; }
     socket.off("full_state", onFullState);
     socket.off("sync_state", onSyncState);
 

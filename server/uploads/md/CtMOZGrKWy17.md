@@ -1,0 +1,6 @@
+- [ ] Is there already a function doing this? (DRY)
+- [ ] Does this change require touching more than 2 files? (Orthogonality)
+- [ ] Am I adding backward compat that serves no current user? (No → delete it)
+- [ ] Does the data flow end-to-end? (Tracer Bullets)
+- [ ] Did I update the folder's CLAUDE.md? (Boyscout Rule)
+- [ ] Am I adding configuration for a hypothetical future? (Don't Outrun Headlights)

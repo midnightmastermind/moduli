@@ -6,7 +6,7 @@
 import { useContext, useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { GridActionsContext } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
-import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Monitor, Folder, Hash, Pencil, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Monitor, Folder, Pencil, Trash2, X } from "lucide-react";
 import ContextMenu from "../ui/ContextMenu.jsx";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 
@@ -27,9 +27,9 @@ const PILL_ACTIVE = (color = "rgba(100,180,255,0.5)") => ({
 });
 
 // Kind → lucide icon for pages
-const PAGE_KIND_ICON = { board: Layout, canvas: Paintbrush, doc: FileText, display: Monitor };
-import { hexToRgba } from "../helpers/colorHelpers.js";
+const PAGE_KIND_ICON = { board: Layout, canvas: Paintbrush, doc: FileText, display: Monitor, folder: Folder };
 import RadialMenu from "../ui/RadialMenu.jsx";
+import NodePill from "./NodePill.jsx";
 
 // Extract first heading text from a TipTap textmap — strips markdown, ignores field pills
 function getDocHeading(textmap) {
@@ -50,7 +50,7 @@ function getDocHeading(textmap) {
 // ─── DocNode — occurrence item ──────────────────────────────────────────────
 // isAnchor=false: renders as a clickable file row (opens the doc)
 // isAnchor=true: renders as a small anchor chip (scrolls to heading in parent doc)
-function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, collapseGen = 0, onSetDefault, defaultOccurrenceId, showAnchors = true }) {
+function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, collapseGen = 0, onSetDefault, defaultOccurrenceId, showAnchors = true, dispatch, socket, siblingOccs }) {
   const childOccs = useMemo(() =>
     (childrenByParentId?.[occ.id] || [])
       .slice()
@@ -59,6 +59,8 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
   );
   const [open, setOpen] = useState(true);
   const [childCollapseGen, setChildCollapseGen] = useState(0);
+  const [dropEdge, setDropEdge] = useState(null); // "top" | "bottom" | null
+  const dropEdgeRef = useRef(null);
   // When parent collapses and re-opens, children start collapsed
   const [lastGen, setLastGen] = useState(collapseGen);
   if (collapseGen !== lastGen) {
@@ -71,67 +73,83 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
       return !v;
     });
   }, []);
-  const rowRef = useRef(null);
   const hasChildren = childOccs.length > 0;
   const mod = modulesById?.[occ.targetId];
+  const contMod = mod; // alias for anchor branch
   const label = mod?.label || occ.id;
   const heading = getDocHeading(occ.textmap);
   const displayLabel = heading || label;
   const isActive = occ.id === activeOccurrenceId;
   const indent = depth * 4;
 
-  // Draggable — file rows use "artifact" type, anchors use "module" with tree-anchor source
-  const contMod = modulesById?.[occ.targetId];
+  // Drop target for reorder — accept artifact drags between siblings
+  const rowRef = useRef(null);
   useEffect(() => {
-    if (!rowRef.current) return;
-    if (isAnchor) {
-      return draggable({
-        element: rowRef.current,
-        getInitialData: () => ({
-          type: "module", sourceType: "tree-anchor", role: "container",
-          id: occ.targetId, data: contMod, occurrenceId: occ.id,
-        }),
-      });
-    } else {
-      return draggable({
-        element: rowRef.current,
-        getInitialData: () => ({ type: "artifact", occurrenceId: occ.id, parentId: occ.parentId }),
-      });
-    }
-  }, [isAnchor, occ.id, occ.parentId, occ.targetId, contMod]);
+    if (!rowRef.current || isAnchor || !dispatch || !socket) return;
+    return dropTargetForElements({
+      element: rowRef.current,
+      canDrop: ({ source }) => source.data.type === "artifact" && source.data.occurrenceId !== occ.id,
+      onDragEnter: ({ location }) => {
+        const rect = rowRef.current.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        const edge = location.current.input.clientY < mid ? "top" : "bottom";
+        setDropEdge(edge); dropEdgeRef.current = edge;
+      },
+      onDrag: ({ location }) => {
+        const rect = rowRef.current.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        const edge = location.current.input.clientY < mid ? "top" : "bottom";
+        setDropEdge(edge); dropEdgeRef.current = edge;
+      },
+      onDragLeave: () => { setDropEdge(null); dropEdgeRef.current = null; },
+      onDrop: ({ source }) => {
+        const edge = dropEdgeRef.current;
+        setDropEdge(null); dropEdgeRef.current = null;
+        const { occurrenceId } = source.data;
+        if (!occurrenceId) return;
+        // Compute new sortOrder based on position relative to this item
+        const myOrder = occ.sortOrder ?? 0;
+        const siblings = siblingOccs || [];
+        const sorted = siblings.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        const myIdx = sorted.findIndex(s => s.id === occ.id);
+        let newOrder;
+        if (edge === "top") {
+          const prev = myIdx > 0 ? sorted[myIdx - 1] : null;
+          newOrder = prev ? ((prev.sortOrder ?? 0) + myOrder) / 2 : myOrder - 1;
+        } else {
+          const next = myIdx < sorted.length - 1 ? sorted[myIdx + 1] : null;
+          newOrder = next ? (myOrder + (next.sortOrder ?? 0)) / 2 : myOrder + 1;
+        }
+        CommitHelpers.updateOccurrence({
+          dispatch, socket,
+          occurrence: { id: occurrenceId, parentId: occ.parentId, sortOrder: newOrder },
+          emit: true,
+        });
+      },
+    });
+  }, [occ.id, occ.parentId, occ.sortOrder, isAnchor, dispatch, socket, siblingOccs]);
 
   // Anchor chip — clicking scrolls parent doc to this container
   if (isAnchor) {
-    const rawColor = contMod?.ownStyle?.bg || null;
-    const chipColor = hexToRgba(rawColor, isActive ? 1.0 : 0.82) ?? (isActive ? "rgba(134,239,172,1)" : "rgba(134,239,172,0.82)");
-
     return (
       <div>
-        <div
-          ref={rowRef}
-          style={{ paddingLeft: indent, paddingRight: 2, paddingTop: 1, paddingBottom: 1, display: "flex", alignItems: "center", gap: 2, overflow: "hidden" }}
-        >
+        <div style={{ paddingLeft: indent, paddingRight: 2, display: "flex", alignItems: "center", gap: 2 }}>
           {hasChildren ? (
             <span onClick={toggleOpen} style={{ fontSize: 8, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, width: 10, textAlign: "center", userSelect: "none", padding: "4px 2px" }}>
               {open ? "▾" : "▸"}
             </span>
           ) : <span style={{ width: 10, flexShrink: 0 }} />}
-          <div
+          <NodePill
+            occurrence={occ}
+            module={{ ...contMod, role: "container", label: displayLabel }}
             onClick={() => onScrollTo(parentOccId, occ.id)}
-            title={displayLabel}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 2,
-              padding: "1px 5px 1px 3px", borderRadius: 999,
-              border: `1px solid ${isActive ? chipColor : "transparent"}`,
-              background: isActive ? `${chipColor.replace(/[\d.]+\)$/, "0.1)")}` : "transparent",
-              cursor: "pointer", userSelect: "none",
+            isActive={isActive}
+            dragData={{
+              type: "module", sourceType: "tree-anchor", role: "container",
+              id: occ.targetId, data: contMod, occurrenceId: occ.id,
             }}
-          >
-            <Hash size={8} style={{ color: chipColor, flexShrink: 0, opacity: 0.6 }} />
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 9, fontFamily: "var(--font-mono)", color: chipColor }}>
-              {displayLabel}
-            </span>
-          </div>
+            style={{ flex: 1 }}
+          />
         </div>
         {hasChildren && open && (
           <div>
@@ -146,17 +164,13 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
     );
   }
 
-  // File row — pill style with FileText icon, draggable
+  // File row — NodePill, draggable + drop target for reorder
   return (
-    <div style={{ paddingLeft: indent, paddingRight: 2 }}>
-      <div
-        ref={rowRef}
-        onClick={() => onSelect(occ.id)}
+    <div ref={rowRef} style={{ paddingLeft: indent, paddingRight: 2, position: "relative" }}>
+      {dropEdge === "top" && <div style={{ position: "absolute", top: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1 }} />}
+      {dropEdge === "bottom" && <div style={{ position: "absolute", bottom: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1 }} />}
+      <div style={{ display: "flex", alignItems: "center" }}
         onContextMenu={(e) => { if (onSetDefault) { e.preventDefault(); onSetDefault(occ.id); } }}
-        style={{
-          ...PILL_STYLE,
-          ...(isActive ? PILL_ACTIVE() : {}),
-        }}
       >
         {showAnchors && hasChildren && (
           <span style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: "pointer" }}
@@ -164,13 +178,18 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
             <ChevronRight size={8} style={{ opacity: 0.35, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
           </span>
         )}
-        <FileText size={9} style={{ color: "rgba(100,180,255,0.7)", flexShrink: 0 }} />
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, fontFamily: "var(--font-mono)", color: isActive ? "rgba(100,180,255,1)" : "var(--text-secondary)" }}>
-          {displayLabel}
-        </span>
-        {defaultOccurrenceId === occ.id && (
-          <span style={{ fontSize: 8, color: "var(--text-faint)", flexShrink: 0 }} title="Default page">&#x1F4CC;</span>
-        )}
+        <NodePill
+          occurrence={occ}
+          module={{ ...mod, label: displayLabel }}
+          onClick={() => onSelect(occ.id)}
+          isActive={isActive}
+          dragData={{ type: "artifact", occurrenceId: occ.id, parentId: occ.parentId }}
+          style={{ flex: 1 }}
+        >
+          {defaultOccurrenceId === occ.id && (
+            <span style={{ fontSize: 8, color: "var(--text-faint)", flexShrink: 0 }} title="Default page">&#x1F4CC;</span>
+          )}
+        </NodePill>
       </div>
       {showAnchors && hasChildren && open && (
         <div style={{ paddingLeft: 6, paddingBottom: 4 }}>
@@ -210,11 +229,28 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     [childrenByParentId, folder.id]
   );
   const artifactOccs = useMemo(() =>
-    allChildOccs.filter(occ => modulesById?.[occ.targetId]?.role !== "page"),
+    allChildOccs.filter(occ => {
+      const mod = modulesById?.[occ.targetId];
+      return mod?.role !== "page" && !occ.meta?.isTemplate;
+    }),
     [allChildOccs, modulesById]
   );
+  // Exclude folder-page occurrences (kind="folder") — those are navigation-only, not tree rows.
+  // Exclude template occurrences (meta.isTemplate) — those are internal templates, not user content.
   const pageOccs = useMemo(() =>
-    allChildOccs.filter(occ => modulesById?.[occ.targetId]?.role === "page"),
+    allChildOccs.filter(occ => {
+      const mod = modulesById?.[occ.targetId];
+      return mod?.role === "page" && mod?.kind !== "folder" && !occ.meta?.isTemplate;
+    }),
+    [allChildOccs, modulesById]
+  );
+
+  // The folder-page occurrence (kind="folder") — used for folder-first navigation from PageTreeNode
+  const folderPageOcc = useMemo(() =>
+    allChildOccs.find(occ => {
+      const mod = modulesById?.[occ.targetId];
+      return mod?.kind === "folder" && mod?.role === "page";
+    }),
     [allChildOccs, modulesById]
   );
 
@@ -311,48 +347,76 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     onSelect(occId);
   }, [state, socket, dispatch, folder.id, allChildOccs, onSelect]);
 
+  // Folder click handler — open folder page if available, and toggle
+  const handleFolderClick = useCallback(() => {
+    if (isRenaming) return;
+    // Try to open folder as a page via onOpenPage
+    if (onOpenPage) {
+      // Look for a page occurrence whose parentId matches this folder
+      const folderPageOcc = allChildOccs.find(occ => {
+        const mod = modulesById?.[occ.targetId];
+        return mod?.kind === "folder" && mod?.role === "page";
+      });
+      if (folderPageOcc) {
+        onOpenPage(folderPageOcc.id);
+      } else if (dispatch && socket && state?.userId && state?.grid?._id) {
+        // Auto-create folder-page module + occurrence for folders that don't have one
+        const modId = crypto.randomUUID();
+        const occId = crypto.randomUUID();
+        CommitHelpers.createModule({ dispatch, socket, module: { id: modId, userId: state.userId, gridId: state.grid._id, role: "page", kind: "folder", label: folder.name }, emit: true });
+        CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId: state.userId, gridId: state.grid._id, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: -1, iteration: { mode: "persistent" }, fields: {}, meta: {} }, emit: true });
+        // Navigate to it after a tick so it's in the store
+        setTimeout(() => onOpenPage(occId), 50);
+      }
+    }
+    // Also toggle expand/collapse
+    if (hasChildren) setOpen(v => !v);
+  }, [isRenaming, onOpenPage, allChildOccs, modulesById, hasChildren, dispatch, socket, state, folder.id, folder.name]);
+
   return (
     <div ref={folderRef} style={{ paddingLeft: indent, paddingRight: 2 }}>
-      {/* Folder pill */}
-      <div
-        ref={dragRef}
-        onClick={() => !isRenaming && hasChildren && setOpen(v => !v)}
+      {/* Folder pill — uses NodePill for consistent sizing */}
+      <div style={{ display: "flex", alignItems: "center" }}
         onDoubleClick={(e) => { e.stopPropagation(); setRenameValue(folder.name); setIsRenaming(true); }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
-        style={{
-          ...PILL_STYLE,
-          cursor: isRenaming ? "text" : hasChildren ? "grab" : "default",
-          ...(isDragOver ? { border: "1px solid rgba(251,191,36,0.5)", background: "rgba(251,191,36,0.08)" } : {}),
-        }}
-        title={isRenaming ? undefined : folder.name}
       >
         {hasChildren && (
-          <span style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: "pointer" }}>
+          <span style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: "pointer" }}
+            onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}>
             <ChevronRight size={8} style={{ opacity: 0.35, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
           </span>
         )}
-        <Folder size={9} style={{ color: "rgba(251,191,36,0.7)", flexShrink: 0 }} />
         {isRenaming ? (
-          <input
-            ref={renameInputRef}
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={handleRenameKeyDown}
-            onBlur={commitRename}
-            onClick={(e) => e.stopPropagation()}
-            style={{ flex: 1, background: "var(--input-bg)", border: "1px solid var(--input-border)", borderRadius: 3, padding: "0 3px", fontSize: 10, fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--text-primary)", outline: "none", minWidth: 0 }}
-          />
+          <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 5, padding: "5px 8px", borderRadius: 6, border: "1px solid var(--border-default)", background: "var(--input-bg)" }}>
+            <Folder size={10} style={{ color: "rgba(251,191,36,0.7)", flexShrink: 0 }} />
+            <input
+              ref={renameInputRef}
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={handleRenameKeyDown}
+              onBlur={commitRename}
+              onClick={(e) => e.stopPropagation()}
+              style={{ flex: 1, background: "transparent", border: "none", fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--text-primary)", outline: "none", minWidth: 0 }}
+            />
+          </div>
         ) : (
-          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600, fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>
-            {folder.name}
-          </span>
+          <NodePill
+            module={{ kind: "folder", label: folder.name }}
+            onClick={handleFolderClick}
+            isActive={isDragOver}
+            dragData={{
+              type: "folder", folderId: folder.id, folderName: folder.name, childOccurrenceIds: childOccIds,
+            }}
+            style={{ flex: 1 }}
+          >
+            <span
+              onClick={(e) => { e.stopPropagation(); handleNewDoc(e); }}
+              title="New document"
+              style={{ fontSize: 13, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, opacity: 0, transition: "opacity 0.15s", lineHeight: 1, padding: "4px 6px" }}
+              className="folder-add-btn"
+            >+</span>
+          </NodePill>
         )}
-        <span
-          onClick={handleNewDoc}
-          title="New document"
-          style={{ fontSize: 13, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, opacity: 0, transition: "opacity 0.15s", lineHeight: 1, padding: "4px 6px" }}
-          className="folder-add-btn"
-        >+</span>
       </div>
 
       {ctxMenu && (
@@ -377,12 +441,14 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
             <PageTreeNode key={occ.id} pageOccId={occ.id} activeOccId={activeOccurrenceId}
               onOpenPage={onOpenPage} occurrencesById={occurrencesById} modulesById={modulesById}
               childrenByParentId={childrenByParentId} onSelect={onSelect} onScrollTo={onScrollTo}
-              activeOccurrenceId={activeOccurrenceId} />
+              activeOccurrenceId={activeOccurrenceId}
+              folderPageOccId={folderPageOcc?.id} />
           ))}
           {artifactOccs.map(occ => (
             <DocNode key={occ.id} occ={occ} depth={depth + 1} isAnchor={false} parentOccId={occ.id}
               occurrencesById={occurrencesById} modulesById={modulesById} childrenByParentId={childrenByParentId} activeOccurrenceId={activeOccurrenceId}
-              onSelect={onSelect} onScrollTo={onScrollTo} onSetDefault={onSetDefault} defaultOccurrenceId={defaultOccurrenceId} showAnchors={showAnchors} />
+              onSelect={onSelect} onScrollTo={onScrollTo} onSetDefault={onSetDefault} defaultOccurrenceId={defaultOccurrenceId} showAnchors={showAnchors}
+              dispatch={dispatch} socket={socket} siblingOccs={artifactOccs} />
           ))}
         </div>
       )}
@@ -394,23 +460,10 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
 const PAGE_KIND_GLYPH = { canvas: "∿", doc: "≋", display: "□", board: "≡" };
 
 // ─── PageTreeNode — pill style page entry + container anchor chips (draggable) ──
-function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId }) {
-  const [open, setOpen] = useState(false);
-  const pageRef = useRef(null);
+function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId, folderPageOccId, reverseIndent = false }) {
   const pageOcc = occurrencesById?.[pageOccId];
   const pageMod = pageOcc ? modulesById?.[pageOcc.targetId] : null;
-
-  // Make page pill draggable (must be before early return — hooks rule)
-  useEffect(() => {
-    if (!pageRef.current || !pageMod) return;
-    return draggable({
-      element: pageRef.current,
-      getInitialData: () => ({
-        type: "module", sourceType: "tree-page", role: "page",
-        id: pageMod.id, data: pageMod, occurrenceId: pageOccId,
-      }),
-    });
-  }, [pageMod?.id, pageOccId, pageMod]);
+  const [open, setOpen] = useState(false);
 
   if (!pageOcc || !pageMod || pageMod.role !== "page") return null;
 
@@ -418,44 +471,59 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, mod
   const isActive = pageOccId === activeOccId;
   const kind = pageMod.kind || "board";
   const KindIcon = PAGE_KIND_ICON[kind] || Layout;
-  const containerOccs = (pageOcc.occurrences || [])
+  // Children from explicit occurrences[] array + implicit parentId linkage
+  const explicitOccs = (pageOcc.occurrences || [])
     .map(id => occurrencesById?.[id])
-    .filter(o => o && modulesById?.[o.targetId] && modulesById[o.targetId].role !== "page")
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    .filter(o => o && modulesById?.[o.targetId] && modulesById[o.targetId].role !== "page");
+  const implicitOccs = (childrenByParentId?.[pageOccId] || [])
+    .filter(o => o && modulesById?.[o.targetId] && modulesById[o.targetId].role !== "page");
+  // Deduplicate by ID
+  const seenIds = new Set(explicitOccs.map(o => o.id));
+  const combined = [...explicitOccs, ...implicitOccs.filter(o => !seenIds.has(o.id))];
+  const containerOccs = combined.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const hasChildren = containerOccs.length > 0;
 
   // Whether we have the props needed to render DocNode-style rows (root tree mode)
   const hasDocNodeProps = !!childrenByParentId;
 
+  const chevron = hasChildren ? (
+    <span
+      onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+      style={{ cursor: "pointer", opacity: 0.5, padding: "0 2px", flexShrink: 0, display: "flex", alignItems: "center" }}
+    >
+      <ChevronRight size={9} style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+    </span>
+  ) : null;
+
   return (
     <div style={{ paddingLeft: 2, paddingRight: 2 }}>
-      {/* Page pill */}
-      <div
-        ref={pageRef}
-        onClick={() => onOpenPage?.(pageOccId)}
-        style={{
-          ...PILL_STYLE,
-          ...(isActive ? PILL_ACTIVE("rgba(6,182,212,0.5)") : {}),
-        }}
-      >
-        {hasChildren && (
-          <span style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: "pointer" }}
-            onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}>
-            <ChevronRight size={8} style={{ opacity: 0.35, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
-          </span>
-        )}
-        <KindIcon size={9} style={{ color: "#06b6d4", flexShrink: 0 }} />
-        <span style={{
-          flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          fontSize: 10, fontFamily: "var(--font-mono)",
-          color: isActive ? "#06b6d4" : "var(--text-secondary)",
-        }}>
-          {label}
-        </span>
+      <div style={{ display: "flex", alignItems: "center", flexDirection: reverseIndent ? "row-reverse" : "row" }}>
+        {!reverseIndent && chevron}
+        <NodePill
+          occurrence={pageOcc}
+          module={pageMod}
+          onClick={() => {
+            // Folder-first: open folder page, auto-drilldown to target (shows only that card's thumbnail)
+            if (folderPageOccId && !isActive) {
+              onOpenPage?.(folderPageOccId, { drilldownTarget: pageOccId });
+            } else {
+              onOpenPage?.(pageOccId);
+            }
+          }}
+          isActive={isActive}
+          dragData={{
+            type: "module", sourceType: "tree-page", role: "page",
+            id: pageMod.id, data: pageMod, occurrenceId: pageOccId,
+          }}
+          reverseIndent={reverseIndent}
+          depth={reverseIndent ? 1 : 0}
+          style={{ flex: 1 }}
+        />
+        {reverseIndent && chevron}
       </div>
-      {/* Children — DocNode rows (root tree) or AnchorChips (local tree) */}
+      {/* Children — visible when expanded */}
       {hasChildren && open && (
-        <div style={{ paddingLeft: hasDocNodeProps ? 6 : 10, paddingBottom: 2 }}>
+        <div style={{ paddingLeft: reverseIndent ? 0 : (hasDocNodeProps ? 6 : 10), paddingRight: reverseIndent ? (hasDocNodeProps ? 6 : 10) : 0, paddingBottom: 2 }}>
           {hasDocNodeProps ? (
             containerOccs.map(contOcc => (
               <DocNode key={contOcc.id} occ={contOcc} depth={1} isAnchor={true} parentOccId={pageOccId}
@@ -475,44 +543,35 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, mod
   );
 }
 
-// ─── AnchorChip — draggable anchor inside PageTreeNode ──
+// ─── AnchorChip — draggable anchor inside PageTreeNode (local tree mode) ──
 function AnchorChip({ contOcc, modulesById, onOpenPage, pageOccId }) {
-  const chipRef = useRef(null);
   const contMod = modulesById?.[contOcc.targetId];
-  const contLabel = contMod?.label || contOcc.id;
-
-  useEffect(() => {
-    if (!chipRef.current) return;
-    return draggable({
-      element: chipRef.current,
-      getInitialData: () => ({
-        type: "module", sourceType: "tree-anchor", role: "container",
-        id: contOcc.targetId, data: contMod, occurrenceId: contOcc.id,
-      }),
-    });
-  }, [contOcc.id, contOcc.targetId, contMod]);
-
   return (
-    <div
-      ref={chipRef}
+    <NodePill
+      occurrence={contOcc}
+      module={{ ...contMod, role: "container" }}
       onClick={() => {
         onOpenPage?.(pageOccId);
         setTimeout(() => {
-          document.querySelector(`[data-occ-id="${contOcc.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          const el = document.querySelector(`[data-occ-id="${contOcc.id}"]`);
+          if (!el) return;
+          const sc = el.closest(".artifact-markdown");
+          if (sc) {
+            sc.scrollTo({ top: sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top, behavior: "smooth" });
+          } else {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+          el.classList.remove("anchor-highlight");
+          void el.offsetWidth;
+          el.classList.add("anchor-highlight");
+          setTimeout(() => el.classList.remove("anchor-highlight"), 1200);
         }, 150);
       }}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 2,
-        padding: "1px 5px 1px 3px", borderRadius: 999,
-        background: "transparent", border: "1px solid transparent",
-        cursor: "pointer", userSelect: "none", marginBottom: 0,
+      dragData={{
+        type: "module", sourceType: "tree-anchor", role: "container",
+        id: contOcc.targetId, data: contMod, occurrenceId: contOcc.id,
       }}
-    >
-      <Hash size={8} style={{ color: "rgba(134,239,172,0.6)", flexShrink: 0 }} />
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 9, fontFamily: "var(--font-mono)", color: "rgba(134,239,172,0.75)" }}>
-        {contLabel}
-      </span>
-    </div>
+    />
   );
 }
 
@@ -524,25 +583,45 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
   const isPagePanel = !!panelOccurrence;
 
   // Clicking a doc — opens page (page panels) or sets active doc (artifact panels)
-  // When activePageView is set, doc clicks update the page's view instead of calling onOpenPage
+  // Priority: activePageView (tree-view page) > panel view > onOpenPage fallback
   const handleSelect = useCallback((occId) => {
-    if (isPagePanel && activePageView?.id) {
-      // Active page has a tree view — update the page's activeOccurrenceId
-      CommitHelpers.updateView({ dispatch, socket, view: { ...activePageView, activeOccurrenceId: occId, scrollAnchor: null } });
-    } else if (isPagePanel) {
-      onOpenPage?.(occId);
-    } else {
-      if (!view?.id) return;
-      CommitHelpers.updateView({ dispatch, socket, view: { ...view, activeOccurrenceId: occId, scrollAnchor: null } });
+    const targetView = activePageView || view;
+    if (targetView?.id) {
+      CommitHelpers.updateView({ dispatch, socket, view: { ...targetView, activeOccurrenceId: occId, scrollAnchor: null }, emit: true });
+    } else if (onOpenPage) {
+      onOpenPage(occId);
     }
-  }, [isPagePanel, activePageView, onOpenPage, view, dispatch, socket]);
+  }, [activePageView, view, onOpenPage, dispatch, socket]);
 
   // Clicking an anchor chip → keep parent doc open, scroll to heading
-  const handleScrollTo = useCallback((parentOccId, headingText) => {
+  const handleScrollTo = useCallback((parentOccId, anchorOccId) => {
     const targetView = activePageView || view;
-    if (!targetView?.id) return;
-    CommitHelpers.updateView({ dispatch, socket, view: { ...targetView, activeOccurrenceId: parentOccId, scrollAnchor: headingText } });
-  }, [activePageView, view, dispatch, socket]);
+    const pageAlreadyOpen = targetView?.activeOccurrenceId === parentOccId;
+
+    if (targetView?.id) {
+      if (pageAlreadyOpen && anchorOccId) {
+        // Page already open — scroll directly via getBoundingClientRect (works for nested containers)
+        const el = document.querySelector(`[data-occ-id="${anchorOccId}"]`);
+        if (el) {
+          const sc = el.closest(".artifact-markdown");
+          if (sc) {
+            sc.scrollTo({ top: sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top, behavior: "smooth" });
+          } else {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+          el.classList.remove("anchor-highlight");
+          void el.offsetWidth;
+          el.classList.add("anchor-highlight");
+          setTimeout(() => el.classList.remove("anchor-highlight"), 1200);
+        }
+        CommitHelpers.updateView({ dispatch, socket, view: { ...targetView, scrollAnchor: anchorOccId }, emit: false });
+      } else {
+        CommitHelpers.updateView({ dispatch, socket, view: { ...targetView, activeOccurrenceId: parentOccId, scrollAnchor: anchorOccId }, emit: true });
+      }
+    } else if (onOpenPage) {
+      onOpenPage(parentOccId);
+    }
+  }, [activePageView, view, dispatch, socket, onOpenPage]);
 
   // Set a doc as the default landing page for this tree panel
   const handleSetDefault = useCallback((occId) => {
@@ -582,11 +661,13 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
   const localPageOccs = useMemo(() => {
     if (!isPagePanel) return [];
     return (panelOccurrence.occurrences || [])
-      .filter(id => {
-        const occ = occurrencesById?.[id];
+      .map(id => occurrencesById?.[id])
+      .filter(occ => {
         const mod = occ ? modulesById?.[occ.targetId] : null;
-        return mod?.role === "page";
-      });
+        return occ && mod?.role === "page";
+      })
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map(occ => occ.id);
   }, [isPagePanel, panelOccurrence?.occurrences, occurrencesById, modulesById]);
 
   // Touch drag to open/close sidebar
@@ -609,7 +690,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
   return (
     <div
       style={{
-        width: collapsed ? 24 : "170px",
+        width: collapsed ? 24 : "220px",
         height: "100%",
         borderRight: "1px solid var(--border-default)",
         background: "var(--surface-card)",
@@ -637,49 +718,55 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
           {/* Header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 4px 3px 6px", flexShrink: 0, borderBottom: "1px solid var(--border-default)" }}>
             <span style={{ fontSize: 12, color: "var(--text-faint)", letterSpacing: "0.05em", textTransform: "uppercase", flex: 1 }}>
-              {isPagePanel ? "Pages" : (manifest?.name || "Files")}
+              {isPagePanel ? "Local" : (manifest?.name || "Files")}
             </span>
-            {isPagePanel && (
-              <div style={{ flexShrink: 0, position: "relative" }}>
-                <RadialMenu
-                  handleIcon={Plus}
-                  forceDirection="down"
-                  items={[
+            <div style={{ flexShrink: 0, position: "relative" }}>
+              <RadialMenu
+                handleIcon={Plus}
+                forceDirection="down"
+                items={[
+                  ...(isPagePanel ? [
                     { label: "Board page", icon: Layout, onClick: () => handleCreatePage("board") },
                     { label: "Doc page", icon: FileText, onClick: () => handleCreatePage("doc") },
                     { label: "Canvas page", icon: Paintbrush, onClick: () => handleCreatePage("canvas") },
-                    { label: "Folder", icon: FolderPlus, onClick: handleCreateFolder },
-                  ]}
-                />
-              </div>
-            )}
-            <button
-              onClick={onToggleCollapse}
-              title="Collapse sidebar"
-              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: "2px 2px", borderRadius: 4, display: "flex", alignItems: "center", flexShrink: 0 }}
-            >
-              <ChevronRight size={12} style={{ transform: "rotate(180deg)" }} />
-            </button>
+                    { label: "Folder page", icon: Folder, onClick: () => handleCreatePage("folder") },
+                    { label: "New folder", icon: FolderPlus, onClick: handleCreateFolder },
+                  ] : []),
+                  { label: "Close", icon: X, onClick: onToggleCollapse },
+                ]}
+              />
+            </div>
           </div>
 
           {/* Tree content */}
           <div style={{ flex: 1, overflowY: "auto", padding: "1px 0 4px" }}>
             {isPagePanel ? (
-              /* Local tree — only panel pages + anchors, no root folder tree */
-              localPageOccs.length > 0 ? (
-                localPageOccs.map(pageOccId => (
-                  <PageTreeNode
-                    key={pageOccId}
-                    pageOccId={pageOccId}
-                    activeOccId={view?.activeOccurrenceId}
-                    onOpenPage={onOpenPage}
-                    occurrencesById={occurrencesById}
-                    modulesById={modulesById}
-                  />
-                ))
-              ) : (
-                <div style={{ fontSize: 11, color: "var(--text-faint)", padding: "8px" }}>No pages</div>
-              )
+              /* Local tree — virtual "Local" root folder + panel pages (right-indented) */
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, padding: "3px 8px 3px 4px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <span style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em" }}>local</span>
+                  <Folder size={9} style={{ color: "var(--text-faint)", opacity: 0.5 }} />
+                </div>
+                {localPageOccs.length > 0 ? (
+                  localPageOccs.map(pageOccId => (
+                    <PageTreeNode
+                      key={pageOccId}
+                      pageOccId={pageOccId}
+                      activeOccId={view?.activeOccurrenceId}
+                      activeOccurrenceId={view?.activeOccurrenceId}
+                      onOpenPage={onOpenPage}
+                      occurrencesById={occurrencesById}
+                      modulesById={modulesById}
+                      childrenByParentId={childrenByParentId}
+                      onSelect={handleSelect}
+                      onScrollTo={handleScrollTo}
+                      reverseIndent={true}
+                    />
+                  ))
+                ) : (
+                  <div style={{ fontSize: 11, color: "var(--text-faint)", padding: "8px", textAlign: "right" }}>No pages</div>
+                )}
+              </div>
             ) : (
               /* Root tree — folder hierarchy */
               (!manifest || !rootFolder) ? (
@@ -698,7 +785,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                   onSetDefault={handleSetDefault}
                   defaultOccurrenceId={view?.defaultOccurrenceId}
                   onOpenPage={onOpenPage}
-                  showAnchors={false}
+                  showAnchors={true}
                 />
               )
             )}

@@ -82,11 +82,16 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
   const suppressAutoSyncRef = useRef(false);
   useEffect(() => {
     if (!view?.scrollAnchor) return;
-    const target = scrollRef.current?.querySelector(`[data-occ-id="${view.scrollAnchor}"]`);
-    if (target) {
+    const container = scrollRef.current;
+    const target = container?.querySelector(`[data-occ-id="${view.scrollAnchor}"]`);
+    if (target && container) {
       suppressAutoSyncRef.current = true;
-      target.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      container.scrollTo({ top: container.scrollTop + target.getBoundingClientRect().top - container.getBoundingClientRect().top, behavior: "smooth" });
       setTimeout(() => { suppressAutoSyncRef.current = false; }, 600);
+      target.classList.remove("anchor-highlight");
+      void target.offsetWidth;
+      target.classList.add("anchor-highlight");
+      setTimeout(() => target.classList.remove("anchor-highlight"), 1200);
     }
   }, [view?.scrollAnchor]);
 

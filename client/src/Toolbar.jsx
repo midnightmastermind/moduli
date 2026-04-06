@@ -422,7 +422,7 @@ export default function Toolbar({
                 style={{
                   display: "flex", alignItems: "center", gap: 8, padding: "6px 4px",
                   background: "none", border: "none", color: "var(--text-primary)", cursor: "pointer",
-                  fontSize: 12, fontFamily: "var(--font-mono)", color: "#f87171",
+                  fontSize: 12, fontFamily: "var(--font-mono)",
                 }}
               >
                 <LogOut size={14} />

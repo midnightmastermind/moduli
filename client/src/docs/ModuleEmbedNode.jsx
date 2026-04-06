@@ -25,7 +25,7 @@ function alignStyle(align, width) {
   }
 }
 
-export default function ModuleEmbedNode({ node, updateAttributes, selected }) {
+export default function ModuleEmbedNode({ node, updateAttributes, selected, editor, getPos, deleteNode }) {
   const { occurrencesById, modulesById, viewsById, dispatch, socket } = useContext(GridActionsContext) || {};
   const occurrenceId = node.attrs.occurrenceId;
   const align = node.attrs.align || "full";
@@ -113,6 +113,40 @@ export default function ModuleEmbedNode({ node, updateAttributes, selected }) {
                 ×w
               </button>
             )}
+            <div style={{ width: 1, height: 14, background: "var(--border-default)", margin: "0 2px" }} />
+            <button
+              title="Convert to inline pill"
+              onClick={() => {
+                if (!editor || !getPos || !mod) return;
+                const pos = getPos();
+                const nodeSize = node.nodeSize;
+                editor.chain().focus()
+                  .deleteRange({ from: pos, to: pos + nodeSize })
+                  .insertContentAt(pos, {
+                    type: "instancePill",
+                    attrs: { instanceId: mod.id, instanceLabel: mod.label || "Item", occurrenceId },
+                  })
+                  .run();
+              }}
+              style={{
+                background: "transparent", border: "1px solid transparent",
+                borderRadius: 3, color: "var(--text-primary)", cursor: "pointer",
+                fontSize: 9, padding: "1px 5px",
+              }}
+            >
+              Pill
+            </button>
+            <button
+              title="Remove embed"
+              onClick={() => deleteNode?.()}
+              style={{
+                background: "transparent", border: "1px solid transparent",
+                borderRadius: 3, color: "rgba(252,129,129,0.9)", cursor: "pointer",
+                fontSize: 9, padding: "1px 5px",
+              }}
+            >
+              ×
+            </button>
           </div>
         )}
 

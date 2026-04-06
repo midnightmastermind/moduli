@@ -469,15 +469,23 @@ export function DragProvider({
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = 0;
 
-      const { panelId, containerId, instanceId } = getHoveredIds(clientX, clientY);
+      const { panelId, containerId: rawContainerId, instanceId } = getHoveredIds(clientX, clientY);
       const cell = getCellFromPoint(clientX, clientY);
 
+      // Sticky container highlight — when cursor passes over gaps/margins within
+      // the same panel, keep the previous containerId to prevent flicker
       const last = lastHotRef.current;
-      if (last.panelId !== panelId || last.containerId !== containerId || last.instanceId !== instanceId) {
-        lastHotRef.current = { panelId, containerId, instanceId };
-        // Highlight containers during instance/module/external drags
+      const containerId = (!rawContainerId && panelId && panelId === last.panelId)
+        ? last.containerId
+        : rawContainerId;
+
+      // Update highlight only when containerId changes (not instanceId — avoids flicker)
+      if (last.containerId !== containerId) {
         const shouldHL = s.payload?.type !== DragType.PANEL;
         setDropHighlight(shouldHL ? (containerId || null) : null);
+      }
+      if (last.panelId !== panelId || last.containerId !== containerId || last.instanceId !== instanceId) {
+        lastHotRef.current = { panelId, containerId, instanceId };
       }
 
       if (s.payload?.type === DragType.PANEL) {
@@ -868,6 +876,37 @@ export function DragProvider({
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [clearSession]);
+
+  // Native file drop fallback — catches OS file drops that Pragmatic DnD might miss
+  useEffect(() => {
+    const gridFrame = document.querySelector(".grid-frame");
+    if (!gridFrame) return;
+    const onDragOver = (e) => {
+      if (e.dataTransfer?.types?.includes("Files")) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }
+    };
+    const onDrop = (e) => {
+      if (!e.dataTransfer?.files?.length) return;
+      e.preventDefault();
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length === 0) return;
+      const payload = { type: DragType.FILE, id: "__file__", data: { files, name: files[0]?.name } };
+      const x = e.clientX, y = e.clientY;
+      const panelId = getHoveredPanelId();
+      const containerId = getHoveredContainerId();
+      const ctx = { dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, clearSession, sessionRef, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId };
+      const drop = { payload, dropTarget: {}, panelId, containerId, instanceId: null, x, y, getCellFromPoint };
+      handleFileDrop(ctx, drop);
+    };
+    gridFrame.addEventListener("dragover", onDragOver);
+    gridFrame.addEventListener("drop", onDrop);
+    return () => {
+      gridFrame.removeEventListener("dragover", onDragOver);
+      gridFrame.removeEventListener("drop", onDrop);
+    };
+  }, [dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, clearSession, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId]);
 
   // Clean up edge barriers on unmount
   useEffect(() => removeEdgeBarriers, [removeEdgeBarriers]);

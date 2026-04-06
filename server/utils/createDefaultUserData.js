@@ -98,14 +98,12 @@ export async function createDefaultUserData(userId) {
   const schedPageOccId = uid();
 
   // Sub-folder IDs for the user manifest (organize pages into folders)
-  const docsFolderId_um = uid();   // "Docs" folder (was Notebook)
   const dayPagesFolderId = uid();
   const trackingFolderId = uid();  // "Trackers" folder (was Tracking)
   const drawingFolderId = uid();   // "Drawing" folder (new, replaces Tasks)
 
   await new Folder({ id: userManifestRootFolderId, userId, parentId: null, name: "Root", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
-  await new Folder({ id: docsFolderId_um, userId, parentId: userManifestRootFolderId, name: "Docs", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
-  await new Folder({ id: dayPagesFolderId, userId, parentId: docsFolderId_um, name: "Day Pages", folderType: "day-pages", sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: dayPagesFolderId, userId, parentId: userManifestRootFolderId, name: "Day Pages", folderType: "day-pages", sortOrder: 0, isExpanded: true }).save();
   await new Folder({ id: trackingFolderId, userId, parentId: userManifestRootFolderId, name: "Trackers", folderType: "normal", sortOrder: 1, isExpanded: false }).save();
   await new Folder({ id: drawingFolderId, userId, parentId: userManifestRootFolderId, name: "Drawing", folderType: "normal", sortOrder: 2, isExpanded: false }).save();
   await new Manifest({ id: userManifestId, userId, name: "Pages", manifestType: "user", rootFolderId: userManifestRootFolderId }).save();
@@ -860,6 +858,17 @@ export async function createDefaultUserData(userId) {
         ],
         multiple: false,
       },
+      displayConfig: {},
+    },
+
+    // Day Date — date field on day page occurrences; the operation queries this to find today's page
+    dayDate: {
+      id: uid(),
+      name: "Day Date",
+      type: "date",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: {},
       displayConfig: {},
     },
   };
@@ -2895,11 +2904,12 @@ export async function createDefaultUserData(userId) {
     ],
   };
 
-  // Pre-generate manifest folder IDs (used in notebook wiring below + saved in STEP 6)
-  const rootFolderIdForManifest = uid();
-  const dayPagesFolderIdForManifest = uid();
-  const docsFolderIdForManifest = uid();   // Documents folder (Stan, Gospel, profile docs)
-  const notesFolderIdForManifest = uid(); // Notes folder holds multiple docs (at root level)
+  // Reuse user manifest folder IDs — one unified tree, not two separate manifests.
+  // "Documents" and "Notes" are new subfolders under the user manifest root.
+  const rootFolderIdForManifest = userManifestRootFolderId;
+  const dayPagesFolderIdForManifest = dayPagesFolderId; // reuse existing Day Pages folder under Docs
+  const docsFolderIdForManifest = uid();   // Documents folder (Stan, Gospel, profile docs) — created in STEP 6
+  const notesFolderIdForManifest = uid(); // Notes folder holds multiple docs — created in STEP 6
   // Pre-generate dayPageDocOccId so journal Q&A containers can use it as parentId
   const dayPageDocOccId = uid();
   // Parent doc IDs: Stan + Gospel + Philosopher's Stone (Notes merged into Philosophers Stone)
@@ -2944,7 +2954,7 @@ export async function createDefaultUserData(userId) {
   });
 
   // Parent docs in Literature folder: Stan + Gospel
-  await new Module({ id: stanParentModId, userId, gridId, role: "container", kind: "artifact", label: "Stan \u2014 Eminem", ownStyle: { bg: "#0d7a4a" }, styleMode: "own" }).save();
+  await new Module({ id: stanParentModId, userId, gridId, role: "page", kind: "doc", label: "Stan \u2014 Eminem", ownStyle: { bg: "#0d7a4a" }, styleMode: "own" }).save();
   await new Occurrence({
     id: stanParentOccId, userId, gridId, targetId: stanParentModId, targetType: "module",
     parentId: docsFolderIdForManifest, sortOrder: 0, iteration: { mode: "persistent" },
@@ -2952,7 +2962,7 @@ export async function createDefaultUserData(userId) {
   }).save();
 
   const gospelEmbedOccIds = gospelSectionData.flatMap(d => d.whyOccId ? [d.mainOccId, d.whyOccId] : [d.mainOccId]);
-  await new Module({ id: gospelParentModId, userId, gridId, role: "container", kind: "artifact", label: "Gospel of Thomas", ownStyle: { bg: "#5c1fa0" }, styleMode: "own" }).save();
+  await new Module({ id: gospelParentModId, userId, gridId, role: "page", kind: "doc", label: "Gospel of Thomas", ownStyle: { bg: "#5c1fa0" }, styleMode: "own" }).save();
   await new Occurrence({
     id: gospelParentOccId, userId, gridId, targetId: gospelParentModId, targetType: "module",
     parentId: docsFolderIdForManifest, sortOrder: 1, iteration: { mode: "persistent" },
@@ -2960,7 +2970,7 @@ export async function createDefaultUserData(userId) {
   }).save();
 
   // Philosopher's Stone — ONE parent doc for ALL notes sections (morenotes + philosopherstone)
-  await new Module({ id: philParentModId, userId, gridId, role: "container", kind: "artifact", label: "Philosopher\u2019s Stone", ownStyle: { bg: "#9a7000" }, styleMode: "own" }).save();
+  await new Module({ id: philParentModId, userId, gridId, role: "page", kind: "doc", label: "Philosopher\u2019s Stone", ownStyle: { bg: "#9a7000" }, styleMode: "own" }).save();
   await new Occurrence({
     id: philParentOccId, userId, gridId, targetId: philParentModId, targetType: "module",
     parentId: notesFolderIdForManifest, sortOrder: 0, iteration: { mode: "persistent" },
@@ -2971,7 +2981,7 @@ export async function createDefaultUserData(userId) {
   for (const [fi, def] of _flatNotesDefs.entries()) {
     const { modId, occId } = flatNotesParentIds[fi];
     const sectionOccIds = flatNotesSectionOccIds[fi];
-    await new Module({ id: modId, userId, gridId, role: "container", kind: "artifact", label: def.label, ownStyle: { bg: def.bg }, styleMode: "own" }).save();
+    await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: def.label, ownStyle: { bg: def.bg }, styleMode: "own" }).save();
     await new Occurrence({
       id: occId, userId, gridId, targetId: modId, targetType: "module",
       parentId: notesFolderIdForManifest, sortOrder: 1 + fi, iteration: { mode: "persistent" },
@@ -3190,7 +3200,7 @@ export async function createDefaultUserData(userId) {
   }
 
   const compRelModId = uid();
-  await new Module({ id: compRelModId, userId, gridId, role: "container", kind: "artifact", label: "Comparative Religion", ownStyle: { bg: "#3a58d0" }, styleMode: "own" }).save();
+  await new Module({ id: compRelModId, userId, gridId, role: "page", kind: "doc", label: "Comparative Religion", ownStyle: { bg: "#3a58d0" }, styleMode: "own" }).save();
   await new Occurrence({
     id: uid(), userId, gridId, targetId: compRelModId, targetType: "module",
     parentId: notesFolderIdForManifest, sortOrder: 5, iteration: { mode: "persistent" },
@@ -3226,7 +3236,7 @@ export async function createDefaultUserData(userId) {
       { type: "paragraph" },
     ],
   };
-  await new Module({ id: sampleGridModId, userId, gridId, role: "container", kind: "artifact", label: "Sample Grid", ownStyle: { bg: "#2a5050" }, styleMode: "own" }).save();
+  await new Module({ id: sampleGridModId, userId, gridId, role: "page", kind: "doc", label: "Sample Grid", ownStyle: { bg: "#2a5050" }, styleMode: "own" }).save();
   await new Occurrence({
     id: sampleGridOccId, userId, gridId, targetId: sampleGridModId, targetType: "module",
     parentId: notesFolderIdForManifest, sortOrder: 8, iteration: { mode: "persistent" },
@@ -3234,7 +3244,7 @@ export async function createDefaultUserData(userId) {
   }).save();
 
   const gospelTextModId = uid();
-  await new Module({ id: gospelTextModId, userId, gridId, role: "container", kind: "artifact", label: "Gospel of Thomas (Text)", ownStyle: { bg: "#189070" }, styleMode: "own" }).save();
+  await new Module({ id: gospelTextModId, userId, gridId, role: "page", kind: "doc", label: "Gospel of Thomas (Text)", ownStyle: { bg: "#189070" }, styleMode: "own" }).save();
   await new Occurrence({
     id: uid(), userId, gridId, targetId: gospelTextModId, targetType: "module",
     parentId: notesFolderIdForManifest, sortOrder: 6, iteration: { mode: "persistent" },
@@ -3276,6 +3286,7 @@ export async function createDefaultUserData(userId) {
     // Main section container
     await new Occurrence({
       id: gd.mainOccId, userId, targetType: "module", targetId: container.id, gridId,
+      viewId: container._viewId || null,
       parentId: gospelParentOccId,
       sortOrder: gospelEmbedSortOrder++,
       iteration: { mode: "persistent" },
@@ -3294,6 +3305,7 @@ export async function createDefaultUserData(userId) {
           .filter(n => n.type !== "paragraph" || n.content?.some(c => c.text?.trim()));
         await new Occurrence({
           id: gd.whyOccId, userId, targetType: "module", targetId: whyContainer.id, gridId,
+          viewId: whyContainer._viewId || null,
           parentId: gospelParentOccId,
           sortOrder: gospelEmbedSortOrder++,
           iteration: { mode: "persistent" },
@@ -3313,25 +3325,46 @@ export async function createDefaultUserData(userId) {
   // STEP 6: Create Manifest, Folders, Docs, and View for Day Page panel
   // ===================================================================
 
-  // Root folder for this grid's file tree (IDs pre-generated before STEP 5)
-  const rootFolderId = rootFolderIdForManifest;
-  await new Folder({ id: rootFolderId, userId, parentId: null, name: "Root", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
+  // Unified tree — root folder is the user manifest root (created in STEP 0).
+  // No separate "files" root folder — everything lives under the user manifest.
+  const rootFolderId = rootFolderIdForManifest; // = userManifestRootFolderId
 
   // Category folders (for field/operation organization in CommandCenter)
   await new Folder({ id: fitnessFolderId, userId, parentId: null, name: "Fitness", folderType: "category", sortOrder: 0, isExpanded: true }).save();
   await new Folder({ id: nutritionFolderId, userId, parentId: null, name: "Nutrition", folderType: "category", sortOrder: 1, isExpanded: true }).save();
 
-  // Day Pages folder (files manifest — stores day page doc artifacts)
+  // Day Pages folder — reuses dayPagesFolderId (already under Docs from STEP 0)
   const filesDayPagesFolderId = dayPagesFolderIdForManifest;
-  await new Folder({ id: filesDayPagesFolderId, userId, parentId: rootFolderId, name: "Day Pages", folderType: "day-pages", sortOrder: 0, isExpanded: true }).save();
 
-  // Documents folder (Stan, Gospel, profile docs)
+  // Documents folder (Stan, Gospel, profile docs) — new subfolder under user manifest root
   const docsFolderId = docsFolderIdForManifest;
-  await new Folder({ id: docsFolderId, userId, parentId: rootFolderId, name: "Documents", folderType: "normal", sortOrder: 1, isExpanded: true }).save();
+  await new Folder({ id: docsFolderId, userId, parentId: rootFolderId, name: "Documents", folderType: "normal", sortOrder: 3, isExpanded: true }).save();
 
   // Notes folder at root level (Philosopher's Stone + flat notes)
   const notesFolderId = notesFolderIdForManifest;
-  await new Folder({ id: notesFolderId, userId, parentId: rootFolderId, name: "Notes", folderType: "normal", sortOrder: 2, isExpanded: true }).save();
+  await new Folder({ id: notesFolderId, userId, parentId: rootFolderId, name: "Notes", folderType: "normal", sortOrder: 4, isExpanded: true }).save();
+
+  // Folder page modules — one for each non-root folder so clicking a folder in the tree opens a page
+  const folderPageDefs = [
+    { folderId: rootFolderId, name: "Root" },
+    { folderId: dayPagesFolderId, name: "Day Pages" },
+    { folderId: docsFolderId, name: "Documents" },
+    { folderId: notesFolderId, name: "Notes" },
+    { folderId: trackingFolderId, name: "Trackers" },
+    { folderId: drawingFolderId, name: "Drawing" },
+  ];
+  for (const fpDef of folderPageDefs) {
+    const fpModId = uid();
+    await new Module({ id: fpModId, userId, gridId, role: "page", kind: "folder", label: fpDef.name }).save();
+    await new Occurrence({
+      id: uid(), userId, gridId,
+      targetId: fpModId, targetType: "module",
+      parentId: fpDef.folderId,
+      sortOrder: -1, // before other content
+      iteration: { mode: "persistent" },
+      fields: {}, meta: {},
+    }).save();
+  }
 
   // Welcome artifact module + occurrence (replaces legacy Doc model)
   const welcomeModuleId = uid();
@@ -3359,63 +3392,75 @@ export async function createDefaultUserData(userId) {
     textmap: welcomeTextmap,
   }).save();
 
-  // Past day-page artifact modules + occurrences (3 days: yesterday, 2 days ago, 3 days ago)
-  // Today's day page is NOT pre-created — the Day Page Auto-Create operation handles it on first load.
-  const pastDayPageOccIds = [];
-  for (let daysBack = 3; daysBack >= 1; daysBack--) {
-    const pastDate = daysAgo(daysBack);
-    const pastDateFmt = pastDate.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-    const pastModuleId = uid();
-    const pastLabel = `daypage ${pastDate.toISOString().slice(0, 10)}`;
-    await new Module({
-      id: pastModuleId, userId, gridId,
-      role: "container", kind: "artifact",
-      label: pastLabel,
-      meta: { folderId: filesDayPagesFolderId, dayPage: true },
-    }).save();
+  // ── DAY PAGE TEMPLATE MODULE (one module, reused for all day pages) ──────────────────
+  // All day pages are OCCURRENCES of this single module.
+  // The operation finds them by targetId + dayDate field value matching the active date.
+  const dayPageTemplateModuleId = uid();
+  await new Module({
+    id: dayPageTemplateModuleId, userId, gridId,
+    role: "page", kind: "doc",
+    label: "Day Page",
+    fieldBindings: [{ fieldId: fields.dayDate.id }],
+    meta: { folderId: filesDayPagesFolderId, isDayPageTemplate: true },
+  }).save();
 
-    // Yesterday (daysBack=1) gets the full sampleJournalContent with Q&A embeds
-    // Older days get simplified content
-    const isYesterday = daysBack === 1;
-    const pastOccId = isYesterday ? dayPageDocOccId : uid();
-    const pastTextmap = isYesterday ? sampleJournalContent : {
-      type: "doc",
-      content: [
-        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: pastDateFmt }] },
-        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Daily Log" }] },
-        { type: "bulletList", content: [
-          { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Completed morning workout — 30 min run" }] }] },
-          { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Read for 25 minutes" }] }] },
-          { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Meditation — 10 min guided session" }] }] },
-        ]},
-        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Brain Dump" }] },
-        { type: "paragraph", content: [{ type: "text", marks: [{ type: "italic" }], text: "Thoughts from the day..." }] },
-        { type: "paragraph" },
-      ],
-    };
+  // ── TEMPLATE OCCURRENCE — the archetype used by COMPUTE_TEXTMAP_FROM_TEMPLATE ──
+  // NOT shown as a real page (meta.isTemplate skips it in FIND_OCCURRENCE queries).
+  // Contains [Date] and [DayOfWeek] tokens that get substituted when filling new pages.
+  const dayPageTemplateOccId = uid();
+  const templateTextmap = {
+    type: "doc",
+    content: [
+      { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "[Date]" }] },
+      { type: "paragraph", content: [
+        { type: "text", marks: [{ type: "italic" }], text: "Daily Question: " },
+        fp(fields.journalQuestion.id, "Daily Question", "derived"),
+      ]},
+      { type: "paragraph" },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Morning Intentions" }] },
+      { type: "paragraph", content: [
+        { type: "text", text: "Today I want to focus on: " },
+        { type: "text", marks: [{ type: "italic" }], text: "(what matters most today?)" },
+      ]},
+      { type: "bulletList", content: [
+        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Complete morning workout and stretching" }] }] },
+        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Review weekly goals and prioritize top 3 tasks" }] }] },
+        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Deep work session (2h uninterrupted) before lunch" }] }] },
+        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Evening reading + wind-down routine" }] }] },
+      ]},
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Daily Log" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Drag activities here as you complete them:" }] },
+      { type: "paragraph" },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Evening Reflection" }] },
+      { type: "paragraph", content: [{ type: "text", text: "What went well? What would you do differently?" }] },
+    ],
+  };
+  await new Occurrence({
+    id: dayPageTemplateOccId, userId, gridId,
+    targetId: dayPageTemplateModuleId, targetType: "module",
+    parentId: filesDayPagesFolderId,
+    sortOrder: 999,
+    iteration: { mode: "persistent" },
+    meta: { isTemplate: true },
+    textmap: templateTextmap,
+  }).save();
 
-    await new Occurrence({
-      id: pastOccId, userId, gridId,
-      targetId: pastModuleId, targetType: "module",
-      parentId: filesDayPagesFolderId,
-      sortOrder: daysBack,
-      iteration: { mode: "specific", timeValue: pastDate.toISOString(), timeFilter: "daily" },
-      textmap: pastTextmap,
-    }).save();
-    pastDayPageOccIds.push(pastOccId);
-  }
-  // dayPageDocOccId = yesterday's occurrence (has Q&A embeds as children)
+  // ── YESTERDAY'S DAY PAGE — pre-seeded with full journal content ───────────────────
+  const yesterdayDate = daysAgo(1);
+  const dayPageLabel = yesterdayDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  await new Occurrence({
+    id: dayPageDocOccId, userId, gridId,
+    targetId: dayPageTemplateModuleId, targetType: "module",
+    parentId: filesDayPagesFolderId,
+    sortOrder: 0,
+    iteration: { mode: "specific", timeValue: yesterdayDate.toISOString(), timeFilter: "daily" },
+    fields: { [fields.dayDate.id]: { value: yesterdayDate.toISOString(), flow: "in" } },
+    textmap: sampleJournalContent,
+  }).save();
 
   // Manifest — root tree for this grid
-  const manifestId = uid();
-  const manifest = new Manifest({
-    id: manifestId,
-    userId,
-    name: "Files",
-    manifestType: "files",
-    rootFolderId,
-  });
-  await manifest.save();
+  // Reuse the user manifest — unified tree for all content
+  const manifestId = userManifestId;
 
   // View for the Day Page (Notebook page) — artifact view with tree sidebar
   const dayPageViewId = uid();
@@ -3449,34 +3494,74 @@ export async function createDefaultUserData(userId) {
   // Dynamic page creation via generic pipeline actions (no hardcoded day page logic).
   // Triggers on load + navigation. Checks if a module with today's page name exists,
   // creates it if not, and updates the view to show it.
+  // ── Day Page Auto-Create Operation ───────────────────────────────────────────────────
+  // Lego pipeline: each step does exactly one thing.
+  //   1. Find occurrence of dayPageTemplateModule where dayDate field = active date
+  //   2. If missing: compute filled textmap from template, then create the occurrence
+  //   3. Update the centerHub view to show the found/created day page
+  // Template occurrence (dayPageTemplateOccId) is skipped in FIND_OCCURRENCE because meta.isTemplate=true.
   const dayPageAutoCreateOp = new Operation({
     id: uid(), userId, gridId,
     name: "Day Page Auto-Create",
-    description: "On load/navigation, find or create a day page for the active date and show it in the notebook panel",
+    description: "Find or create today's day page. Lego pipeline: FIND → IF missing: COMPUTE_TEXTMAP + CREATE → UPDATE_VIEW.",
     triggerType: "onNavigation",
-    triggerTypes: ["onNavigation", "onLoad"],
+    triggerTypes: ["onNavigation"],
     triggerConfig: {},
     enabled: true,
     pipeline: {
       sources: [{ type: "grid" }],
       steps: [
-        // Build the page name using activeDate from iteration/filter system
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$pageName", expr: "daypage ${$activeDate}" } },
-        // Check if a module with that name already exists
-        { id: uid(), type: "action", config: { type: "FIND_MODULE", nameExpr: "$pageName", resultVar: "$existingModule", resultIdVar: "$existingModuleId" } },
-        // If not found → create module + occurrence; if found → find its occurrence
+        // Step 1 — find existing day page occurrence for the active date
+        {
+          id: uid(), type: "action",
+          config: {
+            type: "FIND_OCCURRENCE",
+            targetIdExpr: `literal:${dayPageTemplateModuleId}`,
+            dateFieldId: fields.dayDate.id,
+            dateExpr: "$activeDate",
+            resultVar: "$dayPage",
+            resultIdVar: "$dayPageId",
+          },
+        },
+        // Step 2 — if not found, build the page from template and create it
         {
           id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ left: "$existingModule", comparator: "IS_EMPTY" }] },
+          condition: { operator: "AND", rules: [{ left: "$dayPageId", comparator: "IS_EMPTY" }] },
           then: [
-            { id: uid(), type: "action", config: { type: "CREATE_MODULE", nameExpr: "$pageName", role: "container", kind: "doc", parentId: dayPagesFolderIdForManifest } },
+            // 2a: Clone template textmap, substituting [Date] and [DayOfWeek] tokens
+            {
+              id: uid(), type: "action",
+              config: {
+                type: "COMPUTE_TEXTMAP_FROM_TEMPLATE",
+                templateOccIdExpr: `literal:${dayPageTemplateOccId}`,
+                tokens: [
+                  { token: "[Date]",      valueExpr: "$activeDateLabel" },
+                  { token: "[DayOfWeek]", valueExpr: "$activeDayOfWeek" },
+                ],
+                resultVar: "$dayPageTextmap",
+              },
+            },
+            // 2b: Create new occurrence with the filled textmap and today's date field
+            {
+              id: uid(), type: "action",
+              config: {
+                type: "CREATE_OCCURRENCE_FOR_MODULE",
+                moduleIdExpr: `literal:${dayPageTemplateModuleId}`,
+                dateFieldId: fields.dayDate.id,
+                dateExpr: "$activeDate",
+                textmapVar: "$dayPageTextmap",
+                parentId: dayPagesFolderIdForManifest,
+                resultIdVar: "$dayPageId",
+              },
+            },
           ],
-          else: [
-            { id: uid(), type: "action", config: { type: "FIND_OCCURRENCE", targetIdExpr: "$existingModuleId", resultIdVar: "$lastCreatedOccurrenceId" } },
-          ],
+          else: [],
         },
-        // Always update the view to show the right page
-        { id: uid(), type: "action", config: { type: "UPDATE_VIEW", viewId: dayPageViewId, activeOccurrenceId: "$lastCreatedOccurrenceId" } },
+        // Step 3 — show the found/created page in the centerHub view
+        {
+          id: uid(), type: "action",
+          config: { type: "UPDATE_VIEW", viewId: dayPageViewId, activeOccurrenceId: "$dayPageId" },
+        },
       ],
     },
   });
@@ -4092,10 +4177,13 @@ export async function createDefaultUserData(userId) {
   const freepadViewId = uid();
   await new View({ id: freepadViewId, userId, gridId, viewType: "canvas", hasTree: true, manifestId: freepadManifestId, activeOccurrenceId: freepadFirstPageOccId, layout: {} }).save();
 
-  // Create page modules for centerHub: Schedule + Freepad
-  // Notebook is now a FOLDER in root tree, not a page.
+  // Create page modules for centerHub: Schedule + Journal (day page viewer) + Freepad
   const schedPageMod = new Module({ id: uid(), userId, gridId, role: "page", kind: "board", label: "Schedule" });
   await schedPageMod.save();
+  // Journal: stable tab whose content is controlled by dayPageViewId.activeOccurrenceId.
+  // The operation updates this view when navigating dates — which doc to show changes, the tab stays.
+  const journalPageMod = new Module({ id: uid(), userId, gridId, role: "page", kind: "doc", label: "Day Page" });
+  await journalPageMod.save();
   const freepadPageMod = new Module({ id: uid(), userId, gridId, role: "page", kind: "canvas", label: "Freepad" });
   await freepadPageMod.save();
 
@@ -4106,6 +4194,20 @@ export async function createDefaultUserData(userId) {
     parentId: trackingFolderId,
     sortOrder: 0,
     occurrences: scheduleOccIds,
+    iteration: { mode: "persistent" },
+    fields: {}, meta: {},
+  }).save();
+
+  // Journal page occurrence — stable panel tab with viewId → dayPageView (hasTree:true)
+  // parentId: null — this is a panel navigation tab, not a user content page. Keeps it out of the tree.
+  const journalPageOccId = uid();
+  await new Occurrence({
+    id: journalPageOccId, userId, gridId,
+    targetId: journalPageMod.id, targetType: "module",
+    parentId: null,
+    viewId: dayPageViewId,
+    sortOrder: -3, // before template (999) and yesterday's page (0)
+    occurrences: [],
     iteration: { mode: "persistent" },
     fields: {}, meta: {},
   }).save();
@@ -4123,49 +4225,16 @@ export async function createDefaultUserData(userId) {
     fields: {}, meta: {},
   }).save();
 
-  // Notebook doc containers → individual doc pages inside "Docs" folder
-  const notebookDocPageOccIds = [];
-  for (let i = 0; i < notebookPanelOccIds.length; i++) {
-    const containerOccId = notebookPanelOccIds[i];
-    // Look up the container occurrence to get its targetId (the container module)
-    const containerOcc = await Occurrence.findOne({ id: containerOccId });
-    if (!containerOcc) continue;
-    const containerMod = await Module.findOne({ id: containerOcc.targetId });
-    const pageLabel = containerMod?.label || `Doc ${i + 1}`;
-    const pageModId = uid();
-    await new Module({ id: pageModId, userId, gridId, role: "page", kind: "doc", label: pageLabel }).save();
-    const pageOccId = uid();
-    await new Occurrence({
-      id: pageOccId, userId, gridId,
-      targetId: pageModId, targetType: "module",
-      parentId: docsFolderId_um,
-      sortOrder: i,
-      occurrences: [containerOccId],
-      iteration: { mode: "persistent" },
-      fields: {}, meta: {},
-    }).save();
-    notebookDocPageOccIds.push(pageOccId);
-  }
+  // Parent docs (Stan, Gospel, Phil, flat notes) are now role:"page" kind:"doc" directly —
+  // no per-section page wrappers needed. They live in Documents/Notes folders and can be
+  // opened from the tree on demand via openPage (which pins + navigates).
 
-  // Day Page as a doc page module in centerHub, stored in Docs/DayPages/
-  const dayPagePageMod = new Module({ id: uid(), userId, gridId, role: "page", kind: "doc", label: "Day Page" });
-  await dayPagePageMod.save();
-  const dayPagePageOccId = uid();
-  await new Occurrence({
-    id: dayPagePageOccId, userId, gridId,
-    targetId: dayPagePageMod.id, targetType: "module",
-    parentId: dayPagesFolderId,
-    sortOrder: 0,
-    occurrences: pastDayPageOccIds,
-    viewId: dayPageViewId,
-    iteration: { mode: "persistent" },
-    fields: {}, meta: {},
-  }).save();
-
-  // Wire centerHub panel occurrence: Schedule + Day Page + Freepad (Schedule first = default)
+  // Wire centerHub panel occurrence: Schedule + Journal (stable day page tab) + Freepad
+  // journalPageOccId has viewId→dayPageView (hasTree:true) — the operation updates activeOccurrenceId
+  // in that view to navigate to today's day page content. dayPageDocOccId stays in the Day Pages folder.
   await Occurrence.findOneAndUpdate(
     { targetId: panels.centerHub.id, gridId },
-    { $set: { occurrences: [schedPageOccId, dayPagePageOccId, freepadPageOccId] } }
+    { $set: { occurrences: [schedPageOccId, journalPageOccId, freepadPageOccId] } }
   );
 
   // Update centerHub view to default to Schedule on first load

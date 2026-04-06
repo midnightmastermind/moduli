@@ -85,7 +85,7 @@ export const DragType = {
 
 // What each drop zone accepts
 export const DropAccepts = {
-  GRID_CELL: [DragType.PANEL, DragType.MODULE, DragType.ARTIFACT, DragType.FOLDER],
+  GRID_CELL: [DragType.PANEL, DragType.MODULE, DragType.ARTIFACT, DragType.FOLDER, DragType.FILE, DragType.EXTERNAL],
   PANEL_CONTENT: [DragType.PAGE, DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.FOLDER, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
   PAGE_CONTENT: [DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.FOLDER, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
   CONTAINER_LIST: [DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
@@ -97,12 +97,18 @@ export const DropAccepts = {
 // ============================================================
 const DragContext = createContext(null);
 
+const NOOP_DRAG_CTX = {
+  isContainerDrag: false, isInstanceDrag: false, isExternalDrag: false,
+  isPanelDrag: false, activePayload: null,
+  handleDragStart: () => {}, handleDragMove: () => {}, handleDragEnd: () => {},
+  handleDrop: () => {}, handleDragOver: () => {},
+  getStackForPanel: () => [], cyclePanelStack: () => {},
+  setDropHighlight: () => {}, clearDropHighlight: () => {},
+};
+
 export function useDragContext() {
   const ctx = useContext(DragContext);
-  if (!ctx) {
-    throw new Error("useDraggable/useDroppable must be used within DragProvider");
-  }
-  return ctx;
+  return ctx || NOOP_DRAG_CTX;
 }
 
 export { DragContext };
@@ -478,11 +484,16 @@ export function useDraggable({
         }
         return externalData;
       },
-      onGenerateDragPreview: ({ nativeSetDragImage }) => {
+      onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
         if (nativeEnabled) {
+          const rect = el.getBoundingClientRect();
+          const cursorX = location.initial.input.clientX;
+          const cursorY = location.initial.input.clientY;
+          const offsetX = Math.round(cursorX - rect.left);
+          const offsetY = Math.round(cursorY - rect.top);
           setCustomNativeDragPreview({
             nativeSetDragImage,
-            getOffset: () => ({ x: 0, y: 0 }),
+            getOffset: () => ({ x: offsetX, y: offsetY }),
             render: ({ container }) => {
               const clone = el.cloneNode(true);
               clone.style.opacity = '1';
@@ -949,11 +960,16 @@ export function useDragDrop({
           }
           return externalData;
         },
-        onGenerateDragPreview: ({ nativeSetDragImage }) => {
+        onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
           if (nativeEnabled) {
+            const rect = el.getBoundingClientRect();
+            const cursorX = location.initial.input.clientX;
+            const cursorY = location.initial.input.clientY;
+            const offsetX = Math.round(cursorX - rect.left);
+            const offsetY = Math.round(cursorY - rect.top);
             setCustomNativeDragPreview({
               nativeSetDragImage,
-              getOffset: () => ({ x: 0, y: 0 }),
+              getOffset: () => ({ x: offsetX, y: offsetY }),
               render: ({ container }) => {
                 const clone = el.cloneNode(true);
                 clone.style.opacity = '1';

@@ -1,6 +1,10 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-03-30. Check this file before re-reading source._
+_Updated: 2026-04-06. Check this file before re-reading source._
+
+## Recent Changes (Apr 6 2026 — Pill/Embed Conversion)
+- **InstancePillNode.jsx**: Added `editor` + `getPos` props (from TipTap NodeView). Added "Convert to Embed" radial menu item (`Maximize2` icon) — replaces the pill with a `moduleEmbed` block node at the same position. Added to `radialItems` array.
+- **ModuleEmbedNode.jsx**: Added `editor`, `getPos`, `deleteNode` props. When selected, toolbar now shows "Pill" button (converts embed back to `instancePill` inline node) and "×" remove button alongside alignment controls.
 
 ## Recent Changes (Mar 30 2026 — Uniform Module Rendering in Docs)
 - **ModuleEmbedNode.jsx**: Now role-aware. Renders `<ModuleInstance>` for instances, `<ArtifactContent>` for artifacts, `<Container embedded>` for containers (was container-only). Added `ModuleInstance`, `ArtifactContent` imports. Reads `viewsById` from context for artifact detection.

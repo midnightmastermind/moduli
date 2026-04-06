@@ -1,6 +1,19 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-03-23. Check this file before re-reading source._
+_Updated: 2026-04-06. Check this file before re-reading source._
+
+## Recent Changes (Apr 6 2026 — RadialMenu Linear Strip + Delete + Editor Drops)
+- **RadialMenu.jsx**: Items now render as a linear strip instead of radial arc. Direction determines line orientation (right=horizontal right, down=vertical down, etc.). Items spaced 30px apart. Removed rotary animation (wrapper no longer rotates, icons no longer counter-rotate). Added `Trash2` import, `onDelete` prop — when provided, adds red "Remove" button as last item.
+- **Editor.jsx**: Removed `pendingDrop` state and pill/embed choice popup. All module drops (instance, container, artifact) now default to `moduleEmbed` (block embed) — no popup dialog. Content sync useEffect now preserves cursor position across `setContent` calls (saves `from/to`, restores after).
+
+## Recent Changes (Apr 2 2026 — Editor Cursor Fix)
+- **Editor.jsx**: Added `useEffect` after `useEditor` initialization to call `editor.setEditable(editable, false)` when `editable` prop changes. TipTap's `useEditor` hook doesn't auto-sync `editable` after mount in some v2 versions, causing the editor to remain read-only even after the prop becomes `true`.
+
+## Recent Changes (Apr 2 2026 — Block Menu Portal + Cursor Fix)
+- **Editor.jsx**: Block handle menu now renders via `createPortal` to `document.body` at `position: fixed` using viewport coords from `getBoundingClientRect()`. Fixes menu being clipped by `overflow: auto/hidden` ancestor containers (page-shell). Added `blockMenuPortalRef` + `blockMenuPos` state. `blockHandleBtnRef` added to capture button position. `cancelBlockHide()` called on button `onMouseDown` to prevent hide timer from closing handle. Outside-click handler updated to check both `blockHandleRef` and `blockMenuPortalRef`. Import `createPortal` from `react-dom`.
+
+## Recent Changes (Apr 1 2026 — Instance Drop Pill/Embed Choice)
+- **Editor.jsx**: Instance drops into doc now show a small popup with "Pill" (inline `instancePill`) vs "Embed" (block `moduleEmbed`) choice. `pendingDrop` state stores `{ occurrenceId, insertPos, dropX, dropY, label }`. Popup appears at drop coordinates, auto-positioned relative to wrapper. Non-instance drops (container, artifact, module) still go straight to `moduleEmbed`. "Turn into instance" context menu item remains commented out.
 
 ## Recent Changes (Mar 30 2026 — Uniform Doc Drops + Remove DropReformatPopup)
 - **Editor.jsx**: Drop handler rewritten. Instance/container/artifact/module drops now insert `moduleEmbed` TipTap nodes (same component rendering everywhere). Removed `DropReformatPopup` component and `dropReformat` state entirely. Field drops still insert `fieldPill` as before. `canDrop` filter expanded to accept `"artifact"` and `"module"` types. **Fix**: `occurrenceId` resolution now checks `context?.occurrenceId || data?.occurrenceId || sd.occurrenceId` (root-level, for doc pills and tree items). CC drops with no occurrenceId fall back to finding an existing occurrence of the module via `occurrencesById`.

@@ -1,6 +1,42 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-03-29. Check this file before re-reading source._
+_Updated: 2026-04-03 (session 2). Check this file before re-reading source._
+
+## Recent Changes (Apr 3 2026 — Thumbnail Service)
+- **services/thumbnailService.js** (NEW): Puppeteer singleton. `generateThumbnail(occId, baseUrl)` screenshots `/preview-render/:occId` → caches PNG at `uploads/thumbnails/{occId}.png`. `invalidateThumbnail(occId)` deletes cached file. `SERVER_BASE_URL` defaults to `http://localhost:5000` (was 3001 — that was the bug).
+- **services/renderPreviewHTML.js** (NEW): Renders occurrence as dark-theme HTML for Puppeteer. Doc pages: TipTap JSON → HTML + fallback reads `uploads/md/{occId}.md`. Board pages: fetches child + instance occurrences → renders container cards with instance rows.
+- **server.js**: `GET /preview-render/:occId` (internal auth-free render endpoint) + `GET /api/thumbnail/:occId` (cached PNG, generates on miss). `SERVER_BASE_URL` fixed to port 5000.
+- **socketHandlers/occurrences.js**: Imports + calls `invalidateThumbnail(id)` + `invalidateThumbnail(parentId)` after update_occurrence.
+- **socketHandlers/crud.js**: Imports + calls `invalidateThumbnail` on create_occurrence (parent) + delete_occurrence (all deleted IDs + parent).
+
+## Recent Changes (Apr 3 2026 — Day Page Trigger + Journal Rename)
+- **createDefaultUserData.js:3507**: `triggerTypes: ["onNavigation", "onLoad"]` → `triggerTypes: ["onNavigation"]`. Fixes 12 day pages created on every load — operation now only fires on date navigation, not on every full_state receive.
+- **createDefaultUserData.js:4184**: `label: "Journal"` → `label: "Day Page"`. The stable centerHub tab that shows the current day page content is now labeled "Day Page" instead of "Journal".
+
+## Recent Changes (Apr 2 2026 — Journal Tab Removed from Tree)
+- **createDefaultUserData.js**: `journalPageOccId` now has `parentId: null`. Was `parentId: filesDayPagesFolderId` which made it appear in the Day Pages folder tree as a "Journal" node above the actual day pages. It's a panel navigation tab, not a content page.
+
+## Recent Changes (Apr 2 2026 — Stable Journal Tab + Day Page Navigation)
+- **createDefaultUserData.js**: Added `journalPageMod` (role:"page", kind:"doc", label:"Journal") + `journalPageOccId` occurrence with `viewId: dayPageViewId`. This is the stable panel tab whose content pane is controlled by `dayPageView.activeOccurrenceId`. The Day Page Auto-Create operation's `UPDATE_VIEW` step updates this view → Journal tab always shows the current date's page. centerHub now uses `[schedPageOccId, journalPageOccId, freepadPageOccId]` instead of `dayPageDocOccId`. `dayPageDocOccId` stays in the Day Pages folder (tree accessible).
+- **Day Page Navigation flow**: Click next/prev day → `handleFilterValueChange` → `onGridUpdated` fires NavigationOp → operation: FIND_OCCURRENCE(dayDate=activeDate) → if missing: COMPUTE_TEXTMAP+CREATE_OCCURRENCE → UPDATE_VIEW(dayPageViewId, activeOccurrenceId=$dayPageId) → Journal tab shows today's content.
+- **Schedule filtering**: Already reactive — `containersList` uses `isOccurrenceVisible(containerOcc, effectiveFilters)` with same-day date comparison. Schedule slots with `scheduledDate = activeDate` show; others hide.
+
+## Recent Changes (Apr 2 2026 — Gospel viewId Fix)
+- **createDefaultUserData.js**: Fixed missing `viewId` on gospel section occurrences. Main section occurrence (`gd.mainOccId`) and "Why This" occurrence (`gd.whyOccId`) now include `viewId: container._viewId || null`. Without this, containers rendered as list (showing "Drop items here") instead of doc (showing TipTap editor). Stan/Notes/Phil occurrences already had this — only gospel was missing it.
+
+## Recent Changes (Apr 2 2026 — Day Page Template Model)
+- **createDefaultUserData.js**: Day page refactored to single-template-module model:
+  - Added `dayDate` date field bound to the template module.
+  - `dayPageTemplateModuleId` module (role: "page", kind: "doc") is the ONE permanent day page module. All actual day pages are occurrences of this module.
+  - `dayPageTemplateOccId` (`meta.isTemplate: true`) holds the bracket-token textmap: `[Date]`, `[DayOfWeek]`. FIND_OCCURRENCE skips it.
+  - Yesterday's occurrence now uses `targetId: dayPageTemplateModuleId` + `fields[dayDate] = yesterday`.
+  - Day Page Auto-Create operation rewritten as 3 atomic lego steps: FIND_OCCURRENCE (date-field filtered) → IF missing: COMPUTE_TEXTMAP_FROM_TEMPLATE + CREATE_OCCURRENCE_FOR_MODULE → UPDATE_VIEW.
+
+## Recent Changes (Apr 1 2026 — Day Page Fix + Folder Page Modules)
+- **createDefaultUserData.js**: (1) Day Page wrapper removed — "Day Page" doc page module + occurrence deleted. Yesterday's day page changed from `role: "container", kind: "artifact"` to `role: "page", kind: "doc"` with readable date label (e.g., "Tue, Mar 31"). Pinned directly to centerHub instead of through wrapper. Older past day pages (2 and 3 days back) removed — only yesterday kept. (2) Folder page modules created for each non-root folder (Day Pages, Documents, Notes, Trackers, Drawing) — `role: "page", kind: "folder"` with occurrence `parentId = folderId`. Enables folder click → open page in ManifestTree.
+
+## Recent Changes (Apr 1 2026 — Parent Docs as Pages + Remove Section Wrappers)
+- **createDefaultUserData.js**: Parent doc modules (Stan, Gospel, Phil, flat notes, Comparative Religion, Sample Grid, Gospel Text) changed from `role: "container", kind: "artifact"` to `role: "page", kind: "doc"`. They now appear as page items in the manifest tree with sections properly nested as anchors. Removed per-section page wrapper loop (was creating individual pages for every section container flat under Root). CenterHub panel pinned pages unchanged (Schedule + Day Page + Freepad).
 
 ## Recent Changes (Mar 29 2026 — Folder Restructure + Past Day Pages)
 - **createDefaultUserData.js**: User manifest folders restructured: Notebook→**Docs** (doc pages + DayPages subfolder), Tracking→**Trackers** (Daily Toolkit, Daily Goals, Accounts, Schedule, Todo List), Tasks folder REMOVED, **Drawing** folder added (Freepad). 3 past day pages created (yesterday, 2 days ago, 3 days ago) — today's NOT pre-created (auto-create operation handles it). CenterHub panel defaults to **Schedule** (was Day Page). Variable `notebookFolderId`→`docsFolderId_um`, `tasksFolderId` removed, `drawingFolderId` added.

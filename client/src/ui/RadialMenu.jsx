@@ -26,7 +26,7 @@ export function calcOpenDirection(centerX, centerY, viewportW, viewportH, spread
 
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Settings, Plus, Copy, Move, ChevronUp, ChevronDown, Eye, EyeOff, Filter, LayoutTemplate, Clock } from "lucide-react";
+import { Settings, Plus, Copy, Move, ChevronUp, ChevronDown, ChevronRight, Eye, EyeOff, Filter, LayoutTemplate, Clock, Trash2 } from "lucide-react";
 
 export default function RadialMenu({
   // Standard drag handle props (used when items not provided)
@@ -58,6 +58,10 @@ export default function RadialMenu({
   onFilter = null,
   onTemplate = null,
   onHistory = null,
+  onToggleDoc = null,
+
+  // Delete/remove action
+  onDelete = null,
 
   // Callback when open state changes
   onOpenChange = null,
@@ -325,10 +329,26 @@ export default function RadialMenu({
           color: "bg-amber-700 hover:bg-amber-600",
         });
       }
+      if (onToggleDoc) {
+        defaultItems.push({
+          icon: ChevronRight,
+          label: "Toggle doc",
+          onClick: onToggleDoc,
+          color: "bg-slate-700 hover:bg-slate-600",
+        });
+      }
+      if (onDelete) {
+        defaultItems.push({
+          icon: Trash2,
+          label: "Remove",
+          onClick: onDelete,
+          color: "bg-red-700 hover:bg-red-600",
+        });
+      }
       const angles = getAnglesForDirection(openDirection, defaultItems.length);
       return defaultItems.map((item, i) => ({ ...item, angle: angles[i] }));
     },
-    [items, addLabel, dragMode, onAddChild, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, openDirection, getAnglesForDirection]
+    [items, addLabel, dragMode, onAddChild, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, openDirection, getAnglesForDirection]
   );
 
   // PORTALED arc menu
@@ -342,8 +362,8 @@ export default function RadialMenu({
           position: "fixed",
           left: anchor.x,
           top: anchor.y,
-          width: s.radius * 2 + 28,
-          height: s.radius * 2 + 28,
+          width: menuItems.length * 30 + 60,
+          height: menuItems.length * 30 + 60,
           transform: "translate(-50%, -50%)",
           pointerEvents: "none",
           zIndex: 2147483647,
@@ -360,19 +380,31 @@ export default function RadialMenu({
           `}
           style={{
             transformOrigin: "50% 50%",
-            // ✅ rotary swing from TOP
-            transform: `rotate(${entered ? 0 : startRot}deg)`,
             opacity: entered ? 1 : 0,
-            transitionProperty: "transform, opacity",
-            transitionDuration: "280ms",
-            transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+            transitionProperty: "opacity",
+            transitionDuration: "200ms",
+            transitionTimingFunction: "ease-out",
           }}
         >
           {menuItems.map((item, index) => {
             const Icon = item.icon;
-            const angleRad = (item.angle * Math.PI) / 180;
-            let x = Math.cos(angleRad) * s.radius;
-            let y = Math.sin(angleRad) * s.radius;
+            // Linear strip layout — items line up in the open direction
+            const spacing = 30; // pixels between items
+            const offset = (index + 1) * spacing;
+            let x = 0, y = 0;
+            if (openDirection === "right") x = offset;
+            else if (openDirection === "left") x = -offset;
+            else if (openDirection === "down") y = offset;
+            else if (openDirection === "up") y = -offset;
+
+            // Clamp item to stay within viewport
+            const btnHalf = 14;
+            const absX = anchor.x + x;
+            const absY = anchor.y + y;
+            if (absX - btnHalf < 0) x += (btnHalf - absX);
+            if (absX + btnHalf > window.innerWidth) x -= (absX + btnHalf - window.innerWidth);
+            if (absY - btnHalf < 0) y += (btnHalf - absY);
+            if (absY + btnHalf > window.innerHeight) y -= (absY + btnHalf - window.innerHeight);
 
             const delay = index * 35;
 
@@ -403,16 +435,7 @@ export default function RadialMenu({
                 }}
                 title={item.label}
               >
-                {/* keep icons upright while wrapper rotates */}
-                <span
-                  style={{
-                    display: "inline-flex",
-                    transformOrigin: "50% 50%",
-                    transform: `rotate(${entered ? 0 : -startRot}deg)`,
-                    transition: "transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1)",
-                    transitionDelay: `${delay}ms`,
-                  }}
-                >
+                <span style={{ display: "inline-flex" }}>
                   {Icon && React.createElement(Icon, { className: `${s.menuIcon} text-white` })}
                 </span>
               </button>

@@ -499,6 +499,7 @@ function Container({
                 onToggleHeader={() => setShowHeader(true)}
                 showHeader={false}
                 onHistory={() => setHistoryOpen(true)}
+                onDelete={removeMe}
               />
             </div>
           </PopoverAnchor>
@@ -582,6 +583,7 @@ function Container({
                       onToggleHeader={() => setShowHeader(false)}
                       showHeader={showHeader}
                       onHistory={() => setHistoryOpen(true)}
+                      onDelete={removeMe}
                     />
                   </div>
                 </PopoverAnchor>
@@ -617,7 +619,7 @@ function Container({
                 />
               </div>
             </div>
-            {/* Row 2: label + collapse chevron on right */}
+            {/* Row 2: label */}
             <div style={{ padding: "0px 8px 3px 12px", display: "flex", alignItems: "center", gap: 4 }}>
               <span className="embedded-hash" style={{ fontSize: 12, color: embeddedAccent, flexShrink: 0, fontFamily: "var(--font-mono)" }}>#</span>
               <span
@@ -640,17 +642,6 @@ function Container({
               >
                 {module.label || "Container"}
               </span>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setIsBodyCollapsed(v => !v); }}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", flexShrink: 0, color: embeddedAccent, opacity: 0.6, marginLeft: "auto" }}
-                title={isBodyCollapsed ? "Expand" : "Collapse"}
-              >
-                {isBodyCollapsed
-                  ? <ChevronRight style={{ width: 14, height: 14 }} />
-                  : <ChevronDown style={{ width: 14, height: 14 }} />
-                }
-              </button>
             </div>
             {/* Row 3: Container-bound fields (below label, prevents mobile crush) */}
             {containerFields.length > 0 && !isBodyCollapsed && (
@@ -694,6 +685,7 @@ function Container({
                     onFilter={(e) => setFilterPopupPos({ x: e?.clientX ?? 100, y: e?.clientY ?? 100 })}
                     onTemplate={gridTemplates.length > 0 ? (e) => setTemplatePopupPos({ x: e?.clientX ?? 100, y: e?.clientY ?? 100 }) : null}
                     onHistory={() => setHistoryOpen(true)}
+                    onDelete={removeMe}
                   />
                 </div>
               </PopoverAnchor>
@@ -720,17 +712,6 @@ function Container({
               </PopoverContent>
             </Popover>
 
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setIsBodyCollapsed(v => !v); }}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", flexShrink: 0, color: "var(--text-muted)" }}
-              title={isBodyCollapsed ? "Expand" : "Collapse"}
-            >
-              {isBodyCollapsed
-                ? <ChevronRight style={{ width: 14, height: 14 }} />
-                : <ChevronDown style={{ width: 14, height: 14 }} />
-              }
-            </button>
             {attachedHeaderFields.length > 0 ? (
               /* Attached header field — inline editable markdown textarea */
               <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }} onPointerDown={e => e.stopPropagation()}>

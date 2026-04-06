@@ -21,6 +21,7 @@ import {
   useCallback, useContext, useEffect, useMemo, useRef, useState,
   forwardRef, useImperativeHandle,
 } from "react";
+import { createPortal } from "react-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -82,8 +83,12 @@ const Editor = forwardRef(function Editor({
   // D12: block handle
   const [blockHandle, setBlockHandle] = useState(null); // { top, nodeStart } or null
   const [blockMenuOpen, setBlockMenuOpen] = useState(false);
+  const [blockMenuPos, setBlockMenuPos] = useState({ x: 0, y: 0 }); // viewport coords for portal menu
   const blockHandleRef = useRef(null);
+  const blockHandleBtnRef = useRef(null);
   const blockHideTimerRef = useRef(null);
+
+  // (pendingDrop removed — all drops now default to moduleEmbed)
 
   const [isDropTarget, setIsDropTarget] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -249,6 +254,13 @@ const Editor = forwardRef(function Editor({
     },
   });
 
+  // Sync editable prop → TipTap after initialization (useEditor doesn't auto-sync)
+  useEffect(() => {
+    if (editor && editor.isEditable !== editable) {
+      editor.setEditable(editable, false);
+    }
+  }, [editor, editable]);
+
   // ── block handle mouse tracking (declared AFTER editor to avoid TDZ) ─
   const handleEditorMouseMove = useCallback((e) => {
     if (!editor || !editable || !wrapperRef.current) return;
@@ -331,31 +343,8 @@ const Editor = forwardRef(function Editor({
           }
         },
       },
-      hasSelection && dispatch && socket && {
-        label: "Turn into instance",
-        icon: Box,
-        onClick: () => {
-          const { from, to } = editor.state.selection;
-          const selectedText = editor.state.doc.textBetween(from, to, " ").trim();
-          if (!selectedText) return;
-          const newModule = {
-            id: crypto.randomUUID(),
-            label: selectedText,
-            role: "instance",
-            kind: "list",
-            defaultDragMode: "move",
-            occurrences: [],
-          };
-          CommitHelpers.createModule({ dispatch, socket, module: newModule });
-          editor.chain().focus()
-            .deleteRange({ from, to })
-            .insertContentAt(from, {
-              type: "instancePill",
-              attrs: { instanceId: newModule.id, instanceLabel: selectedText, showIcon: true },
-            })
-            .run();
-        },
-      },
+      // "Turn into instance" — hidden for now (kept for future use)
+      // hasSelection && dispatch && socket && { label: "Turn into instance", icon: Box, ... },
       inTable && { separator: true },
       inTable && { label: "Insert row above", onClick: () => editor.chain().focus().addRowBefore().run() },
       inTable && { label: "Insert row below", onClick: () => editor.chain().focus().addRowAfter().run() },
@@ -374,7 +363,14 @@ const Editor = forwardRef(function Editor({
     if (editor && content && !editor.isFocused) {
       const current = editor.getJSON();
       if (JSON.stringify(current) !== JSON.stringify(content)) {
+        // Preserve cursor position across content resets
+        const { from, to } = editor.state.selection;
         editor.commands.setContent(content);
+        // Restore position if it's still valid
+        const maxPos = editor.state.doc.content.size;
+        if (from <= maxPos && to <= maxPos) {
+          try { editor.commands.setTextSelection({ from, to }); } catch (_) {}
+        }
       }
     }
   }, [editor, content]);
@@ -442,10 +438,15 @@ const Editor = forwardRef(function Editor({
     return () => window.removeEventListener("keydown", handle);
   }, [showSuggestion, suggestionQuery, showCommandPalette, commandQuery, showDocLink, docLinkQuery, showExprSuggestion, exprQuery, exprActiveIndex, filteredExprFields, handleSelectExpr, showEmbedPicker, embedQuery, blockMenuOpen, editor]);
 
-  // D12: close block menu on outside click
+  // D12: close block menu on outside click — portal menu is in body, so check by class
+  const blockMenuPortalRef = useRef(null);
   useEffect(() => {
     if (!blockMenuOpen) return;
-    const handler = (e) => { if (!blockHandleRef.current?.contains(e.target)) setBlockMenuOpen(false); };
+    const handler = (e) => {
+      if (blockHandleRef.current?.contains(e.target)) return;
+      if (blockMenuPortalRef.current?.contains(e.target)) return;
+      setBlockMenuOpen(false);
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [blockMenuOpen]);
@@ -498,12 +499,10 @@ const Editor = forwardRef(function Editor({
             const existing = Object.values(occurrencesById || {}).find(o => o.targetId === id);
             if (existing) occurrenceId = existing.id;
           }
-          if (occurrenceId) {
-            insertAtPos(insertPos, {
-              type: "moduleEmbed",
-              attrs: { occurrenceId },
-            });
-          }
+          if (!occurrenceId) return;
+
+          // All drops default to moduleEmbed (block embed)
+          insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
           return;
         }
         if (type === "field") {
@@ -725,15 +724,22 @@ const Editor = forwardRef(function Editor({
         >
           <div style={{ position: "relative" }}>
             <button
+              ref={blockHandleBtnRef}
               style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 2px", color: "var(--text-faint)", borderRadius: 3, display: "flex", lineHeight: 1 }}
-              onMouseDown={(e) => { e.preventDefault(); setBlockMenuOpen(v => !v); }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                cancelBlockHide();
+                const rect = e.currentTarget.getBoundingClientRect();
+                setBlockMenuPos({ x: rect.right + 4, y: rect.top });
+                setBlockMenuOpen(v => !v);
+              }}
               title="Block options"
             >
               <GripVertical size={15} />
             </button>
-            {blockMenuOpen && (
-              <div style={{
-                position: "absolute", left: "100%", top: 0, zIndex: 400,
+            {blockMenuOpen && createPortal(
+              <div ref={blockMenuPortalRef} style={{
+                position: "fixed", left: blockMenuPos.x, top: blockMenuPos.y, zIndex: 9999,
                 background: "var(--surface-card)", border: "1px solid var(--border-default)",
                 borderRadius: 6, padding: "4px 0", minWidth: 150,
                 boxShadow: "0 4px 16px rgba(0,0,0,0.55)",
@@ -796,7 +802,8 @@ const Editor = forwardRef(function Editor({
                     </div>
                   )
                 )}
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         </div>
@@ -819,9 +826,15 @@ const Editor = forwardRef(function Editor({
       <div
         className={`doc-editor-wrapper min-h-[100px] py-3 pr-3 pl-8 flex-1${stickyToolbar ? " overflow-auto" : ""}`}
         onClick={(e) => {
-          // Obsidian-style: clicking empty space below content focuses at end
+          // Obsidian-style: clicking empty space BELOW content focuses at end
           if (!editor || !editor.isEditable) return;
           if (e.target !== e.currentTarget) return; // Only fire on wrapper itself, not content
+          // Only focus-end when clicking below the editor content, not side padding
+          const editorEl = e.currentTarget.querySelector(".ProseMirror");
+          if (editorEl) {
+            const editorRect = editorEl.getBoundingClientRect();
+            if (e.clientY <= editorRect.bottom) return; // Click is beside content, let ProseMirror handle it
+          }
           editor.commands.focus("end");
         }}
       >

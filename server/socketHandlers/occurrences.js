@@ -4,7 +4,6 @@ import Transaction from "../models/Transaction.js";
 import path from "path";
 import fs from "fs";
 import { nanoid } from "nanoid";
-
 export function registerOccurrenceHandlers(socket, {
   io, ensureUserCache, userCacheReady, loadUserIntoCache,
   userRoom, serializeTipTapToMarkdown, uploadsDir,

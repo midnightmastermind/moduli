@@ -3,16 +3,19 @@
 // Outside shell: drag handle + radial menu + page name (like a doc).
 // Inside: routes to content based on page kind (board, canvas, doc, display).
 
-import React, { useRef, useMemo, useState, useCallback, useContext } from "react";
+import React, { useRef, useMemo, useState, useCallback, useContext, useEffect } from "react";
 import RadialMenu from "../ui/RadialMenu";
 import ContextMenu from "../ui/ContextMenu";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { X, Trash2, Copy, FileText, Layout, Paintbrush, Monitor } from "lucide-react";
+import { X, Trash2, Copy, FileText, Layout, Paintbrush, Monitor, Folder, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import NodePill from "./NodePill.jsx";
+import PreviewNode from "./PreviewNode.jsx";
 
 import Container from "./Container.jsx";
 import Artifact from "./Artifact.jsx";
 import { DocEditorShell } from "./DocContent.jsx";
+import useDrilldown, { getCardAnimStyle } from "../hooks/useDrilldown.js";
 
 import { GridActionsContext } from "../GridActionsContext";
 import { GridDataContext } from "../GridDataContext";
@@ -35,15 +38,219 @@ const KIND_ICONS = {
   canvas: Paintbrush,
   doc: FileText,
   display: Monitor,
+  folder: Folder,
 };
+
+// Folder content with PreviewNode grid + drilldown animation.
+// Header mimics Windows 7 date picker: clicking scope label drills out,
+// prev/next arrows navigate peer pages at the same depth.
+function FolderContent({ childOccs, siblingOccs, dropRef, isOver, isMobile, modulesById, panelView, folderPageOccId, dispatch, socket, autoNavigateTo, onAutoNavigateComplete }) {
+  const folderRef = useRef(null);
+  const { occurrencesById } = useContext(GridActionsContext);
+
+  const handleNavigate = useCallback((occId) => {
+    if (panelView?.id) {
+      CommitHelpers.updateView({ dispatch, socket, view: { ...panelView, activeOccurrenceId: occId }, emit: true });
+    }
+  }, [panelView, dispatch, socket]);
+
+  const { animState, drilldownStack, startDrillDown, startDrillOut, navigatePeer, resetStack, canDrillOut } = useDrilldown({
+    onNavigate: handleNavigate,
+    containerRef: folderRef,
+  });
+
+  // Wrap startDrillDown to prime the folder into the stack when entering from a clean state.
+  const handleDrillDown = useCallback((occId, cardEl) => {
+    if (drilldownStack.length === 0 && folderPageOccId) {
+      resetStack([folderPageOccId]);
+    }
+    startDrillDown(occId, cardEl);
+  }, [drilldownStack.length, folderPageOccId, resetStack, startDrillDown]);
+
+  // Auto-drilldown when navigating from tree (folder-first flow)
+  useEffect(() => {
+    if (!autoNavigateTo) return;
+    resetStack(folderPageOccId ? [folderPageOccId] : []);
+    const timer = setTimeout(() => {
+      const cardEl = folderRef.current?.querySelector(`[data-occurrence-id="${autoNavigateTo}"]`);
+      startDrillDown(autoNavigateTo, cardEl || null);
+      onAutoNavigateComplete?.();
+    }, 10);
+    return () => clearTimeout(timer);
+  }, [autoNavigateTo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Peer navigation — move to previous or next sibling at the current drill depth
+  // siblingOccs is the sorted list of ALL pages in this folder (same level as the current drilled-in page)
+  const currentDrilledId = canDrillOut ? drilldownStack[drilldownStack.length - 1] : null;
+  const currentSiblingIndex = useMemo(() => {
+    if (!currentDrilledId || !siblingOccs?.length) return -1;
+    return siblingOccs.findIndex(o => o.id === currentDrilledId);
+  }, [currentDrilledId, siblingOccs]);
+
+  const handlePeerNav = useCallback((delta) => {
+    if (!siblingOccs?.length || currentSiblingIndex < 0) return;
+    const nextIndex = currentSiblingIndex + delta;
+    if (nextIndex < 0 || nextIndex >= siblingOccs.length) return;
+    navigatePeer(siblingOccs[nextIndex].id);
+  }, [siblingOccs, currentSiblingIndex, navigatePeer]);
+
+  // Keyboard: Escape = drill out, Left/Right = peer nav
+  useEffect(() => {
+    const handler = (e) => {
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || document.activeElement?.isContentEditable) return;
+      if (e.key === "Escape" && canDrillOut) { e.preventDefault(); startDrillOut(); }
+      if (e.key === "ArrowLeft" && canDrillOut) { e.preventDefault(); handlePeerNav(-1); }
+      if (e.key === "ArrowRight" && canDrillOut) { e.preventDefault(); handlePeerNav(1); }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }); // eslint-disable-line react-hooks/exhaustive-deps — intentionally re-registers to capture latest closures
+
+  // Build scope header labels from drilldownStack (Windows 7: "FolderName › PageName")
+  const scopeLabels = useMemo(() => {
+    return drilldownStack.map(occId => {
+      const occ = occurrencesById[occId];
+      const mod = occ ? modulesById[occ.targetId] : null;
+      return { occId, label: mod?.label || "…" };
+    });
+  }, [drilldownStack, occurrencesById, modulesById]);
+
+  // Windows 7-style scope header — shown when drilled in (stack length >= 2)
+  // Clicking parent portion drills out; prev/next arrows navigate siblings.
+  const scopeHeader = canDrillOut ? (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      flexShrink: 0, padding: "4px 8px 4px 18px",
+      borderBottom: "1px solid var(--border-default)",
+      background: "var(--surface-base)",
+    }}>
+      {/* Left: clickable parent scope → drills out */}
+      <div style={{ display: "flex", alignItems: "center", gap: 3, minWidth: 0, flex: 1, overflow: "hidden" }}>
+        {scopeLabels.map((crumb, i) => {
+          const isLast = i === scopeLabels.length - 1;
+          return (
+            <React.Fragment key={crumb.occId}>
+              {i > 0 && <span style={{ color: "var(--text-faint)", fontSize: 9, flexShrink: 0 }}>›</span>}
+              <span
+                style={{
+                  fontSize: 10, fontFamily: "var(--font-mono)",
+                  color: isLast ? "var(--text-primary)" : "var(--accent-blue, #38bdf8)",
+                  cursor: isLast ? "default" : "pointer",
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  textDecoration: isLast ? "none" : "underline",
+                  textDecorationColor: "rgba(56,189,248,0.4)",
+                }}
+                onClick={() => {
+                  if (isLast) return;
+                  // Drill out to this crumb level — pop stack down to i+1 entries
+                  const stepsOut = scopeLabels.length - 1 - i;
+                  for (let s = 0; s < stepsOut; s++) startDrillOut();
+                }}
+                title={isLast ? undefined : `Back to ${crumb.label}`}
+              >
+                {crumb.label}
+              </span>
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* Right: prev/next peer navigation arrows */}
+      {siblingOccs?.length > 1 && currentSiblingIndex >= 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0, marginLeft: 8 }}>
+          <button
+            onClick={() => handlePeerNav(-1)}
+            disabled={currentSiblingIndex <= 0}
+            style={{
+              background: "none", border: "none", cursor: currentSiblingIndex <= 0 ? "default" : "pointer",
+              color: currentSiblingIndex <= 0 ? "var(--text-faint)" : "var(--text-muted)",
+              padding: "1px 2px", display: "flex", alignItems: "center",
+            }}
+            title="Previous page"
+          >
+            <ChevronLeft size={12} />
+          </button>
+          <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "var(--font-mono)", userSelect: "none" }}>
+            {currentSiblingIndex + 1}/{siblingOccs.length}
+          </span>
+          <button
+            onClick={() => handlePeerNav(1)}
+            disabled={currentSiblingIndex >= siblingOccs.length - 1}
+            style={{
+              background: "none", border: "none", cursor: currentSiblingIndex >= siblingOccs.length - 1 ? "default" : "pointer",
+              color: currentSiblingIndex >= siblingOccs.length - 1 ? "var(--text-faint)" : "var(--text-muted)",
+              padding: "1px 2px", display: "flex", alignItems: "center",
+            }}
+            title="Next page"
+          >
+            <ChevronRight size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div
+      ref={(node) => {
+        folderRef.current = node;
+        if (dropRef) dropRef.current = node;
+      }}
+      style={{
+        flex: 1, minHeight: 0,
+        display: "flex", flexDirection: "column",
+        overflow: "hidden",
+        outline: isOver ? "2px solid rgba(50,150,255,0.5)" : "none",
+        outlineOffset: -2,
+        position: "relative",
+      }}
+    >
+      {scopeHeader}
+      <div style={{
+        flex: 1, minHeight: 0,
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
+        overscrollBehavior: "contain",
+        padding: isMobile ? "8px 8px 80px 8px" : "0px 0px 80px 0px",
+      }}>
+        <div className="preview-node-grid">
+          {childOccs.map((occ, i) => {
+            const mod = modulesById[occ.targetId];
+            return (
+              <PreviewNode
+                key={occ.id}
+                occurrence={occ}
+                module={mod}
+                onDrillDown={handleDrillDown}
+                isAnimating={!!animState}
+                loadPreview={autoNavigateTo ? occ.id === autoNavigateTo : true}
+                loadIndex={i}
+                style={getCardAnimStyle(occ.id, animState)}
+              />
+            );
+          })}
+          {childOccs.length === 0 && (
+            <div className="text-xs text-muted-foreground text-center empty-placeholder" style={{ gridColumn: "1 / -1" }}>
+              Drop items here
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Page({
   occurrence,
   panelId,
   panelOccurrence,
+  panelView,
   dispatch,
   socket,
   addInstanceToContainer,
+  drilldownTarget,
+  onDrilldownComplete,
 }) {
   const { occurrencesById, modulesById, containersById, viewsById } = useContext(GridActionsContext);
   const { state } = useContext(GridDataContext);
@@ -51,6 +258,7 @@ function Page({
 
   const pageModule = occurrence?.targetId ? modulesById[occurrence.targetId] : null;
   const pageView = occurrence?.viewId ? viewsById[occurrence.viewId] : null;
+  const scrollAnchor = pageView?.scrollAnchor || panelView?.scrollAnchor;
   const kind = pageModule?.kind || "board";
 
   // Tree view detection — page with hasTree + manifestId renders Artifact content only
@@ -93,6 +301,24 @@ function Page({
     () => resolveEffectiveFilters(occurrence, state?.grid?.activeFilterValues || {}),
     [occurrence, state?.grid?.activeFilterValues]
   );
+
+  // Child occurrences for folder pages — derived from all occs in the same folder (occurrence.parentId = folderId).
+  // Excludes self, templates, and folder-nav occurrences (kind="folder").
+  const folderChildOccs = useMemo(() => {
+    if (kind !== "folder") return [];
+    const folderId = occurrence?.parentId;
+    if (!folderId) return [];
+    return Object.values(occurrencesById)
+      .filter(occ => {
+        if (occ.parentId !== folderId) return false;
+        if (occ.id === occurrence.id) return false;
+        if (occ.meta?.isTemplate) return false;
+        const mod = modulesById[occ.targetId];
+        if (mod?.kind === "folder") return false;
+        return true;
+      })
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }, [kind, occurrence?.parentId, occurrence?.id, occurrencesById, modulesById]);
 
   const containersList = useMemo(() => {
     if (!occurrence) return [];
@@ -201,6 +427,7 @@ function Page({
         occurrence={occurrence}
         dispatch={dispatch}
         socket={socket}
+        scrollAnchor={scrollAnchor}
       />
     );
   } else if (kind === "display") {
@@ -213,6 +440,25 @@ function Page({
         dispatch={dispatch}
         socket={socket}
         view={pageView}
+      />
+    );
+  } else if (kind === "folder") {
+    // Folder page — Explorer-style grid of PreviewNode cards with drilldown.
+    // folderChildOccs computed above (hooks can't be in else branches).
+    content = (
+      <FolderContent
+        childOccs={folderChildOccs}
+        siblingOccs={folderChildOccs}
+        dropRef={dropRef}
+        isOver={isOver}
+        isMobile={isMobile}
+        modulesById={modulesById}
+        panelView={panelView}
+        folderPageOccId={occurrence?.id}
+        dispatch={dispatch}
+        socket={socket}
+        autoNavigateTo={drilldownTarget}
+        onAutoNavigateComplete={onDrilldownComplete}
       />
     );
   } else {
@@ -281,43 +527,36 @@ function Page({
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
 
-      {/* Page header row — handle centered, name below for non-doc */}
+      {/* Page header row — handle LEFT, then spacer, then actions RIGHT */}
       <div
         style={{
-          position: "relative",
           flexShrink: 0,
           width: "100%",
           display: "flex",
-          alignItems: "start",
+          alignItems: "center",
           flexDirection: "row",
-          justifyContent: "end"
+          justifyContent: "space-between",
+          padding: "0px 6px 0px 0px",
+          borderBottom: "1px solid var(--border-default)",
         }}
       >
-        {/* Handle — centered horizontally */}
-        <div style={{
-          position: "absolute",
-          top: "3px",
-          left: "calc(50% - 8.88px)",
-          display: "flex",
-          justifyContent: "end"
-        }}>
-          <div
-            ref={handleRef}
-            className="module-drag-handle module-grab-zone"
-            draggable={false}
-            style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}
-          >
-            <div className="drag-handle-ball" />
-            <div className="drag-handle-stem" />
-            <RadialMenu
-              onSettings={() => setSettingsOpen(true)}
-              size="sm"
-              forceDirection="down"
-            />
-          </div>
+        {/* Handle — leftmost with breathing room */}
+        <div
+          ref={handleRef}
+          className="module-drag-handle module-grab-zone"
+          draggable={false}
+          style={{ position: "relative", top: 0, left: 4, transform: "none", flexShrink: 0, marginLeft: 0 }}
+        >
+          <div className="drag-handle-ball" />
+          <div className="drag-handle-stem" />
+          <RadialMenu
+            onSettings={() => setSettingsOpen(true)}
+            size="sm"
+            forceDirection="down"
+          />
         </div>
         {(
-          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 10px 2px 12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 0", marginLeft: "auto" }}>
             {(
               <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0}}>
                 <QuickAddMenu

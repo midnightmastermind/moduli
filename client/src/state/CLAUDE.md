@@ -1,6 +1,12 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-03-31. Check this file before re-reading source._
+_Updated: 2026-04-02. Check this file before re-reading source._
+
+## Recent Changes (Apr 2 2026 — Operations Update on Delete)
+- **bindSocketToStore.js**: `onOccurrenceDeleted` now saves `removedOcc = localOccsById[occurrenceId]` BEFORE deleting from cache. After `OccurrenceDeleteOp` fires, iterates `removedOcc.fields` and fires `MeasureOp` per field. Fixes aggregation operations (e.g. water total) not recalculating when a scheduled occurrence is removed.
+
+## Recent Changes (Apr 2 2026 — CREATE_OCCURRENCE_FOR_MODULE Effect Handler)
+- **bindSocketToStore.js**: Added `case "CREATE_OCCURRENCE_FOR_MODULE"` in `applyOperationEffect` (after existing `CREATE_OCCURRENCE` case). Creates a new occurrence for an **existing** module (no new module created). Emits `create_occurrence` socket event with `targetType: "module"`, `targetId: effect.moduleId`, and supports `effect.parentId`, `effect.viewId`, `effect.fields`, `effect.textmap`, `effect.occurrenceId`. Sets `meta: { createdByOperation: true }`. Designed for use by the Day Page Auto-Create operation pipeline.
 
 ## Recent Changes (Mar 31 2026 — Offline Queue Flush + Optimistic Operations)
 - **bindSocketToStore.js**: Imported `flushOfflineQueue` from `offlineQueue.js`. After `full_state` is processed and operations execute (double-rAF deferred), calls `flushOfflineQueue(socket)` to replay any mutations queued while offline. Ensures queued changes are applied on top of fresh server state, not overwritten by it.

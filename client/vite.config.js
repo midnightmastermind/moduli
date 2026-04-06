@@ -42,6 +42,11 @@ export default defineConfig({
         target: "http://localhost:5000",
         changeOrigin: true,
       },
+      // Proxy preview render pages (iframe thumbnails)
+      "/preview-render": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+      },
     },
   },
   test: {

@@ -88,13 +88,15 @@ function InstanceInner({
   }, [draft?.label, id, dispatch, socket]);
 
   const deleteMe = useCallback(() => {
-    CommitHelpers.deleteModule({
+    if (!occurrence?.id) return;
+    CommitHelpers.removeOccurrence({
       dispatch,
       socket,
-      moduleId: id,
-      emit: true
+      occurrenceId: occurrence.id,
+      parentOccurrence: containerOccurrence || null,
+      emit: true,
     });
-  }, [id, dispatch, socket]);
+  }, [occurrence, containerOccurrence, dispatch, socket]);
 
   // Toggle drag mode — writes to occurrence if it has its own dragMode, otherwise to instance template
   const toggleEntityDragMode = useCallback(() => {
@@ -266,6 +268,11 @@ function InstanceInner({
                   items={radialItems}
                   onToggleHeader={!occurrence?.linkedGroupId ? () => setShowLabel(v => !v) : undefined}
                   showHeader={showLabel}
+                  onToggleDoc={toggleDoc || undefined}
+                  onDelete={() => {
+                    if (!occurrence?.id) return;
+                    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, parentOccurrence: containerOccurrence || null, emit: true });
+                  }}
                 />
               </div>
             </PopoverAnchor>
@@ -284,16 +291,6 @@ function InstanceInner({
               />
             </PopoverContent>
           </Popover>
-          {toggleDoc && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); toggleDoc(); }}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", flexShrink: 0, color: "var(--text-muted)", opacity: 0.5 }}
-              title="Toggle doc"
-            >
-              <ChevronRight style={{ width: 12, height: 12 }} />
-            </button>
-          )}
           {showLabel && hasLabel && (
             <div
               style={{

@@ -8,7 +8,7 @@ import React, { useContext, useMemo, useState, useCallback, useRef, useEffect } 
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { GridActionsContext } from "../../GridActionsContext";
-import { Copy, Link, Trash2, Settings, Move, Check, Box, Eye, EyeOff } from "lucide-react";
+import { Copy, Link, Trash2, Settings, Move, Check, Box, Eye, EyeOff, Maximize2 } from "lucide-react";
 import RadialMenu from "../../ui/RadialMenu";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 
@@ -83,7 +83,7 @@ function formatFieldValue(field, rawValue) {
   return String(rawValue);
 }
 
-export default function InstancePillNode({ node, selected, deleteNode, updateAttributes }) {
+export default function InstancePillNode({ node, selected, deleteNode, updateAttributes, editor, getPos }) {
   const { instancesById, occurrencesById, fieldsById, dispatch, socket } = useContext(GridActionsContext) || {};
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -172,13 +172,24 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
   const handleDelete = useCallback(() => deleteNode?.(), [deleteNode]);
   const handleToggleHeader = useCallback(() => updateAttributes?.({ showHeader: !showHeader }), [updateAttributes, showHeader]);
 
+  const handleConvertToEmbed = useCallback(() => {
+    if (!editor || !getPos || !occurrenceId) return;
+    const pos = getPos();
+    const nodeSize = node.nodeSize;
+    editor.chain().focus()
+      .deleteRange({ from: pos, to: pos + nodeSize })
+      .insertContentAt(pos, { type: "moduleEmbed", attrs: { occurrenceId } })
+      .run();
+  }, [editor, getPos, node, occurrenceId]);
+
   const radialItems = useMemo(() => [
     { icon: Copy, label: "Copy", onClick: handleCopy, color: "bg-blue-600 hover:bg-blue-500" },
     { icon: Link, label: "Copy Link", onClick: handleCopyLink, color: "bg-emerald-700 hover:bg-emerald-600" },
     { icon: Move, label: "Move", onClick: handleMove, color: "bg-slate-600 hover:bg-slate-500" },
     ...(isBlockMode ? [{ icon: showHeader ? EyeOff : Eye, label: showHeader ? "Hide Header" : "Show Header", onClick: handleToggleHeader, color: "bg-teal-700 hover:bg-teal-600" }] : []),
+    { icon: Maximize2, label: "Convert to Embed", onClick: handleConvertToEmbed, color: "bg-indigo-600 hover:bg-indigo-500" },
     { icon: Trash2, label: "Remove", onClick: handleDelete, color: "bg-red-600 hover:bg-red-500" },
-  ], [handleCopy, handleCopyLink, handleMove, handleDelete, handleToggleHeader, isBlockMode, showHeader]);
+  ], [handleCopy, handleCopyLink, handleMove, handleDelete, handleToggleHeader, handleConvertToEmbed, isBlockMode, showHeader]);
 
   // Pragmatic DnD — drag pill OUT of doc → creates copy occurrence in target container
   // Uses "module" type so DragProvider's CC/pool handler creates a copy via copyInstanceToContainer

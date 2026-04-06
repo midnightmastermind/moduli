@@ -47,7 +47,7 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
     accepts: DropAccepts.GRID_CELL,
     disabled: !isPanelDrag,
   });
-
+  
   const highlight = isPanelDrag && (panelOverCellId === cellId || isOver);
 
   return (
@@ -68,7 +68,7 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
       {stackCount > 0 && (
         <button
           className="panel-stack-btn-inline"
-          style={{ border: "none", position: "absolute", top: 2.5, left: 8, minHeight: 21, zIndex: 90, pointerEvents: "auto" }}
+          style={{ border: "none", position: "absolute", top: 5, left: 28, minHeight: 21, zIndex: 90, pointerEvents: "auto" }}
           onClick={(e) => { e.stopPropagation(); cyclePanelStack?.({ cellKey: cellId, dir: 1 }); }}
           title="Cycle panels"
           onPointerDown={(e) => e.stopPropagation()}
@@ -156,7 +156,9 @@ function GridRender({
       for (let c = 0; c < cols; c++) {
         const cellPanels = panelsRender.filter((p) => p.row === r && p.col === c);
         const visiblePanel = cellPanels.find((p) => (p?.layout?.style?.display ?? "block") !== "none");
+        console.log(cellPanels);
         const hasPanel = !!visiblePanel;
+        console.log(hasPanel);
         const hasHiddenStack = !hasPanel && cellPanels.length > 1;
         const stackCount = cellPanels.length;
         arr.push({ r, c, dark: (r + c) % 2 === 0, hasPanel, hasHiddenStack, stackCount });
@@ -262,7 +264,7 @@ function GridRender({
           </svg>
         </div>
       ))}
-
+      
       {panelsRender.map((p) => {
         const display = p?.layout?.style?.display ?? "block";
         if (display === "none") return null;

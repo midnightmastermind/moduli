@@ -1,60 +1,173 @@
 // LoginScreen.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { socket } from "./socket";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const emailRef = useRef(null);
+
+  useEffect(() => {
+    emailRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const onError = (msg) => {
+      setError(msg || "Login failed");
+      setLoading(false);
+    };
+    const onSuccess = () => setLoading(false);
+    socket.on("auth_error", onError);
+    socket.on("auth_success", onSuccess);
+    return () => {
+      socket.off("auth_error", onError);
+      socket.off("auth_success", onSuccess);
+    };
+  }, []);
 
   const login = () => {
+    if (!email || !password) { setError("Email and password required"); return; }
+    setError("");
+    setLoading(true);
     socket.emit("login", { email, password });
   };
 
   const register = () => {
+    if (!email || !password) { setError("Email and password required"); return; }
+    setError("");
+    setLoading(true);
     socket.emit("register", { email, password });
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "Enter") login();
   };
 
   return (
     <div style={{
       height: "100vh",
       display: "flex",
-      flexDirection: "column",
       justifyContent: "center",
       alignItems: "center",
       background: "#1D2125",
-      color: "white",
-      gap: 12
     }}>
-      <img
-        src="/moduli_logo_true_vector.svg"
-        alt="Moduli"
-        style={{ width: 120, height: 120, marginBottom: 8 }}
-      />
-      <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: 2, margin: 0 }}>+moduli+</h1>
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 14,
+        padding: "32px 28px 28px",
+        border: "1px solid rgba(255,255,255,0.1)",
+        borderRadius: 10,
+        background: "rgba(255,255,255,0.04)",
+        width: 300,
+      }}>
+        <img
+          src="/moduli_logo.png"
+          alt="Moduli"
+          style={{ height: 36, width: "auto", marginBottom: 4 }}
+        />
 
-      <div style={{ height: 16 }} />
+        {error && (
+          <div style={{
+            padding: "8px 12px",
+            width: "100%",
+            background: "rgba(220, 38, 38, 0.12)",
+            border: "1px solid rgba(220, 38, 38, 0.3)",
+            borderRadius: 6,
+            color: "#fca5a5",
+            fontSize: 12,
+            textAlign: "center",
+            fontFamily: "var(--font-mono, monospace)",
+          }}>
+            {error}
+          </div>
+        )}
 
-      <input
-        style={{ padding: 8, width: 240 }}
-        placeholder="Email"
-        value={email}
-        onChange={e => setEmail(e.target.value)}
-      />
+        <input
+          ref={emailRef}
+          style={{
+            padding: "8px 10px",
+            width: "100%",
+            boxSizing: "border-box",
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 6,
+            color: "#e0e0e0",
+            fontSize: 13,
+            fontFamily: "var(--font-mono, monospace)",
+            outline: "none",
+          }}
+          placeholder="Email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          onKeyDown={onKeyDown}
+          autoComplete="email"
+        />
 
-      <input
-        type="password"
-        style={{ padding: 8, width: 240 }}
-        placeholder="Password"
-        value={password}
-        onChange={e => setPassword(e.target.value)}
-      />
+        <input
+          type="password"
+          style={{
+            padding: "8px 10px",
+            width: "100%",
+            boxSizing: "border-box",
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 6,
+            color: "#e0e0e0",
+            fontSize: 13,
+            fontFamily: "var(--font-mono, monospace)",
+            outline: "none",
+          }}
+          placeholder="Password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          onKeyDown={onKeyDown}
+          autoComplete="current-password"
+        />
 
-      <button style={{ padding: 8, width: 240 }} onClick={login}>
-        Login
-      </button>
-      <button style={{ padding: 8, width: 240 }} onClick={register}>
-        Register
-      </button>
+        <button
+          style={{
+            padding: "8px 0",
+            width: "100%",
+            background: "rgba(59, 130, 246, 0.8)",
+            border: "none",
+            borderRadius: 6,
+            color: "#fff",
+            fontSize: 13,
+            fontFamily: "var(--font-mono, monospace)",
+            fontWeight: 600,
+            cursor: loading ? "wait" : "pointer",
+            opacity: loading ? 0.6 : 1,
+            marginTop: 2,
+          }}
+          onClick={login}
+          disabled={loading}
+        >
+          {loading ? "..." : "Login"}
+        </button>
+
+        <button
+          style={{
+            padding: "8px 0",
+            width: "100%",
+            background: "transparent",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 6,
+            color: "rgba(255,255,255,0.5)",
+            fontSize: 12,
+            fontFamily: "var(--font-mono, monospace)",
+            cursor: loading ? "wait" : "pointer",
+            opacity: loading ? 0.6 : 1,
+          }}
+          onClick={register}
+          disabled={loading}
+        >
+          Register
+        </button>
+      </div>
     </div>
   );
 }

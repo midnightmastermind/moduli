@@ -7,7 +7,7 @@ export function registerStateHandlers(socket, {
   getOccurrencesForGrid, selectGrid,
 }) {
   socket.on("request_full_state", async (payload = {}) => {
-    let { gridId } = payload || {};
+    let { gridId, previewOcc } = payload || {};
     const userId = socket.userId;
     if (!userId) return socket.emit("server_error", "Not authenticated");
 
@@ -19,6 +19,33 @@ export function registerStateHandlers(socket, {
         const grids = await getAllGridsForUser(userId);
         const gridObj = uc.gridsById[gid];
         const safeGrid = gridObj?.toObject ? gridObj.toObject() : gridObj;
+
+        // When previewOcc is set, only send the occurrence subtree needed for that preview
+        if (previewOcc) {
+          const subtree = collectOccurrenceSubtree(previewOcc, uc);
+          const modIds = new Set();
+          const viewIds = new Set();
+          for (const occ of subtree) {
+            if (occ.targetId) modIds.add(occ.targetId);
+            if (occ.viewId) viewIds.add(occ.viewId);
+          }
+          const modules = [...modIds].map(id => uc.modulesById[id]).filter(Boolean);
+          const views = [...viewIds].map(id => uc.viewsById[id]).filter(Boolean);
+          console.log(`[emitFullState:preview] Sending ${subtree.length} occurrences, ${modules.length} modules for previewOcc=${previewOcc}`);
+          socket.emit("full_state", {
+            gridId: gid, grid: safeGrid,
+            modules,
+            occurrences: subtree,
+            fields: Object.values(uc.fieldsById),
+            manifests: [],
+            views,
+            folders: [],
+            operations: [],
+            grids,
+          });
+          return;
+        }
+
         const gridOccurrences = getOccurrencesForGrid(gid, uc);
         console.log(`[emitFullState] Sending ${gridOccurrences.length} occurrences, ${Object.keys(uc.modulesById).length} modules`);
         socket.emit("full_state", {
@@ -33,6 +60,34 @@ export function registerStateHandlers(socket, {
           grids,
         });
       };
+
+      // Collect an occurrence and all its descendants (2 levels deep for preview)
+      function collectOccurrenceSubtree(rootOccId, uc) {
+        const result = [];
+        const seen = new Set();
+        const queue = [rootOccId];
+        while (queue.length > 0) {
+          const id = queue.shift();
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const occ = uc.occurrencesById[id];
+          if (!occ) continue;
+          result.push(occ);
+          // Add children from occurrences[] array
+          if (Array.isArray(occ.occurrences)) {
+            for (const childId of occ.occurrences) {
+              if (!seen.has(childId)) queue.push(childId);
+            }
+          }
+          // Add children linked via parentId
+          for (const candidate of Object.values(uc.occurrencesById)) {
+            if (candidate.parentId === id && !seen.has(candidate.id)) {
+              queue.push(candidate.id);
+            }
+          }
+        }
+        return result;
+      }
 
       if (!gridId) {
         const { gridId: resolved, action } = selectGrid(Object.keys(uc.gridsById), null);

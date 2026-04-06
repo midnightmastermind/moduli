@@ -103,7 +103,12 @@ app.get("/health", async (req, res) => {
 app.use((req, _res, next) => { if (req.path !== "/health") console.log(`📥 HTTP ${req.method} ${req.path}`); next(); });
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] }, allowEIO3: true });
+const io = new Server(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] },
+  allowEIO3: true,
+  pingTimeout: 60000,    // 60s (default 20s) — remote DB can block event loop during cache load
+  pingInterval: 25000,   // 25s (default 25s)
+});
 
 io.engine.on("connection_error", (err) => { console.error("❌ [io.engine] connection_error:", err.req?.url, err.code, err.message); });
 process.on("uncaughtException", (err) => { console.error("❌ [uncaughtException]", err.stack || err.message); });
@@ -269,6 +274,8 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
 app.use("/uploads", express.static(uploadsDir));
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const mdDir = path.join(uploadsDir, "md");
 if (!fs.existsSync(mdDir)) fs.mkdirSync(mdDir, { recursive: true });

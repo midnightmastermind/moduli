@@ -1,6 +1,26 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-03-31. Check this file before re-reading source._
+_Updated: 2026-04-06. Check this file before re-reading source._
+
+## Recent Changes (Apr 6 2026 — Phase E: File Drops + Iframe Removal)
+- **DragProvider.jsx**: Added native file drop fallback — `dragover`/`drop` listeners on `.grid-frame` catch OS file drops that Pragmatic DnD might miss. Calls `handleFileDrop` with parsed file payload. Sticky container highlight still in place from earlier fix.
+- **dragSystem.js**: Added `DragType.FILE` + `DragType.EXTERNAL` to `DropAccepts.GRID_CELL` — grid cells now accept native file drops (were only accepting panels/modules/artifacts/folders).
+
+## Recent Changes (Apr 6 2026 — Sticky Container Highlight)
+- **DragProvider.jsx**: Fixed container highlight sputtering during instance drags. When `getHoveredIds` returns `containerId = null` (cursor in gaps/margins between instances) but still inside the same panel, keeps the previous `containerId` instead of clearing the highlight. Uses `lastHotRef.current` to compare.
+
+## Recent Changes (Apr 3 2026 — Day Page Duplicate Fix)
+- **operationExecutor.js:178**: `case "onNavigation"` no longer matches `transactionType == null`. Was: `return transactionType === "NavigationOp" || transactionType == null` → now: `return transactionType === "NavigationOp"`. Same fix for `onIteration` alias. Root cause of 8 duplicate day pages on every load — `onNavigation` was firing on every `full_state` receive because null transactionType matched it.
+
+## Recent Changes (Apr 2 2026 — operationActions + operationExecutor: Day Page Support)
+- **operationActions.js** — `FIND_OCCURRENCE` extended: now filters candidates with `Array.isArray` guard, skips `meta.isTemplate === true` occurrences, and supports optional `dateFieldId` + `dateExpr` for date-field matching (finds occurrence where a date field equals the target date by `toDateString()` comparison).
+- **operationActions.js** — 3 new action cases added before `PICK_RANDOM_FROM_POOL`:
+  - `COMPUTE_TEXTMAP_FROM_TEMPLATE`: deep-clones a template occurrence's `textmap`, substitutes `[token]` strings using `resolveExpr` values, stores result in `$vars` (default `$computedTextmap`). Pure computation — no effect emitted.
+  - `CREATE_OCCURRENCE_FOR_MODULE`: creates an occurrence for an existing module (no new module created). Supports `dateFieldId`/`dateExpr` for seeding an initial date field, and `textmapVar` to pick up a pre-computed textmap from `$vars`. Emits `CREATE_OCCURRENCE_FOR_MODULE` effect. Sets `$lastCreatedOccurrenceId`.
+  - `FILL_FROM_TEMPLATE`: applies a substituted textmap clone to an EXISTING occurrence. Use for re-filling already-created pages. Emits `UPDATE_OCCURRENCE` effect.
+- **operationExecutor.js** — Two new built-in `$vars` added after `$activeDate`:
+  - `$activeDateLabel`: human-readable label for the active filter date (e.g. "Thu, Apr 3"). Defaults to today when no date filter active.
+  - `$activeDayOfWeek`: full weekday name for active filter date (e.g. "Thursday"). Defaults to today.
 
 ## Recent Changes (Mar 31 2026 — Offline Queue + Optimistic Operations + Highlight Fix)
 - **offlineQueue.js** (NEW): Module-level queue buffers `socket.emit` calls when disconnected. `safeEmit(socket, event, data)` is a drop-in replacement — emits immediately when connected, queues when offline. Deduplicates update events per entity (keeps latest). `flushOfflineQueue(socket)` replays all queued mutations in order.
