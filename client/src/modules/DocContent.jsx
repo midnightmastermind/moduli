@@ -2,12 +2,12 @@
 // DocEditorShell — thin wrapper around the TipTap Editor: lock toggle + scroll-to-anchor.
 // Extracted from containerHelpers.jsx.
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import Editor from "../ui/Editor";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { Lock, Unlock } from "lucide-react";
 
-export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor }) {
+export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onAutoCreateTextblock }) {
   const [showLockBtn, setShowLockBtn] = useState(false);
   const wrapRef = useRef(null);
   const editorRef = useRef(null);
@@ -21,6 +21,65 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       target.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [scrollAnchor]);
+  // Auto-create textblock: when user types on empty paragraph, replace it with an instancePill block
+  const handleAutoCreateTextblock = useCallback((nodeStart, typedText, nodeSize) => {
+    if (!occurrence?.id || !socket || !dispatch) return;
+    const editor = editorRef.current?.editor;
+    if (!editor) return;
+
+    const userId = occurrence.userId;
+    const gridId = occurrence.gridId;
+    const modId = crypto.randomUUID();
+    const occId = crypto.randomUUID();
+
+    // Create the text module (instance role, kind: doc)
+    CommitHelpers.createModule({
+      dispatch, socket,
+      module: { id: modId, userId, gridId, role: "instance", kind: "doc", label: "" },
+      emit: true,
+    });
+
+    // Create occurrence with the typed text as initial textmap
+    const initialTextmap = {
+      type: "doc",
+      content: [{ type: "paragraph", content: typedText ? [{ type: "text", text: typedText }] : [] }],
+    };
+    CommitHelpers.createOccurrence({
+      dispatch, socket,
+      occurrence: {
+        id: occId, userId, gridId,
+        targetId: modId, targetType: "module",
+        parentId: occurrence.id,
+        iteration: { mode: "persistent" },
+        textmap: initialTextmap,
+        fields: {},
+      },
+      emit: true,
+    });
+
+    // Replace the paragraph with an instancePill block node
+    const schema = editor.state.schema;
+    if (!schema.nodes.instancePill) return;
+    const tr = editor.state.tr;
+    tr.setMeta("skipAutoCreate", true);
+    tr.replaceWith(nodeStart, nodeStart + nodeSize, schema.nodes.instancePill.create({
+      instanceId: modId,
+      instanceLabel: "",
+      occurrenceId: occId,
+      pillDisplay: "block",
+      showIcon: false,
+      showHeader: false,
+    }));
+    editor.view.dispatch(tr);
+
+    // After React renders the new pill, focus its sub-editor
+    setTimeout(() => {
+      const wrapper = editor.view.dom.closest(".doc-editor-wrapper");
+      const subEditor = wrapper?.querySelector(`[data-occurrence-id="${occId}"] .ProseMirror`);
+      if (subEditor) subEditor.focus();
+    }, 60);
+  }, [occurrence, socket, dispatch]);
+
   const handleToggleLock = (e) => {
     e.stopPropagation();
     if (!occurrence?.id) return;
@@ -69,6 +128,8 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         showToolbar={false}
         className="flex-1"
         onConvertListToInstances={onConvertListToInstances}
+        onExitBlock={onExitBlock}
+        onAutoCreateTextblock={onExitBlock ? null : (onAutoCreateTextblock || handleAutoCreateTextblock)}
       />
     </div>
   );

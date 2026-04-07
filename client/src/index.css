@@ -828,6 +828,7 @@ body {
   overflow: visible;
   display: flex;
   flex-direction: column;
+  cursor: text;
 }
 .doc-editor-wrapper .tiptap {
   flex: 1;
@@ -851,6 +852,32 @@ body {
 .anchor-highlight {
   animation: anchor-flash 1.2s ease;
   border-radius: 4px;
+}
+
+/* Textblock instance pills — cursor, hover, and focus states */
+.doc-instance-block {
+  cursor: text;
+  transition: border-color 0.15s, background 0.15s;
+}
+.doc-instance-block:hover {
+  border-color: rgba(134, 239, 172, 0.22) !important;
+  background: rgba(134, 239, 172, 0.07) !important;
+}
+.doc-instance-block:focus-within {
+  border-color: rgba(134, 239, 172, 0.32) !important;
+  background: rgba(134, 239, 172, 0.09) !important;
+}
+/* Sub-editor inside textblock — keep compact */
+.doc-instance-block .doc-editor-wrapper {
+  min-height: 0;
+}
+.doc-instance-block .doc-editor-wrapper .ProseMirror {
+  min-height: 0;
+  padding: 2px 0;
+}
+/* Doc container areas — text cursor */
+.container-doc {
+  cursor: text;
 }
 
 /* Spinner keyframes — used by Spinner component in spinner.jsx */

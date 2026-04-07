@@ -58,6 +58,8 @@ const Editor = forwardRef(function Editor({
   placeholder = "Click to edit…",
   className = "",
   onConvertListToInstances = null,
+  onExitBlock = null,
+  onAutoCreateTextblock = null,
 }, ref) {
   const { fieldsById, instancesById, occurrencesById, modulesById } = useContext(GridActionsContext) || {};
 
@@ -199,10 +201,22 @@ const Editor = forwardRef(function Editor({
     ],
     content: content || { type: "doc", content: [{ type: "paragraph", content: [] }] },
     editable,
-    onUpdate: ({ editor }) => {
+    onUpdate: ({ editor, transaction }) => {
       const json = editor.getJSON();
       onChange?.(json);
       persistContent(json, false);
+      // Auto-create textblock: first character typed on a previously empty paragraph
+      if (onAutoCreateTextblock && transaction.docChanged && !transaction.getMeta("skipAutoCreate")) {
+        const { from } = editor.state.selection;
+        const $pos = editor.state.doc.resolve(from);
+        if ($pos.depth === 1) {
+          const node = $pos.parent;
+          if (node.type.name === "paragraph" && node.textContent.length >= 1 && node.textContent.length <= 2) {
+            const nodeStart = $pos.before(1);
+            onAutoCreateTextblock(nodeStart, node.textContent, node.nodeSize);
+          }
+        }
+      }
       // D11: detect newly typed heading/list content → prompt to convert to module
       if (typeof localStorage !== "undefined" && localStorage.getItem("moduli_no_convert_prompt")) return;
       if (initialContentRef.current == null) { initialContentRef.current = JSON.stringify(json); return; }
@@ -228,6 +242,16 @@ const Editor = forwardRef(function Editor({
       instancesById,
       attributes: { class: "doc-editor-content prose prose-invert max-w-none focus:outline-none" },
       handleKeyDown: (_view, event) => {
+        // Shift+Enter at end of block content — exit to parent doc
+        if (event.key === "Enter" && event.shiftKey && onExitBlock) {
+          const { from } = _view.state.selection;
+          const docSize = _view.state.doc.content.size;
+          if (from >= docSize - 1) {
+            event.preventDefault();
+            onExitBlock();
+            return true;
+          }
+        }
         if (event.key === "@") handleAtKey();
         if (event.key === "/") handleSlashKey();
         if (event.key === "[" && lastCharRef.current === "[") handleDocLinkTrigger();

@@ -137,6 +137,63 @@ export function buildMergedDocTextmap(title, sections) {
   return { type: "doc", content };
 }
 
+/**
+ * Wrap runs of consecutive paragraph nodes in instancePill block nodes.
+ * Headings, lists, tables, and other block types are left as-is.
+ * Each run of consecutive paragraphs becomes ONE textblock instance.
+ *
+ * @param {Array} nodes - TipTap doc content array
+ * @param {Function} createTextblock - (paragraphNodes) => { moduleId, occurrenceId }
+ * @returns {Array} - Modified content array with instancePill blocks
+ */
+export function wrapTextInBlocks(nodes, createTextblock) {
+  const result = [];
+  let paragraphRun = [];
+
+  function flushParagraphRun() {
+    if (paragraphRun.length === 0) return;
+    const textmapContent = [...paragraphRun];
+    paragraphRun = [];
+    const { moduleId, occurrenceId } = createTextblock(textmapContent);
+    result.push({
+      type: "paragraph",
+      content: [{
+        type: "instancePill",
+        attrs: {
+          instanceId: moduleId,
+          instanceLabel: "",
+          occurrenceId,
+          pillDisplay: "block",
+          showIcon: false,
+          showHeader: false,
+        },
+      }],
+    });
+  }
+
+  function isParagraphEmpty(node) {
+    if (!node.content || node.content.length === 0) return true;
+    return node.content.every(n => !n.text || n.text.trim() === "");
+  }
+
+  for (const node of nodes) {
+    if (node.type === "paragraph") {
+      if (isParagraphEmpty(node)) {
+        // Empty paragraph: flush current run, then keep as plain empty line
+        flushParagraphRun();
+        result.push(node);
+      } else {
+        paragraphRun.push(node);
+      }
+    } else {
+      flushParagraphRun();
+      result.push(node);
+    }
+  }
+  flushParagraphRun();
+  return result.length ? result : [{ type: "paragraph", content: [] }];
+}
+
 // Parse stan.txt — [Section: Author] bracket format → [{ heading, lines }]
 // Skips "Produced by" and "You might also like" blocks.
 export function parseStanSections(filePath) {

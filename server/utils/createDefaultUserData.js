@@ -20,7 +20,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { parseSections, parseSectionsWithInstances } from "./mdParsers.js";
-import { inlineToTipTap, makeDocContent, buildMergedDocTextmap, parseStanSections, makeNotebookContainerDocContent } from "./docBuilders.js";
+import { inlineToTipTap, makeDocContent, buildMergedDocTextmap, parseStanSections, makeNotebookContainerDocContent, wrapTextInBlocks } from "./docBuilders.js";
 import { uid, makeLoopSumOp, makeLoopCountOp, makeLoopCountTrueOp, makeLoopLastOp, makeLoopMultiSumOp, makeNetBalanceOp, makeCompletionRateOp, makeLiteralOp, generateTimeSlots } from "./operationBuilders.js";
 import Grid from "../models/Grid.js";
 import Module from "../models/Module.js";
@@ -3044,18 +3044,41 @@ export async function createDefaultUserData(userId) {
     notebookTreeOccIds.push(contOccId);
   }
 
-  // Stan containers — lyrics directly in body, no nested instances.
+  // Helper: creates a textblock creator function that queues module+occurrence records for batch save.
+  // parentOccId = the container occurrence that owns these textblock instances.
+  const _textblockModules = [];
+  const _textblockOccurrences = [];
+  function makeTextblockCreator(parentOccId) {
+    return (paragraphNodes) => {
+      const modId = uid();
+      const occId = uid();
+      _textblockModules.push({ id: modId, userId, gridId, role: "instance", kind: "doc", label: "" });
+      _textblockOccurrences.push({
+        id: occId, userId, gridId,
+        targetId: modId, targetType: "module",
+        parentId: parentOccId,
+        iteration: { mode: "persistent" },
+        textmap: { type: "doc", content: paragraphNodes },
+        fields: {},
+      });
+      return { moduleId: modId, occurrenceId: occId };
+    };
+  }
+
+  // Stan containers — lyrics wrapped in textblocks.
   for (const [i, section] of _stanSections.entries()) {
     const container = notebookDocContainers[`stan_${i}`];
     if (!container) continue;
     const contOccId = stanSectionOccIds[i];
+    const rawContent = makeDocContent(section.lines).content;
+    const wrappedContent = wrapTextInBlocks(rawContent, makeTextblockCreator(contOccId));
     await new Occurrence({
       id: contOccId, userId, targetType: "module", targetId: container.id, gridId,
       viewId: container._viewId || null,
       parentId: stanParentOccId,
       sortOrder: i,
       iteration: { mode: "persistent" },
-      fields: {}, textmap: { type: "doc", content: makeDocContent(section.lines).content },
+      fields: {}, textmap: { type: "doc", content: wrappedContent },
       meta: { panelId: panels.centerHub.id },
     }).save();
     notebookPanelOccIds.push(contOccId);
@@ -3092,8 +3115,9 @@ export async function createDefaultUserData(userId) {
         content: [{ type: "instancePill", attrs: { instanceId: inst.id, instanceLabel: inst.label, occurrenceId: instOccId, showIcon: false, pillDisplay: "block" } }],
       })) };
     } else {
-      // Plain markdown content directly in body
-      bodyContent = makeDocContent(entry.extraLines || []);
+      // Wrap plain markdown paragraphs in textblocks
+      const rawNodes = makeDocContent(entry.extraLines || []).content;
+      bodyContent = { type: "doc", content: wrapTextInBlocks(rawNodes, makeTextblockCreator(contOccId)) };
     }
 
     await new Occurrence({
@@ -3138,7 +3162,8 @@ export async function createDefaultUserData(userId) {
         content: [{ type: "instancePill", attrs: { instanceId: inst.id, instanceLabel: inst.label, occurrenceId: instOccId, showIcon: false, pillDisplay: "block" } }],
       })) };
     } else {
-      bodyContent = makeDocContent(entry.extraLines || []);
+      const rawNodes = makeDocContent(entry.extraLines || []).content;
+      bodyContent = { type: "doc", content: wrapTextInBlocks(rawNodes, makeTextblockCreator(contOccId)) };
     }
 
     await new Occurrence({
@@ -3184,7 +3209,8 @@ export async function createDefaultUserData(userId) {
           content: [{ type: "instancePill", attrs: { instanceId: inst.id, instanceLabel: inst.label, occurrenceId: instOccId, showIcon: false, pillDisplay: "block" } }],
         })) };
       } else {
-        bodyContent = makeDocContent(entry.extraLines || []);
+        const rawNodes = makeDocContent(entry.extraLines || []).content;
+        bodyContent = { type: "doc", content: wrapTextInBlocks(rawNodes, makeTextblockCreator(contOccId)) };
       }
 
       await new Occurrence({
@@ -3320,6 +3346,14 @@ export async function createDefaultUserData(userId) {
 
   // Note: notebook container ordering is tracked via occurrence.occurrences (child occ ids),
   // not on the module. Module is a template — it has no occurrences array in new architecture.
+
+  // Batch-save all textblock modules + occurrences generated above
+  if (_textblockModules.length > 0) {
+    await Module.insertMany(_textblockModules);
+  }
+  if (_textblockOccurrences.length > 0) {
+    await Occurrence.insertMany(_textblockOccurrences);
+  }
 
   // ===================================================================
   // STEP 6: Create Manifest, Folders, Docs, and View for Day Page panel

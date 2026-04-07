@@ -11,6 +11,7 @@ import { GridActionsContext } from "../../GridActionsContext";
 import { Copy, Link, Trash2, Settings, Move, Check, Box, Eye, EyeOff, Maximize2 } from "lucide-react";
 import RadialMenu from "../../ui/RadialMenu";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
+import DocContent from "../../modules/DocContent.jsx";
 
 // Render TipTap JSON nodes as React elements with markdown-like styling
 const HEADING_STYLES = {
@@ -232,8 +233,14 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
 
   // Block mode — computed unconditionally to respect hooks rules
   const blockOcc = useMemo(() => occurrencesById?.[occurrenceId] || null, [occurrencesById, occurrenceId]);
-  const blockRendered = useMemo(() => renderTipTapContent(blockOcc?.textmap), [blockOcc?.textmap]);
-  const hasBlockContent = blockRendered && blockRendered.length > 0;
+
+  // Exit block: move parent editor cursor to after this node
+  const handleExitBlock = useCallback(() => {
+    if (!editor || !getPos) return;
+    const pos = getPos();
+    const nodeSize = node.nodeSize;
+    editor.chain().setTextSelection(pos + nodeSize).focus().run();
+  }, [editor, getPos, node.nodeSize]);
 
   // ==================================================================
   // BLOCK MODE — docInstance textblock with optional header
@@ -329,16 +336,23 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
             </div>
           )}
 
-          {/* Markdown content from occurrence textmap */}
-          <div style={{
-            padding: showHeader ? "5px 10px 6px 10px" : "6px 10px 6px 20px",
-            fontSize: 11,
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-mono)",
-            lineHeight: 1.55,
-            wordBreak: "break-word",
-          }}>
-            {hasBlockContent ? blockRendered : <span style={{ opacity: 0.25 }}>—</span>}
+          {/* Editable content via DocContent sub-editor */}
+          <div
+            style={{ padding: showHeader ? "3px 8px 4px 8px" : "3px 8px 4px 18px" }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {blockOcc ? (
+              <DocContent
+                occurrence={blockOcc}
+                dispatch={dispatch}
+                socket={socket}
+                hideToolbar={true}
+                onExitBlock={handleExitBlock}
+              />
+            ) : (
+              <span style={{ opacity: 0.25, fontSize: 11 }}>—</span>
+            )}
           </div>
         </div>
       </NodeViewWrapper>

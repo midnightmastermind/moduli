@@ -527,7 +527,6 @@ function ModuleInstance({
       data-instance-id={module.id}
       data-occurrence-id={occurrence?.id}
       data-testid="instance-wrap"
-      tabIndex={0}
       className="instance-wrap"
       style={{
         touchAction: "manipulation",
