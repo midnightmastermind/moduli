@@ -543,9 +543,25 @@ function Panel({
       const idx = prev.indexOf(newId);
       // Navigating back to a previous entry — truncate to that point
       if (idx >= 0) return prev.slice(0, idx + 1);
+      // Check if the new page is a child/descendant of the last page in history
+      // If not, it's a navigation to a different part of the tree — reset breadcrumbs
+      if (prev.length > 0) {
+        const lastId = prev[prev.length - 1];
+        const newOcc = occurrencesById?.[newId];
+        const lastOcc = occurrencesById?.[lastId];
+        // Related if: new page's parentId matches last page's parentId (siblings),
+        // or new page is a child of the last page (drilldown),
+        // or new page's parentId is in the history chain
+        const isChild = newOcc?.parentId === lastId;
+        const isSibling = newOcc?.parentId && lastOcc?.parentId && newOcc.parentId === lastOcc.parentId;
+        const isAncestorInChain = prev.some(hId => newOcc?.parentId === hId);
+        if (!isChild && !isSibling && !isAncestorInChain) {
+          return [newId]; // Reset — navigating to unrelated part of tree
+        }
+      }
       return [...prev, newId];
     });
-  }, [currentView?.activeOccurrenceId]);
+  }, [currentView?.activeOccurrenceId, occurrencesById]);
 
   const openPage = useCallback((occId, options = {}) => {
     if (!occId || !panelOccurrence?.id) return;

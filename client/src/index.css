@@ -826,6 +826,11 @@ body {
    ============================================================================= */
 .doc-editor-wrapper {
   overflow: visible;
+  display: flex;
+  flex-direction: column;
+}
+.doc-editor-wrapper .tiptap {
+  flex: 1;
 }
 
 .doc-editor-content.ProseMirror {
@@ -834,6 +839,7 @@ body {
   overflow: visible;
   pointer-events: auto;
   cursor: text;
+  min-height: 100%;
 }
 
 /* Anchor highlight animation (double-flash when scrolling to anchor) */
@@ -1638,7 +1644,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 
 .preview-node-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   column-gap: 5px;
   row-gap: 0;
   padding: 8px;

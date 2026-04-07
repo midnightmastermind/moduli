@@ -10,6 +10,7 @@ import { Lock, Unlock } from "lucide-react";
 export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor }) {
   const [showLockBtn, setShowLockBtn] = useState(false);
   const wrapRef = useRef(null);
+  const editorRef = useRef(null);
   const isLocked = !!occurrence?.locked;
 
   // Scroll-to-anchor: when scrollAnchor is set, find the element and scroll to it
@@ -32,6 +33,17 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       onMouseEnter={() => setShowLockBtn(true)}
       onMouseLeave={() => setShowLockBtn(false)}
       style={{ cursor: isLocked ? "default" : "text" }}
+      onClick={(e) => {
+        if (isLocked || e.target !== e.currentTarget) return;
+        const editor = editorRef.current?.editor;
+        if (!editor || !editor.isEditable) return;
+        const pos = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
+        if (pos) {
+          editor.chain().setTextSelection(pos.pos).focus().run();
+        } else {
+          editor.commands.focus("end");
+        }
+      }}
     >
       {(showLockBtn || isLocked) && (
         <button
@@ -48,6 +60,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         </button>
       )}
       <Editor
+        ref={editorRef}
         content={occurrence?.textmap ?? null}
         occurrence={occurrence}
         dispatch={dispatch}

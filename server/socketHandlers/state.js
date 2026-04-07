@@ -61,11 +61,23 @@ export function registerStateHandlers(socket, {
         });
       };
 
-      // Collect an occurrence and all its descendants (2 levels deep for preview)
+      // Collect an occurrence and all its descendants for preview.
+      // Also collects folder siblings (occurrences sharing the same parentId as root).
       function collectOccurrenceSubtree(rootOccId, uc) {
         const result = [];
         const seen = new Set();
         const queue = [rootOccId];
+        const rootOcc = uc.occurrencesById[rootOccId];
+
+        // For folder pages, also include siblings that share the same parentId (folder contents)
+        if (rootOcc?.parentId) {
+          for (const candidate of Object.values(uc.occurrencesById)) {
+            if (candidate.parentId === rootOcc.parentId && candidate.id !== rootOccId && !seen.has(candidate.id)) {
+              queue.push(candidate.id);
+            }
+          }
+        }
+
         while (queue.length > 0) {
           const id = queue.shift();
           if (seen.has(id)) continue;

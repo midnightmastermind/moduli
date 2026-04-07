@@ -826,16 +826,22 @@ const Editor = forwardRef(function Editor({
       <div
         className={`doc-editor-wrapper min-h-[100px] py-3 pr-3 pl-8 flex-1${stickyToolbar ? " overflow-auto" : ""}`}
         onClick={(e) => {
-          // Obsidian-style: clicking empty space BELOW content focuses at end
           if (!editor || !editor.isEditable) return;
-          if (e.target !== e.currentTarget) return; // Only fire on wrapper itself, not content
-          // Only focus-end when clicking below the editor content, not side padding
-          const editorEl = e.currentTarget.querySelector(".ProseMirror");
-          if (editorEl) {
-            const editorRect = editorEl.getBoundingClientRect();
-            if (e.clientY <= editorRect.bottom) return; // Click is beside content, let ProseMirror handle it
+          if (e.target !== e.currentTarget) return;
+          // Click is on the wrapper padding (not on ProseMirror content).
+          let coords = { left: e.clientX, top: e.clientY };
+          // If click is in left padding, nudge X into the content area
+          const pmEl = e.currentTarget.querySelector(".ProseMirror");
+          if (pmEl) {
+            const pmRect = pmEl.getBoundingClientRect();
+            if (coords.left < pmRect.left) coords.left = pmRect.left + 2;
           }
-          editor.commands.focus("end");
+          const pos = editor.view.posAtCoords(coords);
+          if (pos) {
+            editor.chain().setTextSelection(pos.pos).focus().run();
+          } else {
+            editor.commands.focus("end");
+          }
         }}
       >
         <EditorContent editor={editor} />

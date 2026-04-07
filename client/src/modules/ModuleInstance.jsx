@@ -47,6 +47,7 @@ function InstanceInner({
   dragHandleRef = null,
   onDoubleClick,
   toggleDoc,
+  containerOccurrence,
   dispatch,
   socket,
 }) {
@@ -527,9 +528,9 @@ function ModuleInstance({
       data-occurrence-id={occurrence?.id}
       data-testid="instance-wrap"
       tabIndex={0}
-      className="no-select instance-wrap"
+      className="instance-wrap"
       style={{
-        touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none",
+        touchAction: "manipulation",
         opacity: isDragging ? 0.4 : 1,
         background: "transparent", borderRadius: 4,
         transition: "opacity 0.1s", marginBottom: 2, position: "relative",
@@ -555,6 +556,7 @@ function ModuleInstance({
         occurrence={occurrence}
         panel={panel}
         container={container}
+        containerOccurrence={containerOccurrence}
         dispatch={dispatch}
         socket={socket}
         dragHandleRef={handleRef}

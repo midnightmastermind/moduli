@@ -252,7 +252,7 @@ function Page({
   drilldownTarget,
   onDrilldownComplete,
 }) {
-  const { occurrencesById, modulesById, containersById, viewsById } = useContext(GridActionsContext);
+  const { occurrencesById, modulesById, containersById, viewsById, foldersById, childrenByParentId } = useContext(GridActionsContext);
   const { state } = useContext(GridDataContext);
   const { isMobile } = useContext(GridLiveContext);
 
@@ -302,23 +302,42 @@ function Page({
     [occurrence, state?.grid?.activeFilterValues]
   );
 
-  // Child occurrences for folder pages — derived from all occs in the same folder (occurrence.parentId = folderId).
-  // Excludes self, templates, and folder-nav occurrences (kind="folder").
+  // Child occurrences for folder pages.
+  // Includes: (1) page/doc occurrences with parentId = this folder
+  //           (2) folder-page occurrences for each sub-folder of this folder
+  // Excludes self, templates.
   const folderChildOccs = useMemo(() => {
     if (kind !== "folder") return [];
     const folderId = occurrence?.parentId;
     if (!folderId) return [];
-    return Object.values(occurrencesById)
+
+    // Direct children: occurrences whose parentId matches this folder
+    const directChildren = (childrenByParentId[folderId] || [])
       .filter(occ => {
-        if (occ.parentId !== folderId) return false;
         if (occ.id === occurrence.id) return false;
         if (occ.meta?.isTemplate) return false;
-        const mod = modulesById[occ.targetId];
-        if (mod?.kind === "folder") return false;
         return true;
-      })
+      });
+
+    // Sub-folder pages: find child folders, then find their folder-page occurrences
+    const childFolders = Object.values(foldersById || {})
+      .filter(f => f.parentId === folderId);
+    const seenIds = new Set(directChildren.map(c => c.id));
+    const subFolderPageOccs = [];
+    for (const sf of childFolders) {
+      const sfChildren = childrenByParentId[sf.id] || [];
+      const folderPageOcc = sfChildren.find(occ => {
+        const mod = modulesById[occ.targetId];
+        return mod?.kind === "folder" && mod?.role === "page";
+      });
+      if (folderPageOcc && !seenIds.has(folderPageOcc.id)) {
+        subFolderPageOccs.push(folderPageOcc);
+      }
+    }
+
+    return [...directChildren, ...subFolderPageOccs]
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  }, [kind, occurrence?.parentId, occurrence?.id, occurrencesById, modulesById]);
+  }, [kind, occurrence?.parentId, occurrence?.id, childrenByParentId, modulesById, foldersById]);
 
   const containersList = useMemo(() => {
     if (!occurrence) return [];

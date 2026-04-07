@@ -205,7 +205,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
 }
 
 // ─── FolderNode ──────────────────────────────────────────────────────────────
-function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId, onOpenPage, showAnchors = true }) {
+function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId, onOpenPage, onOpenPageAndClose, showAnchors = true }) {
   const { dispatch, socket, state } = useContext(GridActionsContext);
   const [open, setOpen] = useState(folder?.isExpanded !== false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -435,11 +435,11 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
           {childFolders.map(cf => (
             <FolderNode key={cf.id} folder={cf} depth={depth + 1} foldersById={foldersById}
               occurrencesById={occurrencesById} modulesById={modulesById} childrenByParentId={childrenByParentId} activeOccurrenceId={activeOccurrenceId}
-              onSelect={onSelect} onScrollTo={onScrollTo} onSetDefault={onSetDefault} defaultOccurrenceId={defaultOccurrenceId} onOpenPage={onOpenPage} showAnchors={showAnchors} />
+              onSelect={onSelect} onScrollTo={onScrollTo} onSetDefault={onSetDefault} defaultOccurrenceId={defaultOccurrenceId} onOpenPage={onOpenPage} onOpenPageAndClose={onOpenPageAndClose} showAnchors={showAnchors} />
           ))}
           {pageOccs.map(occ => (
             <PageTreeNode key={occ.id} pageOccId={occ.id} activeOccId={activeOccurrenceId}
-              onOpenPage={onOpenPage} occurrencesById={occurrencesById} modulesById={modulesById}
+              onOpenPage={onOpenPageAndClose || onOpenPage} occurrencesById={occurrencesById} modulesById={modulesById}
               childrenByParentId={childrenByParentId} onSelect={onSelect} onScrollTo={onScrollTo}
               activeOccurrenceId={activeOccurrenceId}
               folderPageOccId={folderPageOcc?.id} />
@@ -591,7 +591,14 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
     } else if (onOpenPage) {
       onOpenPage(occId);
     }
-  }, [activePageView, view, onOpenPage, dispatch, socket]);
+    onToggleCollapse?.();
+  }, [activePageView, view, onOpenPage, onToggleCollapse, dispatch, socket]);
+
+  // Wrap onOpenPage to also close the tree sidebar
+  const handleOpenPage = useCallback((...args) => {
+    onOpenPage?.(...args);
+    onToggleCollapse?.();
+  }, [onOpenPage, onToggleCollapse]);
 
   // Clicking an anchor chip → keep parent doc open, scroll to heading
   const handleScrollTo = useCallback((parentOccId, anchorOccId) => {
@@ -754,7 +761,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                       pageOccId={pageOccId}
                       activeOccId={view?.activeOccurrenceId}
                       activeOccurrenceId={view?.activeOccurrenceId}
-                      onOpenPage={onOpenPage}
+                      onOpenPage={handleOpenPage}
                       occurrencesById={occurrencesById}
                       modulesById={modulesById}
                       childrenByParentId={childrenByParentId}
@@ -785,6 +792,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                   onSetDefault={handleSetDefault}
                   defaultOccurrenceId={view?.defaultOccurrenceId}
                   onOpenPage={onOpenPage}
+                  onOpenPageAndClose={handleOpenPage}
                   showAnchors={true}
                 />
               )
