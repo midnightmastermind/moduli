@@ -129,7 +129,7 @@ export default function MobileGridNav({
     [setActiveCell, setZoomedOut]
   );
 
-  // --- Auto-scroll: detect overscroll at panel boundaries for multi-cell panels ---
+  // --- Auto-scroll: detect overscroll at content boundaries → navigate to next cell ---
   const touchRef = useRef({ startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, axis: null, scrollEl: null, panelEl: null });
   const cooldownRef = useRef(false);
   // Stable ref for activeCell so the touch handler always sees the latest value
@@ -144,7 +144,9 @@ export default function MobileGridNav({
     const onTouchStart = (e) => {
       const touch = e.touches[0];
       const panelEl = e.target.closest?.('[data-panel-id]');
-      const scrollEl = panelEl ? findScrollableAncestor(e.target, panelEl) : null;
+      // Find the nearest scrollable ancestor — stop at viewport (not panel) to catch
+      // deeply nested scroll containers (page boards, docs, folder content, etc.)
+      const scrollEl = findScrollableAncestor(e.target, viewport);
 
       touchRef.current = {
         startY: touch.clientY,
@@ -152,16 +154,18 @@ export default function MobileGridNav({
         lastY: touch.clientY,
         lastX: touch.clientX,
         delta: 0,
+        boundaryY: 0,
+        boundaryX: 0,
         axis: null,
         scrollEl,
         panelEl,
+        atBoundary: false,
       };
     };
 
     const onTouchMove = (e) => {
       if (cooldownRef.current) return;
       const t = touchRef.current;
-      if (!t.panelEl) return;
 
       const touch = e.touches[0];
       const dy = touch.clientY - t.startY;
@@ -171,30 +175,28 @@ export default function MobileGridNav({
       if (!t.axis && (Math.abs(dy) > 10 || Math.abs(dx) > 10)) {
         t.axis = Math.abs(dy) > Math.abs(dx) ? 'vertical' : 'horizontal';
       }
-      if (!t.axis) return;
-
-      const panelId = t.panelEl.getAttribute('data-panel-id');
-      const panel = visiblePanels.find(p => p.id === panelId || p._occurrenceId === panelId);
-      if (!panel) return;
+      if (!t.axis) { t.lastY = touch.clientY; t.lastX = touch.clientX; return; }
 
       const cell = activeCellRef.current;
 
       if (t.axis === 'vertical') {
         const direction = dy < 0 ? 'down' : 'up';
-        const canExtend = direction === 'down'
-          ? (panel.row + (panel.height || 1) > cell.row + 1)
-          : (panel.row < cell.row);
+        const canNav = direction === 'down' ? (cell.row < rows - 1) : (cell.row > 0);
+        const atBound = isAtScrollBoundary(t.scrollEl, direction);
 
-        if (canExtend && isAtScrollBoundary(t.scrollEl, direction)) {
-          // Accumulate delta since last frame
-          const frameDelta = Math.abs(touch.clientY - t.lastY);
-          t.delta += frameDelta;
+        if (canNav && atBound) {
+          // Mark where we first hit the boundary
+          if (!t.atBoundary) {
+            t.atBoundary = true;
+            t.boundaryY = touch.clientY;
+          }
+          // Total distance swiped past boundary
+          const overDist = Math.abs(touch.clientY - t.boundaryY);
 
-          if (t.delta > OVERSCROLL_THRESHOLD) {
+          if (overDist > OVERSCROLL_THRESHOLD) {
             const dRow = direction === 'down' ? 1 : -1;
             navigate(dRow, 0);
 
-            // Reset scroll for continuity
             if (t.scrollEl) {
               if (direction === 'down') t.scrollEl.scrollTop = 0;
               else t.scrollEl.scrollTop = t.scrollEl.scrollHeight;
@@ -202,28 +204,32 @@ export default function MobileGridNav({
 
             cooldownRef.current = true;
             setTimeout(() => { cooldownRef.current = false; }, NAVIGATE_COOLDOWN);
-            // Reset tracking
             t.delta = 0;
             t.startY = touch.clientY;
             t.startX = touch.clientX;
+            t.boundaryY = 0;
+            t.boundaryX = 0;
             t.axis = null;
+            t.atBoundary = false;
           }
         } else {
-          // Not at boundary — reset delta
+          t.atBoundary = false;
           t.delta = 0;
         }
       } else {
         // Horizontal
         const direction = dx < 0 ? 'right' : 'left';
-        const canExtend = direction === 'right'
-          ? (panel.col + (panel.width || 1) > cell.col + 1)
-          : (panel.col < cell.col);
+        const canNav = direction === 'right' ? (cell.col < cols - 1) : (cell.col > 0);
+        const atBound = isAtScrollBoundary(t.scrollEl, direction);
 
-        if (canExtend && isAtScrollBoundary(t.scrollEl, direction)) {
-          const frameDelta = Math.abs(touch.clientX - t.lastX);
-          t.delta += frameDelta;
+        if (canNav && atBound) {
+          if (!t.atBoundary) {
+            t.atBoundary = true;
+            t.boundaryX = touch.clientX;
+          }
+          const overDist = Math.abs(touch.clientX - t.boundaryX);
 
-          if (t.delta > OVERSCROLL_THRESHOLD) {
+          if (overDist > OVERSCROLL_THRESHOLD) {
             const dCol = direction === 'right' ? 1 : -1;
             navigate(0, dCol);
 
@@ -237,9 +243,13 @@ export default function MobileGridNav({
             t.delta = 0;
             t.startY = touch.clientY;
             t.startX = touch.clientX;
+            t.boundaryY = 0;
+            t.boundaryX = 0;
             t.axis = null;
+            t.atBoundary = false;
           }
         } else {
+          t.atBoundary = false;
           t.delta = 0;
         }
       }
@@ -249,7 +259,7 @@ export default function MobileGridNav({
     };
 
     const onTouchEnd = () => {
-      touchRef.current = { startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, axis: null, scrollEl: null, panelEl: null };
+      touchRef.current = { startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, boundaryY: 0, boundaryX: 0, axis: null, scrollEl: null, panelEl: null, atBoundary: false };
     };
 
     viewport.addEventListener('touchstart', onTouchStart, { passive: true });
@@ -261,7 +271,7 @@ export default function MobileGridNav({
       viewport.removeEventListener('touchmove', onTouchMove);
       viewport.removeEventListener('touchend', onTouchEnd);
     };
-  }, [isMobile, zoomedOut, visiblePanels, navigate]);
+  }, [isMobile, zoomedOut, rows, cols, navigate]);
 
   // Desktop passthrough — zero overhead
   if (!isMobile) return children;

@@ -7,7 +7,7 @@ import Editor from "../ui/Editor";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { Lock, Unlock } from "lucide-react";
 
-export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onAutoCreateTextblock }) {
+export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onDeleteBlock, onAutoCreateTextblock }) {
   const [showLockBtn, setShowLockBtn] = useState(false);
   const wrapRef = useRef(null);
   const editorRef = useRef(null);
@@ -21,8 +21,10 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       target.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [scrollAnchor]);
-  // Auto-create textblock: when user types on empty paragraph, replace it with an instancePill block
-  const handleAutoCreateTextblock = useCallback((nodeStart, typedText, nodeSize) => {
+  // Auto-create textblock: when user types on empty paragraph or a list appears at top level,
+  // replace it with an instancePill block. nodeJson is optional — when provided (for lists),
+  // it becomes the initial textmap content directly.
+  const handleAutoCreateTextblock = useCallback((nodeStart, typedText, nodeSize, nodeJson) => {
     if (!occurrence?.id || !socket || !dispatch) return;
     const editor = editorRef.current?.editor;
     if (!editor) return;
@@ -39,11 +41,10 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       emit: true,
     });
 
-    // Create occurrence with the typed text as initial textmap
-    const initialTextmap = {
-      type: "doc",
-      content: [{ type: "paragraph", content: typedText ? [{ type: "text", text: typedText }] : [] }],
-    };
+    // Create occurrence with the typed text or full node JSON as initial textmap
+    const initialTextmap = nodeJson
+      ? { type: "doc", content: [nodeJson] }
+      : { type: "doc", content: [{ type: "paragraph", content: typedText ? [{ type: "text", text: typedText }] : [] }] };
     CommitHelpers.createOccurrence({
       dispatch, socket,
       occurrence: {
@@ -129,6 +130,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         className="flex-1"
         onConvertListToInstances={onConvertListToInstances}
         onExitBlock={onExitBlock}
+        onDeleteBlock={onDeleteBlock}
         onAutoCreateTextblock={onExitBlock ? null : (onAutoCreateTextblock || handleAutoCreateTextblock)}
       />
     </div>

@@ -666,18 +666,18 @@ body {
   min-height: 0 !important;
 }
 
-/* The ball — 18px circle with mode icon inside */
+/* The radial handle button — no circle, just the icon */
 .module-drag-handle .radial-handle {
   width: 18px !important;
   height: 18px !important;
   padding: 0 !important;
   border-radius: 50% !important;
-  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  border: none !important;
   flex: none !important;
   min-width: unset !important;
   max-width: 18px !important;
   align-self: center !important;
-  background: rgba(255, 255, 255, 0.22);
+  background: transparent;
 }
 
 /* Cog handle — shown when header is hidden; absolute top-left, reveals on shell hover */
@@ -867,13 +867,18 @@ body {
   border-color: rgba(134, 239, 172, 0.32) !important;
   background: rgba(134, 239, 172, 0.09) !important;
 }
-/* Sub-editor inside textblock — keep compact */
+/* Sub-editor inside textblock — keep compact, minimal padding */
 .doc-instance-block .doc-editor-wrapper {
   min-height: 0;
+  padding: 0 !important;
 }
 .doc-instance-block .doc-editor-wrapper .ProseMirror {
   min-height: 0;
   padding: 2px 0;
+}
+/* First paragraph in textblock gets text-indent for visual separation */
+.doc-instance-block .doc-editor-wrapper .ProseMirror > p:first-child {
+  text-indent: 1.2em;
 }
 /* Doc container areas — text cursor */
 .container-doc {
@@ -1700,6 +1705,12 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   overflow: hidden;
   position: relative;
   padding: 0;
+}
+/* Prevent preview node internals from capturing scroll — parent folder grid handles it */
+.preview-node-card iframe,
+.preview-node-preview * {
+  pointer-events: none;
+  touch-action: none;
 }
 
 .preview-node-title {

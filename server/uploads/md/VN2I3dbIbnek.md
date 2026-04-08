@@ -1,0 +1,5 @@
+**Internal:**
+
+- Ego: conditioned identity, fears, false narratives
+- Self: integrated, authentic, coherent consciousness
+- Integration: recognizing false self-stories and acting from values, not impulses

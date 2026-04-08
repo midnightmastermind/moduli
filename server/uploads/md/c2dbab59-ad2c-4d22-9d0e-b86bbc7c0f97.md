@@ -1,0 +1,2 @@
+- Aligning your internal state with values, needs, desires
+- Integration: “turning inward” for healing, reflection, insight

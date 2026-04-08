@@ -440,14 +440,21 @@ function Page({
       />
     );
   } else if (kind === "doc") {
-    // Doc page — TipTap editor directly
+    // Doc page — TipTap editor in a scroll wrapper
     content = (
-      <DocEditorShell
-        occurrence={occurrence}
-        dispatch={dispatch}
-        socket={socket}
-        scrollAnchor={scrollAnchor}
-      />
+      <div style={{
+        flex: 1, minHeight: 0,
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
+        overscrollBehavior: "contain",
+      }}>
+        <DocEditorShell
+          occurrence={occurrence}
+          dispatch={dispatch}
+          socket={socket}
+          scrollAnchor={scrollAnchor}
+        />
+      </div>
     );
   } else if (kind === "display") {
     // Display page — artifact viewer

@@ -1,0 +1,5 @@
+**Internal:**
+
+- Repressed traits, shame, trauma ↔ conscious awareness, self-acceptance
+- Integration: post-traumatic growth, turning impulses inward for refinement
+- Psychological correlate: shadow work, CBT reframing

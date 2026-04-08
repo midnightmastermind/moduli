@@ -59,6 +59,7 @@ const Editor = forwardRef(function Editor({
   className = "",
   onConvertListToInstances = null,
   onExitBlock = null,
+  onDeleteBlock = null,
   onAutoCreateTextblock = null,
 }, ref) {
   const { fieldsById, instancesById, occurrencesById, modulesById } = useContext(GridActionsContext) || {};
@@ -96,9 +97,6 @@ const Editor = forwardRef(function Editor({
   const [isSaving, setIsSaving] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
   // D11: convert-to-module prompt
-  const [convertPrompt, setConvertPrompt] = useState(null); // { text } or null
-  const convertTimerRef = useRef(null);
-  const initialContentRef = useRef(null);
 
   const lastCharRef = useRef("");
   const wrapperRef = useRef(null);
@@ -207,6 +205,7 @@ const Editor = forwardRef(function Editor({
       persistContent(json, false);
       // Auto-create textblock: first character typed on a previously empty paragraph
       if (onAutoCreateTextblock && transaction.docChanged && !transaction.getMeta("skipAutoCreate")) {
+        let handled = false;
         const { from } = editor.state.selection;
         const $pos = editor.state.doc.resolve(from);
         if ($pos.depth === 1) {
@@ -214,22 +213,58 @@ const Editor = forwardRef(function Editor({
           if (node.type.name === "paragraph" && node.textContent.length >= 1 && node.textContent.length <= 2) {
             const nodeStart = $pos.before(1);
             onAutoCreateTextblock(nodeStart, node.textContent, node.nodeSize);
+            handled = true;
           }
         }
-      }
-      // D11: detect newly typed heading/list content → prompt to convert to module
-      if (typeof localStorage !== "undefined" && localStorage.getItem("moduli_no_convert_prompt")) return;
-      if (initialContentRef.current == null) { initialContentRef.current = JSON.stringify(json); return; }
-      if (JSON.stringify(json) === initialContentRef.current) return;
-      const nodes = json.content || [];
-      const hasStructure = nodes.some(n => n.type === "heading" || n.type === "bulletList" || n.type === "orderedList");
-      const text = editor.getText().trim();
-      if (hasStructure && text.length > 3) {
-        if (convertTimerRef.current) clearTimeout(convertTimerRef.current);
-        convertTimerRef.current = setTimeout(() => setConvertPrompt({ text }), 2000);
-      } else {
-        if (convertTimerRef.current) clearTimeout(convertTimerRef.current);
-        setConvertPrompt(null);
+        // Auto-wrap top-level list nodes — batch merge into preceding textblocks
+        if (!handled) {
+          const merges = []; // collect all mergeable lists
+          let standaloneList = null; // first standalone list (no preceding textblock)
+          let idx = 0;
+          editor.state.doc.forEach((node, offset) => {
+            if (node.type.name === "bulletList" || node.type.name === "orderedList") {
+              let merged = false;
+              if (idx > 0) {
+                const prevNode = editor.state.doc.child(idx - 1);
+                if (prevNode.type.name === "paragraph" && prevNode.childCount === 1) {
+                  const pill = prevNode.firstChild;
+                  if (pill?.type?.name === "instancePill" && pill.attrs.pillDisplay === "block" && pill.attrs.occurrenceId) {
+                    merges.push({ offset, nodeSize: node.nodeSize, occId: pill.attrs.occurrenceId, nodeJson: node.toJSON() });
+                    merged = true;
+                  }
+                }
+              }
+              if (!merged && !standaloneList) {
+                standaloneList = { offset, nodeSize: node.nodeSize, nodeJson: node.toJSON() };
+              }
+            }
+            idx++;
+          });
+          // Batch-merge all lists into their preceding textblocks (reverse order for stable offsets)
+          if (merges.length > 0) {
+            const tr = editor.state.tr;
+            tr.setMeta("skipAutoCreate", true);
+            for (let i = merges.length - 1; i >= 0; i--) {
+              const { offset, nodeSize, occId, nodeJson } = merges[i];
+              const targetOcc = occurrencesById?.[occId];
+              if (targetOcc) {
+                const tm = targetOcc.textmap || { type: "doc", content: [] };
+                CommitHelpers.updateOccurrence({
+                  dispatch, socket,
+                  occurrence: { ...targetOcc, textmap: { type: "doc", content: [...(tm.content || []), nodeJson] } },
+                });
+                tr.delete(offset, offset + nodeSize);
+              }
+            }
+            editor.view.dispatch(tr);
+            handled = true;
+          }
+          // Standalone list (no preceding textblock) — create new textblock
+          if (!handled && standaloneList) {
+            onAutoCreateTextblock(standaloneList.offset, null, standaloneList.nodeSize, standaloneList.nodeJson);
+            handled = true;
+          }
+        }
       }
     },
     onBlur: ({ editor }) => {
@@ -249,6 +284,16 @@ const Editor = forwardRef(function Editor({
           if (from >= docSize - 1) {
             event.preventDefault();
             onExitBlock();
+            return true;
+          }
+        }
+        // Backspace at start of empty block content — delete the block
+        if (event.key === "Backspace" && onDeleteBlock) {
+          const { from } = _view.state.selection;
+          const text = _view.state.doc.textContent;
+          if (from <= 1 && text.trim() === "") {
+            event.preventDefault();
+            onDeleteBlock();
             return true;
           }
         }
@@ -740,7 +785,7 @@ const Editor = forwardRef(function Editor({
           style={{
             position: "absolute",
             top: blockHandle.top,
-            left: 5,
+            left: -6,
             display: "flex",
             alignItems: "center",
             zIndex: 50,
@@ -848,7 +893,7 @@ const Editor = forwardRef(function Editor({
       )}
 
       <div
-        className={`doc-editor-wrapper min-h-[100px] py-3 pr-3 pl-8 flex-1${stickyToolbar ? " overflow-auto" : ""}`}
+        className={`doc-editor-wrapper min-h-[100px] py-3 pr-2 pl-3 flex-1${stickyToolbar ? " overflow-auto" : ""}`}
         onClick={(e) => {
           if (!editor || !editor.isEditable) return;
           if (e.target !== e.currentTarget) return;
@@ -987,32 +1032,6 @@ const Editor = forwardRef(function Editor({
               <span style={{ opacity: 0.35, marginLeft: "auto", fontSize: 9 }}>{f.type}</span>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* D11: Convert to module prompt */}
-      {convertPrompt && (
-        <div style={{
-          position: "absolute", bottom: 6, left: 8, right: 8, zIndex: 200,
-          background: "rgba(26,26,46,0.97)", border: "1px solid rgba(99,179,237,0.3)",
-          borderRadius: 6, padding: "6px 10px",
-          display: "flex", alignItems: "center", gap: 8,
-          boxShadow: "0 2px 12px rgba(0,0,0,0.4)", fontSize: 11,
-        }}>
-          <Box size={12} style={{ color: "rgba(99,179,237,0.7)", flexShrink: 0 }} />
-          <span style={{ color: "var(--text-primary)", flex: 1 }}>Turn this into a module?</span>
-          <button
-            onMouseDown={(e) => { e.preventDefault(); onConvertListToInstances?.([convertPrompt.text]); setConvertPrompt(null); if (convertTimerRef.current) clearTimeout(convertTimerRef.current); }}
-            style={{ background: "rgba(99,179,237,0.2)", border: "1px solid rgba(99,179,237,0.4)", borderRadius: 4, padding: "2px 8px", cursor: "pointer", color: "rgba(99,179,237,0.9)", fontSize: 10 }}
-          >Convert</button>
-          <button
-            onMouseDown={(e) => { e.preventDefault(); setConvertPrompt(null); }}
-            style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 10, padding: "2px 4px" }}
-          >Not now</button>
-          <button
-            onMouseDown={(e) => { e.preventDefault(); localStorage.setItem("moduli_no_convert_prompt", "1"); setConvertPrompt(null); }}
-            style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-faint)", fontSize: 10, padding: "2px 4px" }}
-          >Don't ask again</button>
         </div>
       )}
 

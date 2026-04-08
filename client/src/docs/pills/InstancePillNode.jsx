@@ -242,6 +242,19 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
     editor.chain().setTextSelection(pos + nodeSize).focus().run();
   }, [editor, getPos, node.nodeSize]);
 
+  // Delete block: remove the TipTap node + occurrence + module when empty
+  const handleDeleteBlock = useCallback(() => {
+    if (!editor || !getPos) return;
+    const pos = getPos();
+    const nodeSize = node.nodeSize;
+    // Remove the TipTap node and move cursor to before it
+    editor.chain().focus().deleteRange({ from: pos, to: pos + nodeSize }).run();
+    // Clean up the occurrence and module
+    if (occurrenceId && dispatch && socket) {
+      CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId, emit: true });
+    }
+  }, [editor, getPos, node.nodeSize, occurrenceId, dispatch, socket]);
+
   // ==================================================================
   // BLOCK MODE — docInstance textblock with optional header
   // ==================================================================
@@ -255,9 +268,9 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
           data-occurrence-id={occurrenceId}
           style={{
             position: "relative",
-            margin: "2px 0",
+            margin: "6px 0 2px 0",
             background: "rgba(134,239,172,0.06)",
-            border: "1px solid rgba(134,239,172,0.16)",
+            border: "none",
             borderRadius: 6,
             overflow: "hidden",
             cursor: "default",
@@ -265,26 +278,22 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
           onMouseEnter={() => { clearTimeout(hoverTimeout.current); setHovered(true); }}
           onMouseLeave={() => { hoverTimeout.current = setTimeout(() => setHovered(false), 200); }}
         >
-          {/* Radial dot — shown on hover when no header */}
-          {!showHeader && (
-            <div
-              className="doc-instance-radial"
-              style={{ position: "absolute", top: 3, left: 2, opacity: showMenu ? 1 : 0, transition: "opacity 0.15s", zIndex: 2 }}
-              contentEditable={false}
-            >
-              <RadialMenu
-                items={radialItems}
-                handleIcon={Settings}
-                handleTitle="Instance actions"
-                size="sm"
-                handleClassName="border-none rounded-full !w-4 !h-4 !px-0 !rounded-r-full !rounded-l-full"
-                forceDirection="right"
-                onOpenChange={setMenuOpen}
-              />
-            </div>
-          )}
+          {/* Radial handle — positioned top-left, no 6-dot grip */}
+          <div
+            contentEditable={false}
+            draggable={false}
+            style={{ position: "absolute", top: 1, left: -2, zIndex: 10 }}
+          >
+            <RadialMenu
+              items={radialItems}
+              size="sm"
+              forceDirection="right"
+              onOpenChange={setMenuOpen}
+              onDelete={handleDelete}
+            />
+          </div>
 
-          {/* Optional header row — label + radial menu (shown when showHeader) */}
+          {/* Optional header row — label (shown when showHeader) */}
           {showHeader && (
             <div
               contentEditable={false}
@@ -292,22 +301,11 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
                 display: "flex",
                 alignItems: "center",
                 gap: 4,
-                padding: "2px 8px 2px 4px",
+                padding: "4px 8px 2px 24px",
                 background: "rgba(134,239,172,0.10)",
                 borderBottom: "1px solid rgba(134,239,172,0.18)",
               }}
             >
-              <div style={{ flexShrink: 0 }}>
-                <RadialMenu
-                  items={radialItems}
-                  handleIcon={Settings}
-                  handleTitle="Instance actions"
-                  size="sm"
-                  handleClassName="border-none rounded-full !w-4 !h-4 !px-0 !rounded-r-full !rounded-l-full"
-                  forceDirection="right"
-                  onOpenChange={setMenuOpen}
-                />
-              </div>
               {!inlineEditing ? (
                 <span
                   style={{ fontSize: 11, color: "rgba(134,239,172,0.9)", fontFamily: "var(--font-mono)", fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "text" }}
@@ -338,7 +336,7 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
 
           {/* Editable content via DocContent sub-editor */}
           <div
-            style={{ padding: showHeader ? "3px 8px 4px 8px" : "3px 8px 4px 18px" }}
+            style={{ padding: showHeader ? "8px 4px 3px 20px" : "8px 4px 3px 20px" }}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -349,6 +347,7 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
                 socket={socket}
                 hideToolbar={true}
                 onExitBlock={handleExitBlock}
+                onDeleteBlock={handleDeleteBlock}
               />
             ) : (
               <span style={{ opacity: 0.25, fontSize: 11 }}>—</span>
