@@ -12,6 +12,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
   const wrapRef = useRef(null);
   const editorRef = useRef(null);
   const isLocked = !!occurrence?.locked;
+  const autoCreateCooldownRef = useRef(false);
 
   // Scroll-to-anchor: when scrollAnchor is set, find the element and scroll to it
   useEffect(() => {
@@ -26,8 +27,12 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
   // it becomes the initial textmap content directly.
   const handleAutoCreateTextblock = useCallback((nodeStart, typedText, nodeSize, nodeJson) => {
     if (!occurrence?.id || !socket || !dispatch) return;
+    if (autoCreateCooldownRef.current) return;
     const editor = editorRef.current?.editor;
     if (!editor) return;
+
+    // Block further auto-creates until the sub-editor is focused
+    autoCreateCooldownRef.current = true;
 
     const userId = occurrence.userId;
     const gridId = occurrence.gridId;
@@ -73,12 +78,20 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
     }));
     editor.view.dispatch(tr);
 
-    // After React renders the new pill, focus its sub-editor
-    setTimeout(() => {
+    // Focus the sub-editor as soon as it appears in the DOM, then release cooldown
+    const tryFocus = (attempts = 0) => {
       const wrapper = editor.view.dom.closest(".doc-editor-wrapper");
       const subEditor = wrapper?.querySelector(`[data-occurrence-id="${occId}"] .ProseMirror`);
-      if (subEditor) subEditor.focus();
-    }, 60);
+      if (subEditor) {
+        subEditor.focus();
+        autoCreateCooldownRef.current = false;
+      } else if (attempts < 10) {
+        requestAnimationFrame(() => tryFocus(attempts + 1));
+      } else {
+        autoCreateCooldownRef.current = false;
+      }
+    };
+    requestAnimationFrame(() => tryFocus());
   }, [occurrence, socket, dispatch]);
 
   const handleToggleLock = (e) => {

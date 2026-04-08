@@ -42,6 +42,18 @@ But I didn't slit her throat, I just tied her up, see? I ain't like you
 
 'Cause if she suffocates she'll suffer more and then she'll die too
 
-Well, gotta go, I'm almost at the bridge now
+Well, gotta go, I'm almost at th
+
+ 
+
+@:(PWhn88BkqgFX)
+
+e bridg
+
+ 
+
+@:(PWhn88BkqgFX)
+
+e now
 
 Oh, shit, I forgot, how am I supposed to send this shit out?

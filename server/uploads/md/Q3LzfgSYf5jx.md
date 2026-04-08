@@ -2,13 +2,19 @@ Dear Stan, I meant to write you sooner, but I just been busy
 
 You said your girlfriend's pregnant now, how far along is she?
 
-Look, I'm really flattered you would call your daughter that
+Look, I'm really flatt
+
+ 
+
+@:(Q3LzfgSYf5jx)
+
+ered you would call your daughter that
 
 And here's an autograph for your brother, I wrote it on a Starter cap
 
 I'm sorry I didn't see you at the show, I must've missed you
 
-Don't think I did that shit intentionally just to diss you
+ed
 
 But what's this shit you said about you like to cut your wrists too?
 

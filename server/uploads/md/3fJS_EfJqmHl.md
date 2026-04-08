@@ -2,11 +2,17 @@ My tea's gone cold, I'm wonderin' why I
 
 Got out of bed at all
 
-The morning rain clouds up my window (Window)
+ghh
 
 And I can't see at all
 
-And even if I could, it'd all be grey
+And even if I could
+
+ 
+
+@:(3fJS_EfJqmHl)
+
+, it'd all be grey
 
 But your picture on my wall
 

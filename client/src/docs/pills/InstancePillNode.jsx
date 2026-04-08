@@ -194,11 +194,16 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
 
   // Pragmatic DnD — drag pill OUT of doc → creates copy occurrence in target container
   // Uses "module" type so DragProvider's CC/pool handler creates a copy via copyInstanceToContainer
+  // Block pills: only make the radial handle area draggable (not the whole pill),
+  // otherwise draggable="true" on the wrapper blocks cursor placement in the sub-editor.
+  const dragHandleRef = useRef(null);
   useEffect(() => {
     const el = pillRef.current;
     if (!el || inlineEditing) return;
-    return draggable({
+    const handleEl = isBlockMode ? dragHandleRef.current : null;
+    const cleanup = draggable({
       element: el,
+      ...(handleEl ? { dragHandle: handleEl } : {}),
       getInitialData: () => ({
         type: "module",
         sourceType: "doc",
@@ -209,7 +214,24 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
         occurrenceId,
       }),
     });
-  }, [instanceId, displayLabel, occurrenceId, inlineEditing, instance]);
+    // For block pills, remove draggable="true" from wrapper so Chrome allows
+    // cursor placement in the sub-editor. Re-add only when handle is pressed.
+    let handleCleanup = null;
+    if (handleEl) {
+      el.removeAttribute('draggable');
+      const onDown = () => { el.setAttribute('draggable', 'true'); };
+      const onUp = () => { el.removeAttribute('draggable'); };
+      handleEl.addEventListener('pointerdown', onDown);
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('dragend', onUp);
+      handleCleanup = () => {
+        handleEl.removeEventListener('pointerdown', onDown);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('dragend', onUp);
+      };
+    }
+    return () => { cleanup(); handleCleanup?.(); };
+  }, [instanceId, displayLabel, occurrenceId, inlineEditing, instance, isBlockMode]);
 
   // Field value badges
   const fieldBadges = useMemo(() => {
@@ -278,8 +300,9 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
           onMouseEnter={() => { clearTimeout(hoverTimeout.current); setHovered(true); }}
           onMouseLeave={() => { hoverTimeout.current = setTimeout(() => setHovered(false), 200); }}
         >
-          {/* Radial handle — positioned top-left, no 6-dot grip */}
+          {/* Radial handle — positioned top-left, doubles as drag handle for block pills */}
           <div
+            ref={dragHandleRef}
             contentEditable={false}
             draggable={false}
             style={{ position: "absolute", top: 1, left: -2, zIndex: 10 }}

@@ -522,7 +522,25 @@ export function useDraggable({
       },
     });
 
-    return cleanup;
+    // When a dragHandle is used, remove draggable="true" from the wrapper element
+    // to prevent Chrome from blocking cursor placement in child contenteditable
+    // elements (TipTap editors). Re-add it only when the handle is pressed.
+    let handleCleanup = null;
+    if (handleEl) {
+      el.removeAttribute('draggable');
+      const onHandleDown = () => { el.setAttribute('draggable', 'true'); };
+      const onHandleUp = () => { el.removeAttribute('draggable'); };
+      handleEl.addEventListener('pointerdown', onHandleDown);
+      document.addEventListener('pointerup', onHandleUp);
+      document.addEventListener('dragend', onHandleUp);
+      handleCleanup = () => {
+        handleEl.removeEventListener('pointerdown', onHandleDown);
+        document.removeEventListener('pointerup', onHandleUp);
+        document.removeEventListener('dragend', onHandleUp);
+      };
+    }
+
+    return () => { cleanup(); handleCleanup?.(); };
   }, [type, id, JSON.stringify(data), JSON.stringify(context), disabled, nativeEnabled, dragCtx, dragHandleRef]);
 
   return {
@@ -946,58 +964,78 @@ export function useDragDrop({
     }
 
     // ─── DESKTOP: Full Pragmatic DnD ───
+    const dragCleanup = draggable({
+      element: el,
+      ...(handleEl ? { dragHandle: handleEl } : {}),
+      getInitialData: () => payload,
+      getInitialDataForExternal: () => {
+        const externalData = {
+          [NATIVE_DND_MIME]: serializePayload(payload),
+        };
+        if (!_isMobile()) {
+          externalData['text/plain'] = data.label || data.name || id;
+        }
+        return externalData;
+      },
+      onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
+        if (nativeEnabled) {
+          const rect = el.getBoundingClientRect();
+          const cursorX = location.initial.input.clientX;
+          const cursorY = location.initial.input.clientY;
+          const offsetX = Math.round(cursorX - rect.left);
+          const offsetY = Math.round(cursorY - rect.top);
+          setCustomNativeDragPreview({
+            nativeSetDragImage,
+            getOffset: () => ({ x: offsetX, y: offsetY }),
+            render: ({ container }) => {
+              const clone = el.cloneNode(true);
+              clone.style.opacity = '1';
+              clone.style.transform = 'none';
+              container.appendChild(clone);
+            },
+          });
+        }
+      },
+      onDragStart: ({ location }) => {
+        setIsDragging(true);
+        const clientX = location.current.input.clientX;
+        const clientY = location.current.input.clientY;
+        const mode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? 'move';
+        dragCtx.handleDragStart(payload, clientX, clientY, { mode });
+      },
+      onDrag: ({ location }) => {
+        const clientX = location.current.input.clientX;
+        const clientY = location.current.input.clientY;
+        dragCtx.handleDragMove(clientX, clientY);
+      },
+      onDrop: () => {
+        setIsDragging(false);
+        setTimeout(() => {
+          dragCtx.handleDragEnd();
+        }, 0);
+      },
+    });
+
+    // When a dragHandle is used, remove draggable="true" from the wrapper element
+    // to prevent Chrome from blocking cursor placement in child contenteditable
+    // elements (TipTap editors). Re-add it only when the handle is pressed.
+    let handleCleanup = null;
+    if (handleEl) {
+      el.removeAttribute('draggable');
+      const onHandleDown = () => { el.setAttribute('draggable', 'true'); };
+      const onHandleUp = () => { el.removeAttribute('draggable'); };
+      handleEl.addEventListener('pointerdown', onHandleDown);
+      document.addEventListener('pointerup', onHandleUp);
+      document.addEventListener('dragend', onHandleUp);
+      handleCleanup = () => {
+        handleEl.removeEventListener('pointerdown', onHandleDown);
+        document.removeEventListener('pointerup', onHandleUp);
+        document.removeEventListener('dragend', onHandleUp);
+      };
+    }
+
     const cleanup = combine(
-      draggable({
-        element: el,
-        ...(handleEl ? { dragHandle: handleEl } : {}),
-        getInitialData: () => payload,
-        getInitialDataForExternal: () => {
-          const externalData = {
-            [NATIVE_DND_MIME]: serializePayload(payload),
-          };
-          if (!_isMobile()) {
-            externalData['text/plain'] = data.label || data.name || id;
-          }
-          return externalData;
-        },
-        onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
-          if (nativeEnabled) {
-            const rect = el.getBoundingClientRect();
-            const cursorX = location.initial.input.clientX;
-            const cursorY = location.initial.input.clientY;
-            const offsetX = Math.round(cursorX - rect.left);
-            const offsetY = Math.round(cursorY - rect.top);
-            setCustomNativeDragPreview({
-              nativeSetDragImage,
-              getOffset: () => ({ x: offsetX, y: offsetY }),
-              render: ({ container }) => {
-                const clone = el.cloneNode(true);
-                clone.style.opacity = '1';
-                clone.style.transform = 'none';
-                container.appendChild(clone);
-              },
-            });
-          }
-        },
-        onDragStart: ({ location }) => {
-          setIsDragging(true);
-          const clientX = location.current.input.clientX;
-          const clientY = location.current.input.clientY;
-          const mode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? 'move';
-          dragCtx.handleDragStart(payload, clientX, clientY, { mode });
-        },
-        onDrag: ({ location }) => {
-          const clientX = location.current.input.clientX;
-          const clientY = location.current.input.clientY;
-          dragCtx.handleDragMove(clientX, clientY);
-        },
-        onDrop: () => {
-          setIsDragging(false);
-          setTimeout(() => {
-            dragCtx.handleDragEnd();
-          }, 0);
-        },
-      }),
+      () => { dragCleanup(); handleCleanup?.(); },
       dropTargetForElements({
         element: el,
         canDrop: ({ source }) => canAccept(source),

@@ -120,8 +120,13 @@ export const InstancePill = Node.create({
   addNodeView() {
     return ReactNodeViewRenderer(InstancePillNode, {
       stopEvent: ({ event }) => {
-        if (event.type === "dblclick") return true;
         const target = event.target;
+        // Stop ALL events inside the sub-editor's ProseMirror (nested contenteditable)
+        // Without this, the parent ProseMirror handles mousedown on the atom node,
+        // steals focus, and resets the sub-editor's cursor to position 0.
+        const pm = target?.closest?.(".ProseMirror");
+        if (pm && pm.closest(".doc-instance-block")) return true;
+        if (event.type === "dblclick") return true;
         // Stop ALL events when target is or is inside an input/textarea
         if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return true;
         if (target?.closest?.("input, textarea")) return true;
