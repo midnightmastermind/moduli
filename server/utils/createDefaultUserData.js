@@ -3226,11 +3226,14 @@ export async function createDefaultUserData(userId) {
   }
 
   const compRelModId = uid();
+  const compRelOccId = uid();
+  const compRelRawNodes = makeDocContent(_compRelLines.slice(0, 80)).content;
+  const compRelWrapped = wrapTextInBlocks(compRelRawNodes, makeTextblockCreator(compRelOccId));
   await new Module({ id: compRelModId, userId, gridId, role: "page", kind: "doc", label: "Comparative Religion", ownStyle: { bg: "#3a58d0" }, styleMode: "own" }).save();
   await new Occurrence({
-    id: uid(), userId, gridId, targetId: compRelModId, targetType: "module",
+    id: compRelOccId, userId, gridId, targetId: compRelModId, targetType: "module",
     parentId: notesFolderIdForManifest, sortOrder: 5, iteration: { mode: "persistent" },
-    textmap: makeDocContent(_compRelLines.slice(0, 80)),
+    textmap: { type: "doc", content: compRelWrapped },
   }).save();
 
   // Sample Grid — TipTap doc with inline table (no separate View needed)
@@ -3270,11 +3273,14 @@ export async function createDefaultUserData(userId) {
   }).save();
 
   const gospelTextModId = uid();
+  const gospelTextOccId = uid();
+  const gospelTextRawNodes = makeDocContent(_gospelTextLines).content;
+  const gospelTextWrapped = wrapTextInBlocks(gospelTextRawNodes, makeTextblockCreator(gospelTextOccId));
   await new Module({ id: gospelTextModId, userId, gridId, role: "page", kind: "doc", label: "Gospel of Thomas (Text)", ownStyle: { bg: "#189070" }, styleMode: "own" }).save();
   await new Occurrence({
-    id: uid(), userId, gridId, targetId: gospelTextModId, targetType: "module",
+    id: gospelTextOccId, userId, gridId, targetId: gospelTextModId, targetType: "module",
     parentId: notesFolderIdForManifest, sortOrder: 6, iteration: { mode: "persistent" },
-    textmap: makeDocContent(_gospelTextLines),
+    textmap: { type: "doc", content: gospelTextWrapped },
   }).save();
 
   // Gospel sections — embedded in Gospel parent doc, split at "Why this" line
@@ -3301,12 +3307,13 @@ export async function createDefaultUserData(userId) {
 
     const extraContentNodes = makeDocContent(gd.mainExtraLines || [])
       .content.filter(n => n.type !== "paragraph" || n.content?.some(c => c.text?.trim()));
+    const wrappedExtra = wrapTextInBlocks(extraContentNodes, makeTextblockCreator(gd.mainOccId));
     const mainBodyNodes = [
       ...instOccPairs.map(({ inst, instOccId }) => ({
         type: "paragraph",
         content: [{ type: "instancePill", attrs: { instanceId: inst.id, instanceLabel: inst.label, occurrenceId: instOccId, showIcon: true, pillDisplay: "block" } }],
       })),
-      ...extraContentNodes,
+      ...wrappedExtra,
     ];
 
     // Main section container
@@ -3327,15 +3334,16 @@ export async function createDefaultUserData(userId) {
       const whyKey = `notebookGospel_${gi}_why`;
       const whyContainer = notebookDocContainers[whyKey];
       if (whyContainer) {
-        const whyBodyNodes = makeDocContent(gd.whyLines).content
+        const whyRawNodes = makeDocContent(gd.whyLines).content
           .filter(n => n.type !== "paragraph" || n.content?.some(c => c.text?.trim()));
+        const whyWrapped = wrapTextInBlocks(whyRawNodes, makeTextblockCreator(gd.whyOccId));
         await new Occurrence({
           id: gd.whyOccId, userId, targetType: "module", targetId: whyContainer.id, gridId,
           viewId: whyContainer._viewId || null,
           parentId: gospelParentOccId,
           sortOrder: gospelEmbedSortOrder++,
           iteration: { mode: "persistent" },
-          fields: {}, textmap: { type: "doc", content: whyBodyNodes.length > 0 ? whyBodyNodes : [{ type: "paragraph" }] },
+          fields: {}, textmap: { type: "doc", content: whyWrapped.length > 0 ? whyWrapped : [{ type: "paragraph" }] },
           meta: { panelId: panels.centerHub.id },
         }).save();
         notebookPanelOccIds.push(gd.whyOccId);

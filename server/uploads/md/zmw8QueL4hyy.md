@@ -1,0 +1,2 @@
+- External: base metals
+- Internal: unconscious material

@@ -58,7 +58,11 @@ function findPanelForCell(panels, row, col) {
 function findScrollableAncestor(el, stopAt) {
   let node = el;
   while (node && node !== stopAt) {
-    if (node.scrollHeight > node.clientHeight + 1) return node;
+    if (node.scrollHeight > node.clientHeight + 1) {
+      // Verify this element actually scrolls (not overflow: visible/hidden)
+      const ov = getComputedStyle(node).overflowY;
+      if (ov === 'auto' || ov === 'scroll' || ov === 'overlay') return node;
+    }
     node = node.parentElement;
   }
   return null;
@@ -104,6 +108,10 @@ export default function MobileGridNav({
 
   const navigate = useCallback(
     (dRow, dCol) => {
+      // Dismiss mobile keyboard before navigating — prevents viewport dimension bugs
+      if (document.activeElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
       setActiveCell((prev) => {
         const row = Math.max(0, Math.min(rows - 1, prev.row + dRow));
         const col = Math.max(0, Math.min(cols - 1, prev.col + dCol));
@@ -130,11 +138,14 @@ export default function MobileGridNav({
   );
 
   // --- Auto-scroll: detect overscroll at content boundaries → navigate to next cell ---
-  const touchRef = useRef({ startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, axis: null, scrollEl: null, panelEl: null });
+  const touchRef = useRef({ startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, axis: null, touchTarget: null, panelEl: null });
   const cooldownRef = useRef(false);
   // Stable ref for activeCell so the touch handler always sees the latest value
   const activeCellRef = useRef(activeCell);
   activeCellRef.current = activeCell;
+  // Stable ref for visiblePanels so the touch handler can check panel bounds
+  const visiblePanelsRef = useRef(visiblePanels);
+  visiblePanelsRef.current = visiblePanels;
 
   useEffect(() => {
     if (!isMobile || zoomedOut) return;
@@ -144,9 +155,6 @@ export default function MobileGridNav({
     const onTouchStart = (e) => {
       const touch = e.touches[0];
       const panelEl = e.target.closest?.('[data-panel-id]');
-      // Find the nearest scrollable ancestor — stop at viewport (not panel) to catch
-      // deeply nested scroll containers (page boards, docs, folder content, etc.)
-      const scrollEl = findScrollableAncestor(e.target, viewport);
 
       touchRef.current = {
         startY: touch.clientY,
@@ -157,7 +165,7 @@ export default function MobileGridNav({
         boundaryY: 0,
         boundaryX: 0,
         axis: null,
-        scrollEl,
+        touchTarget: e.target,
         panelEl,
         atBoundary: false,
       };
@@ -171,6 +179,9 @@ export default function MobileGridNav({
       const dy = touch.clientY - t.startY;
       const dx = touch.clientX - t.startX;
 
+      // Re-find scrollable ancestor each move — keyboard show/hide changes dimensions
+      const scrollEl = findScrollableAncestor(t.touchTarget || e.target, viewport);
+
       // Determine dominant axis on first significant move
       if (!t.axis && (Math.abs(dy) > 10 || Math.abs(dx) > 10)) {
         t.axis = Math.abs(dy) > Math.abs(dx) ? 'vertical' : 'horizontal';
@@ -178,11 +189,19 @@ export default function MobileGridNav({
       if (!t.axis) { t.lastY = touch.clientY; t.lastX = touch.clientX; return; }
 
       const cell = activeCellRef.current;
+      // Only allow auto-navigation within multi-cell panels (2+ rows/cols)
+      const panel = findPanelForCell(visiblePanelsRef.current, cell.row, cell.col);
 
       if (t.axis === 'vertical') {
         const direction = dy < 0 ? 'down' : 'up';
-        const canNav = direction === 'down' ? (cell.row < rows - 1) : (cell.row > 0);
-        const atBound = isAtScrollBoundary(t.scrollEl, direction);
+        // Only auto-nav if panel spans 2+ rows AND target cell is still within the panel
+        const panelHeight = panel ? (panel.height || 1) : 1;
+        const targetRow = direction === 'down' ? cell.row + 1 : cell.row - 1;
+        const canNav = panelHeight >= 2 && panel &&
+          targetRow >= panel.row && targetRow < panel.row + panelHeight &&
+          targetRow >= 0 && targetRow < rows;
+        const atBound = isAtScrollBoundary(scrollEl, direction);
+
 
         if (canNav && atBound) {
           // Mark where we first hit the boundary
@@ -197,9 +216,9 @@ export default function MobileGridNav({
             const dRow = direction === 'down' ? 1 : -1;
             navigate(dRow, 0);
 
-            if (t.scrollEl) {
-              if (direction === 'down') t.scrollEl.scrollTop = 0;
-              else t.scrollEl.scrollTop = t.scrollEl.scrollHeight;
+            if (scrollEl) {
+              if (direction === 'down') scrollEl.scrollTop = 0;
+              else scrollEl.scrollTop = scrollEl.scrollHeight;
             }
 
             cooldownRef.current = true;
@@ -219,8 +238,13 @@ export default function MobileGridNav({
       } else {
         // Horizontal
         const direction = dx < 0 ? 'right' : 'left';
-        const canNav = direction === 'right' ? (cell.col < cols - 1) : (cell.col > 0);
-        const atBound = isAtScrollBoundary(t.scrollEl, direction);
+        // Only auto-nav if panel spans 2+ cols AND target cell is still within the panel
+        const panelWidth = panel ? (panel.width || 1) : 1;
+        const targetCol = direction === 'right' ? cell.col + 1 : cell.col - 1;
+        const canNav = panelWidth >= 2 && panel &&
+          targetCol >= panel.col && targetCol < panel.col + panelWidth &&
+          targetCol >= 0 && targetCol < cols;
+        const atBound = isAtScrollBoundary(scrollEl, direction);
 
         if (canNav && atBound) {
           if (!t.atBoundary) {
@@ -233,9 +257,9 @@ export default function MobileGridNav({
             const dCol = direction === 'right' ? 1 : -1;
             navigate(0, dCol);
 
-            if (t.scrollEl) {
-              if (direction === 'right') t.scrollEl.scrollLeft = 0;
-              else t.scrollEl.scrollLeft = t.scrollEl.scrollWidth;
+            if (scrollEl) {
+              if (direction === 'right') scrollEl.scrollLeft = 0;
+              else scrollEl.scrollLeft = scrollEl.scrollWidth;
             }
 
             cooldownRef.current = true;
@@ -259,17 +283,25 @@ export default function MobileGridNav({
     };
 
     const onTouchEnd = () => {
-      touchRef.current = { startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, boundaryY: 0, boundaryX: 0, axis: null, scrollEl: null, panelEl: null, atBoundary: false };
+      touchRef.current = { startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, boundaryY: 0, boundaryX: 0, axis: null, touchTarget: null, panelEl: null, atBoundary: false };
+    };
+
+    // Reset touch state on viewport resize (keyboard show/hide) so boundary tracking stays fresh
+    const onResize = () => {
+      touchRef.current = { startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, boundaryY: 0, boundaryX: 0, axis: null, touchTarget: null, panelEl: null, atBoundary: false };
+      cooldownRef.current = false;
     };
 
     viewport.addEventListener('touchstart', onTouchStart, { passive: true });
     viewport.addEventListener('touchmove', onTouchMove, { passive: true });
     viewport.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.visualViewport?.addEventListener('resize', onResize);
 
     return () => {
       viewport.removeEventListener('touchstart', onTouchStart);
       viewport.removeEventListener('touchmove', onTouchMove);
       viewport.removeEventListener('touchend', onTouchEnd);
+      window.visualViewport?.removeEventListener('resize', onResize);
     };
   }, [isMobile, zoomedOut, rows, cols, navigate]);
 

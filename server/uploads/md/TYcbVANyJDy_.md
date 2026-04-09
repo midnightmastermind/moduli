@@ -1,0 +1,3 @@
+- perfected matter
+- perfected consciousness
+- stabilized transformation
