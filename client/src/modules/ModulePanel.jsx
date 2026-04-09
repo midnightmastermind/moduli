@@ -698,6 +698,7 @@ function Panel({
                   <div
                     ref={panelHandleRef}
                     className="module-drag-handle module-grab-zone"
+                    data-dnd-handle="true"
                     draggable={false}
                     style={{ position: "relative", top: 0, left: -6, transform: "none", flexShrink: 0 }}
                   >

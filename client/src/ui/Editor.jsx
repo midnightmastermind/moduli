@@ -276,6 +276,17 @@ const Editor = forwardRef(function Editor({
     editorProps: {
       instancesById,
       attributes: { class: "doc-editor-content prose prose-invert max-w-none focus:outline-none" },
+      handleDOMEvents: {
+        // Prevent native text drag — text can be selected/highlighted but never dragged.
+        // Only allow dragstart events from elements with data-dnd-handle or drag-handle classes
+        // (Pragmatic DnD drag handles trigger their own drag flow).
+        dragstart: (view, event) => {
+          const target = event.target;
+          if (target?.closest?.("[data-dnd-handle], .module-drag-handle, .drag-handle-ball, .drag-handle-stem, .radial-handle, .radial-menu")) return false;
+          event.preventDefault();
+          return true;
+        },
+      },
       handleKeyDown: (_view, event) => {
         // Shift+Enter at end of block content — exit to parent doc
         if (event.key === "Enter" && event.shiftKey && onExitBlock) {
@@ -347,6 +358,20 @@ const Editor = forwardRef(function Editor({
     if (inTable) { scheduleBlockHide(); return; }
 
     const nodeStart = $pos.before(1);
+
+    // Hide block handle on moduleEmbed / block instancePill nodes — they have their own handles
+    const topNode = editor.state.doc.nodeAt(nodeStart);
+    if (topNode) {
+      if (topNode.type.name === "moduleEmbed") { scheduleBlockHide(); return; }
+      // Block instancePills are inline atoms wrapped in a paragraph — check if the paragraph
+      // contains a single block-mode instancePill (the paragraph IS the textblock visually)
+      if (topNode.type.name === "paragraph" && topNode.childCount === 1) {
+        const child = topNode.firstChild;
+        if (child?.type?.name === "instancePill" && child.attrs.pillDisplay === "block") {
+          scheduleBlockHide(); return;
+        }
+      }
+    }
 
     let domResult;
     try { domResult = editor.view.domAtPos(nodeStart + 1); } catch { scheduleBlockHide(); return; }
@@ -785,7 +810,7 @@ const Editor = forwardRef(function Editor({
           style={{
             position: "absolute",
             top: blockHandle.top,
-            left: -6,
+            left: -18,
             display: "flex",
             alignItems: "center",
             zIndex: 50,

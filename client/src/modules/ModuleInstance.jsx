@@ -255,6 +255,7 @@ function InstanceInner({
               <div
                 ref={dragHandleRef}
                 className="module-drag-handle"
+                data-dnd-handle="true"
                 draggable={false}
               >
                 <div className="drag-handle-ball" />

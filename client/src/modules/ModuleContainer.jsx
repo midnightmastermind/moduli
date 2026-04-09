@@ -483,7 +483,7 @@ function Container({
       {!showHeader && (
         <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
           <PopoverAnchor asChild>
-            <div ref={containerHandleRef} className="container-cog-handle module-drag-handle module-grab-zone">
+            <div ref={containerHandleRef} className="container-cog-handle module-drag-handle module-grab-zone" data-dnd-handle="true">
               <div className="drag-handle-ball" />
               <div className="drag-handle-stem" />
               <RadialMenu
@@ -561,13 +561,12 @@ function Container({
         }}
       >
         {embedded ? (
-          /* Embedded: two-row layout — icon row + label row */
+          /* Embedded: single-row header — handle + #label + filter */
           <>
-            {/* Row 1: radial handle (left) + link icon (right) */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0px 4px 0px 2px", minHeight: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", padding: "0px 4px 0px 2px", minHeight: 12, gap: 4 }}>
               <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <PopoverAnchor asChild>
-                  <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" draggable={false} style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}>
+                  <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" data-dnd-handle="true" draggable={false} style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}>
                     <div className="drag-handle-ball" />
                     <div className="drag-handle-stem" />
                     <RadialMenu
@@ -609,18 +608,6 @@ function Container({
                   />
                 </PopoverContent>
               </Popover>
-              <div onPointerDown={(e) => e.stopPropagation()}>
-                <LocalIterationNav
-                  occurrence={containerOccurrence}
-                  onUpdate={commitOccurrenceUpdate}
-                  showModeToggle={true}
-                  compact={true}
-                  collapsible={true}
-                />
-              </div>
-            </div>
-            {/* Row 2: label */}
-            <div style={{ padding: "0px 8px 3px 12px", display: "flex", alignItems: "center", gap: 4 }}>
               <span className="embedded-hash" style={{ fontSize: 12, color: embeddedAccent, flexShrink: 0, fontFamily: "var(--font-mono)" }}>#</span>
               <span
                 contentEditable
@@ -638,10 +625,19 @@ function Container({
                   e.stopPropagation();
                 }}
                 onPointerDown={(e) => e.stopPropagation()}
-                style={{ outline: "none", cursor: "text", fontFamily: "var(--font-mono)", fontSize: 15, fontWeight: 600, color: embeddedAccent, lineHeight: 1.3, wordBreak: "break-word", flex: 1, minWidth: 0 }}
+                style={{ outline: "none", cursor: "text", fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 600, color: embeddedAccent, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}
               >
                 {module.label || "Container"}
               </span>
+              <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0, marginLeft: "auto" }}>
+                <LocalIterationNav
+                  occurrence={containerOccurrence}
+                  onUpdate={commitOccurrenceUpdate}
+                  showModeToggle={true}
+                  compact={true}
+                  collapsible={true}
+                />
+              </div>
             </div>
             {/* Row 3: Container-bound fields (below label, prevents mobile crush) */}
             {containerFields.length > 0 && !isBodyCollapsed && (
@@ -667,7 +663,7 @@ function Container({
           <>
             <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverAnchor asChild>
-                <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" draggable={false}>
+                <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" data-dnd-handle="true" draggable={false}>
                   <div className="drag-handle-ball" />
                   <div className="drag-handle-stem" />
                   <RadialMenu

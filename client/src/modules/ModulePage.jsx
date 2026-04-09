@@ -570,6 +570,7 @@ function Page({
         <div
           ref={handleRef}
           className="module-drag-handle module-grab-zone"
+          data-dnd-handle="true"
           draggable={false}
           style={{ position: "relative", top: 0, left: 4, transform: "none", flexShrink: 0, marginLeft: 0 }}
         >
