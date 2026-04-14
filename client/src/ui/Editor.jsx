@@ -342,13 +342,24 @@ const Editor = forwardRef(function Editor({
           return false;
         },
         keydown: (_view, event) => {
-          // Shift+Enter exits the textblock/doccontainer — fires at DOM level so it
-          // runs before TipTap's HardBreak extension can intercept Shift+Enter.
-          // Plain Enter stays inside (TipTap handles naturally).
-          if (event.key === "Enter" && event.shiftKey && onExitBlockRef.current) {
-            event.preventDefault();
-            onExitBlockRef.current();
-            return true;
+          // Shift+Enter fires before TipTap's HardBreak extension.
+          if (event.key === "Enter" && event.shiftKey) {
+            // Empty sub-editor: replace textblock with empty paragraph (intermediate step)
+            if (onDeleteBlockRef.current) {
+              const docIsEmpty = _view.state.doc.textContent.length === 0;
+              if (docIsEmpty) {
+                event.preventDefault();
+                onDeleteBlockRef.current(true);
+                return true;
+              }
+            }
+            // Non-empty sub-editor: exit to next block (original behavior)
+            if (onExitBlockRef.current) {
+              event.preventDefault();
+              onExitBlockRef.current();
+              return true;
+            }
+            return false;
           }
           return false;
         },
