@@ -117,7 +117,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       // Regular block (paragraph, heading, etc.) — move outer cursor to its end
       editor.chain().setTextSelection(pos - 1).focus().run();
     }
-  }, [editor, getPos, handleDeleteBlock]);
+  }, [editor, getPos, node.nodeSize, occurrenceId, dispatch, socket]);
 
   return (
     <NodeViewWrapper as="div" contentEditable={false}>
