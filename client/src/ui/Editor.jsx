@@ -35,6 +35,7 @@ import { DocLink } from "../docs/DocLinkExtension";
 import { PillBackspace } from "../docs/PillBackspaceExtension";
 import { HeadingFocus } from "../docs/HeadingFocusExtension";
 import { ModuleEmbed } from "../docs/ModuleEmbedExtension";
+import { InstanceTextblock } from "../docs/InstanceTextblockExtension";
 import { ExprPill } from "../docs/ExprPillExtension";
 import FieldSuggestion from "../docs/suggestions/FieldSuggestion";
 import CommandPalette from "../docs/suggestions/CommandPalette";
@@ -43,7 +44,7 @@ import DocToolbar from "../docs/DocToolbar";
 import ContextMenu from "./ContextMenu";
 import { GridActionsContext } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, GripVertical } from "lucide-react";
+import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box } from "lucide-react";
 
 const Editor = forwardRef(function Editor({
   content = null,
@@ -83,15 +84,9 @@ const Editor = forwardRef(function Editor({
   const [exprActiveIndex, setExprActiveIndex] = useState(-1);
   const exprListRef = useRef(null);
 
-  // D12: block handle
-  const [blockHandle, setBlockHandle] = useState(null); // { top, nodeStart } or null
-  const [blockMenuOpen, setBlockMenuOpen] = useState(false);
-  const [blockMenuPos, setBlockMenuPos] = useState({ x: 0, y: 0 }); // viewport coords for portal menu
-  const blockHandleRef = useRef(null);
-  const blockHandleBtnRef = useRef(null);
-  const blockHideTimerRef = useRef(null);
 
-  // (pendingDrop removed — all drops now default to moduleEmbed)
+  // Pill/embed choice popup for instance drops
+  const [pendingDrop, setPendingDrop] = useState(null); // { occurrenceId, instanceId, label, insertPos, dropX, dropY }
 
   const [isDropTarget, setIsDropTarget] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -101,6 +96,7 @@ const Editor = forwardRef(function Editor({
   const lastCharRef = useRef("");
   const wrapperRef = useRef(null);
   const saveTimeout = useRef(null);
+  const autoCreateTimerRef = useRef(null);
 
   // ── available fields for @ suggestions ──────────────────────
   const availableFields = useMemo(
@@ -153,15 +149,6 @@ const Editor = forwardRef(function Editor({
     if (!showEmbedPicker) { setEmbedPos(getCursorPosition()); setShowEmbedPicker(true); setEmbedQuery(""); }
   }, [showEmbedPicker, getCursorPosition]);
 
-  // ── D12: block handle mouse tracking ────────────────────────
-  const cancelBlockHide = useCallback(() => {
-    if (blockHideTimerRef.current) { clearTimeout(blockHideTimerRef.current); blockHideTimerRef.current = null; }
-  }, []);
-
-  const scheduleBlockHide = useCallback(() => {
-    blockHideTimerRef.current = setTimeout(() => { setBlockHandle(null); setBlockMenuOpen(false); }, 200);
-  }, []);
-
   // ── debounced save ────────────────────────────────────────────
   const persistContent = useCallback((json, immediate = false) => {
     if (!occurrence?.id || !dispatch || !socket) return;
@@ -187,6 +174,7 @@ const Editor = forwardRef(function Editor({
       Image.configure({ inline: false, allowBase64: true }),
       FieldPill,
       InstancePill,
+      InstanceTextblock,
       DocLink,
       PillBackspace,
       HeadingFocus,
@@ -199,6 +187,39 @@ const Editor = forwardRef(function Editor({
     ],
     content: content || { type: "doc", content: [{ type: "paragraph", content: [] }] },
     editable,
+    onCreate: ({ editor }) => {
+      // Migrate old instancePill+pillDisplay:block nodes to instanceTextblock.
+      // These were created before the textblock was its own node type.
+      // Runs on first open; persists the migrated JSON immediately so subsequent
+      // opens don't need to migrate again.
+      if (!onAutoCreateTextblock && !occurrence?.id) return; // only migrate in doc-owning editors
+      const { doc, tr } = editor.state;
+      let hasMigrations = false;
+      doc.forEach((topNode, offset) => {
+        if (
+          topNode.type.name === "paragraph" &&
+          topNode.childCount === 1 &&
+          topNode.firstChild?.type?.name === "instancePill" &&
+          topNode.firstChild?.attrs?.pillDisplay === "block"
+        ) {
+          const pill = topNode.firstChild;
+          const textblockNode = editor.schema.nodes.instanceTextblock?.create({
+            instanceId: pill.attrs.instanceId,
+            occurrenceId: pill.attrs.occurrenceId,
+          });
+          if (textblockNode) {
+            tr.replaceWith(offset, offset + topNode.nodeSize, textblockNode);
+            hasMigrations = true;
+          }
+        }
+      });
+      if (hasMigrations) {
+        tr.setMeta("skipAutoCreate", true);
+        tr.setMeta("addToHistory", false);
+        editor.view.dispatch(tr);
+        persistContent(editor.getJSON(), true);
+      }
+    },
     onUpdate: ({ editor, transaction }) => {
       const json = editor.getJSON();
       onChange?.(json);
@@ -210,9 +231,22 @@ const Editor = forwardRef(function Editor({
         const $pos = editor.state.doc.resolve(from);
         if ($pos.depth === 1) {
           const node = $pos.parent;
-          if (node.type.name === "paragraph" && node.textContent.length >= 1 && node.textContent.length <= 2) {
-            const nodeStart = $pos.before(1);
-            onAutoCreateTextblock(nodeStart, node.textContent, node.nodeSize);
+          if (node.type.name === "paragraph" && node.textContent.length === 1) {
+            // First char typed: schedule creation on next rAF to capture any batched keystrokes
+            if (autoCreateTimerRef.current) clearTimeout(autoCreateTimerRef.current);
+            const capturedStart = $pos.before(1);
+            autoCreateTimerRef.current = setTimeout(() => {
+              autoCreateTimerRef.current = null;
+              try {
+                const currentNode = editor.state.doc.nodeAt(capturedStart);
+                if (currentNode && currentNode.type.name === "paragraph" && currentNode.textContent.length > 0) {
+                  onAutoCreateTextblock(capturedStart, currentNode.textContent, currentNode.nodeSize);
+                }
+              } catch (_) {}
+            }, 0);
+            handled = true;
+          } else if (node.type.name === "paragraph" && node.textContent.length > 1 && autoCreateTimerRef.current) {
+            // Still typing — timer already running, will re-read text when it fires
             handled = true;
           }
         }
@@ -228,7 +262,7 @@ const Editor = forwardRef(function Editor({
                 const prevNode = editor.state.doc.child(idx - 1);
                 if (prevNode.type.name === "paragraph" && prevNode.childCount === 1) {
                   const pill = prevNode.firstChild;
-                  if (pill?.type?.name === "instancePill" && pill.attrs.pillDisplay === "block" && pill.attrs.occurrenceId) {
+                  if (pill?.type?.name === "instanceTextblock" && pill.attrs.occurrenceId) {
                     merges.push({ offset, nodeSize: node.nodeSize, occId: pill.attrs.occurrenceId, nodeJson: node.toJSON() });
                     merged = true;
                   }
@@ -275,36 +309,58 @@ const Editor = forwardRef(function Editor({
     },
     editorProps: {
       instancesById,
-      attributes: { class: "doc-editor-content prose prose-invert max-w-none focus:outline-none" },
+      attributes: { class: "doc-editor-content prose prose-invert max-w-none focus:outline-none", draggable: "false" },
       handleDOMEvents: {
-        // Prevent native text drag — text can be selected/highlighted but never dragged.
-        // Only allow dragstart events from elements with data-dnd-handle or drag-handle classes
-        // (Pragmatic DnD drag handles trigger their own drag flow).
         dragstart: (view, event) => {
+          // Only allow dragstart from drag handle elements — prevents native
+          // text-selection drag from interfering with cursor placement.
           const target = event.target;
-          if (target?.closest?.("[data-dnd-handle], .module-drag-handle, .drag-handle-ball, .drag-handle-stem, .radial-handle, .radial-menu")) return false;
-          event.preventDefault();
-          return true;
+          if (!target?.closest?.('[data-dnd-handle]') && !target?.closest?.('.module-drag-handle')) {
+            event.preventDefault();
+            return true;
+          }
+          return false;
         },
       },
       handleKeyDown: (_view, event) => {
-        // Shift+Enter at end of block content — exit to parent doc
-        if (event.key === "Enter" && event.shiftKey && onExitBlock) {
-          const { from } = _view.state.selection;
-          const docSize = _view.state.doc.content.size;
-          if (from >= docSize - 1) {
+        // Enter in textblock — always exit to parent doc (creates new line outside)
+        // Shift+Enter stays inside as a hard break (handled naturally by TipTap StarterKit)
+        if (event.key === "Enter" && !event.shiftKey && onExitBlock) {
+          event.preventDefault();
+          onExitBlock();
+          return true;
+        }
+        // Backspace / ArrowLeft at position 0 — navigate back to parent editor.
+        if ((event.key === "Backspace" || event.key === "ArrowLeft") && onDeleteBlock) {
+          const { from, empty: selEmpty } = _view.state.selection;
+          if (from <= 1 && selEmpty) {
+            event.preventDefault();
+            onDeleteBlock();
+            return true;
+          }
+        }
+        // ArrowRight at end of content — exit to next block.
+        if (event.key === "ArrowRight" && onExitBlock) {
+          const { to, empty: selEmpty } = _view.state.selection;
+          if (to >= _view.state.doc.content.size && selEmpty) {
             event.preventDefault();
             onExitBlock();
             return true;
           }
         }
-        // Backspace at start of empty block content — delete the block
-        if (event.key === "Backspace" && onDeleteBlock) {
-          const { from } = _view.state.selection;
-          const text = _view.state.doc.textContent;
-          if (from <= 1 && text.trim() === "") {
+        // ArrowUp at first visual line — navigate back (exit upward).
+        if (event.key === "ArrowUp" && onDeleteBlock) {
+          if (_view.endOfTextblock("up")) {
             event.preventDefault();
             onDeleteBlock();
+            return true;
+          }
+        }
+        // ArrowDown at last visual line — exit to next block (exit downward).
+        if (event.key === "ArrowDown" && onExitBlock) {
+          if (_view.endOfTextblock("down")) {
+            event.preventDefault();
+            onExitBlock();
             return true;
           }
         }
@@ -341,64 +397,28 @@ const Editor = forwardRef(function Editor({
     }
   }, [editor, editable]);
 
-  // ── block handle mouse tracking (declared AFTER editor to avoid TDZ) ─
-  const handleEditorMouseMove = useCallback((e) => {
-    if (!editor || !editable || !wrapperRef.current) return;
-    if (blockHandleRef.current?.contains(e.target)) { cancelBlockHide(); return; }
+  // Track when user has actively focused the editor — used by content sync
+  // to decide whether to restore cursor position or leave it at pos 1.
+  useEffect(() => {
+    if (!editor) return;
+    const onFocus = () => { userHasFocusedRef.current = true; };
+    editor.on("focus", onFocus);
+    return () => { editor.off("focus", onFocus); };
+  }, [editor]);
 
-    const result = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
-    if (!result) { scheduleBlockHide(); return; }
+  // Cleanup autoCreate timer on unmount
+  useEffect(() => () => { if (autoCreateTimerRef.current) clearTimeout(autoCreateTimerRef.current); }, []);
 
-    const $pos = editor.state.doc.resolve(result.pos);
-    if ($pos.depth === 0) { scheduleBlockHide(); return; }
-
-    // Hide block handle when inside a table — use right-click context menu for table actions instead
-    const inTable = Array.from({ length: $pos.depth }, (_, i) => $pos.node(i + 1))
-      .some(n => n.type.name === "table" || n.type.name === "tableRow" || n.type.name === "tableCell" || n.type.name === "tableHeader");
-    if (inTable) { scheduleBlockHide(); return; }
-
-    const nodeStart = $pos.before(1);
-
-    // Hide block handle on moduleEmbed / block instancePill nodes — they have their own handles
-    const topNode = editor.state.doc.nodeAt(nodeStart);
-    if (topNode) {
-      if (topNode.type.name === "moduleEmbed") { scheduleBlockHide(); return; }
-      // Block instancePills are inline atoms wrapped in a paragraph — check if the paragraph
-      // contains a single block-mode instancePill (the paragraph IS the textblock visually)
-      if (topNode.type.name === "paragraph" && topNode.childCount === 1) {
-        const child = topNode.firstChild;
-        if (child?.type?.name === "instancePill" && child.attrs.pillDisplay === "block") {
-          scheduleBlockHide(); return;
-        }
-      }
-    }
-
-    let domResult;
-    try { domResult = editor.view.domAtPos(nodeStart + 1); } catch { scheduleBlockHide(); return; }
-    let domEl = domResult.node;
-    if (domEl.nodeType === 3) domEl = domEl.parentElement;
-
-    const proseMirrorEl = wrapperRef.current.querySelector(".ProseMirror");
-    if (!proseMirrorEl) return;
-    while (domEl && domEl.parentElement !== proseMirrorEl) {
-      if (!domEl.parentElement) { scheduleBlockHide(); return; }
-      domEl = domEl.parentElement;
-    }
-    if (!domEl) return;
-
-    cancelBlockHide();
-    const wrapRect = wrapperRef.current.getBoundingClientRect();
-    const blockRect = domEl.getBoundingClientRect();
-    const top = blockRect.top - wrapRect.top;
-    setBlockHandle({ top, nodeStart });
-  }, [editor, editable, cancelBlockHide, scheduleBlockHide]);
 
   // ── context menu (declared AFTER editor to avoid TDZ) ────────
   const handleContextMenu = useCallback((e) => {
     if (!editor || !editable) return;
     e.preventDefault(); e.stopPropagation();
     const hasSelection = !editor.state.selection.empty;
-    const { $from } = editor.state.selection;
+    const { $from, from: selFrom, to: selTo } = editor.state.selection;
+    const capturedFrom = selFrom;
+    const capturedTo = selTo;
+    const capturedText = hasSelection ? editor.state.doc.textBetween(selFrom, selTo) : "";
     const inTable = Array.from({ length: $from.depth }, (_, i) => $from.node(i + 1))
       .some(n => n.type.name === "table" || n.type.name === "tableRow" || n.type.name === "tableCell" || n.type.name === "tableHeader");
     const inList = $from.depth > 0 && (
@@ -437,8 +457,54 @@ const Editor = forwardRef(function Editor({
           }
         },
       },
-      // "Turn into instance" — hidden for now (kept for future use)
-      // hasSelection && dispatch && socket && { label: "Turn into instance", icon: Box, ... },
+      hasSelection && dispatch && socket && occurrence?.userId && { separator: true },
+      hasSelection && dispatch && socket && occurrence?.userId && {
+        label: "Make mini block",
+        icon: Box,
+        onClick: () => {
+          const userId = occurrence.userId;
+          const gridId = occurrence.gridId;
+          const modId = crypto.randomUUID();
+          const occId = crypto.randomUUID();
+          // Build textmap from captured selection content
+          let textmapContent;
+          try {
+            const slice = editor.state.doc.slice(capturedFrom, capturedTo);
+            textmapContent = slice.content.toJSON();
+          } catch (_) {
+            textmapContent = capturedText ? [{ type: "paragraph", content: [{ type: "text", text: capturedText }] }] : [];
+          }
+          const initialTextmap = { type: "doc", content: textmapContent?.length ? textmapContent : [{ type: "paragraph", content: capturedText ? [{ type: "text", text: capturedText }] : [] }] };
+          CommitHelpers.createModule({
+            dispatch, socket,
+            module: { id: modId, userId, gridId, role: "instance", kind: "doc", label: "" },
+            emit: true,
+          });
+          CommitHelpers.createOccurrence({
+            dispatch, socket,
+            occurrence: {
+              id: occId, userId, gridId,
+              targetId: modId, targetType: "module",
+              parentId: occurrence?.id,
+              iteration: { mode: "persistent" },
+              textmap: initialTextmap,
+              fields: {},
+            },
+            emit: true,
+          });
+          // Replace selection with instanceTextblock
+          const schema = editor.state.schema;
+          if (!schema.nodes.instanceTextblock) return;
+          const textblockNode = schema.nodes.instanceTextblock.create({
+            instanceId: modId,
+            occurrenceId: occId,
+          });
+          editor.chain().focus().insertContentAt(
+            { from: capturedFrom, to: capturedTo },
+            textblockNode.toJSON()
+          ).run();
+        },
+      },
       inTable && { separator: true },
       inTable && { label: "Insert row above", onClick: () => editor.chain().focus().addRowBefore().run() },
       inTable && { label: "Insert row below", onClick: () => editor.chain().focus().addRowAfter().run() },
@@ -450,22 +516,46 @@ const Editor = forwardRef(function Editor({
       { label: "Insert field (@)", icon: AtSign, onClick: () => editor.chain().focus().insertContent("@").run() },
     ].filter(Boolean);
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
-  }, [editor, editable, onConvertListToInstances]);
+  }, [editor, editable, onConvertListToInstances, dispatch, socket, occurrence]);
+
+  // Track recent mousedown on the editor — prevents content sync from resetting
+  // the cursor in the window between mousedown (ProseMirror places cursor at click)
+  // and focus (editor becomes activeElement). Without this, a server echo arriving
+  // during that ~50ms window would call setContent and move cursor to position 1.
+  const recentMousedownRef = useRef(false);
+  const userHasFocusedRef = useRef(false);
 
   // ── sync content prop → editor (when not focused) ────────────
   useEffect(() => {
-    if (editor && content && !editor.isFocused) {
+    if (!editor || editor.isDestroyed || !content) return;
+    // Reject compressed textmaps (base64 strings) — should never reach here,
+    // but guard against it so TipTap doesn't render garbled text.
+    if (typeof content === "string") return;
+    try {
+      // Skip if editor has focus (user is typing) OR mid-click (mousedown fired but focus not yet)
+      const editorDom = editor.view?.dom;
+      const hasFocus = editorDom && document.activeElement && editorDom.contains(document.activeElement);
+      if (hasFocus) return;
+      if (recentMousedownRef.current) return;
       const current = editor.getJSON();
       if (JSON.stringify(current) !== JSON.stringify(content)) {
-        // Preserve cursor position across content resets
         const { from, to } = editor.state.selection;
-        editor.commands.setContent(content);
-        // Restore position if it's still valid
-        const maxPos = editor.state.doc.content.size;
-        if (from <= maxPos && to <= maxPos) {
-          try { editor.commands.setTextSelection({ from, to }); } catch (_) {}
+        editor.commands.setContent(content, { emitUpdate: false });
+        // Only restore cursor if user has actively positioned it (not the initial pos 1).
+        // Without this guard, initial content load restores pos 1 = beginning,
+        // which fights with the user's first click placement.
+        if (userHasFocusedRef.current && (from > 1 || to > 1)) {
+          try {
+            const docSize = editor.state.doc.content.size;
+            editor.commands.setTextSelection({
+              from: Math.min(from, docSize),
+              to: Math.min(to, docSize),
+            });
+          } catch (_) {}
         }
       }
+    } catch (_) {
+      // Editor view not ready yet (TipTap throws if view isn't mounted during rapid re-renders)
     }
   }, [editor, content]);
 
@@ -481,18 +571,10 @@ const Editor = forwardRef(function Editor({
     setShowExprSuggestion(false); setExprQuery("");
   }, [editor]);
 
-  // ── key handling for popup query modes + block menu ─────────
+  // ── key handling for popup query modes ──────────────────────
   useEffect(() => {
-    if (!showSuggestion && !showCommandPalette && !showDocLink && !showExprSuggestion && !showEmbedPicker && !blockMenuOpen) return;
+    if (!showSuggestion && !showCommandPalette && !showDocLink && !showExprSuggestion && !showEmbedPicker) return;
     const handle = (e) => {
-      // Block handle menu — close on Escape or any printable key, then refocus editor
-      if (blockMenuOpen) {
-        if (e.key === "Escape" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey)) {
-          setBlockMenuOpen(false);
-          editor?.commands.focus();
-        }
-        return;
-      }
       // Backspace — trim query or close popup for @/slash/doclink modes
       if (e.key === "Backspace") {
         if (showSuggestion) suggestionQuery.length > 0 ? setSuggestionQuery(p => p.slice(0, -1)) : setShowSuggestion(false);
@@ -530,20 +612,7 @@ const Editor = forwardRef(function Editor({
     };
     window.addEventListener("keydown", handle);
     return () => window.removeEventListener("keydown", handle);
-  }, [showSuggestion, suggestionQuery, showCommandPalette, commandQuery, showDocLink, docLinkQuery, showExprSuggestion, exprQuery, exprActiveIndex, filteredExprFields, handleSelectExpr, showEmbedPicker, embedQuery, blockMenuOpen, editor]);
-
-  // D12: close block menu on outside click — portal menu is in body, so check by class
-  const blockMenuPortalRef = useRef(null);
-  useEffect(() => {
-    if (!blockMenuOpen) return;
-    const handler = (e) => {
-      if (blockHandleRef.current?.contains(e.target)) return;
-      if (blockMenuPortalRef.current?.contains(e.target)) return;
-      setBlockMenuOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [blockMenuOpen]);
+  }, [showSuggestion, suggestionQuery, showCommandPalette, commandQuery, showDocLink, docLinkQuery, showExprSuggestion, exprQuery, exprActiveIndex, filteredExprFields, handleSelectExpr, showEmbedPicker, embedQuery, editor]);
 
   // ── DnD drop target (instances / fields / containers) ────────
   const resolveInsertPos = useCallback((nativeEvent) => {
@@ -556,10 +625,26 @@ const Editor = forwardRef(function Editor({
 
   const insertAtPos = useCallback((pos, nodeContent) => {
     if (!editor) return;
+    // Cancel any pending auto-create — drops should not trigger mini textblock creation
+    if (autoCreateTimerRef.current) {
+      clearTimeout(autoCreateTimerRef.current);
+      autoCreateTimerRef.current = null;
+    }
+    // Block nodes (moduleEmbed) don't need a trailing space — it creates an empty textblock
+    const nodeDef = editor.schema.nodes[nodeContent.type];
+    const isBlock = nodeDef?.spec?.group?.includes("block");
     if (pos != null) {
-      editor.chain().focus().insertContentAt(pos, nodeContent).insertContentAt(pos + 1, " ").run();
+      const chain = editor.chain().focus()
+        .command(({ tr }) => { tr.setMeta("skipAutoCreate", true); return true; })
+        .insertContentAt(pos, nodeContent);
+      if (!isBlock) chain.insertContentAt(pos + 1, " ");
+      chain.run();
     } else {
-      editor.chain().focus().insertContent(nodeContent).insertContent(" ").run();
+      const chain = editor.chain().focus()
+        .command(({ tr }) => { tr.setMeta("skipAutoCreate", true); return true; })
+        .insertContent(nodeContent);
+      if (!isBlock) chain.insertContent(" ");
+      chain.run();
     }
   }, [editor]);
 
@@ -578,14 +663,33 @@ const Editor = forwardRef(function Editor({
       },
       onDragEnter: () => setIsDropTarget(true),
       onDragLeave: () => setIsDropTarget(false),
-      onDrop: ({ source }) => {
+      onDrop: ({ source, location }) => {
         setIsDropTarget(false);
         if (source.data?.fromDoc) return;
         const sd = source.data || {};
         const { type, id, data, context } = sd;
-        const insertPos = resolveInsertPos(lastNativeEvent);
+        // Prefer Pragmatic DnD's own coordinates (exact drop point) over lastNativeEvent
+        const dropInput = location?.current?.input;
+        const insertPos = resolveInsertPos(dropInput || lastNativeEvent);
 
-        if (type === "instance" || type === "container" || type === "artifact" || type === "module") {
+        if (type === "instance") {
+          // Instance drops → show pill vs embed choice popup
+          let occurrenceId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
+          if (!occurrenceId && id) {
+            const existing = Object.values(occurrencesById || {}).find(o => o.targetId === id);
+            if (existing) occurrenceId = existing.id;
+          }
+          if (!occurrenceId) return;
+          setPendingDrop({
+            occurrenceId, instanceId: id,
+            label: data?.label || sd.label || "",
+            insertPos,
+            dropX: lastNativeEvent?.clientX,
+            dropY: lastNativeEvent?.clientY,
+          });
+          return;
+        }
+        if (type === "container" || type === "artifact" || type === "module") {
           // occurrenceId can be in context (DragProvider items), in data, or at root level (doc pills, tree items)
           let occurrenceId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
           // CC drops have no occurrenceId — find an existing occurrence of this module
@@ -595,7 +699,7 @@ const Editor = forwardRef(function Editor({
           }
           if (!occurrenceId) return;
 
-          // All drops default to moduleEmbed (block embed)
+          // Non-instance drops default to moduleEmbed (block embed)
           insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
           return;
         }
@@ -783,8 +887,6 @@ const Editor = forwardRef(function Editor({
     <div
       ref={wrapperRef}
       className={`doc-editor relative flex flex-col flex-1 min-h-0 ${className}`}
-      onMouseMove={handleEditorMouseMove}
-      onMouseLeave={scheduleBlockHide}
       onContextMenu={handleContextMenu}
       onDrop={handleFileDrop}
       onDragOver={(e) => {
@@ -801,107 +903,52 @@ const Editor = forwardRef(function Editor({
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
 
-      {/* D12: Block handle — single grip icon opens block menu */}
-      {blockHandle && editable && (
+      {/* Pill / Embed choice popup for instance drops */}
+      {pendingDrop && createPortal(
         <div
-          ref={blockHandleRef}
-          onMouseEnter={cancelBlockHide}
-          onMouseLeave={scheduleBlockHide}
           style={{
-            position: "absolute",
-            top: blockHandle.top,
-            left: -18,
+            position: "fixed",
+            left: Math.min((pendingDrop.dropX || 0), window.innerWidth - 190),
+            top: (pendingDrop.dropY || 0) + 10,
+            zIndex: 1200,
+            background: "var(--surface-card, #1a1a2e)",
+            border: "1px solid var(--border-default)",
+            borderRadius: 8,
+            padding: "6px 6px",
             display: "flex",
-            alignItems: "center",
-            zIndex: 50,
+            gap: 4,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.55)",
           }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
         >
-          <div style={{ position: "relative" }}>
-            <button
-              ref={blockHandleBtnRef}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 2px", color: "var(--text-faint)", borderRadius: 3, display: "flex", lineHeight: 1 }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                cancelBlockHide();
-                const rect = e.currentTarget.getBoundingClientRect();
-                setBlockMenuPos({ x: rect.right + 4, y: rect.top });
-                setBlockMenuOpen(v => !v);
-              }}
-              title="Block options"
-            >
-              <GripVertical size={15} />
-            </button>
-            {blockMenuOpen && createPortal(
-              <div ref={blockMenuPortalRef} style={{
-                position: "fixed", left: blockMenuPos.x, top: blockMenuPos.y, zIndex: 9999,
-                background: "var(--surface-card)", border: "1px solid var(--border-default)",
-                borderRadius: 6, padding: "4px 0", minWidth: 150,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.55)",
-              }}>
-                {[
-                  { label: "Text", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).setNode("paragraph").run() },
-                  { label: "Heading 1", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).setNode("heading", { level: 1 }).run() },
-                  { label: "Heading 2", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).setNode("heading", { level: 2 }).run() },
-                  { label: "Heading 3", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).setNode("heading", { level: 3 }).run() },
-                  { label: "Bullet list", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).toggleBulletList().run() },
-                  { label: "Quote", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).toggleBlockquote().run() },
-                  { label: "Code block", fn: () => editor?.chain().focus().setTextSelection(blockHandle.nodeStart + 1).toggleCodeBlock().run() },
-                  null,
-                  { label: "Insert field", fn: () => {
-                    if (!editor || blockHandle == null) return;
-                    const node = editor.state.doc.nodeAt(blockHandle.nodeStart);
-                    const insertPos = node ? blockHandle.nodeStart + node.nodeSize : blockHandle.nodeStart + 1;
-                    editor.commands.setTextSelection(insertPos);
-                    setShowSuggestion(true);
-                    setSuggestionQuery("");
-                    setSuggestionPos({ top: blockHandle.top, left: 40 });
-                  }},
-                  { label: "Insert module", fn: () => {
-                    if (!editor || blockHandle == null) return;
-                    // Position cursor at block end, then trigger embed picker
-                    const node = editor.state.doc.nodeAt(blockHandle.nodeStart);
-                    const insertPos = node ? blockHandle.nodeStart + node.nodeSize : blockHandle.nodeStart + 1;
-                    editor.commands.setTextSelection(insertPos);
-                    // Show embed picker positioned at block handle
-                    const wrap = wrapperRef.current?.getBoundingClientRect();
-                    setEmbedPos({ top: blockHandle.top, left: wrap ? 40 : 0 });
-                    setShowEmbedPicker(true);
-                    setEmbedQuery("");
-                  }},
-                  null,
-                  { label: "Duplicate", fn: () => {
-                    if (!editor || blockHandle == null) return;
-                    const node = editor.state.doc.nodeAt(blockHandle.nodeStart);
-                    if (!node) return;
-                    const end = blockHandle.nodeStart + node.nodeSize;
-                    editor.chain().focus().insertContentAt(end, node.toJSON()).run();
-                  }},
-                  { label: "Delete", danger: true, fn: () => {
-                    if (!editor || blockHandle == null) return;
-                    const node = editor.state.doc.nodeAt(blockHandle.nodeStart);
-                    if (!node) return;
-                    editor.chain().focus().deleteRange({ from: blockHandle.nodeStart, to: blockHandle.nodeStart + node.nodeSize }).run();
-                  }},
-                ].map((item, i) => item === null
-                  ? <div key={`s${i}`} style={{ height: 1, background: "var(--border-default)", margin: "3px 0" }} />
-                  : (
-                    <div
-                      key={item.label}
-                      onMouseDown={(e) => { e.preventDefault(); item.fn(); setBlockMenuOpen(false); setBlockHandle(null); }}
-                      style={{ padding: "4px 12px", cursor: "pointer", fontSize: 11, color: item.danger ? "rgba(252,129,129,0.9)" : "var(--text-primary)" }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "var(--border-subtle)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                    >
-                      {item.label}
-                    </div>
-                  )
-                )}
-              </div>,
-              document.body
-            )}
-          </div>
-        </div>
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              insertAtPos(pendingDrop.insertPos, {
+                type: "instancePill",
+                attrs: { instanceId: pendingDrop.instanceId, instanceLabel: pendingDrop.label, occurrenceId: pendingDrop.occurrenceId, pillDisplay: "inline" },
+              });
+              setPendingDrop(null);
+            }}
+            style={{ fontSize: 11, padding: "3px 10px", cursor: "pointer", borderRadius: 5, border: "1px solid var(--border-default)", background: "var(--input-bg)", color: "var(--text-primary)" }}
+          >Pill</button>
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              insertAtPos(pendingDrop.insertPos, { type: "moduleEmbed", attrs: { occurrenceId: pendingDrop.occurrenceId } });
+              setPendingDrop(null);
+            }}
+            style={{ fontSize: 11, padding: "3px 10px", cursor: "pointer", borderRadius: 5, border: "1px solid var(--border-default)", background: "var(--input-bg)", color: "var(--text-primary)" }}
+          >Embed</button>
+          <button
+            onMouseDown={(e) => { e.preventDefault(); setPendingDrop(null); }}
+            style={{ fontSize: 11, padding: "3px 6px", cursor: "pointer", borderRadius: 5, border: "none", background: "transparent", color: "var(--text-faint)" }}
+          >×</button>
+        </div>,
+        document.body
       )}
+
 
       {isDropTarget && (
         <div className="absolute inset-0 pointer-events-none z-10" style={{ background: "rgba(50,150,255,0.06)" }} />
@@ -918,24 +965,35 @@ const Editor = forwardRef(function Editor({
       )}
 
       <div
-        className={`doc-editor-wrapper min-h-[100px] py-3 pr-2 pl-3 flex-1${stickyToolbar ? " overflow-auto" : ""}`}
+        className={`doc-editor-wrapper min-h-[100px] pr-2 pl-3 flex-1${stickyToolbar ? " overflow-auto" : ""}`}
+        style={{ paddingTop: 5, paddingBottom: 5 }}
+        draggable={false}
+        onMouseDown={(e) => {
+          // Block content sync briefly so ProseMirror's cursor placement on mousedown
+          // isn't overwritten by a server echo arriving before the focus event fires.
+          recentMousedownRef.current = true;
+          setTimeout(() => { recentMousedownRef.current = false; }, 300);
+
+          // Fix cursor placement for editors nested inside contenteditable="false"
+          // (e.g. textblock sub-editors). The browser can't resolve click position
+          // across contenteditable boundaries, so it defaults to offset 0 (beginning).
+          // We compute the correct position from click coords and set it explicitly.
+          if (editor && editor.isEditable && e.target !== e.currentTarget) {
+            const coords = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
+            if (coords) {
+              requestAnimationFrame(() => {
+                try { editor.commands.setTextSelection(coords.pos); } catch (_) {}
+              });
+            }
+          }
+        }}
         onClick={(e) => {
           if (!editor || !editor.isEditable) return;
           if (e.target !== e.currentTarget) return;
-          // Click is on the wrapper padding (not on ProseMirror content).
-          let coords = { left: e.clientX, top: e.clientY };
-          // If click is in left padding, nudge X into the content area
-          const pmEl = e.currentTarget.querySelector(".ProseMirror");
-          if (pmEl) {
-            const pmRect = pmEl.getBoundingClientRect();
-            if (coords.left < pmRect.left) coords.left = pmRect.left + 2;
-          }
-          const pos = editor.view.posAtCoords(coords);
-          if (pos) {
-            editor.chain().setTextSelection(pos.pos).focus().run();
-          } else {
-            editor.commands.focus("end");
-          }
+          // Click is on wrapper padding (not on ProseMirror content itself).
+          // Use 'end' so TipTap doesn't default to editor.state.selection (pos 1
+          // for an unfocused editor), which always places cursor at the beginning.
+          editor.commands.focus('end');
         }}
       >
         <EditorContent editor={editor} />

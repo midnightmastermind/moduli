@@ -1,0 +1,1 @@
+- Substance is heated until it blackens.

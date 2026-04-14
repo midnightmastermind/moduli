@@ -256,10 +256,7 @@ function InstanceInner({
                 ref={dragHandleRef}
                 className="module-drag-handle"
                 data-dnd-handle="true"
-                draggable={false}
               >
-                <div className="drag-handle-ball" />
-                <div className="drag-handle-stem" />
                 <RadialMenu
                   dragMode={entityDragMode}
                   onToggleDragMode={toggleEntityDragMode}

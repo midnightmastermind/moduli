@@ -479,17 +479,13 @@ body {
   cursor: grab;
 }
 
-/* Embedded doc container header — hash shows only on hover, collapses when hidden */
+/* Embedded doc container header — hash shows only on hover */
 .embedded-container-header .embedded-hash {
-  opacity: 0;
-  max-width: 0;
-  overflow: hidden;
-  display: inline-block;
-  transition: opacity 0.15s, max-width 0.15s;
+  display: none;
 }
 .embedded-container-header:hover .embedded-hash {
+  display: inline-block;
   opacity: 0.5;
-  max-width: 14px;
 }
 
 .container-list {
@@ -505,7 +501,7 @@ body {
   flex: 1;
   min-height: 85px;
   position: relative;
-  padding: 10px 5px 24px 5px;
+  padding: 2px 5px 24px 5px;
 }
 
 /* Notebook continuous scroll — embedded containers expand naturally,
@@ -636,27 +632,7 @@ body {
   flex-shrink: 0;
 }
 
-/* Ball */
-.drag-handle-ball {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.22);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  pointer-events: none;
-}
-
-/* Stem — hidden, no stem design */
-.drag-handle-stem {
-  display: none;
-}
-
-/* The plain ball div is replaced by the radial handle (which has the icon inside) */
-.module-drag-handle .drag-handle-ball {
-  display: none;
-}
-
-/* RadialMenu always visible — the radial handle is the ball */
+/* RadialMenu always visible — the radial handle is the drag affordance */
 .module-drag-handle .radial-menu {
   display: flex !important;
   order: 1;
@@ -678,6 +654,7 @@ body {
   max-width: 18px !important;
   align-self: center !important;
   background: transparent;
+  cursor: grab !important;
 }
 
 /* Cog handle — shown when header is hidden; absolute top-left, reveals on shell hover */
@@ -710,10 +687,6 @@ body {
   transform: translate(-50%, -50%);
 }
 
-.container-shell:hover:not(:has(.container-shell:hover)) .container-cog-handle .drag-handle-stem,
-.container-shell:hover:not(:has(.container-shell:hover)) .container-cog-handle .drag-handle-ball {
-  display: none;
-}
 
 /* Page cog handle — mirrors container-cog-handle for page-shell */
 .page-cog-handle {
@@ -743,10 +716,6 @@ body {
   transform: translate(-50%, -50%);
 }
 
-.page-shell:hover .page-cog-handle .drag-handle-stem,
-.page-shell:hover .page-cog-handle .drag-handle-ball {
-  display: none;
-}
 
 /* Instance row — no overrides needed, radial menu flows naturally */
 
@@ -841,6 +810,14 @@ body {
   pointer-events: auto;
   cursor: text;
   min-height: 100%;
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+/* Prevent native text drag in editors — text can be selected but not dragged */
+.doc-editor-content.ProseMirror * {
+  -webkit-user-drag: none;
+  user-drag: none;
 }
 
 /* Anchor highlight animation (double-flash when scrolling to anchor) */
@@ -867,18 +844,26 @@ body {
   border-color: rgba(134, 239, 172, 0.32) !important;
   background: rgba(134, 239, 172, 0.09) !important;
 }
-/* Sub-editor inside textblock — keep compact, minimal padding */
+/* Sub-editor inside legacy block pill — compact, no extra padding, no indent */
 .doc-instance-block .doc-editor-wrapper {
   min-height: 0;
   padding: 0 !important;
 }
+.doc-instance-block .radial-handle {
+  border-right: none !important;
+}
 .doc-instance-block .doc-editor-wrapper .ProseMirror {
   min-height: 0;
-  padding: 2px 0;
+  padding: 3px 0 2px 0;
 }
-/* First paragraph in textblock gets text-indent for visual separation */
-.doc-instance-block .doc-editor-wrapper .ProseMirror > p:first-child {
-  text-indent: 1.2em;
+/* Sub-editor inside instanceTextblock — compact, flush, no indent */
+.instance-textblock-block .doc-editor-wrapper {
+  min-height: 0;
+  padding: 0 !important;
+}
+.instance-textblock-block .doc-editor-wrapper .ProseMirror {
+  min-height: 0;
+  padding: 4px 8px 4px 8px;
 }
 /* Doc container areas — text cursor */
 .container-doc {
@@ -1009,6 +994,10 @@ body {
 
 /* Paragraphs & lists */
 .doc-editor-content.ProseMirror p { margin: 0.25em 0; }
+/* Block pill wrapper paragraphs — no extra spacing between textblock instances */
+.doc-editor-content.ProseMirror p:has(.doc-instance-block) { margin: 0; }
+/* Hide the trailing <br> ProseMirror injects inside block-pill paragraphs — it adds a full line-height of empty space */
+.doc-editor-content.ProseMirror p:has(.doc-instance-block) > br { display: none; }
 
 .doc-editor-content.ProseMirror ul,
 .doc-editor-content.ProseMirror ol {
@@ -1673,6 +1662,13 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 /* =============================================================================
    16. PREVIEW NODES & DRILLDOWN
    ============================================================================= */
+
+/* Local tree page close button — show on row hover */
+.page-tree-close-btn { opacity: 0; transition: opacity 0.1s; }
+div:hover > div > .page-tree-close-btn,
+div:hover > .page-tree-close-btn { opacity: 0.6; }
+div:hover > div > .page-tree-close-btn:hover,
+div:hover > .page-tree-close-btn:hover { opacity: 1; color: var(--text-primary) !important; background: rgba(255,255,255,0.06) !important; }
 
 .preview-node-grid {
   display: grid;

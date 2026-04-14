@@ -1,6 +1,19 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-04-06. Check this file before re-reading source._
+_Updated: 2026-04-12. Check this file before re-reading source._
+
+## Recent Changes (Apr 12 2026 — InstanceTextblock: Separate Node Type)
+- **InstanceTextblockExtension.js** (NEW): Dedicated TipTap block node `instanceTextblock` for auto-created typing surfaces. NOT a pill. `group: "block"`, `atom: true`, `draggable: false`. `stopEvent` returns `true` for all events from inside `.instance-textblock-block` — prevents outer ProseMirror NodeSelection on atom click (root cause of cursor-to-beginning bug). `insertInstanceTextblock` command.
+- **pills/InstanceTextblockNode.jsx** (NEW): NodeView for `instanceTextblock`. Renders only a `DocContent` sub-editor — no pill badge, no radial menu, no drag handle. `handleExitBlock` moves outer editor cursor to after the node via `editor.chain().setTextSelection(pos + nodeSize).focus().run()`. `handleDeleteBlock` removes TipTap node + calls `CommitHelpers.removeOccurrence`. `draggable={false}`, `onMouseDown={e => e.stopPropagation()}`.
+- **InstancePillExtension.js** (REWRITTEN — inline-only): Stripped `bodyContent`, `headerLevel`, `showHeader` attrs. Kept `pillDisplay` in `parseHTML` only (backward compat reading old DB data) — not written on new saves. Removed `stopEvent` override.
+- **pills/InstancePillNode.jsx** (REWRITTEN — ~185 lines, was 470): Removed block-mode branch entirely (`isBlockMode`, `handleExitBlock`, `handleDeleteBlock`, `blockOcc`, drag handle choreography, `renderTipTapNode`/`renderTipTapContent`, `HEADING_STYLES`, `showHeader`). Now inline-pill only: label badge, Box icon, field value badges, radial menu (5 items), inline label editing, Pragmatic DnD drag-out.
+
+## Recent Changes (Apr 10 2026 — Block Pill Click Position Fix)
+- **InstancePillExtension.js**: Broadened `stopEvent` to return `true` for ALL events from inside `.doc-instance-block` (was only stopping events from inside `.doc-instance-block .ProseMirror`). Root cause: clicks on block pill padding/header (outside sub-editor) reached outer ProseMirror → NodeSelection on atom → stole focus → reset sub-editor cursor to position 0 ("beginning of element" bug).
+
+## Recent Changes (Apr 9 2026 — Drag & Cursor Fix)
+- **ModuleEmbedExtension.js**: Changed `draggable: true` → `draggable: false`. ProseMirror was treating moduleEmbed nodes as draggable blocks, causing node selection + drag behavior on click. Embeds are still movable via alignment controls and radial menu.
+- **InstancePillNode.jsx**: Block pill drag handle cleanup now also intercepts `dragstart` on the wrapper — prevents text-selection drags from hijacking. Added `drop` listener for more robust `draggable` attribute cleanup.
 
 ## Recent Changes (Apr 6 2026 — Pill/Embed Conversion)
 - **InstancePillNode.jsx**: Added `editor` + `getPos` props (from TipTap NodeView). Added "Convert to Embed" radial menu item (`Maximize2` icon) — replaces the pill with a `moduleEmbed` block node at the same position. Added to `radialItems` array.

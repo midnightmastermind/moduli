@@ -522,25 +522,7 @@ export function useDraggable({
       },
     });
 
-    // When a dragHandle is used, remove draggable="true" from the wrapper element
-    // to prevent Chrome from blocking cursor placement in child contenteditable
-    // elements (TipTap editors). Re-add it only when the handle is pressed.
-    let handleCleanup = null;
-    if (handleEl) {
-      el.removeAttribute('draggable');
-      const onHandleDown = () => { el.setAttribute('draggable', 'true'); };
-      const onHandleUp = () => { el.removeAttribute('draggable'); };
-      handleEl.addEventListener('pointerdown', onHandleDown);
-      document.addEventListener('pointerup', onHandleUp);
-      document.addEventListener('dragend', onHandleUp);
-      handleCleanup = () => {
-        handleEl.removeEventListener('pointerdown', onHandleDown);
-        document.removeEventListener('pointerup', onHandleUp);
-        document.removeEventListener('dragend', onHandleUp);
-      };
-    }
-
-    return () => { cleanup(); handleCleanup?.(); };
+    return () => { cleanup(); };
   }, [type, id, JSON.stringify(data), JSON.stringify(context), disabled, nativeEnabled, dragCtx, dragHandleRef]);
 
   return {
@@ -1016,26 +998,8 @@ export function useDragDrop({
       },
     });
 
-    // When a dragHandle is used, remove draggable="true" from the wrapper element
-    // to prevent Chrome from blocking cursor placement in child contenteditable
-    // elements (TipTap editors). Re-add it only when the handle is pressed.
-    let handleCleanup = null;
-    if (handleEl) {
-      el.removeAttribute('draggable');
-      const onHandleDown = () => { el.setAttribute('draggable', 'true'); };
-      const onHandleUp = () => { el.removeAttribute('draggable'); };
-      handleEl.addEventListener('pointerdown', onHandleDown);
-      document.addEventListener('pointerup', onHandleUp);
-      document.addEventListener('dragend', onHandleUp);
-      handleCleanup = () => {
-        handleEl.removeEventListener('pointerdown', onHandleDown);
-        document.removeEventListener('pointerup', onHandleUp);
-        document.removeEventListener('dragend', onHandleUp);
-      };
-    }
-
     const cleanup = combine(
-      () => { dragCleanup(); handleCleanup?.(); },
+      () => { dragCleanup(); },
       dropTargetForElements({
         element: el,
         canDrop: ({ source }) => canAccept(source),

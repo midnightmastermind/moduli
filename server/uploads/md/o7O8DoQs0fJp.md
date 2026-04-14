@@ -1,0 +1,1 @@
+- Turning the other cheek, compassionate responses instead of reactive aggression

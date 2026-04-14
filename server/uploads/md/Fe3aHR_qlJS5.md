@@ -1,0 +1,4 @@
+**External:**
+
+- Behavior consistent with internal values rather than social masks
+- Integrity in work, relationships, habits

@@ -1,0 +1,1 @@
+- Integration: balanced decision-making, creativity, emotional regulation

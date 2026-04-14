@@ -581,6 +581,7 @@ export default function App() {
   const liveValue = useMemo(
     () => ({
       computedValues: state.computedValues || {},
+      fullStateLoaded: state.fullStateLoaded ?? false,
       canUndo,
       canRedo,
       undo,
@@ -594,6 +595,7 @@ export default function App() {
     }),
     [
       state.computedValues,
+      state.fullStateLoaded,
       canUndo,
       canRedo,
       undo,

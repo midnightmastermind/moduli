@@ -1,6 +1,25 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-04-06. Check this file before re-reading source._
+_Updated: 2026-04-09. Check this file before re-reading source._
+
+## Recent Changes (Apr 9 2026 — B2/B3/C2: Local Tree Nesting + Folder Breadcrumbs + Mini Block)
+- **modules/ModulePanel.jsx**: Replaced navHistory breadcrumbs with `pageBreadcrumbs` useMemo (walks `occ.parentId → foldersById`). Shows `Folder › Page` trail when page has parent folder. navHistory state + useEffect removed. (B3)
+- **ui/Editor.jsx**: Added "Make mini block" right-click context menu item. Captures selection at menu-open time; on click creates module (role:"instance", kind:"doc") + occurrence with selection as textmap, then replaces selection with instancePill block node. (C2)
+
+## Recent Changes (Apr 9 2026 — Plan A1/A2/B1/B4: Drag Fix + Typing Fix + Tree Push + Close Buttons)
+- **helpers/dragSystem.js**: Fixed drag handle `dragstart` interceptor — replaced `elementFromPoint` with `_dragFromHandle` boolean flag. Root cause: `dragstart` fires at current cursor pos (after movement), not pointerdown pos. Now drag handles work reliably. (A1)
+- **ui/Editor.jsx**: Debounced `onAutoCreateTextblock` trigger — waits 300ms after first char before creating textblock, re-reads full text when timer fires. Added `autoCreateTimerRef` + cleanup on unmount. (A2)
+- **modules/DocContent.jsx**: After auto-creating textblock, places cursor at END of sub-editor content (Selection API `range.collapse(false)`). Fixes "elloh" ordering bug. (A2)
+- **modules/ModulePanel.jsx**: Root/local tree sidebars now push content on desktop (flex row siblings) instead of overlay (absolute). On mobile, stays as absolute overlay. Added X button in page header to close/unpin active page. (B1, B4)
+- **modules/ManifestTree.jsx**: `PageTreeNode` accepts `onClosePage` prop — shows X button on row hover in local tree. `onClosePage` threaded from ManifestTree to PageTreeNode for local pages. (B4)
+- **index.css**: Added `.page-tree-close-btn` CSS — opacity 0 by default, shows on parent div hover. (B4)
+
+## Recent Changes (Apr 9 2026 — Editor Cursor Placement + Text Drag Fix)
+- **index.css**: Added `-webkit-user-drag: none` / `user-drag: none` to `.doc-editor-content.ProseMirror` and all children. Prevents native text-selection dragging while preserving text selection/highlighting.
+- **ui/Editor.jsx**: Added `handleDOMEvents.dragstart` in TipTap editorProps — cancels dragstart unless from a drag handle element.
+- **helpers/dragSystem.js**: `useDraggable` + `useDragDrop` drag handle cleanup now intercepts `dragstart` on the wrapper. If drag didn't start from handle, cancels it and removes `draggable` attribute. Added `drop` event listener for robust cleanup.
+- **docs/ModuleEmbedExtension.js**: `draggable: true` → `false`. Prevents ProseMirror from treating embeds as native draggable nodes.
+- **docs/pills/InstancePillNode.jsx**: Block pill handle cleanup mirrors dragSystem.js fix (dragstart interception + drop listener).
 
 ## Recent Changes (Apr 6 2026 — Phase E: Iframe Removal + Dead Code Cleanup)
 - **main.jsx**: Removed `previewOcc` URL param check and `PagePreviewApp` dynamic import. Always loads `App` directly. Removed dynamic import pattern.

@@ -362,8 +362,8 @@ export default function RadialMenu({
           position: "fixed",
           left: anchor.x,
           top: anchor.y,
-          width: menuItems.length * 30 + 60,
-          height: menuItems.length * 30 + 60,
+          width: Math.max(menuItems.length * 30 + 60, s.radius * 2 + 60),
+          height: Math.max(menuItems.length * 30 + 60, s.radius * 2 + 60),
           transform: "translate(-50%, -50%)",
           pointerEvents: "none",
           zIndex: 2147483647,
@@ -376,35 +376,68 @@ export default function RadialMenu({
             radial-menu-items
             absolute inset-0
             pointer-events-none
-            transition-all duration-300 ease-out
           `}
           style={{
             transformOrigin: "50% 50%",
             opacity: entered ? 1 : 0,
-            transitionProperty: "opacity",
-            transitionDuration: "200ms",
-            transitionTimingFunction: "ease-out",
+            transform: `rotate(${entered ? 0 : startRot}deg)`,
+            transition: "opacity 200ms ease-out, transform 300ms ease-out",
           }}
         >
-          {menuItems.map((item, index) => {
-            const Icon = item.icon;
-            // Linear strip layout — items line up in the open direction
-            const spacing = 30; // pixels between items
-            const offset = (index + 1) * spacing;
-            let x = 0, y = 0;
-            if (openDirection === "right") x = offset;
-            else if (openDirection === "left") x = -offset;
-            else if (openDirection === "down") y = offset;
-            else if (openDirection === "up") y = -offset;
-
-            // Clamp item to stay within viewport
+          {(() => {
+            // Pre-compute arc positions for all items
             const btnHalf = 14;
-            const absX = anchor.x + x;
-            const absY = anchor.y + y;
-            if (absX - btnHalf < 0) x += (btnHalf - absX);
-            if (absX + btnHalf > window.innerWidth) x -= (absX + btnHalf - window.innerWidth);
-            if (absY - btnHalf < 0) y += (btnHalf - absY);
-            if (absY + btnHalf > window.innerHeight) y -= (absY + btnHalf - window.innerHeight);
+            const pad = 6;
+            const arcPositions = menuItems.map((item) => {
+              const rad = (item.angle * Math.PI) / 180;
+              return {
+                x: Math.cos(rad) * s.radius,
+                y: Math.sin(rad) * s.radius,
+              };
+            });
+
+            // Check if ANY item clips the viewport
+            const anyClipped = arcPositions.some(({ x, y }) => {
+              const ax = anchor.x + x;
+              const ay = anchor.y + y;
+              return (
+                ax - btnHalf < pad ||
+                ax + btnHalf > window.innerWidth - pad ||
+                ay - btnHalf < pad ||
+                ay + btnHalf > window.innerHeight - pad
+              );
+            });
+
+            // If clipped, redistribute ALL items in a straight line
+            let finalPositions;
+            if (anyClipped) {
+              const spacing = 28;
+              const count = menuItems.length;
+              const halfSpan = ((count - 1) * spacing) / 2;
+              const fixedOffset = s.radius * 0.75; // distance on primary axis
+              finalPositions = menuItems.map((_, i) => {
+                const linePos = -halfSpan + i * spacing; // position on secondary axis
+                let x = 0, y = 0;
+                if (openDirection === 'right') { x = fixedOffset; y = linePos; }
+                else if (openDirection === 'left') { x = -fixedOffset; y = linePos; }
+                else if (openDirection === 'down') { y = fixedOffset; x = linePos; }
+                else if (openDirection === 'up') { y = -fixedOffset; x = linePos; }
+                // Clamp each item to viewport
+                const ax = anchor.x + x;
+                const ay = anchor.y + y;
+                if (ax - btnHalf < pad) x += (pad + btnHalf - ax);
+                if (ax + btnHalf > window.innerWidth - pad) x -= (ax + btnHalf - window.innerWidth + pad);
+                if (ay - btnHalf < pad) y += (pad + btnHalf - ay);
+                if (ay + btnHalf > window.innerHeight - pad) y -= (ay + btnHalf - window.innerHeight + pad);
+                return { x, y };
+              });
+            } else {
+              finalPositions = arcPositions;
+            }
+
+            return menuItems.map((item, index) => {
+            const Icon = item.icon;
+            const { x, y } = finalPositions[index];
 
             const delay = index * 35;
 
@@ -435,12 +468,17 @@ export default function RadialMenu({
                 }}
                 title={item.label}
               >
-                <span style={{ display: "inline-flex" }}>
+                <span style={{
+                  display: "inline-flex",
+                  transform: `rotate(${entered ? 0 : -startRot}deg)`,
+                  transition: "transform 300ms ease-out",
+                }}>
                   {Icon && React.createElement(Icon, { className: `${s.menuIcon} text-white` })}
                 </span>
               </button>
             );
-          })}
+          });
+          })()}
         </div>
       </div>,
       document.body

@@ -39,13 +39,13 @@ import {
   Trash2,
   BookMarked,
   ArrowLeft,
-  Search,
-  Plus,
   X,
 } from "lucide-react";
 
 import Instance from "./Instance.jsx";
-import { DocEditorShell, PoolPill, CanvasCard, CanvasDrawSection } from "./containerHelpers.jsx";
+import { CanvasCard, CanvasDrawSection } from "./containerHelpers.jsx";
+import { DocEditorShell } from "./DocContent.jsx";
+import ContainerPool from "./containers/ContainerPool.jsx";
 import { FilterOverridePopup, TemplatePickerPopup } from "./containerPopups.jsx";
 import ModuleInstance from "./ModuleInstance.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
@@ -132,11 +132,11 @@ function Container({
   }, {
     settingsOpen: false, historyOpen: false, ctxMenu: null,
     focusedStack: [], historyExpanded: false, isBodyCollapsed: false,
-    showHeader: true, poolSearch: "", poolAddLabel: "", isPoolAdding: false,
+    showHeader: true,
     showEmbeddedIterNav: false, filterPopupPos: null, templatePopupPos: null,
   });
   const { settingsOpen, historyOpen, ctxMenu, focusedStack, historyExpanded,
-    isBodyCollapsed, showHeader, poolSearch, poolAddLabel, isPoolAdding,
+    isBodyCollapsed, showHeader,
     showEmbeddedIterNav, filterPopupPos, templatePopupPos } = ui;
   // Setter wrappers — same API as useState setters, delegates to single reducer
   const setSettingsOpen = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ settingsOpen: v(s.settingsOpen) }) : { settingsOpen: v }), []);
@@ -146,9 +146,6 @@ function Container({
   const setHistoryExpanded = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ historyExpanded: v(s.historyExpanded) }) : { historyExpanded: v }), []);
   const setIsBodyCollapsed = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ isBodyCollapsed: v(s.isBodyCollapsed) }) : { isBodyCollapsed: v }), []);
   const setShowHeader = useCallback(v => uiDispatch({ showHeader: v }), []);
-  const setPoolSearch = useCallback(v => uiDispatch({ poolSearch: v }), []);
-  const setPoolAddLabel = useCallback(v => uiDispatch({ poolAddLabel: v }), []);
-  const setIsPoolAdding = useCallback(v => uiDispatch({ isPoolAdding: v }), []);
   const setShowEmbeddedIterNav = useCallback(v => uiDispatch({ showEmbeddedIterNav: v }), []);
   const setFilterPopupPos = useCallback(v => uiDispatch({ filterPopupPos: v }), []);
   const setTemplatePopupPos = useCallback(v => uiDispatch({ templatePopupPos: v }), []);
@@ -435,23 +432,6 @@ function Container({
     </CanvasCard>
   ), [dispatch, socket]);
 
-  const handlePoolAdd = useCallback(() => {
-    const label = poolAddLabel.trim();
-    if (!label) return;
-    const { grid } = ctxState || {};
-    const userId = ctxState?.userId;
-    const gridId = grid?._id;
-    if (!userId || !gridId) return;
-    const instanceId = crypto.randomUUID();
-    CommitHelpers.createInstanceInContainer({
-      dispatch, socket,
-      containerId: module.id,
-      instance: { id: instanceId, role: "instance", kind: "list", label, userId, gridId, fieldBindings: [] },
-      emit: true,
-    });
-    setPoolAddLabel("");
-    setIsPoolAdding(false);
-  }, [poolAddLabel, ctxState, dispatch, socket, module.id]);
 
   return (
     <div
@@ -484,8 +464,6 @@ function Container({
         <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
           <PopoverAnchor asChild>
             <div ref={containerHandleRef} className="container-cog-handle module-drag-handle module-grab-zone" data-dnd-handle="true">
-              <div className="drag-handle-ball" />
-              <div className="drag-handle-stem" />
               <RadialMenu
                 dragMode={containerDragMode}
                 onToggleDragMode={toggleContainerDragModeQuick}
@@ -566,7 +544,7 @@ function Container({
             <div style={{ display: "flex", alignItems: "center", padding: "0px 4px 0px 2px", minHeight: 12, gap: 4 }}>
               <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <PopoverAnchor asChild>
-                  <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" data-dnd-handle="true" draggable={false} style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}>
+                  <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" data-dnd-handle="true" style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}>
                     <div className="drag-handle-ball" />
                     <div className="drag-handle-stem" />
                     <RadialMenu
@@ -608,7 +586,7 @@ function Container({
                   />
                 </PopoverContent>
               </Popover>
-              <span className="embedded-hash" style={{ fontSize: 12, color: embeddedAccent, flexShrink: 0, fontFamily: "var(--font-mono)" }}>#</span>
+              <span className="embedded-hash" style={{ fontSize: 20, fontWeight: 700, color: embeddedAccent, fontFamily: "var(--font-mono)" }}>#</span>
               <span
                 contentEditable
                 suppressContentEditableWarning
@@ -625,7 +603,7 @@ function Container({
                   e.stopPropagation();
                 }}
                 onPointerDown={(e) => e.stopPropagation()}
-                style={{ outline: "none", cursor: "text", fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 600, color: embeddedAccent, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}
+                style={{ outline: "none", cursor: "text", fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: embeddedAccent, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}
               >
                 {module.label || "Container"}
               </span>
@@ -663,7 +641,7 @@ function Container({
           <>
             <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverAnchor asChild>
-                <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" data-dnd-handle="true" draggable={false}>
+                <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" data-dnd-handle="true">
                   <div className="drag-handle-ball" />
                   <div className="drag-handle-stem" />
                   <RadialMenu
@@ -760,72 +738,14 @@ function Container({
 
       {/* CONTENT AREA */}
       {!isBodyCollapsed && (isPoolContainer ? (
-        /* Pool Container: draggable pills grid */
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
-          {/* Pool toolbar: search + add */}
-          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 6px", borderBottom: "1px solid var(--border-subtle)" }}>
-            <div style={{ display: "flex", alignItems: "center", flex: 1, gap: 4, background: "var(--input-bg)", borderRadius: 6, padding: "2px 6px", border: "1px solid var(--input-border)" }}>
-              <Search size={10} style={{ opacity: 0.4, flexShrink: 0 }} />
-              <input
-                value={poolSearch}
-                onChange={e => setPoolSearch(e.target.value)}
-                placeholder="search…"
-                style={{ background: "none", border: "none", outline: "none", fontSize: 10, color: "var(--text-primary)", fontFamily: "var(--font-mono)", flex: 1, minWidth: 0 }}
-                onPointerDown={e => e.stopPropagation()}
-              />
-              {poolSearch && (
-                <button onClick={() => setPoolSearch("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--text-muted)" }}>
-                  <X size={9} />
-                </button>
-              )}
-            </div>
-            {isPoolAdding ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                <input
-                  autoFocus
-                  value={poolAddLabel}
-                  onChange={e => setPoolAddLabel(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === "Enter") handlePoolAdd();
-                    if (e.key === "Escape") { setIsPoolAdding(false); setPoolAddLabel(""); }
-                    e.stopPropagation();
-                  }}
-                  placeholder="new item…"
-                  style={{ fontSize: 10, fontFamily: "var(--font-mono)", background: "var(--input-bg)", border: "1px solid rgba(99,102,241,0.4)", borderRadius: 5, padding: "2px 6px", color: "var(--text-primary)", outline: "none", width: 100 }}
-                  onPointerDown={e => e.stopPropagation()}
-                />
-                <button onClick={handlePoolAdd} style={{ background: "rgba(99,102,241,0.3)", border: "1px solid rgba(99,102,241,0.5)", borderRadius: 4, cursor: "pointer", padding: "2px 5px", color: "rgba(180,190,255,0.9)", fontSize: 10 }}>Add</button>
-                <button onClick={() => { setIsPoolAdding(false); setPoolAddLabel(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 2 }}><X size={10} /></button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setIsPoolAdding(true)}
-                onPointerDown={e => e.stopPropagation()}
-                style={{ display: "flex", alignItems: "center", gap: 3, background: "rgba(99,102,241,0.18)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 5, padding: "3px 7px", cursor: "pointer", color: "rgba(180,190,255,0.85)", fontSize: 10, fontFamily: "var(--font-mono)", flexShrink: 0 }}
-              >
-                <Plus size={9} /> Add
-              </button>
-            )}
-          </div>
-          {/* Pool pills body */}
-          <div ref={listDropRef} style={{ flex: 1, overflow: "auto", padding: "6px 6px", display: "flex", flexWrap: "wrap", alignContent: "flex-start", gap: 5 }}>
-            {itemsWithOccurrences
-              .filter(({ instance }) => !poolSearch || (instance.label || "").toLowerCase().includes(poolSearch.toLowerCase()))
-              .map(({ instance, occurrence: occ }) => (
-                <PoolPill
-                  key={occ.id}
-                  instanceModule={instance}
-                  occurrence={occ}
-                  onDelete={() => occ?.id && CommitHelpers.deleteOccurrence({ dispatch, socket, occurrenceId: occ.id })}
-                />
-              ))}
-            {itemsWithOccurrences.length === 0 && (
-              <div style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "var(--font-mono)", padding: "8px 4px", width: "100%" }}>
-                Empty pool — add items or drag here
-              </div>
-            )}
-          </div>
-        </div>
+        <ContainerPool
+          itemsWithOccurrences={itemsWithOccurrences}
+          dispatch={dispatch}
+          socket={socket}
+          listDropRef={listDropRef}
+          module={module}
+          ctxState={ctxState}
+        />
       ) : attachedBodyFields.length > 0 ? (
         /* Attached body field — markdown textarea replaces the body editor */
         <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "4px 8px 8px 8px", gap: 2 }}>
@@ -1075,7 +995,7 @@ function Container({
           <div
             role="list"
             aria-label={`${module.label || "Container"} items`}
-            style={{ padding: "14px 5px 5px 5px", flex: 1, display: "flex", flexDirection: "column" }}
+            style={{ padding: "3px 5px 5px 5px", flex: 1, display: "flex", flexDirection: "column" }}
           >
             {itemsWithOccurrences.map(({ instance, occurrence }) => (
               <ModuleInstance

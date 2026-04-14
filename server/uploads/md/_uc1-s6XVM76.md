@@ -1,0 +1,1 @@
+- Repressed traits, shame, trauma ↔ conscious awareness, self-acceptance

@@ -1,0 +1,4 @@
+**Internal:**
+
+- Physical sensations, energy, health ↔ thoughts, emotions, meaning
+- Integration: embodied practice, meditation, movement, somatic awareness

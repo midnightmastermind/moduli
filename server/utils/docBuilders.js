@@ -138,37 +138,44 @@ export function buildMergedDocTextmap(title, sections) {
 }
 
 /**
- * Wrap runs of consecutive paragraph nodes in instancePill block nodes.
- * Headings, lists, tables, and other block types are left as-is.
- * Each run of consecutive paragraphs becomes ONE textblock instance.
+ * Wrap paragraph runs, headings, and bullet list items in instancePill block nodes.
+ * - Consecutive non-empty paragraphs → ONE textblock instance
+ * - Each heading → its own textblock instance
+ * - Each list item in bulletList/orderedList → its own textblock instance
+ * - Empty paragraphs and other node types (tables, etc.) are left as-is
  *
  * @param {Array} nodes - TipTap doc content array
  * @param {Function} createTextblock - (paragraphNodes) => { moduleId, occurrenceId }
  * @returns {Array} - Modified content array with instancePill blocks
  */
+/**
+ * @param {Array} nodes - TipTap content nodes
+ * @param {Function} createTextblock - (contentNodes, subCreatorFn?) => { moduleId, occurrenceId }
+ *   If subCreatorFn is provided, the textblock's content = subCreatorFn(nestedCreator).
+ */
 export function wrapTextInBlocks(nodes, createTextblock) {
   const result = [];
   let paragraphRun = [];
+
+  function makeInstancePillAttrs(moduleId, occurrenceId) {
+    return { instanceId: moduleId, instanceLabel: "", occurrenceId, pillDisplay: "block", showIcon: false, showHeader: false };
+  }
+
+  function makePill(contentNodes, subCreatorFn) {
+    const { moduleId, occurrenceId } = subCreatorFn
+      ? createTextblock(null, subCreatorFn)
+      : createTextblock(contentNodes);
+    return {
+      type: "paragraph",
+      content: [{ type: "instancePill", attrs: makeInstancePillAttrs(moduleId, occurrenceId) }],
+    };
+  }
 
   function flushParagraphRun() {
     if (paragraphRun.length === 0) return;
     const textmapContent = [...paragraphRun];
     paragraphRun = [];
-    const { moduleId, occurrenceId } = createTextblock(textmapContent);
-    result.push({
-      type: "paragraph",
-      content: [{
-        type: "instancePill",
-        attrs: {
-          instanceId: moduleId,
-          instanceLabel: "",
-          occurrenceId,
-          pillDisplay: "block",
-          showIcon: false,
-          showHeader: false,
-        },
-      }],
-    });
+    result.push(makePill(textmapContent));
   }
 
   function isParagraphEmpty(node) {
@@ -176,18 +183,72 @@ export function wrapTextInBlocks(nodes, createTextblock) {
     return node.content.every(n => !n.text || n.text.trim() === "");
   }
 
-  for (const node of nodes) {
-    if (node.type === "paragraph") {
-      if (isParagraphEmpty(node)) {
-        // Empty paragraph: flush current run, then keep as plain empty line
-        flushParagraphRun();
-        result.push(node);
-      } else {
-        paragraphRun.push(node);
+  // Bold-label paragraphs like "**Internal:**" or "**External:**"
+  function isBoldLabelOnly(node) {
+    if (!node.content || node.content.length !== 1) return false;
+    const inner = node.content[0];
+    return inner.type === "text" &&
+      Array.isArray(inner.marks) &&
+      inner.marks.some(m => m.type === "bold") &&
+      inner.text.trim().endsWith(":");
+  }
+
+  let i = 0;
+  while (i < nodes.length) {
+    const node = nodes[i];
+
+    if (node.type === "paragraph" && isBoldLabelOnly(node)) {
+      // Section group: bold label + following bullet/ordered lists become one textblock.
+      // The label is the header; each bullet becomes a nested mini textblock inside it.
+      flushParagraphRun();
+      const labelNode = node;
+      const bulletLists = [];
+      let j = i + 1;
+      while (j < nodes.length && (nodes[j].type === "bulletList" || nodes[j].type === "orderedList")) {
+        bulletLists.push(nodes[j]);
+        j++;
       }
+      if (bulletLists.length > 0) {
+        result.push(makePill(null, (nestedCreator) => {
+          const items = [labelNode];
+          for (const bList of bulletLists) {
+            for (const item of (bList.content || [])) {
+              const { moduleId: bMod, occurrenceId: bOcc } = nestedCreator([{ type: bList.type, content: [item] }]);
+              items.push({ type: "paragraph", content: [{ type: "instancePill", attrs: makeInstancePillAttrs(bMod, bOcc) }] });
+            }
+          }
+          return items;
+        }));
+        i = j;
+      } else {
+        // Bold label with no bullets — skip (no useful content)
+        i++;
+      }
+
+    } else if (node.type === "paragraph" && isParagraphEmpty(node)) {
+      flushParagraphRun();
+      i++;
+    } else if (node.type === "paragraph") {
+      paragraphRun.push(node);
+      i++;
+    } else if (node.type === "heading") {
+      flushParagraphRun();
+      result.push(makePill([node]));
+      i++;
+    } else if (node.type === "bulletList" || node.type === "orderedList") {
+      flushParagraphRun();
+      for (const item of (node.content || [])) {
+        result.push(makePill([{ type: node.type, content: [item] }]));
+      }
+      i++;
+    } else if (node.type === "image") {
+      flushParagraphRun();
+      result.push(makePill([node]));
+      i++;
     } else {
       flushParagraphRun();
       result.push(node);
+      i++;
     }
   }
   flushParagraphRun();

@@ -44,7 +44,6 @@ import {
   SplitSquareHorizontal,
   Merge,
   X,
-  ArrowLeft,
   ChevronRight,
   Folder,
   FileText,
@@ -279,7 +278,6 @@ function Panel({
   const [localTreeOpen, setLocalTreeOpen] = useState(false);
   const [pendingDrilldown, setPendingDrilldown] = useState(null);
   // Navigation breadcrumb history — array of occIds in visit order
-  const [navHistory, setNavHistory] = useState([]);
   const prevActiveOccRef = useRef(null);
   const panelDragMode = module?.defaultDragMode || "move";
 
@@ -533,35 +531,12 @@ function Panel({
     CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: pagesList[0].occurrence.id }, emit: true });
   }, [pagesList, currentView?.id, currentView?.activeOccurrenceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Track navigation history for breadcrumbs
+  // Track active occurrence for ref (used by other effects)
   useEffect(() => {
     const newId = currentView?.activeOccurrenceId;
     if (!newId) return;
-    if (newId === prevActiveOccRef.current) return;
     prevActiveOccRef.current = newId;
-    setNavHistory(prev => {
-      const idx = prev.indexOf(newId);
-      // Navigating back to a previous entry — truncate to that point
-      if (idx >= 0) return prev.slice(0, idx + 1);
-      // Check if the new page is a child/descendant of the last page in history
-      // If not, it's a navigation to a different part of the tree — reset breadcrumbs
-      if (prev.length > 0) {
-        const lastId = prev[prev.length - 1];
-        const newOcc = occurrencesById?.[newId];
-        const lastOcc = occurrencesById?.[lastId];
-        // Related if: new page's parentId matches last page's parentId (siblings),
-        // or new page is a child of the last page (drilldown),
-        // or new page's parentId is in the history chain
-        const isChild = newOcc?.parentId === lastId;
-        const isSibling = newOcc?.parentId && lastOcc?.parentId && newOcc.parentId === lastOcc.parentId;
-        const isAncestorInChain = prev.some(hId => newOcc?.parentId === hId);
-        if (!isChild && !isSibling && !isAncestorInChain) {
-          return [newId]; // Reset — navigating to unrelated part of tree
-        }
-      }
-      return [...prev, newId];
-    });
-  }, [currentView?.activeOccurrenceId, occurrencesById]);
+  }, [currentView?.activeOccurrenceId]);
 
   const openPage = useCallback((occId, options = {}) => {
     if (!occId || !panelOccurrence?.id) return;
@@ -612,6 +587,25 @@ function Panel({
     }
     return pagesList[0] || null;
   })();
+
+  // B3: Compute folder-path breadcrumbs for the active page (walks up parentId → foldersById)
+  const pageBreadcrumbs = useMemo(() => {
+    if (!activePageEntry) return [];
+    const crumbs = [];
+    // Walk up through folders (skip root — it has no parentId)
+    let folderId = activePageEntry.occurrence?.parentId;
+    let safety = 0;
+    while (folderId && safety < 8) {
+      const folder = foldersById?.[folderId];
+      if (!folder || !folder.parentId) break; // root folder has no parentId
+      crumbs.unshift({ id: folder.id, label: folder.name, isFolder: true });
+      folderId = folder.parentId;
+      safety++;
+    }
+    // Page itself at end
+    crumbs.push({ id: activePageEntry.occurrence.id, label: activePageEntry.page?.label || "Page", isPage: true });
+    return crumbs;
+  }, [activePageEntry, foldersById]);
 
   return (
     <div
@@ -699,11 +693,8 @@ function Panel({
                     ref={panelHandleRef}
                     className="module-drag-handle module-grab-zone"
                     data-dnd-handle="true"
-                    draggable={false}
                     style={{ position: "relative", top: 0, left: -6, transform: "none", flexShrink: 0 }}
                   >
-                    <div className="drag-handle-ball" />
-                    <div className="drag-handle-stem" />
                     <RadialMenu
                       dragMode={panelDragMode}
                       onToggleDragMode={togglePanelDragModeQuick}
@@ -760,6 +751,24 @@ function Panel({
               }}>
                 {activePageLabel}
               </span>
+
+              {/* X button to close/unpin the active page */}
+              {activePageEntry?.occurrence?.id && (
+                <button
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => closePage(activePageEntry.occurrence.id)}
+                  title="Close page"
+                  style={{
+                    flexShrink: 0, background: "none", border: "none", cursor: "pointer",
+                    padding: "1px 3px", display: "flex", alignItems: "center",
+                    color: "var(--text-muted)", borderRadius: 3,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.background = "none"; }}
+                >
+                  <X size={10} />
+                </button>
+              )}
 
               {/* QuickAdd + Filters */}
               <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 5 }}>
@@ -845,48 +854,28 @@ function Panel({
                 Root
               </button>
 
-              {/* Breadcrumb trail — middle, only when applicable */}
+              {/* Breadcrumb trail — middle, folder-path derived */}
               <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 3, overflow: "hidden", minWidth: 0 }}>
-                {!activeFolderKind && navHistory.length >= 2 && (
-                  <>
-                    <button
-                      onClick={() => {
-                        const prevId = navHistory[navHistory.length - 2];
-                        setNavHistory(h => h.slice(0, -1));
-                        if (currentView?.id) CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: prevId }, emit: true });
-                      }}
-                      style={{ background: "none", border: "none", cursor: "pointer", padding: "1px 2px", display: "flex", alignItems: "center", color: "var(--text-muted)", flexShrink: 0 }}
-                    >
-                      <ArrowLeft size={10} />
-                    </button>
-                    {navHistory.map((occId, i) => {
-                      const occ = occurrencesById[occId];
-                      const mod = occ ? modulesById[occ.targetId] : null;
-                      const label = mod?.label || "…";
-                      const isLast = i === navHistory.length - 1;
-                      return (
-                        <React.Fragment key={occId}>
-                          {i > 0 && <span style={{ color: "var(--text-faint)", fontSize: 9 }}>›</span>}
-                          <span
-                            style={{
-                              fontSize: 10, fontFamily: "var(--font-mono)",
-                              color: isLast ? "var(--text-primary)" : "var(--text-muted)",
-                              cursor: isLast ? "default" : "pointer",
-                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 100,
-                            }}
-                            onClick={() => {
-                              if (isLast) return;
-                              setNavHistory(h => h.slice(0, i + 1));
-                              if (currentView?.id) CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: occId }, emit: true });
-                            }}
-                          >
-                            {label}
-                          </span>
-                        </React.Fragment>
-                      );
-                    })}
-                  </>
-                )}
+                {!activeFolderKind && pageBreadcrumbs.length > 1 && pageBreadcrumbs.map((crumb, i) => {
+                  const isLast = i === pageBreadcrumbs.length - 1;
+                  return (
+                    <React.Fragment key={crumb.id}>
+                      {i > 0 && <span style={{ color: "var(--text-faint)", fontSize: 9, flexShrink: 0 }}>›</span>}
+                      <span
+                        style={{
+                          fontSize: 10, fontFamily: "var(--font-mono)",
+                          color: isLast ? "var(--text-primary)" : "var(--text-muted)",
+                          cursor: isLast ? "default" : "pointer",
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80,
+                          flexShrink: crumb.isPage ? 0 : 1,
+                        }}
+                        title={crumb.label}
+                      >
+                        {crumb.label}
+                      </span>
+                    </React.Fragment>
+                  );
+                })}
               </div>
 
               {/* Local tree toggle — right */}
@@ -911,46 +900,70 @@ function Panel({
             <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
               {pageHeader}
               {breadcrumbBar}
-              <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden", display: "flex" }}>
-                {/* Root tree sidebar — full height on desktop, 50% on mobile */}
+              {/* On desktop: sidebars push content (flex row). On mobile: sidebars overlay (absolute). */}
+              <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", position: "relative" }}>
+                {/* Root tree sidebar — LEFT, pushes content on desktop, overlays on mobile */}
                 {rootTreeOpen && (
-                  <div
-                    style={{
+                  isMobile ? (
+                    <div style={{
                       position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 100,
-                      maxHeight: isMobile ? "50%" : "100%",
+                      width: "100%", maxHeight: "50%",
                       display: "flex", flexDirection: "column",
                       background: "var(--surface-card)",
-                      borderRight: isMobile ? "none" : "1px solid var(--border-default)",
-                      borderBottom: isMobile ? "1px solid var(--border-default)" : "none",
-                      borderRadius: isMobile ? 0 : "0 0 6px 0",
+                      borderBottom: "1px solid var(--border-default)",
                       pointerEvents: "auto",
-                    }}
-                  >
-                    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
-                      {rootTree}
+                    }}>
+                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
+                        {rootTree}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div style={{
+                      flexShrink: 0, width: 180,
+                      display: "flex", flexDirection: "column",
+                      background: "var(--surface-card)",
+                      borderRight: "1px solid var(--border-default)",
+                      overflow: "hidden",
+                    }}>
+                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
+                        {rootTree}
+                      </div>
+                    </div>
+                  )
                 )}
-                {/* Local tree sidebar — full height on desktop, 50% on mobile */}
+                {/* Page content — flex-grows between sidebars */}
+                <div style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                  {pageContent}
+                </div>
+                {/* Local tree sidebar — RIGHT, pushes content on desktop, overlays on mobile */}
                 {localTreeOpen && (
-                  <div
-                    style={{
+                  isMobile ? (
+                    <div style={{
                       position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 100,
-                      maxHeight: isMobile ? "50%" : "100%",
+                      width: "100%", maxHeight: "50%",
                       display: "flex", flexDirection: "column",
                       background: "var(--surface-card)",
-                      borderLeft: isMobile ? "none" : "1px solid var(--border-default)",
-                      borderBottom: isMobile ? "1px solid var(--border-default)" : "none",
-                      borderRadius: isMobile ? 0 : "0 0 0 6px",
+                      borderBottom: "1px solid var(--border-default)",
                       pointerEvents: "auto",
-                    }}
-                  >
-                    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
-                      {localTree}
+                    }}>
+                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
+                        {localTree}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div style={{
+                      flexShrink: 0, width: 180,
+                      display: "flex", flexDirection: "column",
+                      background: "var(--surface-card)",
+                      borderLeft: "1px solid var(--border-default)",
+                      overflow: "hidden",
+                    }}>
+                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
+                        {localTree}
+                      </div>
+                    </div>
+                  )
                 )}
-                {pageContent}
               </div>
             </div>
           );

@@ -1,26 +1,39 @@
-// socketHandlers/occurrences.js — update_occurrence + break_link (complex, with textmap/file sync)
+// socketHandlers/occurrences.js — update_occurrence + break_link + request_textmap
 import Occurrence from "../models/Occurrence.js";
 import Transaction from "../models/Transaction.js";
-import path from "path";
-import fs from "fs";
 import { nanoid } from "nanoid";
+import { compressTextmap, decompressTextmap } from "../utils/textmapCompression.js";
+
 export function registerOccurrenceHandlers(socket, {
   io, ensureUserCache, userCacheReady, loadUserIntoCache,
-  userRoom, serializeTipTapToMarkdown, uploadsDir,
+  userRoom,
 }) {
   const userId = socket.userId;
+  const getUc = async () => {
+    const gId = socket.data.activeGridId;
+    if (!userCacheReady(userId, gId)) await loadUserIntoCache(userId, gId);
+    return ensureUserCache(userId, gId);
+  };
 
   socket.on("update_occurrence", async ({ occurrence } = {}) => {
     try {
       if (!userId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const id = occurrence?.id;
       if (!id) return;
 
       const prev = uc.occurrencesById[id] || {};
-      const next = { ...prev, ...occurrence, id, userId };
+
+      // Store occurrence in cache — keep decompressed textmap so full_state can serve it
+      const { textmap, ...occWithoutTextmap } = occurrence;
+      const next = { ...prev, ...occWithoutTextmap, id, userId };
+      if (textmap !== undefined) next.textmap = textmap; // keep raw (decompressed) textmap in cache
       uc.occurrencesById[id] = next;
+
+      // Compress textmap before persisting to DB
+      const dbDoc = textmap !== undefined
+        ? { ...next, textmap: compressTextmap(textmap) }
+        : next;
 
       // Create MeasureOp transaction when fields change
       if (occurrence.fields && Object.keys(occurrence.fields).length > 0) {
@@ -45,21 +58,11 @@ export function registerOccurrenceHandlers(socket, {
         }
       }
 
-      await Occurrence.findOneAndUpdate({ id, userId }, next, { upsert: true });
+      await Occurrence.findOneAndUpdate({ id, userId }, dbDoc, { upsert: true });
 
-      // Textmap → file sync
-      if (occurrence.textmap !== undefined && occurrence.textmap !== null) {
-        try {
-          const mdDir = path.join(uploadsDir, "md");
-          if (!fs.existsSync(mdDir)) fs.mkdirSync(mdDir, { recursive: true });
-          const mdContent = serializeTipTapToMarkdown(occurrence.textmap);
-          fs.writeFileSync(path.join(mdDir, `${id}.md`), mdContent, "utf-8");
-        } catch (err) {
-          console.error("textmap sync failed:", err.message);
-        }
-      }
-
-      socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: next });
+      // Broadcast includes textmap so other windows get it
+      const broadcastOcc = textmap !== undefined ? { ...next, textmap } : next;
+      socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: broadcastOcc });
 
       // Propagate to copy-linked occurrences
       if (next.linkedGroupId) {
@@ -71,21 +74,18 @@ export function registerOccurrenceHandlers(socket, {
           if (occurrence.fields && Object.keys(occurrence.fields).length > 0) {
             patch.fields = { ...(linked.fields || {}), ...occurrence.fields };
           }
-          if (occurrence.textmap !== undefined) {
-            patch.textmap = occurrence.textmap;
-            try {
-              const mdDir = path.join(uploadsDir, "md");
-              if (!fs.existsSync(mdDir)) fs.mkdirSync(mdDir, { recursive: true });
-              const mdContent = serializeTipTapToMarkdown(occurrence.textmap);
-              fs.writeFileSync(path.join(mdDir, `${linked.id}.md`), mdContent, "utf-8");
-            } catch (err) {
-              console.error("textmap copylink sync failed:", err.message);
-            }
-          }
+          if (textmap !== undefined) patch.textmap = textmap;
           if (Object.keys(patch).length === 0) continue;
           const updatedLinked = { ...linked, ...patch };
-          uc.occurrencesById[linked.id] = updatedLinked;
-          await Occurrence.findOneAndUpdate({ id: linked.id, userId }, updatedLinked, { upsert: true });
+          const { textmap: linkedTextmap, ...linkedWithoutTextmap } = updatedLinked;
+          // Keep decompressed textmap in cache
+          uc.occurrencesById[linked.id] = linkedTextmap !== undefined
+            ? { ...linkedWithoutTextmap, textmap: linkedTextmap }
+            : linkedWithoutTextmap;
+          const linkedDbDoc = linkedTextmap !== undefined
+            ? { ...linkedWithoutTextmap, textmap: compressTextmap(linkedTextmap) }
+            : linkedWithoutTextmap;
+          await Occurrence.findOneAndUpdate({ id: linked.id, userId }, linkedDbDoc, { upsert: true });
           socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: updatedLinked });
           socket.emit("occurrence_updated", { occurrence: updatedLinked });
         }
@@ -96,16 +96,32 @@ export function registerOccurrenceHandlers(socket, {
     }
   });
 
+  // Lazy textmap fetch — client requests textmaps for specific occurrence IDs
+  // (e.g. when a doc container comes into view for the first time)
+  socket.on("request_textmap", async ({ occurrenceIds } = {}) => {
+    try {
+      if (!userId || !Array.isArray(occurrenceIds) || occurrenceIds.length === 0) return;
+      const docs = await Occurrence.find({ id: { $in: occurrenceIds }, userId })
+        .select("id textmap").lean();
+      const result = docs
+        .filter(o => o.textmap)
+        .map(o => ({ id: o.id, textmap: decompressTextmap(o.textmap) }));
+      if (result.length > 0) socket.emit("textmaps_loaded", result);
+    } catch (err) {
+      console.error("request_textmap error:", err);
+    }
+  });
+
   socket.on("break_link", async ({ occurrenceId } = {}) => {
     try {
       if (!userId || !occurrenceId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const occ = await Occurrence.findOne({ id: occurrenceId, userId });
       if (!occ) return socket.emit("server_error", "Occurrence not found");
       occ.linkedGroupId = null;
       await occ.save();
       const occObj = occ.toObject();
+      if (occObj.textmap) occObj.textmap = decompressTextmap(occObj.textmap);
       uc.occurrencesById[occurrenceId] = { ...uc.occurrencesById[occurrenceId], ...occObj, id: occurrenceId };
       io.to(userRoom(userId)).emit("occurrence_updated", { occurrence: occObj });
     } catch (err) {

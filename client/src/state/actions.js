@@ -5,6 +5,7 @@
 
 export const ActionTypes = {
   FULL_STATE: "FULL_STATE",
+  PRIORITY_STATE: "PRIORITY_STATE",
 
   SET_USER_ID: "SET_USER_ID",
   SET_GRID_ID: "SET_GRID_ID",

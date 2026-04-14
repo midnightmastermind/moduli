@@ -1,6 +1,36 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-04-06. Check this file before re-reading source._
+_Updated: 2026-04-12. Check this file before re-reading source._
+
+## Recent Changes (Apr 12 2026 — InstanceTextblock Integration + Enter/Shift+Enter)
+- **Editor.jsx**: Registered `InstanceTextblock` extension (imported from `docs/InstanceTextblockExtension.js`). Added to `useEditor` extensions array alongside existing pill extensions.
+- **Editor.jsx**: Added `onCreate` migration callback — on first open, scans doc for `instancePill` nodes with `pillDisplay: "block"` wrapped in lone paragraphs, replaces them with `instanceTextblock` nodes. Migration marks `skipAutoCreate` + `addToHistory: false` and immediately persists. Lazy DB migration — no server script needed.
+- **Editor.jsx**: Fixed Enter/Shift+Enter in `handleKeyDown`. Enter (no shift) + `onExitBlock` prop → exits textblock (moves outer cursor to after node). Shift+Enter → stays inside sub-editor (inserts newline). Previously reversed.
+- **Editor.jsx**: Updated 3 references from `instancePill+pillDisplay:block` to `instanceTextblock`: (1) list-merge detection, (2) block handle hide on node exit, (3) "Make mini block" context menu item.
+- **Editor.jsx**: Auto-create textblock (`handleAutoCreateTextblock` in DocContent.jsx) now inserts `instanceTextblock` node instead of `instancePill+pillDisplay:block`.
+
+## Recent Changes (Apr 11 2026 — Auto-Create Textblock Instant Response)
+- **Editor.jsx**: Reduced `onAutoCreateTextblock` debounce from 300ms to 0ms. Timer now fires on the next event loop tick (still re-reads full paragraph text at fire time, so fast typing is captured). Eliminates the ~300ms lag before a typed paragraph converts to a textblock.
+
+## Recent Changes (Apr 11 2026 — Editor Drop/Click/Embed Fixes)
+- **Editor.jsx**: Fixed drop ordering — `onDrop` now uses `location.current.input` from Pragmatic DnD (exact drop coords) instead of `lastNativeEvent` from `dragover`, which could be stale.
+- **Editor.jsx**: Fixed cursor reset on click — content sync `setContent` now saves selection before call and restores it after (clamps to new docSize). Prevents server echoes arriving between mousedown and focus event from resetting cursor to position 0.
+- **Editor.jsx**: Fixed TipTap v3 `setContent` API — now passes `{ emitUpdate: false }` options object instead of bare `false`.
+- **docs/pills/InstancePillNode.jsx**: Fixed "Convert to Embed" leaving both pill and embed — replaced `deleteRange + insertContentAt` chain (inserts block into inline context incorrectly) with a single atomic `replaceWith` on the pill's parent paragraph.
+
+## Recent Changes (Apr 10 2026 — Editor Click Delay + Cursor Placement Fix)
+- **Editor.jsx**: Added `draggable={false}` to `doc-editor-wrapper` div AND `draggable: "false"` to ProseMirror element via `editorProps.attributes`. Root cause: Pragmatic DnD sets `draggable="true"` on parent container/page shells, causing browsers to intercept `mousedown` to check for drag initiation. This produced a ~250ms delay before cursor appeared, and placed it at position 0 (beginning) because ProseMirror got focus without a positional mousedown. `draggable="false"` on the editor wrapper explicitly opts out of the drag system, restoring immediate click response and correct cursor placement.
+
+## Recent Changes (Apr 10 2026 — Editor Padding + Click Position Fix)
+- **Editor.jsx**: Reduced doc-editor-wrapper top/bottom padding from `py-3` (12px) to 5px via inline style `{ paddingTop: 5, paddingBottom: 5 }`.
+- **Editor.jsx**: Fixed "beginning of line" cursor placement bug. Wrapper `onClick` (fires when clicking padding area outside ProseMirror) now calls `editor.commands.focus()` instead of `posAtCoords(nudgedX)`. Root cause: nudging `x` to `pmRect.left + 2` (2px into PM left edge, still left of text) caused `posAtCoords` to return position 0 of the nearest paragraph = beginning of line.
+
+## Recent Changes (Apr 10 2026 — Empty Textblock Fix on Module Drop)
+- **Editor.jsx**: Fixed empty textblock appearing after moduleEmbed drops. `insertAtPos` now checks if the inserted node is a block-type (`editor.schema.nodes[type].spec.group.includes("block")`). Block nodes (like `moduleEmbed`) skip the trailing `" "` insertion — inline nodes (fieldPill, instancePill) still get the trailing space.
+
+## Recent Changes (Apr 9 2026 — C2: Make Mini Block + Breadcrumbs + Cursor & Drag Fix)
+- **Editor.jsx**: Added "Make mini block" right-click context menu item. When text is selected + dispatch/socket/occurrence available: captures selection range at menu-open time, creates module (role: "instance", kind: "doc") + occurrence with selection content as textmap, then replaces selection with `instancePill` block node. Updated `handleContextMenu` deps: `[..., dispatch, socket, occurrence]`. (C2)
+- **Editor.jsx**: Added `handleDOMEvents.dragstart` in TipTap `editorProps` — prevents native text-selection drags from starting inside the editor. Only allows dragstart from elements with `data-dnd-handle` or `.module-drag-handle` classes. Text can be selected/highlighted but never dragged.
 
 ## Recent Changes (Apr 6 2026 — RadialMenu Linear Strip + Delete + Editor Drops)
 - **RadialMenu.jsx**: Items now render as a linear strip instead of radial arc. Direction determines line orientation (right=horizontal right, down=vertical down, etc.). Items spaced 30px apart. Removed rotary animation (wrapper no longer rotates, icons no longer counter-rotate). Added `Trash2` import, `onDelete` prop — when provided, adds red "Remove" button as last item.

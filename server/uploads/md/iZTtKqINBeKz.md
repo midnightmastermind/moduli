@@ -1,0 +1,1 @@
+- Actions aligned with awareness instead of projection

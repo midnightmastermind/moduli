@@ -374,18 +374,18 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   }, [isRenaming, onOpenPage, allChildOccs, modulesById, hasChildren, dispatch, socket, state, folder.id, folder.name]);
 
   return (
-    <div ref={folderRef} style={{ paddingLeft: indent, paddingRight: 2 }}>
+    <div ref={folderRef} style={{ marginLeft: depth * 12, paddingRight: 2 }}>
       {/* Folder pill — uses NodePill for consistent sizing */}
       <div style={{ display: "flex", alignItems: "center" }}
         onDoubleClick={(e) => { e.stopPropagation(); setRenameValue(folder.name); setIsRenaming(true); }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
       >
-        {hasChildren && (
-          <span style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: "pointer" }}
-            onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}>
-            <ChevronRight size={8} style={{ opacity: 0.35, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
-          </span>
-        )}
+        <span
+          style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: hasChildren ? "pointer" : "default", opacity: hasChildren ? 1 : 0, pointerEvents: hasChildren ? "auto" : "none" }}
+          onClick={(e) => { if (hasChildren) { e.stopPropagation(); setOpen(v => !v); } }}
+        >
+          <ChevronRight size={8} style={{ opacity: 0.35, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
+        </span>
         {isRenaming ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 5, padding: "5px 8px", borderRadius: 6, border: "1px solid var(--border-default)", background: "var(--input-bg)" }}>
             <Folder size={10} style={{ color: "rgba(251,191,36,0.7)", flexShrink: 0 }} />
@@ -431,7 +431,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
       )}
 
       {open && (
-        <div style={{ paddingLeft: 4 }}>
+        <div>
           {childFolders.map(cf => (
             <FolderNode key={cf.id} folder={cf} depth={depth + 1} foldersById={foldersById}
               occurrencesById={occurrencesById} modulesById={modulesById} childrenByParentId={childrenByParentId} activeOccurrenceId={activeOccurrenceId}
@@ -442,7 +442,8 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
               onOpenPage={onOpenPageAndClose || onOpenPage} occurrencesById={occurrencesById} modulesById={modulesById}
               childrenByParentId={childrenByParentId} onSelect={onSelect} onScrollTo={onScrollTo}
               activeOccurrenceId={activeOccurrenceId}
-              folderPageOccId={folderPageOcc?.id} />
+              folderPageOccId={folderPageOcc?.id}
+              depth={depth + 1} />
           ))}
           {artifactOccs.map(occ => (
             <DocNode key={occ.id} occ={occ} depth={depth + 1} isAnchor={false} parentOccId={occ.id}
@@ -460,7 +461,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
 const PAGE_KIND_GLYPH = { canvas: "∿", doc: "≋", display: "□", board: "≡" };
 
 // ─── PageTreeNode — pill style page entry + container anchor chips (draggable) ──
-function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId, folderPageOccId, reverseIndent = false }) {
+function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId, folderPageOccId, reverseIndent = false, depth = 0 }) {
   const pageOcc = occurrencesById?.[pageOccId];
   const pageMod = pageOcc ? modulesById?.[pageOcc.targetId] : null;
   const [open, setOpen] = useState(false);
@@ -486,18 +487,18 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, mod
   // Whether we have the props needed to render DocNode-style rows (root tree mode)
   const hasDocNodeProps = !!childrenByParentId;
 
-  const chevron = hasChildren ? (
+  const chevron = (
     <span
-      onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
-      style={{ cursor: "pointer", opacity: 0.5, padding: "0 2px", flexShrink: 0, display: "flex", alignItems: "center" }}
+      onClick={(e) => { if (hasChildren) { e.stopPropagation(); setOpen(v => !v); } }}
+      style={{ cursor: hasChildren ? "pointer" : "default", opacity: hasChildren ? 0.5 : 0, pointerEvents: hasChildren ? "auto" : "none", padding: "4px 2px", flexShrink: 0, display: "flex", alignItems: "center" }}
     >
-      <ChevronRight size={9} style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+      <ChevronRight size={8} style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
     </span>
-  ) : null;
+  );
 
   return (
-    <div style={{ paddingLeft: 2, paddingRight: 2 }}>
-      <div style={{ display: "flex", alignItems: "center", flexDirection: reverseIndent ? "row-reverse" : "row" }}>
+    <div style={{ marginLeft: reverseIndent ? 0 : depth * 12, paddingRight: 2 }}>
+      <div style={{ display: "flex", alignItems: "center", flexDirection: "row", gap: 1 }}>
         {!reverseIndent && chevron}
         <NodePill
           occurrence={pageOcc}
@@ -516,9 +517,22 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, occurrencesById, mod
             id: pageMod.id, data: pageMod, occurrenceId: pageOccId,
           }}
           reverseIndent={reverseIndent}
-          depth={reverseIndent ? 1 : 0}
           style={{ flex: 1 }}
         />
+        {onClosePage && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onClosePage(pageOccId); }}
+            title="Close page"
+            style={{
+              flexShrink: 0, background: "none", border: "none", cursor: "pointer",
+              padding: "1px 3px", display: "flex", alignItems: "center",
+              color: "var(--text-muted)", borderRadius: 3,
+            }}
+            className="page-tree-close-btn"
+          >
+            <X size={9} />
+          </button>
+        )}
         {reverseIndent && chevron}
       </div>
       {/* Children — visible when expanded */}
@@ -578,6 +592,7 @@ function AnchorChip({ contOcc, modulesById, onOpenPage, pageOccId }) {
 // ─── ManifestTree ─────────────────────────────────────────────────────────────
 export default function ManifestTree({ manifestId, view, dispatch, socket, collapsed, onToggleCollapse, scrollHighlightId, panelOccurrence, onOpenPage, onClosePage, activePageView }) {
   const { manifestsById, foldersById, occurrencesById, modulesById, childrenByParentId, state } = useContext(GridActionsContext);
+  // foldersById is already available above
   const manifest = manifestsById?.[manifestId];
   const rootFolder = manifest?.rootFolderId ? foldersById?.[manifest.rootFolderId] : null;
   const isPagePanel = !!panelOccurrence;
@@ -591,14 +606,12 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
     } else if (onOpenPage) {
       onOpenPage(occId);
     }
-    onToggleCollapse?.();
-  }, [activePageView, view, onOpenPage, onToggleCollapse, dispatch, socket]);
+  }, [activePageView, view, onOpenPage, dispatch, socket]);
 
-  // Wrap onOpenPage to also close the tree sidebar
+  // Wrap onOpenPage — keep tree open when navigating
   const handleOpenPage = useCallback((...args) => {
     onOpenPage?.(...args);
-    onToggleCollapse?.();
-  }, [onOpenPage, onToggleCollapse]);
+  }, [onOpenPage]);
 
   // Clicking an anchor chip → keep parent doc open, scroll to heading
   const handleScrollTo = useCallback((parentOccId, anchorOccId) => {
@@ -664,18 +677,28 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
     CommitHelpers.createFolder({ dispatch, socket, folder, emit: true });
   }, [state, socket, dispatch, manifest]);
 
-  // Open pages list for the local section
-  const localPageOccs = useMemo(() => {
-    if (!isPagePanel) return [];
-    return (panelOccurrence.occurrences || [])
+  // Open pages list for the local section — grouped by parent folder for B2
+  const localTreeData = useMemo(() => {
+    if (!isPagePanel) return { folderGroups: [], rootPages: [] };
+    const pageOccs = (panelOccurrence.occurrences || [])
       .map(id => occurrencesById?.[id])
       .filter(occ => {
         const mod = occ ? modulesById?.[occ.targetId] : null;
         return occ && mod?.role === "page";
-      })
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-      .map(occ => occ.id);
-  }, [isPagePanel, panelOccurrence?.occurrences, occurrencesById, modulesById]);
+      });
+    const folderMap = new Map();
+    const rootPages = [];
+    for (const occ of pageOccs) {
+      const folder = occ.parentId ? foldersById?.[occ.parentId] : null;
+      if (folder) {
+        if (!folderMap.has(folder.id)) folderMap.set(folder.id, { folder, pages: [] });
+        folderMap.get(folder.id).pages.push(occ.id);
+      } else {
+        rootPages.push(occ.id);
+      }
+    }
+    return { folderGroups: [...folderMap.values()], rootPages };
+  }, [isPagePanel, panelOccurrence?.occurrences, occurrencesById, modulesById, foldersById]);
 
   // Touch drag to open/close sidebar
   const handleThumbTouchStart = useCallback((e) => {
@@ -748,30 +771,68 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
           {/* Tree content */}
           <div style={{ flex: 1, overflowY: "auto", padding: "1px 0 4px" }}>
             {isPagePanel ? (
-              /* Local tree — virtual "Local" root folder + panel pages (right-indented) */
+              /* Local tree — mirrored (RTL) version of root tree */
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, padding: "3px 8px 3px 4px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                   <span style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em" }}>local</span>
                   <Folder size={9} style={{ color: "var(--text-faint)", opacity: 0.5 }} />
                 </div>
-                {localPageOccs.length > 0 ? (
-                  localPageOccs.map(pageOccId => (
-                    <PageTreeNode
-                      key={pageOccId}
-                      pageOccId={pageOccId}
-                      activeOccId={view?.activeOccurrenceId}
-                      activeOccurrenceId={view?.activeOccurrenceId}
-                      onOpenPage={handleOpenPage}
-                      occurrencesById={occurrencesById}
-                      modulesById={modulesById}
-                      childrenByParentId={childrenByParentId}
-                      onSelect={handleSelect}
-                      onScrollTo={handleScrollTo}
-                      reverseIndent={true}
-                    />
-                  ))
-                ) : (
+                {(localTreeData.rootPages.length === 0 && localTreeData.folderGroups.length === 0) ? (
                   <div style={{ fontSize: 11, color: "var(--text-faint)", padding: "8px", textAlign: "right" }}>No pages</div>
+                ) : (
+                  <>
+                    {/* Root-level pages (no parent folder) */}
+                    {localTreeData.rootPages.map(pageOccId => (
+                      <PageTreeNode
+                        key={pageOccId}
+                        pageOccId={pageOccId}
+                        activeOccId={view?.activeOccurrenceId}
+                        activeOccurrenceId={view?.activeOccurrenceId}
+                        onOpenPage={handleOpenPage}
+                        onClosePage={onClosePage}
+                        occurrencesById={occurrencesById}
+                        modulesById={modulesById}
+                        childrenByParentId={childrenByParentId}
+                        onSelect={handleSelect}
+                        onScrollTo={handleScrollTo}
+                        reverseIndent={true}
+                      />
+                    ))}
+                    {/* Folder groups */}
+                    {localTreeData.folderGroups.map(({ folder, pages }) => (
+                      <div key={folder.id}>
+                        {/* Folder header row — right-aligned mirror of root tree folder header */}
+                        <div style={{
+                          display: "flex", alignItems: "center", justifyContent: "flex-end",
+                          gap: 3, padding: "4px 8px 2px 4px",
+                          fontSize: 10, color: "var(--text-faint)", fontFamily: "var(--font-mono)",
+                          borderTop: "1px solid rgba(255,255,255,0.04)",
+                        }}>
+                          <span style={{ flex: 1, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {folder.name}
+                          </span>
+                          <Folder size={9} style={{ opacity: 0.5, flexShrink: 0 }} />
+                        </div>
+                        {/* Pages inside this folder */}
+                        {pages.map(pageOccId => (
+                          <PageTreeNode
+                            key={pageOccId}
+                            pageOccId={pageOccId}
+                            activeOccId={view?.activeOccurrenceId}
+                            activeOccurrenceId={view?.activeOccurrenceId}
+                            onOpenPage={handleOpenPage}
+                            onClosePage={onClosePage}
+                            occurrencesById={occurrencesById}
+                            modulesById={modulesById}
+                            childrenByParentId={childrenByParentId}
+                            onSelect={handleSelect}
+                            onScrollTo={handleScrollTo}
+                            reverseIndent={true}
+                          />
+                        ))}
+                      </div>
+                    ))}
+                  </>
                 )}
               </div>
             ) : (

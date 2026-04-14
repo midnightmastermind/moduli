@@ -775,6 +775,9 @@ export function DragProvider({
     } else if (payload?.type === DragType.CONTAINER && panelId) {
       handleContainerDrop(ctx, drop);
     } else if (payload?.type === DragType.INSTANCE && containerId) {
+      // Skip doc containers — Editor.jsx's Pragmatic DnD drop target handles insertion
+      const targetContainer = baseContainers.find(c => c.id === containerId);
+      if (targetContainer?.kind === "doc") { clearSession(); return; }
       handleInstanceDrop(ctx, drop);
     } else if (payload?.type === DragType.FILE && payload?.data?.files?.length > 0) {
       handleFileDrop(ctx, drop);

@@ -1,0 +1,1 @@
+- Ego: conditioned identity, fears, false narratives

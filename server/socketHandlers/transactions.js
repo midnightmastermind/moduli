@@ -7,6 +7,11 @@ export function registerTransactionHandlers(socket, {
   userRoom, getModelByType,
 }) {
   const userId = socket.userId;
+  const getUc = async () => {
+    const gId = socket.data.activeGridId;
+    if (!userCacheReady(userId, gId)) await loadUserIntoCache(userId, gId);
+    return ensureUserCache(userId, gId);
+  };
 
   socket.on("get_transactions", async ({ gridId, fieldId, timeRange, limit = 100, includeUndone = true } = {}) => {
     try {
@@ -31,8 +36,7 @@ export function registerTransactionHandlers(socket, {
   socket.on("undo_transaction", async ({ transactionId, gridId } = {}) => {
     try {
       if (!userId || !transactionId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
 
       const tx = await Transaction.findOne({ id: transactionId, userId });
       if (!tx || tx.state === "undone") {
@@ -95,7 +99,7 @@ export function registerTransactionHandlers(socket, {
       }
 
       await Transaction.findOneAndUpdate({ id: transactionId }, { $set: { state: "undone", undoneAt: new Date(), undoneBy: userId } });
-      await loadUserIntoCache(userId);
+      await loadUserIntoCache(userId, socket.data.activeGridId);
       socket.emit("undo_result", { success: true, transactionId, reversedOps, animate: reversedOps.some(op => op.type === "move_back") });
       io.to(userId).emit("sync_state", {});
     } catch (err) {
@@ -107,8 +111,7 @@ export function registerTransactionHandlers(socket, {
   socket.on("redo_transaction", async ({ transactionId, gridId } = {}) => {
     try {
       if (!userId || !transactionId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
 
       const tx = await Transaction.findOne({ id: transactionId, userId, state: "undone" });
       if (!tx) return socket.emit("redo_result", { success: false, error: "Transaction not found or not undone" });
@@ -152,7 +155,7 @@ export function registerTransactionHandlers(socket, {
       }
 
       await Transaction.findOneAndUpdate({ id: transactionId }, { $set: { state: "redone", redoneAt: new Date(), redoneBy: userId } });
-      await loadUserIntoCache(userId);
+      await loadUserIntoCache(userId, socket.data.activeGridId);
       socket.emit("redo_result", { success: true, transactionId });
       io.to(userId).emit("sync_state", {});
     } catch (err) {

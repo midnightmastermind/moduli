@@ -8,20 +8,22 @@ export function registerTemplateHandlers(socket, {
   userRoom, createOccurrenceData,
 }) {
   const userId = socket.userId;
+  const getUc = async () => {
+    const gId = socket.data.activeGridId;
+    if (!userCacheReady(userId, gId)) await loadUserIntoCache(userId, gId);
+    return ensureUserCache(userId, gId);
+  };
 
   socket.on("save_template", async ({ gridId, template } = {}) => {
     try {
       if (!userId || !gridId || !template?.id) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
-      const grid = uc.gridsById[gridId];
+      // Templates are stored on the Grid doc — read/write DB directly
+      const grid = await Grid.findOne({ _id: gridId, userId }).lean();
       if (!grid) return;
       const templates = [...(grid.templates || [])];
       const idx = templates.findIndex(t => t.id === template.id);
       if (idx >= 0) templates[idx] = { ...templates[idx], ...template };
       else templates.push(template);
-      grid.templates = templates;
-      uc.gridsById[gridId] = grid;
       await Grid.findOneAndUpdate({ _id: gridId, userId }, { templates }, { upsert: true });
       socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: { templates } });
     } catch (err) {
@@ -32,9 +34,8 @@ export function registerTemplateHandlers(socket, {
   socket.on("fill_from_template", async ({ gridId, templateId, containerId, date } = {}) => {
     try {
       if (!userId || !gridId || !templateId || !containerId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
-      const grid = uc.gridsById[gridId];
+      const uc = await getUc();
+      const grid = await Grid.findOne({ _id: gridId, userId }).lean();
       if (!grid) return;
       const template = (grid.templates || []).find(t => t.id === templateId);
       if (!template?.items?.length) return;

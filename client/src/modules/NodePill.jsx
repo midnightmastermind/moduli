@@ -74,8 +74,8 @@ export default function NodePill({
         alignItems: "center",
         gap: isEntity ? 5 : 3,
         padding: isEntity ? "5px 8px" : "1px 5px 1px 4px",
-        paddingLeft: reverseIndent ? (isEntity ? 8 : 4) : (isEntity ? (depth * 12 + 8) : (depth * 4 + 4)),
-        paddingRight: reverseIndent ? (isEntity ? (depth * 12 + 8) : (depth * 4 + 4)) : (isEntity ? 8 : 5),
+        paddingLeft: isEntity ? 6 : 4,
+        paddingRight: isEntity ? 8 : 5,
         borderRadius: isEntity ? 6 : 4,
         border: isActive
           ? `1px solid ${color}`

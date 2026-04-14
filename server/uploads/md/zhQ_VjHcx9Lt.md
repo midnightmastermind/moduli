@@ -1,0 +1,4 @@
+**Internal:**
+
+- Raw desire, emotion, drives ↔ rational thought, planning, reflection
+- Integration: conscious choice of action informed by both instinct and intellect

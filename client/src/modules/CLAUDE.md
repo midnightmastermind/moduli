@@ -1,6 +1,37 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: Apr 6 2026. This folder implements occurrence-based view routing._
+_Updated: Apr 12 2026. This folder implements occurrence-based view routing._
+
+## Recent Changes (Apr 12 2026 — Container/Page Subtype Extraction)
+- **modules/pages/PageBoard.jsx** (NEW): Board page — drop zone + sortable Container list with loading state + empty placeholder. Extracted from inline JSX in ModulePage.jsx.
+- **modules/pages/PageDoc.jsx** (NEW): Doc page — thin wrapper around `DocEditorShell` in a scroll container.
+- **modules/pages/PageCanvas.jsx** (NEW): Canvas page — thin wrapper delegating to `<Container occurrenceOverride>`.
+- **modules/pages/PageDisplay.jsx** (NEW): Display page — thin wrapper around `<Artifact>`.
+- **modules/pages/PageFolder.jsx** (NEW): Folder page — full drilldown grid (PreviewNodes, Windows 7 breadcrumb header, peer nav arrows, keyboard shortcuts). Extracted the `FolderContent` function from ModulePage.jsx.
+- **ModulePage.jsx**: Old inline `FolderContent` function (195 lines) deleted. Kind routing replaced with clean 1-liner `<PageBoard>` / `<PageDoc>` / `<PageCanvas>` / `<PageDisplay>` / `<PageFolder>` calls.
+- **modules/containers/ContainerPool.jsx** (NEW): Pool container content — manages own search/add state (`poolSearch`, `poolAddLabel`, `isPoolAdding`). Props: `itemsWithOccurrences`, `dispatch`, `socket`, `listDropRef`, `module`, `ctxState`. Extracted from ModuleContainer.jsx.
+- **modules/containers/ContainerDoc.jsx** (NEW): Re-export alias — `export { DocEditorShell as default }` from DocContent.jsx.
+- **modules/containers/ContainerCanvas.jsx** (NEW): Re-export alias — `export { default }` from CanvasContent.jsx.
+- **ModuleContainer.jsx**: Pool state (`poolSearch`, `poolAddLabel`, `isPoolAdding`) removed from `useReducer`. Pool setters + `handlePoolAdd` deleted. Inline pool JSX replaced with `<ContainerPool>`. `Search` + `Plus` lucide imports removed (now only in ContainerPool). `PoolPill` import removed from containerHelpers (now in ContainerPool). `DocEditorShell` import updated to come from `./DocContent.jsx` directly.
+
+## Recent Changes (Apr 11 2026 — Upfront Textmap Loading)
+- **DocContent.jsx**: Removed lazy textmap fetch `useEffect` — no longer emits `request_textmap`. Server now sends all textmaps in `full_state` (decompressed, upfront). `hasValidTextmap` guard (`typeof textmap === "object"`) kept as safety net against any stale compressed strings.
+- **ArtifactContent.jsx**: Added `typeof occurrence.textmap === "object"` guard on `content` prop passed to Editor — prevents TipTap from receiving a compressed base64 string as content (which would render as raw text).
+
+## Recent Changes (Apr 10 2026 — DocContent draggable=false Fix)
+- **DocContent.jsx**: Added `draggable={false}` to the `.doc-container` wrapper div. Root cause of click delay + beginning-of-doc cursor: Pragmatic DnD sets `draggable="true"` on parent container/page shells, and browsers intercept mousedown to check for drag. `draggable="false"` on the editor wrapper opts out. (Same fix as Editor.jsx's doc-editor-wrapper.)
+
+## Recent Changes (Apr 10 2026 — DocContent Cursor Fix)
+- **DocContent.jsx**: Fixed cursor placement bug. Wrapper `onClick` (fires when clicking padding area of `.doc-container` outside ProseMirror) now calls `editor.commands.focus()` instead of `posAtCoords(e.clientX, e.clientY)`. Root cause: `posAtCoords` in the padding area returns position 0 = beginning of document, overriding the user's intended cursor position. Same fix as Editor.jsx (Apr 10). Applies to all doc-capable contexts: main doc pages, mini textblock sub-editors, embedded containers.
+
+## Recent Changes (Apr 9 2026 — Drag Fix + Local Tree + X Buttons)
+- **ModuleInstance.jsx**: Removed `draggable={false}` from drag handle div (line ~259). This was preventing Chrome from finding `draggable="true"` on the wrapper via DOM walk-up. Instance dragging now works.
+- **ManifestTree.jsx**: Local tree `PageTreeNode` now uses normal `row` flex direction (not `row-reverse`). `reverseIndent=true` on NodePill still makes label-left/icon-right (mirror of root tree). Chevron stays on far right. X button (`page-tree-close-btn`) inline style `opacity: 0` removed — CSS class handles it. X button color changed from `var(--text-faint)` to `var(--text-muted)` for visibility.
+- **ModulePanel.jsx**: Page header X button color changed from `var(--text-faint)` to `var(--text-muted)`. Hover color changed to `var(--text-primary)`.
+
+## Recent Changes (Apr 9 2026 — B2/B3 Tree Nesting + Folder Breadcrumbs)
+- **ModulePanel.jsx**: Replaced navHistory-based breadcrumbs with `pageBreadcrumbs` useMemo — computes folder path by walking `occ.parentId → foldersById` chain from active page. Shows `Folder › Subfolder › Page` when page has parent folder. Always visible (not history-dependent). navHistory state + tracking useEffect removed. Also removed `ArrowLeft` import. (B3)
+- **ManifestTree.jsx**: Local tree now groups pages by parent folder via `localTreeData` useMemo — `occ.parentId → foldersById` lookup, renders folder header rows + indented PageTreeNode items. (B2)
 
 ## Recent Changes (Apr 6 2026 — Phase E: Inline Preview + Tree Reorder + Folder Pages)
 - **PreviewNode.jsx**: Completely rewritten — removed iframe-based `ThumbnailPreview` (was causing reload loops via extra socket connections). Replaced with `InlinePreview` that renders from store data: doc pages show text snippets from textmap, board/folder pages show child container bars with labels + counts, fallback shows file icon. Deleted `thumbnailCache.js` and `PagePreviewApp.jsx`.
@@ -250,10 +281,18 @@ The new system links views to occurrences (`occurrence.viewId → View`) instead
 | `View.jsx` | Re-export stub → ModuleRouter.jsx |
 | `ModulePanel.jsx` | Panel shell renderer. Uses `occurrence.viewId || module.viewId` for view lookup. |
 | `Panel.jsx` | Re-export stub → ModulePanel.jsx |
-| `ModulePage.jsx` | Page content unit inside a panel. Routes by `kind`: board/canvas/doc/display. |
+| `ModulePage.jsx` | Page router — routes by `kind` to `pages/Page*.jsx` subtypes. |
 | `Page.jsx` | Re-export stub → ModulePage.jsx |
-| `ModuleContainer.jsx` | Container orchestrator — state, hooks, full render tree. ~1180 lines. |
+| `pages/PageBoard.jsx` | Board page subtype — sortable container list with drop zone. |
+| `pages/PageDoc.jsx` | Doc page subtype — scroll wrapper + DocEditorShell. |
+| `pages/PageCanvas.jsx` | Canvas page subtype — delegates to Container with occurrenceOverride. |
+| `pages/PageDisplay.jsx` | Display page subtype — Artifact viewer. |
+| `pages/PageFolder.jsx` | Folder page subtype — PreviewNode grid + drilldown animation + peer nav. |
+| `ModuleContainer.jsx` | Container orchestrator — state, hooks, full render tree. |
 | `Container.jsx` | Re-export stub → ModuleContainer.jsx |
+| `containers/ContainerPool.jsx` | Pool container subtype — search/add UI with own state. |
+| `containers/ContainerDoc.jsx` | Re-export alias → DocEditorShell from DocContent.jsx. |
+| `containers/ContainerCanvas.jsx` | Re-export alias → CanvasDrawSection from CanvasContent.jsx. |
 | `ModuleInstance.jsx` | Merged instance: InstanceInner (inner row) + ModuleInstance (drag wrapper). |
 | `Instance.jsx` | Re-export stub → MemoInstanceInner from ModuleInstance.jsx |
 | `ArtifactContent.jsx` | File content renderer. viewType="markdown"→TipTap, viewType="artifact"→file viewer. |

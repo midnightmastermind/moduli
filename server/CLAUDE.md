@@ -1,6 +1,30 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-04-03 (session 2). Check this file before re-reading source._
+_Updated: 2026-04-11. Check this file before re-reading source._
+
+## Recent Changes (Apr 11 2026 — Minimal Test Grid Script)
+- **scripts/createTestGrid.js** (NEW): Creates a second grid for `josh@jpoms.com` with minimal data for testing. Does NOT delete anything. Panels: [0,0] Daily Toolkit (Physical → Drink Water), [1,0] Todo List (empty General), [0,1 h=2] Center Hub (Schedule + Notes pages), [0,2] Daily Goals (Physical goal → water total). Fields: water, completed, scheduledDate, timeslot, due, totalWater. Operations: Water Today sum + schedule stamp/clear. Run: `node --env-file=.env scripts/createTestGrid.js`
+
+## Recent Changes (Apr 11 2026 — Revert Lazy Loading: All Textmaps Upfront)
+- **server.js `loadUserIntoCache`**: Removed `.select("-textmap")` — Occurrence query now loads ALL textmaps. After populating `uc.occurrencesById`, decompresses each textmap via `decompressTextmap(o.textmap)`. Cache holds decompressed textmaps ready to send.
+- **server.js**: Added `import { decompressTextmap } from "./utils/textmapCompression.js"`.
+- **socketHandlers/occurrences.js `update_occurrence`**: Now stores decompressed textmap in cache (`next.textmap = textmap` before assigning to `uc.occurrencesById`). Same fix for linked occurrence cache updates.
+- **socketHandlers/occurrences.js `break_link`**: Decompresses textmap from `occ.toObject()` before caching and broadcasting.
+- **socketHandlers/state.js**: `full_state` sends all textmaps (from cache, already decompressed). No `textmaps_batch` needed.
+- **client/src/modules/DocContent.jsx**: Removed lazy fetch `useEffect` (was `socket.emit("request_textmap", ...)`). `hasValidTextmap` guard kept as safety net. Textmaps now arrive in `full_state` upfront.
+- **client/src/modules/ArtifactContent.jsx**: Added `typeof occurrence.textmap === "object"` guard — prevents TipTap from receiving a compressed base64 string as content.
+- **Impact**: All docs load immediately on open. No per-document round trips. Textmaps are ~80% smaller in DB (fflate gzip), so upfront load is much faster than pre-compression.
+
+## Recent Changes (Apr 11 2026 — update_view Duplicate Key Fix)
+- **socketHandlers/crud.js `setupGenericCRUD`**: Both `create_${modelName}` and `update_${modelName}` now wrap `findOneAndUpdate({ id, userId }, next, { upsert: true })` in a try/catch for E11000. On duplicate key error, retries with `findOneAndUpdate({ id }, { $set: next })` — handles race condition where two concurrent upserts collide, and data-migration case where view exists with different userId.
+
+## Recent Changes (Apr 10 2026 — Load Performance + Cache Fix)
+- **server.js auth middleware**: Simplified from async DB lookup to sync JWT verify only. `io.use()` now calls `verifyToken(token)` (sync, no DB), sets `socket.userId` immediately. Eliminates one DB round trip per connection.
+- **server.js `ensureUserCache`**: Initializes cache entry with `_loaded: false` flag so `userCacheReady` is never true on an empty shell.
+- **server.js `loadUserIntoCache`**: Added `cacheLoadingPromise` registry — deduplicates concurrent calls (React StrictMode fires effects twice). Added `.lean()` to all DB queries. Removed `timestamp: -1` sort from Occurrence query (unindexed). Sets `uc._loaded = true` on completion, clears promise ref in `.finally()`.
+- **server.js `userCacheReady`**: Now checks `uc._loaded` (not just truthy `uc`). Fixes race where empty `{}` objects appeared ready, causing empty `full_state` on second React StrictMode effect.
+- **server.js `io.on("connection")`**: Added background cache pre-load — `if (userId && !userCacheReady(userId)) { loadUserIntoCache(userId); }`. Cache starts loading immediately on connect, before `request_full_state` arrives.
+- **server.js `socket.on("disconnect")`**: Removed `delete cacheByUser[socket.userId]`. Cache now persists across reconnects — TTL eviction (30min) handles cleanup. Eliminates full DB reload on every page refresh.
 
 ## Recent Changes (Apr 3 2026 — Thumbnail Service)
 - **services/thumbnailService.js** (NEW): Puppeteer singleton. `generateThumbnail(occId, baseUrl)` screenshots `/preview-render/:occId` → caches PNG at `uploads/thumbnails/{occId}.png`. `invalidateThumbnail(occId)` deletes cached file. `SERVER_BASE_URL` defaults to `http://localhost:5000` (was 3001 — that was the bug).

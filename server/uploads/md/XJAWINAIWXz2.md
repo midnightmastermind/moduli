@@ -1,0 +1,4 @@
+**External:**
+
+- Interactions and productivity that are balanced — effortful when needed, effortless when possible
+- Harmonizing “hustle” with rest and flow

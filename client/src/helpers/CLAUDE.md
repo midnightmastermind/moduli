@@ -1,6 +1,15 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-04-06. Check this file before re-reading source._
+_Updated: 2026-04-09. Check this file before re-reading source._
+
+## Recent Changes (Apr 10 2026 — DragProvider Doc Container Skip)
+- **DragProvider.jsx**: `handleDrop` instance branch now skips doc containers — checks `baseContainers.find(c => c.id === containerId)?.kind === "doc"` before calling `handleInstanceDrop`. Root cause of 3 bugs: (1) extra occurrence created when dragging instance into doc, (2) pending drop popup not closing reliably, (3) blank embed element left after deleting moduleEmbed. All fixed by preventing DragProvider from processing instance drops on doc containers — Editor.jsx's own Pragmatic DnD drop target handles insertion.
+
+## Recent Changes (Apr 9 2026 — Cursor + Drag Fixes)
+- **index.css**: Added `cursor: grab !important` to `.module-drag-handle .radial-handle` — previously overridden by Tailwind `cursor-pointer`. `.page-tree-close-btn` hover CSS no longer uses `!important` since inline `opacity: 0` was removed from the button.
+
+## Recent Changes (Apr 9 2026 — Drag Handle Fix: Boolean Flag)
+- **dragSystem.js**: Replaced `document.elementFromPoint(e.clientX, e.clientY)` check in `dragstart` interceptor with a `_dragFromHandle` boolean flag (both `useDraggable` and `useDragDrop`). Root cause: `dragstart` fires at the *current* cursor position after the user has moved, not the `pointerdown` position — so `elementFromPoint` was consistently returning elements outside the handle, causing all drags to be cancelled. Flag is set on `pointerdown` on the handle, cleared on first `dragstart` or `pointerup`/`dragend`/`drop`.
 
 ## Recent Changes (Apr 6 2026 — Phase E: File Drops + Iframe Removal)
 - **DragProvider.jsx**: Added native file drop fallback — `dragover`/`drop` listeners on `.grid-frame` catch OS file drops that Pragmatic DnD might miss. Calls `handleFileDrop` with parsed file payload. Sticky container highlight still in place from earlier fix.

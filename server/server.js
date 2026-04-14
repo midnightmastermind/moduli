@@ -36,6 +36,7 @@ import Operation from "./models/Operation.js";
 // HELPERS
 // ========================================================
 import { getOccurrencesForGrid, createOccurrenceData } from "./utils/occurrenceHelpers.js";
+import { decompressTextmap } from "./utils/textmapCompression.js";
 import { selectGrid } from "./utils/gridHelpers.js";
 
 const MODEL_MAP = { grid: Grid, module: Module, field: Field, occurrence: Occurrence, manifest: Manifest, view: View, folder: Folder };
@@ -123,17 +124,13 @@ function gridRoom(userId, gridId) { return `user:${userId}:grid:${gridId}`; }
 // ========================================================
 // AUTH MIDDLEWARE
 // ========================================================
-io.use(async (socket, next) => {
-  console.log("🟦 [AUTH CHECK] Incoming socket:", socket.id);
+io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
-  if (!token) { console.log("🟪 No token → guest allowed"); socket.userId = null; socket.data.userId = null; return next(); }
-  console.log("🔐 Token received:", token.substring(0, 12) + "...");
+  if (!token) { socket.userId = null; socket.data.userId = null; return next(); }
   const decoded = verifyToken(token);
   if (!decoded) { console.log("❌ Invalid token"); return next(new Error("INVALID_TOKEN")); }
-  const user = await User.findById(decoded.userId);
-  if (!user) { console.log("❌ Token valid but user not found"); return next(new Error("USER_NOT_FOUND")); }
-  console.log("✅ Authenticated user:", user._id.toString());
-  socket.userId = user._id.toString();
+  // Trust the JWT — no DB round-trip needed on every connect
+  socket.userId = decoded.userId.toString();
   socket.data.userId = socket.userId;
   next();
 });
@@ -142,89 +139,126 @@ io.use(async (socket, next) => {
 // DATABASE
 // ========================================================
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/dnd_containers";
-mongoose.connect(MONGO_URI).then(() => console.log("🟢 MongoDB connected")).catch((err) => console.error("🔴 MongoDB connect error:", err));
+mongoose.connect(MONGO_URI).then(async () => {
+  console.log("🟢 MongoDB connected");
+  // One-time migration: stamp gridId on all untagged folders by BFS from each manifest
+  try {
+    const untagged = await Folder.find({ $or: [{ gridId: null }, { gridId: { $exists: false } }] }).lean();
+    if (untagged.length > 0) {
+      const manifests = await Manifest.find({ gridId: { $exists: true, $ne: null } }).lean();
+      const byId = {};
+      untagged.forEach(f => { byId[f.id] = f; });
+      const ops = [];
+      for (const m of manifests) {
+        const reachable = new Set();
+        const q = [m.rootFolderId].filter(Boolean);
+        while (q.length) {
+          const fid = q.shift();
+          if (!fid || reachable.has(fid)) continue;
+          reachable.add(fid);
+          untagged.forEach(f => { if (f.parentId === fid) q.push(f.id); });
+        }
+        reachable.forEach(fid => {
+          if (byId[fid]) ops.push({ updateOne: { filter: { id: fid }, update: { $set: { gridId: m.gridId } } } });
+        });
+      }
+      if (ops.length) {
+        await Folder.bulkWrite(ops);
+        console.log(`✅ Migrated gridId on ${ops.length} folders`);
+      }
+    }
+  } catch (e) { console.error("folder migration error:", e); }
+}).catch((err) => console.error("🔴 MongoDB connect error:", err));
 console.log("🧪 Using MONGO_URI:", MONGO_URI);
 
 // ========================================================
-// USER CACHE
+// GRID CACHE  (keyed by "userId:gridId" — one entry per grid)
 // ========================================================
-const cacheByUser = Object.create(null);
-const cacheLastAccess = Object.create(null);
+const cacheByUser = Object.create(null);       // "userId:gridId" → cache object
+const cacheLastAccess = Object.create(null);   // "userId:gridId" → timestamp
+const cacheLoadingPromise = Object.create(null); // "userId:gridId" → Promise
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+function gridCacheKey(userId, gridId) { return `${userId}:${gridId}`; }
 
 // Periodic cache eviction — runs every 5 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const uid of Object.keys(cacheLastAccess)) {
-    if (now - cacheLastAccess[uid] > CACHE_TTL_MS) {
-      delete cacheByUser[uid];
-      delete cacheLastAccess[uid];
+  for (const key of Object.keys(cacheLastAccess)) {
+    if (now - cacheLastAccess[key] > CACHE_TTL_MS) {
+      delete cacheByUser[key];
+      delete cacheLastAccess[key];
     }
   }
 }, 5 * 60 * 1000);
 
-function ensureUserCache(userId) {
-  cacheLastAccess[userId] = Date.now();
-  if (!cacheByUser[userId]) {
-    cacheByUser[userId] = { gridsById: {}, modulesById: {}, occurrencesById: {}, fieldsById: {}, manifestsById: {}, viewsById: {}, foldersById: {}, operationsById: {} };
+function ensureUserCache(userId, gridId) {
+  const key = gridCacheKey(userId, gridId);
+  cacheLastAccess[key] = Date.now();
+  if (!cacheByUser[key]) {
+    cacheByUser[key] = { _loaded: false, gridId, modulesById: {}, occurrencesById: {}, fieldsById: {}, manifestsById: {}, viewsById: {}, foldersById: {}, operationsById: {} };
   }
-  return cacheByUser[userId];
+  return cacheByUser[key];
 }
 
 async function getAllGridsForUser(userId) {
-  // Use cache if available — avoids extra DB round trip during full_state
-  const uc = cacheByUser[userId];
-  if (uc?.gridsById && Object.keys(uc.gridsById).length > 0) {
-    return Object.values(uc.gridsById).map((g) => ({
-      id: (g._id || g.id || "").toString(),
-      name: g.name,
-      createdAt: g.createdAt,
-    }));
-  }
+  // Lightweight query — always fresh, Grid collection is tiny
   const all = await Grid.find({ userId }).sort({ createdAt: 1 }).lean();
   return all.map((g) => ({ id: g._id.toString(), name: g.name, createdAt: g.createdAt }));
 }
 
-async function loadUserIntoCache(userId) {
-  console.log("\n===============================");
-  console.log("📥 loadUserIntoCache START", { userId });
-  console.log("===============================\n");
-  const uc = ensureUserCache(userId);
-  // .lean() returns plain JS objects (skips Mongoose document hydration — 2-5x faster)
-  const [grids, modules, occurrences, fields, manifests, views, folders, operations] = await Promise.all([
-    Grid.find({ userId }).sort({ createdAt: 1 }).lean(),
-    Module.find({ userId }).sort({ createdAt: 1 }).lean(),
-    Occurrence.find({ userId }).sort({ timestamp: -1 }).lean(),
-    Field.find({ userId }).sort({ createdAt: 1 }).lean(),
-    Manifest.find({ userId }).sort({ createdAt: 1 }).lean(),
-    View.find({ userId }).sort({ createdAt: 1 }).lean(),
-    Folder.find({ userId }).sort({ createdAt: 1 }).lean(),
-    Operation.find({ userId }).sort({ createdAt: 1 }).lean(),
-  ]);
-  uc.gridsById = {};
-  grids.forEach((g) => { uc.gridsById[(g._id || g.id).toString()] = g; });
-  uc.modulesById = {};
-  modules.forEach((m) => { const id = m.id || m._id.toString(); uc.modulesById[id] = { ...m, id, label: m.label ?? "" }; });
-  uc.occurrencesById = {};
-  occurrences.forEach((o) => { const id = o.id || o._id.toString(); uc.occurrencesById[id] = { ...o, id }; });
-  uc.fieldsById = {};
-  fields.forEach((f) => { const id = f.id || f._id.toString(); uc.fieldsById[id] = { ...f, id }; });
-  uc.manifestsById = {};
-  manifests.forEach((m) => { const id = m.id || m._id.toString(); uc.manifestsById[id] = { ...m, id }; });
-  uc.viewsById = {};
-  views.forEach((v) => { const id = v.id || v._id.toString(); uc.viewsById[id] = { ...v, id }; });
-  uc.foldersById = {};
-  folders.forEach((f) => { const id = f.id || f._id.toString(); uc.foldersById[id] = { ...f, id }; });
-  uc.operationsById = {};
-  operations.forEach((o) => { const id = o.id || o._id.toString(); uc.operationsById[id] = { ...o, id }; });
-  console.log("✅ CACHE READY FOR USER:", userId, "Grids:", Object.keys(uc.gridsById).length, "Modules:", Object.keys(uc.modulesById).length, "Occurrences:", Object.keys(uc.occurrencesById).length);
-  return uc;
+async function loadUserIntoCache(userId, gridId) {
+  const key = gridCacheKey(userId, gridId);
+  // Deduplicate: if a load is already in flight for this grid, reuse the same promise
+  if (cacheLoadingPromise[key]) return cacheLoadingPromise[key];
+
+  const promise = (async () => {
+    console.log("📥 loadGridIntoCache START", { userId, gridId });
+    const uc = ensureUserCache(userId, gridId);
+    uc._loaded = false;
+    const t0 = Date.now();
+    // All queries filtered by gridId — no user-wide scans
+    const [modules, occurrences, fields, manifests, views, folders, operations] = await Promise.all([
+      Module.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Module query: ${Date.now()-t0}ms (${r.length})`); return r; }),
+      Occurrence.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Occurrence query: ${Date.now()-t0}ms (${r.length})`); return r; }),
+      Field.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Field query: ${Date.now()-t0}ms (${r.length})`); return r; }),
+      Manifest.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Manifest query: ${Date.now()-t0}ms (${r.length})`); return r; }),
+      View.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ View query: ${Date.now()-t0}ms (${r.length})`); return r; }),
+      Folder.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Folder query: ${Date.now()-t0}ms (${r.length})`); return r; }),
+      Operation.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Operation query: ${Date.now()-t0}ms (${r.length})`); return r; }),
+    ]);
+    console.log(`📥 All queries done: ${Date.now()-t0}ms total`);
+    uc.modulesById = {};
+    modules.forEach((m) => { const id = m.id || m._id.toString(); uc.modulesById[id] = { ...m, id, label: m.label ?? "" }; });
+    uc.occurrencesById = {};
+    occurrences.forEach((o) => {
+      const id = o.id || o._id.toString();
+      const occ = o.textmap ? { ...o, id, textmap: decompressTextmap(o.textmap) } : { ...o, id };
+      uc.occurrencesById[id] = occ;
+    });
+    uc.fieldsById = {};
+    fields.forEach((f) => { const id = f.id || f._id.toString(); uc.fieldsById[id] = { ...f, id }; });
+    uc.manifestsById = {};
+    manifests.forEach((m) => { const id = m.id || m._id.toString(); uc.manifestsById[id] = { ...m, id }; });
+    uc.viewsById = {};
+    views.forEach((v) => { const id = v.id || v._id.toString(); uc.viewsById[id] = { ...v, id }; });
+    uc.foldersById = {};
+    folders.forEach((f) => { const id = f.id || f._id.toString(); uc.foldersById[id] = { ...f, id }; });
+    uc.operationsById = {};
+    operations.forEach((o) => { const id = o.id || o._id.toString(); uc.operationsById[id] = { ...o, id }; });
+    uc._loaded = true;
+    console.log(`✅ GRID CACHE READY: ${gridId} — Modules: ${Object.keys(uc.modulesById).length}, Occurrences: ${Object.keys(uc.occurrencesById).length}, Folders: ${Object.keys(uc.foldersById).length}`);
+    return uc;
+  })();
+
+  cacheLoadingPromise[key] = promise;
+  promise.finally(() => { delete cacheLoadingPromise[key]; });
+  return promise;
 }
 
-function userCacheReady(userId) {
-  const uc = cacheByUser[userId];
-  return !!(uc && uc.gridsById && uc.modulesById && uc.occurrencesById && uc.fieldsById && uc.manifestsById && uc.viewsById && uc.foldersById && uc.operationsById);
-
+function userCacheReady(userId, gridId) {
+  const uc = cacheByUser[gridCacheKey(userId, gridId)];
+  return !!(uc && uc._loaded);
 }
 
 // ========================================================
@@ -240,7 +274,7 @@ io.on("connection", (socket) => {
   socket.data.activeGridId = socket.data.activeGridId || null;
 
   const ctx = {
-    io, cacheByUser, ensureUserCache, userCacheReady, loadUserIntoCache,
+    io, cacheByUser, gridCacheKey, ensureUserCache, userCacheReady, loadUserIntoCache,
     getAllGridsForUser, userRoom, gridRoom,
     getOccurrencesForGrid, createOccurrenceData, selectGrid,
     serializeTipTapToMarkdown, getModelByType,
@@ -257,7 +291,7 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("❌ Client disconnected:", socket.id);
-    if (socket.userId) delete cacheByUser[socket.userId];
+    // Cache persists — TTL eviction handles cleanup after 30min inactivity
   });
 });
 

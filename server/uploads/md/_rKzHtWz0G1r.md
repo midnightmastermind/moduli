@@ -1,0 +1,1 @@
+- Integration: post-traumatic growth, turning impulses inward for refinement

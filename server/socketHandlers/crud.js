@@ -14,14 +14,17 @@ export function registerCrudHandlers(socket, {
   getOccurrencesForGrid, createOccurrenceData,
 }) {
   const userId = socket.userId;
+  // Helper: get (or load) the cache for the currently active grid
+  const getUc = async () => {
+    const gId = socket.data.activeGridId;
+    if (!userCacheReady(userId, gId)) await loadUserIntoCache(userId, gId);
+    return ensureUserCache(userId, gId);
+  };
 
   // ── GRID ──────────────────────────────────────────────────
   socket.on("create_grid", async ({ grid } = {}) => {
     try {
-      if (!userId) return;
-      if (!grid) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      if (!userId || !grid) return;
       const gridId = grid.id || grid._id;
       if (!gridId) return socket.emit("server_error", "create_grid missing grid id");
       const next = {
@@ -31,7 +34,6 @@ export function registerCrudHandlers(socket, {
         name: grid.name ?? "", userId,
       };
       const saved = await Grid.findOneAndUpdate({ _id: gridId, userId }, { _id: gridId, ...next }, { upsert: true, new: true }).lean();
-      uc.gridsById[gridId] = saved;
       socket.to(userRoom(userId)).emit("grid_created", { grid: { id: gridId, _id: gridId, ...saved } });
     } catch (err) {
       console.error("create_grid error:", err);
@@ -44,22 +46,9 @@ export function registerCrudHandlers(socket, {
       if (!userId) return;
       const { gridId } = payload || {};
       if (!gridId) return console.log("❌ update_grid missing gridId");
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
       const { grid: gridPatchFromNested, ...rest } = payload || {};
       const { gridId: _ignored, ...restWithoutId } = rest || {};
       const updatePatch = gridPatchFromNested || restWithoutId || {};
-      console.log("🟦 EVENT update_grid:", { gridId, updatePatch });
-      if (!uc.gridsById[gridId]) {
-        const g = await Grid.findOne({ _id: gridId, userId }).lean();
-        if (g) {
-          uc.gridsById[gridId] = g;
-        } else {
-          const created = await Grid.create({ _id: gridId, userId, rows: updatePatch.rows ?? 2, cols: updatePatch.cols ?? 3, rowSizes: updatePatch.rowSizes ?? [], colSizes: updatePatch.colSizes ?? [], name: updatePatch.name });
-          uc.gridsById[gridId] = created.toObject();
-        }
-      }
-      uc.gridsById[gridId] = { ...uc.gridsById[gridId], ...updatePatch };
       await Grid.findOneAndUpdate({ _id: gridId, userId }, updatePatch, { upsert: true });
       socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: updatePatch });
     } catch (err) {
@@ -71,33 +60,20 @@ export function registerCrudHandlers(socket, {
   socket.on("delete_grid", async ({ gridId } = {}) => {
     try {
       if (!userId || !gridId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
       await Grid.findOneAndDelete({ _id: gridId, userId });
-      if (uc.gridsById?.[gridId]) delete uc.gridsById[gridId];
+      socket.to(userRoom(userId)).emit("grid_deleted", { gridId });
       if (socket.data.activeGridId === gridId) {
-        const remaining = Object.keys(uc.gridsById);
-        let nextId = remaining.length ? remaining[0] : null;
+        // Find another grid to switch to
+        const remaining = await getAllGridsForUser(userId);
+        const filtered = remaining.filter(g => g.id !== gridId);
+        let nextId = filtered.length ? filtered[0].id : null;
         if (!nextId) {
           const newGrid = await Grid.create({ rows: 2, cols: 3, rowSizes: [], colSizes: [], userId, name: "" });
           nextId = newGrid._id.toString();
-          uc.gridsById[nextId] = newGrid.toObject();
         }
-        socket.leave(gridRoom(userId, gridId));
-        socket.join(gridRoom(userId, nextId));
-        socket.data.activeGridId = nextId;
-        const grids = await getAllGridsForUser(userId);
-        const safeGrid = uc.gridsById[nextId];
-        const gridOccurrences = getOccurrencesForGrid(nextId, uc);
-        socket.emit("full_state", {
-          gridId: nextId, grid: safeGrid,
-          modules: Object.values(uc.modulesById || {}),
-          occurrences: gridOccurrences,
-          fields: Object.values(uc.fieldsById),
-          grids,
-        });
+        // Tell the client to reload with the new grid
+        socket.emit("grid_deleted", { gridId, nextGridId: nextId });
       }
-      socket.to(userRoom(userId)).emit("grid_deleted", { gridId });
     } catch (err) {
       console.error("delete_grid error:", err);
       socket.emit("server_error", "Failed to delete grid");
@@ -108,8 +84,7 @@ export function registerCrudHandlers(socket, {
   socket.on("create_module", async ({ module: moduleData } = {}) => {
     try {
       if (!userId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const id = moduleData?.id;
       if (!id) return;
       const next = { ...(uc.modulesById[id] || {}), ...moduleData, id, userId };
@@ -125,8 +100,7 @@ export function registerCrudHandlers(socket, {
   socket.on("update_module", async ({ module: moduleData } = {}) => {
     try {
       if (!userId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const id = moduleData?.id;
       if (!id) return;
       const next = { ...(uc.modulesById[id] || {}), ...moduleData, id, userId };
@@ -142,8 +116,7 @@ export function registerCrudHandlers(socket, {
   socket.on("delete_module", async ({ moduleId } = {}) => {
     try {
       if (!userId || !moduleId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       if (uc.modulesById?.[moduleId]) delete uc.modulesById[moduleId];
       await Module.findOneAndDelete({ id: moduleId, userId });
 
@@ -181,8 +154,7 @@ export function registerCrudHandlers(socket, {
   socket.on("create_occurrence", async ({ occurrence } = {}) => {
     try {
       if (!userId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const id = occurrence?.id;
       if (!id) return;
       const occurrenceData = {
@@ -211,8 +183,7 @@ export function registerCrudHandlers(socket, {
   socket.on("delete_occurrence", async ({ occurrenceId } = {}) => {
     try {
       if (!userId || !occurrenceId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
 
       // Recursively collect all descendant occurrence IDs
       const toDelete = new Set();
@@ -244,12 +215,14 @@ export function registerCrudHandlers(socket, {
       }
 
       // Clean up grid.occurrences if this was a panel occurrence
-      for (const grid of Object.values(uc.gridsById || {})) {
-        if (!Array.isArray(grid.occurrences)) continue;
-        if (!grid.occurrences.includes(occurrenceId)) continue;
-        grid.occurrences = grid.occurrences.filter(id => id !== occurrenceId);
-        await Grid.findOneAndUpdate({ id: grid.id, userId }, { occurrences: grid.occurrences });
-        socket.to(userRoom(userId)).emit("grid_updated", { gridId: grid.id, grid: { occurrences: grid.occurrences } });
+      const activeGridId = socket.data.activeGridId;
+      if (activeGridId) {
+        const gridDoc = await Grid.findOne({ _id: activeGridId, userId }).lean();
+        if (gridDoc?.occurrences?.includes(occurrenceId)) {
+          const updated = gridDoc.occurrences.filter(id => id !== occurrenceId);
+          await Grid.findOneAndUpdate({ _id: activeGridId, userId }, { occurrences: updated });
+          socket.to(userRoom(userId)).emit("grid_updated", { gridId: activeGridId, grid: { occurrences: updated } });
+        }
       }
     } catch (err) {
       console.error("delete_occurrence error:", err);
@@ -261,8 +234,7 @@ export function registerCrudHandlers(socket, {
   socket.on("trash_module", async ({ moduleId } = {}) => {
     try {
       if (!userId || !moduleId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       if (uc.modulesById?.[moduleId]) uc.modulesById[moduleId].trashed = true;
       await Module.findOneAndUpdate({ id: moduleId, userId }, { trashed: true });
       socket.to(userRoom(userId)).emit("module_updated", { module: { id: moduleId, trashed: true } });
@@ -275,8 +247,7 @@ export function registerCrudHandlers(socket, {
   socket.on("restore_module", async ({ moduleId } = {}) => {
     try {
       if (!userId || !moduleId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       if (uc.modulesById?.[moduleId]) uc.modulesById[moduleId].trashed = false;
       await Module.findOneAndUpdate({ id: moduleId, userId }, { trashed: false });
       socket.to(userRoom(userId)).emit("module_updated", { module: { id: moduleId, trashed: false } });
@@ -292,10 +263,8 @@ export function registerCrudHandlers(socket, {
   socket.on("create_instance_in_container", async ({ containerId, instance, occurrenceId: requestedOccId, meta: extraMeta } = {}) => {
     try {
       if (!userId || !containerId || !instance?.id) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
-      const grid = Object.values(uc.gridsById || {})[0];
-      const gridId = grid?.id || grid?._id?.toString() || instance.gridId;
+      const uc = await getUc();
+      const gridId = socket.data.activeGridId || instance.gridId;
 
       // 1. Save the Module
       const mod = new Module({
@@ -352,8 +321,7 @@ export function registerCrudHandlers(socket, {
   socket.on("create_field", async ({ field } = {}) => {
     try {
       if (!userId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const id = field?.id;
       const gridId = field?.gridId;
       if (!id || !gridId) return;
@@ -377,8 +345,7 @@ export function registerCrudHandlers(socket, {
   socket.on("update_field", async ({ field } = {}) => {
     try {
       if (!userId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const id = field?.id;
       if (!id) return;
       const next = { ...(uc.fieldsById[id] || {}), ...field, id, userId };
@@ -394,8 +361,7 @@ export function registerCrudHandlers(socket, {
   socket.on("delete_field", async ({ fieldId } = {}) => {
     try {
       if (!userId || !fieldId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       if (uc.fieldsById?.[fieldId]) delete uc.fieldsById[fieldId];
       await Field.findOneAndDelete({ id: fieldId, userId });
       socket.to(userRoom(userId)).emit("field_deleted", { fieldId });
@@ -409,8 +375,7 @@ export function registerCrudHandlers(socket, {
   socket.on("create_operation", async ({ operation } = {}) => {
     try {
       if (!userId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const id = operation?.id;
       const gridId = operation?.gridId;
       if (!id || !gridId) return;
@@ -438,8 +403,7 @@ export function registerCrudHandlers(socket, {
   socket.on("update_operation", async ({ operation } = {}) => {
     try {
       if (!userId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const id = operation?.id;
       if (!id) return;
       const next = { ...(uc.operationsById[id] || {}), ...operation, id, userId };
@@ -455,8 +419,7 @@ export function registerCrudHandlers(socket, {
   socket.on("delete_operation", async ({ operationId } = {}) => {
     try {
       if (!userId || !operationId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       if (uc.operationsById?.[operationId]) delete uc.operationsById[operationId];
       await Operation.findOneAndDelete({ id: operationId, userId });
       socket.to(userRoom(userId)).emit("operation_deleted", { operationId });
@@ -470,14 +433,14 @@ export function registerCrudHandlers(socket, {
   socket.on("create_folder", async ({ folder } = {}) => {
     try {
       if (!userId || !folder?.name) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const existing = Object.values(uc.foldersById || {}).find(f =>
         f.name === folder.name && f.parentId === (folder.parentId || null)
       );
       if (existing) return socket.emit("folder_created", existing);
       const folderData = {
         id: folder.id || crypto.randomUUID(), userId,
+        gridId: folder.gridId || socket.data.activeGridId || null,
         name: folder.name,
         parentId: folder.parentId || null,
         folderType: folder.folderType || "normal",
@@ -500,13 +463,20 @@ export function registerCrudHandlers(socket, {
     socket.on(`create_${modelName}`, async ({ [modelName]: entity } = {}) => {
       try {
         if (!userId) return;
-        if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-        const uc = ensureUserCache(userId);
+        const uc = await getUc();
         const id = entity?.id;
         if (!id) return;
         const next = { ...entity, id, userId };
         uc[cacheKey][id] = next;
-        await Model.findOneAndUpdate({ id, userId }, next, { upsert: true });
+        try {
+          await Model.findOneAndUpdate({ id, userId }, next, { upsert: true });
+        } catch (upsertErr) {
+          if (upsertErr.code === 11000) {
+            await Model.findOneAndUpdate({ id }, { $set: next });
+          } else {
+            throw upsertErr;
+          }
+        }
         socket.to(userRoom(userId)).emit(`${modelName}_created`, { [modelName]: next });
       } catch (err) {
         console.error(`create_${modelName} error:`, err);
@@ -517,13 +487,22 @@ export function registerCrudHandlers(socket, {
     socket.on(`update_${modelName}`, async ({ [modelName]: entity } = {}) => {
       try {
         if (!userId) return;
-        if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-        const uc = ensureUserCache(userId);
+        const uc = await getUc();
         const id = entity?.id;
         if (!id) return;
         const next = { ...(uc[cacheKey][id] || {}), ...entity, id, userId };
         uc[cacheKey][id] = next;
-        await Model.findOneAndUpdate({ id, userId }, next, { upsert: true });
+        try {
+          await Model.findOneAndUpdate({ id, userId }, next, { upsert: true });
+        } catch (upsertErr) {
+          // E11000: duplicate key — document exists with same id but different userId (race or data migration).
+          // Retry with id-only filter to update the existing record.
+          if (upsertErr.code === 11000) {
+            await Model.findOneAndUpdate({ id }, { $set: next });
+          } else {
+            throw upsertErr;
+          }
+        }
         socket.to(userRoom(userId)).emit(`${modelName}_updated`, { [modelName]: next });
       } catch (err) {
         console.error(`update_${modelName} error:`, err);
@@ -534,8 +513,7 @@ export function registerCrudHandlers(socket, {
     socket.on(`delete_${modelName}`, async ({ [`${modelName}Id`]: entityId } = {}) => {
       try {
         if (!userId) return;
-        if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-        const uc = ensureUserCache(userId);
+        const uc = await getUc();
         if (!entityId) return;
         if (uc[cacheKey]?.[entityId]) delete uc[cacheKey][entityId];
         await Model.findOneAndDelete({ id: entityId, userId });
@@ -557,13 +535,10 @@ export function registerCrudHandlers(socket, {
   socket.on("update_grid_filter", async ({ gridId, activeFilterId, activeFilterValues } = {}) => {
     try {
       if (!userId || !gridId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
       const patch = {};
       if (activeFilterId !== undefined) patch.activeFilterId = activeFilterId;
       if (activeFilterValues !== undefined) patch.activeFilterValues = activeFilterValues;
       if (!Object.keys(patch).length) return;
-      uc.gridsById[gridId] = { ...uc.gridsById[gridId], ...patch };
       await Grid.findOneAndUpdate({ _id: gridId, userId }, patch);
       socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: patch });
     } catch (err) {
@@ -576,9 +551,6 @@ export function registerCrudHandlers(socket, {
   socket.on("update_grid_named_filters", async ({ gridId, namedFilters } = {}) => {
     try {
       if (!userId || !gridId || !Array.isArray(namedFilters)) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
-      uc.gridsById[gridId] = { ...uc.gridsById[gridId], namedFilters };
       await Grid.findOneAndUpdate({ _id: gridId, userId }, { namedFilters });
       socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: { namedFilters } });
     } catch (err) {
@@ -591,8 +563,7 @@ export function registerCrudHandlers(socket, {
   socket.on("update_occurrence_filter_override", async ({ occurrenceId, filterOverride } = {}) => {
     try {
       if (!userId || !occurrenceId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const occ = uc.occurrencesById[occurrenceId];
       if (!occ) return;
       const updated = { ...occ, filterOverride: filterOverride ?? null };
@@ -611,8 +582,7 @@ export function registerCrudHandlers(socket, {
     try {
       if (!userId) return;
       if (!moduleData?.id || !occData?.id) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
 
       // 1. Save Module
       const mod = { ...moduleData, userId, role: "page" };
@@ -682,8 +652,7 @@ export function registerCrudHandlers(socket, {
   socket.on("delete_page", async ({ pageOccurrenceId, panelOccurrenceId } = {}) => {
     try {
       if (!userId || !pageOccurrenceId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
 
       // 1. Remove from panel's occurrences[]
       if (panelOccurrenceId) {
@@ -729,8 +698,7 @@ export function registerCrudHandlers(socket, {
   socket.on("move_page", async ({ pageOccurrenceId, targetFolderId, sortOrder } = {}) => {
     try {
       if (!userId || !pageOccurrenceId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const occ = uc.occurrencesById[pageOccurrenceId];
       if (!occ) return;
       const patch = {};
@@ -750,8 +718,7 @@ export function registerCrudHandlers(socket, {
   socket.on("pin_page_to_panel", async ({ pageOccurrenceId, panelOccurrenceId } = {}) => {
     try {
       if (!userId || !pageOccurrenceId || !panelOccurrenceId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const panelOcc = uc.occurrencesById[panelOccurrenceId];
       if (!panelOcc) return;
       if ((panelOcc.occurrences || []).includes(pageOccurrenceId)) return; // already pinned
@@ -769,8 +736,7 @@ export function registerCrudHandlers(socket, {
   socket.on("unpin_page_from_panel", async ({ pageOccurrenceId, panelOccurrenceId } = {}) => {
     try {
       if (!userId || !pageOccurrenceId || !panelOccurrenceId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const panelOcc = uc.occurrencesById[panelOccurrenceId];
       if (!panelOcc) return;
       const updated = { ...panelOcc, occurrences: (panelOcc.occurrences || []).filter(id => id !== pageOccurrenceId) };
@@ -787,8 +753,7 @@ export function registerCrudHandlers(socket, {
   socket.on("update_occurrence_hidden", async ({ occurrenceId, hidden } = {}) => {
     try {
       if (!userId || !occurrenceId) return;
-      if (!userCacheReady(userId)) await loadUserIntoCache(userId);
-      const uc = ensureUserCache(userId);
+      const uc = await getUc();
       const occ = uc.occurrencesById[occurrenceId];
       if (!occ) return;
       const updated = { ...occ, hidden: !!hidden };

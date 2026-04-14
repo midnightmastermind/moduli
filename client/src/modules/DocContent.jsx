@@ -22,6 +22,10 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       target.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [scrollAnchor]);
+
+  // A valid textmap is a JSON object. A compressed textmap is a base64 string —
+  // treat it the same as missing (full_state delivers all textmaps decompressed upfront).
+  const hasValidTextmap = occurrence?.textmap != null && typeof occurrence.textmap === "object";
   // Auto-create textblock: when user types on empty paragraph or a list appears at top level,
   // replace it with an instancePill block. nodeJson is optional — when provided (for lists),
   // it becomes the initial textmap content directly.
@@ -63,27 +67,32 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       emit: true,
     });
 
-    // Replace the paragraph with an instancePill block node
+    // Replace the paragraph with an instanceTextblock node
     const schema = editor.state.schema;
-    if (!schema.nodes.instancePill) return;
+    if (!schema.nodes.instanceTextblock) return;
     const tr = editor.state.tr;
     tr.setMeta("skipAutoCreate", true);
-    tr.replaceWith(nodeStart, nodeStart + nodeSize, schema.nodes.instancePill.create({
+    tr.replaceWith(nodeStart, nodeStart + nodeSize, schema.nodes.instanceTextblock.create({
       instanceId: modId,
-      instanceLabel: "",
       occurrenceId: occId,
-      pillDisplay: "block",
-      showIcon: false,
-      showHeader: false,
     }));
     editor.view.dispatch(tr);
 
-    // Focus the sub-editor as soon as it appears in the DOM, then release cooldown
+    // Focus the sub-editor at END of content as soon as it appears in the DOM
     const tryFocus = (attempts = 0) => {
       const wrapper = editor.view.dom.closest(".doc-editor-wrapper");
       const subEditor = wrapper?.querySelector(`[data-occurrence-id="${occId}"] .ProseMirror`);
       if (subEditor) {
         subEditor.focus();
+        // Place cursor at end so subsequent keystrokes append, not prepend
+        try {
+          const range = document.createRange();
+          range.selectNodeContents(subEditor);
+          range.collapse(false); // collapse to end
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        } catch (_) {}
         autoCreateCooldownRef.current = false;
       } else if (attempts < 10) {
         requestAnimationFrame(() => tryFocus(attempts + 1));
@@ -106,16 +115,14 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       onMouseEnter={() => setShowLockBtn(true)}
       onMouseLeave={() => setShowLockBtn(false)}
       style={{ cursor: isLocked ? "default" : "text" }}
+      draggable={false}
       onClick={(e) => {
         if (isLocked || e.target !== e.currentTarget) return;
         const editor = editorRef.current?.editor;
         if (!editor || !editor.isEditable) return;
-        const pos = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
-        if (pos) {
-          editor.chain().setTextSelection(pos.pos).focus().run();
-        } else {
-          editor.commands.focus("end");
-        }
+        // Use 'end' so TipTap doesn't default to editor.state.selection (pos 1
+        // for an unfocused editor), which always places cursor at the beginning.
+        editor.commands.focus('end');
       }}
     >
       {(showLockBtn || isLocked) && (
@@ -134,7 +141,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       )}
       <Editor
         ref={editorRef}
-        content={occurrence?.textmap ?? null}
+        content={hasValidTextmap ? occurrence.textmap : null}
         occurrence={occurrence}
         dispatch={dispatch}
         socket={socket}

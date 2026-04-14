@@ -43,14 +43,16 @@ const TEST_USER_EMAIL = "test@moduli.test";
 const TEST_USER_PASSWORD = "testpass123";
 
 async function resetUserData(userId) {
-  await Occurrence.deleteMany({ userId });
+  // Preserve imported codex/notebook data (meta.source === "codex-import")
+  const preserveFilter = { userId, "meta.source": { $ne: "codex-import" } };
+  await Occurrence.deleteMany(preserveFilter);
   await Field.deleteMany({ userId });
-  await Module.deleteMany({ userId });
+  await Module.deleteMany(preserveFilter);
   await Transaction.deleteMany({ userId });
   await Grid.deleteMany({ userId });
   await Manifest.deleteMany({ userId });
-  await View.deleteMany({ userId });
-  await Folder.deleteMany({ userId });
+  await View.deleteMany(preserveFilter);
+  await Folder.deleteMany(preserveFilter);
   await Operation.deleteMany({ userId });
 }
 
@@ -93,6 +95,24 @@ async function resetData() {
     console.log("📊 Creating sample data for user...\n");
 
     const { gridId, summary } = await createDefaultUserData(userId);
+
+    // Re-parent preserved import folders under the new manifest root
+    const newManifest = await Manifest.findOne({ userId, manifestType: "user" });
+    if (newManifest) {
+      const importRoots = await Folder.find({ userId, "meta.source": "codex-import", name: { $in: ["Codex", "Notes (Annotated)"] } });
+      if (importRoots.length) {
+        for (const f of importRoots) {
+          f.parentId = newManifest.rootFolderId;
+          await f.save();
+        }
+        // Also update gridId on all preserved records to match new grid
+        const newGridId = gridId;
+        await Module.updateMany({ userId, "meta.source": "codex-import" }, { $set: { gridId: newGridId } });
+        await Occurrence.updateMany({ userId, "meta.source": "codex-import" }, { $set: { gridId: newGridId } });
+        await View.updateMany({ userId, "meta.source": "codex-import" }, { $set: { gridId: newGridId } });
+        console.log(`   ✅ Re-parented ${importRoots.length} import folders + updated gridId`);
+      }
+    }
 
     // ===================================================================
     // TEST USER: Create or reset test@moduli.test with same example data

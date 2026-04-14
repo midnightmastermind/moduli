@@ -199,7 +199,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
           <div ref={scrollRef} className="artifact-markdown" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
             <Editor
               occurrence={occurrence}
-              content={occurrence?.textmap ?? null}
+              content={occurrence?.textmap && typeof occurrence.textmap === "object" ? occurrence.textmap : null}
               dispatch={dispatch}
               socket={socket}
               placeholder="Start writing…"

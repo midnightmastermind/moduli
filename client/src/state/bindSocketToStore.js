@@ -96,6 +96,30 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
   socket.on("full_state", onFullState);
 
+  // Priority state — renders the visible grid immediately with the viewport slice.
+  // No operations fired here; full_state (arriving right after) handles that.
+  function onPriorityState(payload = {}) {
+    if (payload.gridId) localStorage.setItem("moduli-gridId", payload.gridId);
+    // Seed localOccsById so any interim fireOperations calls see the viewport data
+    for (const o of payload.occurrences || []) {
+      const id = o.id || o._id?.toString?.();
+      if (id) localOccsById[id] = { ...o, id };
+    }
+    socketDispatch({ type: ActionTypes.PRIORITY_STATE, payload });
+    // Operations intentionally skipped — full_state fires them with the complete dataset
+  }
+  socket.on("priority_state", onPriorityState);
+
+  // Lazy textmap loading — server responds to request_textmap with textmaps_loaded
+  function onTextmapsLoaded(updates = []) {
+    for (const { id, textmap } of updates) {
+      if (!id || !textmap) continue;
+      if (localOccsById[id]) localOccsById[id] = { ...localOccsById[id], textmap };
+      socketDispatch({ type: ActionTypes.UPDATE_OCCURRENCE, payload: { occurrence: { id, textmap } } });
+    }
+  }
+  socket.on("textmaps_loaded", onTextmapsLoaded);
+
   // Undo/redo: server emits sync_state after applying — re-request full state to sync client
   const onSyncState = () => {
     socket.emit("request_full_state");
@@ -797,6 +821,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     clearInterval(scheduleInterval);
     if (bc) { bc.close(); bc = null; }
     socket.off("full_state", onFullState);
+    socket.off("priority_state", onPriorityState);
+    socket.off("textmaps_loaded", onTextmapsLoaded);
     socket.off("sync_state", onSyncState);
 
     socket.off("module_created", onModuleCreated);

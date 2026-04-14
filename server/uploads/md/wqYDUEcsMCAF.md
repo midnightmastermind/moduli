@@ -1,0 +1,4 @@
+**Internal:**
+
+- Striving, forcing change ↔ allowing, flowing
+- Integration: knowing when to act vs when to yield

@@ -102,10 +102,10 @@ export async function createDefaultUserData(userId) {
   const trackingFolderId = uid();  // "Trackers" folder (was Tracking)
   const drawingFolderId = uid();   // "Drawing" folder (new, replaces Tasks)
 
-  await new Folder({ id: userManifestRootFolderId, userId, parentId: null, name: "Root", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
-  await new Folder({ id: dayPagesFolderId, userId, parentId: userManifestRootFolderId, name: "Day Pages", folderType: "day-pages", sortOrder: 0, isExpanded: true }).save();
-  await new Folder({ id: trackingFolderId, userId, parentId: userManifestRootFolderId, name: "Trackers", folderType: "normal", sortOrder: 1, isExpanded: false }).save();
-  await new Folder({ id: drawingFolderId, userId, parentId: userManifestRootFolderId, name: "Drawing", folderType: "normal", sortOrder: 2, isExpanded: false }).save();
+  await new Folder({ id: userManifestRootFolderId, userId, gridId, parentId: null, name: "Root", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: dayPagesFolderId, userId, gridId, parentId: userManifestRootFolderId, name: "Day Pages", folderType: "day-pages", sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: trackingFolderId, userId, gridId, parentId: userManifestRootFolderId, name: "Trackers", folderType: "normal", sortOrder: 1, isExpanded: false }).save();
+  await new Folder({ id: drawingFolderId, userId, gridId, parentId: userManifestRootFolderId, name: "Drawing", folderType: "normal", sortOrder: 2, isExpanded: false }).save();
   await new Manifest({ id: userManifestId, userId, name: "Pages", manifestType: "user", rootFolderId: userManifestRootFolderId }).save();
   await Grid.findByIdAndUpdate(grid._id, { $set: { manifestId: userManifestId } });
 
@@ -2158,6 +2158,11 @@ export async function createDefaultUserData(userId) {
   // Weekly Review — doc that embeds Q&A containers using moduleEmbed (demonstrates embed feature)
   notebookDocContainers.weeklyReview = { id: uid(), label: "Weekly Review", _viewId: uid(), occurrences: [], ownStyle: { bg: "#1e4060" }, styleMode: "own" };
 
+  // Day page section containers — each section of the day page is a doc container embedded via moduleEmbed
+  notebookDocContainers.dpMorningIntentions = { id: uid(), label: "Morning Intentions", _viewId: uid(), occurrences: [], ownStyle: { bg: "#1a3a20" }, styleMode: "own" };
+  notebookDocContainers.dpDailyLog         = { id: uid(), label: "Daily Log",           _viewId: uid(), occurrences: [], ownStyle: { bg: "#1a2a3a" }, styleMode: "own" };
+  notebookDocContainers.dpBrainDump        = { id: uid(), label: "Brain Dump",           _viewId: uid(), occurrences: [], ownStyle: { bg: "#2a1a3a" }, styleMode: "own" };
+
   // Save all containers (with gridId)
   const allContainers = { ...toolkitContainers, ...todoContainers, ...scheduleContainers, ...goalContainers, ...accountContainers, ...notebookDocContainers };
 
@@ -2820,6 +2825,41 @@ export async function createDefaultUserData(userId) {
     journalQA_gratitude: uid(),
   };
 
+  // Pre-generate dayPageDocOccId early — needed for day-page textblock parentId (also used below for Q&A containers)
+  const dayPageDocOccId = uid();
+
+  // Pre-generate section container occurrence IDs (embedded as moduleEmbed in the day page)
+  const dpSectionOccIds = {
+    morningIntentions: uid(),
+    dailyLog:          uid(),
+    brainDump:         uid(),
+  };
+
+  // Pre-generate list textblock occurrence IDs for Daily Log sub-sections
+  // (each list becomes one textblock whose textmap contains mini-textblocks)
+  const dpListTBOccIds = {
+    physical: uid(),
+    mindSoul:  uid(),
+    nutrition: uid(),
+  };
+
+  // Batch arrays for day page textblocks — saved in STEP 5 batch
+  const _dpTbMods = [];
+  const _dpTbOccs = [];
+  // Helper: create a textblock instancePill block node
+  // parentOccId defaults to dayPageDocOccId but can be set to a section/list container occurrence ID
+  function dpTextblock(paragraphContent, parentOccId) {
+    const modId = uid(); const occId = uid();
+    _dpTbMods.push({ id: modId, userId, gridId, role: "instance", kind: "doc", label: "" });
+    _dpTbOccs.push({
+      id: occId, userId, gridId, targetId: modId, targetType: "module",
+      parentId: parentOccId || dayPageDocOccId, iteration: { mode: "persistent" },
+      textmap: { type: "doc", content: paragraphContent },
+      fields: {},
+    });
+    return { type: "instancePill", attrs: { instanceId: modId, instanceLabel: "", occurrenceId: occId, showIcon: false, pillDisplay: "block" } };
+  }
+
   // Wire day journal container to Day Page panel (with sample textmap)
   const todayFmt = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
@@ -2834,55 +2874,112 @@ export async function createDefaultUserData(userId) {
     attrs: { instanceId, instanceLabel, occurrenceId: undefined, showIcon: true, pillDisplay: "inline" },
   });
 
+  // ── Build section container textmaps ──────────────────────────────────────────────────
+  // Each major day page section is a doc container embedded via moduleEmbed.
+  // Textblocks inside each section container use the section's occurrence ID as parentId.
+
+  // Morning Intentions textblocks
+  const dpMorningIntentionsTB1 = dpTextblock([{ type: "paragraph", content: [{ type: "text", text: "Complete morning workout and stretching" }] }], dpSectionOccIds.morningIntentions);
+  const dpMorningIntentionsTB2 = dpTextblock([{ type: "paragraph", content: [{ type: "text", text: "Review weekly goals and prioritize top 3 tasks" }] }], dpSectionOccIds.morningIntentions);
+  const dpMorningIntentionsTB3 = dpTextblock([{ type: "paragraph", content: [{ type: "text", text: "Deep work session (2h uninterrupted) before lunch" }] }], dpSectionOccIds.morningIntentions);
+  const dpMorningIntentionsTB4 = dpTextblock([{ type: "paragraph", content: [{ type: "text", text: "Evening reading + wind-down routine" }] }], dpSectionOccIds.morningIntentions);
+
+  // Physical mini-textblocks (parented to the Physical list textblock)
+  const dpPhysTB_morningWorkout = dpTextblock([{ type: "paragraph", content: [ip(toolkitInstances.morningWorkout.id, "Morning Workout")] }], dpListTBOccIds.physical);
+  const dpPhysTB_stretching     = dpTextblock([{ type: "paragraph", content: [ip(toolkitInstances.stretching.id, "Stretching")] }], dpListTBOccIds.physical);
+  const dpPhysTB_eveningRun     = dpTextblock([{ type: "paragraph", content: [ip(toolkitInstances.eveningRun.id, "Evening Run")] }], dpListTBOccIds.physical);
+  const dpPhysTB_drinkWater     = dpTextblock([{ type: "paragraph", content: [ip(toolkitInstances.drinkWater.id, "Drink Water")] }], dpListTBOccIds.physical);
+  const dpPhysTB_sleepLog       = dpTextblock([{ type: "paragraph", content: [ip(toolkitInstances.sleepLog.id, "Sleep Log")] }], dpListTBOccIds.physical);
+
+  // Mind & Soul mini-textblocks (parented to the Mind & Soul list textblock)
+  const dpMindTB_meditation  = dpTextblock([{ type: "paragraph", content: [ip(toolkitInstances.meditation.id, "Meditation")] }], dpListTBOccIds.mindSoul);
+  const dpMindTB_reading     = dpTextblock([{ type: "paragraph", content: [ip(toolkitInstances.reading.id, "Reading")] }], dpListTBOccIds.mindSoul);
+  const dpMindTB_journaling  = dpTextblock([{ type: "paragraph", content: [ip(toolkitInstances.journaling.id, "Daily Journal")] }], dpListTBOccIds.mindSoul);
+  const dpMindTB_gratitude   = dpTextblock([{ type: "paragraph", content: [ip(toolkitInstances.gratitude.id, "Gratitude Practice")] }], dpListTBOccIds.mindSoul);
+  const dpMindTB_breathing   = dpTextblock([{ type: "paragraph", content: [ip(toolkitInstances.breathing.id, "Breathing")] }], dpListTBOccIds.mindSoul);
+
+  // Nutrition mini-textblocks (parented to the Nutrition list textblock)
+  const dpNutriTB_yogurt  = dpTextblock([{ type: "paragraph", content: [ip(nutritionInstances.greekYogurtBowl.id, "Greek Yogurt Bowl")] }], dpListTBOccIds.nutrition);
+  const dpNutriTB_salad   = dpTextblock([{ type: "paragraph", content: [ip(nutritionInstances.greekSaladChicken.id, "Greek Salad + Chicken")] }], dpListTBOccIds.nutrition);
+  const dpNutriTB_salmon  = dpTextblock([{ type: "paragraph", content: [ip(nutritionInstances.grilledSalmon.id, "Grilled Salmon")] }], dpListTBOccIds.nutrition);
+
+  // Physical list textblock — H3 + mini-textblock pills (parented to Daily Log section)
+  const dpPhysicalListTBMod = uid();
+  _dpTbMods.push({ id: dpPhysicalListTBMod, userId, gridId, role: "instance", kind: "doc", label: "Physical" });
+  _dpTbOccs.push({
+    id: dpListTBOccIds.physical, userId, gridId, targetId: dpPhysicalListTBMod, targetType: "module",
+    parentId: dpSectionOccIds.dailyLog, iteration: { mode: "persistent" }, fields: {},
+    textmap: { type: "doc", content: [
+      { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Physical" }] },
+      dpPhysTB_morningWorkout, dpPhysTB_stretching, dpPhysTB_eveningRun, dpPhysTB_drinkWater, dpPhysTB_sleepLog,
+    ]},
+  });
+  const dpPhysicalListPill = { type: "instancePill", attrs: { instanceId: dpPhysicalListTBMod, instanceLabel: "Physical", occurrenceId: dpListTBOccIds.physical, showIcon: false, pillDisplay: "block" } };
+
+  // Mind & Soul list textblock — H3 + mini-textblock pills (parented to Daily Log section)
+  const dpMindSoulListTBMod = uid();
+  _dpTbMods.push({ id: dpMindSoulListTBMod, userId, gridId, role: "instance", kind: "doc", label: "Mind & Soul" });
+  _dpTbOccs.push({
+    id: dpListTBOccIds.mindSoul, userId, gridId, targetId: dpMindSoulListTBMod, targetType: "module",
+    parentId: dpSectionOccIds.dailyLog, iteration: { mode: "persistent" }, fields: {},
+    textmap: { type: "doc", content: [
+      { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Mind & Soul" }] },
+      dpMindTB_meditation, dpMindTB_reading, dpMindTB_journaling, dpMindTB_gratitude, dpMindTB_breathing,
+    ]},
+  });
+  const dpMindSoulListPill = { type: "instancePill", attrs: { instanceId: dpMindSoulListTBMod, instanceLabel: "Mind & Soul", occurrenceId: dpListTBOccIds.mindSoul, showIcon: false, pillDisplay: "block" } };
+
+  // Nutrition list textblock — H3 + mini-textblock pills (parented to Daily Log section)
+  const dpNutritionListTBMod = uid();
+  _dpTbMods.push({ id: dpNutritionListTBMod, userId, gridId, role: "instance", kind: "doc", label: "Nutrition" });
+  _dpTbOccs.push({
+    id: dpListTBOccIds.nutrition, userId, gridId, targetId: dpNutritionListTBMod, targetType: "module",
+    parentId: dpSectionOccIds.dailyLog, iteration: { mode: "persistent" }, fields: {},
+    textmap: { type: "doc", content: [
+      { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Nutrition" }] },
+      dpNutriTB_yogurt, dpNutriTB_salad, dpNutriTB_salmon,
+    ]},
+  });
+  const dpNutritionListPill = { type: "instancePill", attrs: { instanceId: dpNutritionListTBMod, instanceLabel: "Nutrition", occurrenceId: dpListTBOccIds.nutrition, showIcon: false, pillDisplay: "block" } };
+
+  // Brain Dump textblocks (parented to Brain Dump section)
+  const dpBrainDumpTB1 = dpTextblock([{ type: "paragraph", content: [{ type: "text", marks: [{ type: "italic" }], text: "Dump anything on your mind — ideas, observations, snippets, things to follow up on." }] }], dpSectionOccIds.brainDump);
+  const dpBrainDumpTB2 = dpTextblock([{ type: "paragraph" }], dpSectionOccIds.brainDump);
+
+  // Section container textmaps (built from the pills above)
+  const dpMorningIntentionsTextmap = { type: "doc", content: [
+    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Morning Intentions" }] },
+    { type: "paragraph", content: [
+      { type: "text", text: "Today I want to focus on: " },
+      { type: "text", marks: [{ type: "italic" }], text: "(what matters most today?)" },
+    ]},
+    dpMorningIntentionsTB1, dpMorningIntentionsTB2, dpMorningIntentionsTB3, dpMorningIntentionsTB4,
+  ]};
+
+  const dpDailyLogTextmap = { type: "doc", content: [
+    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Daily Log" }] },
+    { type: "paragraph", content: [{ type: "text", text: "Activities completed today:" }] },
+    dpPhysicalListPill, dpMindSoulListPill, dpNutritionListPill,
+  ]};
+
+  const dpBrainDumpTextmap = { type: "doc", content: [
+    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Brain Dump" }] },
+    dpBrainDumpTB1, dpBrainDumpTB2,
+  ]};
+
   const sampleJournalContent = {
     type: "doc",
     content: [
       // ── Header ────────────────────────────────────
       { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: todayFmt }] },
-      { type: "paragraph", content: [
-        { type: "text", marks: [{ type: "italic" }], text: "Daily Question: " },
-        fp(fields.journalQuestion.id, "Daily Question", "derived"),
-      ]},
+
+      // ── Morning Intentions — embedded section container ──
+      { type: "moduleEmbed", attrs: { occurrenceId: dpSectionOccIds.morningIntentions } },
       { type: "paragraph" },
 
-      // ── Morning Intentions ─────────────────────────
-      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Morning Intentions" }] },
-      { type: "paragraph", content: [
-        { type: "text", text: "Today I want to focus on: " },
-        { type: "text", marks: [{ type: "italic" }], text: "(what matters most today?)" },
-      ]},
-      { type: "bulletList", content: [
-        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Complete morning workout and stretching" }] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Review weekly goals and prioritize top 3 tasks" }] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Deep work session (2h uninterrupted) before lunch" }] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Evening reading + wind-down routine" }] }] },
-      ]},
-
-      // ── Daily Log ─────────────────────────────────
-      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Daily Log" }] },
-      { type: "paragraph", content: [{ type: "text", text: "Drag activities here as you complete them:" }] },
-      { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Physical" }] },
-      { type: "bulletList", content: [
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(toolkitInstances.morningWorkout.id, "Morning Workout")] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(toolkitInstances.stretching.id, "Stretching")] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(toolkitInstances.eveningRun.id, "Evening Run")] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(toolkitInstances.drinkWater.id, "Drink Water")] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(toolkitInstances.sleepLog.id, "Sleep Log")] }] },
-      ]},
-      { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Mind & Soul" }] },
-      { type: "bulletList", content: [
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(toolkitInstances.meditation.id, "Meditation")] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(toolkitInstances.reading.id, "Reading")] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(toolkitInstances.journaling.id, "Daily Journal")] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(toolkitInstances.gratitude.id, "Gratitude Practice")] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(toolkitInstances.breathing.id, "Breathing")] }] },
-      ]},
-      { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Nutrition" }] },
-      { type: "bulletList", content: [
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(nutritionInstances.greekYogurtBowl.id, "Greek Yogurt Bowl")] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(nutritionInstances.greekSaladChicken.id, "Greek Salad + Chicken")] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [ip(nutritionInstances.grilledSalmon.id, "Grilled Salmon")] }] },
-      ]},
+      // ── Daily Log — embedded section container ──
+      { type: "moduleEmbed", attrs: { occurrenceId: dpSectionOccIds.dailyLog } },
+      { type: "paragraph" },
 
       // ── Evening Reflection — Q&A embedded cards ──
       { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Evening Reflection" }] },
@@ -2893,14 +2990,9 @@ export async function createDefaultUserData(userId) {
       { type: "moduleEmbed", attrs: { occurrenceId: qaContainerOccIds.journalQA_gratitude } },
       { type: "paragraph" },
 
-      // ── Brain Dump ────────────────────────────────
-      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Brain Dump" }] },
-      { type: "paragraph", content: [
-        { type: "text", marks: [{ type: "italic" }], text: "Dump anything on your mind — ideas, observations, snippets, things to follow up on." },
-      ]},
+      // ── Brain Dump — embedded section container ──
+      { type: "moduleEmbed", attrs: { occurrenceId: dpSectionOccIds.brainDump } },
       { type: "paragraph" },
-      { type: "paragraph" },
-
     ],
   };
 
@@ -2910,8 +3002,7 @@ export async function createDefaultUserData(userId) {
   const dayPagesFolderIdForManifest = dayPagesFolderId; // reuse existing Day Pages folder under Docs
   const docsFolderIdForManifest = uid();   // Documents folder (Stan, Gospel, profile docs) — created in STEP 6
   const notesFolderIdForManifest = uid(); // Notes folder holds multiple docs — created in STEP 6
-  // Pre-generate dayPageDocOccId so journal Q&A containers can use it as parentId
-  const dayPageDocOccId = uid();
+  // dayPageDocOccId was pre-generated earlier (before sampleJournalContent) for textblock parentId
   // Parent doc IDs: Stan + Gospel + Philosopher's Stone (Notes merged into Philosophers Stone)
   const stanParentModId = uid();  const stanParentOccId = uid();
   const gospelParentModId = uid(); const gospelParentOccId = uid();
@@ -2958,6 +3049,7 @@ export async function createDefaultUserData(userId) {
   await new Occurrence({
     id: stanParentOccId, userId, gridId, targetId: stanParentModId, targetType: "module",
     parentId: docsFolderIdForManifest, sortOrder: 0, iteration: { mode: "persistent" },
+    occurrences: stanSectionOccIds,
     textmap: makeParentDocTextmap("Stan \u2014 Eminem", stanSectionOccIds),
   }).save();
 
@@ -2966,6 +3058,7 @@ export async function createDefaultUserData(userId) {
   await new Occurrence({
     id: gospelParentOccId, userId, gridId, targetId: gospelParentModId, targetType: "module",
     parentId: docsFolderIdForManifest, sortOrder: 1, iteration: { mode: "persistent" },
+    occurrences: gospelEmbedOccIds,
     textmap: makeParentDocTextmap("Gospel of Thomas", gospelEmbedOccIds),
   }).save();
 
@@ -2974,6 +3067,7 @@ export async function createDefaultUserData(userId) {
   await new Occurrence({
     id: philParentOccId, userId, gridId, targetId: philParentModId, targetType: "module",
     parentId: notesFolderIdForManifest, sortOrder: 0, iteration: { mode: "persistent" },
+    occurrences: [...notesSectionOccIds, ...philSectionOccIds],
     textmap: makeParentDocTextmap("Philosopher\u2019s Stone", [...notesSectionOccIds, ...philSectionOccIds]),
   }).save();
 
@@ -2985,6 +3079,7 @@ export async function createDefaultUserData(userId) {
     await new Occurrence({
       id: occId, userId, gridId, targetId: modId, targetType: "module",
       parentId: notesFolderIdForManifest, sortOrder: 1 + fi, iteration: { mode: "persistent" },
+      occurrences: sectionOccIds,
       textmap: makeParentDocTextmap(def.label, sectionOccIds),
     }).save();
   }
@@ -3010,6 +3105,25 @@ export async function createDefaultUserData(userId) {
     }).save();
     notebookPanelOccIds.push(contOccId);
     notebookTreeOccIds.push(contOccId);
+  }
+
+  // Day page section containers — Morning Intentions, Daily Log, Brain Dump
+  // These are embedded in the day page textmap via moduleEmbed nodes.
+  // parentId = dayPageDocOccId so they appear as child occurrences of the day page.
+  const dpSectionDefs = [
+    { key: "morningIntentions", occId: dpSectionOccIds.morningIntentions, textmap: dpMorningIntentionsTextmap },
+    { key: "dailyLog",          occId: dpSectionOccIds.dailyLog,          textmap: dpDailyLogTextmap },
+    { key: "brainDump",         occId: dpSectionOccIds.brainDump,         textmap: dpBrainDumpTextmap },
+  ];
+  for (const def of dpSectionDefs) {
+    const container = notebookDocContainers[`dp${def.key.charAt(0).toUpperCase()}${def.key.slice(1)}`];
+    await new Occurrence({
+      id: def.occId, userId, targetType: "module", targetId: container.id, gridId,
+      viewId: container._viewId || null,
+      parentId: dayPageDocOccId,
+      iteration: { mode: "persistent" },
+      fields: {}, textmap: def.textmap,
+    }).save();
   }
 
   // Weekly Review — doc container with moduleEmbed nodes (demonstrates D2 embed feature)
@@ -3049,16 +3163,23 @@ export async function createDefaultUserData(userId) {
   const _textblockModules = [];
   const _textblockOccurrences = [];
   function makeTextblockCreator(parentOccId) {
-    return (paragraphNodes) => {
+    return (paragraphNodes, subCreatorFn) => {
       const modId = uid();
       const occId = uid();
+      let content;
+      if (typeof subCreatorFn === "function") {
+        const nestedCreator = makeTextblockCreator(occId);
+        content = subCreatorFn(nestedCreator);
+      } else {
+        content = paragraphNodes;
+      }
       _textblockModules.push({ id: modId, userId, gridId, role: "instance", kind: "doc", label: "" });
       _textblockOccurrences.push({
         id: occId, userId, gridId,
         targetId: modId, targetType: "module",
         parentId: parentOccId,
         iteration: { mode: "persistent" },
-        textmap: { type: "doc", content: paragraphNodes },
+        textmap: { type: "doc", content },
         fields: {},
       });
       return { moduleId: modId, occurrenceId: occId };
@@ -3099,12 +3220,14 @@ export async function createDefaultUserData(userId) {
       const instOccPairs = [];
       for (const [j, inst] of entry.instances.entries()) {
         const instOccId = uid();
+        const rawInstNodes = makeDocContent(inst.lines || []).content;
+        const wrappedInstNodes = wrapTextInBlocks(rawInstNodes, makeTextblockCreator(instOccId));
         await new Occurrence({
           id: instOccId, userId, targetType: "module", targetId: inst.id, gridId,
           parentId: contOccId,
           sortOrder: j,
           iteration: { mode: "persistent" },
-          fields: {}, textmap: makeDocContent(inst.lines || []),
+          fields: {}, textmap: { type: "doc", content: wrappedInstNodes },
           meta: { containerId: container.id },
         }).save();
         instOccPairs.push({ inst, instOccId });
@@ -3146,12 +3269,14 @@ export async function createDefaultUserData(userId) {
       const instOccPairs = [];
       for (const [j, inst] of entry.instances.entries()) {
         const instOccId = uid();
+        const rawInstNodes = makeDocContent(inst.lines || []).content;
+        const wrappedInstNodes = wrapTextInBlocks(rawInstNodes, makeTextblockCreator(instOccId));
         await new Occurrence({
           id: instOccId, userId, targetType: "module", targetId: inst.id, gridId,
           parentId: contOccId,
           sortOrder: j,
           iteration: { mode: "persistent" },
-          fields: {}, textmap: makeDocContent(inst.lines || []),
+          fields: {}, textmap: { type: "doc", content: wrappedInstNodes },
           meta: { containerId: container.id },
         }).save();
         instOccPairs.push({ inst, instOccId });
@@ -3195,10 +3320,12 @@ export async function createDefaultUserData(userId) {
         const instOccPairs = [];
         for (const [j, inst] of entry.instances.entries()) {
           const instOccId = uid();
+          const rawInstNodes = makeDocContent(inst.lines || []).content;
+          const wrappedInstNodes = wrapTextInBlocks(rawInstNodes, makeTextblockCreator(instOccId));
           await new Occurrence({
             id: instOccId, userId, targetType: "module", targetId: inst.id, gridId,
             parentId: contOccId, sortOrder: j, iteration: { mode: "persistent" },
-            fields: {}, textmap: makeDocContent(inst.lines || []),
+            fields: {}, textmap: { type: "doc", content: wrappedInstNodes },
             meta: { containerId: container.id },
           }).save();
           instOccPairs.push({ inst, instOccId });
@@ -3355,7 +3482,13 @@ export async function createDefaultUserData(userId) {
   // Note: notebook container ordering is tracked via occurrence.occurrences (child occ ids),
   // not on the module. Module is a template — it has no occurrences array in new architecture.
 
-  // Batch-save all textblock modules + occurrences generated above
+  // Batch-save day page textblocks (generated before sampleJournalContent above)
+  if (_dpTbMods.length > 0) {
+    await Module.insertMany(_dpTbMods);
+    await Occurrence.insertMany(_dpTbOccs);
+  }
+
+  // Batch-save all notebook section textblock modules + occurrences generated above
   if (_textblockModules.length > 0) {
     await Module.insertMany(_textblockModules);
   }
@@ -3372,19 +3505,19 @@ export async function createDefaultUserData(userId) {
   const rootFolderId = rootFolderIdForManifest; // = userManifestRootFolderId
 
   // Category folders (for field/operation organization in CommandCenter)
-  await new Folder({ id: fitnessFolderId, userId, parentId: null, name: "Fitness", folderType: "category", sortOrder: 0, isExpanded: true }).save();
-  await new Folder({ id: nutritionFolderId, userId, parentId: null, name: "Nutrition", folderType: "category", sortOrder: 1, isExpanded: true }).save();
+  await new Folder({ id: fitnessFolderId, userId, gridId, parentId: null, name: "Fitness", folderType: "category", sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: nutritionFolderId, userId, gridId, parentId: null, name: "Nutrition", folderType: "category", sortOrder: 1, isExpanded: true }).save();
 
   // Day Pages folder — reuses dayPagesFolderId (already under Docs from STEP 0)
   const filesDayPagesFolderId = dayPagesFolderIdForManifest;
 
   // Documents folder (Stan, Gospel, profile docs) — new subfolder under user manifest root
   const docsFolderId = docsFolderIdForManifest;
-  await new Folder({ id: docsFolderId, userId, parentId: rootFolderId, name: "Documents", folderType: "normal", sortOrder: 3, isExpanded: true }).save();
+  await new Folder({ id: docsFolderId, userId, gridId, parentId: rootFolderId, name: "Documents", folderType: "normal", sortOrder: 3, isExpanded: true }).save();
 
   // Notes folder at root level (Philosopher's Stone + flat notes)
   const notesFolderId = notesFolderIdForManifest;
-  await new Folder({ id: notesFolderId, userId, parentId: rootFolderId, name: "Notes", folderType: "normal", sortOrder: 4, isExpanded: true }).save();
+  await new Folder({ id: notesFolderId, userId, gridId, parentId: rootFolderId, name: "Notes", folderType: "normal", sortOrder: 4, isExpanded: true }).save();
 
   // Folder page modules — one for each non-root folder so clicking a folder in the tree opens a page
   const folderPageDefs = [
@@ -3450,31 +3583,27 @@ export async function createDefaultUserData(userId) {
   // NOT shown as a real page (meta.isTemplate skips it in FIND_OCCURRENCE queries).
   // Contains [Date] and [DayOfWeek] tokens that get substituted when filling new pages.
   const dayPageTemplateOccId = uid();
+  // Template textmap — same section structure as the sample day page.
+  // New day pages created by the operation use COMPUTE_TEXTMAP_FROM_TEMPLATE which copies this.
+  // Sections are embedded as moduleEmbed nodes pointing to the SAME section containers as the sample day page
+  // (they're persistent containers, not per-day — the user edits them fresh each day).
   const templateTextmap = {
     type: "doc",
     content: [
       { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "[Date]" }] },
-      { type: "paragraph", content: [
-        { type: "text", marks: [{ type: "italic" }], text: "Daily Question: " },
-        fp(fields.journalQuestion.id, "Daily Question", "derived"),
-      ]},
+      { type: "moduleEmbed", attrs: { occurrenceId: dpSectionOccIds.morningIntentions } },
       { type: "paragraph" },
-      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Morning Intentions" }] },
-      { type: "paragraph", content: [
-        { type: "text", text: "Today I want to focus on: " },
-        { type: "text", marks: [{ type: "italic" }], text: "(what matters most today?)" },
-      ]},
-      { type: "bulletList", content: [
-        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Complete morning workout and stretching" }] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Review weekly goals and prioritize top 3 tasks" }] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Deep work session (2h uninterrupted) before lunch" }] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Evening reading + wind-down routine" }] }] },
-      ]},
-      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Daily Log" }] },
-      { type: "paragraph", content: [{ type: "text", text: "Drag activities here as you complete them:" }] },
+      { type: "moduleEmbed", attrs: { occurrenceId: dpSectionOccIds.dailyLog } },
       { type: "paragraph" },
       { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Evening Reflection" }] },
-      { type: "paragraph", content: [{ type: "text", text: "What went well? What would you do differently?" }] },
+      { type: "moduleEmbed", attrs: { occurrenceId: qaContainerOccIds.journalQA_wentWell } },
+      { type: "paragraph" },
+      { type: "moduleEmbed", attrs: { occurrenceId: qaContainerOccIds.journalQA_improved } },
+      { type: "paragraph" },
+      { type: "moduleEmbed", attrs: { occurrenceId: qaContainerOccIds.journalQA_gratitude } },
+      { type: "paragraph" },
+      { type: "moduleEmbed", attrs: { occurrenceId: dpSectionOccIds.brainDump } },
+      { type: "paragraph" },
     ],
   };
   await new Occurrence({
@@ -4148,7 +4277,7 @@ export async function createDefaultUserData(userId) {
   // ── centerHub: 3-page panel (Schedule / Notebook / Freepad) ──
   // Freepad canvas manifest (tree sidebar for canvas pages)
   const freepadRootFolderId = uid();
-  await new Folder({ id: freepadRootFolderId, userId, parentId: null, name: "Canvas Root", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: freepadRootFolderId, userId, gridId, parentId: null, name: "Canvas Root", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
   const freepadManifestId = uid();
   await new Manifest({ id: freepadManifestId, userId, name: "Canvas", manifestType: "files", rootFolderId: freepadRootFolderId }).save();
 

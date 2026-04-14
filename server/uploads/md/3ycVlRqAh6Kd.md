@@ -1,0 +1,1 @@
+- Logic / drive / action ↔ intuition / receptivity / reflection

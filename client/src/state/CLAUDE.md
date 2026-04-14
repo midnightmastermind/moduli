@@ -1,6 +1,11 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-04-02. Check this file before re-reading source._
+_Updated: 2026-04-11. Check this file before re-reading source._
+
+## Recent Changes (Apr 11 2026 — textmaps_batch Handler + Textmap Preservation)
+- **bindSocketToStore.js**: Added `onTextmapsBatch` handler for `textmaps_batch` socket event. Dispatches `UPDATE_OCCURRENCE` for each `{ id, textmap }` entry and updates `localOccsById`. Cleanup removes the listener.
+- **masterReducer.js**: `FULL_STATE` case now preserves textmaps from existing `state.occurrences` when merging (prevents viewport textmaps from priority_state getting wiped when full_state arrives without textmaps). Maps `existingTextmaps` from prior state, merges into incoming occurrences.
+- **Load flow**: `priority_state` has viewport textmaps (inline DB query) → `full_state` merges without wiping them → `textmaps_batch` adds remaining non-viewport textmaps lazily.
 
 ## Recent Changes (Apr 2 2026 — Operations Update on Delete)
 - **bindSocketToStore.js**: `onOccurrenceDeleted` now saves `removedOcc = localOccsById[occurrenceId]` BEFORE deleting from cache. After `OccurrenceDeleteOp` fires, iterates `removedOcc.fields` and fires `MeasureOp` per field. Fixes aggregation operations (e.g. water total) not recalculating when a scheduled occurrence is removed.

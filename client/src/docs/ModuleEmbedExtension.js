@@ -10,7 +10,7 @@ export const ModuleEmbed = Node.create({
   group: "block",
   atom: true,
   selectable: true,
-  draggable: true,
+  draggable: false,
 
   addAttributes() {
     return {

@@ -33,7 +33,8 @@ export function masterReducer(state, action) {
         // ======================================================
         // FULL STATE HYDRATE
         // ======================================================
-        case ActionTypes.FULL_STATE: {
+        case ActionTypes.FULL_STATE:
+        case ActionTypes.PRIORITY_STATE: {
             const {
                 gridId = null,
                 grid = null,
@@ -49,6 +50,23 @@ export function masterReducer(state, action) {
 
             const modules = modulesPayload;
             const derived = deriveRoleArrays(modules);
+            const isFullLoad = action.type === ActionTypes.FULL_STATE;
+
+            // Preserve textmaps already loaded (from priority_state viewport or lazy request_textmap)
+            // Full_state occurrences come from cache with .select("-textmap") — no textmaps included.
+            // Priority_state occurrences DO include textmaps (from targeted DB query).
+            let mergedOccs = occurrences;
+            if (isFullLoad && state.occurrences?.length > 0) {
+                const existingTextmaps = {};
+                for (const occ of state.occurrences) {
+                    if (occ.textmap) existingTextmaps[occ.id] = occ.textmap;
+                }
+                if (Object.keys(existingTextmaps).length > 0) {
+                    mergedOccs = occurrences.map(o =>
+                        existingTextmaps[o.id] ? { ...o, textmap: existingTextmaps[o.id] } : o
+                    );
+                }
+            }
 
             return {
                 ...state,
@@ -59,14 +77,15 @@ export function masterReducer(state, action) {
                 containers: derived.containers,
                 instances: derived.instances,
                 availableGrids: availableGrids || [],
-                occurrences: occurrences || [],
+                occurrences: mergedOccs,
                 fields: fields || [],
                 manifests: manifests || [],
                 views: views || [],
                 folders: folders || [],
                 operations: operations || [],
-                computedValues: {},  // reset on re-hydrate; executor re-fills on load
+                computedValues: isFullLoad ? {} : state.computedValues,
                 hydrated: true,
+                fullStateLoaded: isFullLoad,
             };
         }
 
