@@ -68,17 +68,16 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   }, [editor, getPos, node.nodeSize, occurrenceId, dispatch, socket]);
 
   // Backspace/ArrowLeft/ArrowUp at start of sub-editor.
-  // deleteIfEmpty=true (only from Backspace): delete the whole textblock when empty.
-  // Otherwise navigate to end of previous sibling.
+  // deleteIfEmpty=true (only from Backspace or Shift+Enter): replace textblock with empty paragraph.
+  // CALLER CONTRACT: only pass deleteIfEmpty=true when the sub-editor's doc is empty
+  // (Editor.jsx checks docIsEmpty before calling). This function cannot re-verify emptiness
+  // because it has no ref to the inner ProseMirror view.
   const handleNavigateBack = useCallback((deleteIfEmpty = false) => {
     if (!editor || !getPos) return;
 
-    // If sub-editor is empty and caller passed deleteIfEmpty, replace the textblock
-    // with an empty paragraph and place the cursor inside it. This gives the user
-    // an intermediate empty line before navigating further back with another backspace.
     if (deleteIfEmpty) {
       // Replace textblock with an empty paragraph and place cursor inside it.
-      // Gives the user an intermediate "empty line" before navigating further.
+      // Gives the user an intermediate "empty line" step before the next backspace.
       const pos = getPos();
       const nodeSize = node.nodeSize;
       editor.chain().focus()
