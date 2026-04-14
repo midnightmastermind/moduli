@@ -39,10 +39,11 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
           const sel = window.getSelection();
           sel?.removeAllRanges();
           sel?.addRange(range);
+          return;
         }
-        return;
+        // innerPM not ready — fall through to setTextSelection fallback
       }
-      // Regular node — step inside it.
+      // Regular node (or innerPM fallback) — step inside it.
       editor.chain().setTextSelection(afterPos + 1).focus().run();
     } else {
       // End of doc — insert a new paragraph and move cursor into it.
