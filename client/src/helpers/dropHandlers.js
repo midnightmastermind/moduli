@@ -170,24 +170,31 @@ export function handleContainerDrop(ctx, drop) {
     const fromPanelOcc = fromPanel?._occurrence ? occurrencesById[fromPanel._occurrence.id] : null;
     const toPanelOcc = toPanel?._occurrence ? occurrencesById[toPanel._occurrence.id] : null;
 
-    if (fromPanel && toPanel && fromPanelOcc) {
+    // When containers live inside a PAGE occurrence (board pages), use the page
+    // occurrence for ordering instead of the panel occurrence (which only has page IDs).
+    const fromPageOccId = payload.context?.pageOccurrenceId;
+    const toPageOccId = dropTarget.context?.pageOccurrenceId;
+    const fromOrderOcc = fromPageOccId ? (occurrencesById[fromPageOccId] || fromPanelOcc) : fromPanelOcc;
+    const toOrderOcc = toPageOccId ? (occurrencesById[toPageOccId] || toPanelOcc || fromOrderOcc) : (toPanelOcc || fromOrderOcc);
+
+    if (fromPanel && toPanel && fromOrderOcc) {
       const draggedContainerId = payload.id;
-      const occurrenceId = LayoutHelpers.findOccurrenceIdByTarget(draggedContainerId, fromPanelOcc.occurrences || [], occurrencesById);
+      const occurrenceId = LayoutHelpers.findOccurrenceIdByTarget(draggedContainerId, fromOrderOcc.occurrences || [], occurrencesById);
       if (!occurrenceId) { clearSession(); return; }
 
-      const effectiveToPanelOcc = toPanelOcc || fromPanelOcc;
       let toIndex = null;
 
       if (dropTarget.context?.insertAt !== undefined) {
         toIndex = dropTarget.context.insertAt;
       } else if (containerId) {
-        const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(containerId, effectiveToPanelOcc.occurrences || [], occurrencesById);
+        const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(containerId, toOrderOcc.occurrences || [], occurrencesById);
         if (hoveredIndex !== -1) {
           const edge = dropTarget.context?.closestEdge;
           if (edge === 'top' || edge === 'left') toIndex = hoveredIndex;
           else if (edge === 'bottom' || edge === 'right') toIndex = hoveredIndex + 1;
-          if (fromPanel.id === toPanel.id) {
-            const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromPanelOcc.occurrences || [], occurrencesById);
+          const sameOrderOcc = fromOrderOcc.id === toOrderOcc.id;
+          if (sameOrderOcc) {
+            const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromOrderOcc.occurrences || [], occurrencesById);
             if (fromIndex !== -1 && fromIndex < hoveredIndex) toIndex = Math.max(0, toIndex - 1);
           }
         }
@@ -196,28 +203,35 @@ export function handleContainerDrop(ctx, drop) {
       const gridId = state?.gridId || state?.grid?._id;
       const isCopyMode = sessionRef.current.mode === 'copy';
       const samePanel = fromPanel.id === toPanel.id;
+      const sameOrderOcc = fromOrderOcc.id === toOrderOcc.id;
 
-      if (isCopyMode && samePanel) {
-        const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromPanelOcc.occurrences || [], occurrencesById);
+      if (isCopyMode && sameOrderOcc) {
+        const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromOrderOcc.occurrences || [], occurrencesById);
         if (fromIndex !== -1) {
           if (toIndex === null) { clearSession(); return; }
           if (fromIndex !== toIndex) {
-            LayoutHelpers.reorderContainersInPanel({ dispatch, socket, panelOccurrence: fromPanelOcc, fromIndex, toIndex, emit: true });
+            LayoutHelpers.reorderContainersInPanel({ dispatch, socket, panelOccurrence: fromOrderOcc, fromIndex, toIndex, emit: true });
           }
         }
       } else if (isCopyMode) {
         LayoutHelpers.copyContainerToPanel({ dispatch, socket, gridId, sourceContainerId: draggedContainerId, toPanel, userId: state?.userId, toIndex, emit: true });
-      } else if (samePanel) {
-        const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromPanelOcc.occurrences || [], occurrencesById);
+      } else if (sameOrderOcc) {
+        const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromOrderOcc.occurrences || [], occurrencesById);
         if (fromIndex !== -1) {
           if (toIndex === null) { clearSession(); return; }
           if (fromIndex !== toIndex) {
-            LayoutHelpers.reorderContainersInPanel({ dispatch, socket, panelOccurrence: fromPanelOcc, fromIndex, toIndex, emit: true });
+            LayoutHelpers.reorderContainersInPanel({ dispatch, socket, panelOccurrence: fromOrderOcc, fromIndex, toIndex, emit: true });
           }
         }
+      } else if (samePanel && fromPanelOcc) {
+        // Same panel, different page — move between pages
+        LayoutHelpers.moveContainerBetweenPanels({
+          dispatch, socket, fromPanelOccurrence: fromOrderOcc, toPanelOccurrence: toOrderOcc,
+          occurrenceId, toIndex, emit: true,
+        });
       } else {
         LayoutHelpers.moveContainerBetweenPanels({
-          dispatch, socket, fromPanelOccurrence: fromPanelOcc, toPanelOccurrence: effectiveToPanelOcc,
+          dispatch, socket, fromPanelOccurrence: fromOrderOcc, toPanelOccurrence: toOrderOcc,
           occurrenceId, toIndex, emit: true,
         });
       }

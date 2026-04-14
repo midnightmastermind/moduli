@@ -36,21 +36,24 @@ function focusInnerAt(innerPM, atStart) {
   return true;
 }
 
-// Focus innerPM at the visual position closest to (x, fromTop ? top : bottom).
-// Falls back to focusInnerAt(atStart=fromTop) if caretRangeFromPoint misses.
+// Focus innerPM at top or bottom, trying to match x position via caretRangeFromPoint.
+// Falls back to start/end if the hit test misses the inner editor.
 function focusInnerAtXY(innerPM, x, fromTop) {
   if (!innerPM) return false;
-  const rect = innerPM.getBoundingClientRect();
-  const cx = Math.min(Math.max(x, rect.left + 2), rect.right - 2);
-  const cy = fromTop ? rect.top + 2 : rect.bottom - 2;
-  const range = document.caretRangeFromPoint?.(cx, cy);
-  if (range && innerPM.contains(range.startContainer)) {
-    innerPM.focus();
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    sel?.addRange(range);
-    return true;
+  if (document.caretRangeFromPoint) {
+    const rect = innerPM.getBoundingClientRect();
+    const cx = Math.min(Math.max(x, rect.left + 1), rect.right - 1);
+    const cy = fromTop ? rect.top + 1 : rect.bottom - 1;
+    const range = document.caretRangeFromPoint(cx, cy);
+    if (range && innerPM.contains(range.startContainer)) {
+      innerPM.focus();
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+      return true;
+    }
   }
+  // Fallback: collapse to start (entering from top) or end (entering from bottom)
   return focusInnerAt(innerPM, fromTop);
 }
 
@@ -138,8 +141,12 @@ export const PillBackspace = Extension.create({
         const blockStart = $anchor.before(1);
         const prev = state.doc.resolve(blockStart).nodeBefore;
         if (prev?.type.name !== "instanceTextblock") return false;
-        const innerPM = getInnerPM(editor.view.nodeDOM(blockStart - prev.nodeSize));
-        return focusInnerAt(innerPM, false);
+        const textblockPos = blockStart - prev.nodeSize;
+        requestAnimationFrame(() => {
+          const innerPM = getInnerPM(editor.view.nodeDOM(textblockPos));
+          focusInnerAt(innerPM, false);
+        });
+        return true;
       },
 
       // ── ArrowRight — enter textblock at its start ─────────────────────────
@@ -153,8 +160,11 @@ export const PillBackspace = Extension.create({
         const blockEnd = $anchor.after(1);
         const next = state.doc.resolve(blockEnd).nodeAfter;
         if (next?.type.name !== "instanceTextblock") return false;
-        const innerPM = getInnerPM(editor.view.nodeDOM(blockEnd));
-        return focusInnerAt(innerPM, true);
+        requestAnimationFrame(() => {
+          const innerPM = getInnerPM(editor.view.nodeDOM(blockEnd));
+          focusInnerAt(innerPM, true);
+        });
+        return true;
       },
 
       // ── ArrowUp — enter textblock at bottom when on first visual line ─────
@@ -169,9 +179,14 @@ export const PillBackspace = Extension.create({
         const blockStart = $anchor.before(1);
         const prev = state.doc.resolve(blockStart).nodeBefore;
         if (prev?.type.name !== "instanceTextblock") return false;
+        const textblockPos = blockStart - prev.nodeSize;
         const coords = editor.view.coordsAtPos(selection.anchor);
-        const innerPM = getInnerPM(editor.view.nodeDOM(blockStart - prev.nodeSize));
-        return focusInnerAtXY(innerPM, coords.left, false); // enter from bottom
+        // Defer focus until after ProseMirror finishes processing the keydown
+        requestAnimationFrame(() => {
+          const innerPM = getInnerPM(editor.view.nodeDOM(textblockPos));
+          focusInnerAtXY(innerPM, coords.left, false);
+        });
+        return true;
       },
 
       // ── ArrowDown — enter textblock at top when on last visual line ───────
@@ -187,8 +202,12 @@ export const PillBackspace = Extension.create({
         const next = state.doc.resolve(blockEnd).nodeAfter;
         if (next?.type.name !== "instanceTextblock") return false;
         const coords = editor.view.coordsAtPos(selection.anchor);
-        const innerPM = getInnerPM(editor.view.nodeDOM(blockEnd));
-        return focusInnerAtXY(innerPM, coords.left, true); // enter from top
+        // Defer focus until after ProseMirror finishes processing the keydown
+        requestAnimationFrame(() => {
+          const innerPM = getInnerPM(editor.view.nodeDOM(blockEnd));
+          focusInnerAtXY(innerPM, coords.left, true);
+        });
+        return true;
       },
 
     };

@@ -773,6 +773,11 @@ export function DragProvider({
     if (payload?.type === DragType.PANEL) {
       handlePanelDrop(ctx, drop);
     } else if (payload?.type === DragType.CONTAINER && panelId) {
+      // Skip doc containers — Editor.jsx handles embed insertion via moduleEmbed node
+      if (containerId) {
+        const targetContainer = baseContainers.find(c => c.id === containerId);
+        if (targetContainer?.kind === "doc") { clearSession(); return; }
+      }
       handleContainerDrop(ctx, drop);
     } else if (payload?.type === DragType.INSTANCE && containerId) {
       // Skip doc containers — Editor.jsx's Pragmatic DnD drop target handles insertion

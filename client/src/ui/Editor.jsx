@@ -27,6 +27,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { NATIVE_DND_MIME } from "../helpers/dragSystem";
 
 import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table";
 import { FieldPill } from "../docs/FieldPillExtension";
@@ -750,6 +751,14 @@ const Editor = forwardRef(function Editor({
         const { type, id, data, context } = sd;
         // Prefer Pragmatic DnD's own coordinates (exact drop point) over lastNativeEvent
         const dropInput = location?.current?.input;
+
+        // Don't handle drops that landed inside a nested instanceTextblock sub-editor.
+        // The sub-editor has its own dropTargetForElements and handles insertion itself.
+        if (dropInput?.clientX != null && dropInput?.clientY != null) {
+          const dropEl = document.elementFromPoint(dropInput.clientX, dropInput.clientY);
+          if (dropEl?.closest('.instance-textblock-block')) return;
+        }
+
         const isBlockDrop = type !== "field";
         const insertPos = resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
 
@@ -799,6 +808,9 @@ const Editor = forwardRef(function Editor({
     if (!editor) return;
     const dt = e.dataTransfer;
     if (!dt) return;
+    // Skip Pragmatic DnD drops — they're handled by dropTargetForElements' onDrop.
+    // Without this guard, the text/plain label from the drag payload creates a duplicate instance.
+    if (dt.types && Array.from(dt.types).includes(NATIVE_DND_MIME)) return;
 
     // File drops
     const files = dt.files;

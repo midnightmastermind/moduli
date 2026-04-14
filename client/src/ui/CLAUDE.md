@@ -1,6 +1,24 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-04-12. Check this file before re-reading source._
+_Updated: 2026-04-14. Check this file before re-reading source._
+
+## Recent Changes (Apr 14 2026 — Doc Drop Bug Fixes: No Duplicate, No Double-Insert)
+- **Editor.jsx**: Added `NATIVE_DND_MIME` import from `helpers/dragSystem`. `handleFileDrop` now returns early when `dt.types` includes `NATIVE_DND_MIME` — prevents Pragmatic DnD drags from being processed as native text/file drops. Root cause of "blank textblock" / duplicate instance bug: `text/plain` from drag payload was creating a new module + `instancePill` alongside the `moduleEmbed`.
+- **Editor.jsx**: Outer `onDrop` now checks `document.elementFromPoint` at drop coordinates and returns early if the point is inside `.instance-textblock-block`. Prevents the outer doc from creating a second `moduleEmbed` when the drop lands inside a textblock sub-editor. The sub-editor's own `dropTargetForElements` handles the insertion.
+
+## Recent Changes (Apr 14 2026 — Shift+Enter Empty Textblock Fix)
+- **Editor.jsx**: `handleDOMEvents.keydown` Shift+Enter branch now checks `onDeleteBlockRef.current` first. If the sub-editor doc is empty (`_view.state.doc.textContent.length === 0`), calls `onDeleteBlockRef.current(true)` to replace the textblock with an empty paragraph. Only falls through to `onExitBlockRef.current()` (exit to next block) when doc is non-empty. Uses existing stable refs — no new refs added.
+
+## Recent Changes (Apr 14 2026 — Block-Embed Drop Position Snapping)
+- **Editor.jsx**: `resolveInsertPos` now accepts `isBlock = false` param. For block drops, snaps raw `posAtCoords` result to top-level block boundary via `$pos.before(1)` / `$pos.after(1)`, then checks DOM bounding rect mid-point to decide insert before vs after. Field pill drops use `isBlock=false` (raw pos unchanged). `onDrop` sets `isBlockDrop = type !== "field"` before calling `resolveInsertPos`.
+
+## Recent Changes (Apr 14 2026 — Drop Fixes: No Popup + Container Embed)
+- **Editor.jsx**: Removed `pendingDrop` state and pill/embed choice popup for instance drops. Instance drops now insert `moduleEmbed` directly (same as containers). The existing ModuleEmbedNode selection toolbar (Pill button when selected) provides pill conversion. Mirrors Apr 6 behavior that was re-reverted.
+- **Editor.jsx**: Container drops in docs now work — `context.occurrenceId` is set by ModuleContainer (see helpers/CLAUDE.md). The stale-closure fallback `Object.values(occurrencesById).find()` was failing; direct occurrenceId in context fixes it.
+
+## Recent Changes (Apr 14 2026 — Sub-Editor Arrow + Enter Fix)
+- **Editor.jsx**: Added `onExitBlockRef` + `onDeleteBlockRef` (`useRef`) before `useEditor`. Updated every render: `onExitBlockRef.current = onExitBlock`. All `handleDOMEvents.keydown` and `handleKeyDown` handlers now reference `.current` — fixes stale closure bug where Shift+Enter did nothing (callback was captured at `useEditor` init time).
+- **Editor.jsx**: Fixed multi-line textblock arrow skipping. `ArrowUp` handler now guards with `$anchor.index(0) === 0` (only exit when cursor is in the first top-level block). `ArrowDown` guards with `$anchor.index(0) === doc.childCount - 1`. Previously `endOfTextblock("up"/"down")` fired at every block boundary, causing the cursor to jump out of the sub-editor instead of moving line-by-line through multi-paragraph content.
 
 ## Recent Changes (Apr 12 2026 — InstanceTextblock Integration + Enter/Shift+Enter)
 - **Editor.jsx**: Registered `InstanceTextblock` extension (imported from `docs/InstanceTextblockExtension.js`). Added to `useEditor` extensions array alongside existing pill extensions.

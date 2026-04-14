@@ -61,6 +61,15 @@ async function createTestGrid(userId) {
   // Instance module IDs
   const drinkWaterModId = uid();
   const waterGoalModId  = uid();
+  const morningRunModId = uid();
+  const vitaminsModId   = uid();
+  const stretchModId    = uid();
+  const todoGroceriesModId  = uid();
+  const todoDentistModId    = uid();
+  const todoReviewPRModId   = uid();
+  const todoBillsModId      = uid();
+  const todoReadModId       = uid();
+  const todoEmailModId      = uid();
 
   // View / manifest / folder IDs
   const centerHubViewId = uid();
@@ -107,11 +116,68 @@ async function createTestGrid(userId) {
       ],
     },
     {
+      id: morningRunModId, userId, gridId, role: "instance", kind: "list", label: "Morning Run",
+      defaultDragMode: "copy",
+      fieldBindings: [{ fieldId: completedFieldId, role: "input", order: 0 }],
+    },
+    {
+      id: vitaminsModId, userId, gridId, role: "instance", kind: "list", label: "Take Vitamins",
+      defaultDragMode: "copy",
+      fieldBindings: [{ fieldId: completedFieldId, role: "input", order: 0 }],
+    },
+    {
+      id: stretchModId, userId, gridId, role: "instance", kind: "list", label: "Stretch",
+      defaultDragMode: "copy",
+      fieldBindings: [{ fieldId: completedFieldId, role: "input", order: 0 }],
+    },
+    {
       id: waterGoalModId, userId, gridId, role: "instance", kind: "list", label: "Physical Wellness",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: totalWaterFieldId, role: "display", order: 0 },
       ],
+    },
+    {
+      id: todoGroceriesModId, userId, gridId, role: "instance", kind: "list", label: "Buy groceries",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: completedFieldId, role: "input", order: 0 },
+        { fieldId: dueFieldId, role: "input", order: 1 },
+      ],
+    },
+    {
+      id: todoDentistModId, userId, gridId, role: "instance", kind: "list", label: "Call dentist",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: completedFieldId, role: "input", order: 0 },
+        { fieldId: dueFieldId, role: "input", order: 1 },
+      ],
+    },
+    {
+      id: todoReviewPRModId, userId, gridId, role: "instance", kind: "list", label: "Review open PRs",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: completedFieldId, role: "input", order: 0 },
+        { fieldId: dueFieldId, role: "input", order: 1 },
+      ],
+    },
+    {
+      id: todoBillsModId, userId, gridId, role: "instance", kind: "list", label: "Pay monthly bills",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: completedFieldId, role: "input", order: 0 },
+        { fieldId: dueFieldId, role: "input", order: 1 },
+      ],
+    },
+    {
+      id: todoReadModId, userId, gridId, role: "instance", kind: "list", label: "Read a chapter",
+      defaultDragMode: "move",
+      fieldBindings: [{ fieldId: completedFieldId, role: "input", order: 0 }],
+    },
+    {
+      id: todoEmailModId, userId, gridId, role: "instance", kind: "list", label: "Clear inbox",
+      defaultDragMode: "move",
+      fieldBindings: [{ fieldId: completedFieldId, role: "input", order: 0 }],
     },
   ]);
 
@@ -147,11 +213,34 @@ async function createTestGrid(userId) {
     return id;
   }
 
+  // Due date helpers
+  const in2Days = new Date(today); in2Days.setDate(in2Days.getDate() + 2);
+  const in5Days = new Date(today); in5Days.setDate(in5Days.getDate() + 5);
+  const in1Day  = new Date(today); in1Day.setDate(in1Day.getDate() + 1);
+  const in7Days = new Date(today); in7Days.setDate(in7Days.getDate() + 7);
+
   // Drink Water → Physical container
   const drinkWaterOccId = await mkOcc({
     targetType: "module", targetId: drinkWaterModId,
     meta: { containerId: physicalContId },
     fields: { [scheduledDateFieldId]: { value: today.toISOString(), flow: "in", timestamp: new Date() } },
+  });
+
+  // Morning Run, Take Vitamins, Stretch → Physical container
+  const morningRunOccId = await mkOcc({
+    targetType: "module", targetId: morningRunModId,
+    meta: { containerId: physicalContId },
+    fields: {},
+  });
+  const vitaminsOccId = await mkOcc({
+    targetType: "module", targetId: vitaminsModId,
+    meta: { containerId: physicalContId },
+    fields: { [completedFieldId]: { value: true, flow: "in", timestamp: new Date() } },
+  });
+  const stretchOccId = await mkOcc({
+    targetType: "module", targetId: stretchModId,
+    meta: { containerId: physicalContId },
+    fields: {},
   });
 
   // Water goal → Physical goal container
@@ -164,7 +253,7 @@ async function createTestGrid(userId) {
   // Physical container occurrence (for toolkit panel)
   const physContOccId = await mkOcc({
     targetType: "module", targetId: physicalContId,
-    meta: {}, occurrences: [drinkWaterOccId],
+    meta: {}, occurrences: [drinkWaterOccId, morningRunOccId, vitaminsOccId, stretchOccId],
   });
 
   // Physical goal container occurrence (for goals panel)
@@ -173,10 +262,45 @@ async function createTestGrid(userId) {
     meta: {}, occurrences: [waterGoalOccId],
   });
 
+  // Todo instances → General container
+  const todoGroceriesOccId = await mkOcc({
+    targetType: "module", targetId: todoGroceriesModId,
+    meta: { containerId: todoGeneralContId },
+    fields: { [dueFieldId]: { value: in2Days.toISOString(), flow: "in", timestamp: new Date() } },
+  });
+  const todoDentistOccId = await mkOcc({
+    targetType: "module", targetId: todoDentistModId,
+    meta: { containerId: todoGeneralContId },
+    fields: { [dueFieldId]: { value: in7Days.toISOString(), flow: "in", timestamp: new Date() } },
+  });
+  const todoReviewPROccId = await mkOcc({
+    targetType: "module", targetId: todoReviewPRModId,
+    meta: { containerId: todoGeneralContId },
+    fields: { [dueFieldId]: { value: in1Day.toISOString(), flow: "in", timestamp: new Date() } },
+  });
+  const todoBillsOccId = await mkOcc({
+    targetType: "module", targetId: todoBillsModId,
+    meta: { containerId: todoGeneralContId },
+    fields: {
+      [completedFieldId]: { value: true, flow: "in", timestamp: new Date() },
+      [dueFieldId]: { value: today.toISOString(), flow: "in", timestamp: new Date() },
+    },
+  });
+  const todoReadOccId = await mkOcc({
+    targetType: "module", targetId: todoReadModId,
+    meta: { containerId: todoGeneralContId },
+    fields: {},
+  });
+  const todoEmailOccId = await mkOcc({
+    targetType: "module", targetId: todoEmailModId,
+    meta: { containerId: todoGeneralContId },
+    fields: {},
+  });
+
   // Todo general container occurrence
   const todoContOccId = await mkOcc({
     targetType: "module", targetId: todoGeneralContId,
-    meta: {}, occurrences: [],
+    meta: {}, occurrences: [todoReviewPROccId, todoBillsOccId, todoGroceriesOccId, todoDentistOccId, todoReadOccId, todoEmailOccId],
   });
 
   // Schedule time slot container occurrences
@@ -319,8 +443,8 @@ async function main() {
     console.log(`   Grid ID: ${gridId}`);
     console.log("=".repeat(50));
     console.log("Layout (2×3):");
-    console.log("  [0,0] Daily Toolkit  — Physical → Drink Water");
-    console.log("  [1,0] Todo List      — General (empty)");
+    console.log("  [0,0] Daily Toolkit  — Physical → Drink Water, Morning Run, Take Vitamins, Stretch");
+    console.log("  [1,0] Todo List      — General (6 items: Review PRs, Bills, Groceries, Dentist, Read, Inbox)");
     console.log("  [0,1] Center Hub ×2  — Schedule | Notes pages");
     console.log("  [0,2] Daily Goals    — Physical → Water total");
     console.log("=".repeat(50));

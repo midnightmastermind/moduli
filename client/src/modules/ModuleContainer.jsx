@@ -110,6 +110,7 @@ function Container({
   module,
   panel,
   panelId,
+  pageOccurrenceId = null,
   panelLayoutOrientation = "vertical",
   addInstanceToContainer,
   dispatch,
@@ -344,8 +345,8 @@ function Container({
   const { ref: containerRef, isDragging, isOver: isContainerOver, closestEdge, props: containerProps } = useDragDrop({
     type: DragType.CONTAINER,
     id: module.id,
-    data: containerWithInstances,
-    context: { panelId, containerId: module.id },
+    data: { ...containerWithInstances, occurrenceId: containerOccurrence?.id || null },
+    context: { panelId, containerId: module.id, occurrenceId: containerOccurrence?.id || null, pageOccurrenceId: pageOccurrenceId || null },
     disabled: isInstanceDrag || isExternalDrag,
     accepts: [DragType.CONTAINER],
     allowedEdges: containerAllowedEdges,

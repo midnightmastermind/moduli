@@ -44,6 +44,7 @@ export default function PageBoard({
               module={container}
               occurrenceOverride={containerOcc}
               panelId={panelId}
+              pageOccurrenceId={occurrence.id}
               panelLayoutOrientation="vertical"
               addInstanceToContainer={addInstanceToContainer}
               dispatch={dispatch}
