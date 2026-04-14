@@ -25,7 +25,24 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
     const docSize = editor.state.doc.content.size;
 
     if (afterPos < docSize) {
-      // There's a node after this textblock — step inside it.
+      // Check the next node type — instanceTextblock is atom:true, so
+      // setTextSelection into it creates NodeSelection (whole-element selection) instead
+      // of a text cursor. Must focus its inner editor directly.
+      const nextNode = editor.state.doc.nodeAt(afterPos);
+      if (nextNode?.type.name === "instanceTextblock") {
+        const innerPM = editor.view.nodeDOM(afterPos)?.querySelector?.(".ProseMirror");
+        if (innerPM) {
+          innerPM.focus();
+          const range = document.createRange();
+          range.selectNodeContents(innerPM);
+          range.collapse(true); // collapse to start
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+        return;
+      }
+      // Regular node — step inside it.
       editor.chain().setTextSelection(afterPos + 1).focus().run();
     } else {
       // End of doc — insert a new paragraph and move cursor into it.
@@ -49,10 +66,32 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
     }
   }, [editor, getPos, node.nodeSize, occurrenceId, dispatch, socket]);
 
-  // Backspace at start of sub-editor → move parent cursor to end of previous sibling.
-  // Never deletes the textblock (use radial menu for that).
-  const handleNavigateBack = useCallback(() => {
+  // Backspace/ArrowLeft/ArrowUp at start of sub-editor.
+  // deleteIfEmpty=true (only from Backspace): delete the whole textblock when empty.
+  // Otherwise navigate to end of previous sibling.
+  const handleNavigateBack = useCallback((deleteIfEmpty = false) => {
     if (!editor || !getPos) return;
+
+    // If sub-editor is empty and caller passed deleteIfEmpty, replace the textblock
+    // with an empty paragraph and place the cursor inside it. This gives the user
+    // an intermediate empty line before navigating further back with another backspace.
+    if (deleteIfEmpty) {
+      // Replace textblock with an empty paragraph and place cursor inside it.
+      // Gives the user an intermediate "empty line" before navigating further.
+      const pos = getPos();
+      const nodeSize = node.nodeSize;
+      editor.chain().focus()
+        .deleteRange({ from: pos, to: pos + nodeSize })
+        .insertContentAt(pos, { type: "paragraph" })
+        .setTextSelection(pos + 1)
+        .run();
+      // Clean up the occurrence from the data model
+      if (occurrenceId && dispatch && socket) {
+        CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId, emit: true });
+      }
+      return;
+    }
+
     const pos = getPos(); // start of this textblock node in the parent doc
     if (pos <= 0) return;
 
@@ -78,7 +117,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       // Regular block (paragraph, heading, etc.) — move outer cursor to its end
       editor.chain().setTextSelection(pos - 1).focus().run();
     }
-  }, [editor, getPos]);
+  }, [editor, getPos, handleDeleteBlock]);
 
   return (
     <NodeViewWrapper as="div" contentEditable={false}>
