@@ -85,9 +85,6 @@ const Editor = forwardRef(function Editor({
   const exprListRef = useRef(null);
 
 
-  // Pill/embed choice popup for instance drops
-  const [pendingDrop, setPendingDrop] = useState(null); // { occurrenceId, instanceId, label, insertPos, dropX, dropY }
-
   const [isDropTarget, setIsDropTarget] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
@@ -97,6 +94,12 @@ const Editor = forwardRef(function Editor({
   const wrapperRef = useRef(null);
   const saveTimeout = useRef(null);
   const autoCreateTimerRef = useRef(null);
+  // Suppress content-sync from server echoes for 1.5s after any local edit.
+  // Without this, a debounced save from before auto-create fires can echo back
+  // after the sub-editor takes focus (outer hasFocus=false) and reset the doc
+  // to the pre-textblock state, removing the empty paragraphs the user created.
+  const locallyModifiedRef = useRef(false);
+  const locallyModifiedTimerRef = useRef(null);
 
   // ── available fields for @ suggestions ──────────────────────
   const availableFields = useMemo(
@@ -148,6 +151,14 @@ const Editor = forwardRef(function Editor({
   const handleEmbedTrigger = useCallback(() => {
     if (!showEmbedPicker) { setEmbedPos(getCursorPosition()); setShowEmbedPicker(true); setEmbedQuery(""); }
   }, [showEmbedPicker, getCursorPosition]);
+
+  // ── stable refs for sub-editor exit/delete callbacks ─────────
+  // editorProps closures are captured once at useEditor init — refs ensure
+  // the callbacks stay current across renders without recreating the editor.
+  const onExitBlockRef = useRef(onExitBlock);
+  const onDeleteBlockRef = useRef(onDeleteBlock);
+  onExitBlockRef.current = onExitBlock;
+  onDeleteBlockRef.current = onDeleteBlock;
 
   // ── debounced save ────────────────────────────────────────────
   const persistContent = useCallback((json, immediate = false) => {
@@ -221,6 +232,15 @@ const Editor = forwardRef(function Editor({
       }
     },
     onUpdate: ({ editor, transaction }) => {
+      // Mark as locally modified — suppress server echoes for 1.5s so stale
+      // echoes (e.g. from before auto-create) can't reset the doc after the
+      // sub-editor takes focus and hasFocus becomes false on the outer editor.
+      locallyModifiedRef.current = true;
+      if (locallyModifiedTimerRef.current) clearTimeout(locallyModifiedTimerRef.current);
+      locallyModifiedTimerRef.current = setTimeout(() => {
+        locallyModifiedRef.current = false;
+      }, 1500);
+
       const json = editor.getJSON();
       onChange?.(json);
       persistContent(json, false);
@@ -321,46 +341,67 @@ const Editor = forwardRef(function Editor({
           }
           return false;
         },
+        keydown: (_view, event) => {
+          // Shift+Enter exits the textblock/doccontainer — fires at DOM level so it
+          // runs before TipTap's HardBreak extension can intercept Shift+Enter.
+          // Plain Enter stays inside (TipTap handles naturally).
+          if (event.key === "Enter" && event.shiftKey && onExitBlockRef.current) {
+            event.preventDefault();
+            onExitBlockRef.current();
+            return true;
+          }
+          return false;
+        },
       },
       handleKeyDown: (_view, event) => {
-        // Enter in textblock — always exit to parent doc (creates new line outside)
-        // Shift+Enter stays inside as a hard break (handled naturally by TipTap StarterKit)
-        if (event.key === "Enter" && !event.shiftKey && onExitBlock) {
-          event.preventDefault();
-          onExitBlock();
-          return true;
+        // (Enter/Shift+Enter handled in handleDOMEvents.keydown above)
+        // Backspace at position 0 — delete textblock if empty, navigate back if not.
+        if (event.key === "Backspace" && onDeleteBlockRef.current) {
+          const { from, empty: selEmpty } = _view.state.selection;
+          if (from <= 1 && selEmpty) {
+            const docIsEmpty = _view.state.doc.textContent.length === 0;
+            event.preventDefault();
+            onDeleteBlockRef.current(docIsEmpty);
+            return true;
+          }
         }
-        // Backspace / ArrowLeft at position 0 — navigate back to parent editor.
-        if ((event.key === "Backspace" || event.key === "ArrowLeft") && onDeleteBlock) {
+        // ArrowLeft at position 0 — always navigate back (never delete).
+        if (event.key === "ArrowLeft" && onDeleteBlockRef.current) {
           const { from, empty: selEmpty } = _view.state.selection;
           if (from <= 1 && selEmpty) {
             event.preventDefault();
-            onDeleteBlock();
+            onDeleteBlockRef.current(false);
             return true;
           }
         }
         // ArrowRight at end of content — exit to next block.
-        if (event.key === "ArrowRight" && onExitBlock) {
+        if (event.key === "ArrowRight" && onExitBlockRef.current) {
           const { to, empty: selEmpty } = _view.state.selection;
           if (to >= _view.state.doc.content.size && selEmpty) {
             event.preventDefault();
-            onExitBlock();
+            onExitBlockRef.current();
             return true;
           }
         }
-        // ArrowUp at first visual line — navigate back (exit upward).
-        if (event.key === "ArrowUp" && onDeleteBlock) {
-          if (_view.endOfTextblock("up")) {
+        // ArrowUp at first visual line of the FIRST block — navigate back (exit upward).
+        // Guard: $anchor.index(0) === 0 ensures we only exit when in the first top-level
+        // block. Without this, endOfTextblock("up") fires at the top of every block,
+        // causing the cursor to skip lines in multi-paragraph sub-editors.
+        if (event.key === "ArrowUp" && onDeleteBlockRef.current) {
+          const { $anchor } = _view.state.selection;
+          if ($anchor.index(0) === 0 && _view.endOfTextblock("up")) {
             event.preventDefault();
-            onDeleteBlock();
+            onDeleteBlockRef.current();
             return true;
           }
         }
-        // ArrowDown at last visual line — exit to next block (exit downward).
-        if (event.key === "ArrowDown" && onExitBlock) {
-          if (_view.endOfTextblock("down")) {
+        // ArrowDown at last visual line of the LAST block — exit to next block.
+        // Same guard: only exit when cursor is in the last top-level block.
+        if (event.key === "ArrowDown" && onExitBlockRef.current) {
+          const { $anchor } = _view.state.selection;
+          if ($anchor.index(0) === _view.state.doc.childCount - 1 && _view.endOfTextblock("down")) {
             event.preventDefault();
-            onExitBlock();
+            onExitBlockRef.current();
             return true;
           }
         }
@@ -406,8 +447,11 @@ const Editor = forwardRef(function Editor({
     return () => { editor.off("focus", onFocus); };
   }, [editor]);
 
-  // Cleanup autoCreate timer on unmount
-  useEffect(() => () => { if (autoCreateTimerRef.current) clearTimeout(autoCreateTimerRef.current); }, []);
+  // Cleanup timers on unmount
+  useEffect(() => () => {
+    if (autoCreateTimerRef.current) clearTimeout(autoCreateTimerRef.current);
+    if (locallyModifiedTimerRef.current) clearTimeout(locallyModifiedTimerRef.current);
+  }, []);
 
 
   // ── context menu (declared AFTER editor to avoid TDZ) ────────
@@ -537,6 +581,10 @@ const Editor = forwardRef(function Editor({
       const hasFocus = editorDom && document.activeElement && editorDom.contains(document.activeElement);
       if (hasFocus) return;
       if (recentMousedownRef.current) return;
+      // Skip if the editor was recently modified locally. Without this, a debounced
+      // save from before auto-create fires echoes back after the sub-editor takes focus
+      // (outer hasFocus=false) and resets the doc to the pre-textblock state.
+      if (locallyModifiedRef.current) return;
       const current = editor.getJSON();
       if (JSON.stringify(current) !== JSON.stringify(content)) {
         const { from, to } = editor.state.selection;
@@ -615,12 +663,33 @@ const Editor = forwardRef(function Editor({
   }, [showSuggestion, suggestionQuery, showCommandPalette, commandQuery, showDocLink, docLinkQuery, showExprSuggestion, exprQuery, exprActiveIndex, filteredExprFields, handleSelectExpr, showEmbedPicker, embedQuery, editor]);
 
   // ── DnD drop target (instances / fields / containers) ────────
-  const resolveInsertPos = useCallback((nativeEvent) => {
+  const resolveInsertPos = useCallback((nativeEvent, isBlock = false) => {
     if (!editor?.view || !nativeEvent) return null;
     const { clientX, clientY } = nativeEvent;
     if (clientX == null || clientY == null) return null;
-    const pos = editor.view.posAtCoords({ left: clientX, top: clientY });
-    return pos ? pos.pos : null;
+    const result = editor.view.posAtCoords({ left: clientX, top: clientY });
+    if (!result) return null;
+
+    const rawPos = result.pos;
+    if (!isBlock) return rawPos; // inline nodes: use raw position as-is
+
+    // Block nodes: snap to the boundary before/after the enclosing top-level block.
+    // posAtCoords returns an inline offset inside the nearest block — we want
+    // the gap between top-level blocks so insertContentAt places the embed correctly.
+    const $pos = editor.state.doc.resolve(rawPos);
+    if ($pos.depth === 0) return rawPos;
+
+    const blockStart = $pos.before(1); // position of the gap before the top-level block
+    const blockEnd = $pos.after(1);   // position of the gap after the top-level block
+
+    // Use the DOM rect to decide: upper half → insert before, lower half → insert after
+    const domNode = editor.view.nodeDOM(blockStart);
+    if (domNode) {
+      const rect = domNode.getBoundingClientRect();
+      const mid = (rect.top + rect.bottom) / 2;
+      return clientY < mid ? blockStart : blockEnd;
+    }
+    return blockEnd; // safe fallback: insert after
   }, [editor]);
 
   const insertAtPos = useCallback((pos, nodeContent) => {
@@ -670,23 +739,18 @@ const Editor = forwardRef(function Editor({
         const { type, id, data, context } = sd;
         // Prefer Pragmatic DnD's own coordinates (exact drop point) over lastNativeEvent
         const dropInput = location?.current?.input;
-        const insertPos = resolveInsertPos(dropInput || lastNativeEvent);
+        const isBlockDrop = type !== "field";
+        const insertPos = resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
 
         if (type === "instance") {
-          // Instance drops → show pill vs embed choice popup
+          // Instance drops → insert as embed directly; convert to pill via radial menu on the node
           let occurrenceId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
           if (!occurrenceId && id) {
             const existing = Object.values(occurrencesById || {}).find(o => o.targetId === id);
             if (existing) occurrenceId = existing.id;
           }
           if (!occurrenceId) return;
-          setPendingDrop({
-            occurrenceId, instanceId: id,
-            label: data?.label || sd.label || "",
-            insertPos,
-            dropX: lastNativeEvent?.clientX,
-            dropY: lastNativeEvent?.clientY,
-          });
+          insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
           return;
         }
         if (type === "container" || type === "artifact" || type === "module") {
@@ -902,53 +966,6 @@ const Editor = forwardRef(function Editor({
       }}
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
-
-      {/* Pill / Embed choice popup for instance drops */}
-      {pendingDrop && createPortal(
-        <div
-          style={{
-            position: "fixed",
-            left: Math.min((pendingDrop.dropX || 0), window.innerWidth - 190),
-            top: (pendingDrop.dropY || 0) + 10,
-            zIndex: 1200,
-            background: "var(--surface-card, #1a1a2e)",
-            border: "1px solid var(--border-default)",
-            borderRadius: 8,
-            padding: "6px 6px",
-            display: "flex",
-            gap: 4,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.55)",
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onMouseDown={(e) => {
-              e.preventDefault();
-              insertAtPos(pendingDrop.insertPos, {
-                type: "instancePill",
-                attrs: { instanceId: pendingDrop.instanceId, instanceLabel: pendingDrop.label, occurrenceId: pendingDrop.occurrenceId, pillDisplay: "inline" },
-              });
-              setPendingDrop(null);
-            }}
-            style={{ fontSize: 11, padding: "3px 10px", cursor: "pointer", borderRadius: 5, border: "1px solid var(--border-default)", background: "var(--input-bg)", color: "var(--text-primary)" }}
-          >Pill</button>
-          <button
-            onMouseDown={(e) => {
-              e.preventDefault();
-              insertAtPos(pendingDrop.insertPos, { type: "moduleEmbed", attrs: { occurrenceId: pendingDrop.occurrenceId } });
-              setPendingDrop(null);
-            }}
-            style={{ fontSize: 11, padding: "3px 10px", cursor: "pointer", borderRadius: 5, border: "1px solid var(--border-default)", background: "var(--input-bg)", color: "var(--text-primary)" }}
-          >Embed</button>
-          <button
-            onMouseDown={(e) => { e.preventDefault(); setPendingDrop(null); }}
-            style={{ fontSize: 11, padding: "3px 6px", cursor: "pointer", borderRadius: 5, border: "none", background: "transparent", color: "var(--text-faint)" }}
-          >×</button>
-        </div>,
-        document.body
-      )}
-
 
       {isDropTarget && (
         <div className="absolute inset-0 pointer-events-none z-10" style={{ background: "rgba(50,150,255,0.06)" }} />
