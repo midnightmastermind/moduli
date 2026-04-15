@@ -1,10 +1,26 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-04-14. Check this file before re-reading source._
+_Updated: 2026-04-15. Check this file before re-reading source._
+
+## Recent Changes (Apr 15 2026 — OperationEditor crash fix)
+- **commandCenter/OperationsTab.jsx**: Added `if (!operation) return null;` as first line of `OperationEditor` component — fixes crash when opening operations edit menu.
+
+## Recent Changes (Apr 15 2026 — Container Deep Copy into Doc)
+- **Editor.jsx**: Container drops in copy mode now perform a **deep copy** — `deepCopyOcc()` recursive helper creates new occurrences for the container AND all its descendants (children, grandchildren, etc.), copying `fields`, `meta`, `dragMode`, `textmap`, and `occurrences[]` (with newly assigned IDs). The embed node gets the new root occurrence ID. Deleting/editing a child in the embedded copy no longer affects the original.
+
+## Recent Changes (Apr 15 2026 — Three Drop Bug Fixes)
+- **Editor.jsx**: Instance copy now carries `fields`, `meta`, and `dragMode` from `sourceOcc` (was creating blank occurrence with empty `fields: {}`).
+- **Editor.jsx**: `dropTargetForElements` now has `getData: () => ({ type: "doc-editor" })` for downstream identification.
+- **Editor.jsx**: Container drop move logic now checks `context.pageOccurrenceId` BEFORE `context.panelId`. Containers in page-based board panels live in a page occurrence, not the panel occurrence — the old code found the panel occurrence but failed to remove the container (filter was no-op). Root cause of "container auto-copies" bug.
+- **Editor.jsx**: Container drop handler now has copy/move logic. On move: if `context.sourceType === "doc-embed"` calls `embedDeleteRegistry.get(occurrenceId)?.()` to remove old embed node; if from page (`context.pageOccurrenceId`), removes from page occurrence; if from panel (`context.panelId`), removes from panel occurrence.
+
+## Recent Changes (Apr 15 2026 — Textblock Drop Fix + Embed Radial Menu)
+- **Editor.jsx**: Fixed drops into textblock sub-editors. Bug: the `onDrop` guard (`closest('.instance-textblock-block')`) also fired inside the sub-editor's OWN `onDrop`, silently returning before insertion. Fix: added `el.contains(textblock)` check — only the OUTER editor (whose wrapper `el` actually contains the textblock as a descendant) skips; the inner sub-editor (whose wrapper is itself inside the textblock) proceeds normally.
+- **docs/ModuleEmbedNode.jsx**: Removed selection-based alignment toolbar (`{selected && ...}` popup). Replaced with always-present `RadialMenu` handle in the top-left corner of the embed. RadialMenu `items` prop: Float left / Center / Float right / Full width (AlignLeft/Center/Right/AlignJustify icons) + Convert to pill (Box icon). Delete via `onDelete`. No popup opens by default on selection. `selected` prop removed from component destructuring.
 
 ## Recent Changes (Apr 14 2026 — Doc Drop Bug Fixes: No Duplicate, No Double-Insert)
 - **Editor.jsx**: Added `NATIVE_DND_MIME` import from `helpers/dragSystem`. `handleFileDrop` now returns early when `dt.types` includes `NATIVE_DND_MIME` — prevents Pragmatic DnD drags from being processed as native text/file drops. Root cause of "blank textblock" / duplicate instance bug: `text/plain` from drag payload was creating a new module + `instancePill` alongside the `moduleEmbed`.
-- **Editor.jsx**: Outer `onDrop` now checks `document.elementFromPoint` at drop coordinates and returns early if the point is inside `.instance-textblock-block`. Prevents the outer doc from creating a second `moduleEmbed` when the drop lands inside a textblock sub-editor. The sub-editor's own `dropTargetForElements` handles the insertion.
+- **Editor.jsx**: Outer `onDrop` now checks `document.elementFromPoint` at drop coordinates and returns early if the point is inside a textblock that is a DESCENDANT of this editor's wrapper (`el.contains(textblock)`). Prevents the outer doc from creating a second `moduleEmbed` when the drop lands inside a textblock sub-editor.
 
 ## Recent Changes (Apr 14 2026 — Shift+Enter Empty Textblock Fix)
 - **Editor.jsx**: `handleDOMEvents.keydown` Shift+Enter branch now checks `onDeleteBlockRef.current` first. If the sub-editor doc is empty (`_view.state.doc.textContent.length === 0`), calls `onDeleteBlockRef.current(true)` to replace the textblock with an empty paragraph. Only falls through to `onExitBlockRef.current()` (exit to next block) when doc is non-empty. Uses existing stable refs — no new refs added.

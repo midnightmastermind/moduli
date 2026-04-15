@@ -333,6 +333,7 @@ export function TriggerDataHint({ eventType, subjectType }) {
 // OPERATION EDITOR
 // ============================================================
 export function OperationEditor({ operation, fields, onSave, onDelete, onRun, categoryFolders = [], isDuplicate = false }) {
+  if (!operation) return null;
   const { modulesById, operationsById, roleByModuleId } = useContext(GridActionsContext);
   const [local, setLocal] = useState(operation);
   useMemo(() => setLocal(operation), [operation?.id]);

@@ -1,6 +1,17 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-04-09. Check this file before re-reading source._
+_Updated: 2026-04-15. Check this file before re-reading source._
+
+## Recent Changes (Apr 15 2026 — Delete Fires Operations Optimistically)
+- **CommitHelpers.js**: `deleteOccurrence` + `removeOccurrence` now accept optional `occurrence` param. Call `operationsBridge.removeLocalOcc(occurrenceId)` before dispatch (evicts from local cache), then fire `MeasureOp` for each field the occurrence had. Mirrors what `onOccurrenceDeleted` does in bindSocketToStore for other windows. Callers in ModuleInstance.jsx, ModuleContainer.jsx, ContainerPool.jsx updated to pass `occurrence`.
+
+## Recent Changes (Apr 15 2026 — DragMode Per-Occurrence + Drag-Out to Board Fix)
+- **dropHandlers.js**: Container drag-out from doc to board now uses `drop.dropTarget.context?.pageOccurrenceId` to target the page occurrence (not the panel occurrence). Board panels store containers in page occurrences — the old code added to the panel occurrence which is only page IDs, causing the container to never render.
+- **ModuleContainer.jsx**: `containerDragMode` now reads `containerOccurrence?.dragMode ?? module?.defaultDragMode ?? "move"` — occurrence-level dragMode takes priority over module default. `toggleContainerDragModeQuick` now writes to the occurrence via `updateOccurrence` (when occurrence exists) instead of always writing to the module. Toggling one copy's mode no longer affects other occurrences sharing the same module.
+
+## Recent Changes (Apr 15 2026 — Drag-Out from Doc Embeds)
+- **dropHandlers.js**: Both `handleInstanceDrop` and `handleContainerDrop` now handle `payload.context.sourceType === "doc-embed"`. Instance: skips `fromC` check, adds `occurrenceId` to `toCOcc.occurrences`, calls `embedDeleteRegistry.get(occurrenceId)?.()` on move mode. Container: same for panel (`toPanelOcc.occurrences`). Enables dragging embedded instances/containers out of docs back to boards.
+- **embedRegistry.js**: (existing) `embedDeleteRegistry` Map imported by dropHandlers — completes the drag-out circuit.
 
 ## Recent Changes (Apr 10 2026 — DragProvider Doc Container Skip)
 - **DragProvider.jsx**: `handleDrop` instance branch now skips doc containers — checks `baseContainers.find(c => c.id === containerId)?.kind === "doc"` before calling `handleInstanceDrop`. Root cause of 3 bugs: (1) extra occurrence created when dragging instance into doc, (2) pending drop popup not closing reliably, (3) blank embed element left after deleting moduleEmbed. All fixed by preventing DragProvider from processing instance drops on doc containers — Editor.jsx's own Pragmatic DnD drop target handles insertion.

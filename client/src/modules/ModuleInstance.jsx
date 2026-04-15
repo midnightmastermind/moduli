@@ -50,6 +50,8 @@ function InstanceInner({
   containerOccurrence,
   dispatch,
   socket,
+  embedRadialItems = null,
+  embedOnDelete = null,
 }) {
   const { state } = useContext(GridDataContext);
   const { fieldsById, addInstanceToContainer, occurrencesById, linkedGroupIndex, instancesById, operationsById } = useContext(GridActionsContext);
@@ -94,6 +96,7 @@ function InstanceInner({
       dispatch,
       socket,
       occurrenceId: occurrence.id,
+      occurrence,
       parentOccurrence: containerOccurrence || null,
       emit: true,
     });
@@ -101,21 +104,14 @@ function InstanceInner({
 
   // Toggle drag mode — writes to occurrence if it has its own dragMode, otherwise to instance template
   const toggleEntityDragMode = useCallback(() => {
+    if (!occurrence?.id) return;
     const newMode = entityDragMode === "move" ? "copy" : "move";
-    if (occurrence?.dragMode != null) {
-      CommitHelpers.updateOccurrence({
-        dispatch, socket,
-        occurrence: { id: occurrence.id, dragMode: newMode },
-        emit: true,
-      });
-    } else {
-      CommitHelpers.updateModule({
-        dispatch, socket,
-        module: { id, defaultDragMode: newMode },
-        emit: true,
-      });
-    }
-  }, [id, occurrence, entityDragMode, dispatch, socket]);
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: occurrence.id, dragMode: newMode },
+      emit: true,
+    });
+  }, [occurrence?.id, entityDragMode, dispatch, socket]);
 
   // Get fields for this instance based on fieldBindings (skip hidden bindings)
   const instanceFields = useMemo(() => {
@@ -268,10 +264,11 @@ function InstanceInner({
                   onToggleHeader={!occurrence?.linkedGroupId ? () => setShowLabel(v => !v) : undefined}
                   showHeader={showLabel}
                   onToggleDoc={toggleDoc || undefined}
-                  onDelete={() => {
+                  onDelete={embedOnDelete ?? (() => {
                     if (!occurrence?.id) return;
-                    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, parentOccurrence: containerOccurrence || null, emit: true });
-                  }}
+                    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: containerOccurrence || null, emit: true });
+                  })}
+                  extraItems={embedRadialItems}
                 />
               </div>
             </PopoverAnchor>
@@ -471,6 +468,9 @@ function ModuleInstance({
   socket,
   allowedEdges = ["top", "bottom"],
   onInstanceFocus,
+  embedRadialItems = null,
+  embedOnDelete = null,
+  embedSourceType = null,
 }) {
   const dragCtx = useDragContext();
   const { isContainerDrag } = dragCtx;
@@ -496,7 +496,7 @@ function ModuleInstance({
         label: "Remove from container", icon: Trash2, danger: true,
         onClick: () => {
           if (!occurrence?.id) return;
-          CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, parentOccurrence: containerOccurrence || null, emit: true });
+          CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: containerOccurrence || null, emit: true });
         },
       },
     ].filter(Boolean);
@@ -509,7 +509,7 @@ function ModuleInstance({
     type: DragType.INSTANCE,
     id: module.id,
     data: { ...module, occurrence },
-    context: { containerId, panelId, instanceId: module.id, occurrenceId: occurrence?.id },
+    context: { containerId, panelId, instanceId: module.id, occurrenceId: occurrence?.id, sourceType: embedSourceType },
     disabled: isContainerDrag,
     nativeEnabled: true,
     accepts: DropAccepts.INSTANCE,
@@ -559,6 +559,8 @@ function ModuleInstance({
         dragHandleRef={handleRef}
         toggleDoc={toggleDoc}
         onDoubleClick={onInstanceFocus ? () => onInstanceFocus(module, occurrence) : undefined}
+        embedRadialItems={embedRadialItems}
+        embedOnDelete={embedOnDelete}
       />
       {occurrence && showDoc && (() => {
         const bg = container?.ownStyle?.bg || null;

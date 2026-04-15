@@ -92,7 +92,7 @@ export default function ContainerPool({ itemsWithOccurrences, dispatch, socket, 
             key={occ.id}
             instanceModule={instance}
             occurrence={occ}
-            onDelete={() => occ?.id && CommitHelpers.deleteOccurrence({ dispatch, socket, occurrenceId: occ.id })}
+            onDelete={() => occ?.id && CommitHelpers.deleteOccurrence({ dispatch, socket, occurrenceId: occ.id, occurrence: occ })}
           />
         ))}
         {itemsWithOccurrences.length === 0 && (

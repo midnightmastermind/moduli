@@ -30,7 +30,7 @@ import View from "../models/View.js";
 import Folder from "../models/Folder.js";
 import Operation from "../models/Operation.js";
 import User from "../models/User.js";
-import { makeLoopSumOp, generateTimeSlots } from "../utils/operationBuilders.js";
+import { makeLoopSumOp, makeLoopCountTrueOp, generateTimeSlots } from "../utils/operationBuilders.js";
 
 const TARGET_USER_EMAIL = "josh@jpoms.com";
 const uid = () => nanoid(12);
@@ -46,6 +46,7 @@ async function createTestGrid(userId) {
   const timeslotFieldId = uid();
   const dueFieldId = uid();
   const totalWaterFieldId = uid();
+  const totalTasksCompletedFieldId = uid();
 
   // Panel module IDs
   const toolkitPanelId = uid();
@@ -61,6 +62,7 @@ async function createTestGrid(userId) {
   // Instance module IDs
   const drinkWaterModId = uid();
   const waterGoalModId  = uid();
+  const tasksGoalModId  = uid();
   const morningRunModId = uid();
   const vitaminsModId   = uid();
   const stretchModId    = uid();
@@ -102,6 +104,8 @@ async function createTestGrid(userId) {
     { id: dueFieldId, userId, gridId, name: "Due", type: "date", inputEnabled: true, displayEnabled: false },
     { id: totalWaterFieldId, userId, gridId, name: "Daily Water", type: "number", inputEnabled: false, displayEnabled: true,
       displayConfig: { showArrows: true, arrowColor: "green", targetValue: 64, targetPeriod: "daily" }, meta: { postfix: " oz" } },
+    { id: totalTasksCompletedFieldId, userId, gridId, name: "Tasks Completed", type: "number", inputEnabled: false, displayEnabled: true,
+      displayConfig: { showArrows: true, arrowColor: "green", targetValue: 6, targetPeriod: "daily" }, meta: {} },
   ]);
 
   // ── STEP 3: Instance modules ────────────────────────────────────────────────
@@ -136,6 +140,11 @@ async function createTestGrid(userId) {
       fieldBindings: [
         { fieldId: totalWaterFieldId, role: "display", order: 0 },
       ],
+    },
+    {
+      id: tasksGoalModId, userId, gridId, role: "instance", kind: "list", label: "Task Progress",
+      defaultDragMode: "move",
+      fieldBindings: [{ fieldId: totalTasksCompletedFieldId, role: "display", order: 0 }],
     },
     {
       id: todoGroceriesModId, userId, gridId, role: "instance", kind: "list", label: "Buy groceries",
@@ -250,6 +259,13 @@ async function createTestGrid(userId) {
     fields: { [scheduledDateFieldId]: { value: today.toISOString(), flow: "in", timestamp: new Date() } },
   });
 
+  // Tasks goal → Physical goal container
+  const tasksGoalOccId = await mkOcc({
+    targetType: "module", targetId: tasksGoalModId,
+    meta: { containerId: physicalGoalContId },
+    fields: {},
+  });
+
   // Physical container occurrence (for toolkit panel)
   const physContOccId = await mkOcc({
     targetType: "module", targetId: physicalContId,
@@ -259,7 +275,7 @@ async function createTestGrid(userId) {
   // Physical goal container occurrence (for goals panel)
   const physGoalContOccId = await mkOcc({
     targetType: "module", targetId: physicalGoalContId,
-    meta: {}, occurrences: [waterGoalOccId],
+    meta: {}, occurrences: [waterGoalOccId, tasksGoalOccId],
   });
 
   // Todo instances → General container
@@ -400,7 +416,47 @@ async function createTestGrid(userId) {
 
   // ── STEP 12: Operations ─────────────────────────────────────────────────────
   const opArgs = { userId, gridId };
-  await new Operation(makeLoopSumOp({ name: "Water Today", targetFieldId: totalWaterFieldId, fieldId: waterFieldId, timeFilter: "daily", flowFilter: "any", targetValue: 64, targetPeriod: "daily", ...opArgs })).save();
+  await new Operation({
+    id: uid(), userId, gridId, name: "Water Today",
+    description: "Sum daily water oz — only for occurrences where completed = true",
+    triggerType: "onChange",
+    triggerTypes: ["onChange", "onIteration", "onLoad"],
+    triggerConfig: { onChange: { allowedFields: [waterFieldId, completedFieldId] } },
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$total", value: 0 } },
+        {
+          id: uid(), type: "loop",
+          over: "field_occurrences", fieldId: waterFieldId, timeFilter: "daily", flowFilter: "any", as: "$item",
+          body: [{
+            id: uid(), type: "if",
+            condition: {
+              operator: "AND",
+              rules: [
+                { comparator: "IS_NOT_EMPTY", left: "$item.value" },
+                { comparator: "IS", left: `$item.${completedFieldId}`, right: true },
+              ],
+            },
+            then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$total", expr: "$item.value" } }],
+            else: [],
+          }],
+        },
+        { id: uid(), type: "action", config: { type: "SHOW_VALUE", targetFieldId: totalWaterFieldId, sourceExpr: "$total", targetValue: 64, targetPeriod: "daily" } },
+      ],
+    },
+  }).save();
+
+  await new Operation(makeLoopCountTrueOp({
+    name: "Tasks Completed Today",
+    targetFieldId: totalTasksCompletedFieldId,
+    fieldId: completedFieldId,
+    timeFilter: "daily",
+    targetValue: 6,
+    targetPeriod: "daily",
+    ...opArgs,
+  })).save();
 
   await new Operation({
     id: uid(), userId, gridId, name: "Schedule: Stamp Date & Time Slot",

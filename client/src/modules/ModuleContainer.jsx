@@ -119,6 +119,9 @@ function Container({
   onInstanceFocus,
   embedded = false,
   occurrenceOverride = null,
+  embedRadialItems = null,
+  embedOnDelete = null,
+  embedSourceType = null,
 }) {
   const { occurrencesById, instancesById, modulesById, viewsById, fieldsById, state: ctxState } = useContext(GridActionsContext);
   const dragCtx = useDragContext();
@@ -151,7 +154,6 @@ function Container({
   const setFilterPopupPos = useCallback(v => uiDispatch({ filterPopupPos: v }), []);
   const setTemplatePopupPos = useCallback(v => uiDispatch({ templatePopupPos: v }), []);
   const containerHandleRef = useRef(null);
-  const containerDragMode = module?.defaultDragMode || "move";
   const focusedItem = focusedStack[focusedStack.length - 1] || null;
 
   const handleInstanceFocusLocal = useCallback((instance, occurrence) => {
@@ -193,6 +195,8 @@ function Container({
     if (occurrenceOverride) return occurrencesById[occurrenceOverride.id] || occurrenceOverride;
     return Object.values(occurrencesById).find(occ => occ.targetId === module.id);
   }, [occurrenceOverride, occurrencesById, module.id]);
+
+  const containerDragMode = containerOccurrence?.dragMode ?? module?.defaultDragMode ?? "move";
 
   // Resolve fields bound to this container (for header display)
   const containerFields = useMemo(() => {
@@ -250,7 +254,7 @@ function Container({
     const parentOcc = Object.values(occurrencesById).find(occ =>
       Array.isArray(occ.occurrences) && occ.occurrences.includes(containerOccurrence.id)
     );
-    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: containerOccurrence.id, parentOccurrence: parentOcc || null, emit: true });
+    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: containerOccurrence.id, occurrence: containerOccurrence, parentOccurrence: parentOcc || null, emit: true });
   }, [containerOccurrence, occurrencesById, dispatch, socket]);
 
   // Quick-add: create an occurrence of an existing instance module in this container
@@ -345,8 +349,8 @@ function Container({
   const { ref: containerRef, isDragging, isOver: isContainerOver, closestEdge, props: containerProps } = useDragDrop({
     type: DragType.CONTAINER,
     id: module.id,
-    data: { ...containerWithInstances, occurrenceId: containerOccurrence?.id || null },
-    context: { panelId, containerId: module.id, occurrenceId: containerOccurrence?.id || null, pageOccurrenceId: pageOccurrenceId || null },
+    data: { ...containerWithInstances, occurrenceId: containerOccurrence?.id || null, defaultDragMode: containerDragMode },
+    context: { panelId, containerId: module.id, occurrenceId: containerOccurrence?.id || null, pageOccurrenceId: pageOccurrenceId || null, sourceType: embedSourceType },
     disabled: isInstanceDrag || isExternalDrag,
     accepts: [DragType.CONTAINER],
     allowedEdges: containerAllowedEdges,
@@ -390,8 +394,12 @@ function Container({
 
   const toggleContainerDragModeQuick = useCallback(() => {
     const nextMode = containerDragMode === "move" ? "copy" : "move";
-    CommitHelpers.updateModule({ dispatch, socket, module: { ...module, defaultDragMode: nextMode }, emit: true });
-  }, [module, containerDragMode, dispatch, socket]);
+    if (containerOccurrence) {
+      CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: containerOccurrence.id, dragMode: nextMode }, emit: true });
+    } else {
+      CommitHelpers.updateModule({ dispatch, socket, module: { ...module, defaultDragMode: nextMode }, emit: true });
+    }
+  }, [module, containerOccurrence, containerDragMode, dispatch, socket]);
 
   // Rendering type comes from view.viewType (occurrence.viewId → View), never from module.kind
   const containerViewType = containerOccurrence?.viewId ? (viewsById?.[containerOccurrence.viewId]?.viewType ?? null) : null;
@@ -478,7 +486,8 @@ function Container({
                 onToggleHeader={() => setShowHeader(true)}
                 showHeader={false}
                 onHistory={() => setHistoryOpen(true)}
-                onDelete={removeMe}
+                onDelete={embedOnDelete ?? removeMe}
+                extraItems={embedRadialItems}
               />
             </div>
           </PopoverAnchor>
@@ -561,7 +570,8 @@ function Container({
                       onToggleHeader={() => setShowHeader(false)}
                       showHeader={showHeader}
                       onHistory={() => setHistoryOpen(true)}
-                      onDelete={removeMe}
+                      onDelete={embedOnDelete ?? removeMe}
+                      extraItems={embedRadialItems}
                     />
                   </div>
                 </PopoverAnchor>
@@ -660,7 +670,8 @@ function Container({
                     onFilter={(e) => setFilterPopupPos({ x: e?.clientX ?? 100, y: e?.clientY ?? 100 })}
                     onTemplate={gridTemplates.length > 0 ? (e) => setTemplatePopupPos({ x: e?.clientX ?? 100, y: e?.clientY ?? 100 }) : null}
                     onHistory={() => setHistoryOpen(true)}
-                    onDelete={removeMe}
+                    onDelete={embedOnDelete ?? removeMe}
+                    extraItems={embedRadialItems}
                   />
                 </div>
               </PopoverAnchor>

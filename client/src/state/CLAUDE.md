@@ -1,6 +1,9 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-04-11. Check this file before re-reading source._
+_Updated: 2026-04-15. Check this file before re-reading source._
+
+## Recent Changes (Apr 15 2026 — operationsBridge removeLocalOcc)
+- **bindSocketToStore.js**: Added `removeLocalOcc: null` to `operationsBridge` initial export. Wired inside `bindSocketToStore` as `operationsBridge.removeLocalOcc = (id) => { delete localOccsById[id]; }`. Nulled in cleanup block. Used by CommitHelpers.deleteOccurrence to evict deleted occurrences from the local cache before firing operations.
 
 ## Recent Changes (Apr 11 2026 — textmaps_batch Handler + Textmap Preservation)
 - **bindSocketToStore.js**: Added `onTextmapsBatch` handler for `textmaps_batch` socket event. Dispatches `UPDATE_OCCURRENCE` for each `{ id, textmap }` entry and updates `localOccsById`. Cleanup removes the listener.

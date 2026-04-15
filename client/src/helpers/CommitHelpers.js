@@ -118,15 +118,30 @@ export function updateOccurrence({ dispatch, socket, occurrence, emit = true }) 
   if (shouldEmit(emit)) safeEmit(socket, "update_occurrence", { occurrence });
 }
 
-export function deleteOccurrence({ dispatch, socket, occurrenceId, emit = true }) {
+export function deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, emit = true }) {
   if (!occurrenceId) return;
+  // Evict from local cache BEFORE dispatch so fireOperations sees updated state
+  operationsBridge.removeLocalOcc?.(occurrenceId);
   dispatch?.(deleteOccurrenceAction(occurrenceId));
   if (shouldEmit(emit)) safeEmit(socket, "delete_occurrence", { occurrenceId });
+  // Fire operations for each field the removed occurrence had
+  if (occurrence?.fields) {
+    for (const fieldId of Object.keys(occurrence.fields)) {
+      operationsBridge.fireOperations?.("MeasureOp", {
+        type: "MeasureOp",
+        occurrenceId,
+        instanceId: occurrence.targetId,
+        fieldId,
+      });
+    }
+  }
 }
 
 // Remove occurrence from grid + clean up parent reference (optimistic)
-export function removeOccurrence({ dispatch, socket, occurrenceId, parentOccurrence, grid, emit = true }) {
+export function removeOccurrence({ dispatch, socket, occurrenceId, occurrence, parentOccurrence, grid, emit = true }) {
   if (!occurrenceId) return;
+  // Evict from local cache BEFORE dispatch so fireOperations sees updated state
+  operationsBridge.removeLocalOcc?.(occurrenceId);
   // Update parent's occurrences array optimistically
   if (parentOccurrence) {
     const updatedOccs = (parentOccurrence.occurrences || []).filter(id => id !== occurrenceId);
@@ -139,6 +154,17 @@ export function removeOccurrence({ dispatch, socket, occurrenceId, parentOccurre
   // Delete the occurrence (server cascades children + cleans parent)
   dispatch?.(deleteOccurrenceAction(occurrenceId));
   if (shouldEmit(emit)) safeEmit(socket, "delete_occurrence", { occurrenceId });
+  // Fire operations for each field the removed occurrence had
+  if (occurrence?.fields) {
+    for (const fieldId of Object.keys(occurrence.fields)) {
+      operationsBridge.fireOperations?.("MeasureOp", {
+        type: "MeasureOp",
+        occurrenceId,
+        instanceId: occurrence.targetId,
+        fieldId,
+      });
+    }
+  }
 }
 
 // ===== TRASH (soft delete) =====

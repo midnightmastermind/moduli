@@ -25,7 +25,7 @@ import { flushOfflineQueue } from "../helpers/offlineQueue";
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null };
+export const operationsBridge = { fireOperations: null, updateLocalOcc: null, removeLocalOcc: null };
 
 /**
  * @param {Object} socket
@@ -720,6 +720,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // Expose on module-level bridge so CommitHelpers can call optimistically
   operationsBridge.fireOperations = fireOperationsOptimistic;
   operationsBridge.updateLocalOcc = (occ) => { if (occ?.id) localOccsById[occ.id] = occ; };
+  operationsBridge.removeLocalOcc = (occurrenceId) => { delete localOccsById[occurrenceId]; };
 
   // On transaction_created: fire operations + toast notification
   function onTransactionCreated({ transaction } = {}) {
@@ -818,6 +819,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   return () => {
     operationsBridge.fireOperations = null;
     operationsBridge.updateLocalOcc = null;
+    operationsBridge.removeLocalOcc = null;
     clearInterval(scheduleInterval);
     if (bc) { bc.close(); bc = null; }
     socket.off("full_state", onFullState);
