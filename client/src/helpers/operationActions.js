@@ -156,14 +156,16 @@ export function resolveExpr(expr, $vars) {
   }
 
   if (expr.startsWith("$")) {
-    // "$varName.fieldId" or "$varName"
+    // Walk arbitrary depth: "$item.fields.water.value" → $vars["$item"]["fields"]["water"]["value"]
     const parts = expr.slice(1).split(".");
     const varName = `$${parts[0]}`;
-    const fieldId = parts[1];
-    const varData = $vars[varName];
-    if (varData == null) return null;
-    if (!fieldId) return varData;
-    return varData[fieldId] ?? null;
+    let cur = $vars[varName];
+    if (cur == null) return null;
+    for (let i = 1; i < parts.length; i++) {
+      if (cur == null) return null;
+      cur = cur[parts[i]];
+    }
+    return cur ?? null;
   }
 
   return expr; // literal
@@ -194,6 +196,12 @@ export function evalRule(rule, $vars) {
     case "LESS_OR_EQUAL":    return Number(leftVal) <= Number(rightVal);
     case "CONTAINS":         return String(leftVal).includes(String(rightVal));
     case "NOT_CONTAINS":     return !String(leftVal).includes(String(rightVal));
+    // Array comparators — left resolves to an array (e.g. $item._ancestors)
+    case "HAS_ANCESTOR":
+    case "ARRAY_INCLUDES": {
+      const arr = Array.isArray(leftVal) ? leftVal : [];
+      return arr.some(a => String(a) === String(rightVal));
+    }
     // Date comparators — leftVal is a date field value (ISO string or Date)
     case "DATE_BEFORE_TODAY": {
       if (!leftVal) return false;
@@ -714,17 +722,27 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
-    // ---- FIND_OCCURRENCE: search by targetId, with optional date field filter ----
-    // cfg: { targetIdExpr?, dateFieldId?, dateExpr?, resultVar?, resultIdVar? }
+    // ---- FIND_OCCURRENCE: search by targetId or moduleLabel, with optional date field filter ----
+    // cfg: { targetIdExpr?, moduleLabel?, moduleLabelExpr?, dateFieldId?, dateExpr?, resultVar?, resultIdVar? }
     // Skips template occurrences (meta.isTemplate === true).
     case "FIND_OCCURRENCE": {
       const targetId = resolveExpr(cfg.targetIdExpr, $vars);
+      // Support finding by module label — looks up module by label, uses its id as targetId
+      const moduleLabel = resolveExpr(cfg.moduleLabelExpr, $vars) || cfg.moduleLabel;
       const allOccurrences = $vars.$allOccurrences || occurrencesById || {};
+      const allModules = $vars.$allModules || [];
       let found = null;
-      if (targetId) {
+
+      let effectiveTargetId = targetId;
+      if (!effectiveTargetId && moduleLabel) {
+        const mod = allModules.find(m => m.label?.toLowerCase() === moduleLabel.toLowerCase());
+        effectiveTargetId = mod?.id ?? null;
+      }
+
+      if (effectiveTargetId) {
         const occList = Array.isArray(allOccurrences) ? allOccurrences : Object.values(allOccurrences);
         // Skip deleted and template occurrences
-        const candidates = occList.filter(o => o.targetId === targetId && !o.deleted && !o.meta?.isTemplate);
+        const candidates = occList.filter(o => o.targetId === effectiveTargetId && !o.deleted && !o.meta?.isTemplate);
 
         if (cfg.dateFieldId) {
           // Filter by date field value matching the given date.
