@@ -807,6 +807,14 @@ function gatherLoopItems(step, context, $vars) {
     occs = occs.filter(o => o.fields?.[fieldId] != null);
   }
 
+  // Optional page scope filter: only include occurrences whose parentId is a
+  // child of the specified page occurrence (e.g. schedule page's time-slot containers)
+  if (step.pageOccId) {
+    const pageOcc = occurrencesById[step.pageOccId];
+    const allowedParentIds = new Set(pageOcc?.occurrences || []);
+    occs = occs.filter(o => allowedParentIds.has(o.parentId));
+  }
+
   // Time filter — checks legacy iteration.timeValue, then date-type field
   // values on the occurrence OR its parent chain (scheduledDate lives on the
   // container occurrence, not the instance occurrence inside it).

@@ -430,6 +430,7 @@ async function createTestGrid(userId) {
         {
           id: uid(), type: "loop",
           over: "field_occurrences", fieldId: waterFieldId, timeFilter: "daily", flowFilter: "any", as: "$item",
+          pageOccId: schedPageOccId,
           body: [{
             id: uid(), type: "if",
             condition: {
@@ -455,6 +456,7 @@ async function createTestGrid(userId) {
     timeFilter: "daily",
     targetValue: 6,
     targetPeriod: "daily",
+    pageOccId: schedPageOccId,
     ...opArgs,
   })).save();
 

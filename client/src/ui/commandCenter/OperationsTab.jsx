@@ -333,7 +333,6 @@ export function TriggerDataHint({ eventType, subjectType }) {
 // OPERATION EDITOR
 // ============================================================
 export function OperationEditor({ operation, fields, onSave, onDelete, onRun, categoryFolders = [], isDuplicate = false }) {
-  if (!operation) return null;
   const { modulesById, operationsById, roleByModuleId } = useContext(GridActionsContext);
   const [local, setLocal] = useState(operation);
   useMemo(() => setLocal(operation), [operation?.id]);
@@ -366,6 +365,8 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
   const getRole = useCallback((m) => roleByModuleId?.[m.id] || m.role || "instance", [roleByModuleId]);
   const allContainers = useMemo(() => Object.values(modulesById || {}).filter(m => getRole(m) === "container"), [modulesById, getRole]);
   const allPanels = useMemo(() => Object.values(modulesById || {}).filter(m => getRole(m) === "panel"), [modulesById, getRole]);
+
+  if (!local) return null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -841,9 +842,12 @@ export function OperationsTab() {
     </div>
   );
 
-  // Drill-down: if an operation is selected, show editor full-pane with back button
   // Guard: if the operation was deleted while selected, clear selection
-  if (selectedOpId && !selectedOp) { setSelectedOpId(null); }
+  useEffect(() => {
+    if (selectedOpId && !selectedOp) setSelectedOpId(null);
+  }, [selectedOpId, selectedOp]);
+
+  // Drill-down: if an operation is selected, show editor full-pane with back button
   if (selectedOp) {
     return (
       <div style={{ display: "flex", flexDirection: "column" }}>
