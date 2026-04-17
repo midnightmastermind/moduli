@@ -244,8 +244,15 @@ export function evalRule(rule, $vars) {
 export function evalGroup(group, $vars) {
   const { operator = "AND", rules = [] } = group;
   if (rules.length === 0) return true;
-  if (operator === "OR") return rules.some(r => evalRule(r, $vars));
-  return rules.every(r => evalRule(r, $vars));
+
+  // A rules entry is either a leaf rule (has `comparator`) or a nested group (has `rules`)
+  const evaluate = (entry) => {
+    if (Array.isArray(entry?.rules)) return evalGroup(entry, $vars);
+    return evalRule(entry, $vars);
+  };
+
+  if (operator === "OR") return rules.some(evaluate);
+  return rules.every(evaluate);
 }
 
 // ============================================================
