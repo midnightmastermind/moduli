@@ -86,6 +86,17 @@ function matchesTrigger(t, cfg, transactionType, transaction) {
       if (instanceFilter && transaction?.instanceId !== instanceFilter) return false;
       return true;
     }
+    case "onFieldChange": {
+      // Alias of onChange with a clearer label. Falls back to onChange config if onFieldChange isn't set.
+      if (transactionType !== "MeasureOp") return false;
+      const fieldFilter = cfg.onFieldChange?.fieldId || cfg.onChange?.fieldId || cfg.fieldId;
+      if (fieldFilter && transaction?.fieldId !== fieldFilter) return false;
+      const allowedFields = cfg.onFieldChange?.allowedFields || cfg.onChange?.allowedFields;
+      if (allowedFields?.length > 0 && !allowedFields.includes(transaction?.fieldId)) return false;
+      const instanceFilter = cfg.onFieldChange?.instanceId || cfg.onChange?.instanceId || cfg.instanceId;
+      if (instanceFilter && transaction?.instanceId !== instanceFilter) return false;
+      return true;
+    }
     case "onDrop": {
       if (transactionType !== "OccurrenceListOp") return false;
       const toContainer = cfg.onDrop?.targetContainerId || cfg.targetContainerId;
@@ -175,6 +186,7 @@ function matchesTrigger(t, cfg, transactionType, transaction) {
     }
     case "onNodeInput":    return transactionType === "NodeInputOp";
     case "onModuleUpdate": return transactionType === "ModuleOp";
+    case "onFilterChange": return transactionType === "NavigationOp";
     case "onNavigation":   return transactionType === "NavigationOp";
     case "onIteration":    return transactionType === "NavigationOp"; // legacy alias
     case "onLoad":         return transactionType == null;
