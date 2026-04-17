@@ -38,21 +38,23 @@ const inputStyle = {
 
 // Event types — WHAT happened
 const EVENT_TYPES = [
-  { value: "onChange",     label: "On Change",     desc: "Fires when a value or property changes" },
-  { value: "onAdd",        label: "On Add",        desc: "Fires when something is added or created" },
-  { value: "onRemove",     label: "On Remove",     desc: "Fires when something is removed from a parent" },
-  { value: "onDelete",     label: "On Delete",     desc: "Fires when something is permanently deleted" },
-  { value: "onMove",       label: "On Move",       desc: "Fires when something is moved between parents" },
-  { value: "onReorder",    label: "On Reorder",    desc: "Fires when something is reordered within a parent" },
-  { value: "onComplete",   label: "On Complete",   desc: "Fires when a module or field reaches a done state" },
-  { value: "onUncomplete", label: "On Uncomplete", desc: "Fires when a completion is reversed" },
-  { value: "onLoad",       label: "On Load",       desc: "Fires once when the grid loads" },
-  { value: "onIteration",  label: "On Iteration",  desc: "Fires when the date or category filter changes" },
-  { value: "onSchedule",   label: "On Schedule",   desc: "Fires at a specific time (cron)" },
-  { value: "onWebhook",    label: "On Webhook",    desc: "Fires via HTTP POST to the webhook URL" },
-  { value: "onButton",     label: "On Button",     desc: "Fires when the operation trigger button is pressed" },
-  { value: "onNodeInput",  label: "On Node Input", desc: "Fires when a local field input on the operation node changes or Run is clicked" },
-  { value: "manual",       label: "Manual",        desc: "Only runs when manually triggered from UI" },
+  { value: "onChange",       label: "On Change",        desc: "Fires when a value or property changes" },
+  { value: "onFieldChange",  label: "On Field Change",  desc: "Fires when a field value changes (alias of onChange, respects allowedFields)" },
+  { value: "onAdd",          label: "On Add",           desc: "Fires when something is added or created" },
+  { value: "onRemove",       label: "On Remove",        desc: "Fires when something is removed from a parent" },
+  { value: "onDelete",       label: "On Delete",        desc: "Fires when something is permanently deleted" },
+  { value: "onMove",         label: "On Move",          desc: "Fires when something is moved between parents" },
+  { value: "onReorder",      label: "On Reorder",       desc: "Fires when something is reordered within a parent" },
+  { value: "onComplete",     label: "On Complete",      desc: "Fires when a module or field reaches a done state" },
+  { value: "onUncomplete",   label: "On Uncomplete",    desc: "Fires when a completion is reversed" },
+  { value: "onLoad",         label: "On Load",          desc: "Fires once when the grid loads" },
+  { value: "onIteration",    label: "On Iteration",     desc: "Fires when the date or category filter changes" },
+  { value: "onFilterChange", label: "On Filter Change", desc: "Fires when the active named filter or filter value changes (alias of onNavigation)" },
+  { value: "onSchedule",     label: "On Schedule",      desc: "Fires at a specific time (cron)" },
+  { value: "onWebhook",      label: "On Webhook",       desc: "Fires via HTTP POST to the webhook URL" },
+  { value: "onButton",       label: "On Button",        desc: "Fires when the operation trigger button is pressed" },
+  { value: "onNodeInput",    label: "On Node Input",    desc: "Fires when a local field input on the operation node changes or Run is clicked" },
+  { value: "manual",         label: "Manual",           desc: "Only runs when manually triggered from UI" },
 ];
 
 // Subject types — WHAT KIND of entity the event is about
