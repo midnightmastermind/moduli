@@ -233,13 +233,18 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       payload: { occurrenceId },
     });
 
+    // The occurrence is gone from localOccsById at this point, so the executor
+    // can no longer enrich $trigger.occurrence from state. Pass the snapshot
+    // as an override so onRemove / onDelete operations still see the full data.
+    const override = removedOcc ? { [occurrenceId]: removedOcc } : null;
+
     // Fire onDelete trigger
     fireOperations("OccurrenceDeleteOp", {
       type: "OccurrenceDeleteOp",
       occurrenceId,
       instanceId: payload.instanceId,
       containerId: payload.containerId,
-    });
+    }, { occurrencesOverride: override });
 
     // Re-run onChange operations for each field that was set on the deleted occurrence.
     // This ensures aggregation operations (e.g. water total) recalculate after removal.
@@ -250,7 +255,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           occurrenceId,
           instanceId: removedOcc.targetId,
           fieldId,
-        });
+        }, { occurrencesOverride: override });
       }
     }
   }
@@ -659,7 +664,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   let _cachedOperationsById = null, _lastOperations = null;
   let _cachedBaseOccsById = null, _lastOccurrences = null;
 
-  function fireOperations(transactionType, transaction) {
+  function fireOperations(transactionType, transaction, { occurrencesOverride } = {}) {
     const state = stateRef.current || {};
     const operations = state.operations || [];
     const fields = state.fields || [];
@@ -686,8 +691,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       }
       _lastOccurrences = occurrences;
     }
-    // Overlay localOccsById on top of cached base (localOccsById is always fresh)
-    const occurrencesById = Object.assign({}, _cachedBaseOccsById, localOccsById);
+    // Overlay localOccsById on top of cached base (localOccsById is always fresh).
+    // occurrencesOverride wins over both — used by delete handlers to keep a
+    // just-removed occurrence visible to the executor for this one call so
+    // $trigger.occurrence enrichment still works.
+    const occurrencesById = Object.assign({}, _cachedBaseOccsById, localOccsById, occurrencesOverride || null);
 
     const allUpdates = runMatchingOperations(operations, transactionType, transaction, { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById }, { onError: (name, err) => toast.error(`Operation "${name}" failed`, { description: err?.message, duration: 4000 }) });
 
@@ -707,14 +715,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // Track optimistically-fired occurrences to prevent double-firing on server echo
   const optimisticFiredSet = new Set();
 
-  function fireOperationsOptimistic(transactionType, transaction) {
+  function fireOperationsOptimistic(transactionType, transaction, options) {
     // Mark as optimistically fired so onOccurrenceUpdated skips the duplicate
     if (transaction.occurrenceId) {
       optimisticFiredSet.add(transaction.occurrenceId);
       // Clear after 5s (server echo should arrive well before this)
       setTimeout(() => optimisticFiredSet.delete(transaction.occurrenceId), 5000);
     }
-    fireOperations(transactionType, transaction);
+    fireOperations(transactionType, transaction, options);
   }
 
   // Expose on module-level bridge so CommitHelpers can call optimistically

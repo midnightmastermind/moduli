@@ -554,7 +554,28 @@ export function executePipeline(operation, context, transaction, extraVars) {
     $grid: state?.grid ?? {},
   };
   if (transaction && typeof transaction === "object") {
-    $vars["$trigger"] = transaction;
+    // Enrich $trigger with the full occurrence when the transaction references one.
+    // This makes $trigger.occurrence.fields.water.value work in stamp/onAdd operations
+    // without requiring the user to configure a separate source.
+    const enriched = { ...transaction };
+    const occId = transaction.occurrenceId;
+    if (occId && occurrencesById[occId]) {
+      const occ = occurrencesById[occId];
+      const fields = {};
+      for (const [fid, fdata] of Object.entries(occ.fields || {})) {
+        fields[fid] = {
+          value: fdata?.value !== undefined ? fdata.value : fdata,
+          flow: fdata?.flow ?? null,
+        };
+      }
+      enriched.occurrence = {
+        id: occ.id,
+        targetId: occ.targetId,
+        parentId: occ.parentId,
+        fields,
+      };
+    }
+    $vars["$trigger"] = enriched;
   }
   for (const source of sources) {
     const { variableName, entityType, entityId, nodeInput } = source;
