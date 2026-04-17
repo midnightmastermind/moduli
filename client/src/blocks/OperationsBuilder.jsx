@@ -4,7 +4,7 @@
 // Inspired by Snap!/Scratch
 // ============================================================
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { BlockDragProvider } from "./useBlockDnD";
 import BlockPalette, { MiniPalette } from "./BlockPalette";
 import OperationsCanvas, { CompactCanvas } from "./OperationsCanvas";
@@ -15,6 +15,7 @@ import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-d
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { GripVertical } from "lucide-react";
 import { arrayMove } from "../helpers/LayoutHelpers";
+import PathPicker, { buildPathShape } from "./PathPicker";
 
 /**
  * OperationsBuilder - Main visual block editor component
@@ -242,55 +243,55 @@ function formatResultValue(value) {
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 const COMPARATORS = [
-  { value: "IS",               label: "=" },
-  { value: "IS_NOT",           label: "≠" },
-  { value: "GREATER",          label: ">" },
-  { value: "LESS",             label: "<" },
+  { value: "IS", label: "=" },
+  { value: "IS_NOT", label: "≠" },
+  { value: "GREATER", label: ">" },
+  { value: "LESS", label: "<" },
   { value: "GREATER_OR_EQUAL", label: ">=" },
-  { value: "LESS_OR_EQUAL",    label: "<=" },
-  { value: "CONTAINS",         label: "contains" },
-  { value: "IS_EMPTY",         label: "is empty" },
-  { value: "IS_NOT_EMPTY",     label: "not empty" },
+  { value: "LESS_OR_EQUAL", label: "<=" },
+  { value: "CONTAINS", label: "contains" },
+  { value: "IS_EMPTY", label: "is empty" },
+  { value: "IS_NOT_EMPTY", label: "not empty" },
 ];
 
 // Variable actions — individual math/assignment operations on local variables
 const VAR_ACTION_TYPES = [
-  { value: "INIT_VAR",          label: "=  assign",      hint: "$x = value or expr" },
-  { value: "SET_VAR",           label: "=  set",         hint: "$x = any expression" },
-  { value: "ADD_TO_VAR",        label: "+= add",         hint: "$x += expr" },
-  { value: "SUBTRACT_FROM_VAR", label: "-= subtract",    hint: "$x -= expr" },
-  { value: "MULTIPLY_VAR",      label: "*= multiply",    hint: "$x *= expr" },
-  { value: "DIV_VAR",           label: "/= divide",      hint: "$x /= expr" },
-  { value: "INCREMENT_VAR",     label: "++ increment",   hint: "$x += N (default 1)" },
-  { value: "DECREMENT_VAR",     label: "-- decrement",   hint: "$x -= N (default 1)" },
-  { value: "PUSH_TO_VAR",       label: "[] push",        hint: "push value onto array $x" },
+  { value: "INIT_VAR", label: "=  assign", hint: "$x = value or expr" },
+  { value: "SET_VAR", label: "=  set", hint: "$x = any expression" },
+  { value: "ADD_TO_VAR", label: "+= add", hint: "$x += expr" },
+  { value: "SUBTRACT_FROM_VAR", label: "-= subtract", hint: "$x -= expr" },
+  { value: "MULTIPLY_VAR", label: "*= multiply", hint: "$x *= expr" },
+  { value: "DIV_VAR", label: "/= divide", hint: "$x /= expr" },
+  { value: "INCREMENT_VAR", label: "++ increment", hint: "$x += N (default 1)" },
+  { value: "DECREMENT_VAR", label: "-- decrement", hint: "$x -= N (default 1)" },
+  { value: "PUSH_TO_VAR", label: "[] push", hint: "push value onto array $x" },
 ];
 
 // System actions — modify system state
 const SYSTEM_ACTION_TYPES = [
-  { value: "SHOW_VALUE",        label: "Display → field",        hint: "Send computed value to a display field" },
-  { value: "SET_FIELD_VALUE",   label: "Set occurrence field",   hint: "Write a value to occurrence.fields[id]" },
-  { value: "INCREMENT_FIELD",   label: "Increment field",        hint: "Add/subtract from an occurrence field" },
-  { value: "MARK_COMPLETE",     label: "Mark complete",          hint: "Set a boolean field to true/false" },
-  { value: "MOVE_OCCURRENCE",   label: "Move occurrence",        hint: "Move occurrence to a container" },
-  { value: "REMOVE_OCCURRENCE", label: "Remove occurrence",      hint: "Delete an occurrence" },
-  { value: "CREATE_OCCURRENCE", label: "Create occurrence",      hint: "Create new occurrence in container" },
-  { value: "UPDATE_MODULE",     label: "Update module",          hint: "Patch any module property (JSON)" },
-  { value: "UPDATE_STYLE",      label: "Set module style",       hint: "Set ownStyle.background/color/etc." },
-  { value: "DELETE_MODULE",     label: "Delete module",          hint: "Delete a module by ID" },
-  { value: "APPEND_TO_DOC",     label: "Append text to doc",     hint: "Add paragraph to occurrence textmap" },
-  { value: "NOTIFY",            label: "Notification",           hint: "Show toast message" },
-  { value: "RUN_OPERATION",     label: "Run operation",          hint: "Call another operation by ID" },
+  { value: "SHOW_VALUE", label: "Display → field", hint: "Send computed value to a display field" },
+  { value: "SET_FIELD_VALUE", label: "Set occurrence field", hint: "Write a value to occurrence.fields[id]" },
+  { value: "INCREMENT_FIELD", label: "Increment field", hint: "Add/subtract from an occurrence field" },
+  { value: "MARK_COMPLETE", label: "Mark complete", hint: "Set a boolean field to true/false" },
+  { value: "MOVE_OCCURRENCE", label: "Move occurrence", hint: "Move occurrence to a container" },
+  { value: "REMOVE_OCCURRENCE", label: "Remove occurrence", hint: "Delete an occurrence" },
+  { value: "CREATE_OCCURRENCE", label: "Create occurrence", hint: "Create new occurrence in container" },
+  { value: "UPDATE_MODULE", label: "Update module", hint: "Patch any module property (JSON)" },
+  { value: "UPDATE_STYLE", label: "Set module style", hint: "Set ownStyle.background/color/etc." },
+  { value: "DELETE_MODULE", label: "Delete module", hint: "Delete a module by ID" },
+  { value: "APPEND_TO_DOC", label: "Append text to doc", hint: "Add paragraph to occurrence textmap" },
+  { value: "NOTIFY", label: "Notification", hint: "Show toast message" },
+  { value: "RUN_OPERATION", label: "Run operation", hint: "Call another operation by ID" },
   { value: "CREATE_OCCURRENCE_WITH_ITERATION", label: "Create page (by date)", hint: "Find/create occurrence for a date. Sets $lastCreatedOccurrenceId" },
-  { value: "NAVIGATE_DAY_PAGE",  label: "Navigate day page",     hint: "Find/create day page + update panel view. cfg: moduleId, viewId" },
-  { value: "UPDATE_VIEW",        label: "Update view",           hint: "Set activeOccurrenceId or other view fields. cfg: viewId, activeOccurrenceId" },
-  { value: "APPLY_TEMPLATE",     label: "Apply template",        hint: "Fill container from template. cfg: containerId, templateId" },
-  { value: "CREATE_FOLDER",      label: "Create folder",         hint: "Find/create folder by name. Sets $lastCreatedFolderId" },
+  { value: "NAVIGATE_DAY_PAGE", label: "Navigate day page", hint: "Find/create day page + update panel view. cfg: moduleId, viewId" },
+  { value: "UPDATE_VIEW", label: "Update view", hint: "Set activeOccurrenceId or other view fields. cfg: viewId, activeOccurrenceId" },
+  { value: "APPLY_TEMPLATE", label: "Apply template", hint: "Fill container from template. cfg: containerId, templateId" },
+  { value: "CREATE_FOLDER", label: "Create folder", hint: "Find/create folder by name. Sets $lastCreatedFolderId" },
   { value: "RESET_RECURRING_TASK", label: "Reset recurring task", hint: "Reset completion + advance dueDate by recurrenceDays" },
-  { value: "DISPLAY_LOCAL_FIELDS", label: "Display on node",     hint: "Show computed values on the operation node card. cfg: fields: [{label, expr}]" },
-  { value: "CYCLE_FIELD_VALUE",   label: "Cycle field options",  hint: "Rotate through a select field's options by day-of-year. cfg: sourceFieldId, targetFieldId" },
-  { value: "ADD_TO_POOL",         label: "Add to pool",          hint: "Create instance in pool container. cfg: poolContainerId, label / labelExpr" },
-  { value: "REMOVE_FROM_POOL",    label: "Remove from pool",     hint: "Delete pool occurrence by module ID. cfg: poolContainerId, moduleIdExpr (default: $trigger.instanceId)" },
+  { value: "DISPLAY_LOCAL_FIELDS", label: "Display on node", hint: "Show computed values on the operation node card. cfg: fields: [{label, expr}]" },
+  { value: "CYCLE_FIELD_VALUE", label: "Cycle field options", hint: "Rotate through a select field's options by day-of-year. cfg: sourceFieldId, targetFieldId" },
+  { value: "ADD_TO_POOL", label: "Add to pool", hint: "Create instance in pool container. cfg: poolContainerId, label / labelExpr" },
+  { value: "REMOVE_FROM_POOL", label: "Remove from pool", hint: "Delete pool occurrence by module ID. cfg: poolContainerId, moduleIdExpr (default: $trigger.instanceId)" },
 ];
 
 const ALL_ACTION_TYPES = [...VAR_ACTION_TYPES, ...SYSTEM_ACTION_TYPES];
@@ -298,26 +299,26 @@ const ALL_ACTION_TYPES = [...VAR_ACTION_TYPES, ...SYSTEM_ACTION_TYPES];
 // Property paths available per model type — shown as hints in ExprInput
 const MODEL_PROPS = {
   occurrence: ["id", "targetId", "parentId", "fields.{fieldId}.value", "fields.{fieldId}.flow", "iteration.timeValue", "iteration.mode", "textmap"],
-  module:     ["id", "label", "role", "kind", "ownStyle.background", "ownStyle.color", "fieldBindings", "iteration.mode"],
-  field:      ["id", "name", "type", "unit", "inputEnabled", "displayEnabled"],
-  grid:       ["id", "currentIterationValue", "selectedIterationId", "currentCategoryValue"],
-  folder:     ["id", "name", "parentId", "kind"],
+  module: ["id", "label", "role", "kind", "ownStyle.background", "ownStyle.color", "fieldBindings", "iteration.mode"],
+  field: ["id", "name", "type", "unit", "inputEnabled", "displayEnabled"],
+  grid: ["id", "currentIterationValue", "selectedIterationId", "currentCategoryValue"],
+  folder: ["id", "name", "parentId", "kind"],
 };
 
 // Built-in array variables always available in $vars
 const BUILTIN_ARRAYS = ["$allOccurrences", "$allModules", "$allFields", "$templates", "$iterationDefinitions"];
 
 const AGGREGATION_TYPES = [
-  "sum","count","countTrue","avg","min","max","last","first","median","mode","unique","concat","range","stdDev","product",
+  "sum", "count", "countTrue", "avg", "min", "max", "last", "first", "median", "mode", "unique", "concat", "range", "stdDev", "product",
 ];
 
 const ENTITY_TYPES = [
-  { value: "instance",   label: "Instance",              hint: "$var.fieldId, $var.fieldId_flow" },
-  { value: "container",  label: "Container",             hint: "$var.fieldId, $var.fieldId_flow" },
-  { value: "panel",      label: "Panel",                 hint: "$var.id, $var.label, $var.kind, $var.defaultDragMode" },
-  { value: "occurrence", label: "Occurrence (by ID)",    hint: "$var.id, $var.targetId, $var.fieldId, $var.fieldId_flow, $var._iterationTimeValue" },
-  { value: "field",      label: "Field (aggregated)",    hint: "$var.id, $var.name, $var.type, $var.unit, $var.value, $var.flow" },
-  { value: "grid",       label: "Grid (whole grid)",     hint: "$var.gridId, $var.currentIterationValue, $var.currentCategoryValue" },
+  { value: "instance", label: "Instance", hint: "$var.fieldId, $var.fieldId_flow" },
+  { value: "container", label: "Container", hint: "$var.fieldId, $var.fieldId_flow" },
+  { value: "panel", label: "Panel", hint: "$var.id, $var.label, $var.kind, $var.defaultDragMode" },
+  { value: "occurrence", label: "Occurrence (by ID)", hint: "$var.id, $var.targetId, $var.fieldId, $var.fieldId_flow, $var._iterationTimeValue" },
+  { value: "field", label: "Field (aggregated)", hint: "$var.id, $var.name, $var.type, $var.unit, $var.value, $var.flow" },
+  { value: "grid", label: "Grid (whole grid)", hint: "$var.gridId, $var.currentIterationValue, $var.currentCategoryValue" },
   { value: "localField", label: "Local Field (node input)", hint: "$varName = value typed on the operation node — transient, not from DB" },
 ];
 
@@ -395,7 +396,7 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
 
   const varOptions = sources.map(s => `$${s.variableName}`);
 
-  const sharedProps = { fields, varOptions, modulesById, operationsById };
+  const sharedProps = { fields, varOptions, modulesById, operationsById, sources };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -530,55 +531,85 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
 
 // ---- DraggableStepWrapper — drag handle + edge drop target per step ----
 function DraggableStepWrapper({ step, depth, steps, onReorder, children }) {
-  const ref = useRef(null);
+  const containerRef = useRef(null);
+  const handleRef = useRef(null);
   const [closestEdge, setClosestEdge] = useState(null);
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+  useLayoutEffect(() => {
+    const handleEl = handleRef.current;
+    const containerEl = containerRef.current;
 
-    const cleanupDrag = draggable(el, {
-      getInitialData: () => ({ type: "pipeline-step", stepId: step.id, depth }),
-      // Use the grip as drag handle via CSS cursor:grab on it
+    if (!(handleEl instanceof HTMLElement)) return;
+    if (!(containerEl instanceof HTMLElement)) return;
+    if (!step?.id) return;
+
+    const cleanupDrag = draggable({
+      element: handleEl,
+      getInitialData: () => ({
+        type: "pipeline-step",
+        stepId: step.id,
+        depth,
+      }),
     });
 
-    const cleanupDrop = dropTargetForElements(el, {
+    const cleanupDrop = dropTargetForElements({
+      element: containerEl,
       canDrop: ({ source }) =>
-        source.data.type === "pipeline-step" && source.data.depth === depth && source.data.stepId !== step.id,
+        source?.data?.type === "pipeline-step" &&
+        source?.data?.depth === depth &&
+        source?.data?.stepId !== step.id,
+
       getData: ({ input }) =>
-        attachClosestEdge({ stepId: step.id }, input, el, { allowedEdges: ["top", "bottom"] }),
-      onDrag: ({ self }) => setClosestEdge(extractClosestEdge(self.data)),
+        attachClosestEdge(
+          { stepId: step.id },
+          { element: containerEl, input, allowedEdges: ["top", "bottom"] }
+        ),
+
+      onDrag: ({ self }) =>
+        setClosestEdge(extractClosestEdge(self.data)),
+
       onDragLeave: () => setClosestEdge(null),
+
       onDrop: ({ source, self }) => {
         setClosestEdge(null);
-        const edge = extractClosestEdge(self.data);
-        const fromIdx = steps.findIndex(s => s.id === source.data.stepId);
-        const toIdx   = steps.findIndex(s => s.id === step.id);
+
+        const sourceId = source?.data?.stepId;
+        if (!sourceId) return;
+
+        const fromIdx = steps.findIndex(s => s.id === sourceId);
+        const toIdx = steps.findIndex(s => s.id === step.id);
+
         if (fromIdx === -1 || toIdx === -1) return;
-        let insertAt = edge === "top" ? toIdx : toIdx + 1;
-        if (fromIdx < toIdx) insertAt = Math.max(0, insertAt - 1);
+
+        let insertAt =
+          extractClosestEdge(self.data) === "top"
+            ? toIdx
+            : toIdx + 1;
+
+        if (fromIdx < toIdx) insertAt--;
+
         onReorder(arrayMove(steps, fromIdx, insertAt));
       },
     });
 
-    return () => { cleanupDrag(); cleanupDrop(); };
+    return () => {
+      cleanupDrag?.();
+      cleanupDrop?.();
+    };
   }, [step.id, depth, steps, onReorder]);
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      {closestEdge === "top" && (
-        <div style={{ position: "absolute", top: -2, left: 0, right: 0, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 10, pointerEvents: "none" }} />
-      )}
-      {children}
-      {closestEdge === "bottom" && (
-        <div style={{ position: "absolute", bottom: -2, left: 0, right: 0, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 10, pointerEvents: "none" }} />
-      )}
+    <div ref={containerRef} style={{ position: "relative" }}>
+      {closestEdge === "top" && <div style={topIndicator} />}
+
+      {React.cloneElement(children, { dragHandleRef: handleRef })}
+
+      {closestEdge === "bottom" && <div style={bottomIndicator} />}
     </div>
   );
 }
-
 // ---- Steps List (recursive for nested if/else) ----
-function StepsList({ steps, onChange, fields, varOptions, modulesById, operationsById, depth = 0 }) {
+function StepsList({ steps, onChange, fields, varOptions, modulesById, operationsById, sources = [], depth = 0 }) {
   const addAction = () => onChange([...steps, { id: uid(), type: "action", config: { type: "INIT_VAR" } }]);
   const addIf = () => onChange([...steps, {
     id: uid(), type: "if",
@@ -594,23 +625,33 @@ function StepsList({ steps, onChange, fields, varOptions, modulesById, operation
   const updateStep = (id, patch) => onChange(steps.map(s => s.id === id ? { ...s, ...patch } : s));
   const removeStep = (id) => onChange(steps.filter(s => s.id !== id));
 
-  const shared = { fields, varOptions, modulesById, operationsById };
+  const shared = { fields, varOptions, modulesById, operationsById, sources };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: depth > 0 ? 8 : 0 }}>
       {steps.map((step) => {
         const stepProps = {
-          key: step.id,
           step,
           onUpdate: patch => updateStep(step.id, patch),
           onRemove: () => removeStep(step.id),
           ...shared,
         };
-        const inner = step.type === "if"   ? <IfStep   {...stepProps} />
-                    : step.type === "loop" ? <LoopStep {...stepProps} />
-                    : <ActionStep {...stepProps} />;
+
+        const inner =
+          step.type === "if"
+            ? <IfStep {...stepProps} />
+            : step.type === "loop"
+              ? <LoopStep {...stepProps} />
+              : <ActionStep {...stepProps} />;
+
         return (
-          <DraggableStepWrapper key={step.id} step={step} depth={depth} steps={steps} onReorder={onChange}>
+          <DraggableStepWrapper
+            key={step.id}
+            step={step}
+            depth={depth}
+            steps={steps}
+            onReorder={onChange}
+          >
             {inner}
           </DraggableStepWrapper>
         );
@@ -650,7 +691,7 @@ function ExprInput({ value, onChange, placeholder, width = 120, title }) {
 
 // ---- LoopStep ----
 // loop [overExpr] as $[varName] { body steps }
-function LoopStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, operationsById }) {
+function LoopStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, operationsById, dragHandleRef }) {
   const shared = { fields, varOptions, modulesById, operationsById };
   const varName = (step.as || "$item").replace(/^\$/, "");
 
@@ -673,7 +714,7 @@ function LoopStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, o
           placeholder="item"
           style={{ ...inputSt, width: 70, fontFamily: "monospace" }}
         />
-        <div style={{ marginLeft: "auto", display: "flex", gap: 2, alignItems: "center" }}>
+        <div ref={dragHandleRef} style={{ marginLeft: "auto", display: "flex", gap: 2, alignItems: "center" }}>
           <GripVertical style={{ width: 10, height: 10, opacity: 0.25, cursor: "grab", flexShrink: 0 }} />
           <button style={removeBtnSt} onClick={onRemove}>✕</button>
         </div>
@@ -687,7 +728,7 @@ function LoopStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, o
 }
 
 // ---- Action Step ----
-function ActionStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, operationsById }) {
+function ActionStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, operationsById, dragHandleRef }) {
   const cfg = step.config || {};
   const actionType = cfg.type || "SHOW_VALUE";
   const setCfg = patch => onUpdate({ config: { ...cfg, ...patch } });
@@ -704,7 +745,7 @@ function ActionStep({ step, onUpdate, onRemove, fields, varOptions, modulesById,
             {SYSTEM_ACTION_TYPES.map(at => <option key={at.value} value={at.value}>{at.label}</option>)}
           </optgroup>
         </select>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 2, alignItems: "center" }}>
+        <div ref={dragHandleRef} style={{ marginLeft: "auto", display: "flex", gap: 2, alignItems: "center" }}>
           <GripVertical style={{ width: 10, height: 10, opacity: 0.25, cursor: "grab", flexShrink: 0 }} />
           <button style={removeBtnSt} onClick={onRemove}>✕</button>
         </div>
@@ -717,7 +758,7 @@ function ActionStep({ step, onUpdate, onRemove, fields, varOptions, modulesById,
 }
 
 // ---- If Step ----
-function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, operationsById }) {
+function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, operationsById, sources = [], dragHandleRef }) {
   const condition = step.condition || { operator: "AND", rules: [] };
   const [showElse, setShowElse] = useState((step.else || []).length > 0);
 
@@ -726,10 +767,10 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, ope
   const updateRule = (rid, patch) => updateCond({ rules: condition.rules.map(r => r.id === rid ? { ...r, ...patch } : r) });
   const removeRule = rid => updateCond({ rules: condition.rules.filter(r => r.id !== rid) });
 
-  const shared = { fields, varOptions, modulesById, operationsById };
-
+  const shared = { fields, varOptions, modulesById, operationsById, sources };
+  console.log(step.id);
   return (
-    <div style={ifStepSt}>
+    <div key={step.id} style={ifStepSt}>
       {/* IF header row */}
       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
         <span style={{ fontSize: 10, color: "rgba(251,191,36,0.8)", fontFamily: "monospace", minWidth: 16 }}>if</span>
@@ -738,7 +779,7 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, ope
           <option value="OR">any (OR)</option>
         </select>
         <span style={{ ...labelSt, fontStyle: "italic" }}>of the following are true:</span>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 2, alignItems: "center" }}>
+        <div ref={dragHandleRef} style={{ marginLeft: "auto", display: "flex", gap: 2, alignItems: "center" }}>
           <GripVertical style={{ width: 10, height: 10, opacity: 0.25, cursor: "grab", flexShrink: 0 }} />
           <button style={removeBtnSt} onClick={onRemove}>✕</button>
         </div>
@@ -750,7 +791,7 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, ope
           <span style={{ fontSize: 9, color: "var(--text-faint)", fontStyle: "italic" }}>No rules — condition is always true</span>
         )}
         {condition.rules.map(rule => (
-          <ConditionRule key={rule.id} rule={rule} onUpdate={patch => updateRule(rule.id, patch)} onRemove={() => removeRule(rule.id)} fields={fields} />
+          <ConditionRule key={rule.id} rule={rule} onUpdate={patch => updateRule(rule.id, patch)} onRemove={() => removeRule(rule.id)} fields={fields} sources={sources} />
         ))}
         <button style={addBtnStyle} onClick={addRule}>+ Rule</button>
       </div>
@@ -782,27 +823,28 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, ope
 // ---- Condition Rule ----
 // All comparators including date and string variants
 const ALL_COMPARATORS = [
-  { value: "IS",               label: "=" },
-  { value: "IS_NOT",           label: "≠" },
-  { value: "GREATER",          label: ">" },
-  { value: "LESS",             label: "<" },
+  { value: "IS", label: "=" },
+  { value: "IS_NOT", label: "≠" },
+  { value: "GREATER", label: ">" },
+  { value: "LESS", label: "<" },
   { value: "GREATER_OR_EQUAL", label: ">=" },
-  { value: "LESS_OR_EQUAL",    label: "<=" },
-  { value: "CONTAINS",         label: "contains" },
-  { value: "NOT_CONTAINS",     label: "not contains" },
-  { value: "IS_EMPTY",         label: "is empty" },
-  { value: "IS_NOT_EMPTY",     label: "not empty" },
-  { value: "DATE_BEFORE_TODAY",label: "date before today" },
-  { value: "DATE_IS_TODAY",    label: "date is today" },
+  { value: "LESS_OR_EQUAL", label: "<=" },
+  { value: "CONTAINS", label: "contains" },
+  { value: "NOT_CONTAINS", label: "not contains" },
+  { value: "IS_EMPTY", label: "is empty" },
+  { value: "IS_NOT_EMPTY", label: "not empty" },
+  { value: "DATE_BEFORE_TODAY", label: "date before today" },
+  { value: "DATE_IS_TODAY", label: "date is today" },
   { value: "DATE_AFTER_TODAY", label: "date after today" },
   { value: "DATE_WITHIN_DAYS", label: "date within N days" },
 ];
 
-function ConditionRule({ rule, onUpdate, onRemove }) {
+function ConditionRule({ rule, onUpdate, onRemove, fields = [], sources = [] }) {
   const noRight = ["IS_EMPTY", "IS_NOT_EMPTY", "DATE_BEFORE_TODAY", "DATE_IS_TODAY", "DATE_AFTER_TODAY"].includes(rule.comparator);
+  const shape = useMemo(() => buildPathShape({ sources, fields, inLoop: true }), [sources, fields]);
   return (
     <div style={rowStyle}>
-      <ExprInput value={rule.left} onChange={v => onUpdate({ left: v })} placeholder="left side" width={140} />
+      <PathPicker value={rule.left || ""} onChange={v => onUpdate({ left: v })} shapeByVar={shape} placeholder="variable…" />
       <select value={rule.comparator} onChange={e => onUpdate({ comparator: e.target.value })} style={selectSt}>
         {ALL_COMPARATORS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
       </select>
@@ -928,15 +970,15 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
             {AGGREGATION_TYPES.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
           <select value={cfg.timeFilter || "daily"} onChange={e => setCfg({ timeFilter: e.target.value })} style={selectSt}>
-            {["daily","weekly","monthly","yearly","all"].map(t => <option key={t} value={t}>{t}</option>)}
+            {["daily", "weekly", "monthly", "yearly", "all"].map(t => <option key={t} value={t}>{t}</option>)}
           </select>
           <select value={cfg.flowFilter || "any"} onChange={e => setCfg({ flowFilter: e.target.value })} style={selectSt}>
-            {["any","in","out"].map(f => <option key={f} value={f}>{f} flow</option>)}
+            {["any", "in", "out"].map(f => <option key={f} value={f}>{f} flow</option>)}
           </select>
           {fl("→ display in:")} <FieldPicker value={cfg.targetFieldId} onChange={v => setCfg({ targetFieldId: v })} fields={fields} placeholder="Display in field..." />
           <input value={cfg.targetValue || ""} onChange={e => setCfg({ targetValue: e.target.value ? Number(e.target.value) : undefined })} style={{ ...inputSt, width: 50 }} placeholder="target" type="number" title="Target value for progress bar" />
           <select value={cfg.targetPeriod || "daily"} onChange={e => setCfg({ targetPeriod: e.target.value })} style={selectSt}>
-            {["daily","weekly","monthly","yearly"].map(t => <option key={t} value={t}>{t}</option>)}
+            {["daily", "weekly", "monthly", "yearly"].map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
       );
@@ -950,7 +992,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
           {fl("=")}
           <ExprInput value={cfg.valueExpr || ""} onChange={v => setCfg({ valueExpr: v })} placeholder="$item.value or 5 or true" width={120} />
           <select value={cfg.flow || "replace"} onChange={e => setCfg({ flow: e.target.value })} style={selectSt}>
-            {["replace","in","out"].map(f => <option key={f} value={f}>{f}</option>)}
+            {["replace", "in", "out"].map(f => <option key={f} value={f}>{f}</option>)}
           </select>
         </div>
       );
