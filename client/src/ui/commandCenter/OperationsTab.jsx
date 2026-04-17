@@ -417,6 +417,18 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
             ))}
           </select>
         </div>
+        <div>
+          <span style={labelStyle}>Priority</span>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input
+              type="number"
+              value={local.sortOrder ?? 50}
+              onChange={(e) => setLocal((p) => ({ ...p, sortOrder: Number(e.target.value) }))}
+              style={{ ...inputStyle, width: 70 }}
+            />
+            <span style={{ fontSize: 10, color: "var(--text-faint)", fontStyle: "italic" }}>lower runs first</span>
+          </div>
+        </div>
       </div>
 
       {/* ── Triggers ── */}
@@ -709,7 +721,9 @@ export function OperationsTab() {
   const gridId = state?.gridId;
 
   const gridOperations = useMemo(
-    () => (state?.operations || []).filter((o) => o.gridId === gridId),
+    () => (state?.operations || [])
+      .filter((o) => o.gridId === gridId)
+      .sort((a, b) => (a.sortOrder ?? 50) - (b.sortOrder ?? 50)),
     [state?.operations, gridId]
   );
 
