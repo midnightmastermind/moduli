@@ -930,6 +930,17 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
+    case "SET_FILTER": {
+      // Write a filter value to grid.activeFilterValues[fieldId].
+      // cfg: { fieldId, valueExpr } — fieldId is the filter column; valueExpr resolves to a value.
+      const fieldId = cfg.fieldId;
+      const value = resolveExpr(cfg.valueExpr ?? cfg.value, $vars);
+      if (fieldId && value != null) {
+        updates.push({ _effect: "SET_FILTER", fieldId, value: String(value) });
+      }
+      break;
+    }
+
     default:
       break;
   }

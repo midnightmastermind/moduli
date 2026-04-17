@@ -18,6 +18,7 @@ import {
   updateModule,
   deleteModule,
   updateOccurrence,
+  updateGridFilter,
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue } from "../helpers/offlineQueue";
 
@@ -653,6 +654,18 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       case "SHOW_OCCURRENCE":
         socket?.emit("update_occurrence_hidden", { occurrenceId: effect.occurrenceId, hidden: false });
         break;
+
+      case "SET_FILTER": {
+        // Write a filter value to grid.activeFilterValues[fieldId]. Skip if already set
+        // so an onLoad "default to today" op doesn't re-dispatch every pageview.
+        const gridId = state?.grid?._id || state?.gridId;
+        if (!gridId || !effect.fieldId) break;
+        const prev = state?.grid?.activeFilterValues || {};
+        if (prev[effect.fieldId] === effect.value) break;
+        const next = { ...prev, [effect.fieldId]: effect.value };
+        updateGridFilter({ dispatch: socketDispatch, socket, gridId, patch: { activeFilterValues: next } });
+        break;
+      }
 
       default:
         break;
