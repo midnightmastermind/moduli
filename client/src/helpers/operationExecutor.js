@@ -501,6 +501,16 @@ export function executePipeline(operation, context, transaction, extraVars) {
   const { sources = [], steps = [] } = pipeline;
   const { state, fieldsById = {}, occurrencesById = {}, operationsById = {} } = context;
 
+  // Build reverse parent map from occurrences[] arrays.
+  // parentId on the occurrence itself is not always set — the authoritative ordering
+  // is maintained via parent.occurrences[] — so we derive the parent from those arrays.
+  const parentByChildId = {};
+  for (const occ of Object.values(occurrencesById)) {
+    for (const childId of (occ.occurrences || [])) {
+      parentByChildId[childId] = occ.id;
+    }
+  }
+
   // ---- Build $vars ----
   const _nowDate = new Date();
   const _activeIteration = (state?.grid?.iterations ?? []).find(i => i.id === state?.grid?.selectedIterationId);
@@ -571,16 +581,29 @@ export function executePipeline(operation, context, transaction, extraVars) {
         iterationCategoryValue: mod.placement?.iterationCategoryValue,
       } : {};
     } else if (entityType === "occurrence") {
-      // $var = occurrence with all field values as $var.fieldId = value
       const occ = occurrencesById[entityId];
       if (occ) {
-        const fieldValues = { id: occ.id, targetId: occ.targetId, parentId: occ.parentId };
+        const fields = {};
+        for (const [fid, fdata] of Object.entries(occ.fields || {})) {
+          fields[fid] = {
+            value: fdata?.value !== undefined ? fdata.value : fdata,
+            flow: fdata?.flow ?? null,
+          };
+        }
+        const fieldValues = {
+          id: occ.id,
+          targetId: occ.targetId,
+          parentId: occ.parentId,
+          fields,
+          _ancestors: [],  // will be populated below
+          _iterationTimeValue: occ.iteration?.timeValue || occ.iteration?.value,
+          _iterationCategoryValue: occ.iteration?.categoryValue,
+        };
+        // Back-compat: flat field values (old expressions keep working)
         for (const [fid, fdata] of Object.entries(occ.fields || {})) {
           fieldValues[fid] = fdata?.value !== undefined ? fdata.value : fdata;
           fieldValues[`${fid}_flow`] = fdata?.flow;
         }
-        fieldValues._iterationTimeValue = occ.iteration?.timeValue || occ.iteration?.value;
-        fieldValues._iterationCategoryValue = occ.iteration?.categoryValue;
         $vars[varKey] = fieldValues;
       } else {
         $vars[varKey] = {};
@@ -626,8 +649,8 @@ export function executePipeline(operation, context, transaction, extraVars) {
     }
   }
 
-  // ---- Inject _executors and _extraVars for RUN_OPERATION pass-through ----
-  const contextWithExecutors = { ...context, _executors: { executePipeline, executeOperation }, _extraVars: extraVars };
+  // ---- Inject _executors, _extraVars, and _parentByChildId for ancestry checks ----
+  const contextWithExecutors = { ...context, _executors: { executePipeline, executeOperation }, _extraVars: extraVars, _parentByChildId: parentByChildId };
 
   // ---- Execute steps (top-down code flow) ----
   return executeSteps(steps, $vars, contextWithExecutors, transaction);
@@ -683,7 +706,21 @@ function executeSteps(steps, $vars, context, transaction) {
  */
 function gatherLoopItems(step, context, $vars) {
   const { over = "field_occurrences", fieldId, scopeContainerId, moduleId, timeFilter, flowFilter = "any" } = step;
-  const { occurrencesById = {}, state } = context;
+  const { occurrencesById = {}, state, _parentByChildId = {} } = context;
+
+  // Walk up the parent chain using _parentByChildId (from occurrences[] arrays) with
+  // a parentId fallback. Returns ordered ancestor IDs, closest first.
+  const getAncestors = (occId) => {
+    const ancestors = [];
+    const seen = new Set();
+    let cur = _parentByChildId[occId] ?? occurrencesById[occId]?.parentId;
+    while (cur && !seen.has(cur) && ancestors.length < 12) {
+      ancestors.push(cur);
+      seen.add(cur);
+      cur = _parentByChildId[cur] ?? occurrencesById[cur]?.parentId;
+    }
+    return ancestors;
+  };
 
   // ---- TEMPLATES: loop over grid templates ----
   if (over === "templates") {
@@ -807,14 +844,6 @@ function gatherLoopItems(step, context, $vars) {
     occs = occs.filter(o => o.fields?.[fieldId] != null);
   }
 
-  // Optional page scope filter: only include occurrences whose parentId is a
-  // child of the specified page occurrence (e.g. schedule page's time-slot containers)
-  if (step.pageOccId) {
-    const pageOcc = occurrencesById[step.pageOccId];
-    const allowedParentIds = new Set(pageOcc?.occurrences || []);
-    occs = occs.filter(o => allowedParentIds.has(o.parentId));
-  }
-
   // Time filter — checks legacy iteration.timeValue, then date-type field
   // values on the occurrence OR its parent chain (scheduledDate lives on the
   // container occurrence, not the instance occurrence inside it).
@@ -828,17 +857,20 @@ function gatherLoopItems(step, context, $vars) {
       .filter(f => f.type === "date")
       .map(f => f.id);
 
-    // Walk up parent chain to find a date field value
+    // Walk up parent chain (using both parentId and the reverse _parentByChildId map)
+    // to find a date field value.
     const findDateValue = (occ) => {
       let cur = occ;
-      // Check up to 4 levels (instance → container → panel → grid)
-      for (let depth = 0; depth < 4 && cur; depth++) {
+      const seen = new Set();
+      for (let depth = 0; depth < 6 && cur && !seen.has(cur.id); depth++) {
+        seen.add(cur.id);
         for (const dfId of dateFieldIds) {
           const fv = cur.fields?.[dfId];
           const val = fv?.value !== undefined ? fv.value : fv;
           if (val) return val;
         }
-        cur = cur.parentId ? occurrencesById[cur.parentId] : null;
+        const nextId = _parentByChildId[cur.id] ?? cur.parentId;
+        cur = nextId ? occurrencesById[nextId] : null;
       }
       return null;
     };
@@ -874,15 +906,32 @@ function gatherLoopItems(step, context, $vars) {
     });
   }
 
-  // Map to iteration items — expose value, flow, and all field values
+  // Map to iteration items — expose value, flow, all field values, and _ancestors
+  // _ancestors is an ordered array of ancestor occurrence IDs (closest first),
+  // derived from both parentId fields and the _parentByChildId reverse map.
+  // Use $item._ancestors with HAS_ANCESTOR comparator in pipeline IF conditions.
   return occs.map(occ => {
     const fv = fieldId ? occ.fields?.[fieldId] : null;
+    // Expose fields as a nested object so paths like $item.fields.water.value work.
+    // Each entry keeps {value, flow} shape, matching the DB shape the user sees in UI.
+    const fields = {};
+    for (const [fid, fdata] of Object.entries(occ.fields || {})) {
+      fields[fid] = {
+        value: fdata?.value !== undefined ? fdata.value : fdata,
+        flow: fdata?.flow ?? null,
+      };
+    }
     const item = {
+      id: occ.id,
       occurrenceId: occ.id,
       targetId: occ.targetId,
-      value: fv?.value !== undefined ? fv.value : (fv ?? null),
+      parentId: occ.parentId,
+      value: fv?.value !== undefined ? fv.value : (fv ?? null),  // back-compat flat accessor
       flow: fv?.flow ?? null,
+      _ancestors: getAncestors(occ.id),
+      fields,
     };
+    // Back-compat: also expose top-level field values for existing operations
     for (const [fid, fdata] of Object.entries(occ.fields || {})) {
       item[fid] = fdata?.value !== undefined ? fdata.value : fdata;
     }
