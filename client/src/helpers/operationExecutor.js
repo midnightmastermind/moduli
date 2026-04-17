@@ -456,7 +456,10 @@ function traverseStatements(block, ctx) {
  */
 export function runMatchingOperations(operations, transactionType, transaction, context, { onError } = {}) {
   const updates = [];
-  for (const op of operations) {
+  // Lower sortOrder runs first. Stamp-date ops get sortOrder: 0, aggregations get 10+,
+  // display-only operations get 100+. Missing sortOrder defaults to 50 (middle).
+  const ordered = [...operations].sort((a, b) => (a.sortOrder ?? 50) - (b.sortOrder ?? 50));
+  for (const op of ordered) {
     if (!shouldTrigger(op, transactionType, transaction)) continue;
     try {
       // Pipeline mode
