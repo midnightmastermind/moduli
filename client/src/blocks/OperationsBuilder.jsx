@@ -16,6 +16,7 @@ import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-
 import { GripVertical } from "lucide-react";
 import { arrayMove } from "../helpers/LayoutHelpers";
 import PathPicker, { buildPathShape } from "./PathPicker";
+import ConditionGroup from "./ConditionGroup";
 
 /**
  * OperationsBuilder - Main visual block editor component
@@ -774,26 +775,21 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, ope
       {/* IF header row */}
       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
         <span style={{ fontSize: 10, color: "rgba(251,191,36,0.8)", fontFamily: "monospace", minWidth: 16 }}>if</span>
-        <select value={condition.operator} onChange={e => updateCond({ operator: e.target.value })} style={selectSt}>
-          <option value="AND">all (AND)</option>
-          <option value="OR">any (OR)</option>
-        </select>
-        <span style={{ ...labelSt, fontStyle: "italic" }}>of the following are true:</span>
+        <span style={{ ...labelSt, fontStyle: "italic" }}>all/any of the following are true:</span>
         <div ref={dragHandleRef} style={{ marginLeft: "auto", display: "flex", gap: 2, alignItems: "center" }}>
           <GripVertical style={{ width: 10, height: 10, opacity: 0.25, cursor: "grab", flexShrink: 0 }} />
           <button style={removeBtnSt} onClick={onRemove}>✕</button>
         </div>
       </div>
 
-      {/* Condition rules */}
-      <div style={{ paddingLeft: 10, display: "flex", flexDirection: "column", gap: 3 }}>
-        {condition.rules.length === 0 && (
-          <span style={{ fontSize: 9, color: "var(--text-faint)", fontStyle: "italic" }}>No rules — condition is always true</span>
-        )}
-        {condition.rules.map(rule => (
-          <ConditionRule key={rule.id} rule={rule} onUpdate={patch => updateRule(rule.id, patch)} onRemove={() => removeRule(rule.id)} fields={fields} sources={sources} />
-        ))}
-        <button style={addBtnStyle} onClick={addRule}>+ Rule</button>
+      {/* Condition groups (nested AND/OR) */}
+      <div style={{ paddingLeft: 10 }}>
+        <ConditionGroup
+          group={condition}
+          onChange={next => onUpdate({ condition: next })}
+          sources={sources}
+          fields={fields}
+        />
       </div>
 
       {/* THEN */}
