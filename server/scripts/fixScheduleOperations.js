@@ -60,7 +60,7 @@ if (waterOp) {
             rules: [
               { comparator: "HAS_ANCESTOR", left: "$item._ancestors", right: "$schedule.id" },
               { comparator: "IS_NOT_EMPTY", left: `$item.fields.${waterFieldId}.value` },
-              { comparator: "IS",           left: `$item.fields.${scheduledDateFieldId}.value`, right: "$activeDate" },
+              { comparator: "DATE_EQUALS",  left: `$item.fields.${scheduledDateFieldId}.value`, right: "$filterDate" },
             ],
           },
           then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$total", expr: `$item.fields.${waterFieldId}.value` } }],
@@ -110,7 +110,7 @@ if (tasksOp) {
             rules: [
               { comparator: "HAS_ANCESTOR", left: "$item._ancestors", right: "$schedule.id" },
               { comparator: "IS",           left: `$item.fields.${completedFieldId}.value`, right: true },
-              { comparator: "IS",           left: `$item.fields.${scheduledDateFieldId}.value`, right: "$activeDate" },
+              { comparator: "DATE_EQUALS",  left: `$item.fields.${scheduledDateFieldId}.value`, right: "$filterDate" },
             ],
           },
           then: [{ id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$count", by: 1 } }],

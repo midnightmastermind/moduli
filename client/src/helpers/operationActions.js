@@ -203,6 +203,23 @@ export function evalRule(rule, $vars) {
       return arr.some(a => String(a) === String(rightVal));
     }
     // Date comparators — leftVal is a date field value (ISO string or Date)
+    case "DATE_EQUALS":
+    case "SAME_DAY": {
+      // Right null/"" = wildcard ("no filter set" → match everything).
+      // Left null = occurrence has no scheduledDate → doesn't match a concrete filter.
+      // Normalizes both sides to YYYY-MM-DD so "2026-04-16T17:00:00.000Z" matches "2026-04-16".
+      if (rightVal == null || rightVal === "") return true;
+      if (leftVal == null || leftVal === "") return false;
+      const dayKey = (v) => {
+        if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return null;
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+      const lk = dayKey(leftVal);
+      const rk = dayKey(rightVal);
+      return lk != null && lk === rk;
+    }
     case "DATE_BEFORE_TODAY": {
       if (!leftVal) return false;
       const d = new Date(leftVal);

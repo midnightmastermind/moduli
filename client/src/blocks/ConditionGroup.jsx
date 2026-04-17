@@ -7,7 +7,8 @@ import PathPicker, { buildPathShape } from "./PathPicker";
 const COMPARATORS = [
   "IS", "IS_NOT", "GREATER", "LESS", "GREATER_OR_EQUAL", "LESS_OR_EQUAL",
   "CONTAINS", "NOT_CONTAINS", "IS_EMPTY", "IS_NOT_EMPTY",
-  "HAS_ANCESTOR", "DATE_IS_TODAY", "DATE_BEFORE_TODAY", "DATE_AFTER_TODAY",
+  "HAS_ANCESTOR",
+  "DATE_EQUALS", "DATE_IS_TODAY", "DATE_BEFORE_TODAY", "DATE_AFTER_TODAY",
 ];
 
 export default function ConditionGroup({ group, onChange, sources, fields, depth = 0 }) {

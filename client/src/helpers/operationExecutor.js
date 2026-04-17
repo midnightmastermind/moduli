@@ -540,11 +540,18 @@ export function executePipeline(operation, context, transaction, extraVars) {
     $iterationId: state?.grid?.selectedIterationId ?? null,
     $iterationValue: state?.grid?.currentIterationValue ?? null,
     $iterationFilter: _activeIteration?.timeFilter ?? null,
-    // Active filter date — the currently-viewed date in the filter nav (may differ from today)
+    // Active filter date — the currently-viewed date in the filter nav. Falls back to today.
     $activeDate: (() => {
       const afv = state?.grid?.activeFilterValues || {};
       const dateVal = Object.values(afv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
       return dateVal ? dateVal.slice(0, 10) : _nowDate.toISOString().slice(0, 10);
+    })(),
+    // Pure filter date — null when no date filter is active. Use for conditional matching
+    // where "no filter = match all" (DATE_EQUALS with null right returns true).
+    $filterDate: (() => {
+      const afv = state?.grid?.activeFilterValues || {};
+      const dateVal = Object.values(afv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
+      return dateVal ? dateVal.slice(0, 10) : null;
     })(),
     // Formatted labels for the active date — used in COMPUTE_TEXTMAP_FROM_TEMPLATE tokens
     $activeDateLabel: (() => {
