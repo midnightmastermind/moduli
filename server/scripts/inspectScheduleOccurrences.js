@@ -1,6 +1,6 @@
 // inspectScheduleOccurrences.js
 // Dumps the water-tracking occurrences inside the schedule page and shows
-// what their scheduledDate field actually contains.
+// what their date field actually contains.
 // Run: node --env-file=.env scripts/inspectScheduleOccurrences.js
 
 import mongoose from "mongoose";
@@ -13,7 +13,7 @@ const testGridId = "69e10afc681f2f675fae81bf";
 const scheduleOccId = "atZKQpmthMgM";
 const waterFieldId = "dmc4Tj15C9Oq";
 const completedFieldId = "LEbHAatN6n-I";
-const scheduledDateFieldId = "5qNJnmEJCkYr";
+const dateFieldId = "5qNJnmEJCkYr";
 
 function walkDescendants(rootId, occsByIdMap, out = new Set()) {
   const occ = occsByIdMap.get(rootId);
@@ -52,7 +52,7 @@ for (const o of waterOccs) {
     id: o.id,
     parentId: o.parentId,
     water: o.fields?.[waterFieldId],
-    scheduledDate: o.fields?.[scheduledDateFieldId],
+    date: o.fields?.[dateFieldId],
   });
 }
 
@@ -62,7 +62,7 @@ for (const o of completedOccs) {
     id: o.id,
     parentId: o.parentId,
     completed: o.fields?.[completedFieldId],
-    scheduledDate: o.fields?.[scheduledDateFieldId],
+    date: o.fields?.[dateFieldId],
   });
 }
 

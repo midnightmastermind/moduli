@@ -197,7 +197,6 @@ function GridRender({
         overflow: "visible",
         borderRadius: isMobile ? 0 : 12,
         transition: "opacity 0.15s ease",
-        paddingTop: isMobile ? 0 : 10,
         boxSizing: "border-box",
       }}
     >

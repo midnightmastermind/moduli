@@ -47,8 +47,8 @@ export async function createDefaultUserData(userId) {
   // STEP 0: Create Grid FIRST (to get gridId for all entities)
   // ===================================================================
 
-  // Pre-generate scheduledDate field ID so we can reference it in named filters before fields are saved
-  const scheduledDateFieldId = uid();
+  // Pre-generate date field ID so we can reference it in named filters before fields are saved
+  const dateFieldId = uid();
 
   const today = new Date();
   today.setHours(12, 0, 0, 0);
@@ -61,13 +61,13 @@ export async function createDefaultUserData(userId) {
       {
         id: "filter_daily",
         name: "Daily",
-        conditions: [{ fieldId: scheduledDateFieldId, comparator: "same_day" }],
+        conditions: [{ fieldId: dateFieldId, comparator: "same_day" }],
         timeScale: "daily",
       },
       {
         id: "filter_weekly",
         name: "Weekly",
-        conditions: [{ fieldId: scheduledDateFieldId, comparator: "same_week" }],
+        conditions: [{ fieldId: dateFieldId, comparator: "same_week" }],
         timeScale: "weekly",
       },
       {
@@ -78,7 +78,7 @@ export async function createDefaultUserData(userId) {
       },
     ],
     activeFilterId: "filter_all",
-    activeFilterValues: { [scheduledDateFieldId]: today.toISOString() },
+    activeFilterValues: { [dateFieldId]: today.toISOString() },
     templates: [],
     occurrences: [],
   });
@@ -303,9 +303,9 @@ export async function createDefaultUserData(userId) {
       displayEnabled: false,
       meta: {},
     },
-    scheduledDate: {
-      id: scheduledDateFieldId,
-      name: "Scheduled Date",
+    date: {
+      id: dateFieldId,
+      name: "Date",
       type: "date",
       inputEnabled: true,
       displayEnabled: false,
@@ -2001,12 +2001,12 @@ export async function createDefaultUserData(userId) {
       || Object.keys(gratitudeQInstances).includes(key)
       || Object.keys(enrichmentInstances).includes(key);
     const instData = allInstances[key];
-    // Ensure every instance has scheduledDate in its fieldBindings so the date filter works
+    // Ensure every instance has date in its fieldBindings so the date filter works
     const existingBindings = instData.fieldBindings || [];
-    const hasScheduledDate = existingBindings.some(b => b.fieldId === scheduledDateFieldId);
+    const hasScheduledDate = existingBindings.some(b => b.fieldId === dateFieldId);
     const finalBindings = hasScheduledDate
       ? existingBindings
-      : [...existingBindings, { fieldId: scheduledDateFieldId, role: "input", order: existingBindings.length, hidden: true }];
+      : [...existingBindings, { fieldId: dateFieldId, role: "input", order: existingBindings.length, hidden: true }];
     const instance = new Module({
       ...instData,
       fieldBindings: finalBindings,
@@ -2308,7 +2308,7 @@ export async function createDefaultUserData(userId) {
     return d;
   }
 
-  async function createOccurrence({ targetType, targetId, meta = {}, placement = null, linkedGroupId = null, fields = {}, scheduledDate = null, viewId = null, filterOverride = null }) {
+  async function createOccurrence({ targetType, targetId, meta = {}, placement = null, linkedGroupId = null, fields = {}, date = null, viewId = null, filterOverride = null }) {
     const occId = uid();
     const occ = new Occurrence({
       id: occId,
@@ -2317,8 +2317,8 @@ export async function createDefaultUserData(userId) {
       targetId,
       gridId,
       timestamp: new Date(),
-      fields: scheduledDate
-        ? { ...fields, [scheduledDateFieldId]: { value: scheduledDate, flow: "in", timestamp: new Date() } }
+      fields: date
+        ? { ...fields, [dateFieldId]: { value: date, flow: "in", timestamp: new Date() } }
         : fields,
       meta,
       filterOverride,
@@ -2379,7 +2379,7 @@ export async function createDefaultUserData(userId) {
         targetId: inst.id,
         meta: { containerId: toolkitContainers[containerKey].id },
         fields: defaultFields,
-        scheduledDate: today.toISOString(),
+        date: today.toISOString(),
       });
       occIds.push(occId);
     }
@@ -2563,7 +2563,7 @@ export async function createDefaultUserData(userId) {
         targetId: inst.id,
         meta: { containerId: todoContainers[containerKey].id },
         fields: dueDatePreFill,
-        scheduledDate: today.toISOString(),
+        date: today.toISOString(),
       });
       occIds.push(occId);
     }
@@ -2594,7 +2594,7 @@ export async function createDefaultUserData(userId) {
         targetType: "module",
         targetId: inst.id,
         meta: { containerId: goalContainers[containerKey].id },
-        scheduledDate: today.toISOString(),
+        date: today.toISOString(),
       });
       occIds.push(occId);
     }
@@ -2698,7 +2698,7 @@ export async function createDefaultUserData(userId) {
     });
     todoPanelOccIds.push(occId);
   }
-  // Wire time slot containers to Schedule panel — each gets scheduledDate + timeslot
+  // Wire time slot containers to Schedule panel — each gets date + timeslot
   // so the container is the source of truth for iteration context
   const scheduleOccIds = [];
   for (const slot of timeSlots) {
@@ -2707,7 +2707,7 @@ export async function createDefaultUserData(userId) {
       targetType: "module",
       targetId: scheduleContainers[key].id,
       meta: { panelId: panels.centerHub.id },
-      scheduledDate: today.toISOString(),
+      date: today.toISOString(),
       fields: {
         [fields.timeslot.id]: { value: slot.label, flow: "in" },
       },
@@ -2767,7 +2767,7 @@ export async function createDefaultUserData(userId) {
     targetType: "module",
     targetId: toolkitInstances.moodCheck.id,
     meta: { containerId: toolkitContainers.emotional.id },
-    scheduledDate: today.toISOString(),
+    date: today.toISOString(),
     fields: {
       [fields.mood.id]: fv("focused", "in"),
       [fields.energy.id]: fv(4, "in"),
@@ -2786,7 +2786,7 @@ export async function createDefaultUserData(userId) {
       targetType: "module",
       targetId: toolkitInstances[instKey].id,
       meta: { containerId: scheduleContainers[slotKey].id },
-      scheduledDate: today.toISOString(),
+      date: today.toISOString(),
       linkedGroupId,
       fields: {
         ...preFilledFields,
@@ -3913,12 +3913,12 @@ export async function createDefaultUserData(userId) {
 
   // ---- Schedule: Set Date & Time Slot (onCreate) ----
   // When any occurrence is dropped into the schedule panel, stamp the active filter
-  // date onto its scheduledDate field and the container label onto its timeslot field.
+  // date onto its date field and the container label onto its timeslot field.
   const scheduleDropOp = new Operation({
     id: uid(),
     userId, gridId,
     name: "Schedule: Stamp Date & Time Slot",
-    description: "When dropped into the schedule, sets scheduledDate = active filter date and timeslot = container label",
+    description: "When dropped into the schedule, sets date = active filter date and timeslot = container label",
     triggerType: "onCreate",
     triggerTypes: ["onCreate"],
     triggerConfig: { onCreate: { panelId: panels.centerHub.id } },
@@ -3926,7 +3926,7 @@ export async function createDefaultUserData(userId) {
     pipeline: {
       sources: [],
       steps: [
-        { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: fields.scheduledDate.id, valueExpr: "$activeDate" } },
+        { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: fields.date.id, valueExpr: "$parentFilter.date" } },
         { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: fields.timeslot.id, valueExpr: "$trigger.containerLabel" } },
       ],
     },
@@ -3935,12 +3935,12 @@ export async function createDefaultUserData(userId) {
   await scheduleDropOp.save();
 
   // ---- Schedule: Clear Date & Time Slot (onMove out) ----
-  // When an occurrence is moved OUT of the schedule panel, clear scheduledDate and timeslot.
+  // When an occurrence is moved OUT of the schedule panel, clear date and timeslot.
   const scheduleMoveOutOp = new Operation({
     id: uid(),
     userId, gridId,
     name: "Schedule: Clear Date & Time Slot",
-    description: "When moved out of the schedule panel, clears scheduledDate and timeslot fields",
+    description: "When moved out of the schedule panel, clears date and timeslot fields",
     triggerType: "onMove",
     triggerTypes: ["onMove"],
     triggerConfig: { onMove: { fromPanelId: panels.centerHub.id } },
@@ -3948,7 +3948,7 @@ export async function createDefaultUserData(userId) {
     pipeline: {
       sources: [],
       steps: [
-        { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: fields.scheduledDate.id, value: null } },
+        { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: fields.date.id, value: null } },
         { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: fields.timeslot.id, value: null } },
       ],
     },
@@ -3997,7 +3997,7 @@ export async function createDefaultUserData(userId) {
             condition: {
               operator: "AND",
               rules: [{
-                left: `occ:${def.occurrenceId}.${scheduledDateFieldId}.value`,
+                left: `occ:${def.occurrenceId}.${dateFieldId}.value`,
                 comparator: "IS",
                 right: "$activeDate",
               }],
@@ -4024,13 +4024,13 @@ export async function createDefaultUserData(userId) {
                   flow: "replace",
                 },
               },
-              // Stamp scheduledDate = $activeDate so we don't re-randomize when navigating back
+              // Stamp date = $activeDate so we don't re-randomize when navigating back
               {
                 id: uid(), type: "action",
                 config: {
                   type: "SET_FIELD_VALUE",
                   occurrenceIdExpr: `literal:${def.occurrenceId}`,
-                  fieldId: scheduledDateFieldId,
+                  fieldId: dateFieldId,
                   valueExpr: "$activeDate",
                   flow: "replace",
                 },
@@ -4117,7 +4117,7 @@ export async function createDefaultUserData(userId) {
       targetType: "module",
       targetId: toolkitInstances.morningWorkout.id,
       meta: { containerId: scheduleContainers["slot_7_0"].id, historicalSeed: true },
-      scheduledDate: date.toISOString(),
+      date: date.toISOString(),
       fields: {
         [fields.completed.id]: fv(true, "in"),
         [fields.duration.id]: fv(day.duration, "in"),
@@ -4131,7 +4131,7 @@ export async function createDefaultUserData(userId) {
       targetType: "module",
       targetId: toolkitInstances.eveningRun.id,
       meta: { containerId: scheduleContainers["slot_18_30"].id, historicalSeed: true },
-      scheduledDate: date.toISOString(),
+      date: date.toISOString(),
       fields: {
         [fields.completed.id]: fv(day.steps > 9000, "in"),
         [fields.steps.id]: fv(day.steps, "in"),
@@ -4145,7 +4145,7 @@ export async function createDefaultUserData(userId) {
       targetType: "module",
       targetId: toolkitInstances.drinkWater.id,
       meta: { containerId: scheduleContainers["slot_17_0"].id, historicalSeed: true },
-      scheduledDate: date.toISOString(),
+      date: date.toISOString(),
       fields: {
         [fields.completed.id]: fv(day.water >= 64, "in"),
         [fields.water.id]: fv(day.water, "in"),
@@ -4159,7 +4159,7 @@ export async function createDefaultUserData(userId) {
         targetType: "module",
         targetId: toolkitInstances.reading.id,
         meta: { containerId: scheduleContainers["slot_9_0"].id, historicalSeed: true },
-        scheduledDate: date.toISOString(),
+        date: date.toISOString(),
         fields: {
           [fields.completed.id]: fv(true, "in"),
           [fields.pages.id]: fv(day.pages, "in"),
@@ -4175,7 +4175,7 @@ export async function createDefaultUserData(userId) {
         targetType: "module",
         targetId: toolkitInstances.trackExpense.id,
         meta: { containerId: toolkitContainers.financial.id, historicalSeed: true },
-        scheduledDate: date.toISOString(),
+        date: date.toISOString(),
         fields: {
           [fields.completed.id]: fv(true, "in"),
           [fields.amount.id]: fv(day.spent, "out"),
@@ -4189,7 +4189,7 @@ export async function createDefaultUserData(userId) {
         targetType: "module",
         targetId: toolkitInstances.logIncome.id,
         meta: { containerId: toolkitContainers.financial.id, historicalSeed: true },
-        scheduledDate: date.toISOString(),
+        date: date.toISOString(),
         fields: {
           [fields.completed.id]: fv(true, "in"),
           [fields.income.id]: fv(day.income, "in"),
@@ -4206,7 +4206,7 @@ export async function createDefaultUserData(userId) {
   const panelPlacements = [
     { key: "dailyToolkit", row: 0, col: 0, width: 1, height: 1 },
     { key: "todoList", row: 1, col: 0, width: 1, height: 1 },
-    { key: "centerHub", row: 0, col: 1, width: 1, height: 2, viewId: centerHubViewId, filterOverride: { [scheduledDateFieldId]: today.toISOString() } },
+    { key: "centerHub", row: 0, col: 1, width: 1, height: 2, viewId: centerHubViewId, filterOverride: { [dateFieldId]: today.toISOString() } },
     { key: "dailyGoals", row: 0, col: 2, width: 1, height: 1 },
     { key: "accounts", row: 1, col: 2, width: 1, height: 1 },
   ];

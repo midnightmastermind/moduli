@@ -12,6 +12,7 @@ import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { PipelineEditor } from "../../blocks";
 import { executePipeline } from "../../helpers/operationExecutor";
 import Field from "../Field";
+import OperationLogPanel from "./OperationLogPanel";
 
 // Shared style helpers
 const labelStyle = {
@@ -91,21 +92,6 @@ export function getTriggerVars(eventType, subjectType) {
   base.push("$trigger.userId", "$trigger.timestamp");
   return base;
 }
-
-// Source entity types — what can be bound as a pipeline variable
-const SOURCE_ENTITY_TYPES = [
-  { value: "module",      label: "Module",       desc: "Panel, container, or instance (filter by role/kind/label)" },
-  { value: "field",       label: "Field",        desc: "A field definition" },
-  { value: "fieldValue",  label: "Field Value",  desc: "Aggregated value of a field across modules" },
-  { value: "grid",        label: "Grid",         desc: "The current grid" },
-  { value: "iteration",   label: "Iteration",    desc: "Current or named iteration" },
-  { value: "view",        label: "View",         desc: "A view / rendering config" },
-  { value: "template",    label: "Template",     desc: "A saved template" },
-  { value: "transaction", label: "Transaction",  desc: "Transaction records (audit)" },
-  { value: "folder",      label: "Folder",       desc: "A manifest folder" },
-  { value: "trigger",     label: "$trigger",     desc: "The trigger event context" },
-  { value: "date",        label: "Date/Time",    desc: "Built-in: $now, $today, $currentHour" },
-];
 
 // Legacy map for backwards-compat display in preview (old triggerType values)
 const TRIGGER_TYPES = EVENT_TYPES;
@@ -585,86 +571,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
         </div>
       </div>
 
-      {/* ── Sources (variable assignments) ── */}
-      <div>
-        <span style={labelStyle}>Sources <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>— assign variables for the pipeline</span></span>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          {(local.pipeline?.sources || []).map((src, idx) => {
-            const updateSrc = (patch) => {
-              const next = [...(local.pipeline?.sources || [])];
-              next[idx] = { ...next[idx], ...patch };
-              setLocal(p => ({ ...p, pipeline: { ...(p.pipeline || {}), sources: next } }));
-            };
-            const removeSrc = () => {
-              const next = (local.pipeline?.sources || []).filter((_, i) => i !== idx);
-              setLocal(p => ({ ...p, pipeline: { ...(p.pipeline || {}), sources: next } }));
-            };
-            const entityType = src.entityType || "module";
-            const subjectRole = src.subjectRole || "";
-            const entitiesForSrc = entityType === "module"
-              ? (subjectRole ? Object.values(modulesById || {}).filter(m => getRole(m) === subjectRole) : Object.values(modulesById || {}))
-              : entityType === "field" ? fields
-              : [];
-            return (
-              <div key={idx} style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center", background: "var(--input-bg)", border: "1px solid var(--border-subtle)", borderRadius: 5, padding: "5px 8px" }}>
-                {/* Variable name */}
-                <input
-                  value={src.varName || ""}
-                  onChange={e => updateSrc({ varName: e.target.value })}
-                  placeholder="$varName"
-                  title="Variable name (use in pipeline as $varName)"
-                  style={{ ...inputStyle, width: 90, fontSize: 10, color: "var(--accent-green-text)", fontFamily: "monospace" }}
-                />
-                <span style={{ color: "var(--text-faint)", fontSize: 11 }}>=</span>
-                {/* Entity type */}
-                <select
-                  value={entityType}
-                  onChange={e => updateSrc({ entityType: e.target.value, subjectRole: "", entityId: "" })}
-                  style={{ ...inputStyle, width: "auto", minWidth: 100, fontSize: 10 }}
-                >
-                  {SOURCE_ENTITY_TYPES.map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
-                </select>
-                {/* Role filter for modules */}
-                {entityType === "module" && (
-                  <select
-                    value={subjectRole}
-                    onChange={e => updateSrc({ subjectRole: e.target.value, entityId: "" })}
-                    style={{ ...inputStyle, width: "auto", minWidth: 90, fontSize: 10 }}
-                  >
-                    <option value="">Any role</option>
-                    <option value="panel">Panel</option>
-                    <option value="container">Container</option>
-                    <option value="instance">Instance</option>
-                  </select>
-                )}
-                {/* Specific entity */}
-                {entitiesForSrc.length > 0 && (
-                  <select
-                    value={src.entityId || ""}
-                    onChange={e => updateSrc({ entityId: e.target.value })}
-                    style={{ ...inputStyle, width: "auto", minWidth: 120, fontSize: 10 }}
-                  >
-                    <option value="">All {entityType === "module" ? (subjectRole || "modules") : entityType + "s"}</option>
-                    {entitiesForSrc.map(m => <option key={m.id} value={m.id}>{m.label || m.name || m.id}</option>)}
-                  </select>
-                )}
-                <button onClick={removeSrc} style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", fontSize: 13, padding: "0 2px" }} title="Remove source">×</button>
-              </div>
-            );
-          })}
-          <button
-            onClick={() => {
-              const next = [...(local.pipeline?.sources || []), { varName: `$source${(local.pipeline?.sources?.length || 0) + 1}`, entityType: "module", subjectRole: "", entityId: "" }];
-              setLocal(p => ({ ...p, pipeline: { ...(p.pipeline || {}), sources: next } }));
-            }}
-            style={{ alignSelf: "flex-start", padding: "3px 10px", borderRadius: 5, fontSize: 10, fontFamily: "monospace", cursor: "pointer", background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-muted)" }}
-          >
-            + Add Source
-          </button>
-        </div>
-      </div>
-
-      {/* Pipeline editor */}
+      {/* Pipeline editor (Sources + Steps) */}
       <PipelineEditor
         pipeline={local.pipeline || { sources: [], steps: [] }}
         onChange={(pipeline) => setLocal(p => ({ ...p, pipeline }))}
@@ -877,17 +784,22 @@ export function OperationsTab() {
           </button>
           <span style={{ fontSize: 12, fontFamily: "monospace", color: "var(--text-primary)", fontWeight: 600 }}>{selectedOp.name}</span>
         </div>
-        {/* Editor content */}
-        <div style={{ padding: "10px 14px" }}>
-          <OperationEditor
-            operation={selectedOp}
-            fields={gridFields}
-            categoryFolders={categoryFolders}
-            isDuplicate={duplicateOpIds.has(selectedOp?.id)}
-            onSave={(updated) => CommitHelpers.updateOperation({ dispatch, socket, operation: updated })}
-            onDelete={() => { CommitHelpers.deleteOperation({ dispatch, socket, operationId: selectedOpId }); setSelectedOpId(null); }}
-            onRun={() => { setSelectedOpId(null); handleRun(selectedOp); }}
-          />
+        {/* Editor + Log panel side-by-side */}
+        <div style={{ padding: "10px 14px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <div style={{ flex: "1 1 60%", minWidth: 0 }}>
+            <OperationEditor
+              operation={selectedOp}
+              fields={gridFields}
+              categoryFolders={categoryFolders}
+              isDuplicate={duplicateOpIds.has(selectedOp?.id)}
+              onSave={(updated) => CommitHelpers.updateOperation({ dispatch, socket, operation: updated })}
+              onDelete={() => { CommitHelpers.deleteOperation({ dispatch, socket, operationId: selectedOpId }); setSelectedOpId(null); }}
+              onRun={() => { setSelectedOpId(null); handleRun(selectedOp); }}
+            />
+          </div>
+          <div style={{ flex: "1 1 40%", minWidth: 280, position: "sticky", top: 50 }}>
+            <OperationLogPanel operation={selectedOp} />
+          </div>
         </div>
       </div>
     );

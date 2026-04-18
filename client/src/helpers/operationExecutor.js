@@ -19,6 +19,46 @@ import { toast } from "sonner";
 import { resolveExpr, evalRule, evalGroup, extractFieldValuesFiltered, executeActionItem } from "./operationActions";
 
 // ============================================================
+// RUN LOG — per-operation run history for the editor's log panel
+// ============================================================
+// Module-level store: each op keeps a capped history of its recent runs
+// (live-run from the Run button OR trigger-fired). Subscribers (OperationEditor)
+// get notified when a new run is appended.
+
+const RUN_HISTORY_LIMIT = 20;            // newest first; oldest evicted past cap
+const runHistory = new Map();            // Map<opId, RunLog[]>
+const logSubscribers = new Map();        // Map<opId, Set<fn>>
+
+export function getOpRunHistory(opId) {
+  return runHistory.get(opId) || [];
+}
+
+// Back-compat: returns the most recent run (or null)
+export function getLastOpLog(opId) {
+  const list = runHistory.get(opId);
+  return list && list.length ? list[0] : null;
+}
+
+export function subscribeToOpLog(opId, fn) {
+  if (!logSubscribers.has(opId)) logSubscribers.set(opId, new Set());
+  logSubscribers.get(opId).add(fn);
+  return () => logSubscribers.get(opId)?.delete(fn);
+}
+
+function recordRunLog(opId, log) {
+  if (!opId) return;
+  const list = runHistory.get(opId) || [];
+  list.unshift(log);
+  if (list.length > RUN_HISTORY_LIMIT) list.length = RUN_HISTORY_LIMIT;
+  runHistory.set(opId, list);
+  logSubscribers.get(opId)?.forEach(fn => { try { fn(list); } catch {} });
+}
+
+function makeLogger() {
+  return { entries: [], add(kind, data) { this.entries.push({ kind, t: Date.now(), ...data }); } };
+}
+
+// ============================================================
 // TRIGGER MATCHING
 // ============================================================
 
@@ -468,24 +508,27 @@ function traverseStatements(block, ctx) {
  */
 export function runMatchingOperations(operations, transactionType, transaction, context, { onError } = {}) {
   const updates = [];
-  // Lower sortOrder runs first. Stamp-date ops get sortOrder: 0, aggregations get 10+,
-  // display-only operations get 100+. Missing sortOrder defaults to 50 (middle).
   const ordered = [...operations].sort((a, b) => (a.sortOrder ?? 50) - (b.sortOrder ?? 50));
   for (const op of ordered) {
     if (!shouldTrigger(op, transactionType, transaction)) continue;
+    const startedAt = Date.now();
+    const logger = makeLogger();
+    logger.add("start", { opId: op.id, opName: op.name, transactionType, trigger: transaction ? { ...transaction } : null });
     try {
-      // Pipeline mode
+      let results;
       if (op.pipeline) {
-        const results = executePipeline(op, context, transaction);
-        updates.push(...results);
+        results = executePipeline(op, context, transaction, undefined, logger);
       } else {
-        const results = executeOperation(op, transactionType, transaction, context);
-        updates.push(...results);
+        results = executeOperation(op, transactionType, transaction, context);
       }
+      updates.push(...results);
+      logger.add("end", { updates: results, durationMs: Date.now() - startedAt });
     } catch (err) {
       console.warn(`[operationExecutor] error in operation "${op.name}":`, err);
+      logger.add("error", { message: String(err?.message || err), stack: err?.stack });
       onError?.(op.name, err);
     }
+    recordRunLog(op.id, { runAt: startedAt, durationMs: Date.now() - startedAt, entries: logger.entries });
   }
   return updates;
 }
@@ -509,9 +552,12 @@ export function runMatchingOperations(operations, transactionType, transaction, 
  * @param {Object} [transaction] — triggering transaction (exposed as $trigger)
  * @returns {Array} updates — [{ fieldId, value }] or [{ _effect, ... }]
  */
-export function executePipeline(operation, context, transaction, extraVars) {
+export function executePipeline(operation, context, transaction, extraVars, externalLogger) {
   const pipeline = operation.pipeline;
   if (!pipeline) return [];
+  // Lazy logger — always present in $vars so helpers can append without null checks.
+  // When called from runMatchingOperations, externalLogger is reused (one log per run).
+  const logger = externalLogger || makeLogger();
 
   const { sources = [], steps = [] } = pipeline;
   const { state, fieldsById = {}, occurrencesById = {}, operationsById = {} } = context;
@@ -530,6 +576,7 @@ export function executePipeline(operation, context, transaction, extraVars) {
   const _nowDate = new Date();
   const _activeIteration = (state?.grid?.iterations ?? []).find(i => i.id === state?.grid?.selectedIterationId);
   const $vars = {
+    _log: logger,
     _occurrencesById: occurrencesById,
     _fieldsById: fieldsById,
     $now: _nowDate.toISOString(),
@@ -540,14 +587,15 @@ export function executePipeline(operation, context, transaction, extraVars) {
     $iterationId: state?.grid?.selectedIterationId ?? null,
     $iterationValue: state?.grid?.currentIterationValue ?? null,
     $iterationFilter: _activeIteration?.timeFilter ?? null,
-    // Active filter date — the currently-viewed date in the filter nav. Falls back to today.
+    // Active filter date — the currently-viewed date in the filter nav.
+    // Returns null when no date filter is active (do NOT silently fall back to today;
+    // callers that want today should resolve `$today` explicitly).
     $activeDate: (() => {
       const afv = state?.grid?.activeFilterValues || {};
       const dateVal = Object.values(afv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
-      return dateVal ? dateVal.slice(0, 10) : _nowDate.toISOString().slice(0, 10);
+      return dateVal ? dateVal.slice(0, 10) : null;
     })(),
-    // Pure filter date — null when no date filter is active. Use for conditional matching
-    // where "no filter = match all" (DATE_EQUALS with null right returns true).
+    // Alias for legacy callers. Same null-when-empty semantics as $activeDate.
     $filterDate: (() => {
       const afv = state?.grid?.activeFilterValues || {};
       const dateVal = Object.values(afv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
@@ -599,6 +647,39 @@ export function executePipeline(operation, context, transaction, extraVars) {
     }
     $vars["$trigger"] = enriched;
   }
+
+  // ---- $parentFilter: effective filter values applied to the trigger occurrence's parent ----
+  // Walks the parent chain via parentByChildId (parent.occurrences[] is authoritative)
+  // and merges each ancestor's `filterOverride` on top of grid.activeFilterValues.
+  // `.date` is a convenience accessor returning the first YYYY-MM-DD value found in the merged map.
+  $vars["$parentFilter"] = (() => {
+    const triggerOccId = transaction?.occurrenceId;
+    const gridFilters = state?.grid?.activeFilterValues || {};
+    let effective = { ...gridFilters };
+    if (triggerOccId) {
+      // Collect ancestors from immediate parent upward
+      const chain = [];
+      let cur = parentByChildId[triggerOccId];
+      while (cur) {
+        const occ = occurrencesById[cur];
+        if (!occ) break;
+        chain.push(occ);
+        cur = parentByChildId[cur];
+      }
+      // Merge top-down so closer ancestors win over distant ones
+      for (let i = chain.length - 1; i >= 0; i--) {
+        const override = chain[i].filterOverride;
+        if (override == null) continue;
+        effective = { ...effective, ...override };
+      }
+      for (const [k, v] of Object.entries(effective)) {
+        if (v === null) delete effective[k];
+      }
+    }
+    const dateVal = Object.values(effective).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
+    return { ...effective, date: dateVal ? dateVal.slice(0, 10) : null };
+  })();
+
   for (const source of sources) {
     const { variableName, entityType, entityId, nodeInput } = source;
     if (!variableName) continue;
@@ -695,6 +776,18 @@ export function executePipeline(operation, context, transaction, extraVars) {
   // ---- Inject _executors, _extraVars, and _parentByChildId for ancestry checks ----
   const contextWithExecutors = { ...context, _executors: { executePipeline, executeOperation }, _extraVars: extraVars, _parentByChildId: parentByChildId };
 
+  // Log a snapshot of the resolved source vars (skip internals starting with _).
+  const sourceSummary = {};
+  for (const [k, v] of Object.entries($vars)) {
+    if (k.startsWith("_")) continue;
+    if (k.startsWith("$all") || k === "$grid" || k === "$templates" || k === "$iterationDefinitions") {
+      sourceSummary[k] = Array.isArray(v) ? `[Array(${v.length})]` : "[Object]";
+    } else {
+      sourceSummary[k] = v;
+    }
+  }
+  logger.add("sources", { vars: sourceSummary });
+
   // ---- Execute steps (top-down code flow) ----
   return executeSteps(steps, $vars, contextWithExecutors, transaction);
 }
@@ -709,13 +802,19 @@ export function executePipeline(operation, context, transaction, extraVars) {
  * $vars is shared by reference — INIT_VAR/ADD_TO_VAR mutate it in-place.
  */
 function executeSteps(steps, $vars, context, transaction) {
+  const log = $vars._log;
   const updates = [];
   for (const step of steps || []) {
     if (step.type === "action") {
-      updates.push(...executeActionItem(step.config?.type || step.actionType, step.config || {}, $vars, context, transaction));
+      const actionType = step.config?.type || step.actionType;
+      const result = executeActionItem(actionType, step.config || {}, $vars, context, transaction);
+      log?.add("action", { actionType, config: step.config, resultCount: result.length, result });
+      updates.push(...result);
     } else if (step.type === "if") {
       const group = step.condition || { operator: "AND", rules: step.rules || [] };
-      if (evalGroup(group, $vars)) {
+      const branch = evalGroup(group, $vars);
+      log?.add("if", { condition: group, branch: branch ? "then" : "else" });
+      if (branch) {
         updates.push(...executeSteps(step.then || [], $vars, context, transaction));
       } else {
         updates.push(...executeSteps(step.else || [], $vars, context, transaction));
@@ -733,6 +832,7 @@ function executeSteps(steps, $vars, context, transaction) {
       } else {
         items = gatherLoopItems(step, context, $vars);
       }
+      log?.add("loop", { over: step.overExpr || step.over, as: varName, itemCount: items.length });
       for (const item of items) {
         $vars[varName] = item;
         updates.push(...executeSteps(step.body || [], $vars, context, transaction));
@@ -888,7 +988,7 @@ function gatherLoopItems(step, context, $vars) {
   }
 
   // Time filter — checks legacy iteration.timeValue, then date-type field
-  // values on the occurrence OR its parent chain (scheduledDate lives on the
+  // values on the occurrence OR its parent chain (date lives on the
   // container occurrence, not the instance occurrence inside it).
   if (timeFilter && timeFilter !== "all" && timeFilter !== "inherit") {
     // Use the active filter date as reference (falls back to today)

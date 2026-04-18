@@ -15,6 +15,7 @@ import * as CommitHelpers from "./CommitHelpers";
 import * as LayoutHelpers from "./LayoutHelpers";
 import { DragType, parseExternalDrop } from "./dragSystem";
 import { runMatchingOperations } from "./operationExecutor";
+import { embedDeleteRegistry } from "./embedRegistry";
 
 function makeUUID() {
   return crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -164,6 +165,27 @@ export function handleContainerDrop(ctx, drop) {
         userId: state?.userId, emit: true,
       });
     });
+  } else if (payload.context?.sourceType === "doc-embed") {
+    // Container dragged out of a doc embed — add to target board page or panel
+    const toPanel = baseAllPanels.find(p => p.id === panelId);
+    if (!toPanel) { clearSession(); return; }
+    const toPanelOcc = toPanel._occurrence ? occurrencesById[toPanel._occurrence.id] : null;
+    if (!toPanelOcc) { clearSession(); return; }
+
+    const occurrenceId = payload.context?.occurrenceId;
+    if (!occurrenceId) { clearSession(); return; }
+
+    // Board panels store containers inside page occurrences, not the panel occurrence
+    const toPageOccId = drop.dropTarget?.context?.pageOccurrenceId;
+    const toOrderOcc = toPageOccId ? (occurrencesById[toPageOccId] || toPanelOcc) : toPanelOcc;
+
+    const newOccurrences = [...(toOrderOcc.occurrences || []), occurrenceId];
+    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: toOrderOcc.id, occurrences: newOccurrences }, emit: true });
+
+    // Move mode: remove from doc embed
+    if (sessionRef.current.mode !== "copy") {
+      embedDeleteRegistry.get(occurrenceId)?.();
+    }
   } else {
     const fromPanel = baseAllPanels.find(p => p.id === payload.context?.panelId);
     const toPanel = baseAllPanels.find(p => p.id === panelId);
@@ -255,6 +277,37 @@ export function handleInstanceDrop(ctx, drop) {
   const toC = baseContainers.find(c => c.id === containerId);
   const fromCOcc = fromC ? Object.values(occurrencesById).find(o => o.targetId === fromC.id) : null;
   const toCOcc = toC ? Object.values(occurrencesById).find(o => o.targetId === toC.id) : null;
+
+  if (payload.context?.sourceType === "doc-embed") {
+    // Instance dragged out of a doc embed — add to target container
+    if (!toC || !toCOcc) { clearSession(); return; }
+    const occurrenceId = payload.context?.occurrenceId;
+    if (!occurrenceId) { clearSession(); return; }
+
+    let toIndex = null;
+    if (dropTarget.context?.insertAt !== undefined) {
+      toIndex = dropTarget.context.insertAt;
+    } else if (instanceId) {
+      const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(instanceId, toCOcc.occurrences || [], occurrencesById);
+      if (hoveredIndex !== -1) {
+        const edge = dropTarget.context?.closestEdge;
+        if (edge === "top" || edge === "left") toIndex = hoveredIndex;
+        else if (edge === "bottom" || edge === "right") toIndex = hoveredIndex + 1;
+        else toIndex = hoveredIndex;
+      }
+    }
+
+    const newOccurrences = [...(toCOcc.occurrences || [])];
+    if (toIndex !== null) newOccurrences.splice(toIndex, 0, occurrenceId);
+    else newOccurrences.push(occurrenceId);
+    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: toCOcc.id, occurrences: newOccurrences }, emit: true });
+
+    // Move mode: remove from doc embed
+    if (sessionRef.current.mode !== "copy") {
+      embedDeleteRegistry.get(occurrenceId)?.();
+    }
+    return;
+  }
 
   if (!fromC || !toC) return;
 

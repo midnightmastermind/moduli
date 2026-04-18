@@ -20,8 +20,10 @@ const GridSchema = new mongoose.Schema({
       id: { type: String, required: true },
       name: { type: String, default: "" },
       conditions: { type: mongoose.Schema.Types.Mixed, default: [] },
-      // [{ fieldId, comparator, value }] — same format as operation IF rules
+      // Root is a ConditionGroup: { operator: "AND"|"OR", rules: [...] }
       timeScale: { type: String, enum: ["daily", "weekly", "monthly", "yearly", null], default: null },
+      // When true, downstream panels/containers cannot override this filter.
+      lock: { type: Boolean, default: false },
     }],
     default: []
   },

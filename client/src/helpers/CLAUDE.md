@@ -2,6 +2,14 @@
 
 _Updated: 2026-04-15. Check this file before re-reading source._
 
+## Recent Changes (Apr 17 2026 — Per-Operation Run Log)
+- **operationExecutor.js**: Module-level `runHistory` Map<opId, RunLog[]> (cap 20, newest first). New exports: `getOpRunHistory(opId)`, `getLastOpLog(opId)` (back-compat), `subscribeToOpLog(opId, fn)`. `recordRunLog` unshifts onto history and notifies subscribers with the full list. `runMatchingOperations` creates a `makeLogger()` per op, adds `start`/`end`/`error` entries, and calls `recordRunLog`. `executePipeline` accepts optional 5th `externalLogger` param; reuses it when called from the batch executor or creates its own. Logger attached to `$vars._log` for nested helpers. `executeSteps` adds per-step entries (`action`/`if`/`loop`) with config + result preview. Source-resolution snapshot logged after `$vars` build.
+
+## Recent Changes (Apr 16 2026 — Ancestry Check Replaces pageOccId)
+- **operationExecutor.js**: Removed broken `pageOccId` filter from `gatherLoopItems`. Added `parentByChildId` reverse map built in `executePipeline` from all `occ.occurrences[]` arrays, passed via context as `_parentByChildId`. `gatherLoopItems` now adds `_ancestors` (ordered ancestor ID array, closest first) to every loop item. Time filter's `findDateValue` also uses the reverse map for parent-chain date walk.
+- **operationActions.js**: Added `HAS_ANCESTOR` (aliased `ARRAY_INCLUDES`) comparator to `evalRule` — checks if an array (e.g. `$item._ancestors`) contains a given ID. Extended `FIND_OCCURRENCE` action to support `moduleLabel` / `moduleLabelExpr` config — looks up module by label in `$allModules`, uses its ID as `targetId`.
+- **DB (test grid)**: "Water Today" and "Tasks Completed Today" operations updated — `pageOccId` removed from loop step, FIND_OCCURRENCE step added before loop to dynamically find schedule page by label, `HAS_ANCESTOR` condition added to loop body.
+
 ## Recent Changes (Apr 15 2026 — Delete Fires Operations Optimistically)
 - **CommitHelpers.js**: `deleteOccurrence` + `removeOccurrence` now accept optional `occurrence` param. Call `operationsBridge.removeLocalOcc(occurrenceId)` before dispatch (evicts from local cache), then fire `MeasureOp` for each field the occurrence had. Mirrors what `onOccurrenceDeleted` does in bindSocketToStore for other windows. Callers in ModuleInstance.jsx, ModuleContainer.jsx, ContainerPool.jsx updated to pass `occurrence`.
 

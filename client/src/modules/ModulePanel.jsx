@@ -919,7 +919,7 @@ function Panel({
                     </div>
                   ) : (
                     <div style={{
-                      flexShrink: 0, width: 180,
+                      flexShrink: 0, width: 222,
                       display: "flex", flexDirection: "column",
                       background: "var(--surface-card)",
                       borderRight: "1px solid var(--border-default)",
@@ -952,7 +952,7 @@ function Panel({
                     </div>
                   ) : (
                     <div style={{
-                      flexShrink: 0, width: 180,
+                      flexShrink: 0, width: 222,
                       display: "flex", flexDirection: "column",
                       background: "var(--surface-card)",
                       borderLeft: "1px solid var(--border-default)",

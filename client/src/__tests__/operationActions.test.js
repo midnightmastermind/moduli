@@ -346,3 +346,213 @@ describe("Day page pipeline flow (integration)", () => {
     expect(viewUpdates[0].patch.activeOccurrenceId).toBe("o1");
   });
 });
+
+// ============================================================
+// resolveExpr — multi-level path resolution ($item.fields.water.value)
+// ============================================================
+describe("resolveExpr — multi-level path resolution", () => {
+  it("resolves $item.fields.water.value through nested objects", () => {
+    const $vars = {
+      $item: {
+        id: "o1",
+        fields: { water: { value: 32, flow: "in" } },
+      },
+    };
+    expect(resolveExpr("$item.fields.water.value", $vars)).toBe(32);
+    expect(resolveExpr("$item.fields.water.flow", $vars)).toBe("in");
+  });
+
+  it("returns null when an intermediate path segment is missing", () => {
+    const $vars = { $item: { id: "o1", fields: {} } };
+    expect(resolveExpr("$item.fields.water.value", $vars)).toBe(null);
+  });
+
+  it("returns null when the root variable is missing", () => {
+    expect(resolveExpr("$item.fields.water.value", {})).toBe(null);
+  });
+
+  it("walks arbitrary depth past the legacy 2-segment limit", () => {
+    const $vars = { $a: { b: { c: { d: { e: "deep" } } } } };
+    expect(resolveExpr("$a.b.c.d.e", $vars)).toBe("deep");
+  });
+
+  it("preserves _ancestors array when resolving $item._ancestors", () => {
+    const $vars = { $item: { _ancestors: ["page1", "panel1", "grid1"] } };
+    const got = resolveExpr("$item._ancestors", $vars);
+    expect(got).toEqual(["page1", "panel1", "grid1"]);
+  });
+
+  it("returns flat back-compat field accessor alongside nested", () => {
+    // gatherLoopItems exposes both $item.water (flat) AND $item.fields.water.value.
+    const $vars = {
+      $item: {
+        water: 32,
+        fields: { water: { value: 32, flow: "in" } },
+      },
+    };
+    expect(resolveExpr("$item.water", $vars)).toBe(32);
+    expect(resolveExpr("$item.fields.water.value", $vars)).toBe(32);
+  });
+});
+
+// ============================================================
+// evalRule — HAS_ANCESTOR / ARRAY_INCLUDES comparator
+// ============================================================
+describe("evalRule — HAS_ANCESTOR comparator", () => {
+  it("returns true when the array contains the right value", () => {
+    const $vars = { $item: { _ancestors: ["page-april-17", "schedule-panel", "grid1"] } };
+    const rule = { left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "page-april-17" };
+    expect(evalRule(rule, $vars)).toBe(true);
+  });
+
+  it("returns false when the array does not contain the right value", () => {
+    const $vars = { $item: { _ancestors: ["page-april-17", "schedule-panel"] } };
+    const rule = { left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "page-april-18" };
+    expect(evalRule(rule, $vars)).toBe(false);
+  });
+
+  it("returns false on an empty ancestor array", () => {
+    const $vars = { $item: { _ancestors: [] } };
+    const rule = { left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "anything" };
+    expect(evalRule(rule, $vars)).toBe(false);
+  });
+
+  it("treats a non-array left value as empty (no match)", () => {
+    const $vars = { $item: { _ancestors: "not-an-array" } };
+    const rule = { left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "x" };
+    expect(evalRule(rule, $vars)).toBe(false);
+  });
+
+  it("ARRAY_INCLUDES alias behaves identically", () => {
+    const $vars = { $item: { tags: ["work", "urgent"] } };
+    expect(evalRule({ left: "$item.tags", comparator: "ARRAY_INCLUDES", right: "urgent" }, $vars)).toBe(true);
+    expect(evalRule({ left: "$item.tags", comparator: "ARRAY_INCLUDES", right: "fun" }, $vars)).toBe(false);
+  });
+
+  it("resolves the right side as an expression (not a literal string)", () => {
+    const $vars = {
+      $foundOccurrenceId: "page-april-17",
+      $item: { _ancestors: ["page-april-17", "schedule-panel"] },
+    };
+    const rule = { left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$foundOccurrenceId" };
+    expect(evalRule(rule, $vars)).toBe(true);
+  });
+
+  it("coerces IDs to strings before comparison", () => {
+    const $vars = { $item: { _ancestors: [123, 456] } };
+    expect(evalRule({ left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "123" }, $vars)).toBe(true);
+    expect(evalRule({ left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: 123 }, $vars)).toBe(true);
+  });
+});
+
+// ============================================================
+// evalRule — DATE_EQUALS / SAME_DAY comparator
+// ============================================================
+describe("evalRule — DATE_EQUALS comparator", () => {
+  it("matches identical YYYY-MM-DD dates", () => {
+    const rule = { left: "literal:2026-04-17", comparator: "DATE_EQUALS", right: "2026-04-17" };
+    expect(evalRule(rule, {})).toBe(true);
+  });
+
+  it("matches an ISO timestamp against a YYYY-MM-DD filter", () => {
+    const rule = { left: "literal:2026-04-17T17:00:00.000Z", comparator: "DATE_EQUALS", right: "2026-04-17" };
+    expect(evalRule(rule, {})).toBe(true);
+  });
+
+  it("returns false when the days differ", () => {
+    const rule = { left: "literal:2026-04-17", comparator: "DATE_EQUALS", right: "2026-04-18" };
+    expect(evalRule(rule, {})).toBe(false);
+  });
+
+  it("treats null right as wildcard (matches anything, including null left)", () => {
+    // $filterDate is null when no filter is active → must not exclude any occurrence.
+    expect(evalRule({ left: "literal:2026-04-17", comparator: "DATE_EQUALS", right: null }, {})).toBe(true);
+    expect(evalRule({ left: null, comparator: "DATE_EQUALS", right: null }, {})).toBe(true);
+  });
+
+  it("treats empty-string right as wildcard", () => {
+    expect(evalRule({ left: "literal:2026-04-17", comparator: "DATE_EQUALS", right: "" }, {})).toBe(true);
+  });
+
+  it("returns false when left is null and right is a concrete date", () => {
+    // Occurrence has no date — must not match a concrete filter.
+    expect(evalRule({ left: null, comparator: "DATE_EQUALS", right: "2026-04-17" }, {})).toBe(false);
+  });
+
+  it("returns false on unparseable date strings", () => {
+    expect(evalRule({ left: "literal:not-a-date", comparator: "DATE_EQUALS", right: "2026-04-17" }, {})).toBe(false);
+  });
+
+  it("SAME_DAY alias behaves identically", () => {
+    expect(evalRule({ left: "literal:2026-04-17T08:00:00.000Z", comparator: "SAME_DAY", right: "2026-04-17" }, {})).toBe(true);
+    expect(evalRule({ left: "literal:2026-04-17", comparator: "SAME_DAY", right: "2026-04-18" }, {})).toBe(false);
+  });
+
+  it("resolves $filterDate to a concrete date and matches accordingly", () => {
+    const $vars = { $filterDate: "2026-04-17", $item: { fields: { date: { value: "2026-04-17T12:00:00.000Z" } } } };
+    const rule = { left: "$item.fields.date.value", comparator: "DATE_EQUALS", right: "$filterDate" };
+    expect(evalRule(rule, $vars)).toBe(true);
+  });
+});
+
+// ============================================================
+// SET_FILTER action — emits SET_FILTER effect
+// ============================================================
+describe("SET_FILTER action", () => {
+  const makeContext = () => ({ state: {}, fieldsById: {}, occurrencesById: {}, operationsById: {} });
+
+  it("emits a SET_FILTER effect with literal value", () => {
+    const $vars = {};
+    const updates = executeActionItem("SET_FILTER", {
+      fieldId: "date",
+      valueExpr: "literal:2026-04-17",
+    }, $vars, makeContext());
+
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toEqual({ _effect: "SET_FILTER", fieldId: "date", value: "2026-04-17" });
+  });
+
+  it("resolves valueExpr from $vars", () => {
+    const $vars = { $today: "2026-04-17" };
+    const updates = executeActionItem("SET_FILTER", {
+      fieldId: "date",
+      valueExpr: "$today",
+    }, $vars, makeContext());
+
+    expect(updates[0].value).toBe("2026-04-17");
+  });
+
+  it("coerces non-string values to strings", () => {
+    const $vars = { $count: 5 };
+    const updates = executeActionItem("SET_FILTER", {
+      fieldId: "priority",
+      valueExpr: "$count",
+    }, $vars, makeContext());
+
+    expect(updates[0].value).toBe("5");
+    expect(typeof updates[0].value).toBe("string");
+  });
+
+  it("falls back to cfg.value when valueExpr is missing", () => {
+    const $vars = {};
+    const updates = executeActionItem("SET_FILTER", {
+      fieldId: "date",
+      value: "2026-04-18",
+    }, $vars, makeContext());
+
+    expect(updates[0].value).toBe("2026-04-18");
+  });
+
+  it("returns empty when fieldId is missing", () => {
+    const updates = executeActionItem("SET_FILTER", { valueExpr: "literal:x" }, {}, makeContext());
+    expect(updates).toHaveLength(0);
+  });
+
+  it("returns empty when value resolves to null", () => {
+    const updates = executeActionItem("SET_FILTER", {
+      fieldId: "date",
+      valueExpr: "$nonexistent",
+    }, {}, makeContext());
+    expect(updates).toHaveLength(0);
+  });
+});

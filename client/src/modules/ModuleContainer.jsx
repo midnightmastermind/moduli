@@ -380,14 +380,29 @@ function Container({
   );
 
   // Apply active filter: hide occurrences that don't match the effective filter values
+  const activeNamedFilter = useMemo(() => {
+    const activeId = ctxState?.grid?.activeFilterId;
+    if (!activeId) return null;
+    return (ctxState?.grid?.namedFilters || []).find(f => f.id === activeId) || null;
+  }, [ctxState?.grid?.activeFilterId, ctxState?.grid?.namedFilters]);
+
   const effectiveFilters = useMemo(
-    () => resolveEffectiveFilters(containerOccurrence, ctxState?.grid?.activeFilterValues || {}),
-    [containerOccurrence, ctxState?.grid?.activeFilterValues]
+    () => resolveEffectiveFilters(
+      containerOccurrence,
+      ctxState?.grid?.activeFilterValues || {},
+      !!activeNamedFilter?.lock
+    ),
+    [containerOccurrence, ctxState?.grid?.activeFilterValues, activeNamedFilter]
+  );
+
+  const activeFilterConditions = useMemo(
+    () => activeNamedFilter?.conditions || null,
+    [activeNamedFilter]
   );
 
   const itemsWithOccurrences = useMemo(
-    () => allItemsWithOccurrences.filter(item => isOccurrenceVisible(item.occurrence, effectiveFilters)),
-    [allItemsWithOccurrences, effectiveFilters]
+    () => allItemsWithOccurrences.filter(item => isOccurrenceVisible(item.occurrence, effectiveFilters, activeFilterConditions)),
+    [allItemsWithOccurrences, effectiveFilters, activeFilterConditions]
   );
 
   const items = useMemo(() => itemsWithOccurrences.map(item => item.instance), [itemsWithOccurrences]);

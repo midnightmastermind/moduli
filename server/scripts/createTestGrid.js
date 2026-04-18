@@ -1,14 +1,33 @@
 // scripts/createTestGrid.js
 // ============================================================
-// Creates a minimal test grid for josh@jpoms.com with:
-//   - Daily Toolkit: 1 container (Physical) with Drink Water only
-//   - Daily Goals: 1 goal container showing water total
-//   - Schedule: 48 time slot containers (center hub, left page tab)
-//   - Notes: 1 empty doc page (center hub, right page tab)
-//   - Todo List: 1 general container
+// Creates a deterministic minimal test grid for any user. Used by
+// resetData.js to seed both josh@jpoms.com and test@moduli.test
+// with the same fixture, and runnable standalone via:
 //
-// Does NOT delete existing data. Adds a second grid for the user.
-// Run: node --env-file=.env scripts/createTestGrid.js
+//   node --env-file=.env scripts/createTestGrid.js                 # default user (josh)
+//   node --env-file=.env scripts/createTestGrid.js test@moduli.test
+//
+// Creates only — does NOT drop existing data. Running this against a
+// user that already has a "Test Grid" will leave the old one in place
+// and create a second grid with the same name. To wipe + recreate for
+// both seeded users, use scripts/resetTestGridData.js instead.
+//
+// Layout (2×3):
+//   [0,0] Daily Toolkit  — Physical (Drink Water, Morning Run, Vitamins, Stretch)
+//   [1,0] Todo List      — General (6 todos)
+//   [0,1] Center Hub ×2  — Schedule (48 slots, partially populated) | Notes
+//   [0,2] Daily Goals    — Physical (Water + Tasks total displays)
+//
+// Schedule pre-fill (for onLoad-driven Water/Tasks aggregations):
+//   7:00am  Drink Water (16oz, completed)
+//   8:30am  Morning Run (completed)
+//   9:00am  Drink Water (16oz, completed)
+//   11:00am Take Vitamins (completed)
+//   12:00pm Drink Water (16oz, completed)
+//   1:30pm  Stretch (not completed)
+//   3:00pm  Drink Water (8oz, completed)
+//   5:00pm  Drink Water (8oz, not completed)
+// Expected: Water Today = 56oz / 64oz; Tasks Completed = 6 / 6
 // ============================================================
 
 import mongoose from "mongoose";
@@ -30,17 +49,49 @@ import View from "../models/View.js";
 import Folder from "../models/Folder.js";
 import Operation from "../models/Operation.js";
 import User from "../models/User.js";
-import { makeLoopSumOp, makeLoopCountTrueOp, generateTimeSlots } from "../utils/operationBuilders.js";
+import { makeLoopCountTrueOp, generateTimeSlots } from "../utils/operationBuilders.js";
 
-const TARGET_USER_EMAIL = "josh@jpoms.com";
+const DEFAULT_USER_EMAIL = "josh@jpoms.com";
+const DEFAULT_GRID_NAME = "Test Grid";
 const uid = () => nanoid(12);
 
-async function createTestGrid(userId) {
+// Schedule pre-fill recipe — instance kind + slot time + field overrides
+const SCHEDULE_PREFILL = [
+  { instance: "drinkWater", hour: 7,  minute: 0,  water: 16, completed: true  },
+  { instance: "morningRun", hour: 8,  minute: 30, completed: true             },
+  { instance: "drinkWater", hour: 9,  minute: 0,  water: 16, completed: true  },
+  { instance: "vitamins",   hour: 11, minute: 0,  completed: true             },
+  { instance: "drinkWater", hour: 12, minute: 0,  water: 16, completed: true  },
+  { instance: "stretch",    hour: 13, minute: 30, completed: false            },
+  { instance: "drinkWater", hour: 15, minute: 0,  water: 8,  completed: true  },
+  { instance: "drinkWater", hour: 17, minute: 0,  water: 8,  completed: false },
+];
+
+export async function dropExistingTestGrid(userId, gridName = DEFAULT_GRID_NAME) {
+  const existing = await Grid.findOne({ userId, name: gridName });
+  if (!existing) return false;
+  const gridId = existing._id.toString();
+  await Promise.all([
+    Occurrence.deleteMany({ gridId }),
+    Module.deleteMany({ gridId }),
+    Field.deleteMany({ gridId }),
+    Manifest.deleteMany({ gridId }),
+    View.deleteMany({ gridId }),
+    Folder.deleteMany({ gridId }),
+    Operation.deleteMany({ gridId }),
+  ]);
+  await Grid.deleteOne({ _id: existing._id });
+  return true;
+}
+
+export async function createTestGrid(userId, options = {}) {
+  const { gridName = DEFAULT_GRID_NAME } = options;
+
   const today = new Date();
   today.setHours(12, 0, 0, 0);
 
   // ── Pre-generate IDs ────────────────────────────────────────────────────────
-  const scheduledDateFieldId = uid();
+  const dateFieldId = uid();
   const waterFieldId = uid();
   const completedFieldId = uid();
   const timeslotFieldId = uid();
@@ -48,18 +99,15 @@ async function createTestGrid(userId) {
   const totalWaterFieldId = uid();
   const totalTasksCompletedFieldId = uid();
 
-  // Panel module IDs
   const toolkitPanelId = uid();
   const goalsPanelId   = uid();
   const todoPanelId    = uid();
   const centerHubId    = uid();
 
-  // Container module IDs
   const physicalContId     = uid();
   const physicalGoalContId = uid();
   const todoGeneralContId  = uid();
 
-  // Instance module IDs
   const drinkWaterModId = uid();
   const waterGoalModId  = uid();
   const tasksGoalModId  = uid();
@@ -73,7 +121,6 @@ async function createTestGrid(userId) {
   const todoReadModId       = uid();
   const todoEmailModId      = uid();
 
-  // View / manifest / folder IDs
   const centerHubViewId = uid();
   const manifestId      = uid();
   const rootFolderId    = uid();
@@ -81,14 +128,14 @@ async function createTestGrid(userId) {
 
   // ── STEP 1: Grid ────────────────────────────────────────────────────────────
   const grid = new Grid({
-    userId, rows: 2, cols: 3,
+    userId, name: gridName, rows: 2, cols: 3,
     namedFilters: [
-      { id: "filter_daily",  name: "Daily",  conditions: [{ fieldId: scheduledDateFieldId, comparator: "same_day" }],  timeScale: "daily"  },
-      { id: "filter_weekly", name: "Weekly", conditions: [{ fieldId: scheduledDateFieldId, comparator: "same_week" }], timeScale: "weekly" },
+      { id: "filter_daily",  name: "Daily",  conditions: [{ fieldId: dateFieldId, comparator: "same_day" }],  timeScale: "daily"  },
+      { id: "filter_weekly", name: "Weekly", conditions: [{ fieldId: dateFieldId, comparator: "same_week" }], timeScale: "weekly" },
       { id: "filter_all",    name: "All",    conditions: [], timeScale: null },
     ],
     activeFilterId: "filter_all",
-    activeFilterValues: { [scheduledDateFieldId]: today.toISOString() },
+    activeFilterValues: { [dateFieldId]: today.toISOString() },
     templates: [], occurrences: [],
     manifestId,
   });
@@ -97,7 +144,7 @@ async function createTestGrid(userId) {
 
   // ── STEP 2: Fields ──────────────────────────────────────────────────────────
   await Field.insertMany([
-    { id: scheduledDateFieldId, userId, gridId, name: "Scheduled Date", type: "date", inputEnabled: true, displayEnabled: false },
+    { id: dateFieldId, userId, gridId, name: "Date", type: "date", inputEnabled: true, displayEnabled: false },
     { id: waterFieldId, userId, gridId, name: "Water", type: "number", inputEnabled: true, displayEnabled: false, meta: { postfix: " oz", increment: 8, flow: "in" } },
     { id: completedFieldId, userId, gridId, name: "Completed", type: "boolean", inputEnabled: true, displayEnabled: false },
     { id: timeslotFieldId, userId, gridId, name: "Time Slot", type: "text", inputEnabled: true, displayEnabled: false },
@@ -116,7 +163,7 @@ async function createTestGrid(userId) {
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
         { fieldId: waterFieldId, role: "input", order: 1 },
-        { fieldId: scheduledDateFieldId, role: "input", order: 2, hidden: true },
+        { fieldId: dateFieldId, role: "input", order: 2, hidden: true },
       ],
     },
     {
@@ -223,23 +270,19 @@ async function createTestGrid(userId) {
   }
 
   // Due date helpers
-  const in2Days = new Date(today); in2Days.setDate(in2Days.getDate() + 2);
-  const in5Days = new Date(today); in5Days.setDate(in5Days.getDate() + 5);
   const in1Day  = new Date(today); in1Day.setDate(in1Day.getDate() + 1);
+  const in2Days = new Date(today); in2Days.setDate(in2Days.getDate() + 2);
   const in7Days = new Date(today); in7Days.setDate(in7Days.getDate() + 7);
 
-  // Drink Water → Physical container
+  // Toolkit Physical container instances
   const drinkWaterOccId = await mkOcc({
     targetType: "module", targetId: drinkWaterModId,
     meta: { containerId: physicalContId },
-    fields: { [scheduledDateFieldId]: { value: today.toISOString(), flow: "in", timestamp: new Date() } },
+    fields: { [dateFieldId]: { value: today.toISOString(), flow: "in", timestamp: new Date() } },
   });
-
-  // Morning Run, Take Vitamins, Stretch → Physical container
   const morningRunOccId = await mkOcc({
     targetType: "module", targetId: morningRunModId,
-    meta: { containerId: physicalContId },
-    fields: {},
+    meta: { containerId: physicalContId }, fields: {},
   });
   const vitaminsOccId = await mkOcc({
     targetType: "module", targetId: vitaminsModId,
@@ -248,37 +291,30 @@ async function createTestGrid(userId) {
   });
   const stretchOccId = await mkOcc({
     targetType: "module", targetId: stretchModId,
-    meta: { containerId: physicalContId },
-    fields: {},
+    meta: { containerId: physicalContId }, fields: {},
   });
 
-  // Water goal → Physical goal container
+  // Goals container instances
   const waterGoalOccId = await mkOcc({
     targetType: "module", targetId: waterGoalModId,
     meta: { containerId: physicalGoalContId },
-    fields: { [scheduledDateFieldId]: { value: today.toISOString(), flow: "in", timestamp: new Date() } },
+    fields: { [dateFieldId]: { value: today.toISOString(), flow: "in", timestamp: new Date() } },
   });
-
-  // Tasks goal → Physical goal container
   const tasksGoalOccId = await mkOcc({
     targetType: "module", targetId: tasksGoalModId,
-    meta: { containerId: physicalGoalContId },
-    fields: {},
+    meta: { containerId: physicalGoalContId }, fields: {},
   });
 
-  // Physical container occurrence (for toolkit panel)
   const physContOccId = await mkOcc({
     targetType: "module", targetId: physicalContId,
-    meta: {}, occurrences: [drinkWaterOccId, morningRunOccId, vitaminsOccId, stretchOccId],
+    occurrences: [drinkWaterOccId, morningRunOccId, vitaminsOccId, stretchOccId],
   });
-
-  // Physical goal container occurrence (for goals panel)
   const physGoalContOccId = await mkOcc({
     targetType: "module", targetId: physicalGoalContId,
-    meta: {}, occurrences: [waterGoalOccId, tasksGoalOccId],
+    occurrences: [waterGoalOccId, tasksGoalOccId],
   });
 
-  // Todo instances → General container
+  // Todo instances
   const todoGroceriesOccId = await mkOcc({
     targetType: "module", targetId: todoGroceriesModId,
     meta: { containerId: todoGeneralContId },
@@ -304,80 +340,108 @@ async function createTestGrid(userId) {
   });
   const todoReadOccId = await mkOcc({
     targetType: "module", targetId: todoReadModId,
-    meta: { containerId: todoGeneralContId },
-    fields: {},
+    meta: { containerId: todoGeneralContId }, fields: {},
   });
   const todoEmailOccId = await mkOcc({
     targetType: "module", targetId: todoEmailModId,
-    meta: { containerId: todoGeneralContId },
-    fields: {},
+    meta: { containerId: todoGeneralContId }, fields: {},
   });
 
-  // Todo general container occurrence
   const todoContOccId = await mkOcc({
     targetType: "module", targetId: todoGeneralContId,
-    meta: {}, occurrences: [todoReviewPROccId, todoBillsOccId, todoGroceriesOccId, todoDentistOccId, todoReadOccId, todoEmailOccId],
+    occurrences: [todoReviewPROccId, todoBillsOccId, todoGroceriesOccId, todoDentistOccId, todoReadOccId, todoEmailOccId],
   });
 
-  // Schedule time slot container occurrences
+  // Schedule slot container occurrences (created before pre-fill so we know each slot's id)
+  const slotOccByKey = {};
   const scheduleOccIds = [];
   for (const slot of timeSlots) {
     const key = `slot_${slot.hour}_${slot.minute}`;
     const occId = await mkOcc({
       targetType: "module", targetId: schedContainers[key].id,
-      meta: {},
       fields: {
-        [scheduledDateFieldId]: { value: today.toISOString(), flow: "in" },
+        [dateFieldId]: { value: today.toISOString(), flow: "in" },
         [timeslotFieldId]: { value: slot.label, flow: "in" },
       },
     });
+    slotOccByKey[key] = { occId, slotModuleId: schedContainers[key].id, label: slot.label };
     scheduleOccIds.push(occId);
   }
 
-  // ── STEP 7: Manifest + folders + notebook module+occ ───────────────────────
+  // ── STEP 6b: Pre-fill schedule slots with sample tasks/waters ──────────────
+  // Each instance gets date = today so onLoad daily aggregations pick it up.
+  const instanceModuleByName = {
+    drinkWater: drinkWaterModId,
+    morningRun: morningRunModId,
+    vitamins:   vitaminsModId,
+    stretch:    stretchModId,
+  };
+
+  for (const entry of SCHEDULE_PREFILL) {
+    const key = `slot_${entry.hour}_${entry.minute}`;
+    const slot = slotOccByKey[key];
+    if (!slot) continue;
+    const moduleId = instanceModuleByName[entry.instance];
+    if (!moduleId) continue;
+
+    const fields = {
+      [dateFieldId]: { value: today.toISOString(), flow: "in", timestamp: new Date() },
+      [timeslotFieldId]: { value: slot.label, flow: "in", timestamp: new Date() },
+    };
+    if (entry.water !== undefined) {
+      fields[waterFieldId] = { value: entry.water, flow: "in", timestamp: new Date() };
+    }
+    if (entry.completed !== undefined) {
+      fields[completedFieldId] = { value: entry.completed, flow: "in", timestamp: new Date() };
+    }
+
+    const instOccId = await mkOcc({
+      targetType: "module", targetId: moduleId,
+      meta: { containerId: slot.slotModuleId },
+      fields,
+    });
+
+    await Occurrence.findOneAndUpdate(
+      { id: slot.occId },
+      { $push: { occurrences: instOccId } }
+    );
+  }
+
+  // ── STEP 7: Manifest + folders ──────────────────────────────────────────────
   await new Manifest({ id: manifestId, userId, gridId, manifestType: "user", rootFolderId }).save();
   await new Folder({ id: rootFolderId, userId, gridId, name: "Root", parentId: null, folderType: "normal", sortOrder: 0, isExpanded: true }).save();
   await new Folder({ id: notesFolderId, userId, gridId, parentId: rootFolderId, name: "Notes", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
 
   // ── STEP 8: Page modules + page occurrences ─────────────────────────────────
-  // Toolkit page
   const toolkitPageModId = uid(); const toolkitPageOccId = uid();
   await new Module({ id: toolkitPageModId, userId, gridId, role: "page", kind: "board", label: "Daily Toolkit" }).save();
   await mkOcc({ id: toolkitPageOccId, targetType: "module", targetId: toolkitPageModId, parentId: rootFolderId, sortOrder: 0, occurrences: [physContOccId], iteration: { mode: "persistent" }, fields: {} });
 
-  // Goals page
   const goalsPageModId = uid(); const goalsPageOccId = uid();
   await new Module({ id: goalsPageModId, userId, gridId, role: "page", kind: "board", label: "Daily Goals" }).save();
   await mkOcc({ id: goalsPageOccId, targetType: "module", targetId: goalsPageModId, parentId: rootFolderId, sortOrder: 1, occurrences: [physGoalContOccId], iteration: { mode: "persistent" }, fields: {} });
 
-  // Todo page
   const todoPageModId = uid(); const todoPageOccId = uid();
   await new Module({ id: todoPageModId, userId, gridId, role: "page", kind: "board", label: "Todo List" }).save();
   await mkOcc({ id: todoPageOccId, targetType: "module", targetId: todoPageModId, parentId: rootFolderId, sortOrder: 2, occurrences: [todoContOccId], iteration: { mode: "persistent" }, fields: {} });
 
-  // Schedule page (tab 1 of center hub)
   const schedPageModId = uid(); const schedPageOccId = uid();
   await new Module({ id: schedPageModId, userId, gridId, role: "page", kind: "board", label: "Schedule" }).save();
   await mkOcc({ id: schedPageOccId, targetType: "module", targetId: schedPageModId, parentId: rootFolderId, sortOrder: 3, occurrences: scheduleOccIds, iteration: { mode: "persistent" }, fields: {} });
 
-  // Notes page (tab 2 of center hub) — empty doc
   const notesPageModId = uid(); const notesPageOccId = uid();
   await new Module({ id: notesPageModId, userId, gridId, role: "page", kind: "doc", label: "Notes" }).save();
   await mkOcc({ id: notesPageOccId, targetType: "module", targetId: notesPageModId, parentId: notesFolderId, sortOrder: 0, iteration: { mode: "persistent" }, textmap: { type: "doc", content: [{ type: "paragraph" }] }, fields: {} });
 
-  // Center hub view — Schedule active by default
   await new View({ id: centerHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: schedPageOccId }).save();
 
   // ── STEP 9: Panel occurrences (grid placements) ─────────────────────────────
-  // Layout (2 rows × 3 cols):
-  // | Toolkit(0,0)  | CenterHub(0,1, h=2) | Goals(0,2) |
-  // | Todo(1,0)     | CenterHub cont.     |            |
   const panelOccIds = {};
   const placements = [
-    { key: "toolkit",  panelId: toolkitPanelId, row: 0, col: 0, width: 1, height: 1, viewId: null,          filterOverride: null },
-    { key: "todo",     panelId: todoPanelId,    row: 1, col: 0, width: 1, height: 1, viewId: null,          filterOverride: null },
-    { key: "hub",      panelId: centerHubId,    row: 0, col: 1, width: 1, height: 2, viewId: centerHubViewId, filterOverride: { [scheduledDateFieldId]: today.toISOString() } },
-    { key: "goals",    panelId: goalsPanelId,   row: 0, col: 2, width: 1, height: 1, viewId: null,          filterOverride: null },
+    { key: "toolkit",  panelId: toolkitPanelId, row: 0, col: 0, width: 1, height: 1, viewId: null,            filterOverride: null },
+    { key: "todo",     panelId: todoPanelId,    row: 1, col: 0, width: 1, height: 1, viewId: null,            filterOverride: null },
+    { key: "hub",      panelId: centerHubId,    row: 0, col: 1, width: 1, height: 2, viewId: centerHubViewId, filterOverride: { [dateFieldId]: today.toISOString() } },
+    { key: "goals",    panelId: goalsPanelId,   row: 0, col: 2, width: 1, height: 1, viewId: null,            filterOverride: null },
   ];
 
   const gridOccIds = [];
@@ -393,29 +457,17 @@ async function createTestGrid(userId) {
   }
 
   // ── STEP 10: Wire page occurrences into panel occurrences ───────────────────
-  // NOW the panel occurrences exist — update them with their page lists
-  await Occurrence.findByIdAndUpdate(
-    (await Occurrence.findOne({ id: panelOccIds.toolkit }))._id,
-    { $set: { occurrences: [toolkitPageOccId] } }
-  );
-  await Occurrence.findByIdAndUpdate(
-    (await Occurrence.findOne({ id: panelOccIds.todo }))._id,
-    { $set: { occurrences: [todoPageOccId] } }
-  );
-  await Occurrence.findByIdAndUpdate(
-    (await Occurrence.findOne({ id: panelOccIds.hub }))._id,
-    { $set: { occurrences: [schedPageOccId, notesPageOccId] } }
-  );
-  await Occurrence.findByIdAndUpdate(
-    (await Occurrence.findOne({ id: panelOccIds.goals }))._id,
-    { $set: { occurrences: [goalsPageOccId] } }
-  );
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.toolkit }, { $set: { occurrences: [toolkitPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.todo },    { $set: { occurrences: [todoPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.hub },     { $set: { occurrences: [schedPageOccId, notesPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.goals },   { $set: { occurrences: [goalsPageOccId] } });
 
-  // ── STEP 11: Finalize grid ───────────────────────────────────────────────────
+  // ── STEP 11: Finalize grid ──────────────────────────────────────────────────
   await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds } });
 
   // ── STEP 12: Operations ─────────────────────────────────────────────────────
   const opArgs = { userId, gridId };
+
   await new Operation({
     id: uid(), userId, gridId, name: "Water Today",
     description: "Sum daily water oz — only for occurrences where completed = true",
@@ -465,7 +517,7 @@ async function createTestGrid(userId) {
     triggerType: "onCreate", triggerTypes: ["onCreate"],
     triggerConfig: { onCreate: { panelId: centerHubId } }, enabled: true,
     pipeline: { sources: [], steps: [
-      { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: scheduledDateFieldId, valueExpr: "$activeDate" } },
+      { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: dateFieldId, valueExpr: "$parentFilter.date" } },
       { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: timeslotFieldId, valueExpr: "$trigger.containerLabel" } },
     ]},
   }).save();
@@ -475,36 +527,45 @@ async function createTestGrid(userId) {
     triggerType: "onMove", triggerTypes: ["onMove"],
     triggerConfig: { onMove: { fromPanelId: centerHubId } }, enabled: true,
     pipeline: { sources: [], steps: [
-      { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: scheduledDateFieldId, value: null } },
+      { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: dateFieldId, value: null } },
       { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: timeslotFieldId, value: null } },
     ]},
   }).save();
 
-  return { gridId };
+  return {
+    gridId,
+    gridName,
+    schedPageOccId,
+    fieldIds: { dateFieldId, waterFieldId, completedFieldId, timeslotFieldId, dueFieldId, totalWaterFieldId, totalTasksCompletedFieldId },
+    panelOccIds,
+    prefillCount: SCHEDULE_PREFILL.length,
+  };
 }
 
 async function main() {
-  console.log("🔄 Creating minimal test grid...\n");
+  const targetEmail = process.argv[2] || DEFAULT_USER_EMAIL;
+  console.log(`🔄 Creating test grid for ${targetEmail}...\n`);
   try {
     await mongoose.connect(process.env.MONGO_URI);
     console.log("✅ Connected\n");
 
-    const user = await User.findOne({ email: TARGET_USER_EMAIL });
-    if (!user) throw new Error(`User not found: ${TARGET_USER_EMAIL}`);
+    const user = await User.findOne({ email: targetEmail });
+    if (!user) throw new Error(`User not found: ${targetEmail}`);
     const userId = user._id.toString();
     console.log(`✅ Found user: ${userId}\n`);
 
-    const { gridId } = await createTestGrid(userId);
+    const result = await createTestGrid(userId);
 
     console.log("=".repeat(50));
     console.log("✅ Test grid created!");
-    console.log(`   Grid ID: ${gridId}`);
+    console.log(`   Grid ID: ${result.gridId}`);
+    console.log(`   Schedule pre-fill: ${result.prefillCount} occurrences`);
     console.log("=".repeat(50));
     console.log("Layout (2×3):");
     console.log("  [0,0] Daily Toolkit  — Physical → Drink Water, Morning Run, Take Vitamins, Stretch");
-    console.log("  [1,0] Todo List      — General (6 items: Review PRs, Bills, Groceries, Dentist, Read, Inbox)");
-    console.log("  [0,1] Center Hub ×2  — Schedule | Notes pages");
-    console.log("  [0,2] Daily Goals    — Physical → Water total");
+    console.log("  [1,0] Todo List      — General (6 items)");
+    console.log("  [0,1] Center Hub ×2  — Schedule (8 pre-filled slots) | Notes");
+    console.log("  [0,2] Daily Goals    — Physical → Water + Tasks totals");
     console.log("=".repeat(50));
   } catch (err) {
     console.error("❌ Failed:", err);
@@ -515,4 +576,5 @@ async function main() {
   }
 }
 
-main();
+const isDirectRun = process.argv[1] && resolve(process.argv[1]) === __filename;
+if (isDirectRun) main();

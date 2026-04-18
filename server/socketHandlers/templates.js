@@ -40,11 +40,11 @@ export function registerTemplateHandlers(socket, {
       const template = (grid.templates || []).find(t => t.id === templateId);
       if (!template?.items?.length) return;
 
-      // Find scheduledDate field for this grid (to set on new occurrences if date is provided)
-      const scheduledDateField = Object.values(uc.fieldsById || {}).find(f => f.name === "Scheduled Date" && f.gridId === gridId);
+      // Find date field for this grid (to set on new occurrences if date is provided)
+      const dateField = Object.values(uc.fieldsById || {}).find(f => f.name === "Date" && f.gridId === gridId);
       const dateISO = date ? new Date(date).toISOString() : null;
-      const scheduledDateFields = (scheduledDateField && dateISO)
-        ? { [scheduledDateField.id]: { value: dateISO, flow: "in", timestamp: new Date() } }
+      const dateFields = (dateField && dateISO)
+        ? { [dateField.id]: { value: dateISO, flow: "in", timestamp: new Date() } }
         : {};
 
       const createdOccurrences = [];
@@ -56,7 +56,7 @@ export function registerTemplateHandlers(socket, {
           id: occId, userId,
           targetType: "module", targetId: item.instanceId,
           gridId,
-          fields: { ...scheduledDateFields, ...(item.fieldDefaults || {}) },
+          fields: { ...dateFields, ...(item.fieldDefaults || {}) },
           meta: dateISO ? { date: dateISO } : {},
           ...(item.linkedGroupId ? { linkedGroupId: item.linkedGroupId } : {}),
         });

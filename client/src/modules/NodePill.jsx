@@ -101,7 +101,6 @@ export default function NodePill({
           whiteSpace: "nowrap",
           fontSize: isEntity ? 11 : 10,
           fontFamily: "var(--font-mono)",
-          color: isActive ? color : "var(--text-secondary)",
         }}
       >
         {label}

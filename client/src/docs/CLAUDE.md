@@ -2,6 +2,10 @@
 
 _Updated: 2026-04-12. Check this file before re-reading source._
 
+## Recent Changes (Apr 15 2026 — Drag-Out from Doc Embeds)
+- **ModuleEmbedNode.jsx**: Imports `embedDeleteRegistry`. Registers `deleteNode` keyed by `occurrenceId` on mount (useEffect with cleanup). Passes `embedSourceType="doc-embed"` to both `ModuleInstance` and `Container` children — tells DragProvider the drag source is a TipTap embed node.
+- **helpers/embedRegistry.js**: (existing) Simple `Map<occurrenceId, deleteNode>` — DragProvider calls `embedDeleteRegistry.get(occurrenceId)?.()` to remove the embed node on move.
+
 ## Recent Changes (Apr 12 2026 — InstanceTextblock: Separate Node Type)
 - **InstanceTextblockExtension.js** (NEW): Dedicated TipTap block node `instanceTextblock` for auto-created typing surfaces. NOT a pill. `group: "block"`, `atom: true`, `draggable: false`. `stopEvent` returns `true` for all events from inside `.instance-textblock-block` — prevents outer ProseMirror NodeSelection on atom click (root cause of cursor-to-beginning bug). `insertInstanceTextblock` command.
 - **pills/InstanceTextblockNode.jsx** (NEW): NodeView for `instanceTextblock`. Renders only a `DocContent` sub-editor — no pill badge, no radial menu, no drag handle. `handleExitBlock` moves outer editor cursor to after the node via `editor.chain().setTextSelection(pos + nodeSize).focus().run()`. `handleDeleteBlock` removes TipTap node + calls `CommitHelpers.removeOccurrence`. `draggable={false}`, `onMouseDown={e => e.stopPropagation()}`.

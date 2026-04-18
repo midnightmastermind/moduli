@@ -32,6 +32,7 @@ import Operation from "../models/Operation.js";
 
 // Import the reusable utility
 import createDefaultUserData from "../utils/createDefaultUserData.js";
+import { createTestGrid } from "./createTestGrid.js";
 
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -96,6 +97,10 @@ async function resetData() {
 
     const { gridId, summary } = await createDefaultUserData(userId);
 
+    // Also seed the deterministic Test Grid (used by vitest + e2e fixtures).
+    const testGridResult = await createTestGrid(userId);
+    console.log(`   ✅ Test Grid seeded for ${TARGET_USER_EMAIL}: ${testGridResult.gridId}`);
+
     // Re-parent preserved import folders under the new manifest root
     const newManifest = await Manifest.findOne({ userId, manifestType: "user" });
     if (newManifest) {
@@ -128,7 +133,8 @@ async function resetData() {
     const testUserId = testUser._id.toString();
     await resetUserData(testUserId);
     await createDefaultUserData(testUserId);
-    console.log(`   ✅ Test user data populated\n`);
+    const testUserGrid = await createTestGrid(testUserId);
+    console.log(`   ✅ Test user data populated (default + Test Grid ${testUserGrid.gridId})\n`);
 
     // ===================================================================
     // SUMMARY

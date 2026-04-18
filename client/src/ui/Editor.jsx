@@ -28,6 +28,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { NATIVE_DND_MIME } from "../helpers/dragSystem";
+import { embedDeleteRegistry } from "../helpers/embedRegistry";
 
 import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table";
 import { FieldPill } from "../docs/FieldPillExtension";
@@ -160,6 +161,15 @@ const Editor = forwardRef(function Editor({
   const onDeleteBlockRef = useRef(onDeleteBlock);
   onExitBlockRef.current = onExitBlock;
   onDeleteBlockRef.current = onDeleteBlock;
+
+  // Keep drop-handler refs fresh — the dropTargetForElements effect only re-registers when
+  // editor changes, so occurrencesById/dispatch/socket would otherwise be stale closures.
+  const occurrencesByIdRef = useRef(occurrencesById);
+  const dispatchRef = useRef(dispatch);
+  const socketRef = useRef(socket);
+  occurrencesByIdRef.current = occurrencesById;
+  dispatchRef.current = dispatch;
+  socketRef.current = socket;
 
   // ── debounced save ────────────────────────────────────────────
   const persistContent = useCallback((json, immediate = false) => {
@@ -738,6 +748,7 @@ const Editor = forwardRef(function Editor({
 
     const cleanup = dropTargetForElements({
       element: el,
+      getData: () => ({ type: "doc-editor" }),
       canDrop: ({ source }) => {
         const type = source.data?.type;
         return type === "instance" || type === "field" || type === "container" || type === "artifact" || type === "module";
@@ -754,9 +765,13 @@ const Editor = forwardRef(function Editor({
 
         // Don't handle drops that landed inside a nested instanceTextblock sub-editor.
         // The sub-editor has its own dropTargetForElements and handles insertion itself.
+        // Guard: only skip when the textblock is a DESCENDANT of this editor's wrapper (el).
+        // Without el.contains() check, the inner sub-editor's own onDrop would also return
+        // early (because it too is inside .instance-textblock-block), silently swallowing drops.
         if (dropInput?.clientX != null && dropInput?.clientY != null) {
           const dropEl = document.elementFromPoint(dropInput.clientX, dropInput.clientY);
-          if (dropEl?.closest('.instance-textblock-block')) return;
+          const textblock = dropEl?.closest('.instance-textblock-block');
+          if (textblock && el.contains(textblock)) return;
         }
 
         const isBlockDrop = type !== "field";
@@ -764,13 +779,56 @@ const Editor = forwardRef(function Editor({
 
         if (type === "instance") {
           // Instance drops → insert as embed directly; convert to pill via radial menu on the node
+          const occsById = occurrencesByIdRef.current || {};
           let occurrenceId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
           if (!occurrenceId && id) {
-            const existing = Object.values(occurrencesById || {}).find(o => o.targetId === id);
+            const existing = Object.values(occsById).find(o => o.targetId === id);
             if (existing) occurrenceId = existing.id;
           }
           if (!occurrenceId) return;
-          insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
+
+          const dragMode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? "move";
+          const sourceOcc = occsById[occurrenceId];
+
+          if (dragMode === "copy") {
+            // Copy: create a fresh occurrence for the embed — original stays in its container
+            const newOccId = crypto.randomUUID();
+            CommitHelpers.createOccurrence({
+              dispatch: dispatchRef.current, socket: socketRef.current,
+              occurrence: {
+                id: newOccId,
+                targetId: sourceOcc?.targetId || id,
+                targetType: "module",
+                gridId: sourceOcc?.gridId,
+                occurrences: [],
+                fields: sourceOcc?.fields || {},
+                meta: sourceOcc?.meta || {},
+                dragMode: sourceOcc?.dragMode ?? null,
+              },
+              emit: true,
+            });
+            insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: newOccId } });
+          } else {
+            // Move: detach from parent container (don't delete the occurrence itself)
+            // Can't rely on sourceOcc.parentId — it's not updated when moveInstanceBetweenContainers runs.
+            // Scan container occurrences[] arrays instead (authoritative ordering source).
+            if (sourceOcc) {
+              const parentOcc = Object.values(occsById).find(
+                occ => Array.isArray(occ.occurrences) && occ.occurrences.includes(occurrenceId)
+              );
+              if (parentOcc) {
+                CommitHelpers.updateOccurrence({
+                  dispatch: dispatchRef.current, socket: socketRef.current,
+                  occurrence: {
+                    id: parentOcc.id,
+                    occurrences: (parentOcc.occurrences || []).filter(eid => eid !== occurrenceId),
+                  },
+                  emit: true,
+                });
+              }
+            }
+            insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
+          }
           return;
         }
         if (type === "container" || type === "artifact" || type === "module") {
@@ -778,12 +836,76 @@ const Editor = forwardRef(function Editor({
           let occurrenceId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
           // CC drops have no occurrenceId — find an existing occurrence of this module
           if (!occurrenceId && id) {
-            const existing = Object.values(occurrencesById || {}).find(o => o.targetId === id);
+            const existing = Object.values(occurrencesByIdRef.current || {}).find(o => o.targetId === id);
             if (existing) occurrenceId = existing.id;
           }
           if (!occurrenceId) return;
 
-          // Non-instance drops default to moduleEmbed (block embed)
+          const dragMode = data?.defaultDragMode ?? data?.occurrence?.dragMode ?? "move";
+          if (dragMode === "copy") {
+            // Deep copy: recursively clone the container and all children so that
+            // deleting a child from the embed doesn't affect the original.
+            const occsById = occurrencesByIdRef.current || {};
+            const deepCopyOcc = (occ) => {
+              if (!occ) return null;
+              const childIds = [];
+              for (const childOccId of (occ.occurrences || [])) {
+                const childOcc = occsById[childOccId];
+                if (!childOcc) continue;
+                const newChildId = deepCopyOcc(childOcc);
+                if (newChildId) childIds.push(newChildId);
+              }
+              const copyId = crypto.randomUUID();
+              CommitHelpers.createOccurrence({
+                dispatch: dispatchRef.current, socket: socketRef.current,
+                occurrence: {
+                  id: copyId,
+                  targetId: occ.targetId,
+                  targetType: occ.targetType || "module",
+                  gridId: occ.gridId,
+                  occurrences: childIds,
+                  fields: occ.fields || {},
+                  meta: occ.meta || {},
+                  dragMode: occ.dragMode ?? null,
+                  textmap: occ.textmap || null,
+                },
+                emit: true,
+              });
+              return copyId;
+            };
+            const sourceOcc = occsById[occurrenceId];
+            const copyRootId = deepCopyOcc(sourceOcc);
+            if (!copyRootId) return;
+            insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: copyRootId } });
+            return;
+          }
+
+          // Move mode: detach from source
+          if (context?.sourceType === "doc-embed") {
+            // Container moved within doc — remove old embed node
+            embedDeleteRegistry.get(occurrenceId)?.();
+          } else if (context?.pageOccurrenceId) {
+            // Container lives in a page occurrence (page-based board panel) — remove from page
+            const pageOcc = occurrencesByIdRef.current?.[context.pageOccurrenceId];
+            if (pageOcc) {
+              CommitHelpers.updateOccurrence({
+                dispatch: dispatchRef.current, socket: socketRef.current,
+                occurrence: { id: pageOcc.id, occurrences: (pageOcc.occurrences || []).filter(eid => eid !== occurrenceId) },
+                emit: true,
+              });
+            }
+          } else if (context?.panelId) {
+            // Container lives directly in panel occurrence — remove from panel
+            const panelOcc = Object.values(occurrencesByIdRef.current || {}).find(o => o.targetId === context.panelId);
+            if (panelOcc) {
+              CommitHelpers.updateOccurrence({
+                dispatch: dispatchRef.current, socket: socketRef.current,
+                occurrence: { id: panelOcc.id, occurrences: (panelOcc.occurrences || []).filter(eid => eid !== occurrenceId) },
+                emit: true,
+              });
+            }
+          }
+
           insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
           return;
         }

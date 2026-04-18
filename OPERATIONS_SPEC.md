@@ -53,7 +53,7 @@ $currentDate, $currentHour, $currentTime
 ```
 
 `$today` / `$activeDate` are the currently-active filter date (not the wall
-clock) — the canonical value to compare `scheduledDate` fields against.
+clock) — the canonical value to compare `date` fields against.
 
 ---
 
@@ -64,7 +64,7 @@ through `$vars` and then property access, so the **same syntax** works across
 sources, loop items, and the trigger:
 
 ```
-$trigger.occurrence.fields.scheduledDate.value
+$trigger.occurrence.fields.date.value
 $item.fields.water.value
 $schedulePage.fields.completed.value
 $today
@@ -140,7 +140,7 @@ run order.
 
 This matters when one op produces state another op depends on — e.g. the stamp
 op below must run before any aggregation op that filters on
-`scheduledDate == $today`.
+`date == $today`.
 
 ---
 
@@ -169,7 +169,7 @@ condition:
 steps:
   - SET_FIELD_VALUE
       occurrenceIdExpr: "$trigger.occurrenceId"
-      fieldId: <scheduledDate>
+      fieldId: <date>
       valueExpr: "$activeDate"
   - SET_FIELD_VALUE
       occurrenceIdExpr: "$trigger.occurrenceId"
@@ -178,7 +178,7 @@ steps:
 ```
 
 Runs on every drop into the schedule panel. Stamps the currently-active date
-into the new occurrence's `scheduledDate` field before any aggregation op sees
+into the new occurrence's `date` field before any aggregation op sees
 it.
 
 ### 3. Water Today (`sortOrder: 10`)
@@ -193,7 +193,7 @@ steps:
       IF (ALL of):
         $item._ancestors                        HAS_ANCESTOR     $schedulePageId
         $item.fields.water.value                IS_NOT_EMPTY
-        $item.fields.scheduledDate.value        IS               $activeDate
+        $item.fields.date.value        IS               $activeDate
       THEN:
         ADD_TO_VAR  $total  $item.fields.water.value
   - SHOW_VALUE
@@ -206,7 +206,7 @@ steps:
 Note three important differences from the old pipeline:
 
 - The loop no longer uses `timeFilter: "daily"`. The date match is an
-  **explicit condition** (`$item.fields.scheduledDate.value IS $activeDate`),
+  **explicit condition** (`$item.fields.date.value IS $activeDate`),
   so it composes with the existing ancestor check in the same AND group.
 - Values are read as `$item.fields.<fieldId>.value` — the raw `fields` map is
   exposed on every loop item (Task 2).
@@ -214,7 +214,7 @@ Note three important differences from the old pipeline:
   arrows re-runs the aggregation.
 
 **Tasks Completed Today** follows the same shape: loop over the `completed`
-field, filter by ancestry + `scheduledDate == $activeDate`, increment `$count`
+field, filter by ancestry + `date == $activeDate`, increment `$count`
 when `$item.fields.completed.value IS true`, SHOW_VALUE into the display
 field.
 

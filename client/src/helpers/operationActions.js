@@ -206,7 +206,7 @@ export function evalRule(rule, $vars) {
     case "DATE_EQUALS":
     case "SAME_DAY": {
       // Right null/"" = wildcard ("no filter set" → match everything).
-      // Left null = occurrence has no scheduledDate → doesn't match a concrete filter.
+      // Left null = occurrence has no date → doesn't match a concrete filter.
       // Normalizes both sides to YYYY-MM-DD so "2026-04-16T17:00:00.000Z" matches "2026-04-16".
       if (rightVal == null || rightVal === "") return true;
       if (leftVal == null || leftVal === "") return false;
@@ -219,6 +219,35 @@ export function evalRule(rule, $vars) {
       const lk = dayKey(leftVal);
       const rk = dayKey(rightVal);
       return lk != null && lk === rk;
+    }
+    case "SAME_WEEK": {
+      // Same ISO week (Mon-Sun). Right null/"" = wildcard; left null = no match.
+      if (rightVal == null || rightVal === "") return true;
+      if (leftVal == null || leftVal === "") return false;
+      const da = new Date(leftVal); const db = new Date(rightVal);
+      if (isNaN(da.getTime()) || isNaN(db.getTime())) return false;
+      const weekStart = (d) => {
+        const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const dow = x.getDay(); // 0=Sun..6=Sat
+        const offset = dow === 0 ? -6 : 1 - dow; // shift to Monday
+        x.setDate(x.getDate() + offset);
+        return x.getTime();
+      };
+      return weekStart(da) === weekStart(db);
+    }
+    case "SAME_MONTH": {
+      if (rightVal == null || rightVal === "") return true;
+      if (leftVal == null || leftVal === "") return false;
+      const da = new Date(leftVal); const db = new Date(rightVal);
+      if (isNaN(da.getTime()) || isNaN(db.getTime())) return false;
+      return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth();
+    }
+    case "SAME_YEAR": {
+      if (rightVal == null || rightVal === "") return true;
+      if (leftVal == null || leftVal === "") return false;
+      const da = new Date(leftVal); const db = new Date(rightVal);
+      if (isNaN(da.getTime()) || isNaN(db.getTime())) return false;
+      return da.getFullYear() === db.getFullYear();
     }
     case "DATE_BEFORE_TODAY": {
       if (!leftVal) return false;
@@ -401,7 +430,17 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
     case "SET_FIELD_VALUE": {
       const occId = resolveExpr(cfg.occurrenceIdExpr || "$trigger.occurrenceId", $vars);
-      const value = resolveExpr(cfg.valueExpr, $vars) ?? cfg.value;
+      // Distinguish "expression resolved to nothing" from "user wants to clear the field":
+      //   valueExpr present + resolves to null/undefined + no `value` key → skip the write
+      //   `value: null` set explicitly → write null (clears the field)
+      let value;
+      if (cfg.valueExpr !== undefined) {
+        const resolved = resolveExpr(cfg.valueExpr, $vars);
+        if ((resolved === null || resolved === undefined) && !("value" in cfg)) break;
+        value = resolved !== null && resolved !== undefined ? resolved : cfg.value;
+      } else {
+        value = cfg.value;
+      }
       if (occId && cfg.fieldId) {
         updates.push({ _effect: "SET_FIELD_VALUE", occurrenceId: occId, fieldId: cfg.fieldId, value, flow: cfg.flow || "replace" });
       }

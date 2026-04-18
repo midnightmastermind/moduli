@@ -1,13 +1,15 @@
 // ui/commandCenter/FiltersTab.jsx
 // Named filter presets management tab in Command Center.
 // Allows creating, editing, and deleting namedFilters on the grid.
+// Conditions are stored as [ConditionGroup] — {operator: "AND"|"OR", rules: [...]}.
 
-import React, { useState, useCallback, useContext } from "react";
-import { Plus, Trash2, ChevronDown, ChevronRight, Check } from "lucide-react";
+import React, { useState, useCallback, useContext, useMemo } from "react";
+import { Plus, Trash2, ChevronDown, ChevronRight, Check, Lock, Unlock } from "lucide-react";
 
 import { GridActionsContext } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { uid } from "../../uid";
+import ConditionGroup from "../../blocks/ConditionGroup";
 
 const TIME_SCALE_OPTIONS = [
   { value: "daily",   label: "Daily" },
@@ -46,56 +48,34 @@ const selectStyle = {
   cursor: "pointer",
 };
 
-// ── ConditionRow ─────────────────────────────────────────────────────────────
-function ConditionRow({ condition, fieldsById, onRemove }) {
-  const field = fieldsById[condition.fieldId];
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "3px 0",
-      }}
-    >
-      <span
-        style={{
-          flex: 1,
-          fontFamily: "monospace",
-          fontSize: 10,
-          color: "var(--text-muted)",
-          background: "var(--input-bg)",
-          border: "1px solid var(--border-default)",
-          borderRadius: 4,
-          padding: "1px 6px",
-        }}
-      >
-        {field?.name || condition.fieldId} ({field?.type || "?"})
-      </span>
-      <button
-        onClick={onRemove}
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: "var(--text-faint)",
-          padding: "1px 3px",
-          lineHeight: 1,
-          display: "flex",
-          alignItems: "center",
-        }}
-        title="Remove condition"
-      >
-        <Trash2 style={{ width: 11, height: 11 }} />
-      </button>
-    </div>
-  );
+// Migrate legacy {fieldId} entries + wrap everything in a single root group.
+function toRootGroup(conditions) {
+  const arr = Array.isArray(conditions) ? conditions : [];
+  if (arr.length === 1 && Array.isArray(arr[0]?.rules)) return arr[0];
+  const rules = arr.map(c => {
+    if (!c) return null;
+    if (Array.isArray(c.rules)) return c;
+    if (c.fieldId) {
+      return { left: `$occ.fields.${c.fieldId}.value`, comparator: "IS", right: "" };
+    }
+    if (c.left !== undefined) return c;
+    return null;
+  }).filter(Boolean);
+  return { operator: "AND", rules };
 }
 
 // ── FilterRow ─────────────────────────────────────────────────────────────────
 function FilterRow({ filter, isActive, onActivate, onUpdate, onDelete, fieldsById }) {
   const [expanded, setExpanded] = useState(false);
   const [name, setName] = useState(filter.name || "");
+
+  const rootGroup = useMemo(() => toRootGroup(filter.conditions), [filter.conditions]);
+
+  const fieldsList = useMemo(() => Object.values(fieldsById || {}), [fieldsById]);
+
+  const handleGroupChange = useCallback((nextGroup) => {
+    onUpdate({ ...filter, conditions: [nextGroup] });
+  }, [filter, onUpdate]);
 
   const handleNameBlur = () => {
     if (name.trim() !== filter.name) {
@@ -108,23 +88,14 @@ function FilterRow({ filter, isActive, onActivate, onUpdate, onDelete, fieldsByI
     onUpdate({ ...filter, timeScale: val });
   };
 
-  const handleAddCondition = (e) => {
-    const fieldId = e.target.value;
-    if (!fieldId) return;
-    const already = (filter.conditions || []).some(c => c.fieldId === fieldId);
-    if (already) return;
-    onUpdate({ ...filter, conditions: [...(filter.conditions || []), { fieldId }] });
-    e.target.value = "";
+  const handleToggleLock = () => {
+    onUpdate({ ...filter, lock: !filter.lock });
   };
 
-  const handleRemoveCondition = (fieldId) => {
-    onUpdate({ ...filter, conditions: (filter.conditions || []).filter(c => c.fieldId !== fieldId) });
-  };
+  // Sources shape: filter conditions evaluate against $occ (the occurrence).
+  const sources = useMemo(() => [{ variableName: "occ" }], []);
 
-  const dateFields = Object.values(fieldsById).filter(f => f.type === "date");
-  const availableFields = Object.values(fieldsById);
-  const conditionFieldIds = new Set((filter.conditions || []).map(c => c.fieldId));
-  const addableFields = availableFields.filter(f => !conditionFieldIds.has(f.id));
+  const ruleCount = (rootGroup.rules || []).length;
 
   return (
     <div
@@ -136,7 +107,6 @@ function FilterRow({ filter, isActive, onActivate, onUpdate, onDelete, fieldsByI
     >
       {/* Header row */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0" }}>
-        {/* Active indicator */}
         <button
           onClick={onActivate}
           title={isActive ? "Active filter" : "Set as active filter"}
@@ -157,7 +127,6 @@ function FilterRow({ filter, isActive, onActivate, onUpdate, onDelete, fieldsByI
           {isActive && <Check style={{ width: 9, height: 9, color: "#fff" }} />}
         </button>
 
-        {/* Name input */}
         <input
           value={name}
           onChange={e => setName(e.target.value)}
@@ -166,7 +135,6 @@ function FilterRow({ filter, isActive, onActivate, onUpdate, onDelete, fieldsByI
           style={{ ...inputStyle, flex: 1 }}
         />
 
-        {/* TimeScale select */}
         <select
           value={filter.timeScale ?? "__null__"}
           onChange={handleTimeScaleChange}
@@ -179,7 +147,25 @@ function FilterRow({ filter, isActive, onActivate, onUpdate, onDelete, fieldsByI
           ))}
         </select>
 
-        {/* Expand toggle */}
+        <button
+          onClick={handleToggleLock}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: filter.lock ? "var(--accent-blue)" : "var(--text-faint)",
+            padding: "1px 2px",
+            display: "flex",
+            alignItems: "center",
+          }}
+          title={filter.lock ? "Locked — children cannot override" : "Unlocked — children may override"}
+        >
+          {filter.lock
+            ? <Lock style={{ width: 11, height: 11 }} />
+            : <Unlock style={{ width: 11, height: 11 }} />
+          }
+        </button>
+
         <button
           onClick={() => setExpanded(v => !v)}
           style={{
@@ -199,7 +185,6 @@ function FilterRow({ filter, isActive, onActivate, onUpdate, onDelete, fieldsByI
           }
         </button>
 
-        {/* Delete */}
         <button
           onClick={onDelete}
           style={{
@@ -217,45 +202,23 @@ function FilterRow({ filter, isActive, onActivate, onUpdate, onDelete, fieldsByI
         </button>
       </div>
 
-      {/* Conditions (expanded) */}
+      {!expanded && ruleCount > 0 && (
+        <div style={{ paddingLeft: 22, fontFamily: "monospace", fontSize: 9, color: "var(--text-faint)" }}>
+          {ruleCount} rule{ruleCount !== 1 ? "s" : ""}
+        </div>
+      )}
+
       {expanded && (
         <div style={{ paddingLeft: 22 }}>
-          {/* Condition list */}
-          {(filter.conditions || []).length === 0 && (
-            <div style={{ fontFamily: "monospace", fontSize: 10, color: "var(--text-faint)", padding: "3px 0" }}>
-              No conditions — matches all occurrences
-            </div>
-          )}
-          {(filter.conditions || []).map(c => (
-            <ConditionRow
-              key={c.fieldId}
-              condition={c}
-              fieldsById={fieldsById}
-              onRemove={() => handleRemoveCondition(c.fieldId)}
-            />
-          ))}
+          <ConditionGroup
+            group={rootGroup}
+            onChange={handleGroupChange}
+            sources={sources}
+            fields={fieldsList}
+          />
 
-          {/* Add condition */}
-          {addableFields.length > 0 && (
-            <div style={{ marginTop: 4 }}>
-              <select
-                defaultValue=""
-                onChange={handleAddCondition}
-                style={{ ...selectStyle, width: "100%", fontSize: 10 }}
-              >
-                <option value="">+ Add field condition…</option>
-                {addableFields.map(f => (
-                  <option key={f.id} value={f.id}>
-                    {f.name} ({f.type})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Help text */}
           <div style={{ fontFamily: "monospace", fontSize: 9, color: "var(--text-faint)", marginTop: 4 }}>
-            Date conditions compare occurrence field value to the toolbar date.
+            Rules use <code>$occ.fields.&lt;fieldId&gt;.value</code> for the occurrence field.
             No value on an occurrence = persistent (always visible).
           </div>
         </div>
@@ -299,7 +262,7 @@ export function FiltersTab() {
     const newFilter = {
       id: "filter_" + uid(),
       name: "New Filter",
-      conditions: [],
+      conditions: [{ operator: "AND", rules: [] }],
       timeScale: "daily",
     };
     saveFilters([...namedFilters, newFilter]);
@@ -307,7 +270,6 @@ export function FiltersTab() {
 
   return (
     <div style={{ padding: "10px 12px", minHeight: 80 }}>
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <span style={{ fontFamily: "monospace", fontSize: 10, color: "var(--text-faint)" }}>
           Named Filters — {namedFilters.length} preset{namedFilters.length !== 1 ? "s" : ""}
@@ -333,7 +295,6 @@ export function FiltersTab() {
         </button>
       </div>
 
-      {/* Filter list */}
       {namedFilters.length === 0 && (
         <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text-faint)", textAlign: "center", padding: "20px 0" }}>
           No filters — click "New Filter" to create one.
@@ -351,7 +312,6 @@ export function FiltersTab() {
         />
       ))}
 
-      {/* Help */}
       <div style={{ marginTop: 8, fontFamily: "monospace", fontSize: 9, color: "var(--text-faint)", lineHeight: 1.5 }}>
         Active filter controls which occurrences are visible in containers and panels.
         Click the circle to make a filter active in the toolbar.

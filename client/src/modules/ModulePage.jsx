@@ -104,9 +104,24 @@ function Page({
   });
 
   // Container list for board pages
+  const pageActiveNamedFilter = useMemo(() => {
+    const activeId = state?.grid?.activeFilterId;
+    if (!activeId) return null;
+    return (state?.grid?.namedFilters || []).find(f => f.id === activeId) || null;
+  }, [state?.grid?.activeFilterId, state?.grid?.namedFilters]);
+
   const pageEffectiveFilters = useMemo(
-    () => resolveEffectiveFilters(occurrence, state?.grid?.activeFilterValues || {}),
-    [occurrence, state?.grid?.activeFilterValues]
+    () => resolveEffectiveFilters(
+      occurrence,
+      state?.grid?.activeFilterValues || {},
+      !!pageActiveNamedFilter?.lock
+    ),
+    [occurrence, state?.grid?.activeFilterValues, pageActiveNamedFilter]
+  );
+
+  const pageActiveFilterConditions = useMemo(
+    () => pageActiveNamedFilter?.conditions || null,
+    [pageActiveNamedFilter]
   );
 
   // Child occurrences for folder pages.
@@ -153,9 +168,9 @@ function Page({
     return allContainers.filter(container => {
       const containerOccId = childOccIds.find(occId => occurrencesById[occId]?.targetId === container.id);
       const containerOcc = containerOccId ? occurrencesById[containerOccId] : null;
-      return isOccurrenceVisible(containerOcc ?? { id: container.id }, pageEffectiveFilters);
+      return isOccurrenceVisible(containerOcc ?? { id: container.id }, pageEffectiveFilters, pageActiveFilterConditions);
     });
-  }, [occurrence, occurrencesById, containersById, pageEffectiveFilters]);
+  }, [occurrence, occurrencesById, containersById, pageEffectiveFilters, pageActiveFilterConditions]);
 
   // Label editing
   const startEdit = useCallback(() => {

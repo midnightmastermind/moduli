@@ -18,7 +18,7 @@ const scheduleOccId = "atZKQpmthMgM";
 const schedulePanelId = "cZNdjD-MJvyv";
 const waterFieldId = "dmc4Tj15C9Oq";
 const completedFieldId = "LEbHAatN6n-I";
-const scheduledDateFieldId = "5qNJnmEJCkYr";
+const dateFieldId = "5qNJnmEJCkYr";
 const timeslotFieldId = "C3feKJSSnpX3";
 const userId = "699bbdfbf62b06018225b91a";
 
@@ -30,7 +30,7 @@ const scheduleSource = {
 
 // ---- Water Today ----
 // Triggers: onLoad, onFieldChange (water/completed), onAdd/onRemove to schedule, onFilterChange.
-// Condition: $item has water field, is inside schedule page, and scheduledDate matches $activeDate.
+// Condition: $item has water field, is inside schedule page, and date matches $activeDate.
 const waterOp = await Operation.findOne({ name: "Water Today", gridId: testGridId });
 if (waterOp) {
   const showStep = waterOp.pipeline?.steps?.find(s => s.config?.type === "SHOW_VALUE");
@@ -60,7 +60,7 @@ if (waterOp) {
             rules: [
               { comparator: "HAS_ANCESTOR", left: "$item._ancestors", right: "$schedule.id" },
               { comparator: "IS_NOT_EMPTY", left: `$item.fields.${waterFieldId}.value` },
-              { comparator: "DATE_EQUALS",  left: `$item.fields.${scheduledDateFieldId}.value`, right: "$filterDate" },
+              { comparator: "DATE_EQUALS",  left: `$item.fields.${dateFieldId}.value`, right: "$filterDate" },
             ],
           },
           then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$total", expr: `$item.fields.${waterFieldId}.value` } }],
@@ -110,7 +110,7 @@ if (tasksOp) {
             rules: [
               { comparator: "HAS_ANCESTOR", left: "$item._ancestors", right: "$schedule.id" },
               { comparator: "IS",           left: `$item.fields.${completedFieldId}.value`, right: true },
-              { comparator: "DATE_EQUALS",  left: `$item.fields.${scheduledDateFieldId}.value`, right: "$filterDate" },
+              { comparator: "DATE_EQUALS",  left: `$item.fields.${dateFieldId}.value`, right: "$filterDate" },
             ],
           },
           then: [{ id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$count", by: 1 } }],
@@ -130,7 +130,7 @@ if (tasksOp) {
 }
 
 // ---- Schedule: Stamp Date & Time Slot ----
-// Priority 0 so it runs BEFORE aggregations. Sets scheduledDate = $activeDate
+// Priority 0 so it runs BEFORE aggregations. Sets date = $activeDate
 // on the occurrence being added. Aggregations see the stamped date immediately.
 const stampOp = await Operation.findOne({ name: "Schedule: Stamp Date & Time Slot", gridId: testGridId });
 if (stampOp) {
@@ -146,7 +146,7 @@ if (stampOp) {
         config: {
           type: "SET_FIELD_VALUE",
           occurrenceIdExpr: "$trigger.occurrenceId",
-          fieldId: scheduledDateFieldId,
+          fieldId: dateFieldId,
           valueExpr: "$activeDate",
         },
       },
@@ -189,7 +189,7 @@ if (!filterOp) {
       steps: [
         {
           id: uid(), type: "action",
-          config: { type: "SET_FILTER", fieldId: scheduledDateFieldId, valueExpr: "$today" },
+          config: { type: "SET_FILTER", fieldId: dateFieldId, valueExpr: "$today" },
         },
       ],
     },

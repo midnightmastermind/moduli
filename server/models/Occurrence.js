@@ -72,6 +72,9 @@ const OccurrenceSchema = new mongoose.Schema(
     // Sort order within parent (used by ManifestTree anchors, folder items, etc.)
     sortOrder: { type: Number, default: 0 },
 
+    // Per-occurrence drag mode override (overrides module.defaultDragMode when set)
+    dragMode: { type: String, enum: ["move", "copy", "copylink"], default: null },
+
     // Optional metadata
     meta: { type: mongoose.Schema.Types.Mixed, default: {} },
   },

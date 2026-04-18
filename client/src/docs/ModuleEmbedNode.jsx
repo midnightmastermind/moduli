@@ -1,19 +1,18 @@
 // docs/ModuleEmbedNode.jsx
 // React NodeView for moduleEmbed — renders any module (container, instance, artifact)
-// inline in a doc with alignment controls and a resize handle.
+// inline in a doc. Embed-specific actions (cycle alignment, pill, remove) are injected
+// into the module's own RadialMenu via extraItems — no separate wrapper handle.
 import { NodeViewWrapper } from "@tiptap/react";
-import { useContext, useRef, useCallback, useState } from "react";
+import { useContext, useRef, useCallback, useState, useMemo, useEffect } from "react";
 import { GridActionsContext } from "../GridActionsContext.js";
 import Container from "../modules/Container.jsx";
 import ModuleInstance from "../modules/ModuleInstance.jsx";
 import ArtifactContent from "../modules/ArtifactContent.jsx";
+import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box } from "lucide-react";
+import { embedDeleteRegistry } from "../helpers/embedRegistry.js";
 
-const ALIGN_OPTIONS = [
-  { key: "left",   label: "◧", title: "Float left (40%)" },
-  { key: "center", label: "⊡", title: "Center" },
-  { key: "right",  label: "◨", title: "Float right (40%)" },
-  { key: "full",   label: "⊞", title: "Full width" },
-];
+const ALIGN_CYCLE = ["full", "left", "center", "right"];
+const ALIGN_ICONS = { full: AlignJustify, left: AlignLeft, center: AlignCenter, right: AlignRight };
 
 function alignStyle(align, width) {
   const w = width ? `${width}px` : align === "full" ? "100%" : "40%";
@@ -25,7 +24,7 @@ function alignStyle(align, width) {
   }
 }
 
-export default function ModuleEmbedNode({ node, updateAttributes, selected, editor, getPos, deleteNode }) {
+export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos, deleteNode }) {
   const { occurrencesById, modulesById, viewsById, dispatch, socket } = useContext(GridActionsContext) || {};
   const occurrenceId = node.attrs.occurrenceId;
   const align = node.attrs.align || "full";
@@ -33,6 +32,13 @@ export default function ModuleEmbedNode({ node, updateAttributes, selected, edit
   const occurrence = occurrencesById?.[occurrenceId];
   const mod = occurrence?.targetId ? modulesById?.[occurrence.targetId] : null;
   const occView = occurrence?.viewId ? viewsById?.[occurrence.viewId] : null;
+
+  // Register deleteNode so DragProvider can remove this embed on drag-out (move mode)
+  useEffect(() => {
+    if (!occurrenceId) return;
+    embedDeleteRegistry.set(occurrenceId, deleteNode);
+    return () => { embedDeleteRegistry.delete(occurrenceId); };
+  }, [occurrenceId, deleteNode]);
 
   // Resize drag state
   const resizeRef = useRef(null);
@@ -62,6 +68,35 @@ export default function ModuleEmbedNode({ node, updateAttributes, selected, edit
     window.addEventListener("mouseup", onUp);
   }, [width, updateAttributes]);
 
+  // Injected into the module's own RadialMenu so there's only one menu.
+  const embedRadialItems = useMemo(() => {
+    const nextAlign = ALIGN_CYCLE[(ALIGN_CYCLE.indexOf(align) + 1) % ALIGN_CYCLE.length];
+    const AlignIcon = ALIGN_ICONS[align];
+    return [
+      {
+        label: `Align: ${align} → ${nextAlign}`,
+        icon: AlignIcon,
+        onClick: () => updateAttributes({ align: nextAlign, width: null }),
+      },
+      {
+        label: "To pill",
+        icon: Box,
+        color: "bg-indigo-600 hover:bg-indigo-500",
+        onClick: () => {
+          if (!editor || !getPos || !mod) return;
+          const pos = getPos();
+          editor.chain().focus()
+            .deleteRange({ from: pos, to: pos + node.nodeSize })
+            .insertContentAt(pos, {
+              type: "instancePill",
+              attrs: { instanceId: mod.id, instanceLabel: mod.label || "Item", occurrenceId },
+            })
+            .run();
+        },
+      },
+    ];
+  }, [align, updateAttributes, editor, getPos, mod, node.nodeSize, occurrenceId]);
+
   if (!mod) {
     return (
       <NodeViewWrapper contentEditable={false} data-occ-id={occurrenceId}>
@@ -75,87 +110,15 @@ export default function ModuleEmbedNode({ node, updateAttributes, selected, edit
   return (
     <NodeViewWrapper contentEditable={false} data-occ-id={occurrenceId}>
       <div style={{ position: "relative", ...alignStyle(align, width) }}>
-        {/* Alignment + reset controls — visible when node is selected */}
-        {selected && (
-          <div
-            style={{
-              position: "absolute", top: -22, left: 0, zIndex: 10,
-              display: "flex", gap: 2, padding: "2px 4px",
-              background: "var(--surface-card)", borderRadius: 5,
-              border: "1px solid var(--input-border)",
-            }}
-          >
-            {ALIGN_OPTIONS.map(opt => (
-              <button
-                key={opt.key}
-                title={opt.title}
-                onClick={() => updateAttributes({ align: opt.key, width: null })}
-                style={{
-                  background: align === opt.key ? "var(--accent-blue-bg)" : "transparent",
-                  border: align === opt.key ? "1px solid var(--accent-blue-border)" : "1px solid transparent",
-                  borderRadius: 3, color: "var(--text-primary)", cursor: "pointer",
-                  fontSize: 11, padding: "1px 5px", lineHeight: 1.4,
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-            {width && (
-              <button
-                title="Reset width"
-                onClick={() => updateAttributes({ width: null })}
-                style={{
-                  background: "transparent", border: "1px solid transparent",
-                  borderRadius: 3, color: "var(--text-muted)", cursor: "pointer",
-                  fontSize: 9, padding: "1px 5px",
-                }}
-              >
-                ×w
-              </button>
-            )}
-            <div style={{ width: 1, height: 14, background: "var(--border-default)", margin: "0 2px" }} />
-            <button
-              title="Convert to inline pill"
-              onClick={() => {
-                if (!editor || !getPos || !mod) return;
-                const pos = getPos();
-                const nodeSize = node.nodeSize;
-                editor.chain().focus()
-                  .deleteRange({ from: pos, to: pos + nodeSize })
-                  .insertContentAt(pos, {
-                    type: "instancePill",
-                    attrs: { instanceId: mod.id, instanceLabel: mod.label || "Item", occurrenceId },
-                  })
-                  .run();
-              }}
-              style={{
-                background: "transparent", border: "1px solid transparent",
-                borderRadius: 3, color: "var(--text-primary)", cursor: "pointer",
-                fontSize: 9, padding: "1px 5px",
-              }}
-            >
-              Pill
-            </button>
-            <button
-              title="Remove embed"
-              onClick={() => deleteNode?.()}
-              style={{
-                background: "transparent", border: "1px solid transparent",
-                borderRadius: 3, color: "rgba(252,129,129,0.9)", cursor: "pointer",
-                fontSize: 9, padding: "1px 5px",
-              }}
-            >
-              ×
-            </button>
-          </div>
-        )}
-
         {mod?.role === "instance" ? (
           <ModuleInstance
             module={mod}
             occurrence={occurrence}
             dispatch={dispatch}
             socket={socket}
+            embedRadialItems={embedRadialItems}
+            embedOnDelete={deleteNode}
+            embedSourceType="doc-embed"
           />
         ) : (mod?.kind === "artifact" || occView?.viewType === "display") ? (
           <ArtifactContent
@@ -172,8 +135,10 @@ export default function ModuleEmbedNode({ node, updateAttributes, selected, edit
             panel={null}
             dispatch={dispatch}
             socket={socket}
-            embedded={true}
             occurrenceOverride={occurrence}
+            embedRadialItems={embedRadialItems}
+            embedOnDelete={deleteNode}
+            embedSourceType="doc-embed"
           />
         )}
 
@@ -190,7 +155,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, selected, edit
           >
             <div style={{
               width: 3, height: 24, borderRadius: 2,
-              background: selected || isResizing ? "var(--accent-blue)" : "var(--border-default)",
+              background: isResizing ? "var(--accent-blue)" : "var(--border-default)",
               transition: "background 0.15s",
             }} />
           </div>

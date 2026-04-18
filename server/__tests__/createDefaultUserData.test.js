@@ -147,13 +147,13 @@ describe("createDefaultUserData — panel shape", () => {
     expect(schedMod?.label).toBe("Schedule");
   });
 
-  it("centerHub has filterOverride set for scheduledDate", async () => {
+  it("centerHub has filterOverride set for date", async () => {
     if (!connected) return;
     const panelOccs = await Occurrence.find({ userId: USER_ID });
     const hubOcc = panelOccs.find(o => o.placement?.col === 1);
     expect(hubOcc.filterOverride).toBeTruthy();
     const keys = Object.keys(hubOcc.filterOverride);
-    expect(keys.length).toBe(1); // exactly 1 filter key (scheduledDateFieldId)
+    expect(keys.length).toBe(1); // exactly 1 filter key (dateFieldId)
   });
 });
 

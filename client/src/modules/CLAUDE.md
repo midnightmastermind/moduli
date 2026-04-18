@@ -2,6 +2,10 @@
 
 _Updated: Apr 12 2026. This folder implements occurrence-based view routing._
 
+## Recent Changes (Apr 15 2026 — embedSourceType for Drag-Out)
+- **ModuleInstance.jsx**: Added `embedSourceType = null` prop. Passed as `sourceType` in `useDragDrop` context so DragProvider knows the drag originated from a doc embed.
+- **ModuleContainer.jsx**: Same — `embedSourceType = null` prop + `sourceType: embedSourceType` in `useDragDrop` context.
+
 ## Recent Changes (Apr 12 2026 — Container/Page Subtype Extraction)
 - **modules/pages/PageBoard.jsx** (NEW): Board page — drop zone + sortable Container list with loading state + empty placeholder. Extracted from inline JSX in ModulePage.jsx.
 - **modules/pages/PageDoc.jsx** (NEW): Doc page — thin wrapper around `DocEditorShell` in a scroll container.

@@ -1,6 +1,7 @@
 // state/selectors.js
 // Selectors for working with occurrences and entities in the state
 import * as CalcHelpers from "../helpers/CalculationHelpers";
+import { evalRule, evalGroup } from "../helpers/operationActions";
 
 /**
  * Creates lookup maps from state arrays.
@@ -228,9 +229,13 @@ export function calculateDerivedField(state, field, context = {}) {
  *   null/undefined = inherit parent's filters (default)
  *   {}             = clear all filters (show everything)
  *   { fieldId: v } = merge: parent filters + these overrides
+ *
+ * If the active named filter is locked, downstream overrides are ignored entirely —
+ * parent values cascade unchanged.
  */
-export function resolveEffectiveFilters(occurrence, parentFilterValues) {
+export function resolveEffectiveFilters(occurrence, parentFilterValues, activeFilterLocked = false) {
   if (!occurrence) return parentFilterValues || {};
+  if (activeFilterLocked) return parentFilterValues || {};
   const override = occurrence.filterOverride;
   if (override == null) return parentFilterValues || {};
   // Merge parent + override (override wins, null values remove that filter key)
@@ -279,9 +284,40 @@ export function getOtherOccurrences(occurrencesById, modulesById, moduleId, excl
     });
 }
 
-export function isOccurrenceVisible(occurrence, effectiveFilters) {
+export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditions = null) {
   if (!occurrence) return false;
   if (occurrence.hidden) return false;
+
+  // Condition-based path: when the active filter has explicit conditions, evaluate each one.
+  // A condition can either reference a literal `value` or fall back to the live filter value
+  // (effectiveFilters[fieldId]) — that's what the nav arrows mutate.
+  if (Array.isArray(filterConditions) && filterConditions.length) {
+    for (const cond of filterConditions) {
+      if (!cond) continue;
+      // Nested groups: AND/OR of sub-rules. Build a $vars carrying the occurrence's field map
+      // so left-paths like `$occ.fields.<fid>.value` can resolve.
+      if (Array.isArray(cond.rules)) {
+        const $vars = { $occ: occurrence, $occurrence: occurrence };
+        if (!evalGroup(cond, $vars)) return false;
+        continue;
+      }
+      const fieldId = cond.fieldId;
+      if (!fieldId) continue;
+      const fieldVal = occurrence.fields?.[fieldId];
+      const leftVal = fieldVal?.value !== undefined ? fieldVal.value : fieldVal;
+      // Persistent semantics: occurrence with no value for this field passes (e.g. recurring habits).
+      if (leftVal == null) continue;
+      const rightVal = cond.value !== undefined && cond.value !== null && cond.value !== ""
+        ? cond.value
+        : effectiveFilters?.[fieldId];
+      const comparator = String(cond.comparator || "IS").toUpperCase();
+      const ok = evalRule({ left: leftVal, comparator, right: rightVal }, {});
+      if (!ok) return false;
+    }
+    return true;
+  }
+
+  // Legacy path: no conditions provided — fall back to direct field/value equality.
   if (!effectiveFilters || !Object.keys(effectiveFilters).length) return true;
 
   for (const [fieldId, required] of Object.entries(effectiveFilters)) {

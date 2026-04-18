@@ -63,6 +63,9 @@ export default function RadialMenu({
   // Delete/remove action
   onDelete = null,
 
+  // Extra items appended after all computed items (used by embed context to inject alignment/pill actions)
+  extraItems = null,
+
   // Callback when open state changes
   onOpenChange = null,
 
@@ -266,8 +269,9 @@ export default function RadialMenu({
     () => {
       // If custom items provided, use those with calculated angles
       if (items && items.length > 0) {
-        const angles = getAnglesForDirection(openDirection, items.length);
-        return items.map((item, i) => ({
+        const allItems = extraItems?.length ? [...items, ...extraItems] : items;
+        const angles = getAnglesForDirection(openDirection, allItems.length);
+        return allItems.map((item, i) => ({
           ...item,
           angle: angles[i],
           color: item.color || "bg-slate-600 hover:bg-slate-500",
@@ -345,10 +349,11 @@ export default function RadialMenu({
           color: "bg-red-700 hover:bg-red-600",
         });
       }
+      if (extraItems?.length) defaultItems.push(...extraItems);
       const angles = getAnglesForDirection(openDirection, defaultItems.length);
       return defaultItems.map((item, i) => ({ ...item, angle: angles[i] }));
     },
-    [items, addLabel, dragMode, onAddChild, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, openDirection, getAnglesForDirection]
+    [items, extraItems, addLabel, dragMode, onAddChild, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, openDirection, getAnglesForDirection]
   );
 
   // PORTALED arc menu
@@ -505,7 +510,6 @@ export default function RadialMenu({
           w-8
           rounded-l-[6px]
           rounded-r-none
-          border-r-2 border-solid
           border-gray-700
           transition-all duration-200
           ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:shadow-lg"}

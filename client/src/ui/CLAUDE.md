@@ -1,9 +1,16 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-04-15. Check this file before re-reading source._
+_Updated: 2026-04-18. Check this file before re-reading source._
 
-## Recent Changes (Apr 15 2026 — OperationEditor crash fix)
-- **commandCenter/OperationsTab.jsx**: Added `if (!operation) return null;` as first line of `OperationEditor` component — fixes crash when opening operations edit menu.
+## Recent Changes (Apr 18 2026 — Phase F: Sources Consolidation)
+- **commandCenter/OperationsTab.jsx**: Removed duplicate outer Sources section from `OperationEditor` (was writing `varName` — orphaned, not read by executor). Removed `SOURCE_ENTITY_TYPES` constant. The `PipelineEditor` (in blocks/OperationsBuilder.jsx) is now the single source UI — it uses `variableName`, which matches what `operationExecutor.js` and `PathPicker.buildPathShape` both read.
+
+## Recent Changes (Apr 17 2026 — OperationLogPanel: Run History)
+- **commandCenter/OperationLogPanel.jsx** (NEW): Renders run history for an operation — list of past runs (newest first), each row collapsible to show step entries. Subscribes to `subscribeToOpLog(opId, fn)` so trigger-fired runs append live. "Run" button calls `executePipeline` with a synthetic manual trigger to append a fresh entry. Capped at 20 runs in executor (RUN_HISTORY_LIMIT). RunRow shows time, status badge (update count or ERR), trigger type, relative timestamp, duration. LogEntry renders per-step breakdown (start/sources/action/if/loop/end/error) with color-coded badges.
+- **commandCenter/OperationsTab.jsx**: Drill-down view (when an operation is selected) now renders OperationEditor + OperationLogPanel side-by-side (60% / 40%). Log panel sticky-positioned at top: 50.
+
+## Recent Changes (Apr 15 2026 — OperationEditor hooks violation fix)
+- **commandCenter/OperationsTab.jsx**: Fixed React Rules of Hooks violation in `OperationEditor`. Moved `if (!operation) return null;` from line 336 (before all hooks) to line 369 (after all hooks: `useContext`, `useState`, `useMemo`, `useCallback`, `useMemo`×2). Also fixed state-update-during-render in `OperationsTab`: converted `if (selectedOpId && !selectedOp) { setSelectedOpId(null); }` (inline guard before JSX) to a `useEffect` — prevents double-render and React `WeakMap key undefined` crash when selected op is deleted.
 
 ## Recent Changes (Apr 15 2026 — Container Deep Copy into Doc)
 - **Editor.jsx**: Container drops in copy mode now perform a **deep copy** — `deepCopyOcc()` recursive helper creates new occurrences for the container AND all its descendants (children, grandchildren, etc.), copying `fields`, `meta`, `dragMode`, `textmap`, and `occurrences[]` (with newly assigned IDs). The embed node gets the new root occurrence ID. Deleting/editing a child in the embedded copy no longer affects the original.
