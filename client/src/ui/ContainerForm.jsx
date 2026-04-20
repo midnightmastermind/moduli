@@ -3,23 +3,10 @@ import React, { useContext, useMemo } from "react";
 import { Separator } from "@/components/ui/separator";
 import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
-import IterationSettings from "./IterationSettings";
 import StyleEditor from "./StyleEditor";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { GridActionsContext } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
-
-const ITERATION_MODES = [
-  { value: "inherit", label: "Inherit from Panel" },
-  { value: "own", label: "Use own iteration" },
-];
-
-const TIME_FILTER_OPTIONS = [
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "yearly", label: "Yearly" },
-];
 
 const DRAG_MODE_OPTIONS = [
   { value: "move", label: "Move (relocate occurrence)" },
@@ -218,65 +205,6 @@ export default function ContainerForm({
             )}
           </div>
 
-          {/* Persistence Mode (occurrence-level) */}
-          {occurrence && (
-            <>
-              <Separator />
-              <div className="py-2">
-                <h4 className="text-xs font-semibold text-foregroundScale-2 mb-2">Persistence</h4>
-                <IterationSettings
-                  occurrence={occurrence}
-                  onUpdate={onOccurrenceUpdate}
-                  entityType="container"
-                  compact
-                />
-              </div>
-            </>
-          )}
-
-          <Separator />
-
-          {/* Iteration Settings */}
-          <div className="pt-2 pb-1">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-foregroundScale-2">Iteration</h4>
-              <span className="text-[10px] opacity-70">Time-based filtering</span>
-            </div>
-
-            <div className="mt-2 grid grid-cols-1 gap-3">
-              <FormInput
-                schema={{
-                  type: "select",
-                  key: "__iterMode",
-                  label: "Mode",
-                  options: ITERATION_MODES,
-                  description: "Inherit uses the panel's iteration. Own sets a specific time filter.",
-                }}
-                value={{ __iterMode: iter.mode || "inherit" }}
-                onChange={(next) => onIterationChange?.({ ...iter, mode: next?.__iterMode || "inherit" })}
-              />
-
-              {iter.mode === "own" && (
-                <FormInput
-                  schema={{
-                    type: "select",
-                    key: "__iterTimeFilter",
-                    label: "Time Filter",
-                    options: TIME_FILTER_OPTIONS,
-                    description: "How occurrences are grouped for this container.",
-                  }}
-                  value={{ __iterTimeFilter: iter.timeFilter || "daily" }}
-                  onChange={(next) => onIterationChange?.({ ...iter, timeFilter: next?.__iterTimeFilter || "daily" })}
-                />
-              )}
-            </div>
-
-            {iter.mode === "inherit" && (
-              <p className="mt-2 text-[10px] text-foregroundScale-2/80">
-                This container inherits iteration from its panel.
-              </p>
-            )}
-          </div>
 
           {/* Other Placements */}
           {otherPlacements.length > 0 && (

@@ -1,8 +1,7 @@
 /**
  * LayoutHelpers.test.js
  *
- * Tests occurrence filtering, container/panel lookup helpers,
- * and iteration-based visibility rules.
+ * Tests occurrence filtering and container/panel lookup helpers.
  *
  * These are critical for the drag/drop system — wrong occurrence resolution
  * = wrong items rendering in wrong containers.
@@ -18,7 +17,6 @@ import {
   getContainerItemsWithOccurrences,
   findOccurrenceIdByTarget,
   getTargetIndexInOccurrences,
-  occurrenceMatchesIteration,
   removeId,
   ensureId,
 } from "../helpers/LayoutHelpers";
@@ -93,65 +91,6 @@ describe("getItemsByIds", () => {
   });
 });
 
-// ─── occurrenceMatchesIteration ───────────────────────────────────────────────
-describe("occurrenceMatchesIteration", () => {
-  const TODAY = "2026-02-22";
-  const YESTERDAY = "2026-02-21";
-
-  test("no iteration → always visible", () => {
-    expect(occurrenceMatchesIteration({}, TODAY)).toBe(true);
-    expect(occurrenceMatchesIteration({ iteration: null }, TODAY)).toBe(true);
-  });
-
-  test("persistent → always visible", () => {
-    const occ = { iteration: { mode: "persistent" } };
-    expect(occurrenceMatchesIteration(occ, TODAY)).toBe(true);
-    expect(occurrenceMatchesIteration(occ, YESTERDAY)).toBe(true);
-  });
-
-  test("specific → visible only on matching day", () => {
-    const occ = { iteration: { mode: "specific", timeValue: TODAY } };
-    expect(occurrenceMatchesIteration(occ, TODAY)).toBe(true);
-    expect(occurrenceMatchesIteration(occ, YESTERDAY)).toBe(false);
-  });
-
-  test("specific with legacy value field", () => {
-    const occ = { iteration: { mode: "specific", value: TODAY } };
-    expect(occurrenceMatchesIteration(occ, TODAY)).toBe(true);
-    expect(occurrenceMatchesIteration(occ, YESTERDAY)).toBe(false);
-  });
-
-  test("specific with no date → show (can't filter)", () => {
-    const occ = { iteration: { mode: "specific" } };
-    expect(occurrenceMatchesIteration(occ, TODAY)).toBe(true);
-  });
-
-  test("untilDone with no completedOn → always visible", () => {
-    const occ = { iteration: { mode: "untilDone" } };
-    expect(occurrenceMatchesIteration(occ, TODAY)).toBe(true);
-  });
-
-  test("untilDone completed → only visible on completion day (requires timeValue to avoid early exit)", () => {
-    // NOTE: code exits early if timeValue is missing (returns true for all modes without timeValue)
-    // So untilDone requires timeValue to be set for completedOn filtering to work.
-    const occ = { iteration: { mode: "untilDone", timeValue: TODAY, completedOn: TODAY } };
-    expect(occurrenceMatchesIteration(occ, TODAY)).toBe(true);
-    expect(occurrenceMatchesIteration(occ, YESTERDAY)).toBe(false);
-  });
-
-  test("untilDone without timeValue → always visible (early exit — known behavior)", () => {
-    // When no timeValue, code exits early and returns true regardless of completedOn
-    // This is the current behavior; untilDone items need a timeValue to be filtered.
-    const occ = { iteration: { mode: "untilDone", completedOn: TODAY } };
-    expect(occurrenceMatchesIteration(occ, YESTERDAY)).toBe(true); // early exit
-  });
-
-  test("no currentIterationValue → always visible", () => {
-    const occ = { iteration: { mode: "specific", timeValue: TODAY } };
-    expect(occurrenceMatchesIteration(occ, null)).toBe(true);
-  });
-});
-
 // ─── getPanelContainers ───────────────────────────────────────────────────────
 describe("getPanelContainers", () => {
   const containers = {
@@ -215,19 +154,18 @@ describe("getContainerItems", () => {
     expect(result).toHaveLength(2);
   });
 
-  test("filters by iteration date: persistent always shows", () => {
+  test("returns all occurrences (filter visibility handled at render level)", () => {
     const container = { id: "c1" };
     const containerOcc = { id: "c1-occ", targetId: "c1", occurrences: ["occ-i1", "occ-i2-yesterday"] };
     const result = getContainerItems(container, occurrences, instances, TODAY, containerOcc);
-    expect(result).toHaveLength(1);
-    expect(result[0].label).toBe("Exercise"); // persistent, not yesterday's specific
+    expect(result).toHaveLength(2); // no filtering here — isOccurrenceVisible handles it
   });
 
-  test("filters by iteration date: specific matches today", () => {
+  test("currentFilterValue param accepted without affecting output", () => {
     const container = { id: "c1" };
     const containerOcc = { id: "c1-occ", targetId: "c1", occurrences: ["occ-i1", "occ-i2"] };
     const result = getContainerItems(container, occurrences, instances, TODAY, containerOcc);
-    expect(result).toHaveLength(2); // persistent + today's specific
+    expect(result).toHaveLength(2);
   });
 
   test("empty container → empty array", () => {

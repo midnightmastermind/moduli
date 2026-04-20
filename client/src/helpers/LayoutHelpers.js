@@ -1,8 +1,6 @@
 // helpers/LayoutHelpers.js
 import * as CommitHelpers from "./CommitHelpers";
 import { uid } from "../uid";
-import { occurrenceMatchesIteration } from "./IterationHelpers";
-
 // ============================================================================
 // LOOKUP HELPERS - get items from state by ID
 // ============================================================================
@@ -41,19 +39,11 @@ export function getItemsByIds(ids, lookup) {
 }
 
 /**
- * Checks whether an occurrence should be visible given the current iteration date.
- * - "persistent" → always visible
- * - "specific"   → visible only when iteration date matches occurrence date (same day)
- * - "untilDone"  → visible until completedOn is set, then only on that date
- */
-// occurrenceMatchesIteration is defined in IterationHelpers.js (imported above)
-
-/**
  * Gets the instances for a container by looking up its occurrences
  * @param {Object} container - Container with occurrences array (of IDs)
  * @param {Object} occurrencesLookup - Lookup map for occurrences
  * @param {Object} instancesLookup - Lookup map for instances
- * @param {Date|string} currentIterationValue - Optional: filter by current iteration date
+ * @param {Date|string} currentFilterValue - Optional: filter by current filter date (unused, visibility handled by isOccurrenceVisible)
  * @returns {Array} Array of instance objects
  */
 // Resolve ordered child occurrence IDs from an occurrence.
@@ -62,15 +52,13 @@ function resolveChildOccurrenceIds(entityOccurrence) {
   return entityOccurrence?.occurrences || [];
 }
 
-export function getContainerItems(container, occurrencesLookup, instancesLookup, currentIterationValue, containerOccurrence) {
+export function getContainerItems(container, occurrencesLookup, instancesLookup, currentFilterValue, containerOccurrence) {
   const ids = resolveChildOccurrenceIds(containerOccurrence);
   if (!ids.length) return [];
   return ids
     .map(occId => {
       const occ = getItemById(occId, occurrencesLookup);
       if (!occ) return null;
-      // Filter by iteration if a current date is provided
-      if (currentIterationValue && !occurrenceMatchesIteration(occ, currentIterationValue)) return null;
       return getItemById(occ.targetId, instancesLookup);
     })
     .filter(Boolean);
@@ -80,23 +68,19 @@ export function getContainerItems(container, occurrencesLookup, instancesLookup,
  * Gets instances with their occurrences for a container.
  * Occurrence controls order: prefers containerOccurrence.occurrences, falls back to container.occurrences (legacy).
  */
-export function getContainerItemsWithOccurrences(container, occurrencesLookup, instancesLookup, currentIterationValue, containerOccurrence) {
+export function getContainerItemsWithOccurrences(container, occurrencesLookup, instancesLookup, currentFilterValue, containerOccurrence) {
   const ids = resolveChildOccurrenceIds(containerOccurrence);
   if (!ids.length) return [];
   return ids
     .map(occId => {
       const occ = getItemById(occId, occurrencesLookup);
       if (!occ) return null;
-      if (currentIterationValue && !occurrenceMatchesIteration(occ, currentIterationValue)) return null;
       const instance = getItemById(occ.targetId, instancesLookup);
       if (!instance) return null;
       return { instance, occurrence: occ };
     })
     .filter(Boolean);
 }
-
-// Re-export for external use
-export { occurrenceMatchesIteration };
 
 /**
  * Gets the containers for a panel by looking up its occurrences

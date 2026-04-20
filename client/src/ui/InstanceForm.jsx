@@ -8,7 +8,6 @@ import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronUp, Plus, X, Eye, EyeOff } from "lucide-react";
 import MultiSelectPills from "./MultiSelectPills";
-import IterationSettings from "./IterationSettings";
 import StyleEditor from "./StyleEditor";
 import { GridActionsContext } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
@@ -192,22 +191,6 @@ export default function InstanceForm({
           />
 
           <Separator />
-
-          {/* Iteration/Persistence Settings */}
-          {occurrence && (
-            <>
-              <div className="py-2">
-                <h4 className="text-xs font-semibold text-foregroundScale-2 mb-2">Iteration</h4>
-                <IterationSettings
-                  occurrence={occurrence}
-                  onUpdate={handleOccurrenceUpdate}
-                  entityType="instance"
-                  compact
-                />
-              </div>
-              <Separator />
-            </>
-          )}
 
           {/* Behavior Toggles (Phase 5.2) */}
           <div className="py-2">

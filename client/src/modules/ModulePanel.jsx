@@ -7,7 +7,6 @@ import React, { useRef, useMemo, useState, useCallback, useEffect, useContext } 
 import ResizeHandle from "../ResizeHandle";
 import RadialMenu from "../ui/RadialMenu";
 import ContainerKindSelector from "../ui/ContainerKindSelector";
-import LocalIterationNav from "../ui/LocalIterationNav";
 import ContextMenu from "../ui/ContextMenu";
 
 import Artifact from "./Artifact";
@@ -791,12 +790,6 @@ function Panel({
                     });
                   }}
                   createLabel="New page"
-                />
-                <LocalIterationNav
-                  occurrence={panelOccurrence}
-                  onUpdate={commitOccurrenceUpdate}
-                  showModeToggle={true}
-                  compact={true}
                 />
               </div>
             </div>

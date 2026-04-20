@@ -4,7 +4,6 @@ import { Separator } from "@/components/ui/separator";
 import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import IterationSettings from "./IterationSettings";
 import StyleEditor from "./StyleEditor";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
@@ -428,21 +427,6 @@ export default function LayoutForm({
             )}
           </div>
 
-          {/* Persistence */}
-          {occurrence && (
-            <>
-              <Separator />
-              <div className="pt-1">
-                <h4 className="text-xs font-semibold text-foregroundScale-2 mb-2">Persistence</h4>
-                <IterationSettings
-                  occurrence={occurrence}
-                  onUpdate={onOccurrenceUpdate}
-                  entityType="panel"
-                  compact
-                />
-              </div>
-            </>
-          )}
 
           <Separator />
 

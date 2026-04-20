@@ -6,7 +6,6 @@
 import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useContext } from "react";
 import { createPortal } from "react-dom";
 import RadialMenu from "../ui/RadialMenu";
-import LocalIterationNav from "../ui/LocalIterationNav";
 import { toast } from "sonner";
 import ContextMenu from "../ui/ContextMenu";
 import ContainerForm from "../ui/ContainerForm";
@@ -634,13 +633,6 @@ function Container({
                 {module.label || "Container"}
               </span>
               <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0, marginLeft: "auto" }}>
-                <LocalIterationNav
-                  occurrence={containerOccurrence}
-                  onUpdate={commitOccurrenceUpdate}
-                  showModeToggle={true}
-                  compact={true}
-                  collapsible={true}
-                />
               </div>
             </div>
             {/* Row 3: Container-bound fields (below label, prevents mobile crush) */}
@@ -747,12 +739,6 @@ function Container({
             </div>
 
             <div className="ml-auto mr-1" style={{ flexShrink: 0 }} onPointerDown={(e) => e.stopPropagation()}>
-              <LocalIterationNav
-                occurrence={containerOccurrence}
-                onUpdate={commitOccurrenceUpdate}
-                showModeToggle={true}
-                compact={true}
-              />
             </div>
           </>
         )}
