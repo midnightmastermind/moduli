@@ -284,6 +284,33 @@ export function getOtherOccurrences(occurrencesById, modulesById, moduleId, excl
     });
 }
 
+/**
+ * Walks the parentId chain applying filterOverride at each level, returning the effective
+ * filter values for this occurrence. Root falls back to grid.activeFilterValues.
+ *   null/undefined override = inherit parent
+ *   {}                      = clear all (show everything)
+ *   { fieldId: value }      = merge/override specific fields
+ */
+export function getEffectiveFilterForOccurrence(occ, { grid, occurrencesById }) {
+  if (!occ) return grid?.activeFilterValues || {};
+  const chain = [];
+  let cur = occ;
+  const guard = new Set();
+  while (cur && !guard.has(cur.id)) {
+    guard.add(cur.id);
+    chain.push(cur);
+    cur = cur.parentId ? (occurrencesById?.[cur.parentId] || null) : null;
+  }
+  let effective = { ...(grid?.activeFilterValues || {}) };
+  for (let i = chain.length - 1; i >= 0; i--) {
+    const override = chain[i].filterOverride;
+    if (override == null) continue;
+    if (Object.keys(override).length === 0) { effective = {}; continue; }
+    effective = { ...effective, ...override };
+  }
+  return effective;
+}
+
 export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditions = null) {
   if (!occurrence) return false;
   if (occurrence.hidden) return false;
