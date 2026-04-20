@@ -36,7 +36,7 @@ import {
   DragType,
   DropAccepts,
 } from "../helpers/dragSystem";
-import { resolveEffectiveFilters, isOccurrenceVisible } from "../state/selectors";
+import { getEffectiveFilterForOccurrence, isOccurrenceVisible } from "../state/selectors";
 
 // Kind icon mapping
 const KIND_ICONS = {
@@ -111,12 +111,10 @@ function Page({
   }, [state?.grid?.activeFilterId, state?.grid?.namedFilters]);
 
   const pageEffectiveFilters = useMemo(
-    () => resolveEffectiveFilters(
-      occurrence,
-      state?.grid?.activeFilterValues || {},
-      !!pageActiveNamedFilter?.lock
-    ),
-    [occurrence, state?.grid?.activeFilterValues, pageActiveNamedFilter]
+    () => pageActiveNamedFilter?.lock
+      ? (state?.grid?.activeFilterValues || {})
+      : getEffectiveFilterForOccurrence(occurrence, { grid: state?.grid, occurrencesById }),
+    [occurrence, state?.grid, occurrencesById, pageActiveNamedFilter?.lock]
   );
 
   const pageActiveFilterConditions = useMemo(

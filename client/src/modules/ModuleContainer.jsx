@@ -27,7 +27,7 @@ import {
 } from "../helpers/dragSystem";
 import { resolveContainerStyle, styleToCSS } from "../helpers/StyleHelpers";
 import { hexToRgba, lightenHex } from "../helpers/colorHelpers.js";
-import { resolveEffectiveFilters, isOccurrenceVisible } from "../state/selectors";
+import { getEffectiveFilterForOccurrence, isOccurrenceVisible } from "../state/selectors";
 
 import {
   ChevronRight,
@@ -386,12 +386,10 @@ function Container({
   }, [ctxState?.grid?.activeFilterId, ctxState?.grid?.namedFilters]);
 
   const effectiveFilters = useMemo(
-    () => resolveEffectiveFilters(
-      containerOccurrence,
-      ctxState?.grid?.activeFilterValues || {},
-      !!activeNamedFilter?.lock
-    ),
-    [containerOccurrence, ctxState?.grid?.activeFilterValues, activeNamedFilter]
+    () => activeNamedFilter?.lock
+      ? (ctxState?.grid?.activeFilterValues || {})
+      : getEffectiveFilterForOccurrence(containerOccurrence, { grid: ctxState?.grid, occurrencesById }),
+    [containerOccurrence, ctxState?.grid, occurrencesById, activeNamedFilter?.lock]
   );
 
   const activeFilterConditions = useMemo(
