@@ -118,6 +118,12 @@ export function updateOccurrence({ dispatch, socket, occurrence, emit = true }) 
   if (shouldEmit(emit)) safeEmit(socket, "update_occurrence", { occurrence });
 }
 
+export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOverride }) {
+  if (!id) return;
+  dispatch?.(updateOccurrenceAction({ id, filterOverride }));
+  safeEmit(socket, "update_occurrence", { occurrence: { id, filterOverride } });
+}
+
 export function deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, emit = true }) {
   if (!occurrenceId) return;
   // Evict from local cache BEFORE dispatch so fireOperations sees updated state

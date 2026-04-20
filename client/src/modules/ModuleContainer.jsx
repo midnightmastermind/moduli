@@ -28,6 +28,7 @@ import {
 import { resolveContainerStyle, styleToCSS } from "../helpers/StyleHelpers";
 import { hexToRgba, lightenHex } from "../helpers/colorHelpers.js";
 import { getEffectiveFilterForOccurrence, isOccurrenceVisible } from "../state/selectors";
+import LocalFilterNav from "../ui/LocalFilterNav";
 
 import {
   ChevronRight,
@@ -737,6 +738,7 @@ function Container({
             </div>
 
             <div className="ml-auto mr-1" style={{ flexShrink: 0 }} onPointerDown={(e) => e.stopPropagation()}>
+              <LocalFilterNav occurrence={containerOccurrence} compact={true} />
             </div>
           </>
         )}

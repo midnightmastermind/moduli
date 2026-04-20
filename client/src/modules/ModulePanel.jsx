@@ -52,6 +52,7 @@ import Container from "./Container.jsx";
 import Page from "./Page.jsx";
 import { CanvasDrawSection } from "./containerHelpers.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
+import LocalFilterNav from "../ui/LocalFilterNav.jsx";
 
 // ============================================================
 // LAYOUT HELPERS
@@ -769,8 +770,9 @@ function Panel({
                 </button>
               )}
 
-              {/* QuickAdd + Filters */}
-              <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 5 }}>
+              {/* Filter nav + QuickAdd */}
+              <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 5, alignItems: "center" }}>
+                <LocalFilterNav occurrence={panelOccurrence} compact={true} />
                 <QuickAddMenu
                   targetRole="page"
                   onSelect={handleQuickAddPage}
