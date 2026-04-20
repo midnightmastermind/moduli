@@ -17,6 +17,7 @@ import { evaluateBlock } from "./blockEvaluator";
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { toast } from "sonner";
 import { resolveExpr, evalRule, evalGroup, extractFieldValuesFiltered, executeActionItem } from "./operationActions";
+import { getEffectiveFilterForOccurrence } from "../state/selectors";
 
 // ============================================================
 // RUN LOG — per-operation run history for the editor's log panel
@@ -587,30 +588,38 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     $iterationId: state?.grid?.selectedIterationId ?? null,
     $iterationValue: state?.grid?.currentIterationValue ?? null,
     $iterationFilter: _activeIteration?.timeFilter ?? null,
-    // Active filter date — the currently-viewed date in the filter nav.
-    // Returns null when no date filter is active (do NOT silently fall back to today;
-    // callers that want today should resolve `$today` explicitly).
+    // Active filter date — scoped to the operation's target occurrence (not grid-global).
+    // Walks the parent chain via filterOverride so each panel/container sees its own date.
+    // Returns null when no date filter active (callers wanting today should use $today).
     $activeDate: (() => {
-      const afv = state?.grid?.activeFilterValues || {};
-      const dateVal = Object.values(afv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
+      const targetOccId = operation.targetOccurrenceId;
+      const targetOcc = targetOccId ? occurrencesById[targetOccId] : null;
+      const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById });
+      const dateVal = Object.values(efv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
       return dateVal ? dateVal.slice(0, 10) : null;
     })(),
-    // Alias for legacy callers. Same null-when-empty semantics as $activeDate.
+    // Alias for legacy callers. Same scoped semantics as $activeDate.
     $filterDate: (() => {
-      const afv = state?.grid?.activeFilterValues || {};
-      const dateVal = Object.values(afv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
+      const targetOccId = operation.targetOccurrenceId;
+      const targetOcc = targetOccId ? occurrencesById[targetOccId] : null;
+      const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById });
+      const dateVal = Object.values(efv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
       return dateVal ? dateVal.slice(0, 10) : null;
     })(),
     // Formatted labels for the active date — used in COMPUTE_TEXTMAP_FROM_TEMPLATE tokens
     $activeDateLabel: (() => {
-      const afv = state?.grid?.activeFilterValues || {};
-      const dateVal = Object.values(afv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
+      const targetOccId = operation.targetOccurrenceId;
+      const targetOcc = targetOccId ? occurrencesById[targetOccId] : null;
+      const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById });
+      const dateVal = Object.values(efv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
       const d = dateVal ? new Date(dateVal + "T00:00:00") : _nowDate;
       return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
     })(),
     $activeDayOfWeek: (() => {
-      const afv = state?.grid?.activeFilterValues || {};
-      const dateVal = Object.values(afv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
+      const targetOccId = operation.targetOccurrenceId;
+      const targetOcc = targetOccId ? occurrencesById[targetOccId] : null;
+      const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById });
+      const dateVal = Object.values(efv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
       const d = dateVal ? new Date(dateVal + "T00:00:00") : _nowDate;
       return d.toLocaleDateString("en-US", { weekday: "long" });
     })(),
@@ -623,11 +632,14 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     $allFields: Object.values(fieldsById),
     $grid: state?.grid ?? {},
   };
+  // Always set $trigger so pipeline steps can check $trigger.type without null guards.
+  $vars["$trigger"] = { type: transactionType || "onLoad" };
   if (transaction && typeof transaction === "object") {
     // Enrich $trigger with the full occurrence when the transaction references one.
     // This makes $trigger.occurrence.fields.water.value work in stamp/onAdd operations
     // without requiring the user to configure a separate source.
-    const enriched = { ...transaction };
+    // type is explicitly seeded first so it's always present even when transaction is empty.
+    const enriched = { type: transactionType || "onLoad", ...transaction };
     const occId = transaction.occurrenceId;
     if (occId && occurrencesById[occId]) {
       const occ = occurrencesById[occId];
