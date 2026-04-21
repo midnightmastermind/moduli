@@ -485,7 +485,7 @@ export async function createTestGrid(userId, options = {}) {
     id: uid(), userId, gridId, name: "Water Today",
     description: "Sum daily water oz — only for occurrences under the Schedule page",
     triggerType: "onChange",
-    triggerTypes: ["onChange", "onFilterChange", "onLoad"],
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerConfig: { onChange: { allowedFields: [waterFieldId, completedFieldId] } },
     enabled: true,
     pipeline: {
@@ -531,6 +531,7 @@ export async function createTestGrid(userId, options = {}) {
     targetValue: 6,
     targetPeriod: "daily",
     pageLabel: "Schedule",
+    includeAddDelete: true,
     ...opArgs,
   })).save();
 

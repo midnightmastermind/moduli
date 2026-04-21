@@ -76,7 +76,7 @@ export function makeLoopCountOp({ name, targetFieldId, fieldId, timeFilter = "da
  * Count occurrences where boolean field === true.
  * Pass `pageLabel` to scope the loop to descendants of a named page occurrence.
  */
-export function makeLoopCountTrueOp({ name, targetFieldId, fieldId, timeFilter = "daily", folderId = null, targetValue, targetPeriod = "daily", userId, gridId, pageLabel = null }) {
+export function makeLoopCountTrueOp({ name, targetFieldId, fieldId, timeFilter = "daily", folderId = null, targetValue, targetPeriod = "daily", userId, gridId, pageLabel = null, includeAddDelete = false }) {
   const findStep = pageLabel ? [{
     id: uid(), type: "action", config: {
       type: "FIND_OCCURRENCE",
@@ -94,7 +94,9 @@ export function makeLoopCountTrueOp({ name, targetFieldId, fieldId, timeFilter =
     id: uid(), userId, gridId, name, folderId,
     description: `Count completed (true) ${name} occurrences (${timeFilter}) — granular LOOP pipeline`,
     triggerType: "onChange",
-    triggerTypes: ["onChange", "onFilterChange", "onLoad"],
+    triggerTypes: includeAddDelete
+      ? ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"]
+      : ["onChange", "onFilterChange", "onLoad"],
     triggerConfig: { onChange: { allowedFields: [fieldId] } },
     enabled: true,
     pipeline: {
