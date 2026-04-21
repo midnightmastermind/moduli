@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useContext } from "react";
 import PomodoroTimer from "./ui/PomodoroTimer";
 import MiniGridMap from "./mobile/MiniGridMap";
-import GridActionsContext from "./GridActionsContext";
+import { GridActionsContext } from "./GridActionsContext";
 import { setFilterNavAction } from "./state/actions";
 
 import { Button } from "@/components/ui/button";
