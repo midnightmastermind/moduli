@@ -215,9 +215,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   function onOccurrenceUpdated({ occurrence } = {}) {
     if (!occurrence?.id) return;
 
-    // Check if field values changed (triggers optimistic operation execution)
     const prevOcc = localOccsById[occurrence.id];
-    const fieldsChanged = occurrence.fields && (!prevOcc || JSON.stringify(prevOcc.fields) !== JSON.stringify(occurrence.fields));
 
     // Keep local cache current before React re-renders stateRef
     localOccsById[occurrence.id] = occurrence;
@@ -228,7 +226,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     });
 
     // Fire operations on field change — skip if already fired optimistically by CommitHelpers
-    if (fieldsChanged && !optimisticFiredSet.has(occurrence.id)) {
+    if (!optimisticFiredSet.has(occurrence.id)) {
       const prevFields = prevOcc?.fields || {};
       const changedFieldIds = Object.keys(occurrence.fields || {}).filter(
         fid => JSON.stringify(occurrence.fields[fid]) !== JSON.stringify(prevFields[fid])
