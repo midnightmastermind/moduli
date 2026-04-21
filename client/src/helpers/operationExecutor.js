@@ -633,13 +633,13 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     $grid: state?.grid ?? {},
   };
   // Always set $trigger so pipeline steps can check $trigger.type without null guards.
-  $vars["$trigger"] = { type: transactionType || "onLoad" };
+  $vars["$trigger"] = { type: transaction?.type || "onLoad" };
   if (transaction && typeof transaction === "object") {
     // Enrich $trigger with the full occurrence when the transaction references one.
     // This makes $trigger.occurrence.fields.water.value work in stamp/onAdd operations
     // without requiring the user to configure a separate source.
     // type is explicitly seeded first so it's always present even when transaction is empty.
-    const enriched = { type: transactionType || "onLoad", ...transaction };
+    const enriched = { type: transaction?.type || "onLoad", ...transaction };
     const occId = transaction.occurrenceId;
     if (occId && occurrencesById[occId]) {
       const occ = occurrencesById[occId];
