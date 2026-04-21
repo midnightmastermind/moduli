@@ -17,6 +17,7 @@ import * as LayoutHelpers from "./LayoutHelpers";
 import { DragType, parseExternalDrop } from "./dragSystem";
 import { runMatchingOperations } from "./operationExecutor";
 import { embedDeleteRegistry } from "./embedRegistry";
+import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
 
 function makeUUID() {
   return crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -397,27 +398,10 @@ export function handleInstanceDrop(ctx, drop) {
       });
 
       // Fire OccurrenceMoveOp
-      const allOccs = Object.values(occurrencesById);
-      // Build reverse map (childOccId → parentOccId) from occurrences[] arrays to walk N-level hierarchies
-      const _revMap = {};
-      for (const occ of allOccs) {
-        for (const childId of (occ.occurrences || [])) { _revMap[childId] = occ.id; }
-      }
+      const _revMap = buildReverseMap(Object.values(occurrencesById));
       const _gridOccSet = new Set(state?.grid?.occurrences || []);
-      function _findPanel(startOcc) {
-        if (!startOcc) return null;
-        let curId = _revMap[startOcc.id];
-        for (let i = 0; i < 8; i++) {
-          if (!curId) return null;
-          const cur = occurrencesById[curId];
-          if (!cur) return null;
-          if (_gridOccSet.has(cur.id)) return cur;
-          curId = _revMap[curId];
-        }
-        return null;
-      }
-      const fromPanelOcc = _findPanel(fromCOcc);
-      const toPanelOcc = _findPanel(toCOcc);
+      const fromPanelOcc = findGridPanelOcc(fromCOcc, _revMap, occurrencesById, _gridOccSet);
+      const toPanelOcc = findGridPanelOcc(toCOcc, _revMap, occurrencesById, _gridOccSet);
 
       const tx = {
         type: "OccurrenceMoveOp", occurrenceId, instanceId: draggedInstanceId,

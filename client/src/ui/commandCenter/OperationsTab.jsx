@@ -49,8 +49,7 @@ const EVENT_TYPES = [
   { value: "onComplete",     label: "On Complete",      desc: "Fires when a module or field reaches a done state" },
   { value: "onUncomplete",   label: "On Uncomplete",    desc: "Fires when a completion is reversed" },
   { value: "onLoad",         label: "On Load",          desc: "Fires once when the grid loads" },
-  { value: "onIteration",    label: "On Navigation",    desc: "Fires when the date filter nav changes (alias: onNavigation, onFilterChange)" },
-  { value: "onFilterChange", label: "On Filter Change", desc: "Fires when the active named filter or filter value changes (alias of onNavigation)" },
+  { value: "onFilterChange", label: "On Filter Change", desc: "Fires when the date filter nav or named filter changes" },
   { value: "onSchedule",     label: "On Schedule",      desc: "Fires at a specific time (cron)" },
   { value: "onWebhook",      label: "On Webhook",       desc: "Fires via HTTP POST to the webhook URL" },
   { value: "onButton",       label: "On Button",        desc: "Fires when the operation trigger button is pressed" },
@@ -63,7 +62,7 @@ const SUBJECT_TYPES = [
   { value: "module",      label: "Module",      desc: "Any panel, container, or instance",  roles: ["panel","container","instance"] },
   { value: "field",       label: "Field",        desc: "A field value on a module" },
   { value: "grid",        label: "Grid",         desc: "The workspace grid" },
-  { value: "iteration",   label: "Filter Nav",   desc: "A date filter navigation event" },
+  { value: "filterNav",   label: "Filter Nav",   desc: "A date filter navigation event" },
   { value: "view",        label: "View",         desc: "A view / rendering config" },
   { value: "style",       label: "Style",        desc: "A style property change" },
   { value: "template",    label: "Template",     desc: "A saved template being applied" },
@@ -84,7 +83,7 @@ export function getTriggerVars(eventType, subjectType) {
     base.push("$trigger.fieldId", "$trigger.moduleId", "$trigger.value", "$trigger.previousValue", "$trigger.flow");
   } else if (subjectType === "grid") {
     base.push("$trigger.gridId");
-  } else if (subjectType === "iteration") {
+  } else if (subjectType === "filterNav") {
     base.push("$trigger.iterationId", "$trigger.iterationValue", "$trigger.categoryValue", "$trigger.previousValue");
   } else if (subjectType === "transaction") {
     base.push("$trigger.transactionId", "$trigger.transactionType", "$trigger.moduleId");
@@ -235,7 +234,7 @@ export function OperationPill({ op, selected, onClick, onRun, onToggleEnabled })
   const triggerLabel = (() => {
     const types = Array.isArray(op.triggerTypes) ? op.triggerTypes : [op.triggerType].filter(Boolean);
     if (types.length === 0) return "manual";
-    const short = { onChange: "Δ", onDrop: "↓", onCreate: "+", onDelete: "✕", onMove: "→", onComplete: "✓", onModuleUpdate: "M↑", onIteration: "⟳", onLoad: "⬛", onWebhook: "⚡", manual: "▶" };
+    const short = { onChange: "Δ", onDrop: "↓", onCreate: "+", onDelete: "✕", onMove: "→", onComplete: "✓", onModuleUpdate: "M↑", onFilterChange: "⟳", onIteration: "⟳", onLoad: "⬛", onWebhook: "⚡", manual: "▶" };
     return types.map(t => short[t] || t).join("+");
   })();
 
@@ -460,7 +459,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
             const entitiesForSubject = subjectType === "module"
               ? (subjectRole ? Object.values(modulesById || {}).filter(m => getRole(m) === subjectRole) : Object.values(modulesById || {}))
               : subjectType === "field" ? fields
-              : subjectType === "iteration" ? []
+              : subjectType === "filterNav" ? []
               : [];
             return (
               <div key={idx} style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center", background: "var(--accent-blue-bg)", border: "1px solid var(--accent-blue-border)", borderRadius: 5, padding: "6px 8px" }}>

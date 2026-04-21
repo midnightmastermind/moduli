@@ -20,7 +20,7 @@ export function makeLoopSumOp({ name, targetFieldId, fieldId, timeFilter = "dail
     id: uid(), userId, gridId, name, folderId,
     description: `Sum of ${name} values (${timeFilter}) — granular LOOP pipeline`,
     triggerType: "onChange",
-    triggerTypes: ["onChange", "onIteration", "onLoad"],
+    triggerTypes: ["onChange", "onFilterChange", "onLoad"],
     triggerConfig: { onChange: { allowedFields: [fieldId] } },
     enabled: true,
     pipeline: {
@@ -49,7 +49,7 @@ export function makeLoopCountOp({ name, targetFieldId, fieldId, timeFilter = "da
     id: uid(), userId, gridId, name, folderId,
     description: `Count of non-empty ${name} occurrences (${timeFilter}) — granular LOOP pipeline`,
     triggerType: "onChange",
-    triggerTypes: ["onChange", "onIteration", "onLoad"],
+    triggerTypes: ["onChange", "onFilterChange", "onLoad"],
     triggerConfig: { onChange: { allowedFields: [fieldId] } },
     enabled: true,
     pipeline: {
@@ -94,7 +94,7 @@ export function makeLoopCountTrueOp({ name, targetFieldId, fieldId, timeFilter =
     id: uid(), userId, gridId, name, folderId,
     description: `Count completed (true) ${name} occurrences (${timeFilter}) — granular LOOP pipeline`,
     triggerType: "onChange",
-    triggerTypes: ["onChange", "onIteration", "onLoad"],
+    triggerTypes: ["onChange", "onFilterChange", "onLoad"],
     triggerConfig: { onChange: { allowedFields: [fieldId] } },
     enabled: true,
     pipeline: {
@@ -130,7 +130,7 @@ export function makeLoopLastOp({ name, targetFieldId, fieldId, timeFilter = "dai
     id: uid(), userId, gridId, name, folderId,
     description: `Last recorded ${name} value (${timeFilter}) — granular LOOP pipeline`,
     triggerType: "onChange",
-    triggerTypes: ["onChange", "onIteration", "onLoad"],
+    triggerTypes: ["onChange", "onFilterChange", "onLoad"],
     triggerConfig: { onChange: { allowedFields: [fieldId] } },
     enabled: true,
     pipeline: {
@@ -159,7 +159,7 @@ export function makeLoopMultiSumOp({ name, targetFieldId, fieldIds, timeFilter =
     id: uid(), userId, gridId, name, folderId,
     description: `Sum of ${fieldIds.length} source fields (${timeFilter}) — granular LOOP pipeline`,
     triggerType: "onChange",
-    triggerTypes: ["onChange", "onIteration", "onLoad"],
+    triggerTypes: ["onChange", "onFilterChange", "onLoad"],
     triggerConfig: { onChange: { allowedFields: fieldIds } },
     enabled: true,
     pipeline: {
@@ -188,7 +188,7 @@ export function makeNetBalanceOp({ name, targetFieldId, incomeFieldId, spentFiel
     id: uid(), userId, gridId, name, folderId,
     description: `Net balance = Σ income (flow:in) − Σ spent (flow:out), all time — granular LOOP pipeline`,
     triggerType: "onChange",
-    triggerTypes: ["onChange", "onIteration", "onLoad"],
+    triggerTypes: ["onChange", "onFilterChange", "onLoad"],
     triggerConfig: { onChange: { allowedFields: [incomeFieldId, spentFieldId] } },
     enabled: true,
     pipeline: {
@@ -235,7 +235,7 @@ export function makeCompletionRateOp({ name, targetFieldId, fieldId, timeFilter 
     id: uid(), userId, gridId, name, folderId,
     description: `Completion rate % (${timeFilter}) — counts done vs total, divides, shows % — granular LOOP pipeline`,
     triggerType: "onChange",
-    triggerTypes: ["onChange", "onIteration", "onLoad"],
+    triggerTypes: ["onChange", "onFilterChange", "onLoad"],
     triggerConfig: { onChange: { allowedFields: [fieldId] } },
     enabled: true,
     pipeline: {
@@ -276,8 +276,8 @@ export function makeLiteralOp({ name, targetFieldId, value, userId, gridId }) {
     id: uid(), userId, gridId,
     name,
     description: `Sets ${name} to a fixed value: "${value}"`,
-    triggerType: "onIteration",
-    triggerTypes: ["onIteration", "onLoad"],
+    triggerType: "onFilterChange",
+    triggerTypes: ["onFilterChange", "onLoad"],
     triggerConfig: {},
     enabled: true,
     targetFieldId,

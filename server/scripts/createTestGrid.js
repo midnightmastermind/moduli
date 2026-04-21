@@ -485,7 +485,7 @@ export async function createTestGrid(userId, options = {}) {
     id: uid(), userId, gridId, name: "Water Today",
     description: "Sum daily water oz — only for occurrences under the Schedule page",
     triggerType: "onChange",
-    triggerTypes: ["onChange", "onIteration", "onLoad"],
+    triggerTypes: ["onChange", "onFilterChange", "onLoad"],
     triggerConfig: { onChange: { allowedFields: [waterFieldId, completedFieldId] } },
     enabled: true,
     pipeline: {

@@ -20,42 +20,13 @@ import {
   updateOccurrence,
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue } from "../helpers/offlineQueue";
+import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
 
 /**
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
 export const operationsBridge = { fireOperations: null, updateLocalOcc: null, removeLocalOcc: null };
-
-/**
- * @param {Object} socket
- * @param {Function} dispatch
- * @param {React.MutableRefObject} stateRef — ref to current state (keeps executor up-to-date)
- */
-/** Build { childOccId → parentOccId } from all occ.occurrences[] arrays */
-function _buildReverseMap(occArr) {
-  const map = {};
-  for (const occ of occArr) {
-    for (const childId of (occ.occurrences || [])) {
-      map[childId] = occ.id;
-    }
-  }
-  return map;
-}
-
-/** Walk up reverse map until finding an occurrence listed in grid.occurrences (= panel level) */
-function _findGridPanelOcc(startOcc, reverseMap, occById, gridOccSet) {
-  if (!startOcc) return null;
-  let curId = reverseMap[startOcc.id];
-  for (let i = 0; i < 8; i++) {
-    if (!curId) return null;
-    const cur = occById[curId];
-    if (!cur) return null;
-    if (gridOccSet.has(cur.id)) return cur;
-    curId = reverseMap[curId];
-  }
-  return null;
-}
 
 export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) {
   // Wrap dispatch to tag all socket-originated actions
@@ -226,10 +197,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const _modsArr = _stateNow.modules || [];
     const _containerOcc = occurrence.parentId ? _occById[occurrence.parentId] : null;
     const _containerMod = _containerOcc ? _modsArr.find(m => m.id === _containerOcc.targetId) : null;
-    // Walk up via reverse map to find actual panel occurrence (handles N-level page hierarchies)
-    const _revMap = _buildReverseMap(Object.values(_occById));
+    const _revMap = buildReverseMap(Object.values(_occById));
     const _gridOccSet = new Set(_stateNow.grid?.occurrences || []);
-    const _panelOcc = _findGridPanelOcc(_containerOcc, _revMap, _occById, _gridOccSet);
+    const _panelOcc = findGridPanelOcc(_containerOcc, _revMap, _occById, _gridOccSet);
     const _panelMod = _panelOcc ? _modsArr.find(m => m.id === _panelOcc.targetId) : null;
     fireOperations("OccurrenceCreateOp", {
       type: "OccurrenceCreateOp",

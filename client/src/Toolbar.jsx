@@ -21,6 +21,7 @@ import { PlusSquare, Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, 
 
 export default function Toolbar({
   gridId,
+  grid,
   availableGrids,
 
   onGridChange,
@@ -48,19 +49,18 @@ export default function Toolbar({
 
   const { dispatch, filterNavState } = useContext(GridActionsContext);
 
-  // Find first date-valued filter nav entry for display and navigation
-  const primaryFilterEntry = Object.entries(filterNavState || {}).find(([, val]) =>
-    val && typeof val === "string" && !isNaN(Date.parse(val))
-  );
-  const primaryFilterId = primaryFilterEntry?.[0] ?? null;
-  const primaryDate = primaryFilterEntry ? new Date(primaryFilterEntry[1]) : new Date();
+  const { primaryFilterEntry, primaryDate } = useMemo(() => {
+    const entry = Object.entries(filterNavState || {}).find(([, val]) =>
+      val && typeof val === "string" && !isNaN(Date.parse(val))
+    );
+    return { primaryFilterEntry: entry, primaryDate: entry ? new Date(entry[1]) : new Date() };
+  }, [filterNavState]);
 
   const formatNavDate = (d) =>
     d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
   const navigateAllFilters = (deltaDays) => {
-    const curr = filterNavState || {};
-    Object.entries(curr).forEach(([filterId, val]) => {
+    Object.entries(filterNavState || {}).forEach(([filterId, val]) => {
       if (!val || typeof val !== "string" || isNaN(Date.parse(val))) return;
       const d = new Date(val);
       d.setDate(d.getDate() + deltaDays);
@@ -182,7 +182,7 @@ const gridOptions = useMemo(
         <div className="flex-1" />
 
         {/* ── Center: Global date nav ── */}
-        {primaryFilterId && (
+        {primaryFilterEntry && (
           <div className="flex items-center gap-1">
             <button
               onClick={() => navigateAllFilters(-1)}
