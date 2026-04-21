@@ -229,11 +229,19 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
     // Fire operations on field change — skip if already fired optimistically by CommitHelpers
     if (fieldsChanged && !optimisticFiredSet.has(occurrence.id)) {
-      fireOperations("MeasureOp", {
-        type: "MeasureOp",
-        occurrenceId: occurrence.id,
-        instanceId: occurrence.targetId,
-      });
+      const prevFields = prevOcc?.fields || {};
+      const changedFieldIds = Object.keys(occurrence.fields || {}).filter(
+        fid => JSON.stringify(occurrence.fields[fid]) !== JSON.stringify(prevFields[fid])
+      );
+      for (const fieldId of changedFieldIds) {
+        fireOperations("MeasureOp", {
+          type: "MeasureOp",
+          occurrenceId: occurrence.id,
+          instanceId: occurrence.targetId,
+          fieldId,
+          value: occurrence.fields[fieldId]?.value,
+        });
+      }
     }
     // Clear the optimistic flag either way (server echo received)
     optimisticFiredSet.delete(occurrence.id);
