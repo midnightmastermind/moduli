@@ -4,7 +4,7 @@ import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/ad
 import { preventUnhandled } from "@atlaskit/pragmatic-drag-and-drop/prevent-unhandled";
 
 import { socket } from "./socket";
-import { bindSocketToStore } from "./state/bindSocketToStore";
+import { bindSocketToStore, operationsBridge } from "./state/bindSocketToStore";
 
 import { ActionTypes, logoutAction } from "./state/actions";
 import Grid from "./Grid";
@@ -50,6 +50,9 @@ export default function App() {
   // Keep a ref to current state so bindSocketToStore's executor always sees fresh state
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  // Track previous filterNavState to detect date changes for NavigationOp
+  const prevFilterNavRef = useRef({});
 
   // Expose state to window for E2E test data verification
   if (typeof window !== "undefined") window.__moduli_state__ = state;
@@ -239,6 +242,29 @@ export default function App() {
   });
 
   // Filter system — reads directly from grid state (no local copy needed — grid is source of truth)
+
+  // Fire NavigationOp when any date filter nav value changes
+  useEffect(() => {
+    const prev = prevFilterNavRef.current;
+    const curr = state.filterNavState || {};
+
+    const changed = Object.entries(curr).filter(([id, val]) => {
+      if (!val || typeof val !== "string") return false;
+      if (isNaN(Date.parse(val))) return false;
+      return val !== prev[id];
+    });
+
+    if (changed.length > 0) {
+      const date = changed[0][1];
+      operationsBridge.fireOperations?.("NavigationOp", {
+        type: "NavigationOp",
+        activeFilterValues: curr,
+        date,
+      });
+    }
+
+    prevFilterNavRef.current = curr;
+  }, [state.filterNavState]);
 
   useEffect(() => {
     const unbind = bindSocketToStore(socket, dispatch, stateRef);
@@ -433,22 +459,6 @@ export default function App() {
   );
 
 
-  // Filter system handlers
-  const handleSelectFilter = useCallback((filterId) => {
-    const gridId = state?.gridId || state?.grid?._id;
-    if (!gridId) return;
-    CommitHelpers.updateGridFilter({ dispatch, socket, gridId, patch: { activeFilterId: filterId } });
-  }, [dispatch, socket, state?.gridId, state?.grid?._id]);
-
-  const handleFilterValueChange = useCallback((fieldId, value) => {
-    const gridId = state?.gridId || state?.grid?._id;
-    if (!gridId || !fieldId) return;
-    const prev = state?.grid?.activeFilterValues || {};
-    const next = { ...prev, [fieldId]: value instanceof Date ? value.toISOString() : value };
-    CommitHelpers.updateGridFilter({ dispatch, socket, gridId, patch: { activeFilterValues: next } });
-    // NavigationOp fires automatically via onGridUpdated in bindSocketToStore
-  }, [dispatch, socket, state?.gridId, state?.grid?._id, state?.grid?.activeFilterValues]);
-
   // Field CRUD handlers (grid-level field management)
   const createField = useCallback((field) => {
     const gridId = state?.gridId || state?.grid?._id;
@@ -540,9 +550,8 @@ export default function App() {
       createField,
       updateField,
       deleteField,
-      // Filter system handlers
-      onSelectFilter: handleSelectFilter,
-      onFilterValueChange: handleFilterValueChange,
+      // Filter nav (ephemeral, per-component)
+      filterNavState: state.filterNavState || {},
     }),
     [
       dispatch,
@@ -552,6 +561,7 @@ export default function App() {
       state.grid, state.occurrences, state.containers, state.instances,
       state.fields, state.modules, state.panels, state.pages,
       state.userId, state.gridId, state.activeId, state.softTick,
+      state.filterNavState,
       modulesById,
       roleByModuleId,
       instancesById,
@@ -571,8 +581,6 @@ export default function App() {
       createField,
       updateField,
       deleteField,
-      handleSelectFilter,
-      handleFilterValueChange,
     ]
   );
 
@@ -625,8 +633,6 @@ export default function App() {
           onAddPanel={addNewPanel}
           grid={state?.grid}
           fieldsById={fieldsById}
-          onSelectFilter={handleSelectFilter}
-          onFilterValueChange={handleFilterValueChange}
           onCommandCenter={() => setCommandCenterOpen((prev) => !prev)}
           commandCenterOpen={commandCenterOpen}
           onHistory={() => setHistoryOpen((prev) => !prev)}
