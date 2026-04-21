@@ -1,7 +1,8 @@
-import React, { useMemo, useState, useEffect } from "react";
-import FilterNav from "./ui/FilterNav";
+import React, { useMemo, useState, useContext } from "react";
 import PomodoroTimer from "./ui/PomodoroTimer";
 import MiniGridMap from "./mobile/MiniGridMap";
+import GridActionsContext from "./GridActionsContext";
+import { setFilterNavAction } from "./state/actions";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { PlusSquare, Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X } from "lucide-react";
+import { PlusSquare, Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function Toolbar({
   gridId,
@@ -25,11 +26,6 @@ export default function Toolbar({
   onGridChange,
   onCreateNewGrid,
   onAddPanel,
-  // Filter system props
-  grid,
-  fieldsById,
-  onSelectFilter,
-  onFilterValueChange,
   // Command Center
   onCommandCenter,
   commandCenterOpen = false,
@@ -50,28 +46,29 @@ export default function Toolbar({
   const [accountOpen, setAccountOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // F5: Ctrl+[ / Ctrl+] to cycle through named filters
-  useEffect(() => {
-    const filters = grid?.namedFilters || [];
-    if (filters.length < 2) return;
-    const handleKey = (e) => {
-      if (!e.ctrlKey || !["[", "]"].includes(e.key)) return;
-      // Don't fire inside text inputs
-      const tag = document.activeElement?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.isContentEditable) return;
-      e.preventDefault();
-      const currentIdx = filters.findIndex(f => f.id === grid?.activeFilterId);
-      const n = filters.length;
-      const nextIdx = e.key === "]"
-        ? (currentIdx + 1) % n
-        : (currentIdx - 1 + n) % n;
-      onSelectFilter?.(filters[nextIdx].id);
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [grid?.namedFilters, grid?.activeFilterId, onSelectFilter]);
+  const { dispatch, filterNavState } = useContext(GridActionsContext);
 
-  const gridOptions = useMemo(
+  // Find first date-valued filter nav entry for display and navigation
+  const primaryFilterEntry = Object.entries(filterNavState || {}).find(([, val]) =>
+    val && typeof val === "string" && !isNaN(Date.parse(val))
+  );
+  const primaryFilterId = primaryFilterEntry?.[0] ?? null;
+  const primaryDate = primaryFilterEntry ? new Date(primaryFilterEntry[1]) : new Date();
+
+  const formatNavDate = (d) =>
+    d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+  const navigateAllFilters = (deltaDays) => {
+    const curr = filterNavState || {};
+    Object.entries(curr).forEach(([filterId, val]) => {
+      if (!val || typeof val !== "string" || isNaN(Date.parse(val))) return;
+      const d = new Date(val);
+      d.setDate(d.getDate() + deltaDays);
+      dispatch(setFilterNavAction(filterId, d.toISOString()));
+    });
+  };
+
+const gridOptions = useMemo(
     () =>
       (availableGrids || []).map((g) => {
         const id = g.id || g._id;
@@ -184,18 +181,33 @@ export default function Toolbar({
         {/* ── Spacer ── */}
         <div className="flex-1" />
 
+        {/* ── Center: Global date nav ── */}
+        {primaryFilterId && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => navigateAllFilters(-1)}
+              className="h-7 w-7 rounded flex items-center justify-center hover:bg-accent text-text-muted hover:text-foreground transition-colors"
+              title="Previous day"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <span
+              className="text-xs font-mono text-text-primary px-1 min-w-[110px] text-center select-none"
+            >
+              {formatNavDate(primaryDate)}
+            </span>
+            <button
+              onClick={() => navigateAllFilters(1)}
+              className="h-7 w-7 rounded flex items-center justify-center hover:bg-accent text-text-muted hover:text-foreground transition-colors"
+              title="Next day"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* ── Right: Filter + Pomodoro + Terminal + Account ── */}
         <div className="flex items-center gap-1 shrink-0">
-          {/* Filter Navigation — compact, inline */}
-          <FilterNav
-            grid={grid}
-            fieldsById={fieldsById}
-            onSelectFilter={onSelectFilter}
-            onFilterValueChange={onFilterValueChange}
-            compact
-            isMobile={isMobile}
-          />
-
           {/* Desktop-only items */}
           {!isMobile && (
             <>
