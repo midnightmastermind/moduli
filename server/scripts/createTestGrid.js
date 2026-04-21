@@ -127,15 +127,10 @@ export async function createTestGrid(userId, options = {}) {
   const notesFolderId   = uid();
 
   // ── STEP 1: Grid ────────────────────────────────────────────────────────────
+  const schedFilterId = uid();
+
   const grid = new Grid({
     userId, name: gridName, rows: 2, cols: 3,
-    namedFilters: [
-      { id: "filter_daily",  name: "Daily",  conditions: [{ fieldId: dateFieldId, comparator: "same_day" }],  timeScale: "daily"  },
-      { id: "filter_weekly", name: "Weekly", conditions: [{ fieldId: dateFieldId, comparator: "same_week" }], timeScale: "weekly" },
-      { id: "filter_all",    name: "All",    conditions: [], timeScale: null },
-    ],
-    activeFilterId: "filter_all",
-    activeFilterValues: { [dateFieldId]: today.toISOString() },
     templates: [], occurrences: [],
     manifestId,
   });
@@ -427,7 +422,26 @@ export async function createTestGrid(userId, options = {}) {
 
   const schedPageModId = uid(); const schedPageOccId = uid();
   await new Module({ id: schedPageModId, userId, gridId, role: "page", kind: "board", label: "Schedule" }).save();
-  await mkOcc({ id: schedPageOccId, targetType: "module", targetId: schedPageModId, parentId: rootFolderId, sortOrder: 3, occurrences: scheduleOccIds, iteration: { mode: "persistent" }, fields: {} });
+  await mkOcc({
+    id: schedPageOccId, targetType: "module", targetId: schedPageModId,
+    parentId: rootFolderId, sortOrder: 3, occurrences: scheduleOccIds,
+    iteration: { mode: "persistent" }, fields: {},
+    filters: [{
+      id: schedFilterId,
+      fieldId: dateFieldId,
+      active: true,
+      showNav: true,
+      timeUnit: "day",
+      defaultNavValue: "today",
+      condition: {
+        operator: "OR",
+        rules: [
+          { left: "$field.value", comparator: "DATE_EQUALS", right: "$nav" },
+          { left: "$field.value", comparator: "IS_EMPTY" },
+        ],
+      },
+    }],
+  });
 
   const notesPageModId = uid(); const notesPageOccId = uid();
   await new Module({ id: notesPageModId, userId, gridId, role: "page", kind: "doc", label: "Notes" }).save();
@@ -438,10 +452,10 @@ export async function createTestGrid(userId, options = {}) {
   // ── STEP 9: Panel occurrences (grid placements) ─────────────────────────────
   const panelOccIds = {};
   const placements = [
-    { key: "toolkit",  panelId: toolkitPanelId, row: 0, col: 0, width: 1, height: 1, viewId: null,            filterOverride: null },
-    { key: "todo",     panelId: todoPanelId,    row: 1, col: 0, width: 1, height: 1, viewId: null,            filterOverride: null },
-    { key: "hub",      panelId: centerHubId,    row: 0, col: 1, width: 1, height: 2, viewId: centerHubViewId, filterOverride: { [dateFieldId]: today.toISOString() } },
-    { key: "goals",    panelId: goalsPanelId,   row: 0, col: 2, width: 1, height: 1, viewId: null,            filterOverride: null },
+    { key: "toolkit",  panelId: toolkitPanelId, row: 0, col: 0, width: 1, height: 1, viewId: null            },
+    { key: "todo",     panelId: todoPanelId,    row: 1, col: 0, width: 1, height: 1, viewId: null            },
+    { key: "hub",      panelId: centerHubId,    row: 0, col: 1, width: 1, height: 2, viewId: centerHubViewId },
+    { key: "goals",    panelId: goalsPanelId,   row: 0, col: 2, width: 1, height: 1, viewId: null            },
   ];
 
   const gridOccIds = [];
@@ -450,7 +464,6 @@ export async function createTestGrid(userId, options = {}) {
       targetType: "module", targetId: p.panelId,
       placement: { row: p.row, col: p.col, width: p.width, height: p.height },
       ...(p.viewId && { viewId: p.viewId }),
-      ...(p.filterOverride && { filterOverride: p.filterOverride }),
     });
     panelOccIds[p.key] = occId;
     gridOccIds.push(occId);
@@ -470,7 +483,7 @@ export async function createTestGrid(userId, options = {}) {
 
   await new Operation({
     id: uid(), userId, gridId, name: "Water Today",
-    description: "Sum daily water oz — only for occurrences where completed = true",
+    description: "Sum daily water oz — only for occurrences under the Schedule page",
     triggerType: "onChange",
     triggerTypes: ["onChange", "onIteration", "onLoad"],
     triggerConfig: { onChange: { allowedFields: [waterFieldId, completedFieldId] } },
@@ -479,10 +492,15 @@ export async function createTestGrid(userId, options = {}) {
       sources: [],
       steps: [
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$total", value: 0 } },
+        { id: uid(), type: "action", config: {
+            type: "FIND_OCCURRENCE",
+            moduleLabelExpr: "literal:Schedule",
+            resultVar: "$schedPage",
+            resultIdVar: "$schedPageId",
+        }},
         {
           id: uid(), type: "loop",
           over: "field_occurrences", fieldId: waterFieldId, timeFilter: "daily", flowFilter: "any", as: "$item",
-          pageOccId: schedPageOccId,
           body: [{
             id: uid(), type: "if",
             condition: {
@@ -490,13 +508,17 @@ export async function createTestGrid(userId, options = {}) {
               rules: [
                 { comparator: "IS_NOT_EMPTY", left: "$item.value" },
                 { comparator: "IS", left: `$item.${completedFieldId}`, right: true },
+                { comparator: "HAS_ANCESTOR", left: "$item._ancestors", right: "$schedPageId" },
               ],
             },
             then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$total", expr: "$item.value" } }],
             else: [],
           }],
         },
-        { id: uid(), type: "action", config: { type: "SHOW_VALUE", targetFieldId: totalWaterFieldId, sourceExpr: "$total", targetValue: 64, targetPeriod: "daily" } },
+        { id: uid(), type: "action", config: {
+            type: "SHOW_VALUE", targetFieldId: totalWaterFieldId,
+            sourceExpr: "$total", targetValue: 64, targetPeriod: "daily",
+        }},
       ],
     },
   }).save();
