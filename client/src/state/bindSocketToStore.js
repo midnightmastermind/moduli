@@ -7,7 +7,7 @@
 
 import { ActionTypes } from "./actions";
 import { runMatchingOperations, executeOperation } from "../helpers/operationExecutor";
-import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction } from "./actions";
+import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, initFilterNavAction, setFilterNavAction } from "./actions";
 import { toast } from "sonner";
 import {
   setOccurrenceFieldValue,
@@ -18,7 +18,6 @@ import {
   updateModule,
   deleteModule,
   updateOccurrence,
-  updateGridFilter,
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue } from "../helpers/offlineQueue";
 
@@ -33,6 +32,31 @@ export const operationsBridge = { fireOperations: null, updateLocalOcc: null, re
  * @param {Function} dispatch
  * @param {React.MutableRefObject} stateRef — ref to current state (keeps executor up-to-date)
  */
+/** Build { childOccId → parentOccId } from all occ.occurrences[] arrays */
+function _buildReverseMap(occArr) {
+  const map = {};
+  for (const occ of occArr) {
+    for (const childId of (occ.occurrences || [])) {
+      map[childId] = occ.id;
+    }
+  }
+  return map;
+}
+
+/** Walk up reverse map until finding an occurrence listed in grid.occurrences (= panel level) */
+function _findGridPanelOcc(startOcc, reverseMap, occById, gridOccSet) {
+  if (!startOcc) return null;
+  let curId = reverseMap[startOcc.id];
+  for (let i = 0; i < 8; i++) {
+    if (!curId) return null;
+    const cur = occById[curId];
+    if (!cur) return null;
+    if (gridOccSet.has(cur.id)) return cur;
+    curId = reverseMap[curId];
+  }
+  return null;
+}
+
 export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) {
   // Wrap dispatch to tag all socket-originated actions
   // This prevents BroadcastChannel from re-broadcasting server events
@@ -56,6 +80,29 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }
 
     socketDispatch({ type: ActionTypes.FULL_STATE, payload });
+
+    // Initialize ephemeral filter nav values from each occurrence's filter defaultNavValue
+    const navMap = {};
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const resolveDefault = (defaultNavValue) => {
+      if (!defaultNavValue || defaultNavValue === "today") return now.toISOString().slice(0, 10);
+      if (defaultNavValue === "startOfWeek") {
+        const d = new Date(now);
+        const dow = d.getDay();
+        d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+        return d.toISOString().slice(0, 10);
+      }
+      if (defaultNavValue === "startOfMonth") {
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      }
+      return defaultNavValue;
+    };
+    for (const occ of payload.occurrences || []) {
+      for (const f of (occ.filters || [])) {
+        if (f.id && f.showNav) navMap[f.id] = resolveDefault(f.defaultNavValue);
+      }
+    }
+    dispatch(initFilterNavAction(navMap));
 
     // Fire onLoad/onNavigation operations after hydration (via microtask so state is updated first)
     const operations = payload.operations || [];
@@ -179,7 +226,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const _modsArr = _stateNow.modules || [];
     const _containerOcc = occurrence.parentId ? _occById[occurrence.parentId] : null;
     const _containerMod = _containerOcc ? _modsArr.find(m => m.id === _containerOcc.targetId) : null;
-    const _panelOcc = _containerOcc?.parentId ? _occById[_containerOcc.parentId] : null;
+    // Walk up via reverse map to find actual panel occurrence (handles N-level page hierarchies)
+    const _revMap = _buildReverseMap(Object.values(_occById));
+    const _gridOccSet = new Set(_stateNow.grid?.occurrences || []);
+    const _panelOcc = _findGridPanelOcc(_containerOcc, _revMap, _occById, _gridOccSet);
     const _panelMod = _panelOcc ? _modsArr.find(m => m.id === _panelOcc.targetId) : null;
     fireOperations("OccurrenceCreateOp", {
       type: "OccurrenceCreateOp",
@@ -656,14 +706,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         break;
 
       case "SET_FILTER": {
-        // Write a filter value to grid.activeFilterValues[fieldId]. Skip if already set
-        // so an onLoad "default to today" op doesn't re-dispatch every pageview.
-        const gridId = state?.grid?._id || state?.gridId;
-        if (!gridId || !effect.fieldId) break;
-        const prev = state?.grid?.activeFilterValues || {};
-        if (prev[effect.fieldId] === effect.value) break;
-        const next = { ...prev, [effect.fieldId]: effect.value };
-        updateGridFilter({ dispatch: socketDispatch, socket, gridId, patch: { activeFilterValues: next } });
+        // Write a filter nav value. Skip if already set to avoid infinite loop on onLoad ops.
+        if (!effect.filterId && !effect.fieldId) break;
+        const key = effect.filterId || effect.fieldId;
+        const currentVal = state?.filterNavState?.[key];
+        if (currentVal === effect.value) break;
+        socketDispatch(setFilterNavAction(key, effect.value));
         break;
       }
 
