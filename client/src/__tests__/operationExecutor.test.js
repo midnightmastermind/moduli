@@ -512,12 +512,11 @@ describe("shouldTrigger — triggerTypes[] array", () => {
     expect(shouldTrigger(op, "OccurrenceListOp")).toBe(true);
   });
 
-  test("triggerTypes array: only onIteration — ignores legacy triggerType", () => {
+  test("triggerTypes array overrides legacy triggerType field", () => {
     const op = makeOp({
-      triggerType: "manual",           // legacy says manual
-      triggerTypes: ["onIteration"],   // array overrides
+      triggerType: "manual",
+      triggerTypes: ["onFilterChange", "onLoad"],
     });
-    // Array takes precedence — should fire on iteration, not on change
     expect(shouldTrigger(op, "NavigationOp")).toBe(true);
     expect(shouldTrigger(op, null)).toBe(true);
     expect(shouldTrigger(op, "MeasureOp")).toBe(false);
@@ -626,6 +625,22 @@ describe("shouldTrigger — triggerConfig filters", () => {
     // onDrop: must match panel
     expect(shouldTrigger(op, "OccurrenceListOp", { toPanelId: "schedule-panel" })).toBe(true);
     expect(shouldTrigger(op, "OccurrenceListOp", { toPanelId: "goals-panel" })).toBe(false);
+  });
+
+  test("fires onChange when transaction.fieldId matches allowedFields", () => {
+    const op = makeOp({
+      triggerTypes: ["onChange"],
+      triggerConfig: { onChange: { allowedFields: ["fieldA"] } },
+    });
+    expect(shouldTrigger(op, "MeasureOp", { fieldId: "fieldA" })).toBe(true);
+  });
+
+  test("does NOT fire onChange when transaction has no fieldId and allowedFields is set", () => {
+    const op = makeOp({
+      triggerTypes: ["onChange"],
+      triggerConfig: { onChange: { allowedFields: ["fieldA"] } },
+    });
+    expect(shouldTrigger(op, "MeasureOp", {})).toBe(false);
   });
 });
 
@@ -1091,8 +1106,8 @@ describe("resolveExpr — bug fixes", () => {
   test("$var = 0 returns 0, not null (falsy-zero fix)", () => {
     // INIT_VAR sets $total = 0; SHOW_VALUE should emit value: 0
     const op = makeOp({
-      triggerType: "onIteration",
-      triggerTypes: ["onIteration"],
+      triggerType: "onFilterChange",
+      triggerTypes: ["onFilterChange", "onLoad"],
       pipeline: {
         sources: [],
         steps: [
@@ -1108,8 +1123,8 @@ describe("resolveExpr — bug fixes", () => {
 
   test("$var = false returns false, not null", () => {
     const op = makeOp({
-      triggerType: "onIteration",
-      triggerTypes: ["onIteration"],
+      triggerType: "onFilterChange",
+      triggerTypes: ["onFilterChange", "onLoad"],
       pipeline: {
         sources: [],
         steps: [
@@ -1124,8 +1139,8 @@ describe("resolveExpr — bug fixes", () => {
 
   test("MULTIPLY_VAR with numeric expr (-1) does not crash", () => {
     const op = makeOp({
-      triggerType: "onIteration",
-      triggerTypes: ["onIteration"],
+      triggerType: "onFilterChange",
+      triggerTypes: ["onFilterChange", "onLoad"],
       pipeline: {
         sources: [],
         steps: [
@@ -1149,8 +1164,8 @@ describe("resolveExpr — bug fixes", () => {
       iteration: { value: today.toISOString() },
     };
     const op = makeOp({
-      triggerType: "onIteration",
-      triggerTypes: ["onIteration"],
+      triggerType: "onFilterChange",
+      triggerTypes: ["onFilterChange", "onLoad"],
       pipeline: {
         sources: [],
         steps: [
@@ -1176,8 +1191,8 @@ describe("resolveExpr — bug fixes", () => {
 
   test("LOOP sum with 0 items returns 0 (not null)", () => {
     const op = makeOp({
-      triggerType: "onIteration",
-      triggerTypes: ["onIteration"],
+      triggerType: "onFilterChange",
+      triggerTypes: ["onFilterChange", "onLoad"],
       pipeline: {
         sources: [],
         steps: [
@@ -1212,8 +1227,8 @@ describe("resolveExpr — bug fixes", () => {
       o3: { id: "o3", targetId: "inst2", fields: { duration: { value: 99, flow: "in" } }, iteration: { value: new Date("2020-01-01").toISOString() } }, // old — excluded
     };
     const op = makeOp({
-      triggerType: "onIteration",
-      triggerTypes: ["onIteration"],
+      triggerType: "onFilterChange",
+      triggerTypes: ["onFilterChange", "onLoad"],
       pipeline: {
         sources: [],
         steps: [
@@ -1238,8 +1253,8 @@ describe("resolveExpr — bug fixes", () => {
 
   test("SHOW_VALUE propagates targetValue and targetPeriod to result", () => {
     const op = makeOp({
-      triggerType: "onIteration",
-      triggerTypes: ["onIteration"],
+      triggerType: "onFilterChange",
+      triggerTypes: ["onFilterChange", "onLoad"],
       pipeline: {
         sources: [],
         steps: [
@@ -1286,8 +1301,8 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
     };
 
     const op = makeOp({
-      triggerType: "onIteration",
-      triggerTypes: ["onIteration"],
+      triggerType: "onFilterChange",
+      triggerTypes: ["onFilterChange", "onLoad"],
       pipeline: {
         sources: [],
         steps: [
@@ -1345,8 +1360,8 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
     };
 
     const op = makeOp({
-      triggerType: "onIteration",
-      triggerTypes: ["onIteration"],
+      triggerType: "onFilterChange",
+      triggerTypes: ["onFilterChange", "onLoad"],
       pipeline: {
         sources: [],
         steps: [

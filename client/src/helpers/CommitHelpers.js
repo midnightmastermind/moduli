@@ -384,6 +384,8 @@ export function setOccurrenceFieldValue({ dispatch, socket, occurrences, occurre
     type: "MeasureOp",
     occurrenceId,
     instanceId: occ.targetId,
+    fieldId,
+    value,
   });
   safeEmit(socket, "update_occurrence", { occurrence: updatedOcc });
 }
