@@ -12,6 +12,7 @@
 // ============================================================
 
 import * as CommitHelpers from "./CommitHelpers";
+import { setOccurrenceFieldValue } from "./CommitHelpers";
 import * as LayoutHelpers from "./LayoutHelpers";
 import { DragType, parseExternalDrop } from "./dragSystem";
 import { runMatchingOperations } from "./operationExecutor";
@@ -397,12 +398,32 @@ export function handleInstanceDrop(ctx, drop) {
 
       // Fire OccurrenceMoveOp
       const allOccs = Object.values(occurrencesById);
-      const fromPanelOcc = fromCOcc.parentId ? allOccs.find(o => o.id === fromCOcc.parentId) : null;
-      const toPanelOcc = toCOcc.parentId ? allOccs.find(o => o.id === toCOcc.parentId) : null;
+      // Build reverse map (childOccId → parentOccId) from occurrences[] arrays to walk N-level hierarchies
+      const _revMap = {};
+      for (const occ of allOccs) {
+        for (const childId of (occ.occurrences || [])) { _revMap[childId] = occ.id; }
+      }
+      const _gridOccSet = new Set(state?.grid?.occurrences || []);
+      function _findPanel(startOcc) {
+        if (!startOcc) return null;
+        let curId = _revMap[startOcc.id];
+        for (let i = 0; i < 8; i++) {
+          if (!curId) return null;
+          const cur = occurrencesById[curId];
+          if (!cur) return null;
+          if (_gridOccSet.has(cur.id)) return cur;
+          curId = _revMap[curId];
+        }
+        return null;
+      }
+      const fromPanelOcc = _findPanel(fromCOcc);
+      const toPanelOcc = _findPanel(toCOcc);
+
       const tx = {
         type: "OccurrenceMoveOp", occurrenceId, instanceId: draggedInstanceId,
         fromContainerId: fromC.id, toContainerId: toC.id,
-        fromPanelId: fromPanelOcc?.targetId || null, toPanelId: toPanelOcc?.targetId || null,
+        fromPanelId: fromPanelOcc?.targetId || null,
+        toPanelId: toPanelOcc?.targetId || null,
       };
       const operations = Object.values(state?.operationsById || {});
       const fieldsById = Object.fromEntries((state?.fields || []).map(f => [f.id, f]));
@@ -410,7 +431,23 @@ export function handleInstanceDrop(ctx, drop) {
         state, fieldsById, operationsById: state?.operationsById || {}, occurrencesById: { ...occurrencesById },
       });
       if (allUpdates?.length) {
-        dispatch({ type: "SET_COMPUTED_VALUES", updates: allUpdates });
+        // Split display updates (SHOW_VALUE) from effect updates (SET_FIELD_VALUE, etc.)
+        const displayUpdates = allUpdates.filter(u => !u._effect);
+        const effectUpdates = allUpdates.filter(u => u._effect);
+        if (displayUpdates.length) {
+          dispatch({ type: "SET_COMPUTED_VALUES", updates: displayUpdates });
+        }
+        for (const eff of effectUpdates) {
+          if (eff._effect === "SET_FIELD_VALUE") {
+            setOccurrenceFieldValue({
+              dispatch, socket, occurrencesById,
+              occurrenceId: eff.occurrenceId,
+              fieldId: eff.fieldId,
+              value: eff.value,
+              flow: eff.flow || "replace",
+            });
+          }
+        }
       }
     }
     autoCheckBooleanFields(state, dispatch, socket, draggedInstanceId, occurrenceId);
