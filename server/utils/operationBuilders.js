@@ -15,7 +15,7 @@ export function uid() {
 // ============================================================
 
 /** Sum a single field across occurrences (daily/weekly/all, optional flow filter) */
-export function makeLoopSumOp({ name, targetFieldId, fieldId, timeFilter = "daily", flowFilter = "any", targetValue, targetPeriod = "daily", folderId = null, userId, gridId, pageOccId = null }) {
+export function makeLoopSumOp({ name, targetFieldId, fieldId, timeFilter = "daily", flowFilter = "any", targetValue, targetPeriod = "daily", folderId = null, userId, gridId }) {
   return {
     id: uid(), userId, gridId, name, folderId,
     description: `Sum of ${name} values (${timeFilter}) — granular LOOP pipeline`,
@@ -30,7 +30,6 @@ export function makeLoopSumOp({ name, targetFieldId, fieldId, timeFilter = "dail
         {
           id: uid(), type: "loop",
           over: "field_occurrences", fieldId, timeFilter, flowFilter, as: "$item",
-          ...(pageOccId ? { pageOccId } : {}),
           body: [{
             id: uid(), type: "if",
             condition: { operator: "AND", rules: [{ comparator: "IS_NOT_EMPTY", left: "$item.value" }] },
