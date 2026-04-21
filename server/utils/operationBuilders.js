@@ -73,8 +73,24 @@ export function makeLoopCountOp({ name, targetFieldId, fieldId, timeFilter = "da
   };
 }
 
-/** Count occurrences where boolean field === true */
-export function makeLoopCountTrueOp({ name, targetFieldId, fieldId, timeFilter = "daily", folderId = null, targetValue, targetPeriod = "daily", userId, gridId, pageOccId = null }) {
+/**
+ * Count occurrences where boolean field === true.
+ * Pass `pageLabel` to scope the loop to descendants of a named page occurrence.
+ */
+export function makeLoopCountTrueOp({ name, targetFieldId, fieldId, timeFilter = "daily", folderId = null, targetValue, targetPeriod = "daily", userId, gridId, pageLabel = null }) {
+  const findStep = pageLabel ? [{
+    id: uid(), type: "action", config: {
+      type: "FIND_OCCURRENCE",
+      moduleLabelExpr: `literal:${pageLabel}`,
+      resultVar: "$scopePage",
+      resultIdVar: "$scopePageId",
+    },
+  }] : [];
+
+  const ancestorRule = pageLabel
+    ? [{ comparator: "HAS_ANCESTOR", left: "$item._ancestors", right: "$scopePageId" }]
+    : [];
+
   return {
     id: uid(), userId, gridId, name, folderId,
     description: `Count completed (true) ${name} occurrences (${timeFilter}) — granular LOOP pipeline`,
@@ -86,13 +102,19 @@ export function makeLoopCountTrueOp({ name, targetFieldId, fieldId, timeFilter =
       sources: [],
       steps: [
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$count", value: 0 } },
+        ...findStep,
         {
           id: uid(), type: "loop",
           over: "field_occurrences", fieldId, timeFilter, flowFilter: "any", as: "$item",
-          ...(pageOccId ? { pageOccId } : {}),
           body: [{
             id: uid(), type: "if",
-            condition: { operator: "AND", rules: [{ comparator: "IS", left: "$item.value", right: true }] },
+            condition: {
+              operator: "AND",
+              rules: [
+                { comparator: "IS", left: "$item.value", right: true },
+                ...ancestorRule,
+              ],
+            },
             then: [{ id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$count", by: 1 } }],
             else: [],
           }],

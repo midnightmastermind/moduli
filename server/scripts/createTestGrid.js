@@ -530,7 +530,7 @@ export async function createTestGrid(userId, options = {}) {
     timeFilter: "daily",
     targetValue: 6,
     targetPeriod: "daily",
-    pageOccId: schedPageOccId,
+    pageLabel: "Schedule",
     ...opArgs,
   })).save();
 
