@@ -15,7 +15,7 @@ import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-d
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { GripVertical } from "lucide-react";
 import { arrayMove } from "../helpers/LayoutHelpers";
-import PathPicker, { buildPathShape } from "./PathPicker";
+import SelectDrilldown, { buildPathConfig, chainToPathString, pathStringToChain } from "../ui/SelectDrilldown";
 import ConditionGroup from "./ConditionGroup";
 
 /**
@@ -715,7 +715,7 @@ function ExprInput({ value, onChange, placeholder, width = 120, title }) {
 function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], fields = [], inLoop = true }) {
   const initialMode = (value ?? "").trim().startsWith("$") || !value ? "path" : "text";
   const [mode, setMode] = useState(initialMode);
-  const shape = useMemo(() => buildPathShape({ sources, fields, inLoop }), [sources, fields, inLoop]);
+  const pathConfig = useMemo(() => buildPathConfig({ sources, fields, inLoop }), [sources, fields, inLoop]);
   const toggle = () => setMode(m => (m === "path" ? "text" : "path"));
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
@@ -727,7 +727,11 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
         {mode === "path" ? "path" : "text"}
       </button>
       {mode === "path"
-        ? <PathPicker value={value || ""} onChange={onChange} shapeByVar={shape} placeholder={placeholder || "$var…"} />
+        ? <SelectDrilldown
+            config={pathConfig}
+            value={value ? [pathStringToChain(value)] : []}
+            onChange={chains => onChange(chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "")}
+          />
         : <ExprInput value={value} onChange={onChange} placeholder={placeholder} width={width} />}
     </div>
   );
@@ -880,10 +884,14 @@ const ALL_COMPARATORS = [
 
 function ConditionRule({ rule, onUpdate, onRemove, fields = [], sources = [] }) {
   const noRight = ["IS_EMPTY", "IS_NOT_EMPTY", "DATE_BEFORE_TODAY", "DATE_IS_TODAY", "DATE_AFTER_TODAY"].includes(rule.comparator);
-  const shape = useMemo(() => buildPathShape({ sources, fields, inLoop: true }), [sources, fields]);
+  const pathConfig = useMemo(() => buildPathConfig({ sources, fields, inLoop: true }), [sources, fields]);
   return (
     <div style={rowStyle}>
-      <PathPicker value={rule.left || ""} onChange={v => onUpdate({ left: v })} shapeByVar={shape} placeholder="variable…" />
+      <SelectDrilldown
+        config={pathConfig}
+        value={rule.left ? [pathStringToChain(rule.left)] : []}
+        onChange={chains => onUpdate({ left: chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "" })}
+      />
       <select value={rule.comparator} onChange={e => onUpdate({ comparator: e.target.value })} style={selectSt}>
         {ALL_COMPARATORS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
       </select>

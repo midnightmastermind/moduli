@@ -1,7 +1,7 @@
 // blocks/ConditionGroup.jsx
 // Recursive condition builder supporting nested AND/OR groups.
 import React from "react";
-import PathPicker, { buildPathShape } from "./PathPicker";
+import SelectDrilldown, { buildPathConfig, chainToPathString, pathStringToChain } from "../ui/SelectDrilldown";
 
 const COMPARATORS = [
   "IS", "IS_NOT", "GREATER", "LESS", "GREATER_OR_EQUAL", "LESS_OR_EQUAL",
@@ -52,7 +52,7 @@ export default function ConditionGroup({ group, onChange, sources, fields, depth
   const addRule = () => onChange({ ...group, rules: [...rules, { left: "", comparator: "IS", right: "" }] });
   const addGroup = () => onChange({ ...group, rules: [...rules, { operator: "AND", rules: [] }] });
 
-  const shape = buildPathShape({ sources, fields, inLoop: true });
+  const pathConfig = buildPathConfig({ sources, fields, inLoop: true });
 
   return (
     <div style={{
@@ -76,7 +76,7 @@ export default function ConditionGroup({ group, onChange, sources, fields, depth
               <button onClick={() => removeRule(i)} style={removeBtnSt}>×</button>
             </div>
           ) : (
-            <RuleRow rule={entry} onChange={(next) => setRule(i, next)} onRemove={() => removeRule(i)} shape={shape} />
+            <RuleRow rule={entry} onChange={(next) => setRule(i, next)} onRemove={() => removeRule(i)} pathConfig={pathConfig} />
           )}
         </div>
       ))}
@@ -84,10 +84,14 @@ export default function ConditionGroup({ group, onChange, sources, fields, depth
   );
 }
 
-function RuleRow({ rule, onChange, onRemove, shape }) {
+function RuleRow({ rule, onChange, onRemove, pathConfig }) {
   return (
     <div style={rowStyle}>
-      <PathPicker value={rule.left} onChange={(next) => onChange({ ...rule, left: next })} shapeByVar={shape} />
+      <SelectDrilldown
+        config={pathConfig}
+        value={rule.left ? [pathStringToChain(rule.left)] : []}
+        onChange={chains => onChange({ ...rule, left: chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "" })}
+      />
       <select value={rule.comparator} onChange={(e) => onChange({ ...rule, comparator: e.target.value })} style={selectSt}>
         {COMPARATORS.map(c => <option key={c} value={c}>{c}</option>)}
       </select>
