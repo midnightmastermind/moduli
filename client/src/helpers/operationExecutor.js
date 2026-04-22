@@ -229,7 +229,7 @@ function matchesTrigger(t, cfg, transactionType, transaction) {
     case "onModuleUpdate": return transactionType === "ModuleOp";
     case "onFilterChange": return transactionType === "NavigationOp";
     case "onNavigation":   return transactionType === "NavigationOp";
-    case "onIteration":    return transactionType === "NavigationOp"; // legacy alias
+    case "onIteration":    return transactionType === "NavigationOp"; // legacy alias, same as onFilterChange
     case "onLoad":         return transactionType == null;
     case "onWebhook":      return transactionType === "WebhookOp";
     case "onSchedule": {
@@ -693,7 +693,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   })();
 
   for (const source of sources) {
-    const { variableName, entityType, entityId, nodeInput } = source;
+    const { variableName, entityType, entityId, nodeInput, triggerProp } = source;
     if (!variableName) continue;
     const varKey = `$${variableName}`;
 
@@ -771,6 +771,9 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       // localField — value entered manually on the operation node (transient, not from DB)
       // extraVars is keyed by variableName (without $)
       $vars[varKey] = (extraVars && extraVars[variableName] !== undefined) ? extraVars[variableName] : null;
+    } else if (entityType === "trigger" && triggerProp) {
+      // trigger — maps a named property from $trigger into a pipeline var
+      $vars[varKey] = $vars["$trigger"]?.[triggerProp] ?? null;
     } else {
       // instance / container — aggregate field values across occurrences targeting this entity
       const occs = Object.values(occurrencesById).filter(o => o.targetId === entityId);

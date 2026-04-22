@@ -321,6 +321,7 @@ const ENTITY_TYPES = [
   { value: "field", label: "Field (aggregated)", hint: "$var.id, $var.name, $var.type, $var.unit, $var.value, $var.flow" },
   { value: "grid", label: "Grid (whole grid)", hint: "$var.gridId, $var.currentIterationValue, $var.currentCategoryValue" },
   { value: "localField", label: "Local Field (node input)", hint: "$varName = value typed on the operation node — transient, not from DB" },
+  { value: "trigger", label: "Trigger Event", hint: "Properties: fieldId, value, occurrenceId, instanceId, containerId, panelId, date, activeFilterValues" },
 ];
 
 // ---- Shared styles ----
@@ -464,7 +465,7 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
     return [];
   }, [src.entityType, instanceModules, containerModules, panelModules]);
 
-  const needsPicker = !["grid", "occurrence", "field", "localField"].includes(src.entityType);
+  const needsPicker = !["grid", "occurrence", "field", "localField", "trigger"].includes(src.entityType);
   const needsOccId = src.entityType === "occurrence";
   const needsFieldId = src.entityType === "field" || src.entityType === "localField";
 
@@ -496,6 +497,24 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
             {(fields || []).map(f => (
               <option key={f.id} value={f.id}>{f.name}</option>
             ))}
+          </select>
+        )}
+        {src.entityType === "trigger" && (
+          <select
+            value={src.triggerProp || ""}
+            onChange={e => onUpdate({ ...src, triggerProp: e.target.value })}
+            style={selectSt}
+          >
+            <option value="">— pick property —</option>
+            <option value="fieldId">fieldId</option>
+            <option value="value">value</option>
+            <option value="occurrenceId">occurrenceId</option>
+            <option value="instanceId">instanceId</option>
+            <option value="containerId">containerId</option>
+            <option value="panelId">panelId</option>
+            <option value="date">date</option>
+            <option value="activeFilterValues">activeFilterValues</option>
+            <option value="type">type (transactionType)</option>
           </select>
         )}
         <span style={labelSt}>→ as $</span>
