@@ -37,9 +37,9 @@ describe("calcOpenDirection (fallback — all menus use forceDirection='down')",
 
 describe("all RadialMenu usages force direction down", () => {
   const files = [
-    resolve(__dirname, "../modules/Panel.jsx"),
-    resolve(__dirname, "../modules/Container.jsx"),
-    resolve(__dirname, "../modules/Artifact.jsx"),
+    resolve(__dirname, "../modules/ModulePanel.jsx"),
+    resolve(__dirname, "../modules/ModuleContainer.jsx"),
+    resolve(__dirname, "../modules/ArtifactContent.jsx"),
   ];
 
   for (const filePath of files) {
