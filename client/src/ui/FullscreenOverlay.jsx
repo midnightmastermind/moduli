@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { ChevronRight, ChevronLeft } from "lucide-react";
-import ModulePanel from "../modules/Panel";
+import ModulePanel from "../modules/ModulePanel";
 import FormInput from "./FormInput";
 
 export default function FullscreenOverlay({

@@ -13,7 +13,7 @@ import React, {
   useCallback,
 } from "react";
 
-import Panel from "./modules/Panel";
+import Panel from "./modules/ModulePanel";
 import ErrorBoundary from "./ui/ErrorBoundary";
 import FullscreenOverlay from "./ui/FullscreenOverlay";
 import GridFieldsBank from "./ui/GridFieldsBank";

@@ -5,7 +5,7 @@
 import { NodeViewWrapper } from "@tiptap/react";
 import { useContext, useRef, useCallback, useState, useMemo, useEffect } from "react";
 import { GridActionsContext } from "../GridActionsContext.js";
-import Container from "../modules/Container.jsx";
+import Container from "../modules/ModuleContainer.jsx";
 import ModuleInstance from "../modules/ModuleInstance.jsx";
 import ArtifactContent from "../modules/ArtifactContent.jsx";
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box } from "lucide-react";

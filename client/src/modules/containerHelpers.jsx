@@ -1,15 +1,4 @@
-// modules/containerHelpers.jsx — re-export stub.
-// DocEditorShell → DocContent.jsx
-// PoolPill → PoolContent.jsx
-// CanvasDrawSection → CanvasContent.jsx
-// CanvasCard stays here until ModuleInstance canvas branch is implemented.
-
-export { DocContent, DocEditorShell } from "./DocContent.jsx";
-export { PoolContent, PoolPill } from "./PoolContent.jsx";
-export { CanvasContent, CanvasDrawSection } from "./CanvasContent.jsx";
-
-// CanvasCard — still used by Container.jsx renderCanvasCard. Kept here until
-// its canvas behavior is absorbed into ModuleInstance.
+// modules/containerHelpers.jsx — CanvasCard: free-position canvas item with pointer drag.
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { GripVertical } from "lucide-react";

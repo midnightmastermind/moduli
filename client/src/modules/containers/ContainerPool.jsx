@@ -3,7 +3,7 @@
 // Manages its own search/add UI state; delegates persistence to CommitHelpers.
 import React, { useState, useCallback } from "react";
 import { Search, Plus, X } from "lucide-react";
-import { PoolPill } from "../containerHelpers.jsx";
+import { PoolPill } from "../PoolContent.jsx";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 
 export default function ContainerPool({ itemsWithOccurrences, dispatch, socket, listDropRef, module, ctxState }) {
