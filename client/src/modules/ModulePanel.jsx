@@ -9,7 +9,7 @@ import RadialMenu from "../ui/RadialMenu";
 import ContainerKindSelector from "../ui/ContainerKindSelector";
 import ContextMenu from "../ui/ContextMenu";
 
-import Artifact from "./Artifact";
+import Artifact from "./ArtifactContent";
 import ManifestTree from "./ManifestTree";
 import LayoutForm from "../ui/LayoutForm";
 import TransactionHistory from "../ui/TransactionHistory";
@@ -48,9 +48,9 @@ import {
   FileText,
 } from "lucide-react";
 
-import Container from "./Container.jsx";
-import Page from "./Page.jsx";
-import { CanvasDrawSection } from "./containerHelpers.jsx";
+import Container from "./ModuleContainer.jsx";
+import Page from "./ModulePage.jsx";
+import { CanvasDrawSection } from "./CanvasContent.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import LocalFilterNav from "../ui/LocalFilterNav.jsx";
 

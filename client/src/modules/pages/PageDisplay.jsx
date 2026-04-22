@@ -1,7 +1,7 @@
 // modules/pages/PageDisplay.jsx
 // Display page — artifact viewer (markdown, image, PDF, audio, video, code, etc.)
 import React from "react";
-import Artifact from "../Artifact.jsx";
+import Artifact from "../ArtifactContent.jsx";
 
 export default function PageDisplay({ occurrence, pageView, dispatch, socket }) {
   return (

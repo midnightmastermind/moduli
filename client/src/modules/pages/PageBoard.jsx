@@ -1,7 +1,7 @@
 // modules/pages/PageBoard.jsx
 // Board page — vertical list of sortable containers.
 import React, { useContext } from "react";
-import Container from "../Container.jsx";
+import Container from "../ModuleContainer.jsx";
 import { Spinner } from "../../components/ui/spinner";
 import { GridActionsContext } from "../../GridActionsContext";
 
