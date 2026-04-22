@@ -78,7 +78,7 @@ const dropdownSt = {
   position: "fixed", zIndex: 9999,
   background: "var(--input-bg)", border: "1px solid var(--border-default)",
   borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
-  minWidth: 220, maxHeight: 340, overflow: "hidden",
+  minWidth: 240, maxHeight: 320, overflow: "hidden",
   display: "flex", flexDirection: "column",
 };
 
@@ -118,7 +118,7 @@ const placeholderSt = {
  * LevelConfig: { label, searchable?, multi?, items(parentValue) → [{value,title,sub?,hint?,hasChildren?,disabled?}], next(item) → LevelConfig|null }
  */
 export default function SelectDrilldown({ config = {}, value = [], onChange }) {
-  const { placeholder = "Select…", levels = [] } = config;
+  const { placeholder = "Select…", multi = false, levels = [] } = config;
   const [open, setOpen] = useState(false);
   const [drillPath, setDrillPath] = useState([]); // [{levelConfig, chosenItem, nextLevel}]
   const triggerRef = useRef(null);
@@ -168,7 +168,7 @@ export default function SelectDrilldown({ config = {}, value = [], onChange }) {
     } else {
       // Leaf — build chain and close
       const chain = [...drillPath.map(d => d.chosenItem.value), item.value];
-      onChange([...value, chain]);
+      onChange(multi ? [...value, chain] : [chain]);
       setOpen(false);
     }
   }, [currentLevel, drillPath, value, onChange]);
@@ -177,18 +177,13 @@ export default function SelectDrilldown({ config = {}, value = [], onChange }) {
     if (!currentLevel) return;
     const prefix = drillPath.map(d => d.chosenItem.value);
     const newChains = selectedValues.map(v => [...prefix, v]);
-    onChange([...value, ...newChains]);
+    onChange(multi ? [...value, ...newChains] : newChains);
     setOpen(false);
   }, [currentLevel, drillPath, value, onChange]);
 
   const goToDepth = useCallback((depth) => {
     setDrillPath(prev => prev.slice(0, depth));
   }, []);
-
-  // Remove a chain by index
-  const removeChain = useCallback((idx) => {
-    onChange(value.filter((_, i) => i !== idx));
-  }, [value, onChange]);
 
   const breadcrumbs = useMemo(() => {
     const crumbs = [];
