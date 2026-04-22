@@ -229,7 +229,7 @@ export default function SelectDrilldown({ config = {}, value = [], onChange }) {
                 {i > 0 && <span style={{ color: "var(--text-faint)" }}>›</span>}
                 <span
                   onClick={() => goToDepth(crumb.depth)}
-                  style={{ cursor: i < breadcrumbs.length - 1 ? "pointer" : "default", textDecoration: i < breadcrumbs.length - 1 ? "underline" : "none" }}
+                  style={{ cursor: i < breadcrumbs.length - 1 ? "pointer" : "default", textDecoration: i < breadcrumbs.length - 1 ? "underline" : "none", color: i < breadcrumbs.length - 1 ? "var(--accent-blue-text)" : "inherit" }}
                 >
                   {crumb.label}
                 </span>
