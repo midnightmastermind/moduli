@@ -1016,12 +1016,15 @@ function Panel({
         if (viewType === "display" || viewType === "markdown" || viewType === "image" || viewType === "pdf" || viewType === "audio" || viewType === "video") {
           const activeOccId = resolvedView?.activeOccurrenceId;
           const activeOcc = activeOccId ? occurrencesById?.[activeOccId] : null;
+          const activeOccView = activeOcc?.viewId ? viewsById?.[activeOcc.viewId] : null;
+          const effectiveViewType = activeOccView?.viewType ?? viewType;
+          const effectiveArtifactType = activeOccView?.artifactType ?? resolvedView?.artifactType ?? null;
           return (
             <div style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative" }}>
               <Artifact
                 occurrence={activeOcc}
-                viewType={viewType}
-                artifactType={resolvedView?.artifactType ?? null}
+                viewType={effectiveViewType}
+                artifactType={effectiveArtifactType}
                 dispatch={dispatch}
                 socket={socket}
               />
