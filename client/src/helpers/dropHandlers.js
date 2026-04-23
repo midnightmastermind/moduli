@@ -16,6 +16,7 @@ import { setOccurrenceFieldValue } from "./CommitHelpers";
 import * as LayoutHelpers from "./LayoutHelpers";
 import { DragType, parseExternalDrop } from "./dragSystem";
 import { runMatchingOperations } from "./operationExecutor";
+import { operationsBridge } from "../state/bindSocketToStore";
 import { embedDeleteRegistry } from "./embedRegistry";
 import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
 
@@ -431,6 +432,31 @@ export function handleInstanceDrop(ctx, drop) {
               flow: eff.flow || "replace",
             });
           }
+        }
+      }
+
+      // Update localOccsById to reflect new container membership so the executor
+      // builds the correct _parentByChildId map when MeasureOp fires
+      const fromIdsAfter = (fromCOcc.occurrences || []).filter(id => id !== occurrenceId);
+      const toIdsRaw = (toCOcc.occurrences || []).filter(id => id !== occurrenceId);
+      const toIdsAfter = (toIndex !== null && toIndex >= 0)
+        ? [...toIdsRaw.slice(0, toIndex), occurrenceId, ...toIdsRaw.slice(toIndex)]
+        : [...toIdsRaw, occurrenceId];
+      operationsBridge.updateLocalOcc?.({ ...fromCOcc, occurrences: fromIdsAfter });
+      operationsBridge.updateLocalOcc?.({ ...toCOcc, occurrences: toIdsAfter });
+
+      // Fire MeasureOp for each field of the moved occurrence so onChange operations retrigger
+      const movedOcc = occurrencesById[occurrenceId];
+      if (movedOcc?.fields) {
+        for (const fieldId of Object.keys(movedOcc.fields)) {
+          const fv = movedOcc.fields[fieldId];
+          operationsBridge.fireOperations?.("MeasureOp", {
+            type: "MeasureOp",
+            occurrenceId,
+            instanceId: draggedInstanceId,
+            fieldId,
+            value: fv && typeof fv === "object" && "value" in fv ? fv.value : fv,
+          });
         }
       }
     }
