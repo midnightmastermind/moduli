@@ -1,6 +1,11 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-04-15. Check this file before re-reading source._
+_Updated: 2026-04-23. Check this file before re-reading source._
+
+## Recent Changes (Apr 23 2026 — filterNavState + INIT/SET_FILTER_NAV)
+- **actions.js**: Added `INIT_FILTER_NAV` + `SET_FILTER_NAV` to `ActionTypes`. Added `initFilterNavAction(navMap)` + `setFilterNavAction(filterId, value)` action creators. Used by bindSocketToStore (on full_state) and Toolbar (on date nav buttons).
+- **initialState.js**: Added `filterNavState: {}` — client-only ephemeral state keyed by filterId holding ISO date strings.
+- **masterReducer.js**: Added `INIT_FILTER_NAV` case (replaces entire filterNavState map) and `SET_FILTER_NAV` case (sets single entry). Also clears `filterNavState: {}` on LOGOUT. App.jsx useEffect watches `state.filterNavState` and fires `NavigationOp` when any date entry changes.
 
 ## Recent Changes (Apr 15 2026 — operationsBridge removeLocalOcc)
 - **bindSocketToStore.js**: Added `removeLocalOcc: null` to `operationsBridge` initial export. Wired inside `bindSocketToStore` as `operationsBridge.removeLocalOcc = (id) => { delete localOccsById[id]; }`. Nulled in cleanup block. Used by CommitHelpers.deleteOccurrence to evict deleted occurrences from the local cache before firing operations.

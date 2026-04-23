@@ -1,6 +1,12 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-04-15. Check this file before re-reading source._
+_Updated: 2026-04-23. Check this file before re-reading source._
+
+## Recent Changes (Apr 23 2026 — Optimistic Operation Triggers from CommitHelpers)
+- **CommitHelpers.js**: `updateOccurrence` now accepts `triggerField = null` param. When provided, calls `operationsBridge.updateLocalOcc(occurrence)` + fires `MeasureOp` with `fieldId` so onChange operations with `allowedFields` match correctly. `FieldRenderer.jsx` passes `triggerField: { fieldId: field.id, value, instanceId }`.
+- **CommitHelpers.js**: `createOccurrence` now calls `updateLocalOcc`, fires `OccurrenceCreateOp`, and per-field `MeasureOp` (with `fieldId`/`value`) for each field on the new occurrence. Triggers onAdd + onChange operations immediately on add.
+- **CommitHelpers.js**: `deleteOccurrence`/`removeOccurrence` now fire `OccurrenceDeleteOp` first (with occurrence override so executor can still inspect the deleted occurrence), then rAF-deferred per-field `MeasureOp` (so the aggregation sees the occurrence as already gone).
+- **dropHandlers.js**: `handleInstanceDrop` now updates `localOccsById` for both source/destination containers and fires per-field `MeasureOp` after move, so onChange aggregations retrigger when instances are drag-moved between slots.
 
 ## Recent Changes (Apr 17 2026 — Per-Operation Run Log)
 - **operationExecutor.js**: Module-level `runHistory` Map<opId, RunLog[]> (cap 20, newest first). New exports: `getOpRunHistory(opId)`, `getLastOpLog(opId)` (back-compat), `subscribeToOpLog(opId, fn)`. `recordRunLog` unshifts onto history and notifies subscribers with the full list. `runMatchingOperations` creates a `makeLogger()` per op, adds `start`/`end`/`error` entries, and calls `recordRunLog`. `executePipeline` accepts optional 5th `externalLogger` param; reuses it when called from the batch executor or creates its own. Logger attached to `$vars._log` for nested helpers. `executeSteps` adds per-step entries (`action`/`if`/`loop`) with config + result preview. Source-resolution snapshot logged after `$vars` build.
