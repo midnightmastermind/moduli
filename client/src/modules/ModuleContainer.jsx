@@ -42,8 +42,8 @@ import {
   X,
 } from "lucide-react";
 
-import Instance from "./Instance.jsx";
-import { CanvasCard, CanvasDrawSection } from "./containerHelpers.jsx";
+import { CanvasCard } from "./containerHelpers.jsx";
+import { CanvasDrawSection } from "./CanvasContent.jsx";
 import { DocEditorShell } from "./DocContent.jsx";
 import ContainerPool from "./containers/ContainerPool.jsx";
 import { FilterOverridePopup, TemplatePickerPopup } from "./containerPopups.jsx";
@@ -449,7 +449,7 @@ function Container({
     >
       {mod.role === "container"
         ? <Container module={mod} occurrenceOverride={occ} panelId={pid} embedded dispatch={dispatch} socket={socket} />
-        : <Instance id={mod.id} label={mod.label} instance={mod} occurrence={occ} dispatch={dispatch} socket={socket} />
+        : <ModuleInstance id={mod.id} label={mod.label} instance={mod} occurrence={occ} dispatch={dispatch} socket={socket} />
       }
     </CanvasCard>
   ), [dispatch, socket]);

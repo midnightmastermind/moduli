@@ -12,8 +12,7 @@ import { X, Trash2, Copy, FileText, Layout, Paintbrush, Monitor, Folder, ArrowLe
 import NodePill from "./NodePill.jsx";
 import PreviewNode from "./PreviewNode.jsx";
 
-import Container from "./Container.jsx";
-import Artifact from "./Artifact.jsx";
+import ArtifactContent from "./ArtifactContent.jsx";
 import { Spinner } from "../components/ui/spinner";
 import { DocEditorShell } from "./DocContent.jsx";
 import useDrilldown, { getCardAnimStyle } from "../hooks/useDrilldown.js";
@@ -68,7 +67,7 @@ function Page({
   const scrollAnchor = pageView?.scrollAnchor || panelView?.scrollAnchor;
   const kind = pageModule?.kind || "board";
 
-  // Tree view detection — page with hasTree + manifestId renders Artifact content only
+  // Tree view detection — page with hasTree + manifestId renders ArtifactContent content only
   // (the ManifestTree sidebar is handled by the parent panel, not duplicated here)
   const isTreeView = !!(pageView?.hasTree && pageView?.manifestId);
 
@@ -233,7 +232,7 @@ function Page({
     // Tree view — render only the active document content.
     // ManifestTree sidebar is handled by the parent panel, not duplicated here.
     content = treeActiveOcc ? (
-      <Artifact
+      <ArtifactContent
         occurrence={treeActiveOcc}
         viewType={treeActiveOccView?.viewType ?? "markdown"}
         artifactType={treeActiveOccView?.artifactType ?? null}
