@@ -143,10 +143,16 @@ function FieldRenderer({
   const handleCommit = useCallback((newValue, flowOverride) => {
     if (!occurrence?.id || !field?.id || !inputEnabled) return;
     const flow = flowOverride || currentFlow || field?.meta?.flow || "in";
+    // Build full updated occurrence so localOccsById has the new value before executor runs
+    const fullUpdatedOcc = {
+      ...occurrence,
+      fields: { ...(occurrence.fields || {}), [field.id]: { value: newValue, flow } },
+    };
     CommitHelpers.updateOccurrence({
       dispatch, socket,
-      occurrence: { id: occurrence.id, fields: { ...((occurrence.fields) || {}), [field.id]: { value: newValue, flow } } },
+      occurrence: fullUpdatedOcc,
       emit: true,
+      triggerField: { fieldId: field.id, value: newValue, instanceId: occurrence.targetId },
     });
   }, [occurrence, field?.id, currentFlow, field?.meta?.flow, inputEnabled, dispatch, socket]);
 

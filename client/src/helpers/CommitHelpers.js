@@ -108,14 +108,46 @@ export function createInstanceInContainer({
 // ===== OCCURRENCE =====
 export function createOccurrence({ dispatch, socket, occurrence, emit = true }) {
   if (!occurrence?.id) return;
+  operationsBridge.updateLocalOcc?.(occurrence);
   dispatch?.(createOccurrenceAction(occurrence));
   if (shouldEmit(emit)) safeEmit(socket, "create_occurrence", { occurrence });
+  operationsBridge.fireOperations?.("OccurrenceCreateOp", {
+    type: "OccurrenceCreateOp",
+    occurrenceId: occurrence.id,
+    instanceId: occurrence.targetId,
+    containerId: occurrence.parentId,
+  });
+  // Fire MeasureOp for each field so onChange operations (e.g. aggregations) retrigger on add
+  const fields = occurrence.fields;
+  if (fields) {
+    for (const fieldId of Object.keys(fields)) {
+      const fv = fields[fieldId];
+      operationsBridge.fireOperations?.("MeasureOp", {
+        type: "MeasureOp",
+        occurrenceId: occurrence.id,
+        instanceId: occurrence.targetId,
+        fieldId,
+        value: fv && typeof fv === "object" && "value" in fv ? fv.value : fv,
+      });
+    }
+  }
 }
 
-export function updateOccurrence({ dispatch, socket, occurrence, emit = true }) {
+export function updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerField = null }) {
   if (!occurrence?.id) return;
   dispatch?.(updateOccurrenceAction(occurrence));
   if (shouldEmit(emit)) safeEmit(socket, "update_occurrence", { occurrence });
+  if (triggerField) {
+    // Update local cache with the new occurrence so the executor sees the correct value
+    operationsBridge.updateLocalOcc?.(occurrence);
+    operationsBridge.fireOperations?.("MeasureOp", {
+      type: "MeasureOp",
+      occurrenceId: occurrence.id,
+      instanceId: triggerField.instanceId,
+      fieldId: triggerField.fieldId,
+      value: triggerField.value,
+    });
+  }
 }
 
 export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOverride }) {
@@ -130,16 +162,30 @@ export function deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, e
   operationsBridge.removeLocalOcc?.(occurrenceId);
   dispatch?.(deleteOccurrenceAction(occurrenceId));
   if (shouldEmit(emit)) safeEmit(socket, "delete_occurrence", { occurrenceId });
-  // Fire operations for each field the removed occurrence had
+  const deleteOverride = occurrence ? { [occurrenceId]: occurrence } : null;
+  const deleteOpts = deleteOverride ? { occurrencesOverride: deleteOverride } : undefined;
+  // Fire onDelete/onRemove trigger immediately (occurrence visible via override for trigger checking)
+  operationsBridge.fireOperations?.("OccurrenceDeleteOp", {
+    type: "OccurrenceDeleteOp",
+    occurrenceId,
+    instanceId: occurrence?.targetId,
+    containerId: occurrence?.parentId,
+  }, deleteOpts);
+  // Defer MeasureOp until after React renders so _cachedBaseOccsById is rebuilt without this
+  // occurrence — otherwise the aggregation still counts it and produces the same result
   if (occurrence?.fields) {
-    for (const fieldId of Object.keys(occurrence.fields)) {
-      operationsBridge.fireOperations?.("MeasureOp", {
-        type: "MeasureOp",
-        occurrenceId,
-        instanceId: occurrence.targetId,
-        fieldId,
-      });
-    }
+    const savedFields = occurrence.fields;
+    const savedTargetId = occurrence.targetId;
+    requestAnimationFrame(() => {
+      for (const fieldId of Object.keys(savedFields)) {
+        operationsBridge.fireOperations?.("MeasureOp", {
+          type: "MeasureOp",
+          occurrenceId,
+          instanceId: savedTargetId,
+          fieldId,
+        });
+      }
+    });
   }
 }
 
@@ -160,16 +206,29 @@ export function removeOccurrence({ dispatch, socket, occurrenceId, occurrence, p
   // Delete the occurrence (server cascades children + cleans parent)
   dispatch?.(deleteOccurrenceAction(occurrenceId));
   if (shouldEmit(emit)) safeEmit(socket, "delete_occurrence", { occurrenceId });
-  // Fire operations for each field the removed occurrence had
+  const removeOverride = occurrence ? { [occurrenceId]: occurrence } : null;
+  const removeOpts = removeOverride ? { occurrencesOverride: removeOverride } : undefined;
+  // Fire onDelete/onRemove trigger immediately
+  operationsBridge.fireOperations?.("OccurrenceDeleteOp", {
+    type: "OccurrenceDeleteOp",
+    occurrenceId,
+    instanceId: occurrence?.targetId,
+    containerId: occurrence?.parentId,
+  }, removeOpts);
+  // Defer MeasureOp until after React renders so _cachedBaseOccsById no longer has this occurrence
   if (occurrence?.fields) {
-    for (const fieldId of Object.keys(occurrence.fields)) {
-      operationsBridge.fireOperations?.("MeasureOp", {
-        type: "MeasureOp",
-        occurrenceId,
-        instanceId: occurrence.targetId,
-        fieldId,
-      });
-    }
+    const savedFields = occurrence.fields;
+    const savedTargetId = occurrence.targetId;
+    requestAnimationFrame(() => {
+      for (const fieldId of Object.keys(savedFields)) {
+        operationsBridge.fireOperations?.("MeasureOp", {
+          type: "MeasureOp",
+          occurrenceId,
+          instanceId: savedTargetId,
+          fieldId,
+        });
+      }
+    });
   }
 }
 
