@@ -13,7 +13,6 @@ import {
   List,
   Keyboard,
   File,
-  Network,
   Filter,
   LayoutGrid,
   Palette,
@@ -22,13 +21,11 @@ import {
 // Lazy-load tabs — only the active tab's code is loaded
 const FieldsTab = lazy(() => import("./commandCenter/FieldsTab").then(m => ({ default: m.FieldsTab })));
 const OperationsTab = lazy(() => import("./commandCenter/OperationsTab").then(m => ({ default: m.OperationsTab })));
-const ComponentsTab = lazy(() => import("./commandCenter/ComponentsTab").then(m => ({ default: m.ComponentsTab })));
 const ConnectionsTab = lazy(() => import("./commandCenter/ConnectionsTab").then(m => ({ default: m.ConnectionsTab })));
 const FilesTab = lazy(() => import("./commandCenter/FilesTab").then(m => ({ default: m.FilesTab })));
 const ListsTab = lazy(() => import("./commandCenter/ListsTab").then(m => ({ default: m.ListsTab })));
 const ShortcutsTab = lazy(() => import("./commandCenter/ShortcutsTab").then(m => ({ default: m.ShortcutsTab })));
 const UserSettingsTab = lazy(() => import("./commandCenter/UserSettingsTab").then(m => ({ default: m.UserSettingsTab })));
-const EntityTreeTab = lazy(() => import("./commandCenter/EntityTreeTab").then(m => ({ default: m.EntityTreeTab })));
 const FiltersTab = lazy(() => import("./commandCenter/FiltersTab").then(m => ({ default: m.FiltersTab })));
 const GridSettingsTab = lazy(() => import("./commandCenter/GridSettingsTab").then(m => ({ default: m.GridSettingsTab })));
 const AppearanceTab = lazy(() => import("./commandCenter/AppearanceTab").then(m => ({ default: m.AppearanceTab })));
@@ -42,7 +39,6 @@ const TABS = [
   { id: "operations", label: "Operations", icon: Workflow },
   { id: "filters", label: "Filters", icon: Filter },
   { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "tree", label: "Components", icon: Network },
   { id: "files", label: "Files", icon: File },
   { id: "connections", label: "Connections", icon: Link2 },
   { id: "lists", label: "Lists", icon: List },
@@ -116,7 +112,6 @@ export default function CommandCenter({ open, onOpenChange, isMobile }) {
           {activeTab === "filters"     && <FiltersTab />}
           {activeTab === "grid"        && <GridSettingsTab />}
           {activeTab === "appearance"  && <AppearanceTab />}
-          {activeTab === "tree"        && <EntityTreeTab />}
           {activeTab === "lists"       && <ListsTab />}
           {activeTab === "shortcuts"   && <ShortcutsTab />}
           {activeTab === "settings"    && <UserSettingsTab />}
