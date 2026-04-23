@@ -58,6 +58,10 @@ export const ActionTypes = {
   // ---- computed values (client-only, written by operation executor) ----
   SET_COMPUTED_VALUES: "SET_COMPUTED_VALUES",
 
+  // ---- filter nav state (client-only, driven by date nav toolbar) ----
+  INIT_FILTER_NAV: "INIT_FILTER_NAV",
+  SET_FILTER_NAV: "SET_FILTER_NAV",
+
   BATCH_UPDATE_MODULES: "BATCH_UPDATE_MODULES",
 
   SET_ACTIVE_ID: "SET_ACTIVE_ID",
@@ -259,4 +263,15 @@ export const batchUpdateModulesAction = (modules) => ({
 export const setComputedValuesAction = (updates) => ({
   type: ActionTypes.SET_COMPUTED_VALUES,
   payload: { updates },
+});
+
+// ---- filter nav state ----
+export const initFilterNavAction = (navMap) => ({
+  type: ActionTypes.INIT_FILTER_NAV,
+  payload: navMap,
+});
+
+export const setFilterNavAction = (filterId, value) => ({
+  type: ActionTypes.SET_FILTER_NAV,
+  payload: { filterId, value },
 });

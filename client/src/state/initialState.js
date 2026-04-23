@@ -27,6 +27,9 @@ export const initialState = {
   // key = fieldId (global) or "fieldId:occurrenceId" (occurrence-specific)
   computedValues: {},
 
+  // filter nav state: client-only, { [filterId]: ISO date string }
+  filterNavState: {},
+
   // drag state
   activeId: null,
   activeSize: null,

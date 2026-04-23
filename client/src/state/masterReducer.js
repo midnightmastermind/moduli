@@ -123,6 +123,7 @@ export function masterReducer(state, action) {
                 folders: [],
                 operations: [],
                 computedValues: {},
+                filterNavState: {},
                 hydrated: false,
             };
         }
@@ -431,6 +432,18 @@ export function masterReducer(state, action) {
                 next[key] = { value, target: target ?? null };
             }
             return { ...state, computedValues: next };
+        }
+
+        // ======================================================
+        // FILTER NAV STATE (client-only)
+        // ======================================================
+        case ActionTypes.INIT_FILTER_NAV:
+            return { ...state, filterNavState: action.payload || {} };
+
+        case ActionTypes.SET_FILTER_NAV: {
+            const { filterId, value } = action.payload || {};
+            if (!filterId) return state;
+            return { ...state, filterNavState: { ...(state.filterNavState || {}), [filterId]: value } };
         }
 
         // ======================================================
