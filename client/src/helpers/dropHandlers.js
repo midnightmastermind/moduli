@@ -373,12 +373,16 @@ export function handleInstanceDrop(ctx, drop) {
       sourceOccurrence: occurrenceId ? occurrencesById[occurrenceId] : null,
     });
   } else if (isCopyMode) {
+    const _revMap = buildReverseMap(Object.values(occurrencesById));
+    const _gridOccSet = new Set(state?.grid?.occurrences || []);
+    const toPanelOcc = toCOcc ? findGridPanelOcc(toCOcc, _revMap, occurrencesById, _gridOccSet) : null;
     const copyResult = LayoutHelpers.copyInstanceToContainer({
       dispatch, socket, gridId, sourceInstanceId: draggedInstanceId,
       toContainer: toCOcc ? { ...toC, _occurrence: toCOcc } : toC,
       userId: state?.userId, toIndex, emit: true,
       iterationMode: "specific", iterationValue: currentIterationDate,
       sourceOccurrence: occurrenceId ? occurrencesById[occurrenceId] : null,
+      toPanelId: toPanelOcc?.targetId || null,
     });
     autoCheckBooleanFields(state, dispatch, socket, draggedInstanceId, copyResult?.occurrence?.id);
   } else if (sameContainer) {
@@ -484,8 +488,8 @@ function autoCheckBooleanFields(state, dispatch, socket, instanceId, occurrenceI
 // EXTERNAL FILE DROP → UPLOAD
 // ============================================================
 export function handleFileDrop(ctx, drop) {
-  const { dispatch, socket, state, occurrencesById, clearSession } = ctx;
-  const { payload, panelId, getCellFromPoint, x, y } = drop;
+  const { dispatch, socket, state, occurrencesById, baseContainers, clearSession } = ctx;
+  const { payload, panelId, containerId, getCellFromPoint, x, y } = drop;
 
   const file = payload.data.files[0];
   const cell = getCellFromPoint(x, y);
@@ -499,6 +503,11 @@ export function handleFileDrop(ctx, drop) {
   const capturedPanelView = capturedPanelOcc?.viewId ? state?.viewsById?.[capturedPanelOcc.viewId] : null;
   const isExistingArtifactPanel = capturedPanelView?.viewType === "display" || capturedPanelView?.hasTree;
 
+  // Capture container occurrence before async upload
+  const capturedContainerOcc = containerId
+    ? Object.values(occurrencesById).find(o => o.targetId === containerId)
+    : null;
+
   const formData = new FormData();
   formData.append("file", file);
   formData.append("userId", fileUserId);
@@ -508,7 +517,14 @@ export function handleFileDrop(ctx, drop) {
     .then(r => r.json())
     .then(({ occurrence: uploadedOcc }) => {
       if (!uploadedOcc?.id) return;
-      if (isExistingArtifactPanel && capturedPanelView) {
+      if (capturedContainerOcc) {
+        // File dropped onto a container — append the artifact occurrence to it
+        CommitHelpers.updateOccurrence({
+          dispatch, socket,
+          occurrence: { id: capturedContainerOcc.id, occurrences: [...(capturedContainerOcc.occurrences || []), uploadedOcc.id] },
+          emit: true,
+        });
+      } else if (isExistingArtifactPanel && capturedPanelView) {
         CommitHelpers.updateView({ dispatch, socket, view: { ...capturedPanelView, activeOccurrenceId: uploadedOcc.id } });
       } else {
         const targetCell = cell || { row: 0, col: 0 };
