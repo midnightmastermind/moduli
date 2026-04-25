@@ -18,7 +18,7 @@ import { useBoardState } from "./state/useBoardState";
 
 import Toolbar from "./Toolbar";
 import TransactionHistory from "./ui/TransactionHistory";
-const CommandCenter = React.lazy(() => import("./ui/CommandCenter"));
+import CommandCenter from "./ui/CommandCenter";
 import { Spinner } from "./components/ui/spinner";
 import { Toaster } from "./components/ui/sonner";
 
@@ -100,6 +100,22 @@ export default function App() {
   const instancesById = useMemo(
     () => buildLookup(state.instances),
     [state.instances]
+  );
+
+  const artifactsById = useMemo(
+    () => buildLookup(state.artifacts),
+    [state.artifacts]
+  );
+
+  const textblocksById = useMemo(
+    () => buildLookup(state.textblocks),
+    [state.textblocks]
+  );
+
+  // Merged leaf-placeable lookup — anything that can live as a child of a container.
+  const leafModulesById = useMemo(
+    () => ({ ...instancesById, ...artifactsById, ...textblocksById }),
+    [instancesById, artifactsById, textblocksById]
   );
 
   const occurrencesById = useMemo(
@@ -243,7 +259,34 @@ export default function App() {
 
   // Filter system — reads directly from grid state (no local copy needed — grid is source of truth)
 
-  // Fire NavigationOp when any date filter nav value changes
+  // Global toolbar date nav — steps all isNav conditions' fields by timeUnit
+  const handleFilterNav = useCallback((dir) => {
+    const grid = state.grid;
+    const activeFilter = (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId);
+    const navConditions = (activeFilter?.conditions || []).filter(c => c.isNav && c.fieldId);
+    if (!navConditions.length) return;
+    const timeUnit = activeFilter?.timeUnit || "day";
+    // Use first nav field as the reference for current value
+    const refFieldId = navConditions[0].fieldId;
+    const currentVal = grid?.activeFilterValues?.[refFieldId];
+    const base = currentVal ? new Date(currentVal + "T00:00:00") : new Date();
+    if (timeUnit === "week")       base.setDate(base.getDate() + dir * 7);
+    else if (timeUnit === "month") base.setMonth(base.getMonth() + dir);
+    else if (timeUnit === "year")  base.setFullYear(base.getFullYear() + dir);
+    else                           base.setDate(base.getDate() + dir);
+    const next = base.toISOString().slice(0, 10);
+    const updatedValues = navConditions.reduce((acc, c) => {
+      acc[c.fieldId] = next;
+      return acc;
+    }, { ...(grid.activeFilterValues || {}) });
+    CommitHelpers.updateGrid({
+      dispatch, socket,
+      gridId: state.gridId,
+      grid: { activeFilterValues: updatedValues },
+    });
+  }, [state.grid, state.gridId, dispatch, socket]);
+
+  // Legacy filterNavState NavigationOp (for occurrences still using the old filters[] system)
   useEffect(() => {
     const prev = prevFilterNavRef.current;
     const curr = state.filterNavState || {};
@@ -533,6 +576,9 @@ export default function App() {
       modulesById,
       roleByModuleId,
       instancesById,
+      artifactsById,
+      textblocksById,
+      leafModulesById,
       occurrencesById,
       linkedGroupIndex,
       childrenByParentId,
@@ -560,11 +606,15 @@ export default function App() {
       // force all GridActionsContext consumers to re-render.
       state.grid, state.occurrences, state.containers, state.instances,
       state.fields, state.modules, state.panels, state.pages,
+      state.artifacts, state.textblocks,
       state.userId, state.gridId, state.activeId, state.softTick,
       state.filterNavState,
       modulesById,
       roleByModuleId,
       instancesById,
+      artifactsById,
+      textblocksById,
+      leafModulesById,
       occurrencesById,
       linkedGroupIndex,
       childrenByParentId,
@@ -633,6 +683,7 @@ export default function App() {
           onAddPanel={addNewPanel}
           grid={state?.grid}
           fieldsById={fieldsById}
+          onFilterNav={handleFilterNav}
           onCommandCenter={() => setCommandCenterOpen((prev) => !prev)}
           commandCenterOpen={commandCenterOpen}
           onHistory={() => setHistoryOpen((prev) => !prev)}
@@ -648,13 +699,11 @@ export default function App() {
 
         {/* CommandCenter — keep mounted once opened so slide-up animation works on close */}
         {commandCenterEverOpened && (
-          <React.Suspense fallback={null}>
-            <CommandCenter
-              open={commandCenterOpen}
-              onOpenChange={setCommandCenterOpen}
-              isMobile={isMobile}
-            />
-          </React.Suspense>
+          <CommandCenter
+            open={commandCenterOpen}
+            onOpenChange={setCommandCenterOpen}
+            isMobile={isMobile}
+          />
         )}
         </div>{/* end header wrapper */}
 

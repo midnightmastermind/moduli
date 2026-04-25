@@ -48,6 +48,8 @@ import { DocEditorShell } from "./DocContent.jsx";
 import ContainerPool from "./containers/ContainerPool.jsx";
 import { FilterOverridePopup, TemplatePickerPopup } from "./containerPopups.jsx";
 import ModuleInstance from "./ModuleInstance.jsx";
+import ArtifactCard from "./ArtifactCard.jsx";
+import TextblockCard from "./TextblockCard.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import FieldRenderer from "../ui/FieldRenderer.jsx";
 
@@ -123,7 +125,7 @@ function Container({
   embedOnDelete = null,
   embedSourceType = null,
 }) {
-  const { occurrencesById, instancesById, modulesById, viewsById, fieldsById, state: ctxState } = useContext(GridActionsContext);
+  const { occurrencesById, instancesById, leafModulesById, modulesById, viewsById, fieldsById, state: ctxState } = useContext(GridActionsContext);
   const dragCtx = useDragContext();
   const { isContainerDrag, isInstanceDrag, isExternalDrag, isPanelDrag } = dragCtx;
 
@@ -342,9 +344,9 @@ function Container({
   const containerAllowedEdges = ALL_EDGES;
 
   const containerWithInstances = useMemo(() => {
-    const instanceObjects = getContainerItems(module, occurrencesById, instancesById);
+    const instanceObjects = getContainerItems(module, occurrencesById, leafModulesById);
     return { ...module, instanceObjects };
-  }, [module, occurrencesById, instancesById]);
+  }, [module, occurrencesById, leafModulesById]);
 
   const { ref: containerRef, isDragging, isOver: isContainerOver, closestEdge, props: containerProps } = useDragDrop({
     type: DragType.CONTAINER,
@@ -375,8 +377,8 @@ function Container({
 
   // Occurrence controls order — pass containerOccurrence so ordering reads from occurrence.occurrences
   const allItemsWithOccurrences = useMemo(
-    () => getContainerItemsWithOccurrences(module, occurrencesById, instancesById, undefined, containerOccurrence),
-    [module, occurrencesById, instancesById, containerOccurrence]
+    () => getContainerItemsWithOccurrences(module, occurrencesById, leafModulesById, undefined, containerOccurrence),
+    [module, occurrencesById, leafModulesById, containerOccurrence]
   );
 
   // Apply active filter: hide occurrences that don't match the effective filter values
@@ -734,6 +736,14 @@ function Container({
                 onSelect={handleQuickAddInstance}
                 onCreateNew={onAdd}
                 createLabel="New instance"
+                onAddTextblock={() => {
+                  CommitHelpers.createTextblockInContainer({
+                    dispatch, socket,
+                    gridId: ctxState?.gridId || ctxState?.grid?._id,
+                    userId: ctxState?.userId,
+                    containerOccurrence,
+                  });
+                }}
               />
             </div>
 
@@ -1010,22 +1020,32 @@ function Container({
             aria-label={`${module.label || "Container"} items`}
             style={{ padding: "3px 5px 5px 5px", flex: 1, display: "flex", flexDirection: "column" }}
           >
-            {itemsWithOccurrences.map(({ instance, occurrence }) => (
-              <ModuleInstance
-                key={occurrence.id}
-                module={instance}
-                occurrence={occurrence}
-                containerId={module.id}
-                panelId={panelId}
-                panel={panel}
-                container={module}
-                containerOccurrence={containerOccurrence}
-                dispatch={dispatch}
-                socket={socket}
-                allowedEdges={containerAllowedEdges}
-                onInstanceFocus={null}
-              />
-            ))}
+            {itemsWithOccurrences.map(({ instance, occurrence }) => {
+              const role = instance?.role;
+              let renderBody = null;
+              if (role === "artifact") {
+                renderBody = () => <ArtifactCard module={instance} label={instance.label} />;
+              } else if (role === "textblock") {
+                renderBody = () => <TextblockCard occurrence={occurrence} />;
+              }
+              return (
+                <ModuleInstance
+                  key={occurrence.id}
+                  module={instance}
+                  occurrence={occurrence}
+                  containerId={module.id}
+                  panelId={panelId}
+                  panel={panel}
+                  container={module}
+                  containerOccurrence={containerOccurrence}
+                  dispatch={dispatch}
+                  socket={socket}
+                  allowedEdges={containerAllowedEdges}
+                  onInstanceFocus={null}
+                  renderBody={renderBody}
+                />
+              );
+            })}
             {items.length === 0 && (
               <div className="text-xs text-muted-foreground p-2 text-center empty-placeholder-inline">
                 Drop items here

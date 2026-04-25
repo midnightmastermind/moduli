@@ -52,6 +52,7 @@ function InstanceInner({
   socket,
   embedRadialItems = null,
   embedOnDelete = null,
+  renderBody = null,
 }) {
   const { state } = useContext(GridDataContext);
   const { fieldsById, addInstanceToContainer, occurrencesById, linkedGroupIndex, instancesById, operationsById } = useContext(GridActionsContext);
@@ -223,6 +224,7 @@ function InstanceInner({
         userSelect: "none",
         display: "flex",
         flexDirection: "row",
+        justifyContent: "space-between",
         alignItems: "center",
         gap: 4,
         position: "relative",
@@ -237,7 +239,8 @@ function InstanceInner({
         style={{
           flex: 1,
           display: "flex",
-          flexDirection: "column",
+          flexDirection: "row",
+          justifyContent: "space-between",
           gap: 2,
           minWidth: 0,
           paddingLeft: 2,
@@ -344,38 +347,14 @@ function InstanceInner({
           )}
         </div>{/* end label+radial wrapper */}
 
-        {/* U2: Inline file preview for instances with fileRef */}
-        {instance?.fileRef && (() => {
-          const src = `/uploads/${instance.fileRef}`;
-          const ext = instance.fileRef.split(".").pop().toLowerCase();
-          const isImg = ["jpg","jpeg","png","gif","webp","svg","avif"].includes(ext);
-          const isVid = ["mp4","webm","mov"].includes(ext);
-          const isAudio = ["mp3","wav","ogg","m4a"].includes(ext);
-          if (isImg) return (
-            <img
-              key="preview"
-              src={src}
-              alt={label || "preview"}
-              style={{ height: 36, width: "auto", maxWidth: 60, objectFit: "cover", borderRadius: 3, flexShrink: 0, opacity: 0.85 }}
-            />
-          );
-          if (isVid) return (
-            <video
-              key="preview"
-              src={src}
-              style={{ height: 36, width: "auto", maxWidth: 60, borderRadius: 3, flexShrink: 0, opacity: 0.85 }}
-              muted playsInline preload="metadata"
-            />
-          );
-          if (isAudio) return (
-            <span key="preview" style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>
-              🎵
-            </span>
-          );
-          return null;
-        })()}
+        {/* Custom body — used by ArtifactCard / TextblockCard. Replaces fields layout when provided. */}
+        {renderBody && (
+          <div className="instance-body" style={{ flex: 1, minWidth: 0, position: "relative" }}>
+            {renderBody()}
+          </div>
+        )}
 
-        {showLabel && hasFields && (
+        {!renderBody && showLabel && hasFields && (
           <div
             className="instance-fields"
             style={{
@@ -407,7 +386,7 @@ function InstanceInner({
         )}
 
         {/* Operation widgets */}
-        {operationWidgets.length > 0 && (
+        {!renderBody && operationWidgets.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center", marginLeft: hasFields ? 0 : "auto" }}>
             {operationWidgets.map(({ binding, op }) => {
               if (binding.widgetType === "display") {
@@ -471,6 +450,7 @@ function ModuleInstance({
   embedRadialItems = null,
   embedOnDelete = null,
   embedSourceType = null,
+  renderBody = null,
 }) {
   const dragCtx = useDragContext();
   const { isContainerDrag } = dragCtx;
@@ -561,6 +541,7 @@ function ModuleInstance({
         onDoubleClick={onInstanceFocus ? () => onInstanceFocus(module, occurrence) : undefined}
         embedRadialItems={embedRadialItems}
         embedOnDelete={embedOnDelete}
+        renderBody={renderBody}
       />
       {occurrence && showDoc && (() => {
         const bg = container?.ownStyle?.bg || null;

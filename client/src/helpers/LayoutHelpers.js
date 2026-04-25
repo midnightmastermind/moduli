@@ -52,30 +52,31 @@ function resolveChildOccurrenceIds(entityOccurrence) {
   return entityOccurrence?.occurrences || [];
 }
 
-export function getContainerItems(container, occurrencesLookup, instancesLookup, currentFilterValue, containerOccurrence) {
+export function getContainerItems(container, occurrencesLookup, leafModulesLookup, currentFilterValue, containerOccurrence) {
   const ids = resolveChildOccurrenceIds(containerOccurrence);
   if (!ids.length) return [];
   return ids
     .map(occId => {
       const occ = getItemById(occId, occurrencesLookup);
       if (!occ) return null;
-      return getItemById(occ.targetId, instancesLookup);
+      return getItemById(occ.targetId, leafModulesLookup);
     })
     .filter(Boolean);
 }
 
 /**
- * Gets instances with their occurrences for a container.
- * Occurrence controls order: prefers containerOccurrence.occurrences, falls back to container.occurrences (legacy).
+ * Gets leaf modules (instance | artifact | textblock) with their occurrences for a container.
+ * Occurrence controls order via `containerOccurrence.occurrences`. Returns `{ instance, occurrence }`
+ * tuples — the `instance` field is a misnomer kept for back-compat: it can be any leaf module.
  */
-export function getContainerItemsWithOccurrences(container, occurrencesLookup, instancesLookup, currentFilterValue, containerOccurrence) {
+export function getContainerItemsWithOccurrences(container, occurrencesLookup, leafModulesLookup, currentFilterValue, containerOccurrence) {
   const ids = resolveChildOccurrenceIds(containerOccurrence);
   if (!ids.length) return [];
   return ids
     .map(occId => {
       const occ = getItemById(occId, occurrencesLookup);
       if (!occ) return null;
-      const instance = getItemById(occ.targetId, instancesLookup);
+      const instance = getItemById(occ.targetId, leafModulesLookup);
       if (!instance) return null;
       return { instance, occurrence: occ };
     })
@@ -645,6 +646,7 @@ export function copyInstanceToContainer({
   iterationValue = null,       // The date for this occurrence
   sourceOccurrence = null,     // Source occurrence to copy field values from
   initialMeta = null,          // Extra meta fields (e.g. { x, y } for canvas containers)
+  toPanelId = null,            // Panel module ID — passed to createOccurrence for operation triggers
 }) {
   if (!gridId || !sourceInstanceId || !toContainer || !userId) return null;
 
@@ -668,7 +670,7 @@ export function copyInstanceToContainer({
   const occurrence = {
     id: occurrenceId,
     userId,
-    targetType: "instance",
+    targetType: "module",
     targetId: sourceInstanceId,
     gridId,
     iteration: {
@@ -678,10 +680,11 @@ export function copyInstanceToContainer({
     },
     timestamp: new Date(),
     fields: copiedFields,
+    parentId: toContainer._occurrence?.id || null,
     meta: { containerId, ...(initialMeta || {}) },
   };
 
-  CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit });
+  CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit, panelId: toPanelId });
 
   // Add occurrence to container occurrence (ordering lives on the container occurrence)
   const toContainerOcc = toContainer._occurrence || null;

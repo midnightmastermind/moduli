@@ -106,7 +106,7 @@ export function createInstanceInContainer({
 }
 
 // ===== OCCURRENCE =====
-export function createOccurrence({ dispatch, socket, occurrence, emit = true }) {
+export function createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null }) {
   if (!occurrence?.id) return;
   operationsBridge.updateLocalOcc?.(occurrence);
   dispatch?.(createOccurrenceAction(occurrence));
@@ -116,6 +116,7 @@ export function createOccurrence({ dispatch, socket, occurrence, emit = true }) 
     occurrenceId: occurrence.id,
     instanceId: occurrence.targetId,
     containerId: occurrence.parentId,
+    ...(panelId ? { panelId } : {}),
   });
   // Fire MeasureOp for each field so onChange operations (e.g. aggregations) retrigger on add
   const fields = occurrence.fields;
@@ -464,6 +465,51 @@ export function moveOccurrence({ socket, occurrenceId, toContainerId }) {
 export function createOccurrenceInContainer({ socket, instanceId, containerId, fields }) {
   if (!instanceId || !containerId) return;
   safeEmit(socket, "create_occurrence_in_container", { instanceId, containerId, fields });
+}
+
+// Creates a role:"textblock" module + occurrence and appends it to a container.
+// Optimistic local dispatch + socket emits. Returns the created IDs.
+export function createTextblockInContainer({
+  dispatch, socket, gridId, userId, containerOccurrence, label = "",
+}) {
+  if (!gridId || !userId || !containerOccurrence) return null;
+  const moduleId = crypto?.randomUUID?.() || `tb-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const occurrenceId = crypto?.randomUUID?.() || `to-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const module = {
+    id: moduleId,
+    userId,
+    gridId,
+    role: "textblock",
+    kind: "doc",
+    label: label || "",
+  };
+  const occurrence = {
+    id: occurrenceId,
+    userId,
+    gridId,
+    targetId: moduleId,
+    targetType: "module",
+    parentId: containerOccurrence.id,
+    textmap: { type: "doc", content: [] },
+  };
+
+  dispatch?.(createModuleAction(module));
+  dispatch?.(createOccurrenceAction(occurrence));
+  safeEmit(socket, "create_module", { module });
+  safeEmit(socket, "create_occurrence", { occurrence });
+
+  // Append to container occurrences[].
+  updateOccurrence({
+    dispatch, socket,
+    occurrence: {
+      id: containerOccurrence.id,
+      occurrences: [...(containerOccurrence.occurrences || []), occurrenceId],
+    },
+    emit: true,
+  });
+
+  return { moduleId, occurrenceId };
 }
 
 export async function uploadFile({ file, userId, gridId, dispatch }) {

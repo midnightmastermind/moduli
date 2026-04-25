@@ -37,7 +37,7 @@ export function ArtifactPill({ module: mod }) {
         type: "module",
         id: mod.id,
         data: { ...mod, defaultDragMode: "copy" },
-        role: mod.role || "instance",
+        role: "artifact",
         defaultDragMode: "copy",
         sourceType: "command-center",
       }),
@@ -77,7 +77,7 @@ export function FilesTab() {
   const [dropActive, setDropActive] = useState(false);
 
   const artifacts = useMemo(
-    () => Object.values(modulesById || {}).filter(m => m.fileRef != null),
+    () => Object.values(modulesById || {}).filter(m => m.role === "artifact"),
     [modulesById]
   );
 

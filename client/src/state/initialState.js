@@ -16,6 +16,8 @@ export const initialState = {
   panels: [],
   containers: [],
   instances: [],
+  artifacts: [],
+  textblocks: [],
   occurrences: [], // { id, targetType, targetId, gridId, filterOverride, hidden, ... }
   fields: [],      // { id, name, type, mode, ... }
   operations: [],  // { id, name, blockTree, targetFieldId, triggerType, ... }

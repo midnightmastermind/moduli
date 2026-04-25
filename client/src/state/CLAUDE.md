@@ -1,6 +1,16 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-04-23. Check this file before re-reading source._
+_Updated: 2026-04-25. Check this file before re-reading source._
+
+## Recent Changes (Apr 25 2026 — Artifact + Textblock Role Buckets)
+- **masterReducer.js**: `deriveRoleArrays` now buckets `role: "artifact"` and `role: "textblock"` modules into new `artifacts` / `textblocks` arrays (alongside panels/containers/instances/pages). FULL_STATE return + LOGOUT clear include the two new keys.
+- **initialState.js**: Added `artifacts: []` and `textblocks: []` next to `instances: []`.
+- **selectors.js**: `createLookupsFromState` returns `artifactsById` and `textblocksById`. `traverseContainerChildren` now buckets each child by its module's role (artifact / textblock / instance) instead of always tagging as `instance`. Same in `computeRoleByModuleId`.
+
+## Recent Changes (Apr 24 2026 — isNav replaces primaryDateFieldId)
+- **selectors.js**: No changes — `isOccurrenceVisible` already used `conditions` path correctly. `effectiveFilters[fieldId]` is used as rightVal when `cond.value` is null (what nav arrows write to).
+- **concept**: `primaryDateFieldId` removed from all client code. Nav is now driven by `isNav: boolean` on individual filter conditions. Any condition can have `isNav: true` regardless of field type. `LocalFilterNav`, `LocalFilterButton`, `Toolbar`, `App.handleFilterNav` all updated.
+
 
 ## Recent Changes (Apr 23 2026 — filterNavState + INIT/SET_FILTER_NAV)
 - **actions.js**: Added `INIT_FILTER_NAV` + `SET_FILTER_NAV` to `ActionTypes`. Added `initFilterNavAction(navMap)` + `setFilterNavAction(filterId, value)` action creators. Used by bindSocketToStore (on full_state) and Toolbar (on date nav buttons).

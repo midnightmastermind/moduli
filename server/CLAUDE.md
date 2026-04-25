@@ -1,6 +1,10 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-04-11. Check this file before re-reading source._
+_Updated: 2026-04-25. Check this file before re-reading source._
+
+## Recent Changes (Apr 25 2026 — Artifact Role + Migration)
+- **server.js**: Replaced `mimeToViewType` with `mimeToKind(mime, filename) → "image"|"video"|"audio"|"pdf"|"code"|"markdown"`. Added `viewFieldsForKind(kind)` helper that derives `{ viewType, artifactType }` for the (still-created) View record so the artifact-panel display path keeps working. Both `/api/artifacts/upload` and `/api/upload` (and the connection-import handler) now write `role: "artifact"` and the `kind` directly on the Module — `meta.artifactType` and `meta.viewType` are no longer set.
+- **scripts/migrateArtifactRole.js** (NEW): One-shot migration. Finds all `role:"instance"` + `kind:"artifact"` modules and rewrites them to `role:"artifact"` with `kind` from `meta.artifactType` (or fileRef extension). Removes `meta.artifactType` and `meta.viewType`. Run: `node --env-file=.env scripts/migrateArtifactRole.js`. Already executed once on the dev DB (8 rows migrated).
 
 ## Recent Changes (Apr 11 2026 — Minimal Test Grid Script)
 - **scripts/createTestGrid.js** (NEW): Creates a second grid for `josh@jpoms.com` with minimal data for testing. Does NOT delete anything. Panels: [0,0] Daily Toolkit (Physical → Drink Water), [1,0] Todo List (empty General), [0,1 h=2] Center Hub (Schedule + Notes pages), [0,2] Daily Goals (Physical goal → water total). Fields: water, completed, scheduledDate, timeslot, due, totalWater. Operations: Water Today sum + schedule stamp/clear. Run: `node --env-file=.env scripts/createTestGrid.js`

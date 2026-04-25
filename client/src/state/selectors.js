@@ -12,6 +12,8 @@ export function createLookupsFromState(state) {
   const panelsById = {};
   const containersById = {};
   const instancesById = {};
+  const artifactsById = {};
+  const textblocksById = {};
   const pagesById = {};
   const occurrencesById = {};
   const fieldsById = {};
@@ -23,13 +25,16 @@ export function createLookupsFromState(state) {
   // Build modulesById from all modules
   (state.modules || []).forEach(m => { if (m.id) modulesById[m.id] = m; });
 
-  // Helper: traverse container → instance children
+  // Helper: traverse container → leaf-placeable children (instance | artifact | textblock)
   function traverseContainerChildren(containerOcc) {
-    for (const instanceOccId of containerOcc.occurrences || []) {
-      const instanceOcc = occurrencesById[instanceOccId];
-      if (!instanceOcc) continue;
-      const instance = modulesById[instanceOcc.targetId];
-      if (instance) instancesById[instance.id] = instance;
+    for (const childOccId of containerOcc.occurrences || []) {
+      const childOcc = occurrencesById[childOccId];
+      if (!childOcc) continue;
+      const childMod = modulesById[childOcc.targetId];
+      if (!childMod) continue;
+      if (childMod.role === "artifact") artifactsById[childMod.id] = childMod;
+      else if (childMod.role === "textblock") textblocksById[childMod.id] = childMod;
+      else instancesById[childMod.id] = childMod;
     }
   }
 
@@ -72,17 +77,23 @@ export function createLookupsFromState(state) {
     else if (m.role === "page" && !pagesById[m.id]) pagesById[m.id] = m;
     else if (m.role === "container" && !containersById[m.id]) containersById[m.id] = m;
     else if (m.role === "instance" && !instancesById[m.id]) instancesById[m.id] = m;
+    else if (m.role === "artifact" && !artifactsById[m.id]) artifactsById[m.id] = m;
+    else if (m.role === "textblock" && !textblocksById[m.id]) textblocksById[m.id] = m;
   });
 
   // Legacy role arrays (backward compat)
   (state.panels || []).forEach(p => { if (p.id && !panelsById[p.id]) panelsById[p.id] = p; });
   (state.containers || []).forEach(c => { if (c.id && !containersById[c.id]) containersById[c.id] = c; });
   (state.instances || []).forEach(i => { if (i.id && !instancesById[i.id]) instancesById[i.id] = i; });
+  (state.artifacts || []).forEach(a => { if (a.id && !artifactsById[a.id]) artifactsById[a.id] = a; });
+  (state.textblocks || []).forEach(t => { if (t.id && !textblocksById[t.id]) textblocksById[t.id] = t; });
 
   return {
     panelsById,
     containersById,
     instancesById,
+    artifactsById,
+    textblocksById,
     pagesById,
     occurrencesById,
     fieldsById,
@@ -98,10 +109,13 @@ export function computeRoleByModuleId(grid, occurrencesById, modulesById) {
   const map = {};
 
   function traverseContainerChildren(containerOcc) {
-    for (const instanceOccId of containerOcc.occurrences || []) {
-      const instanceOcc = occurrencesById[instanceOccId];
-      if (!instanceOcc) continue;
-      if (instanceOcc.targetId) map[instanceOcc.targetId] = "instance";
+    for (const childOccId of containerOcc.occurrences || []) {
+      const childOcc = occurrencesById[childOccId];
+      if (!childOcc?.targetId) continue;
+      const childMod = modulesById?.[childOcc.targetId];
+      if (childMod?.role === "artifact") map[childOcc.targetId] = "artifact";
+      else if (childMod?.role === "textblock") map[childOcc.targetId] = "textblock";
+      else map[childOcc.targetId] = "instance";
     }
   }
 

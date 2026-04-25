@@ -16,7 +16,7 @@ const ROLE_COLORS = {
   instance: "rgba(168,85,247,0.7)",
 };
 
-export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel }) {
+export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock }) {
   const { modulesById, roleByModuleId } = useContext(GridActionsContext);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -154,7 +154,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                   padding: "5px 8px",
                   background: "none",
                   border: "none",
-                  borderBottom: "1px solid var(--border-subtle)",
+                  borderBottom: onAddTextblock ? "none" : "1px solid var(--border-subtle)",
                   cursor: "pointer",
                   color: "var(--accent-blue, #60a5fa)",
                   fontSize: 11,
@@ -163,6 +163,28 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                 }}
               >
                 <Plus size={10} /> {createLabel || `New ${targetRole}`}
+              </button>
+            )}
+            {onAddTextblock && (
+              <button
+                onClick={() => { onAddTextblock(); setOpen(false); setSearch(""); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  width: "100%",
+                  padding: "5px 8px",
+                  background: "none",
+                  border: "none",
+                  borderBottom: "1px solid var(--border-subtle)",
+                  cursor: "pointer",
+                  color: "var(--accent-blue, #60a5fa)",
+                  fontSize: 11,
+                  fontFamily: "var(--font-mono)",
+                  textAlign: "left",
+                }}
+              >
+                <Plus size={10} /> Textblock
               </button>
             )}
             {modules.length === 0 && (

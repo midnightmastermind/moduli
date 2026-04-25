@@ -315,13 +315,21 @@ const mdDir = path.join(uploadsDir, "md");
 if (!fs.existsSync(mdDir)) fs.mkdirSync(mdDir, { recursive: true });
 
 const CODE_EXTENSIONS = new Set([".js",".jsx",".ts",".tsx",".py",".sh",".bash",".json",".yaml",".yml",".toml",".css",".html",".xml",".sql",".go",".rs",".c",".cpp",".h",".rb",".php",".swift",".kt"]);
-function mimeToViewType(mime, filename = "") {
-  if (mime?.startsWith("image/")) return { viewType: "display", artifactType: "image" };
-  if (mime?.startsWith("video/")) return { viewType: "display", artifactType: "video" };
-  if (mime?.startsWith("audio/")) return { viewType: "display", artifactType: "audio" };
-  if (mime === "application/pdf") return { viewType: "display", artifactType: "pdf" };
+function mimeToKind(mime, filename = "") {
+  if (mime?.startsWith("image/")) return "image";
+  if (mime?.startsWith("video/")) return "video";
+  if (mime?.startsWith("audio/")) return "audio";
+  if (mime === "application/pdf") return "pdf";
   const ext = filename.includes(".") ? "." + filename.split(".").pop().toLowerCase() : "";
-  if (CODE_EXTENSIONS.has(ext)) return { viewType: "code", artifactType: null };
+  if (CODE_EXTENSIONS.has(ext)) return "code";
+  return "markdown";
+}
+// Derives the panel-display View fields from the artifact module's kind.
+// Keeps the existing artifact-panel path working: drag artifact onto empty grid cell
+// → View is consulted for rendering. In containers, ArtifactCard reads `kind` directly.
+function viewFieldsForKind(kind) {
+  if (["image", "video", "audio", "pdf"].includes(kind)) return { viewType: "display", artifactType: kind };
+  if (kind === "code") return { viewType: "code", artifactType: null };
   return { viewType: "markdown", artifactType: null };
 }
 
@@ -336,15 +344,16 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
     const destPath = path.join(artifactSubdir, destFileName);
     fs.renameSync(req.file.path, destPath);
     const fileRef = `${subfolder}/${destFileName}`;
-    const { viewType, artifactType } = mimeToViewType(req.file.mimetype, req.file.originalname);
+    const kind = mimeToKind(req.file.mimetype, req.file.originalname);
+    const { viewType, artifactType } = viewFieldsForKind(kind);
     const moduleId = nanoid();
     const occurrenceId = nanoid();
-    const mod = new Module({ id: moduleId, userId, gridId: gridId || null, role: "instance", kind: "artifact", label: req.file.originalname, fileRef, defaultDragMode: "copy", meta: { mimeType: req.file.mimetype, viewType, artifactType, originalName: req.file.originalname, folderId: parentFolderId || null } });
+    const mod = new Module({ id: moduleId, userId, gridId: gridId || null, role: "artifact", kind, label: req.file.originalname, fileRef, defaultDragMode: "copy", meta: { mimeType: req.file.mimetype, originalName: req.file.originalname, folderId: parentFolderId || null } });
     await mod.save();
     const artifactViewId = nanoid();
     const artifactView = new View({ id: artifactViewId, userId, gridId: gridId || null, viewType, artifactType, layout: {} });
     await artifactView.save();
-    const occ = new Occurrence({ id: occurrenceId, userId, gridId: gridId || null, targetId: moduleId, targetType: "module", parentId: parentFolderId || null, viewId: artifactViewId, textmap: viewType === "markdown" ? { type: "doc", content: [] } : null });
+    const occ = new Occurrence({ id: occurrenceId, userId, gridId: gridId || null, targetId: moduleId, targetType: "module", parentId: parentFolderId || null, viewId: artifactViewId, textmap: kind === "markdown" ? { type: "doc", content: [] } : null });
     await occ.save();
     if (manifestId) {
       const manifestView = await View.findOne({ manifestId, userId });
@@ -376,9 +385,9 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     const { userId, gridId } = req.body;
     if (!userId || !req.file) return res.status(400).json({ error: "Missing userId or file" });
     const fileRef = req.file.filename;
-    const { viewType, artifactType } = mimeToViewType(req.file.mimetype, req.file.originalname);
+    const kind = mimeToKind(req.file.mimetype, req.file.originalname);
     const moduleId = nanoid();
-    const module = new Module({ id: moduleId, userId, gridId: gridId || null, role: "instance", kind: "artifact", label: req.file.originalname, fileRef, meta: { mimeType: req.file.mimetype, viewType, originalName: req.file.originalname } });
+    const module = new Module({ id: moduleId, userId, gridId: gridId || null, role: "artifact", kind, label: req.file.originalname, fileRef, meta: { mimeType: req.file.mimetype, originalName: req.file.originalname } });
     await module.save();
     const obj = module.toObject();
     const modObj = { ...obj, id: obj.id || obj._id.toString() };
@@ -449,7 +458,8 @@ app.post("/api/connections/:id/import", async (req, res) => {
     const fileRef = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
     fs.copyFileSync(srcPath, path.join(uploadsDir, fileRef));
     const moduleId = nanoid();
-    const module = new Module({ id: moduleId, userId, gridId: gridId || null, role: "container", kind: "artifact", label: fileName, fileRef, meta: { mimeType: mime, ...mimeToViewType(mime), originalName: fileName } });
+    const kind = mimeToKind(mime, fileName);
+    const module = new Module({ id: moduleId, userId, gridId: gridId || null, role: "artifact", kind, label: fileName, fileRef, meta: { mimeType: mime, originalName: fileName } });
     await module.save();
     const obj = module.toObject();
     const modObj = { ...obj, id: obj.id || obj._id.toString() };
@@ -493,6 +503,15 @@ setInterval(async () => {
     }
   } catch (err) { console.error("Schedule cron error:", err.message); }
 }, 60_000);
+
+// ========================================================
+// STATIC CLIENT SERVING (production)
+// ========================================================
+const clientDistDir = path.join(__dirname, "../client/dist");
+if (fs.existsSync(path.join(clientDistDir, "index.html"))) {
+  app.use(express.static(clientDistDir));
+  app.get("/{*splat}", (_req, res) => res.sendFile(path.join(clientDistDir, "index.html")));
+}
 
 // ========================================================
 // SERVER LISTEN

@@ -52,7 +52,6 @@ import Container from "./ModuleContainer.jsx";
 import Page from "./ModulePage.jsx";
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
-import LocalFilterNav from "../ui/LocalFilterNav.jsx";
 
 // ============================================================
 // LAYOUT HELPERS
@@ -281,7 +280,7 @@ function Panel({
   const prevActiveOccRef = useRef(null);
   const panelDragMode = module?.defaultDragMode || "move";
 
-  const { occurrencesById, instancesById, containersById, viewsById, modulesById, manifestsById, foldersById } = useContext(GridActionsContext);
+  const { occurrencesById, instancesById, leafModulesById, containersById, viewsById, modulesById, manifestsById, foldersById } = useContext(GridActionsContext);
   const { state } = useContext(GridDataContext);
   const { isMobile } = useContext(GridLiveContext);
   const dragCtx = useDragContext();
@@ -483,10 +482,10 @@ function Panel({
     const containers = getPanelContainers(module, occurrencesById, containersById, panelOccurrence);
     const containerObjects = containers.map(container => ({
       ...container,
-      instanceObjects: getContainerItems(container, occurrencesById, instancesById),
+      instanceObjects: getContainerItems(container, occurrencesById, leafModulesById),
     }));
     return { ...module, containerObjects };
-  }, [module, occurrencesById, containersById, instancesById, panelOccurrence]);
+  }, [module, occurrencesById, containersById, leafModulesById, panelOccurrence]);
 
   const panelHandleRef = useRef(null);
 
@@ -752,27 +751,8 @@ function Panel({
                 {activePageLabel}
               </span>
 
-              {/* X button to close/unpin the active page */}
-              {activePageEntry?.occurrence?.id && (
-                <button
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => closePage(activePageEntry.occurrence.id)}
-                  title="Close page"
-                  style={{
-                    flexShrink: 0, background: "none", border: "none", cursor: "pointer",
-                    padding: "1px 3px", display: "flex", alignItems: "center",
-                    color: "var(--text-muted)", borderRadius: 3,
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.background = "none"; }}
-                >
-                  <X size={10} />
-                </button>
-              )}
-
-              {/* Filter nav + QuickAdd */}
+              {/* QuickAdd */}
               <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 5, alignItems: "center" }}>
-                <LocalFilterNav occurrence={panelOccurrence} compact={true} />
                 <QuickAddMenu
                   targetRole="page"
                   onSelect={handleQuickAddPage}
@@ -813,6 +793,7 @@ function Panel({
                   socket={socket}
                   drilldownTarget={pendingDrilldown}
                   onDrilldownComplete={() => setPendingDrilldown(null)}
+                  onClose={() => closePage(activePageEntry.occurrence.id)}
                 />
               ) : (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12, height: "100%" }}>
@@ -833,20 +814,20 @@ function Panel({
               background: "var(--surface-base)",
               gap: 2,
             }}>
-              {/* Root tree toggle — left */}
+              {/* Local tree toggle — left */}
               <button
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => { setRootTreeOpen(v => !v); setLocalTreeOpen(false); }}
+                onClick={() => { setLocalTreeOpen(v => !v); setRootTreeOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 3, flexShrink: 0,
                   padding: "2px 7px", border: "none", borderRadius: 4, cursor: "pointer",
-                  background: rootTreeOpen ? "rgba(100,180,255,0.12)" : "transparent",
-                  color: rootTreeOpen ? "rgba(100,180,255,1)" : "var(--text-muted)",
+                  background: localTreeOpen ? "rgba(6,182,212,0.12)" : "transparent",
+                  color: localTreeOpen ? "#06b6d4" : "var(--text-muted)",
                   fontSize: 10, fontFamily: "var(--font-mono)",
                 }}
               >
-                <Folder size={10} style={{ opacity: 0.7 }} />
-                Root
+                <FileText size={10} style={{ opacity: 0.7 }} />
+                Local
               </button>
 
               {/* Breadcrumb trail — middle, folder-path derived */}
@@ -873,20 +854,20 @@ function Panel({
                 })}
               </div>
 
-              {/* Local tree toggle — right */}
+              {/* Root tree toggle — right */}
               <button
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => { setLocalTreeOpen(v => !v); setRootTreeOpen(false); }}
+                onClick={() => { setRootTreeOpen(v => !v); setLocalTreeOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 3, flexShrink: 0,
                   padding: "2px 7px", border: "none", borderRadius: 4, cursor: "pointer",
-                  background: localTreeOpen ? "rgba(6,182,212,0.12)" : "transparent",
-                  color: localTreeOpen ? "#06b6d4" : "var(--text-muted)",
+                  background: rootTreeOpen ? "rgba(100,180,255,0.12)" : "transparent",
+                  color: rootTreeOpen ? "rgba(100,180,255,1)" : "var(--text-muted)",
                   fontSize: 10, fontFamily: "var(--font-mono)",
                 }}
               >
-                <FileText size={10} style={{ opacity: 0.7 }} />
-                Local
+                <Folder size={10} style={{ opacity: 0.7 }} />
+                Root
               </button>
             </div>
           );
@@ -897,8 +878,8 @@ function Panel({
               {breadcrumbBar}
               {/* On desktop: sidebars push content (flex row). On mobile: sidebars overlay (absolute). */}
               <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", position: "relative" }}>
-                {/* Root tree sidebar — LEFT, pushes content on desktop, overlays on mobile */}
-                {rootTreeOpen && (
+                {/* Local tree sidebar — LEFT, pushes content on desktop, overlays on mobile */}
+                {localTreeOpen && (
                   isMobile ? (
                     <div style={{
                       position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 100,
@@ -909,7 +890,7 @@ function Panel({
                       pointerEvents: "auto",
                     }}>
                       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
-                        {rootTree}
+                        {localTree}
                       </div>
                     </div>
                   ) : (
@@ -921,7 +902,7 @@ function Panel({
                       overflow: "hidden",
                     }}>
                       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
-                        {rootTree}
+                        {localTree}
                       </div>
                     </div>
                   )
@@ -930,8 +911,8 @@ function Panel({
                 <div style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                   {pageContent}
                 </div>
-                {/* Local tree sidebar — RIGHT, pushes content on desktop, overlays on mobile */}
-                {localTreeOpen && (
+                {/* Root tree sidebar — RIGHT, pushes content on desktop, overlays on mobile */}
+                {rootTreeOpen && (
                   isMobile ? (
                     <div style={{
                       position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 100,
@@ -942,7 +923,7 @@ function Panel({
                       pointerEvents: "auto",
                     }}>
                       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
-                        {localTree}
+                        {rootTree}
                       </div>
                     </div>
                   ) : (
@@ -954,7 +935,7 @@ function Panel({
                       overflow: "hidden",
                     }}>
                       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
-                        {localTree}
+                        {rootTree}
                       </div>
                     </div>
                   )

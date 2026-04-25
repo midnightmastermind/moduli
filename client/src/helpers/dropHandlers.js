@@ -19,6 +19,7 @@ import { runMatchingOperations } from "./operationExecutor";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { embedDeleteRegistry } from "./embedRegistry";
 import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
+import { createModuleAction, createOccurrenceAction } from "../state/actions";
 
 function makeUUID() {
   return crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -515,8 +516,14 @@ export function handleFileDrop(ctx, drop) {
 
   fetch("/api/artifacts/upload", { method: "POST", body: formData })
     .then(r => r.json())
-    .then(({ occurrence: uploadedOcc }) => {
+    .then(({ module: uploadedModule, occurrence: uploadedOcc }) => {
       if (!uploadedOcc?.id) return;
+      // Optimistic local dispatch — eliminates the blank-spot delay where the
+      // container update referenced an occurrence not yet in local state (the
+      // socket events arrive on a separate channel from the fetch response).
+      // Reducer is idempotent so the duplicate dispatch on socket arrival is a no-op.
+      if (uploadedModule) dispatch(createModuleAction(uploadedModule));
+      dispatch(createOccurrenceAction(uploadedOcc));
       if (capturedContainerOcc) {
         // File dropped onto a container — append the artifact occurrence to it
         CommitHelpers.updateOccurrence({
@@ -623,8 +630,9 @@ export function handleModuleDrop(ctx, drop) {
   const role = payload?.data?.role || payload?.role;
   const gridId = state?.gridId || state?.grid?._id?.toString() || state?.grid?.id;
 
-  // INSTANCE role: create persistent occurrence in target container/panel
-  if (!role || role === "instance") {
+  // LEAF roles (instance | artifact | textblock): create persistent occurrence in target container/panel
+  const isLeafRole = !role || role === "instance" || role === "artifact" || role === "textblock";
+  if (isLeafRole) {
     let targetContainer = null;
     if (containerId) {
       const c = baseContainers.find(c => c.id === containerId);
@@ -685,12 +693,12 @@ export function handleModuleDrop(ctx, drop) {
     }
   }
 
-  // INSTANCE role → GRID CELL: drilldown
-  if ((!role || role === "instance") && dropTarget.type === "grid-cell" && dropTarget.context?.row !== undefined) {
+  // LEAF role → GRID CELL: drilldown (works for instance | artifact | textblock)
+  if (isLeafRole && dropTarget.type === "grid-cell" && dropTarget.context?.row !== undefined) {
     const cell = { row: dropTarget.context.row, col: dropTarget.context.col };
     const grid = state?.grid;
     const userId = state?.userId;
-    const instance = (state?.instances || []).find(i => i.id === payload.id);
+    const instance = (state?.modules || []).find(m => m.id === payload.id);
     if (cell && grid && userId && instance) {
       const newPanel = { id: makeUUID(), label: instance.label || "Panel", role: "panel", kind: "list" };
       const { occurrence: panelOcc } = LayoutHelpers.createPanelInGrid({

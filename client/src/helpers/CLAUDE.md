@@ -1,6 +1,16 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-04-23. Check this file before re-reading source._
+_Updated: 2026-04-25. Check this file before re-reading source._
+
+## Recent Changes (Apr 25 2026 — Artifact + Textblock Roles + Optimistic Upload)
+- **dropHandlers.js**: `handleModuleDrop` now treats `role: "artifact"` and `role: "textblock"` as leaf-placeable (alongside `instance` / undefined) — see `isLeafRole`. Container drops + grid-cell drilldown both honor the new roles. Grid-cell drilldown now scans `state.modules` (not `state.instances`) so it finds artifact / textblock source modules too. `handleFileDrop` destructures `module` from the upload response and dispatches `createModuleAction` + `createOccurrenceAction` BEFORE updating the container — eliminates the blank-spot delay where the container update referenced an occurrence not yet in local state. Reducer is idempotent so the duplicate dispatch on socket arrival is a no-op.
+- **LayoutHelpers.js**: `getContainerItemsWithOccurrences` and `getContainerItems` now take `leafModulesLookup` (a merged map of instances + artifacts + textblocks) instead of `instancesLookup`. Return shape `{ instance, occurrence }` is unchanged for back-compat — the `instance` field is now any leaf module. `copyInstanceToContainer` writes `targetType: "module"` (was `"instance"`) so artifact/textblock occurrences pass autofill role detection correctly.
+- **CommitHelpers.js**: New `createTextblockInContainer({ dispatch, socket, gridId, userId, containerOccurrence, label })`. Generates IDs client-side, optimistic-dispatches the role:"textblock", kind:"doc" module + occurrence, emits `create_module` / `create_occurrence`, appends the new occurrence ID to the container's `occurrences[]`. Returns `{ moduleId, occurrenceId }`.
+
+## Recent Changes (Apr 23 2026 — Copy-Drag Operation Triggers Fix)
+- **LayoutHelpers.js**: `copyInstanceToContainer` now sets `parentId: toContainer._occurrence?.id` on the created occurrence (enables ancestor walk for HAS_ANCESTOR checks). Accepts optional `toPanelId` param, forwarded to `CommitHelpers.createOccurrence`.
+- **CommitHelpers.js**: `createOccurrence` now accepts optional `panelId` param; includes it in the OccurrenceCreateOp so `onCreate`/`onAdd` operations with `panelId` filters (e.g. Schedule Stamp) fire on copy-drag.
+- **dropHandlers.js**: Copy-drag path now resolves `toPanelOcc` via `findGridPanelOcc` and passes `toPanelId` to `copyInstanceToContainer`, matching the move-drag path's context resolution.
 
 ## Recent Changes (Apr 23 2026 — Optimistic Operation Triggers from CommitHelpers)
 - **CommitHelpers.js**: `updateOccurrence` now accepts `triggerField = null` param. When provided, calls `operationsBridge.updateLocalOcc(occurrence)` + fires `MeasureOp` with `fieldId` so onChange operations with `allowedFields` match correctly. `FieldRenderer.jsx` passes `triggerField: { fieldId: field.id, value, instanceId }`.

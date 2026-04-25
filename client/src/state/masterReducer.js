@@ -17,15 +17,17 @@ import { ActionTypes } from "./actions";
 
 // Helper: split a flat modules array into role-based derived arrays
 function deriveRoleArrays(modules = []) {
-  const panels = [], containers = [], instances = [], pages = [];
+  const panels = [], containers = [], instances = [], pages = [], artifacts = [], textblocks = [];
   for (const m of modules) {
     if (m.trashed) continue;
     if (m.role === "panel") panels.push(m);
     else if (m.role === "page") pages.push(m);
     else if (m.role === "container") containers.push(m);
     else if (m.role === "instance") instances.push(m);
+    else if (m.role === "artifact") artifacts.push(m);
+    else if (m.role === "textblock") textblocks.push(m);
   }
-  return { panels, containers, instances, pages };
+  return { panels, containers, instances, pages, artifacts, textblocks };
 }
 
 export function masterReducer(state, action) {
@@ -76,6 +78,8 @@ export function masterReducer(state, action) {
                 panels: derived.panels,
                 containers: derived.containers,
                 instances: derived.instances,
+                artifacts: derived.artifacts,
+                textblocks: derived.textblocks,
                 availableGrids: availableGrids || [],
                 occurrences: mergedOccs,
                 fields: fields || [],
@@ -116,6 +120,8 @@ export function masterReducer(state, action) {
                 availableGrids: [],
                 containers: [],
                 instances: [],
+                artifacts: [],
+                textblocks: [],
                 occurrences: [],
                 fields: [],
                 manifests: [],

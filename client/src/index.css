@@ -1722,3 +1722,114 @@ div:hover > .page-tree-close-btn:hover { opacity: 1; color: var(--text-primary) 
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ============================================================ */
+/* ArtifactCard — thumbnail + expanded media viewer             */
+/* ============================================================ */
+.artifact-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 80px;
+  cursor: zoom-in;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--input-bg);
+  border: 1px solid var(--border-subtle);
+}
+.artifact-thumb {
+  max-height: 120px;
+  max-width: 100%;
+  width: auto;
+  object-fit: cover;
+  border-radius: 3px;
+  display: block;
+}
+.artifact-thumb--audio,
+.artifact-thumb--pdf,
+.artifact-thumb--unknown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px;
+}
+.artifact-thumb-expand-hint {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  color: var(--text-faint);
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 3px;
+  padding: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
+  pointer-events: none;
+}
+.artifact-card:hover .artifact-thumb-expand-hint { opacity: 1; }
+
+.artifact-card--expanded {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  cursor: default;
+  padding: 24px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+}
+.artifact-expanded-media {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+.artifact-expanded-audio {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.artifact-expand-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+.artifact-expand-close:hover { background: rgba(0, 0, 0, 0.8); }
+.instance-wrap:has(.artifact-card--expanded) {
+  position: relative;
+  min-height: 220px;
+}
+
+/* ============================================================ */
+/* TextblockCard — inline rich-text in a container row          */
+/* ============================================================ */
+.textblock-card {
+  width: 100%;
+  padding: 4px 6px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.textblock-card .ProseMirror { min-height: 24px; outline: none; }

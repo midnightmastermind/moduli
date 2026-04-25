@@ -1,6 +1,13 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: Apr 12 2026. This folder implements occurrence-based view routing._
+_Updated: Apr 25 2026. This folder implements occurrence-based view routing._
+
+## Recent Changes (Apr 25 2026 — Artifact + Textblock Roles)
+- **ArtifactCard.jsx** (NEW): Pure renderer for `role:"artifact"` modules sitting in a container. Thumbnail mode (~120px tall, click to expand) and expanded mode that fills the parent `.instance-wrap` row. Video uses `<video controls autoPlay>`, image uses `<img>`, audio uses `<audio controls>`, pdf uses `<iframe>`. X button (`.artifact-expand-close`) collapses back. Reads `module.kind` (image/video/audio/pdf) and `module.fileRef`. No state in occurrence, no view, no panel involved — just an inline card.
+- **TextblockCard.jsx** (NEW): Pure renderer for `role:"textblock"` modules. Wraps the existing `<Editor>` on `occurrence.textmap`. Save path is the same as DocContent (Editor's onChange → updateOccurrence). One CSS class `.textblock-card`.
+- **ModuleContainer.jsx**: Child render loop routes by `module.role` — `<ModuleInstance renderBody=ArtifactCard>` for artifacts, `<ModuleInstance renderBody=TextblockCard>` for textblocks, plain `<ModuleInstance>` for instances. Reads merged `leafModulesById` from context and passes it to `getContainerItems` / `getContainerItemsWithOccurrences` (was passing `instancesById`). QuickAddMenu now has `onAddTextblock` callback that calls `CommitHelpers.createTextblockInContainer`.
+- **ModuleInstance.jsx**: Added `renderBody = null` prop on `InstanceInner` and the outer wrapper. When provided, replaces the standard fields/operations layout (the old inline `instance.fileRef` `<img>/<video>/🎵` block was deleted — artifacts no longer reach this path; they go through `ArtifactCard` via `renderBody`).
+- **ModulePanel.jsx**: `getContainerItems` call now uses `leafModulesById` instead of `instancesById`.
 
 ## Recent Changes (Apr 15 2026 — embedSourceType for Drag-Out)
 - **ModuleInstance.jsx**: Added `embedSourceType = null` prop. Passed as `sourceType` in `useDragDrop` context so DragProvider knows the drag originated from a doc embed.
