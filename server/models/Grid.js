@@ -22,6 +22,10 @@ const GridSchema = new mongoose.Schema({
       conditions: { type: mongoose.Schema.Types.Mixed, default: [] },
       // Root is a ConditionGroup: { operator: "AND"|"OR", rules: [...] }
       timeScale: { type: String, enum: ["daily", "weekly", "monthly", "yearly", null], default: null },
+      // primaryDateFieldId: which date field the nav arrows + filterOverride write to.
+      primaryDateFieldId: { type: String, default: null },
+      // timeUnit: step size for date nav. "day"|"week"|"month"|"year"
+      timeUnit: { type: String, default: "day" },
       // When true, downstream panels/containers cannot override this filter.
       lock: { type: Boolean, default: false },
     }],

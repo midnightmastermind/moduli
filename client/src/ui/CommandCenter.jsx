@@ -4,7 +4,7 @@
 // Collapses to tab bar only while dragging so grid is accessible
 // ============================================================
 
-import React, { useState, Suspense, lazy } from "react";
+import React, { useState } from "react";
 import {
   User,
   Settings2,
@@ -13,22 +13,19 @@ import {
   List,
   Keyboard,
   File,
-  Filter,
   LayoutGrid,
   Palette,
 } from "lucide-react";
 
-// Lazy-load tabs — only the active tab's code is loaded
-const FieldsTab = lazy(() => import("./commandCenter/FieldsTab").then(m => ({ default: m.FieldsTab })));
-const OperationsTab = lazy(() => import("./commandCenter/OperationsTab").then(m => ({ default: m.OperationsTab })));
-const ConnectionsTab = lazy(() => import("./commandCenter/ConnectionsTab").then(m => ({ default: m.ConnectionsTab })));
-const FilesTab = lazy(() => import("./commandCenter/FilesTab").then(m => ({ default: m.FilesTab })));
-const ListsTab = lazy(() => import("./commandCenter/ListsTab").then(m => ({ default: m.ListsTab })));
-const ShortcutsTab = lazy(() => import("./commandCenter/ShortcutsTab").then(m => ({ default: m.ShortcutsTab })));
-const UserSettingsTab = lazy(() => import("./commandCenter/UserSettingsTab").then(m => ({ default: m.UserSettingsTab })));
-const FiltersTab = lazy(() => import("./commandCenter/FiltersTab").then(m => ({ default: m.FiltersTab })));
-const GridSettingsTab = lazy(() => import("./commandCenter/GridSettingsTab").then(m => ({ default: m.GridSettingsTab })));
-const AppearanceTab = lazy(() => import("./commandCenter/AppearanceTab").then(m => ({ default: m.AppearanceTab })));
+import { FieldsTab } from "./commandCenter/FieldsTab";
+import { OperationsTab } from "./commandCenter/OperationsTab";
+import { ConnectionsTab } from "./commandCenter/ConnectionsTab";
+import { FilesTab } from "./commandCenter/FilesTab";
+import { ListsTab } from "./commandCenter/ListsTab";
+import { ShortcutsTab } from "./commandCenter/ShortcutsTab";
+import { UserSettingsTab } from "./commandCenter/UserSettingsTab";
+import { GridSettingsTab } from "./commandCenter/GridSettingsTab";
+import { AppearanceTab } from "./commandCenter/AppearanceTab";
 
 // ============================================================
 // TAB DEFINITIONS
@@ -37,7 +34,6 @@ const TABS = [
   { id: "grid", label: "Grid", icon: LayoutGrid },
   { id: "fields", label: "Fields", icon: Settings2 },
   { id: "operations", label: "Operations", icon: Workflow },
-  { id: "filters", label: "Filters", icon: Filter },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "files", label: "Files", icon: File },
   { id: "connections", label: "Connections", icon: Link2 },
@@ -106,18 +102,15 @@ export default function CommandCenter({ open, onOpenChange, isMobile }) {
 
       {/* ── Content ── */}
       <div style={{ overflow: "auto", maxHeight: isMobile ? "calc(70vh - 40px)" : "calc(50vh - 40px)" }}>
-        <Suspense fallback={null}>
-          {activeTab === "fields"      && <FieldsTab />}
-          {activeTab === "operations"  && <OperationsTab />}
-          {activeTab === "filters"     && <FiltersTab />}
-          {activeTab === "grid"        && <GridSettingsTab />}
-          {activeTab === "appearance"  && <AppearanceTab />}
-          {activeTab === "lists"       && <ListsTab />}
-          {activeTab === "shortcuts"   && <ShortcutsTab />}
-          {activeTab === "settings"    && <UserSettingsTab />}
-          {activeTab === "connections" && <ConnectionsTab />}
-          {activeTab === "files"       && <FilesTab />}
-        </Suspense>
+        {activeTab === "fields"      && <FieldsTab />}
+        {activeTab === "operations"  && <OperationsTab />}
+        {activeTab === "grid"        && <GridSettingsTab />}
+        {activeTab === "appearance"  && <AppearanceTab />}
+        {activeTab === "lists"       && <ListsTab />}
+        {activeTab === "shortcuts"   && <ShortcutsTab />}
+        {activeTab === "settings"    && <UserSettingsTab />}
+        {activeTab === "connections" && <ConnectionsTab />}
+        {activeTab === "files"       && <FilesTab />}
       </div>
     </div>
   );

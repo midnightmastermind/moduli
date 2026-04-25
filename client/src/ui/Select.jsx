@@ -67,7 +67,9 @@ export default function Select({ items, onSelect, searchable = false }) {
           >
             <span style={{ flex: 1, minWidth: 0 }}>
               {it.title}
-              {it.sub && <span style={{ color: "var(--text-muted)", marginLeft: 6 }}>{it.sub}</span>}
+              {it.sub && it.sub !== it.title && (
+                <span style={{ color: "var(--text-faint)", marginLeft: 6, fontSize: 9 }}>{it.sub}</span>
+              )}
               {it.hint && <span style={hintSt}>{it.hint}</span>}
             </span>
             {it.hasChildren && (

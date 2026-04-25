@@ -1,6 +1,12 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-04-18. Check this file before re-reading source._
+_Updated: 2026-04-24. Check this file before re-reading source._
+
+## Recent Changes (Apr 24 2026 — isNav replaces primaryDateFieldId)
+- **LocalFilterNav.jsx**: Rewrote to use `navConditions = conditions.filter(c => c.isNav && c.fieldId)`. Shows whenever any condition has `isNav: true`. Navigates all nav condition fields at once. Removed `primaryDateFieldId` dependency.
+- **LocalFilterButton.jsx**: Same — replaced `primaryDateFieldId` with `primaryNavFieldId` (first nav condition's fieldId). `navigate()` and `setDate()` update all nav condition fields in the override.
+- **commandCenter/GridSettingsTab.jsx**: `FilterRow` redesigned — removed `primaryDateFieldId` select. Added expandable conditions panel (chevron toggle) with per-condition rows: field picker, comparator picker, `isNav` toggle button (Navigation icon, blue when active), delete. `addFilter` seeds new filters with a `[{fieldId, comparator: "SAME_DAY", isNav: true}]` condition using first date field found. Added `COMPARATOR_OPTIONS` constant (11 comparators). Imports: added `ChevronDown, ChevronRight, Navigation`.
+
 
 ## Recent Changes (Apr 18 2026 — Phase F: Sources Consolidation)
 - **commandCenter/OperationsTab.jsx**: Removed duplicate outer Sources section from `OperationEditor` (was writing `varName` — orphaned, not read by executor). Removed `SOURCE_ENTITY_TYPES` constant. The `PipelineEditor` (in blocks/OperationsBuilder.jsx) is now the single source UI — it uses `variableName`, which matches what `operationExecutor.js` and `PathPicker.buildPathShape` both read.

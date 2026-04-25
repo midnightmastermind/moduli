@@ -1,8 +1,6 @@
-import React, { useMemo, useState, useContext } from "react";
+import React, { useMemo, useState } from "react";
 import PomodoroTimer from "./ui/PomodoroTimer";
 import MiniGridMap from "./mobile/MiniGridMap";
-import { GridActionsContext } from "./GridActionsContext";
-import { setFilterNavAction } from "./state/actions";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +31,8 @@ export default function Toolbar({
   // History
   onHistory,
   historyOpen = false,
+  // Filter navigation
+  onFilterNav,
   // Account
   userId,
   onLogout,
@@ -47,26 +47,22 @@ export default function Toolbar({
   const [accountOpen, setAccountOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const { dispatch, filterNavState } = useContext(GridActionsContext);
-
-  const { primaryFilterEntry, primaryDate } = useMemo(() => {
-    const entry = Object.entries(filterNavState || {}).find(([, val]) =>
-      val && typeof val === "string" && !isNaN(Date.parse(val))
-    );
-    return { primaryFilterEntry: entry, primaryDate: entry ? new Date(entry[1]) : new Date() };
-  }, [filterNavState]);
+  const activeFilter = useMemo(
+    () => (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId) || null,
+    [grid?.namedFilters, grid?.activeFilterId]
+  );
+  const primaryNavFieldId = useMemo(() => {
+    const nav = (activeFilter?.conditions || []).find(c => c.isNav && c.fieldId);
+    return nav?.fieldId || null;
+  }, [activeFilter]);
+  const primaryDate = useMemo(() => {
+    if (!primaryNavFieldId) return null;
+    const val = grid?.activeFilterValues?.[primaryNavFieldId];
+    return val ? new Date(val + "T00:00:00") : new Date();
+  }, [primaryNavFieldId, grid?.activeFilterValues]);
 
   const formatNavDate = (d) =>
     d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-
-  const navigateAllFilters = (deltaDays) => {
-    Object.entries(filterNavState || {}).forEach(([filterId, val]) => {
-      if (!val || typeof val !== "string" || isNaN(Date.parse(val))) return;
-      const d = new Date(val);
-      d.setDate(d.getDate() + deltaDays);
-      dispatch(setFilterNavAction(filterId, d.toISOString()));
-    });
-  };
 
 const gridOptions = useMemo(
     () =>
@@ -182,12 +178,12 @@ const gridOptions = useMemo(
         <div className="flex-1" />
 
         {/* ── Center: Global date nav ── */}
-        {primaryFilterEntry && (
+        {primaryDate && (
           <div className="flex items-center gap-1">
             <button
-              onClick={() => navigateAllFilters(-1)}
+              onClick={() => onFilterNav?.(-1)}
               className="h-7 w-7 rounded flex items-center justify-center hover:bg-accent text-text-muted hover:text-foreground transition-colors"
-              title="Previous day"
+              title="Previous"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </button>
@@ -197,9 +193,9 @@ const gridOptions = useMemo(
               {formatNavDate(primaryDate)}
             </span>
             <button
-              onClick={() => navigateAllFilters(1)}
+              onClick={() => onFilterNav?.(1)}
               className="h-7 w-7 rounded flex items-center justify-center hover:bg-accent text-text-muted hover:text-foreground transition-colors"
-              title="Next day"
+              title="Next"
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </button>

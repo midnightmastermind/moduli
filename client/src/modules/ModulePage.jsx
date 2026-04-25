@@ -9,6 +9,7 @@ import ContextMenu from "../ui/ContextMenu";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { X, Trash2, Copy, FileText, Layout, Paintbrush, Monitor, Folder, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import LocalFilterNav from "../ui/LocalFilterNav";
 import NodePill from "./NodePill.jsx";
 import PreviewNode from "./PreviewNode.jsx";
 
@@ -57,6 +58,7 @@ function Page({
   addInstanceToContainer,
   drilldownTarget,
   onDrilldownComplete,
+  onClose,
 }) {
   const { occurrencesById, modulesById, containersById, viewsById, foldersById, childrenByParentId } = useContext(GridActionsContext);
   const { state } = useContext(GridDataContext);
@@ -379,6 +381,26 @@ function Page({
                 {pageModule.label || "Untitled"}
               </span>
             )}
+
+            {/* Filter nav + close */}
+            <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center", marginLeft: 4 }}>
+              <LocalFilterNav occurrence={occurrence} compact={true} />
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  title="Close page"
+                  style={{
+                    flexShrink: 0, background: "none", border: "none", cursor: "pointer",
+                    padding: "1px 3px", display: "flex", alignItems: "center",
+                    color: "var(--text-muted)", borderRadius: 3,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.background = "none"; }}
+                >
+                  <X size={10} />
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

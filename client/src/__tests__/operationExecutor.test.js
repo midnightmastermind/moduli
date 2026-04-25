@@ -12,6 +12,7 @@
 import { describe, test, expect, vi } from "vitest";
 import {
   shouldTrigger,
+  computeTriggerMatch,
   executeOperation,
   executePipeline,
   runMatchingOperations,
@@ -101,15 +102,15 @@ describe("shouldTrigger", () => {
     expect(shouldTrigger(op, "MeasureOp")).toBe(false);
   });
 
-  test("onIteration fires on IterationOp and on load (null)", () => {
-    const op = makeOp({ triggerType: "onIteration" });
+  test("onFilterChange fires on NavigationOp only", () => {
+    const op = makeOp({ triggerType: "onFilterChange" });
     expect(shouldTrigger(op, "NavigationOp")).toBe(true);
-    expect(shouldTrigger(op, null)).toBe(true);
+    expect(shouldTrigger(op, null)).toBe(false);
     expect(shouldTrigger(op, "MeasureOp")).toBe(false);
   });
 
   test("disabled op never triggers", () => {
-    const op = makeOp({ triggerType: "onIteration", enabled: false });
+    const op = makeOp({ triggerType: "onLoad", enabled: false });
     expect(shouldTrigger(op, null)).toBe(false);
   });
 });
@@ -478,9 +479,9 @@ describe("runMatchingOperations", () => {
     expect(runMatchingOperations(ops, null, {}, {})).toHaveLength(0);
   });
 
-  test("onLoad (null txType) fires onIteration ops", () => {
+  test("onLoad (null txType) fires onLoad ops", () => {
     const ops = [
-      makeOp({ id: "op1", triggerType: "onIteration", blockTree: literalBlock(5), targetFieldId: "f1" }),
+      makeOp({ id: "op1", triggerType: "onLoad", blockTree: literalBlock(5), targetFieldId: "f1" }),
     ];
     const result = runMatchingOperations(ops, null, null, {});
     expect(result).toHaveLength(1);
@@ -489,9 +490,9 @@ describe("runMatchingOperations", () => {
 
   test("pipeline ops fire alongside block ops", () => {
     const ops = [
-      makeOp({ id: "op1", triggerType: "onIteration", blockTree: literalBlock(10), targetFieldId: "f1" }),
+      makeOp({ id: "op1", triggerType: "onLoad", blockTree: literalBlock(10), targetFieldId: "f1" }),
       makeOp({
-        id: "op2", triggerType: "onIteration", blockTree: null,
+        id: "op2", triggerType: "onLoad", blockTree: null,
         pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f2", sourceExpr: "literal:20" })),
       }),
     ];
@@ -503,8 +504,8 @@ describe("runMatchingOperations", () => {
 
   test("errors in one op don't crash other ops", () => {
     const ops = [
-      makeOp({ id: "op1", triggerType: "onIteration", blockTree: { type: "bad_block_type", id: "x", slots: [], data: {} }, targetFieldId: "f1" }),
-      makeOp({ id: "op2", triggerType: "onIteration", blockTree: literalBlock(7), targetFieldId: "f2" }),
+      makeOp({ id: "op1", triggerType: "onLoad", blockTree: { type: "bad_block_type", id: "x", slots: [], data: {} }, targetFieldId: "f1" }),
+      makeOp({ id: "op2", triggerType: "onLoad", blockTree: literalBlock(7), targetFieldId: "f2" }),
     ];
     const result = runMatchingOperations(ops, null, null, {});
     expect(result.some(r => r.fieldId === "f2")).toBe(true);
@@ -581,7 +582,7 @@ describe("shouldTrigger — triggerTypes[] array", () => {
 
   test("triggerTypes: multiple types — partial match is enough", () => {
     const op = makeOp({
-      triggerTypes: ["onChange", "onIteration", "onDrop"],
+      triggerTypes: ["onChange", "onFilterChange", "onDrop"],
     });
     expect(shouldTrigger(op, "MeasureOp")).toBe(true);
     expect(shouldTrigger(op, "NavigationOp")).toBe(true);
@@ -591,7 +592,7 @@ describe("shouldTrigger — triggerTypes[] array", () => {
   test("disabled op with triggerTypes never fires", () => {
     const op = makeOp({
       enabled: false,
-      triggerTypes: ["onChange", "onDrop", "onIteration"],
+      triggerTypes: ["onChange", "onDrop", "onFilterChange"],
     });
     expect(shouldTrigger(op, "MeasureOp")).toBe(false);
     expect(shouldTrigger(op, "OccurrenceListOp")).toBe(false);
@@ -599,95 +600,178 @@ describe("shouldTrigger — triggerTypes[] array", () => {
   });
 });
 
-// ─── triggerConfig filters ─────────────────────────────────────────────────────
+// ─── triggerObjects filters ────────────────────────────────────────────────────
 
-describe("shouldTrigger — triggerConfig filters", () => {
-  test("onChange.fieldId filter: only fires when matching fieldId", () => {
+describe("shouldTrigger — triggerObjects filters", () => {
+  test("onChange + field subject: only fires when matching fieldId", () => {
     const op = makeOp({
-      triggerType: "onChange",
-      triggerConfig: { onChange: { fieldId: "completed" } },
+      triggerTypes: ["onChange"],
+      triggerObjects: [
+        { eventType: "onChange", subjectType: "field", targetId: "completed" },
+      ],
     });
     expect(shouldTrigger(op, "MeasureOp", { fieldId: "completed" })).toBe(true);
     expect(shouldTrigger(op, "MeasureOp", { fieldId: "duration" })).toBe(false);
     expect(shouldTrigger(op, "MeasureOp", {})).toBe(false);
   });
 
-  test("onChange.fieldId filter: no filter config passes any MeasureOp", () => {
-    const op = makeOp({
-      triggerType: "onChange",
-      triggerConfig: {},
-    });
+  test("onChange with no triggerObjects passes any MeasureOp", () => {
+    const op = makeOp({ triggerTypes: ["onChange"] });
     expect(shouldTrigger(op, "MeasureOp", { fieldId: "anything" })).toBe(true);
     expect(shouldTrigger(op, "MeasureOp", {})).toBe(true);
   });
 
-  test("onDrop.targetPanelId filter: only fires for specific panel", () => {
+  test("onChange + multiple field targets: fires when any matches", () => {
     const op = makeOp({
-      triggerType: "onDrop",
-      triggerConfig: { onDrop: { targetPanelId: "schedule-panel" } },
+      triggerTypes: ["onChange"],
+      triggerObjects: [
+        { eventType: "onChange", subjectType: "field", targetId: "water" },
+        { eventType: "onChange", subjectType: "field", targetId: "steps" },
+      ],
     });
-    expect(shouldTrigger(op, "OccurrenceListOp", { toPanelId: "schedule-panel" })).toBe(true);
-    expect(shouldTrigger(op, "OccurrenceListOp", { toPanelId: "goals-panel" })).toBe(false);
-    expect(shouldTrigger(op, "OccurrenceListOp", {})).toBe(false);
+    expect(shouldTrigger(op, "MeasureOp", { fieldId: "water" })).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", { fieldId: "steps" })).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", { fieldId: "mood" })).toBe(false);
   });
 
-  test("onDrop.targetContainerId filter", () => {
+  test("onChange + instance subject: filters on instanceId", () => {
     const op = makeOp({
-      triggerType: "onDrop",
-      triggerConfig: { onDrop: { targetContainerId: "slot-9am" } },
-    });
-    expect(shouldTrigger(op, "OccurrenceListOp", { toContainerId: "slot-9am" })).toBe(true);
-    expect(shouldTrigger(op, "OccurrenceListOp", { toContainerId: "slot-10am" })).toBe(false);
-  });
-
-  test("onDrop.fromContainerId filter", () => {
-    const op = makeOp({
-      triggerType: "onDrop",
-      triggerConfig: { onDrop: { fromContainerId: "task-bank" } },
-    });
-    expect(shouldTrigger(op, "OccurrenceListOp", { fromContainerId: "task-bank" })).toBe(true);
-    expect(shouldTrigger(op, "OccurrenceListOp", { fromContainerId: "other" })).toBe(false);
-  });
-
-  test("onChange.instanceId filter", () => {
-    const op = makeOp({
-      triggerType: "onChange",
-      triggerConfig: { onChange: { instanceId: "inst-morning" } },
+      triggerTypes: ["onChange"],
+      triggerObjects: [
+        { eventType: "onChange", subjectType: "module", subjectRole: "instance", targetId: "inst-morning" },
+      ],
     });
     expect(shouldTrigger(op, "MeasureOp", { instanceId: "inst-morning", fieldId: "x" })).toBe(true);
     expect(shouldTrigger(op, "MeasureOp", { instanceId: "inst-other", fieldId: "x" })).toBe(false);
   });
 
-  test("multi-trigger with per-type config: each type uses its own config", () => {
+  test("onAdd + container subject: filters on containerId", () => {
     const op = makeOp({
-      triggerTypes: ["onChange", "onDrop"],
-      triggerConfig: {
-        onChange: { fieldId: "completed" },
-        onDrop: { targetPanelId: "schedule-panel" },
-      },
+      triggerTypes: ["onAdd"],
+      triggerObjects: [
+        { eventType: "onAdd", subjectType: "module", subjectRole: "container", targetId: "slot-9am" },
+      ],
     });
-    // onChange: must match fieldId
+    expect(shouldTrigger(op, "OccurrenceCreateOp", { containerId: "slot-9am" })).toBe(true);
+    expect(shouldTrigger(op, "OccurrenceCreateOp", { containerId: "slot-10am" })).toBe(false);
+  });
+
+  test("onCreate + panel subject: prefers toPanelId, falls back to panelId", () => {
+    const op = makeOp({
+      triggerTypes: ["onCreate"],
+      triggerObjects: [
+        { eventType: "onCreate", subjectType: "module", subjectRole: "panel", targetId: "schedule-panel" },
+      ],
+    });
+    expect(shouldTrigger(op, "OccurrenceCreateOp", { toPanelId: "schedule-panel" })).toBe(true);
+    expect(shouldTrigger(op, "OccurrenceCreateOp", { toPanelId: "goals-panel" })).toBe(false);
+    expect(shouldTrigger(op, "OccurrenceCreateOp", { panelId: "schedule-panel" })).toBe(true);
+  });
+
+  test("onMove + container subject: filters on fromContainerId", () => {
+    const op = makeOp({
+      triggerTypes: ["onMove"],
+      triggerObjects: [
+        { eventType: "onMove", subjectType: "module", subjectRole: "container", targetId: "task-bank" },
+      ],
+    });
+    expect(shouldTrigger(op, "OccurrenceMoveOp", { fromContainerId: "task-bank" })).toBe(true);
+    expect(shouldTrigger(op, "OccurrenceMoveOp", { fromContainerId: "other" })).toBe(false);
+  });
+
+  test("onMove + panel subject: filters on fromPanelId", () => {
+    const op = makeOp({
+      triggerTypes: ["onMove"],
+      triggerObjects: [
+        { eventType: "onMove", subjectType: "module", subjectRole: "panel", targetId: "center-hub" },
+      ],
+    });
+    expect(shouldTrigger(op, "OccurrenceMoveOp", { fromPanelId: "center-hub" })).toBe(true);
+    expect(shouldTrigger(op, "OccurrenceMoveOp", { fromPanelId: "other-panel" })).toBe(false);
+  });
+
+  test("grid subject: no filter — matches any transaction of the right event", () => {
+    const op = makeOp({
+      triggerTypes: ["onFilterChange"],
+      triggerObjects: [
+        { eventType: "onFilterChange", subjectType: "grid", targetId: "" },
+      ],
+    });
+    expect(shouldTrigger(op, "NavigationOp", {})).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", {})).toBe(false);
+  });
+
+  test("empty targetId means no filter", () => {
+    const op = makeOp({
+      triggerTypes: ["onChange"],
+      triggerObjects: [
+        { eventType: "onChange", subjectType: "field", targetId: "" },
+      ],
+    });
+    expect(shouldTrigger(op, "MeasureOp", { fieldId: "anything" })).toBe(true);
+  });
+
+  test("multi-event with per-event filters: each event keeps its own target", () => {
+    const op = makeOp({
+      triggerTypes: ["onChange", "onMove"],
+      triggerObjects: [
+        { eventType: "onChange", subjectType: "field", targetId: "completed" },
+        { eventType: "onMove", subjectType: "module", subjectRole: "panel", targetId: "schedule-panel" },
+      ],
+    });
     expect(shouldTrigger(op, "MeasureOp", { fieldId: "completed" })).toBe(true);
     expect(shouldTrigger(op, "MeasureOp", { fieldId: "duration" })).toBe(false);
-    // onDrop: must match panel
-    expect(shouldTrigger(op, "OccurrenceListOp", { toPanelId: "schedule-panel" })).toBe(true);
-    expect(shouldTrigger(op, "OccurrenceListOp", { toPanelId: "goals-panel" })).toBe(false);
+    expect(shouldTrigger(op, "OccurrenceMoveOp", { fromPanelId: "schedule-panel" })).toBe(true);
+    expect(shouldTrigger(op, "OccurrenceMoveOp", { fromPanelId: "goals-panel" })).toBe(false);
   });
 
-  test("fires onChange when transaction.fieldId matches allowedFields", () => {
+  test("does NOT fire onChange when transaction has no fieldId and target is a fieldId", () => {
     const op = makeOp({
       triggerTypes: ["onChange"],
-      triggerConfig: { onChange: { allowedFields: ["fieldA"] } },
-    });
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "fieldA" })).toBe(true);
-  });
-
-  test("does NOT fire onChange when transaction has no fieldId and allowedFields is set", () => {
-    const op = makeOp({
-      triggerTypes: ["onChange"],
-      triggerConfig: { onChange: { allowedFields: ["fieldA"] } },
+      triggerObjects: [
+        { eventType: "onChange", subjectType: "field", targetId: "water" },
+      ],
     });
     expect(shouldTrigger(op, "MeasureOp", {})).toBe(false);
+  });
+});
+
+describe("computeTriggerMatch — matched triggerObject threading", () => {
+  test("returns the matched triggerObject entry", () => {
+    const toWater = { eventType: "onChange", subjectType: "field", targetId: "water" };
+    const op = makeOp({
+      triggerTypes: ["onChange"],
+      triggerObjects: [toWater],
+    });
+    expect(computeTriggerMatch(op, "MeasureOp", { fieldId: "water" }))
+      .toEqual({ matched: true, triggerObject: toWater });
+  });
+
+  test("returns triggerObject: null when no triggerObjects are set (event-only match)", () => {
+    const op = makeOp({ triggerTypes: ["onChange"] });
+    expect(computeTriggerMatch(op, "MeasureOp", { fieldId: "any" }))
+      .toEqual({ matched: true, triggerObject: null });
+  });
+
+  test("picks the specific triggerObject that matched from multiple", () => {
+    const toA = { eventType: "onChange", subjectType: "field", targetId: "a" };
+    const toB = { eventType: "onChange", subjectType: "field", targetId: "b" };
+    const op = makeOp({
+      triggerTypes: ["onChange"],
+      triggerObjects: [toA, toB],
+    });
+    expect(computeTriggerMatch(op, "MeasureOp", { fieldId: "b" }))
+      .toEqual({ matched: true, triggerObject: toB });
+  });
+
+  test("returns false when no triggerObject matches", () => {
+    const op = makeOp({
+      triggerTypes: ["onChange"],
+      triggerObjects: [
+        { eventType: "onChange", subjectType: "field", targetId: "water" },
+      ],
+    });
+    expect(computeTriggerMatch(op, "MeasureOp", { fieldId: "mood" })).toBe(false);
   });
 });
 
@@ -904,7 +988,7 @@ describe("executePipeline — MARK_COMPLETE action", () => {
 
 // ─── runMatchingOperations — integration ──────────────────────────────────────
 
-describe("runMatchingOperations — integration with triggerTypes + triggerConfig", () => {
+describe("runMatchingOperations — integration with triggerTypes + triggerObjects", () => {
   test("multi-trigger op fires on either event", () => {
     const op = makeOp({
       id: "op1",
@@ -915,25 +999,27 @@ describe("runMatchingOperations — integration with triggerTypes + triggerConfi
     expect(runMatchingOperations([op], "OccurrenceListOp", {}, {})).toHaveLength(1);
   });
 
-  test("triggerConfig onChange.fieldId — only fires for matching field", () => {
+  test("triggerObject field filter — only fires for matching field", () => {
     const op = makeOp({
       id: "op1",
-      triggerType: "onChange",
-      triggerConfig: { onChange: { fieldId: "completed" } },
+      triggerTypes: ["onChange"],
+      triggerObjects: [
+        { eventType: "onChange", subjectType: "field", targetId: "completed" },
+      ],
       pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:1" })),
     });
     expect(runMatchingOperations([op], "MeasureOp", { fieldId: "completed" }, {})).toHaveLength(1);
     expect(runMatchingOperations([op], "MeasureOp", { fieldId: "duration" }, {})).toHaveLength(0);
   });
 
-  test("AGGREGATE op fires on onIteration and returns correct sum", () => {
+  test("AGGREGATE op fires on onFilterChange and returns correct sum", () => {
     const occs = {
       o1: { id: "o1", fields: { calories: { value: 400, flow: "in" } }, iteration: {} },
       o2: { id: "o2", fields: { calories: { value: 600, flow: "in" } }, iteration: {} },
     };
     const op = makeOp({
       id: "agg-op",
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("AGGREGATE", { aggregation: "sum", allowedFields: [{ fieldId: "calories", flowFilter: "any" }], timeFilter: "all", targetFieldId: "cal_total" })),
     });
     const result = runMatchingOperations([op], "NavigationOp", {}, { state: {}, fieldsById: {}, occurrencesById: occs });
@@ -943,8 +1029,8 @@ describe("runMatchingOperations — integration with triggerTypes + triggerConfi
 
   test("multiple ops: each fires independently, results combined", () => {
     const ops = [
-      makeOp({ id: "op1", triggerType: "onIteration", pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:10" })) }),
-      makeOp({ id: "op2", triggerType: "onIteration", pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f2", sourceExpr: "literal:20" })) }),
+      makeOp({ id: "op1", triggerType: "onFilterChange", pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:10" })) }),
+      makeOp({ id: "op2", triggerType: "onFilterChange", pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f2", sourceExpr: "literal:20" })) }),
       makeOp({ id: "op3", triggerType: "onChange", pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f3", sourceExpr: "literal:30" })) }),
     ];
     const result = runMatchingOperations(ops, "NavigationOp", {}, {});
@@ -981,7 +1067,7 @@ describe("Date action types (DATE_DIFF, COUNT_DATE_OVERDUE, COUNT_DATE_UPCOMING)
     const occurrencesById = {};
     for (const o of occs) occurrencesById[o.id] = o;
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("DATE_DIFF", { dateFieldId: DUE_FIELD, targetFieldId: DAYS_FIELD, perOccurrence: true })),
     });
     const result = runMatchingOperations([op], "NavigationOp", {}, { state: {}, fieldsById: {}, occurrencesById });
@@ -1004,7 +1090,7 @@ describe("Date action types (DATE_DIFF, COUNT_DATE_OVERDUE, COUNT_DATE_UPCOMING)
     const occurrencesById = {};
     for (const o of occs) occurrencesById[o.id] = o;
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("DATE_DIFF", { dateFieldId: DUE_FIELD, targetFieldId: DAYS_FIELD, perOccurrence: true })),
     });
     const result = runMatchingOperations([op], "NavigationOp", {}, { state: {}, fieldsById: {}, occurrencesById });
@@ -1017,7 +1103,7 @@ describe("Date action types (DATE_DIFF, COUNT_DATE_OVERDUE, COUNT_DATE_UPCOMING)
     const occurrencesById = {};
     for (const o of occs) occurrencesById[o.id] = o;
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("DATE_DIFF", { dateFieldId: DUE_FIELD, targetFieldId: DAYS_FIELD, perOccurrence: false })),
     });
     const result = runMatchingOperations([op], "NavigationOp", {}, { state: {}, fieldsById: {}, occurrencesById });
@@ -1037,7 +1123,7 @@ describe("Date action types (DATE_DIFF, COUNT_DATE_OVERDUE, COUNT_DATE_UPCOMING)
     const occurrencesById = {};
     for (const o of occs) occurrencesById[o.id] = o;
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("COUNT_DATE_OVERDUE", { dateFieldId: DUE_FIELD, targetFieldId: OVERDUE_FIELD })),
     });
     const result = runMatchingOperations([op], "NavigationOp", {}, { state: {}, fieldsById: {}, occurrencesById });
@@ -1051,7 +1137,7 @@ describe("Date action types (DATE_DIFF, COUNT_DATE_OVERDUE, COUNT_DATE_UPCOMING)
     const occurrencesById = {};
     for (const o of occs) occurrencesById[o.id] = o;
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("COUNT_DATE_OVERDUE", { dateFieldId: DUE_FIELD, targetFieldId: OVERDUE_FIELD })),
     });
     const result = runMatchingOperations([op], "NavigationOp", {}, { state: {}, fieldsById: {}, occurrencesById });
@@ -1069,7 +1155,7 @@ describe("Date action types (DATE_DIFF, COUNT_DATE_OVERDUE, COUNT_DATE_UPCOMING)
     const occurrencesById = {};
     for (const o of occs) occurrencesById[o.id] = o;
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("COUNT_DATE_UPCOMING", { dateFieldId: DUE_FIELD, targetFieldId: UPCOMING_FIELD, withinDays: 7 })),
     });
     const result = runMatchingOperations([op], "NavigationOp", {}, { state: {}, fieldsById: {}, occurrencesById });
@@ -1082,7 +1168,7 @@ describe("Date action types (DATE_DIFF, COUNT_DATE_OVERDUE, COUNT_DATE_UPCOMING)
     const occurrencesById = {};
     for (const o of occs) occurrencesById[o.id] = o;
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("COUNT_DATE_UPCOMING", { dateFieldId: DUE_FIELD, targetFieldId: UPCOMING_FIELD, withinDays: 20 })),
     });
     const result = runMatchingOperations([op], "NavigationOp", {}, { state: {}, fieldsById: {}, occurrencesById });
@@ -1102,7 +1188,7 @@ describe("Date comparators in IF conditions", () => {
 
   function makeOpWithIf(comparator, leftExpr, rightVal, thenTargetFieldId) {
     return makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: {
         sources: [{ variableName: "occ1", entityType: "occurrence", entityId: "occ1_id" }],
         steps: [{
@@ -1374,7 +1460,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
 
   test("workout sum: returns 0 (not null) when no occurrences today", () => {
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: {
         sources: [],
         steps: [
@@ -1449,7 +1535,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
     };
 
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: {
         sources: [],
         steps: [
@@ -1490,7 +1576,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
     };
 
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("AGGREGATE", {
         aggregation: "sum",
         allowedFields: [{ fieldId: "calories", flowFilter: "in" }],
@@ -1515,7 +1601,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
     };
 
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("AGGREGATE", {
         aggregation: "sum",
         allowedFields: [{ fieldId: "protein", flowFilter: "in" }],
@@ -1540,12 +1626,12 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
     };
 
     const inOp = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("AGGREGATE", { aggregation: "sum", allowedFields: [{ fieldId: "amount", flowFilter: "in" }], timeFilter: "daily", targetFieldId: "totalIn" })),
     });
     const outOp = makeOp({
       id: "op2",
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("AGGREGATE", { aggregation: "sum", allowedFields: [{ fieldId: "amount", flowFilter: "out" }], timeFilter: "daily", targetFieldId: "totalOut" })),
     });
 
@@ -1574,7 +1660,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
     expect(result[0].value).toBe("loaded");
   });
 
-  test("onLoad trigger does NOT fire for MeasureOp or IterationOp", () => {
+  test("onLoad trigger does NOT fire for MeasureOp or NavigationOp", () => {
     const op = makeOp({
       triggerType: "onLoad",
       pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:1" })),
@@ -1594,7 +1680,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
     const ops = [
       makeOp({
         id: "op_dur",
-        triggerType: "onIteration",
+        triggerType: "onFilterChange",
         pipeline: {
           sources: [],
           steps: [
@@ -1607,7 +1693,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
       }),
       makeOp({
         id: "op_cal",
-        triggerType: "onIteration",
+        triggerType: "onFilterChange",
         pipeline: pipe(s("AGGREGATE", { aggregation: "sum", allowedFields: [{ fieldId: "calories", flowFilter: "in" }], timeFilter: "daily", targetFieldId: "totalCal" })),
       }),
     ];
@@ -1623,7 +1709,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
   // ── Progress bar target propagation ───────────────────────────────────────
   test("SHOW_VALUE with no target returns null target (no progress bar)", () => {
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:42" })),
     });
     const result = runMatchingOperations([op], "NavigationOp", {}, {});
@@ -1632,7 +1718,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
 
   test("SHOW_VALUE with targetValue + targetPeriod enables progress bar via target object", () => {
     const op = makeOp({
-      triggerType: "onIteration",
+      triggerType: "onFilterChange",
       pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:30",
         targetValue: 60, targetPeriod: "daily" })),
     });
@@ -1827,9 +1913,9 @@ describe("executePipeline — $trigger.occurrence auto-injection", () => {
 describe("runMatchingOperations — sortOrder priority", () => {
   test("ops execute in ascending sortOrder", () => {
     const ops = [
-      makeOp({ id: "op-c", sortOrder: 30, triggerType: "onIteration", blockTree: literalBlock("c"), targetFieldId: "f1" }),
-      makeOp({ id: "op-a", sortOrder: 10, triggerType: "onIteration", blockTree: literalBlock("a"), targetFieldId: "f1" }),
-      makeOp({ id: "op-b", sortOrder: 20, triggerType: "onIteration", blockTree: literalBlock("b"), targetFieldId: "f1" }),
+      makeOp({ id: "op-c", sortOrder: 30, triggerType: "onLoad", blockTree: literalBlock("c"), targetFieldId: "f1" }),
+      makeOp({ id: "op-a", sortOrder: 10, triggerType: "onLoad", blockTree: literalBlock("a"), targetFieldId: "f1" }),
+      makeOp({ id: "op-b", sortOrder: 20, triggerType: "onLoad", blockTree: literalBlock("b"), targetFieldId: "f1" }),
     ];
     const result = runMatchingOperations(ops, null, null, {});
     // Each op writes one update — order of updates reflects op execution order
@@ -1838,9 +1924,9 @@ describe("runMatchingOperations — sortOrder priority", () => {
 
   test("ops without sortOrder default to 50 (interleave with explicit values)", () => {
     const ops = [
-      makeOp({ id: "high",   sortOrder: 90, triggerType: "onIteration", blockTree: literalBlock("high"),   targetFieldId: "f1" }),
-      makeOp({ id: "noSort",                triggerType: "onIteration", blockTree: literalBlock("noSort"), targetFieldId: "f1" }),
-      makeOp({ id: "low",    sortOrder: 10, triggerType: "onIteration", blockTree: literalBlock("low"),    targetFieldId: "f1" }),
+      makeOp({ id: "high",   sortOrder: 90, triggerType: "onLoad", blockTree: literalBlock("high"),   targetFieldId: "f1" }),
+      makeOp({ id: "noSort",                triggerType: "onLoad", blockTree: literalBlock("noSort"), targetFieldId: "f1" }),
+      makeOp({ id: "low",    sortOrder: 10, triggerType: "onLoad", blockTree: literalBlock("low"),    targetFieldId: "f1" }),
     ];
     const result = runMatchingOperations(ops, null, null, {});
     expect(result.map(r => r.value)).toEqual(["low", "noSort", "high"]);
@@ -1848,9 +1934,9 @@ describe("runMatchingOperations — sortOrder priority", () => {
 
   test("sortOrder ties preserve original input order (stable sort)", () => {
     const ops = [
-      makeOp({ id: "first",  sortOrder: 50, triggerType: "onIteration", blockTree: literalBlock("first"),  targetFieldId: "f1" }),
-      makeOp({ id: "second", sortOrder: 50, triggerType: "onIteration", blockTree: literalBlock("second"), targetFieldId: "f1" }),
-      makeOp({ id: "third",  sortOrder: 50, triggerType: "onIteration", blockTree: literalBlock("third"),  targetFieldId: "f1" }),
+      makeOp({ id: "first",  sortOrder: 50, triggerType: "onLoad", blockTree: literalBlock("first"),  targetFieldId: "f1" }),
+      makeOp({ id: "second", sortOrder: 50, triggerType: "onLoad", blockTree: literalBlock("second"), targetFieldId: "f1" }),
+      makeOp({ id: "third",  sortOrder: 50, triggerType: "onLoad", blockTree: literalBlock("third"),  targetFieldId: "f1" }),
     ];
     const result = runMatchingOperations(ops, null, null, {});
     expect(result.map(r => r.value)).toEqual(["first", "second", "third"]);
@@ -1858,8 +1944,8 @@ describe("runMatchingOperations — sortOrder priority", () => {
 
   test("sorting does not mutate the input array", () => {
     const ops = [
-      makeOp({ id: "op-c", sortOrder: 30, triggerType: "onIteration", blockTree: literalBlock("c"), targetFieldId: "f1" }),
-      makeOp({ id: "op-a", sortOrder: 10, triggerType: "onIteration", blockTree: literalBlock("a"), targetFieldId: "f1" }),
+      makeOp({ id: "op-c", sortOrder: 30, triggerType: "onLoad", blockTree: literalBlock("c"), targetFieldId: "f1" }),
+      makeOp({ id: "op-a", sortOrder: 10, triggerType: "onLoad", blockTree: literalBlock("a"), targetFieldId: "f1" }),
     ];
     const inputOrder = ops.map(o => o.id);
     runMatchingOperations(ops, null, null, {});
@@ -1869,8 +1955,8 @@ describe("runMatchingOperations — sortOrder priority", () => {
   test("non-matching ops still respect sort but don't produce updates", () => {
     const ops = [
       makeOp({ id: "drop",   sortOrder: 5,  triggerType: "onDrop",      triggerTypes: ["onDrop"], blockTree: literalBlock("drop"),   targetFieldId: "f1" }),
-      makeOp({ id: "iter-a", sortOrder: 10, triggerType: "onIteration", blockTree: literalBlock("iter-a"), targetFieldId: "f1" }),
-      makeOp({ id: "iter-b", sortOrder: 20, triggerType: "onIteration", blockTree: literalBlock("iter-b"), targetFieldId: "f1" }),
+      makeOp({ id: "iter-a", sortOrder: 10, triggerType: "onLoad", blockTree: literalBlock("iter-a"), targetFieldId: "f1" }),
+      makeOp({ id: "iter-b", sortOrder: 20, triggerType: "onLoad", blockTree: literalBlock("iter-b"), targetFieldId: "f1" }),
     ];
     const result = runMatchingOperations(ops, null, null, {});
     expect(result.map(r => r.value)).toEqual(["iter-a", "iter-b"]);
@@ -1887,42 +1973,42 @@ describe("shouldTrigger — onFieldChange / onFilterChange aliases", () => {
     expect(shouldTrigger(op, "NavigationOp")).toBe(false);
   });
 
-  test("onFieldChange respects fieldId filter via cfg.onFieldChange", () => {
+  test("onFieldChange respects fieldId filter via triggerObjects", () => {
     const op = makeOp({
-      triggerType: "onFieldChange",
       triggerTypes: ["onFieldChange"],
-      triggerConfig: { onFieldChange: { fieldId: "completed" } },
+      triggerObjects: [
+        { eventType: "onFieldChange", subjectType: "field", targetId: "completed" },
+      ],
     });
     expect(shouldTrigger(op, "MeasureOp", { fieldId: "completed" })).toBe(true);
     expect(shouldTrigger(op, "MeasureOp", { fieldId: "duration" })).toBe(false);
   });
 
-  test("onFieldChange falls back to cfg.onChange when its own config is missing", () => {
-    const op = makeOp({
-      triggerType: "onFieldChange",
-      triggerTypes: ["onFieldChange"],
-      triggerConfig: { onChange: { fieldId: "completed" } },
-    });
+  test("onFieldChange fires without a triggerObject filter (event-only match)", () => {
+    const op = makeOp({ triggerTypes: ["onFieldChange"] });
     expect(shouldTrigger(op, "MeasureOp", { fieldId: "completed" })).toBe(true);
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "duration" })).toBe(false);
+    expect(shouldTrigger(op, "MeasureOp", { fieldId: "duration" })).toBe(true);
   });
 
-  test("onFieldChange respects allowedFields list", () => {
+  test("onFieldChange with multiple field targets matches any of them", () => {
     const op = makeOp({
-      triggerType: "onFieldChange",
       triggerTypes: ["onFieldChange"],
-      triggerConfig: { onFieldChange: { allowedFields: ["water", "steps"] } },
+      triggerObjects: [
+        { eventType: "onFieldChange", subjectType: "field", targetId: "water" },
+        { eventType: "onFieldChange", subjectType: "field", targetId: "steps" },
+      ],
     });
     expect(shouldTrigger(op, "MeasureOp", { fieldId: "water" })).toBe(true);
     expect(shouldTrigger(op, "MeasureOp", { fieldId: "steps" })).toBe(true);
     expect(shouldTrigger(op, "MeasureOp", { fieldId: "mood" })).toBe(false);
   });
 
-  test("onFieldChange respects instanceId filter", () => {
+  test("onFieldChange with instance subject filters on instanceId", () => {
     const op = makeOp({
-      triggerType: "onFieldChange",
       triggerTypes: ["onFieldChange"],
-      triggerConfig: { onFieldChange: { instanceId: "inst-morning" } },
+      triggerObjects: [
+        { eventType: "onFieldChange", subjectType: "module", subjectRole: "instance", targetId: "inst-morning" },
+      ],
     });
     expect(shouldTrigger(op, "MeasureOp", { instanceId: "inst-morning", fieldId: "x" })).toBe(true);
     expect(shouldTrigger(op, "MeasureOp", { instanceId: "inst-other", fieldId: "x" })).toBe(false);

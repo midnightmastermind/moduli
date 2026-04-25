@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom";
 import Select from "./Select";
 import Multiselect from "./Multiselect";
+import { labelForId } from "../helpers/labelHelpers";
 
 // ---- Value converters ----
 
@@ -21,34 +22,53 @@ export function pathStringToChain(str) {
 
 /**
  * Converts a PathPicker shapeByVar into a SelectDrilldown config.
- * @param {{ sources: Array, fields: Array, inLoop?: bool }} args
+ * Emits { title, sub } per item so field IDs render as "Water" + "…a8f3b2" instead
+ * of raw UIDs. Also exposes `resolveSegmentLabel(seg)` on the config so the closed
+ * chip chain can name-resolve each segment.
+ *
+ * @param {{ sources: Array, fields: Array, inLoop?: bool, fieldsById?: Object, modulesById?: Object, occurrencesById?: Object }} args
  * @returns SelectDrilldown config object
  */
-export function buildPathConfig({ sources = [], fields = [], inLoop = false }) {
+export function buildPathConfig({ sources = [], fields = [], inLoop = false, fieldsById, modulesById, occurrencesById }) {
   const fieldsShape = {};
   for (const f of fields) fieldsShape[f.id] = { value: null, flow: null };
+
+  const mergedFieldsById = fieldsById || Object.fromEntries(fields.map(f => [f.id, f]));
 
   const occShape = { id: null, targetId: null, parentId: null, _ancestors: null, fields: fieldsShape };
 
   const shapeByVar = {
     $now: null, $today: null, $activeDate: null, $iterationValue: null,
+    $allOccurrences: [occShape],
   };
   for (const src of sources) {
     if (src.variableName) shapeByVar[`$${src.variableName}`] = occShape;
   }
   if (inLoop) shapeByVar.$item = occShape;
   shapeByVar.$trigger = {
-    occurrenceId: null, fieldId: null, value: null, occurrence: occShape,
+    occurrenceId: null, fieldId: null, value: null, type: null, occurrence: occShape,
     containerId: null, panelId: null,
+  };
+
+  // Resolve a raw segment (variable name or ID) to its display label.
+  const resolveSegmentLabel = (seg) => {
+    if (!seg) return { title: seg, sub: null };
+    if (seg.startsWith("$")) return { title: seg, sub: null };
+    const resolved = labelForId(seg, { fieldsById: mergedFieldsById, modulesById, occurrencesById });
+    if (resolved?.label) return { title: resolved.label, sub: `…${resolved.shortId}` };
+    return { title: seg, sub: null };
   };
 
   function shapeToItems(shape) {
     if (!shape || typeof shape !== "object") return [];
-    return Object.keys(shape).map(k => ({
-      value: k,
-      title: k,
-      hasChildren: shape[k] !== null && typeof shape[k] === "object",
-    }));
+    return Object.keys(shape).map(k => {
+      const { title, sub } = resolveSegmentLabel(k);
+      const child = shape[k];
+      const hasChildren =
+        (child !== null && typeof child === "object" && !Array.isArray(child)) ||
+        (Array.isArray(child) && child.length > 0 && typeof child[0] === "object");
+      return { value: k, title, sub, hasChildren };
+    });
   }
 
   function makeLevel(shape, labelText) {
@@ -58,9 +78,11 @@ export function buildPathConfig({ sources = [], fields = [], inLoop = false }) {
       multi: false,
       items: () => shapeToItems(shape),
       next: (item) => {
-        const child = shape?.[item.value];
+        let child = shape?.[item.value];
+        // Arrays (e.g. $allOccurrences) drill into the first sample element.
+        if (Array.isArray(child)) child = child[0];
         if (child === null || child === undefined || typeof child !== "object") return null;
-        return makeLevel(child, item.value);
+        return makeLevel(child, resolveSegmentLabel(item.value).title);
       },
     };
   }
@@ -69,6 +91,7 @@ export function buildPathConfig({ sources = [], fields = [], inLoop = false }) {
     placeholder: "Select…",
     multi: false,
     levels: [makeLevel(shapeByVar, "Variable")],
+    resolveSegmentLabel,
   };
 }
 
@@ -118,7 +141,7 @@ const placeholderSt = {
  * LevelConfig: { label, searchable?, multi?, items(parentValue) → [{value,title,sub?,hint?,hasChildren?,disabled?}], next(item) → LevelConfig|null }
  */
 export default function SelectDrilldown({ config = {}, value = [], onChange }) {
-  const { placeholder = "Select…", multi = false, levels = [] } = config;
+  const { placeholder = "Select…", multi = false, levels = [], resolveSegmentLabel } = config;
   const [open, setOpen] = useState(false);
   const [drillPath, setDrillPath] = useState([]); // [{levelConfig, chosenItem, nextLevel}]
   const triggerRef = useRef(null);
@@ -202,13 +225,16 @@ export default function SelectDrilldown({ config = {}, value = [], onChange }) {
           <span style={placeholderSt}>{placeholder}</span>
         ) : (
           value.map((chain, ci) => (
-            <span key={ci} style={chipChainSt}>
-              {chain.map((seg, si) => (
-                <React.Fragment key={si}>
-                  {si > 0 && <span style={{ color: "var(--text-faint)", margin: "0 1px" }}>›</span>}
-                  <span>{seg}</span>
-                </React.Fragment>
-              ))}
+            <span key={ci} style={chipChainSt} title={chain.join(".")}>
+              {chain.map((seg, si) => {
+                const resolved = resolveSegmentLabel?.(seg) ?? { title: seg, sub: null };
+                return (
+                  <React.Fragment key={si}>
+                    {si > 0 && <span style={{ color: "var(--text-faint)", margin: "0 1px" }}>›</span>}
+                    <span>{resolved.title}</span>
+                  </React.Fragment>
+                );
+              })}
             </span>
           ))
         )}

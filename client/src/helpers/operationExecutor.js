@@ -65,186 +65,157 @@ function makeLogger() {
 
 /**
  * Determine if an operation should fire for a given transaction type + context.
+ * Back-compat boolean wrapper — the batch executor uses computeTriggerMatch
+ * directly to thread the matched triggerObject into the run log.
  *
- * Supports:
- *  - op.triggerType (string) — single trigger, legacy
- *  - op.triggerTypes (string[]) — multiple triggers (any match fires)
- *  - op.triggerConfig — optional filter per trigger type:
- *      onChange:   { fieldId?, instanceId? }
- *      onDrop:     { targetContainerId?, targetPanelId?, fromContainerId? }
+ * An op fires when it is enabled, one of its triggerTypes is compatible with
+ * transactionType, AND either (a) it has no triggerObjects for that event,
+ * or (b) at least one triggerObject's subject/target filter passes.
  *
  * @param {Object}      operation
- * @param {string|null} transactionType  — "MeasureOp"|"OccurrenceListOp"|"IterationOp"|null
- * @param {Object}      [transaction]    — the transaction object (optional, for triggerConfig checks)
+ * @param {string|null} transactionType  — "MeasureOp"|"OccurrenceListOp"|"NavigationOp"|null
+ * @param {Object}      [transaction]    — the transaction object (for subject/target filtering)
+ * @returns {boolean}
  */
 export function shouldTrigger(operation, transactionType, transaction) {
+  return Boolean(computeTriggerMatch(operation, transactionType, transaction));
+}
+
+/**
+ * Detailed trigger match — returns the matched triggerObject alongside the decision.
+ * Batch executor (runMatchingOperations) uses this to log which triggerObject caused
+ * the fire, so the log panel can show "onChange · Field · Water" in RunRow.
+ *
+ * @returns {false | { matched: true, triggerObject: Object|null }}
+ *   triggerObject is the specific entry from op.triggerObjects that matched,
+ *   or null when the op fires via event-type compatibility alone (no triggerObjects).
+ */
+export function computeTriggerMatch(operation, transactionType, transaction) {
   if (!operation?.enabled) return false;
 
-  const hasExplicitArray = Array.isArray(operation.triggerTypes);
-  // Support both single string and array of trigger types
-  const types = hasExplicitArray
+  const types = Array.isArray(operation.triggerTypes)
     ? operation.triggerTypes
     : [operation.triggerType].filter(Boolean);
 
   if (types.length === 0) {
-    // Fallback: fire on load if no trigger defined
-    return transactionType == null;
+    return transactionType == null ? { matched: true, triggerObject: null } : false;
   }
 
-  const cfg = operation.triggerConfig || {};
-
-  // Normal check — does any declared trigger match?
-  if (types.some(t => matchesTrigger(t, cfg, transactionType, transaction))) {
-    return true;
+  for (const t of types) {
+    const result = matchesTrigger(t, operation, transactionType, transaction);
+    if (result) return result;
   }
-
-  // Backward compat: old operations using legacy triggerType string (no
-  // triggerTypes array) should still fire on load even though they don't
-  // explicitly list "onLoad". New operations created via the UI always have
-  // a triggerTypes array — respect those literally.
-  // Exception: onChange-only operations must NOT fire on load — they have no
-  // data to react to and would just run spuriously on every page load.
-  if (transactionType == null && !hasExplicitArray && types[0] !== "manual" && types[0] !== "onChange") {
-    return true;
-  }
-
   return false;
 }
 
 /**
  * Check if a single trigger type matches the current transaction context.
+ *
+ * Resolution:
+ *  - eventType must be compatible with transactionType (e.g. onChange needs MeasureOp).
+ *  - If op.triggerObjects contains entries with eventType === t, at least one
+ *    must match its subject/target filter.
+ *  - If op.triggerObjects has no entries for t, event-type compatibility alone fires.
+ *
+ * @returns {false | { matched: true, triggerObject: Object|null }}
  */
-function matchesTrigger(t, cfg, transactionType, transaction) {
-  switch (t) {
-    case "onChange": {
-      if (transactionType !== "MeasureOp") return false;
-      // Support both singular fieldId and plural allowedFields array
-      const fieldFilter = cfg.onChange?.fieldId || cfg.fieldId;
-      if (fieldFilter && transaction?.fieldId !== fieldFilter) return false;
-      const allowedFields = cfg.onChange?.allowedFields;
-      if (allowedFields?.length > 0 && !allowedFields.includes(transaction?.fieldId)) return false;
-      const instanceFilter = cfg.onChange?.instanceId || cfg.instanceId;
-      if (instanceFilter && transaction?.instanceId !== instanceFilter) return false;
-      return true;
+function matchesTrigger(t, operation, transactionType, transaction) {
+  if (!isEventCompatible(t, transactionType, transaction)) return false;
+
+  const triggerObjects = Array.isArray(operation?.triggerObjects) ? operation.triggerObjects : [];
+  const forThisEvent = triggerObjects.filter(to => to?.eventType === t);
+
+  if (forThisEvent.length === 0) {
+    return { matched: true, triggerObject: null };
+  }
+
+  for (const to of forThisEvent) {
+    if (matchSubjectFilter(to, t, transaction)) {
+      return { matched: true, triggerObject: to };
     }
-    case "onFieldChange": {
-      // Alias of onChange with a clearer label. Falls back to onChange config if onFieldChange isn't set.
-      if (transactionType !== "MeasureOp") return false;
-      const fieldFilter = cfg.onFieldChange?.fieldId || cfg.onChange?.fieldId || cfg.fieldId;
-      if (fieldFilter && transaction?.fieldId !== fieldFilter) return false;
-      const allowedFields = cfg.onFieldChange?.allowedFields || cfg.onChange?.allowedFields;
-      if (allowedFields?.length > 0 && !allowedFields.includes(transaction?.fieldId)) return false;
-      const instanceFilter = cfg.onFieldChange?.instanceId || cfg.onChange?.instanceId || cfg.instanceId;
-      if (instanceFilter && transaction?.instanceId !== instanceFilter) return false;
-      return true;
-    }
-    case "onDrop": {
-      if (transactionType !== "OccurrenceListOp") return false;
-      const toContainer = cfg.onDrop?.targetContainerId || cfg.targetContainerId;
-      if (toContainer && transaction?.toContainerId !== toContainer) return false;
-      const toPanel = cfg.onDrop?.targetPanelId || cfg.targetPanelId;
-      if (toPanel && transaction?.toPanelId !== toPanel) return false;
-      const fromContainer = cfg.onDrop?.fromContainerId || cfg.fromContainerId;
-      if (fromContainer && transaction?.fromContainerId !== fromContainer) return false;
-      return true;
-    }
-    case "onCreate": {
-      if (transactionType !== "OccurrenceCreateOp") return false;
-      const containerFilter = cfg.onCreate?.containerId;
-      if (containerFilter && transaction?.containerId !== containerFilter) return false;
-      const panelFilter = cfg.onCreate?.panelId;
-      if (panelFilter && transaction?.panelId !== panelFilter) return false;
-      return true;
-    }
-    case "onDelete": {
-      if (transactionType !== "OccurrenceDeleteOp") return false;
-      const containerFilter = cfg.onDelete?.containerId;
-      if (containerFilter && transaction?.containerId !== containerFilter) return false;
-      return true;
-    }
-    case "onMove": {
-      if (transactionType !== "OccurrenceMoveOp") return false;
-      const toContainer = cfg.onMove?.toContainerId;
-      if (toContainer && transaction?.toContainerId !== toContainer) return false;
-      const fromContainer = cfg.onMove?.fromContainerId;
-      if (fromContainer && transaction?.fromContainerId !== fromContainer) return false;
-      const fromPanel = cfg.onMove?.fromPanelId;
-      if (fromPanel && transaction?.fromPanelId !== fromPanel) return false;
-      const toPanel = cfg.onMove?.toPanelId;
-      if (toPanel && transaction?.toPanelId !== toPanel) return false;
-      return true;
-    }
+  }
+  return false;
+}
+
+/**
+ * Gate an event name against the current transaction type and payload semantics.
+ * Pure type/shape check — no subject/target filtering.
+ */
+function isEventCompatible(eventType, transactionType, transaction) {
+  switch (eventType) {
+    case "onChange":
+    case "onFieldChange":
+      return transactionType === "MeasureOp";
     case "onComplete": {
       if (transactionType !== "MeasureOp") return false;
-      // Only fire when value is truthy (checkbox checked, etc.)
-      const val = transaction?.value;
-      if (!val && val !== 1) return false;
-      const fieldFilter = cfg.onComplete?.fieldId;
-      if (fieldFilter && transaction?.fieldId !== fieldFilter) return false;
-      return true;
+      const v = transaction?.value;
+      return Boolean(v) || v === 1;
     }
-    case "onAdd": {
-      // Synonym for onCreate — fires when an occurrence is added to a parent
-      if (transactionType !== "OccurrenceCreateOp") return false;
-      const containerFilter = cfg.onAdd?.containerId;
-      if (containerFilter && transaction?.containerId !== containerFilter) return false;
-      const panelFilter = cfg.onAdd?.panelId;
-      if (panelFilter && transaction?.panelId !== panelFilter) return false;
-      return true;
-    }
-    case "onRemove": {
-      // Fires when an occurrence is removed from a parent (same event as delete in current arch)
-      if (transactionType !== "OccurrenceDeleteOp") return false;
-      const containerFilter = cfg.onRemove?.containerId;
-      if (containerFilter && transaction?.containerId !== containerFilter) return false;
-      return true;
-    }
-    case "onReorder": {
-      // Fires when occurrences are reordered within the same container
-      if (transactionType !== "OccurrenceListOp") return false;
-      // Only match same-container reorder (from === to)
-      if (transaction?.fromContainerId !== transaction?.toContainerId) return false;
-      const containerFilter = cfg.onReorder?.containerId;
-      if (containerFilter && transaction?.toContainerId !== containerFilter) return false;
-      return true;
-    }
-    case "onUncomplete": {
-      // Inverse of onComplete — fires when a value goes falsy
-      if (transactionType !== "MeasureOp") return false;
-      const val = transaction?.value;
-      if (val) return false; // Only fire when value is falsy
-      const fieldFilter = cfg.onUncomplete?.fieldId;
-      if (fieldFilter && transaction?.fieldId !== fieldFilter) return false;
-      return true;
-    }
-    case "onButton": {
-      if (transactionType !== "ButtonOp") return false;
-      const opFilter = cfg.onButton?.operationId;
-      if (opFilter && transaction?.operationId !== opFilter) return false;
-      const instanceFilter = cfg.onButton?.instanceId;
-      if (instanceFilter && transaction?.instanceId !== instanceFilter) return false;
-      return true;
-    }
-    case "onNodeInput":    return transactionType === "NodeInputOp";
-    case "onModuleUpdate": return transactionType === "ModuleOp";
-    case "onFilterChange": return transactionType === "NavigationOp";
-    case "onNavigation":   return transactionType === "NavigationOp";
-    case "onIteration":    return transactionType === "NavigationOp"; // legacy alias, same as onFilterChange
-    case "onLoad":         return transactionType == null;
-    case "onWebhook":      return transactionType === "WebhookOp";
-    case "onSchedule": {
-      if (transactionType !== "ScheduleOp") return false;
-      const sc = cfg.onSchedule ?? {};
-      // No hour/minute = fire every tick
-      if (sc.hour == null && sc.minute == null) return true;
-      const now = new Date();
-      const hourMatch = sc.hour == null || now.getHours() === sc.hour;
-      const minuteMatch = sc.minute == null || now.getMinutes() === sc.minute;
-      return hourMatch && minuteMatch;
-    }
-    case "manual":         return false;
-    default:               return transactionType == null;
+    case "onUncomplete":
+      return transactionType === "MeasureOp" && !transaction?.value;
+    case "onAdd":
+    case "onCreate":
+      return transactionType === "OccurrenceCreateOp";
+    case "onRemove":
+    case "onDelete":
+      return transactionType === "OccurrenceDeleteOp";
+    case "onMove":
+      return transactionType === "OccurrenceMoveOp" || transactionType === "OccurrenceListOp";
+    case "onReorder":
+      return transactionType === "OccurrenceListOp" && transaction?.fromContainerId === transaction?.toContainerId;
+    case "onDrop":
+      return transactionType === "OccurrenceListOp";
+    case "onFilterChange":
+    case "onNavigation":
+      return transactionType === "NavigationOp";
+    case "onLoad":
+      return transactionType == null;
+    case "onButton":
+      return transactionType === "ButtonOp";
+    case "onNodeInput":
+      return transactionType === "NodeInputOp";
+    case "onModuleUpdate":
+      return transactionType === "ModuleOp";
+    case "onWebhook":
+      return transactionType === "WebhookOp";
+    case "onSchedule":
+      return transactionType === "ScheduleOp";
+    case "manual":
+      return false;
+    default:
+      return false;
   }
+}
+
+/**
+ * Evaluate a triggerObject's subject/target filter against the transaction.
+ * Empty targetId ("") means "no filter — match any".
+ *
+ * See docs/superpowers/specs/2026-04-24-operations-editor-fix-design.md §1 for
+ * the full subject → filter mapping table.
+ */
+function matchSubjectFilter(to, eventType, transaction) {
+  const { subjectType, subjectRole, targetId } = to || {};
+  if (!targetId) return true;
+
+  if (subjectType === "field") return transaction?.fieldId === targetId;
+  if (subjectType === "grid" || subjectType === "filterNav") return true;
+  if (subjectType === "module") {
+    if (subjectRole === "instance") return transaction?.instanceId === targetId;
+    if (subjectRole === "container") {
+      if (eventType === "onMove") return transaction?.fromContainerId === targetId;
+      return transaction?.containerId === targetId;
+    }
+    if (subjectRole === "panel") {
+      if (eventType === "onCreate" || eventType === "onAdd") {
+        if (transaction?.toPanelId != null) return transaction.toPanelId === targetId;
+        return transaction?.panelId === targetId;
+      }
+      if (eventType === "onMove") return transaction?.fromPanelId === targetId;
+      return false;
+    }
+  }
+  return true;
 }
 
 // ============================================================
@@ -511,10 +482,17 @@ export function runMatchingOperations(operations, transactionType, transaction, 
   const updates = [];
   const ordered = [...operations].sort((a, b) => (a.sortOrder ?? 50) - (b.sortOrder ?? 50));
   for (const op of ordered) {
-    if (!shouldTrigger(op, transactionType, transaction)) continue;
+    const match = computeTriggerMatch(op, transactionType, transaction);
+    if (!match) continue;
     const startedAt = Date.now();
     const logger = makeLogger();
-    logger.add("start", { opId: op.id, opName: op.name, transactionType, trigger: transaction ? { ...transaction } : null });
+    logger.add("start", {
+      opId: op.id,
+      opName: op.name,
+      transactionType,
+      trigger: transaction ? { ...transaction } : null,
+      matchedTriggerObject: match.triggerObject,
+    });
     try {
       let results;
       if (op.pipeline) {

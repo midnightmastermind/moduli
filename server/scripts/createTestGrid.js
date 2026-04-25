@@ -49,7 +49,7 @@ import View from "../models/View.js";
 import Folder from "../models/Folder.js";
 import Operation from "../models/Operation.js";
 import User from "../models/User.js";
-import { makeLoopCountTrueOp, generateTimeSlots } from "../utils/operationBuilders.js";
+import { generateTimeSlots } from "../utils/operationBuilders.js";
 
 const DEFAULT_USER_EMAIL = "josh@jpoms.com";
 const DEFAULT_GRID_NAME = "Test Grid";
@@ -133,6 +133,14 @@ export async function createTestGrid(userId, options = {}) {
     userId, name: gridName, rows: 2, cols: 3,
     templates: [], occurrences: [],
     manifestId,
+    namedFilters: [{
+      id: "filter_daily",
+      name: "Daily",
+      conditions: [{ fieldId: dateFieldId, comparator: "SAME_DAY", isNav: true }],
+      timeUnit: "day",
+    }],
+    activeFilterId: "filter_daily",
+    activeFilterValues: { [dateFieldId]: today.toISOString().slice(0, 10) },
   });
   await grid.save();
   const gridId = grid._id.toString();
@@ -479,17 +487,23 @@ export async function createTestGrid(userId, options = {}) {
   await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds } });
 
   // ── STEP 12: Operations ─────────────────────────────────────────────────────
-  const opArgs = { userId, gridId };
 
   await new Operation({
     id: uid(), userId, gridId, name: "Water Today",
     description: "Sum daily water oz — only for occurrences under the Schedule page",
-    triggerType: "onChange",
-    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
-    triggerConfig: { onChange: { allowedFields: [waterFieldId, completedFieldId] } },
+    triggerTypes: ["onChange", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: waterFieldId },
+      { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "" },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "" },
+    ],
     enabled: true,
     pipeline: {
-      sources: [],
+      sources: [
+        { id: uid(), variableName: "triggerType",    entityType: "trigger", triggerProp: "type" },
+        { id: uid(), variableName: "triggerFieldId", entityType: "trigger", triggerProp: "fieldId" },
+      ],
       steps: [
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$total", value: 0 } },
         { id: uid(), type: "action", config: {
@@ -499,60 +513,159 @@ export async function createTestGrid(userId, options = {}) {
             resultIdVar: "$schedPageId",
         }},
         {
-          id: uid(), type: "loop",
-          over: "field_occurrences", fieldId: waterFieldId, timeFilter: "daily", flowFilter: "any", as: "$item",
-          body: [{
-            id: uid(), type: "if",
-            condition: {
-              operator: "AND",
-              rules: [
-                { comparator: "IS_NOT_EMPTY", left: "$item.value" },
-                { comparator: "IS", left: `$item.${completedFieldId}`, right: true },
-                { comparator: "HAS_ANCESTOR", left: "$item._ancestors", right: "$schedPageId" },
-              ],
+          id: uid(), type: "if",
+          condition: {
+            operator: "OR",
+            rules: [
+              { id: uid(), left: "$triggerType", comparator: "IS", right: "onLoad" },
+              { id: uid(), left: "$triggerType", comparator: "IS", right: "NavigationOp" },
+              {
+                id: uid(), operator: "AND",
+                rules: [
+                  { id: uid(), left: "$triggerType", comparator: "IS", right: "MeasureOp" },
+                  {
+                    id: uid(), operator: "OR",
+                    rules: [
+                      { id: uid(), left: "$triggerFieldId", comparator: "IS", right: waterFieldId },
+                      { id: uid(), left: "$triggerFieldId", comparator: "IS", right: completedFieldId },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          then: [
+            {
+              id: uid(), type: "loop", overExpr: "$allOccurrences", as: "$item",
+              body: [{
+                id: uid(), type: "if",
+                condition: {
+                  operator: "AND",
+                  rules: [
+                    { id: uid(), left: `$item.fields.${waterFieldId}.value`,     comparator: "IS_NOT_EMPTY", right: "" },
+                    { id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS",           right: true },
+                    { id: uid(), left: `$item.fields.${dateFieldId}.value`,      comparator: "SAME_DAY",     right: "$activeDate" },
+                    { id: uid(), left: "$item._ancestors",                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  ],
+                },
+                then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$total", expr: `$item.fields.${waterFieldId}.value` } }],
+                else: [],
+              }],
             },
-            then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$total", expr: "$item.value" } }],
-            else: [],
-          }],
+            { id: uid(), type: "action", config: {
+                type: "SHOW_VALUE", targetFieldId: totalWaterFieldId,
+                sourceExpr: "$total", targetValue: 64, targetPeriod: "daily",
+            }},
+          ],
+          else: [],
         },
-        { id: uid(), type: "action", config: {
-            type: "SHOW_VALUE", targetFieldId: totalWaterFieldId,
-            sourceExpr: "$total", targetValue: 64, targetPeriod: "daily",
-        }},
       ],
     },
   }).save();
 
-  await new Operation(makeLoopCountTrueOp({
-    name: "Tasks Completed Today",
-    targetFieldId: totalTasksCompletedFieldId,
-    fieldId: completedFieldId,
-    timeFilter: "daily",
-    targetValue: 6,
-    targetPeriod: "daily",
-    pageLabel: "Schedule",
-    includeAddDelete: true,
-    ...opArgs,
-  })).save();
+  await new Operation({
+    id: uid(), userId, gridId, name: "Tasks Completed Today",
+    description: "Count completed tasks under the Schedule page — fires on field change, add/remove, nav, load",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "" },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "" },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "" },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "" },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [
+        { id: uid(), variableName: "triggerType",    entityType: "trigger", triggerProp: "type" },
+        { id: uid(), variableName: "triggerFieldId", entityType: "trigger", triggerProp: "fieldId" },
+      ],
+      steps: [
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$count", value: 0 } },
+        { id: uid(), type: "action", config: {
+            type: "FIND_OCCURRENCE",
+            moduleLabelExpr: "literal:Schedule",
+            resultVar: "$schedPage",
+            resultIdVar: "$schedPageId",
+        }},
+        {
+          id: uid(), type: "if",
+          condition: {
+            operator: "OR",
+            rules: [
+              { id: uid(), left: "$triggerType", comparator: "IS", right: "onLoad" },
+              { id: uid(), left: "$triggerType", comparator: "IS", right: "NavigationOp" },
+              { id: uid(), left: "$triggerType", comparator: "IS", right: "OccurrenceCreateOp" },
+              { id: uid(), left: "$triggerType", comparator: "IS", right: "OccurrenceDeleteOp" },
+              {
+                id: uid(), operator: "AND",
+                rules: [
+                  { id: uid(), left: "$triggerType",    comparator: "IS", right: "MeasureOp" },
+                  { id: uid(), left: "$triggerFieldId", comparator: "IS", right: completedFieldId },
+                ],
+              },
+            ],
+          },
+          then: [
+            {
+              id: uid(), type: "loop", overExpr: "$allOccurrences", as: "$item",
+              body: [{
+                id: uid(), type: "if",
+                condition: {
+                  operator: "AND",
+                  rules: [
+                    { id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS",           right: true },
+                    { id: uid(), left: `$item.fields.${dateFieldId}.value`,      comparator: "SAME_DAY",     right: "$activeDate" },
+                    { id: uid(), left: "$item._ancestors",                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  ],
+                },
+                then: [{ id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$count", by: 1 } }],
+                else: [],
+              }],
+            },
+            { id: uid(), type: "action", config: {
+                type: "SHOW_VALUE", targetFieldId: totalTasksCompletedFieldId,
+                sourceExpr: "$count", targetValue: 6, targetPeriod: "daily",
+            }},
+          ],
+          else: [],
+        },
+      ],
+    },
+  }).save();
 
   await new Operation({
     id: uid(), userId, gridId, name: "Schedule: Stamp Date & Time Slot",
-    triggerType: "onCreate", triggerTypes: ["onCreate"],
-    triggerConfig: { onCreate: { panelId: centerHubId } }, enabled: true,
-    pipeline: { sources: [], steps: [
-      { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: dateFieldId, valueExpr: "$parentFilter.date" } },
-      { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: timeslotFieldId, valueExpr: "$trigger.containerLabel" } },
-    ]},
+    triggerTypes: ["onCreate"],
+    triggerObjects: [
+      { eventType: "onCreate", subjectType: "module", subjectRole: "panel", targetId: centerHubId },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [
+        { id: uid(), variableName: "containerLabel", entityType: "trigger", triggerProp: "containerLabel" },
+      ],
+      steps: [
+        { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: dateFieldId,     valueExpr: "$parentFilter.date" } },
+        { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: timeslotFieldId, valueExpr: "$containerLabel" } },
+      ],
+    },
   }).save();
 
   await new Operation({
     id: uid(), userId, gridId, name: "Schedule: Clear Date & Time Slot",
-    triggerType: "onMove", triggerTypes: ["onMove"],
-    triggerConfig: { onMove: { fromPanelId: centerHubId } }, enabled: true,
-    pipeline: { sources: [], steps: [
-      { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: dateFieldId, value: null } },
-      { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: timeslotFieldId, value: null } },
-    ]},
+    triggerTypes: ["onMove"],
+    triggerObjects: [
+      { eventType: "onMove", subjectType: "module", subjectRole: "panel", targetId: centerHubId },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: dateFieldId,     value: null } },
+        { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: timeslotFieldId, value: null } },
+      ],
+    },
   }).save();
 
   return {

@@ -230,7 +230,7 @@ function FieldRenderer({
   const showDisplay = displayEnabled || role === "both";
 
   return (
-    <div className={showDisplay ? "field-renderer-both" : undefined}>
+    <div style={{ display: "inline-flex", justifyContent: "start", flexDirection: "column"}} className={showDisplay ? "field-renderer-both" : undefined}>
       {showDisplay && (
         <Field
           field={effectiveField}

@@ -320,11 +320,13 @@ export function TriggerDataHint({ eventType, subjectType }) {
 // OPERATION EDITOR
 // ============================================================
 export function OperationEditor({ operation, fields, onSave, onDelete, onRun, categoryFolders = [], isDuplicate = false }) {
-  const { modulesById, operationsById, roleByModuleId } = useContext(GridActionsContext);
+  const { modulesById, occurrencesById, fieldsById, operationsById, roleByModuleId } = useContext(GridActionsContext);
   const [local, setLocal] = useState(operation);
   useMemo(() => setLocal(operation), [operation?.id]);
 
-  // Helper to update triggerConfig sub-keys
+  // triggerObjects is authoritative. triggerTypes is a derived index for dispatch.
+  const triggerObjects = Array.isArray(local.triggerObjects) ? local.triggerObjects : [];
+
   const setTriggerConfig = (triggerKey, patch) =>
     setLocal(p => ({
       ...p,
@@ -334,19 +336,40 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
       },
     }));
 
-  // Active trigger types (support both legacy string and new array)
-  const activeTriggerTypes = Array.isArray(local.triggerTypes)
-    ? local.triggerTypes
-    : local.triggerType ? [local.triggerType] : ["manual"];
-
-  const toggleTriggerType = (type) => {
-    const current = activeTriggerTypes;
-    const next = current.includes(type) ? current.filter(t => t !== type) : [...current, type];
-    const primary = next[0] || "manual";
-    setLocal(p => ({ ...p, triggerType: primary, triggerTypes: next.length > 1 ? next : undefined }));
+  const commitTriggerObjects = (next) => {
+    const uniqueTypes = [...new Set(next.map(t => t?.eventType).filter(Boolean))];
+    setLocal(p => ({
+      ...p,
+      triggerObjects: next,
+      triggerTypes: uniqueTypes,
+      triggerType: uniqueTypes[0] || "manual",
+    }));
   };
 
-  const isTriggerActive = (type) => activeTriggerTypes.includes(type);
+  const addTriggerObject = (eventType = "onChange") => {
+    const defaults = eventType === "onLoad" || eventType === "onFilterChange"
+      ? { eventType, subjectType: eventType === "onLoad" ? "grid" : "filterNav", targetId: "" }
+      : { eventType, subjectType: "field", targetId: "" };
+    commitTriggerObjects([...triggerObjects, defaults]);
+  };
+
+  const updateTriggerObject = (idx, patch) => {
+    const next = triggerObjects.map((t, i) => (i === idx ? { ...t, ...patch } : t));
+    commitTriggerObjects(next);
+  };
+
+  const removeTriggerObject = (idx) => {
+    commitTriggerObjects(triggerObjects.filter((_, i) => i !== idx));
+  };
+
+  const hasOnLoad = triggerObjects.some(t => t.eventType === "onLoad");
+  const toggleOnLoad = () => {
+    if (hasOnLoad) {
+      commitTriggerObjects(triggerObjects.filter(t => t.eventType !== "onLoad"));
+    } else {
+      commitTriggerObjects([...triggerObjects, { eventType: "onLoad", subjectType: "grid", targetId: "" }]);
+    }
+  };
 
   // Container + panel options for onDrop config
   const getRole = useCallback((m) => roleByModuleId?.[m.id] || m.role || "instance", [roleByModuleId]);
@@ -421,19 +444,19 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
       {/* ── Triggers ── */}
       <div>
         <span style={labelStyle}>Triggers</span>
-        {/* On Load switch — separate from configurable trigger rows */}
+        {/* On Load switch — quick toggle for the no-subject "fire on grid open" case */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, padding: "4px 8px", borderRadius: 5, background: "var(--input-bg)", border: "1px solid var(--border-subtle)" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)", flex: 1 }}>
             <span
-              onClick={() => toggleTriggerType("onLoad")}
+              onClick={toggleOnLoad}
               style={{
                 display: "inline-block", width: 28, height: 14, borderRadius: 7, cursor: "pointer",
-                background: isTriggerActive("onLoad") ? "rgb(52,211,153)" : "var(--border-default)",
+                background: hasOnLoad ? "rgb(52,211,153)" : "var(--border-default)",
                 position: "relative", transition: "background 0.15s",
               }}
             >
               <span style={{
-                position: "absolute", top: 2, left: isTriggerActive("onLoad") ? 14 : 2,
+                position: "absolute", top: 2, left: hasOnLoad ? 14 : 2,
                 width: 10, height: 10, borderRadius: "50%", background: "#fff",
                 transition: "left 0.15s",
               }} />
@@ -443,31 +466,33 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
           <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "monospace" }}>fires once when grid opens</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {activeTriggerTypes.filter(t => t !== "onLoad").map((trigType) => {
-            const idx = activeTriggerTypes.indexOf(trigType);
-            const trigObj = local.triggerObjects?.[idx] || {};
-            const eventType = trigObj.eventType || trigType;
-            const subjectType = trigObj.subjectType || "module";
+          {triggerObjects.map((trigObj, idx) => {
+            if (trigObj.eventType === "onLoad") return null;
+            const eventType = trigObj.eventType || "onChange";
+            const subjectType = trigObj.subjectType || "field";
             const subjectRole = trigObj.subjectRole || "";
             const targetId = trigObj.targetId || "";
-            const updateTrigObj = (patch) => {
-              const arr = local.triggerObjects ? [...local.triggerObjects] : activeTriggerTypes.map(() => ({}));
-              arr[idx] = { ...(arr[idx] || {}), ...patch };
-              setLocal(p => ({ ...p, triggerObjects: arr }));
-            };
-            const subjectInfo = SUBJECT_TYPES.find(s => s.value === subjectType);
             const entitiesForSubject = subjectType === "module"
               ? (subjectRole ? Object.values(modulesById || {}).filter(m => getRole(m) === subjectRole) : Object.values(modulesById || {}))
               : subjectType === "field" ? fields
               : subjectType === "filterNav" ? []
               : [];
+            // English readout: "onChange · Field · Water"
+            const subjectLabel = subjectType === "field" ? "Field"
+              : subjectType === "filterNav" ? "Filter"
+              : subjectType === "grid" ? "Grid"
+              : subjectRole ? subjectRole.charAt(0).toUpperCase() + subjectRole.slice(1)
+              : "Module";
+            const targetLabel = !targetId ? "Any"
+              : subjectType === "field" ? (fieldsById?.[targetId]?.name ?? targetId.slice(-6))
+              : (modulesById?.[targetId]?.label ?? targetId.slice(-6));
             return (
               <div key={idx} style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center", background: "var(--accent-blue-bg)", border: "1px solid var(--accent-blue-border)", borderRadius: 5, padding: "6px 8px" }}>
                 {/* Event type */}
                 <select
                   value={eventType}
                   title="Event type"
-                  onChange={e => { toggleTriggerType(trigType); toggleTriggerType(e.target.value); updateTrigObj({ eventType: e.target.value }); }}
+                  onChange={e => updateTriggerObject(idx, { eventType: e.target.value })}
                   style={{ ...inputStyle, width: "auto", minWidth: 110, fontSize: 10 }}
                 >
                   {EVENT_TYPES.filter(et => et.value !== "onLoad").map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
@@ -476,7 +501,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                 <select
                   value={subjectType}
                   title="What kind of thing"
-                  onChange={e => updateTrigObj({ subjectType: e.target.value, subjectRole: "", targetId: "" })}
+                  onChange={e => updateTriggerObject(idx, { subjectType: e.target.value, subjectRole: "", targetId: "" })}
                   style={{ ...inputStyle, width: "auto", minWidth: 90, fontSize: 10 }}
                 >
                   {SUBJECT_TYPES.map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
@@ -486,7 +511,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                   <select
                     value={subjectRole}
                     title="Module role"
-                    onChange={e => updateTrigObj({ subjectRole: e.target.value, targetId: "" })}
+                    onChange={e => updateTriggerObject(idx, { subjectRole: e.target.value, targetId: "" })}
                     style={{ ...inputStyle, width: "auto", minWidth: 90, fontSize: 10 }}
                   >
                     <option value="">Any role</option>
@@ -500,7 +525,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                   <select
                     value={targetId}
                     title="Specific field"
-                    onChange={e => updateTrigObj({ targetId: e.target.value })}
+                    onChange={e => updateTriggerObject(idx, { targetId: e.target.value })}
                     style={{ ...inputStyle, width: "auto", minWidth: 110, fontSize: 10 }}
                   >
                     <option value="">Any field</option>
@@ -512,22 +537,26 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                   <select
                     value={targetId}
                     title="Specific module (optional)"
-                    onChange={e => updateTrigObj({ targetId: e.target.value })}
+                    onChange={e => updateTriggerObject(idx, { targetId: e.target.value })}
                     style={{ ...inputStyle, width: "auto", minWidth: 110, fontSize: 10 }}
                   >
                     <option value="">Any {subjectRole || "module"}</option>
                     {entitiesForSubject.map(m => <option key={m.id} value={m.id}>{m.label || m.id}</option>)}
                   </select>
                 )}
+                {/* Inline English readout */}
+                <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)", marginLeft: 4 }}>
+                  {eventType} · {subjectLabel} · {targetLabel}
+                </span>
                 {/* Remove trigger */}
                 <button
-                  onClick={() => toggleTriggerType(trigType)}
-                  style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", fontSize: 13, padding: "0 2px", lineHeight: 1 }}
+                  onClick={() => removeTriggerObject(idx)}
+                  style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", fontSize: 13, padding: "0 2px", lineHeight: 1, marginLeft: "auto" }}
                   title="Remove trigger"
                 >×</button>
                 {/* $trigger var hints */}
                 <TriggerDataHint eventType={eventType} subjectType={subjectType} />
-                {/* Schedule time picker */}
+                {/* Schedule time picker — onSchedule semantics still live in triggerConfig (no subject/target) */}
                 {eventType === "onSchedule" && (
                   <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
                     <span style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: "monospace" }}>time:</span>
@@ -562,7 +591,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
           })}
           {/* Add trigger button */}
           <button
-            onClick={() => toggleTriggerType("onChange")}
+            onClick={() => addTriggerObject("onChange")}
             style={{ alignSelf: "flex-start", padding: "3px 10px", borderRadius: 5, fontSize: 10, fontFamily: "monospace", cursor: "pointer", background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-muted)" }}
           >
             + Add Trigger
@@ -575,7 +604,9 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
         pipeline={local.pipeline || { sources: [], steps: [] }}
         onChange={(pipeline) => setLocal(p => ({ ...p, pipeline }))}
         fields={fields}
+        fieldsById={fieldsById || {}}
         modulesById={modulesById || {}}
+        occurrencesById={occurrencesById || {}}
         operationsById={operationsById || {}}
       />
 

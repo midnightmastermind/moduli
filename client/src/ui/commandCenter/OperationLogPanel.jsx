@@ -10,6 +10,7 @@ import {
   getOpRunHistory,
   subscribeToOpLog,
 } from "../../helpers/operationExecutor";
+import { labelForId } from "../../helpers/labelHelpers";
 
 const labelStyle = {
   fontSize: 10,
@@ -34,6 +35,44 @@ function fmtRelative(ms) {
 
 function shortId(id) {
   return id ? String(id).slice(-6) : "?";
+}
+
+// Look up an ID and return [primary label, faint suffix] suitable for inline rendering.
+// `maps` = { fieldsById, modulesById, occurrencesById }.
+function resolveIdParts(id, maps) {
+  if (!id) return [null, null];
+  const r = labelForId(id, maps);
+  if (r?.label) return [r.label, `…${r.shortId}`];
+  return [null, `…${shortId(id)}`];
+}
+
+// Inline name+faint-id renderer used by the four log render sites.
+function NameRef({ id, maps }) {
+  const [name, suffix] = resolveIdParts(id, maps);
+  return (
+    <span title={id || ""}>
+      {name && <span style={{ color: "var(--text-primary)" }}>{name}</span>}
+      {name ? " " : ""}
+      <span style={{ color: "var(--text-faint)" }}>{suffix}</span>
+    </span>
+  );
+}
+
+// Subject-type → human label for the matchedTriggerObject readout.
+const SUBJECT_LABELS = {
+  field: "Field",
+  filterNav: "Filter",
+  grid: "Grid",
+  module: "Module",
+};
+function fmtMatchedTrigger(matched, maps) {
+  if (!matched) return null;
+  const subj = matched.subjectRole
+    ? matched.subjectRole.charAt(0).toUpperCase() + matched.subjectRole.slice(1)
+    : (SUBJECT_LABELS[matched.subjectType] || matched.subjectType || "?");
+  const r = matched.targetId ? labelForId(matched.targetId, maps) : null;
+  const target = !matched.targetId ? "Any" : (r?.label ?? `…${r?.shortId ?? shortId(matched.targetId)}`);
+  return `${matched.eventType} · ${subj} · ${target}`;
 }
 
 function previewScalar(v) {
@@ -62,18 +101,16 @@ function summarize(v) {
 }
 
 // Render one operation effect as a readable row
-function EffectRow({ r }) {
+function EffectRow({ r, maps }) {
   const type = r?._effect || r?.type || "EFFECT";
-  const fid = r?.fieldId ? `…${shortId(r.fieldId)}` : null;
-  const occ = r?.occurrenceId ? `occ:…${shortId(r.occurrenceId)}` : null;
   const val = r?.value !== undefined ? summarize(r.value) : null;
 
   return (
     <div style={{ display: "flex", gap: 5, alignItems: "baseline", fontSize: 9, fontFamily: "monospace", color: "var(--text-faint)", marginTop: 1 }}>
       <span style={{ color: "var(--accent-purple-text)", fontWeight: 600 }}>{type}</span>
-      {fid && <span>{fid}</span>}
+      {r?.fieldId && <NameRef id={r.fieldId} maps={maps} />}
       {val !== null && <span style={{ color: "var(--text-primary)" }}>= {val}</span>}
-      {occ && <span style={{ color: "var(--text-faint)" }}>{occ}</span>}
+      {r?.occurrenceId && <span><span style={{ color: "var(--text-muted)" }}>occ:</span> <NameRef id={r.occurrenceId} maps={maps} /></span>}
     </div>
   );
 }
@@ -108,7 +145,7 @@ function RawDetail({ data }) {
   );
 }
 
-function LogEntry({ entry }) {
+function LogEntry({ entry, maps }) {
   const palette = {
     start: { bg: "var(--accent-blue-bg)", color: "var(--accent-blue-text)", label: "START" },
     sources: { bg: "var(--input-bg)", color: "var(--text-muted)", label: "SRC" },
@@ -123,11 +160,18 @@ function LogEntry({ entry }) {
   let rawTarget = null;
 
   if (entry.kind === "start") {
+    const matchedLabel = fmtMatchedTrigger(entry.matchedTriggerObject, maps);
     body = (
       <span>
         <span style={{ color: "var(--text-muted)" }}>trigger:</span> {entry.transactionType ?? "onLoad"}
-        {entry.trigger?.occurrenceId ? <> · <span style={{ color: "var(--text-muted)" }}>occ:</span> …{shortId(entry.trigger.occurrenceId)}</> : null}
-        {entry.trigger?.fieldId ? <> · <span style={{ color: "var(--text-muted)" }}>field:</span> …{shortId(entry.trigger.fieldId)}</> : null}
+        {entry.trigger?.occurrenceId ? <> · <span style={{ color: "var(--text-muted)" }}>occ:</span> <NameRef id={entry.trigger.occurrenceId} maps={maps} /></> : null}
+        {entry.trigger?.fieldId ? <> · <span style={{ color: "var(--text-muted)" }}>field:</span> <NameRef id={entry.trigger.fieldId} maps={maps} /></> : null}
+        {matchedLabel && (
+          <div style={{ marginTop: 2, fontSize: 9 }}>
+            <span style={{ color: "var(--text-muted)" }}>matched:</span>{" "}
+            <span style={{ color: "var(--accent-blue-text)" }}>{matchedLabel}</span>
+          </div>
+        )}
       </span>
     );
     rawTarget = entry.trigger;
@@ -137,12 +181,18 @@ function LogEntry({ entry }) {
       ? <span style={{ color: "var(--text-faint)" }}>(no vars)</span>
       : (
         <span>
-          {keys.map(k => (
-            <span key={k} style={{ marginRight: 8 }}>
-              <span style={{ color: "var(--text-muted)" }}>{k}=</span>
-              <span style={{ color: "var(--text-primary)" }}>{summarize(entry.vars[k])}</span>
-            </span>
-          ))}
+          {keys.map(k => {
+            const v = entry.vars[k];
+            const isIdString = typeof v === "string" && labelForId(v, maps)?.label;
+            return (
+              <span key={k} style={{ marginRight: 8 }}>
+                <span style={{ color: "var(--text-muted)" }}>{k}=</span>
+                {isIdString
+                  ? <NameRef id={v} maps={maps} />
+                  : <span style={{ color: "var(--text-primary)" }}>{summarize(v)}</span>}
+              </span>
+            );
+          })}
         </span>
       );
     rawTarget = keys.length > 0 ? Object.fromEntries(keys.map(k => [k, entry.vars[k]])) : null;
@@ -154,7 +204,7 @@ function LogEntry({ entry }) {
         <span style={{ color: "var(--text-faint)", marginLeft: 5 }}>→ {entry.resultCount} effect{entry.resultCount === 1 ? "" : "s"}</span>
         {results.length > 0 && (
           <div style={{ marginTop: 2, paddingLeft: 8 }}>
-            {results.slice(0, 4).map((r, i) => <EffectRow key={i} r={r} />)}
+            {results.slice(0, 4).map((r, i) => <EffectRow key={i} r={r} maps={maps} />)}
             {results.length > 4 && <div style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "monospace" }}>… +{results.length - 4} more</div>}
           </div>
         )}
@@ -183,7 +233,7 @@ function LogEntry({ entry }) {
         <span style={{ color: "var(--text-faint)", marginLeft: 5 }}>· {entry.durationMs}ms</span>
         {updates.length > 0 && (
           <div style={{ marginTop: 2, paddingLeft: 8 }}>
-            {updates.slice(0, 3).map((r, i) => <EffectRow key={i} r={r} />)}
+            {updates.slice(0, 3).map((r, i) => <EffectRow key={i} r={r} maps={maps} />)}
             {updates.length > 3 && <div style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "monospace" }}>… +{updates.length - 3} more</div>}
           </div>
         )}
@@ -210,11 +260,12 @@ function LogEntry({ entry }) {
   );
 }
 
-function RunRow({ run, expanded, onToggle, isLatest }) {
+function RunRow({ run, expanded, onToggle, isLatest, maps }) {
   const startEntry = run.entries.find(e => e.kind === "start");
   const endEntry = run.entries.find(e => e.kind === "end");
   const errorEntry = run.entries.find(e => e.kind === "error");
-  const trigger = startEntry?.transactionType ?? "onLoad";
+  const matchedLabel = fmtMatchedTrigger(startEntry?.matchedTriggerObject, maps);
+  const triggerLabel = matchedLabel || startEntry?.transactionType || "onLoad";
   const updates = endEntry?.updates?.length ?? 0;
 
   const statusColor = errorEntry ? "var(--danger-text)" : "var(--accent-green-text)";
@@ -238,13 +289,13 @@ function RunRow({ run, expanded, onToggle, isLatest }) {
         </span>
         <span style={{ color: "var(--text-muted)", flexShrink: 0 }}>{fmtTime(run.runAt)}</span>
         <span style={{ color: "var(--text-faint)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {trigger} · {fmtRelative(run.runAt)}
+          {triggerLabel} · {fmtRelative(run.runAt)}
         </span>
         <span style={{ color: "var(--text-faint)", fontSize: 9, flexShrink: 0 }}>{run.durationMs}ms</span>
       </button>
       {expanded && (
         <div style={{ padding: "4px 8px 6px 22px", background: "var(--surface-card)" }}>
-          {run.entries.map((e, i) => <LogEntry key={i} entry={e} />)}
+          {run.entries.map((e, i) => <LogEntry key={i} entry={e} maps={maps} />)}
         </div>
       )}
     </div>
@@ -252,10 +303,14 @@ function RunRow({ run, expanded, onToggle, isLatest }) {
 }
 
 export default function OperationLogPanel({ operation }) {
-  const { state, fieldsById, occurrencesById, operationsById } = useContext(GridActionsContext);
+  const { state, fieldsById, occurrencesById, modulesById, operationsById } = useContext(GridActionsContext);
   const opId = operation?.id;
   const [history, setHistory] = useState(() => (opId ? getOpRunHistory(opId) : []));
   const [expandedIdx, setExpandedIdx] = useState(0);
+  const maps = useMemo(
+    () => ({ fieldsById: fieldsById || {}, modulesById: modulesById || {}, occurrencesById: occurrencesById || {} }),
+    [fieldsById, modulesById, occurrencesById],
+  );
 
   useEffect(() => {
     if (!opId) return;
@@ -320,6 +375,7 @@ export default function OperationLogPanel({ operation }) {
               run={run}
               expanded={expandedIdx === i}
               isLatest={i === 0}
+              maps={maps}
               onToggle={() => setExpandedIdx(prev => prev === i ? -1 : i)}
             />
           ))

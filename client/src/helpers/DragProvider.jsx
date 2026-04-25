@@ -902,8 +902,8 @@ export function DragProvider({
       if (files.length === 0) return;
       const payload = { type: DragType.FILE, id: "__file__", data: { files, name: files[0]?.name } };
       const x = e.clientX, y = e.clientY;
-      const panelId = getHoveredPanelId();
-      const containerId = getHoveredContainerId();
+      // pointerRef.current is stale for OS-native drags — use event coords directly
+      const { panelId, containerId } = getHoveredIds(x, y);
       const ctx = { dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, clearSession, sessionRef, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId };
       const drop = { payload, dropTarget: {}, panelId, containerId, instanceId: null, x, y, getCellFromPoint };
       handleFileDrop(ctx, drop);
@@ -914,7 +914,7 @@ export function DragProvider({
       gridFrame.removeEventListener("dragover", onDragOver);
       gridFrame.removeEventListener("drop", onDrop);
     };
-  }, [dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, clearSession, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId]);
+  }, [dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, clearSession, getCellFromPoint, getHoveredIds, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId]);
 
   // Clean up edge barriers on unmount
   useEffect(() => removeEdgeBarriers, [removeEdgeBarriers]);

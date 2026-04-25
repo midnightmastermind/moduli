@@ -401,41 +401,51 @@ export default function RadialMenu({
               };
             });
 
-            // Check if ANY item clips the viewport
-            const anyClipped = arcPositions.some(({ x, y }) => {
+            // Detect which edges the circle layout would clip
+            let clipsLeft = false, clipsRight = false, clipsTop = false, clipsBottom = false;
+            arcPositions.forEach(({ x, y }) => {
               const ax = anchor.x + x;
               const ay = anchor.y + y;
-              return (
-                ax - btnHalf < pad ||
-                ax + btnHalf > window.innerWidth - pad ||
-                ay - btnHalf < pad ||
-                ay + btnHalf > window.innerHeight - pad
-              );
+              if (ax - btnHalf < pad) clipsLeft = true;
+              if (ax + btnHalf > window.innerWidth - pad) clipsRight = true;
+              if (ay - btnHalf < pad) clipsTop = true;
+              if (ay + btnHalf > window.innerHeight - pad) clipsBottom = true;
             });
+            const anyClipped = clipsLeft || clipsRight || clipsTop || clipsBottom;
 
-            // If clipped, redistribute ALL items in a straight line
+            // If clipped, switch to a line aligned with the clipping axis
             let finalPositions;
             if (anyClipped) {
               const spacing = 28;
               const count = menuItems.length;
               const halfSpan = ((count - 1) * spacing) / 2;
-              const fixedOffset = s.radius * 0.75; // distance on primary axis
-              finalPositions = menuItems.map((_, i) => {
-                const linePos = -halfSpan + i * spacing; // position on secondary axis
-                let x = 0, y = 0;
-                if (openDirection === 'right') { x = fixedOffset; y = linePos; }
-                else if (openDirection === 'left') { x = -fixedOffset; y = linePos; }
-                else if (openDirection === 'down') { y = fixedOffset; x = linePos; }
-                else if (openDirection === 'up') { y = -fixedOffset; x = linePos; }
-                // Clamp each item to viewport
-                const ax = anchor.x + x;
-                const ay = anchor.y + y;
-                if (ax - btnHalf < pad) x += (pad + btnHalf - ax);
-                if (ax + btnHalf > window.innerWidth - pad) x -= (ax + btnHalf - window.innerWidth + pad);
-                if (ay - btnHalf < pad) y += (pad + btnHalf - ay);
-                if (ay + btnHalf > window.innerHeight - pad) y -= (ay + btnHalf - window.innerHeight + pad);
-                return { x, y };
-              });
+              const sideOffset = s.radius * 0.75;
+
+              if (clipsLeft || clipsRight) {
+                // Left/right clip → vertical line on the side with more space
+                const lineX = (window.innerWidth - anchor.x) >= anchor.x ? sideOffset : -sideOffset;
+                let yShift = 0;
+                const topEdge = anchor.y - halfSpan - btnHalf;
+                const botEdge = anchor.y + halfSpan + btnHalf;
+                if (topEdge < pad) yShift = pad - topEdge;
+                else if (botEdge > window.innerHeight - pad) yShift = (window.innerHeight - pad) - botEdge;
+                finalPositions = menuItems.map((_, i) => ({
+                  x: lineX,
+                  y: -halfSpan + i * spacing + yShift,
+                }));
+              } else {
+                // Top/bottom clip only → horizontal line on the side with more space
+                const lineY = (window.innerHeight - anchor.y) >= anchor.y ? sideOffset : -sideOffset;
+                let xShift = 0;
+                const leftEdge = anchor.x - halfSpan - btnHalf;
+                const rightEdge = anchor.x + halfSpan + btnHalf;
+                if (leftEdge < pad) xShift = pad - leftEdge;
+                else if (rightEdge > window.innerWidth - pad) xShift = (window.innerWidth - pad) - rightEdge;
+                finalPositions = menuItems.map((_, i) => ({
+                  x: -halfSpan + i * spacing + xShift,
+                  y: lineY,
+                }));
+              }
             } else {
               finalPositions = arcPositions;
             }

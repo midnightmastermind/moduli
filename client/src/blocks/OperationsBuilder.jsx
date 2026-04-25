@@ -385,7 +385,7 @@ const ifStepSt = {
  * - modulesById: all modules
  * - operationsById: all operations (for Run Operation action)
  */
-export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = {}, operationsById = {} }) {
+export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = {}, occurrencesById = {}, fieldsById, operationsById = {} }) {
   const local = pipeline || { sources: [], steps: [] };
   const [showSources, setShowSources] = useState(false);
 
@@ -395,10 +395,14 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
   const instanceModules = useMemo(() => Object.values(modulesById).filter(m => m.role === "instance"), [modulesById]);
   const containerModules = useMemo(() => Object.values(modulesById).filter(m => m.role === "container"), [modulesById]);
   const allFields = fields;
+  const mergedFieldsById = useMemo(
+    () => fieldsById || Object.fromEntries(fields.map(f => [f.id, f])),
+    [fieldsById, fields],
+  );
 
   const varOptions = sources.map(s => `$${s.variableName}`);
 
-  const sharedProps = { fields, varOptions, modulesById, operationsById, sources };
+  const sharedProps = { fields, varOptions, modulesById, occurrencesById, fieldsById: mergedFieldsById, operationsById, sources };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -629,7 +633,7 @@ function DraggableStepWrapper({ step, depth, steps, onReorder, children }) {
   );
 }
 // ---- Steps List (recursive for nested if/else) ----
-function StepsList({ steps, onChange, fields, varOptions, modulesById, operationsById, sources = [], depth = 0 }) {
+function StepsList({ steps, onChange, fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources = [], depth = 0 }) {
   const addAction = () => onChange([...steps, { id: uid(), type: "action", config: { type: "INIT_VAR" } }]);
   const addIf = () => onChange([...steps, {
     id: uid(), type: "if",
@@ -645,7 +649,7 @@ function StepsList({ steps, onChange, fields, varOptions, modulesById, operation
   const updateStep = (id, patch) => onChange(steps.map(s => s.id === id ? { ...s, ...patch } : s));
   const removeStep = (id) => onChange(steps.filter(s => s.id !== id));
 
-  const shared = { fields, varOptions, modulesById, operationsById, sources };
+  const shared = { fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: depth > 0 ? 8 : 0 }}>
@@ -711,11 +715,15 @@ function ExprInput({ value, onChange, placeholder, width = 120, title }) {
 
 // ---- ExprOrPath — toggles between free-text ExprInput and cascading PathPicker ----
 // Use for fields that commonly take $trigger.* / $item.* expressions. Defaults to
-// path mode when value starts with $, text mode otherwise.
-function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], fields = [], inLoop = true }) {
-  const initialMode = (value ?? "").trim().startsWith("$") || !value ? "path" : "text";
+// path mode when value starts with $ (and isn't a literal: prefix), text mode otherwise.
+function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], fields = [], fieldsById, modulesById, occurrencesById, inLoop = true }) {
+  const v = (value ?? "").trim();
+  const initialMode = (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
   const [mode, setMode] = useState(initialMode);
-  const pathConfig = useMemo(() => buildPathConfig({ sources, fields, inLoop }), [sources, fields, inLoop]);
+  const pathConfig = useMemo(
+    () => buildPathConfig({ sources, fields, inLoop, fieldsById, modulesById, occurrencesById }),
+    [sources, fields, inLoop, fieldsById, modulesById, occurrencesById],
+  );
   const toggle = () => setMode(m => (m === "path" ? "text" : "path"));
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
@@ -739,8 +747,8 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
 
 // ---- LoopStep ----
 // loop [overExpr] as $[varName] { body steps }
-function LoopStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, operationsById, sources = [], dragHandleRef }) {
-  const shared = { fields, varOptions, modulesById, operationsById, sources };
+function LoopStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
+  const shared = { fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources };
   const varName = (step.as || "$item").replace(/^\$/, "");
 
   return (
@@ -748,12 +756,16 @@ function LoopStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, o
       {/* Header row */}
       <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
         <span style={{ fontSize: 10, color: "rgba(167,139,250,0.8)", fontFamily: "monospace", minWidth: 28 }}>loop</span>
-        <ExprInput
+        <ExprOrPath
           value={step.overExpr || ""}
           onChange={v => onUpdate({ overExpr: v })}
           placeholder="$allOccurrences or any array"
           width={180}
-          title="Any expression that resolves to an array. Examples:\n$allOccurrences\n$allModules\n$myArr\n$allFields"
+          sources={sources}
+          fields={fields}
+          fieldsById={fieldsById}
+          modulesById={modulesById}
+          occurrencesById={occurrencesById}
         />
         <span style={labelSt}>as $</span>
         <input
@@ -776,7 +788,7 @@ function LoopStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, o
 }
 
 // ---- Action Step ----
-function ActionStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, operationsById, sources = [], dragHandleRef }) {
+function ActionStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
   const cfg = step.config || {};
   const actionType = cfg.type || "SHOW_VALUE";
   const setCfg = patch => onUpdate({ config: { ...cfg, ...patch } });
@@ -799,14 +811,14 @@ function ActionStep({ step, onUpdate, onRemove, fields, varOptions, modulesById,
         </div>
       </div>
       <div style={{ paddingLeft: 44 }}>
-        <ActionConfig actionType={actionType} cfg={cfg} setCfg={setCfg} fields={fields} varOptions={varOptions} modulesById={modulesById} operationsById={operationsById} sources={sources} />
+        <ActionConfig actionType={actionType} cfg={cfg} setCfg={setCfg} fields={fields} varOptions={varOptions} modulesById={modulesById} occurrencesById={occurrencesById} fieldsById={fieldsById} operationsById={operationsById} sources={sources} />
       </div>
     </div>
   );
 }
 
 // ---- If Step ----
-function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, operationsById, sources = [], dragHandleRef }) {
+function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
   const condition = step.condition || { operator: "AND", rules: [] };
   const [showElse, setShowElse] = useState((step.else || []).length > 0);
 
@@ -815,14 +827,14 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, ope
   const updateRule = (rid, patch) => updateCond({ rules: condition.rules.map(r => r.id === rid ? { ...r, ...patch } : r) });
   const removeRule = rid => updateCond({ rules: condition.rules.filter(r => r.id !== rid) });
 
-  const shared = { fields, varOptions, modulesById, operationsById, sources };
-  console.log(step.id);
+  const shared = { fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources };
+  const opLabel = (condition.operator === "OR" ? "ANY" : "ALL");
   return (
     <div key={step.id} style={ifStepSt}>
-      {/* IF header row */}
+      {/* IF header row — live readout of the top-level group's operator */}
       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
         <span style={{ fontSize: 10, color: "rgba(251,191,36,0.8)", fontFamily: "monospace", minWidth: 16 }}>if</span>
-        <span style={{ ...labelSt, fontStyle: "italic" }}>all/any of the following are true:</span>
+        <span style={{ ...labelSt, fontStyle: "italic" }}>{opLabel} of:</span>
         <div ref={dragHandleRef} style={{ marginLeft: "auto", display: "flex", gap: 2, alignItems: "center" }}>
           <GripVertical style={{ width: 10, height: 10, opacity: 0.25, cursor: "grab", flexShrink: 0 }} />
           <button style={removeBtnSt} onClick={onRemove}>✕</button>
@@ -836,6 +848,9 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, ope
           onChange={next => onUpdate({ condition: next })}
           sources={sources}
           fields={fields}
+          fieldsById={fieldsById}
+          modulesById={modulesById}
+          occurrencesById={occurrencesById}
         />
       </div>
 
@@ -882,9 +897,12 @@ const ALL_COMPARATORS = [
   { value: "DATE_WITHIN_DAYS", label: "date within N days" },
 ];
 
-function ConditionRule({ rule, onUpdate, onRemove, fields = [], sources = [] }) {
+function ConditionRule({ rule, onUpdate, onRemove, fields = [], sources = [], fieldsById, modulesById, occurrencesById }) {
   const noRight = ["IS_EMPTY", "IS_NOT_EMPTY", "DATE_BEFORE_TODAY", "DATE_IS_TODAY", "DATE_AFTER_TODAY"].includes(rule.comparator);
-  const pathConfig = useMemo(() => buildPathConfig({ sources, fields, inLoop: true }), [sources, fields]);
+  const pathConfig = useMemo(
+    () => buildPathConfig({ sources, fields, inLoop: true, fieldsById, modulesById, occurrencesById }),
+    [sources, fields, fieldsById, modulesById, occurrencesById],
+  );
   return (
     <div style={rowStyle}>
       <SelectDrilldown
@@ -896,7 +914,17 @@ function ConditionRule({ rule, onUpdate, onRemove, fields = [], sources = [] }) 
         {ALL_COMPARATORS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
       </select>
       {!noRight && (
-        <ExprInput value={rule.right} onChange={v => onUpdate({ right: v })} placeholder="right side" width={120} />
+        <ExprOrPath
+          value={rule.right}
+          onChange={v => onUpdate({ right: v })}
+          placeholder="right side"
+          width={120}
+          sources={sources}
+          fields={fields}
+          fieldsById={fieldsById}
+          modulesById={modulesById}
+          occurrencesById={occurrencesById}
+        />
       )}
       <button style={removeBtnSt} onClick={onRemove}>✕</button>
     </div>
@@ -904,12 +932,14 @@ function ConditionRule({ rule, onUpdate, onRemove, fields = [], sources = [] }) 
 }
 
 // ---- Action Config (field config rendered below action type) ----
-function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById, operationsById, sources = [] }) {
+function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources = [] }) {
   const allContainers = useMemo(() => Object.values(modulesById).filter(m => m.role === "container"), [modulesById]);
   const allInstances = useMemo(() => Object.values(modulesById).filter(m => m.role === "instance"), [modulesById]);
   const allOps = useMemo(() => Object.values(operationsById), [operationsById]);
 
   const fl = text => <span style={labelSt}>{text}</span>;
+  // Centralized props for the path-aware expression input.
+  const exprProps = { sources, fields, fieldsById, modulesById, occurrencesById };
 
   // Helper: variable name input strip leading $
   const varNameInput = (key, placeholder = "varName") => (
@@ -927,7 +957,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
       return (
         <div style={rowStyle}>
           {fl("$")} {varNameInput("name")} {fl("=")}
-          <ExprInput value={cfg.expr ?? String(cfg.value ?? "")} onChange={v => setCfg({ expr: v, value: undefined })} placeholder="5   or   $item.label   or   false" width={150} />
+          <ExprOrPath value={cfg.expr ?? String(cfg.value ?? "")} onChange={v => setCfg({ expr: v, value: undefined })} placeholder="5   or   $item.label   or   false" width={150} {...exprProps} />
           <span style={{ fontSize: 9, color: "var(--text-faint)", fontStyle: "italic" }}>initial value (any type)</span>
         </div>
       );
@@ -936,7 +966,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
       return (
         <div style={rowStyle}>
           {fl("$")} {varNameInput("name")} {fl("=")}
-          <ExprInput value={cfg.expr || ""} onChange={v => setCfg({ expr: v })} placeholder="$item.calories   or   5" width={150} />
+          <ExprOrPath value={cfg.expr || ""} onChange={v => setCfg({ expr: v })} placeholder="$item.calories   or   5" width={150} {...exprProps} />
         </div>
       );
 
@@ -944,7 +974,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
       return (
         <div style={rowStyle}>
           {fl("$")} {varNameInput("name")} {fl("+=")}
-          <ExprInput value={cfg.expr || ""} onChange={v => setCfg({ expr: v })} placeholder="$item.value   or   5" width={150} />
+          <ExprOrPath value={cfg.expr || ""} onChange={v => setCfg({ expr: v })} placeholder="$item.value   or   5" width={150} {...exprProps} />
         </div>
       );
 
@@ -952,7 +982,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
       return (
         <div style={rowStyle}>
           {fl("$")} {varNameInput("name")} {fl("-=")}
-          <ExprInput value={cfg.expr || ""} onChange={v => setCfg({ expr: v })} placeholder="$item.value   or   3" width={150} />
+          <ExprOrPath value={cfg.expr || ""} onChange={v => setCfg({ expr: v })} placeholder="$item.value   or   3" width={150} {...exprProps} />
         </div>
       );
 
@@ -960,7 +990,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
       return (
         <div style={rowStyle}>
           {fl("$")} {varNameInput("name")} {fl("*=")}
-          <ExprInput value={cfg.expr || ""} onChange={v => setCfg({ expr: v })} placeholder="$factor   or   2" width={150} />
+          <ExprOrPath value={cfg.expr || ""} onChange={v => setCfg({ expr: v })} placeholder="$factor   or   2" width={150} {...exprProps} />
         </div>
       );
 
@@ -968,7 +998,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
       return (
         <div style={rowStyle}>
           {fl("$")} {varNameInput("name")} {fl("/=")}
-          <ExprInput value={cfg.by || ""} onChange={v => setCfg({ by: v })} placeholder="$count   or   100" width={150} />
+          <ExprOrPath value={cfg.by || ""} onChange={v => setCfg({ by: v })} placeholder="$count   or   100" width={150} {...exprProps} />
         </div>
       );
 
@@ -976,7 +1006,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
       return (
         <div style={rowStyle}>
           {fl("$")} {varNameInput("name")} {fl("+=")}
-          <ExprInput value={cfg.by || "1"} onChange={v => setCfg({ by: v })} placeholder="1" width={80} />
+          <ExprOrPath value={cfg.by || "1"} onChange={v => setCfg({ by: v })} placeholder="1" width={80} {...exprProps} />
         </div>
       );
 
@@ -984,7 +1014,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
       return (
         <div style={rowStyle}>
           {fl("$")} {varNameInput("name")} {fl("-=")}
-          <ExprInput value={cfg.by || "1"} onChange={v => setCfg({ by: v })} placeholder="1" width={80} />
+          <ExprOrPath value={cfg.by || "1"} onChange={v => setCfg({ by: v })} placeholder="1" width={80} {...exprProps} />
         </div>
       );
 
@@ -992,7 +1022,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
       return (
         <div style={rowStyle}>
           {fl("$")} {varNameInput("name")} {fl("[].push")}
-          <ExprInput value={cfg.expr || ""} onChange={v => setCfg({ expr: v })} placeholder="$item   or   value" width={150} />
+          <ExprOrPath value={cfg.expr || ""} onChange={v => setCfg({ expr: v })} placeholder="$item   or   value" width={150} {...exprProps} />
         </div>
       );
 
@@ -1001,7 +1031,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
       return (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
           {fl("field:")} <FieldPicker value={cfg.targetFieldId} onChange={v => setCfg({ targetFieldId: v })} fields={fields} />
-          {fl("value:")} <ExprInput value={cfg.sourceExpr || ""} onChange={v => setCfg({ sourceExpr: v })} placeholder="$total   or   $item.value" />
+          {fl("value:")} <ExprOrPath value={cfg.sourceExpr || ""} onChange={v => setCfg({ sourceExpr: v })} placeholder="$total   or   $item.value" {...exprProps} />
         </div>
       );
 

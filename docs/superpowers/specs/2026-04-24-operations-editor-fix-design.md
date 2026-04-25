@@ -57,11 +57,13 @@ Operation {
 }
 ```
 
-**Executor (`operationExecutor.js`) — additive change.** `shouldTrigger` passes the full `operation` into `matchesTrigger`; `matchesTrigger` now reads `operation.triggerObjects`:
+**Executor (`operationExecutor.js`).** `matchesTrigger` reads `operation.triggerObjects` only — no `triggerConfig` fallback. The user directed "no legacy in", so:
 
-- Filter `triggerObjects` to those with `eventType === t`.
+- `triggerTypes` gates event-type compatibility (e.g. `onChange` needs `MeasureOp`).
+- Filter `triggerObjects` to entries with `eventType === t`.
 - If the subset is **non-empty**, fire iff at least one member matches its subject/target filter (see table below).
-- If the subset is **empty**, fall through to the existing `triggerConfig` logic (back-compat for ops in `createDefaultUserData.js`).
+- If the subset is **empty**, event-type compatibility alone fires (no filter).
+- `triggerConfig` is no longer read. Ops that relied on it (e.g. in `createDefaultUserData.js`) must be updated to use `triggerObjects`, or they will fire for every transaction of the listed event types. The separate `onSchedule`/`onWebhook` configs in `triggerConfig` are the one exception still referenced elsewhere — they're not part of the gate.
 
 Subject → filter mapping. In every row, an empty `targetId` (`""`) means "no filter — match any":
 
@@ -312,7 +314,7 @@ If `matchedTriggerObject` is `null` (legacy fallback), fall back to the existing
 
 ### 4. Implementation order
 
-**Phase A — Executor (additive).** Extend `matchesTrigger` to read `operation.triggerObjects` with fallback to existing `triggerConfig`. Change its return type from `boolean` to `false | { matched: true, triggerObject: <TriggerObject|null> }` (per 3f-ii) and thread the matched object through `shouldTrigger` → `runMatchingOperations` → `logger.add("start", { ..., matchedTriggerObject })`. Add 8–10 unit tests in `operationExecutor.test.js` covering each subjectType × eventType pair, a back-compat case where only `triggerConfig.onChange.allowedFields` is set (returns `{ matched: true, triggerObject: null }`), and a negative case. No other files touched. Existing ops keep working.
+**Phase A — Executor.** Replace `matchesTrigger` with a `triggerObjects`-only path (no `triggerConfig` fallback per user direction). Add `computeTriggerMatch(operation, transactionType, transaction)` returning `false | { matched: true, triggerObject: <TriggerObject|null> }`; `shouldTrigger` is the boolean wrapper. `runMatchingOperations` calls `computeTriggerMatch` directly and threads `matchedTriggerObject` into `logger.add("start", { ..., matchedTriggerObject })`. `triggerObject` is `null` when an op fires via event-type compatibility alone (no `triggerObjects` entry for that event). Also drop the `onIteration` alias — `onFilterChange` is the canonical name. Update existing tests (legacy `triggerConfig` filter tests + `onIteration`-on-null expectations) and add new tests covering each subjectType × eventType pair + a negative case. Ops in `createDefaultUserData.js` that relied on `triggerConfig` filtering will now fire unconditionally for their event types — the editor rewrite (Phase C) + data migration are needed to restore fine-grained filtering for those.
 
 **Phase B — `createTestGrid.js` rewrite.** Replace the four ops with the Section 2 shapes. Run `node --env-file=.env scripts/resetTestGridData.js` (or the create script) and open the grid. Verify `Water Today = 56 / 64`, `Tasks Completed = 6 / 6`, and drag-stamp behavior still works.
 

@@ -1,12 +1,13 @@
 // blocks/ConditionGroup.jsx
 // Recursive condition builder supporting nested AND/OR groups.
-import React from "react";
+import React, { useMemo } from "react";
 import SelectDrilldown, { buildPathConfig, chainToPathString, pathStringToChain } from "../ui/SelectDrilldown";
 
 const COMPARATORS = [
   "IS", "IS_NOT", "GREATER", "LESS", "GREATER_OR_EQUAL", "LESS_OR_EQUAL",
   "CONTAINS", "NOT_CONTAINS", "IS_EMPTY", "IS_NOT_EMPTY",
   "HAS_ANCESTOR",
+  "SAME_DAY", "SAME_WEEK", "SAME_MONTH", "SAME_YEAR",
   "DATE_EQUALS", "DATE_IS_TODAY", "DATE_BEFORE_TODAY", "DATE_AFTER_TODAY",
 ];
 
@@ -26,6 +27,13 @@ const addBtnStyle = {
   background: "var(--input-bg)", border: "1px dashed var(--border-default)",
   color: "var(--text-muted)", cursor: "pointer",
 };
+// Dashed-purple variant for "+ Group" — visually separates "add rule at this level"
+// from "add nested AND/OR group at this level".
+const addGroupBtnStyle = {
+  ...addBtnStyle,
+  border: "1px dashed rgba(167,139,250,0.5)",
+  color: "rgba(167,139,250,0.7)",
+};
 const removeBtnSt = {
   fontSize: 10, color: "rgba(255,100,100,0.5)",
   background: "none", border: "none", cursor: "pointer", padding: "0 2px", lineHeight: 1,
@@ -35,7 +43,7 @@ const rowStyle = {
   background: "var(--border-subtle)", borderRadius: 4, padding: "4px 6px",
 };
 
-export default function ConditionGroup({ group, onChange, sources, fields, depth = 0 }) {
+export default function ConditionGroup({ group, onChange, sources, fields, fieldsById, modulesById, occurrencesById, depth = 0 }) {
   const { operator = "AND", rules = [] } = group;
 
   const setOperator = (op) => onChange({ ...group, operator: op });
@@ -52,7 +60,7 @@ export default function ConditionGroup({ group, onChange, sources, fields, depth
   const addRule = () => onChange({ ...group, rules: [...rules, { left: "", comparator: "IS", right: "" }] });
   const addGroup = () => onChange({ ...group, rules: [...rules, { operator: "AND", rules: [] }] });
 
-  const pathConfig = buildPathConfig({ sources, fields, inLoop: true });
+  const pathConfig = buildPathConfig({ sources, fields, inLoop: true, fieldsById, modulesById, occurrencesById });
 
   return (
     <div style={{
@@ -66,17 +74,27 @@ export default function ConditionGroup({ group, onChange, sources, fields, depth
           <option value="OR">ANY of</option>
         </select>
         <button onClick={addRule} style={addBtnStyle}>+ Rule</button>
-        <button onClick={addGroup} style={addBtnStyle}>+ Group</button>
+        <button onClick={addGroup} style={addGroupBtnStyle}>+ Group</button>
       </div>
       {rules.map((entry, i) => (
         <div key={i} style={{ marginBottom: 4 }}>
           {Array.isArray(entry.rules) ? (
             <div style={{ display: "flex", gap: 4, alignItems: "flex-start" }}>
-              <ConditionGroup group={entry} onChange={(next) => setRule(i, next)} sources={sources} fields={fields} depth={depth + 1} />
+              <ConditionGroup group={entry} onChange={(next) => setRule(i, next)} sources={sources} fields={fields} fieldsById={fieldsById} modulesById={modulesById} occurrencesById={occurrencesById} depth={depth + 1} />
               <button onClick={() => removeRule(i)} style={removeBtnSt}>×</button>
             </div>
           ) : (
-            <RuleRow rule={entry} onChange={(next) => setRule(i, next)} onRemove={() => removeRule(i)} pathConfig={pathConfig} />
+            <RuleRow
+              rule={entry}
+              onChange={(next) => setRule(i, next)}
+              onRemove={() => removeRule(i)}
+              pathConfig={pathConfig}
+              sources={sources}
+              fields={fields}
+              fieldsById={fieldsById}
+              modulesById={modulesById}
+              occurrencesById={occurrencesById}
+            />
           )}
         </div>
       ))}
@@ -84,7 +102,15 @@ export default function ConditionGroup({ group, onChange, sources, fields, depth
   );
 }
 
-function RuleRow({ rule, onChange, onRemove, pathConfig }) {
+function RuleRow({ rule, onChange, onRemove, pathConfig, sources, fields, fieldsById, modulesById, occurrencesById }) {
+  const rightConfig = useMemo(
+    () => buildPathConfig({ sources, fields, inLoop: true, fieldsById, modulesById, occurrencesById }),
+    [sources, fields, fieldsById, modulesById, occurrencesById],
+  );
+  const v = (rule.right ?? "").toString().trim();
+  const initialMode = (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
+  const [rightMode, setRightMode] = React.useState(initialMode);
+  const toggleRightMode = () => setRightMode(m => (m === "path" ? "text" : "path"));
   return (
     <div style={rowStyle}>
       <SelectDrilldown
@@ -95,13 +121,28 @@ function RuleRow({ rule, onChange, onRemove, pathConfig }) {
       <select value={rule.comparator} onChange={(e) => onChange({ ...rule, comparator: e.target.value })} style={selectSt}>
         {COMPARATORS.map(c => <option key={c} value={c}>{c}</option>)}
       </select>
-      <input
-        type="text"
-        value={rule.right ?? ""}
-        onChange={(e) => onChange({ ...rule, right: e.target.value })}
-        placeholder="value or $var"
-        style={{ ...inputSt, width: 140 }}
-      />
+      <button
+        onClick={toggleRightMode}
+        title="Toggle path picker / free text"
+        style={{ fontSize: 9, padding: "1px 4px", border: "1px solid var(--input-border)", borderRadius: 3, background: "var(--surface)", color: "var(--text-muted)", cursor: "pointer" }}
+      >
+        {rightMode === "path" ? "path" : "text"}
+      </button>
+      {rightMode === "path" ? (
+        <SelectDrilldown
+          config={rightConfig}
+          value={rule.right ? [pathStringToChain(String(rule.right))] : []}
+          onChange={chains => onChange({ ...rule, right: chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "" })}
+        />
+      ) : (
+        <input
+          type="text"
+          value={rule.right ?? ""}
+          onChange={(e) => onChange({ ...rule, right: e.target.value })}
+          placeholder="value or $var"
+          style={{ ...inputSt, width: 140 }}
+        />
+      )}
       <button onClick={onRemove} style={removeBtnSt}>×</button>
     </div>
   );

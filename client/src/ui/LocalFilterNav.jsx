@@ -1,6 +1,6 @@
 // ui/LocalFilterNav.jsx
-// Per-panel/container filter date navigation.
-// Replaces the deleted LocalIterationNav.jsx — reads from filterOverride, not iteration.
+// Per-panel/container/page filter navigation.
+// Shows nav arrows for any filter condition with isNav: true.
 import React, { useContext } from "react";
 import { ChevronLeft, ChevronRight, Lock, Unlock } from "lucide-react";
 import { GridActionsContext } from "../GridActionsContext";
@@ -13,11 +13,13 @@ export default function LocalFilterNav({ occurrence, compact = false }) {
 
   const grid = ctxState?.grid;
   const activeNamedFilter = (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId);
-  const primaryDateFieldId = activeNamedFilter?.primaryDateFieldId;
-  if (!primaryDateFieldId) return null;
+  const navConditions = (activeNamedFilter?.conditions || []).filter(c => c.isNav && c.fieldId);
+  if (!navConditions.length) return null;
 
+  // Use first nav condition's fieldId for display and navigation
+  const primaryNavFieldId = navConditions[0].fieldId;
   const effective = getEffectiveFilterForOccurrence(occurrence, { grid, occurrencesById });
-  const currentDate = effective[primaryDateFieldId];
+  const currentDate = effective[primaryNavFieldId];
 
   const isInherit = occurrence.filterOverride == null;
   const timeUnit = activeNamedFilter?.timeUnit || "day";
@@ -26,11 +28,17 @@ export default function LocalFilterNav({ occurrence, compact = false }) {
     const base = currentDate ? new Date(currentDate + "T00:00:00") : new Date();
     if (timeUnit === "week")       base.setDate(base.getDate() + dir * 7);
     else if (timeUnit === "month") base.setMonth(base.getMonth() + dir);
+    else if (timeUnit === "year")  base.setFullYear(base.getFullYear() + dir);
     else                           base.setDate(base.getDate() + dir);
     const next = base.toISOString().slice(0, 10);
+    // Update all nav condition fields in the override
+    const overrideUpdate = navConditions.reduce((acc, c) => {
+      acc[c.fieldId] = next;
+      return acc;
+    }, { ...(occurrence.filterOverride || {}) });
     updateOccurrenceFilterOverride({
       socket, dispatch, id: occurrence.id,
-      filterOverride: { [primaryDateFieldId]: next },
+      filterOverride: overrideUpdate,
     });
   }
 
