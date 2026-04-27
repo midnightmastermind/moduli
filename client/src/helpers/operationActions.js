@@ -88,7 +88,16 @@ export function resolveExpr(expr, $vars) {
   // Non-string values (numbers, booleans) are literals — return as-is
   if (typeof expr !== "string") return expr;
   if (expr === "") return null;
-  if (expr.startsWith("literal:")) return expr.slice(8);
+  if (expr.startsWith("literal:")) {
+    const raw = expr.slice(8);
+    // Coerce well-known scalar literals so SET_FIELD_VALUE on boolean/number
+    // fields round-trips correctly through the editor (literal:false → false).
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+    if (raw === "null") return null;
+    if (raw !== "" && !isNaN(Number(raw)) && /^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
+    return raw;
+  }
 
   // occ:$trigger.occurrenceId.fieldId.value
   // occ:someOccId.fieldId.flow
@@ -201,6 +210,10 @@ export function evalRule(rule, $vars) {
     case "ARRAY_INCLUDES": {
       const arr = Array.isArray(leftVal) ? leftVal : [];
       return arr.some(a => String(a) === String(rightVal));
+    }
+    case "NOT_HAS_ANCESTOR": {
+      const arr = Array.isArray(leftVal) ? leftVal : [];
+      return !arr.some(a => String(a) === String(rightVal));
     }
     // Date comparators — leftVal is a date field value (ISO string or Date)
     case "DATE_EQUALS":
@@ -319,8 +332,17 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
   switch (type) {
     // ---- Variable operations: mutate $vars in-place, no updates emitted ----
     case "INIT_VAR": {
-      // cfg.value can be a literal (number, string) or cfg.expr can be a resolveExpr expression
-      const initVal = cfg.expr !== undefined ? resolveExpr(cfg.expr, $vars) : cfg.value;
+      // cfg.value can be a literal (number, string), cfg.expr can be a resolveExpr expression,
+      // cfg.arrayOf can be an array of expressions (each resolved) for literal-array initialization.
+      let initVal;
+      if (cfg.arrayOf !== undefined) {
+        const items = Array.isArray(cfg.arrayOf) ? cfg.arrayOf : [cfg.arrayOf];
+        initVal = items.map(x => resolveExpr(x, $vars));
+      } else if (cfg.expr !== undefined) {
+        initVal = resolveExpr(cfg.expr, $vars);
+      } else {
+        initVal = cfg.value;
+      }
       $vars[cfg.name] = initVal !== undefined ? initVal : 0;
       break;
     }
@@ -452,6 +474,19 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       const toContainerId = cfg.toContainerId || resolveExpr(cfg.toContainerIdExpr, $vars);
       if (occId && toContainerId) {
         updates.push({ _effect: "MOVE_OCCURRENCE", occurrenceId: occId, toContainerId });
+      }
+      break;
+    }
+
+    case "MOVE_OCCURRENCE_TO_PARENT": {
+      const occId         = resolveExpr(cfg.occurrenceIdExpr, $vars);
+      const toParentOccId = resolveExpr(cfg.toParentOccIdExpr, $vars);
+      if (occId && toParentOccId) {
+        updates.push({
+          _effect: "MOVE_OCCURRENCE_TO_PARENT",
+          occurrenceId: occId,
+          toParentOccurrenceId: toParentOccId,
+        });
       }
       break;
     }
@@ -785,40 +820,68 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
-    // ---- FIND_OCCURRENCE: search by targetId or moduleLabel, with optional date field filter ----
-    // cfg: { targetIdExpr?, moduleLabel?, moduleLabelExpr?, dateFieldId?, dateExpr?, resultVar?, resultIdVar? }
+    // ---- FIND_OCCURRENCE: search by targetId, moduleLabel, or module meta key/value ----
+    // cfg: { targetIdExpr?, moduleLabel?, moduleLabelExpr?,
+    //        moduleMetaKey?, moduleMetaValue?, moduleMetaSecondaryKey?, moduleMetaSecondaryValue?,
+    //        dateFieldId?, dateExpr?, resultVar?, resultIdVar? }
     // Skips template occurrences (meta.isTemplate === true).
     case "FIND_OCCURRENCE": {
       const targetId = resolveExpr(cfg.targetIdExpr, $vars);
-      // Support finding by module label — looks up module by label, uses its id as targetId
       const moduleLabel = resolveExpr(cfg.moduleLabelExpr, $vars) || cfg.moduleLabel;
       const allOccurrences = $vars.$allOccurrences || occurrencesById || {};
       const allModules = $vars.$allModules || [];
       let found = null;
 
-      let effectiveTargetId = targetId;
-      if (!effectiveTargetId && moduleLabel) {
+      // Pad bare YYYY-MM-DD strings so storage + lookup both parse to local-midnight.
+      // Without this, "2026-04-25" parses as UTC on one side and local on the other,
+      // so toDateString() mismatches across timezone boundaries → existing date-tagged
+      // occurrences are never found and duplicates are created on every run.
+      const toLocalDate = (val) => {
+        if (val == null || val === "") return null;
+        if (typeof val === "string" && val.length <= 10) return new Date(val + "T00:00:00");
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : d;
+      };
+
+      let effectiveTargetIds = [];
+      if (targetId) {
+        effectiveTargetIds = [targetId];
+      } else if (moduleLabel) {
         const mod = allModules.find(m => m.label?.toLowerCase() === moduleLabel.toLowerCase());
-        effectiveTargetId = mod?.id ?? null;
+        if (mod) effectiveTargetIds = [mod.id];
+      } else if (cfg.moduleMetaKey) {
+        // Match modules by meta key/value (with optional secondary key/value). Both
+        // values run through resolveExpr so callers can reference $vars.
+        const metaValue = resolveExpr(cfg.moduleMetaValue, $vars);
+        const metaSecondaryValue = cfg.moduleMetaSecondaryKey != null
+          ? resolveExpr(cfg.moduleMetaSecondaryValue, $vars)
+          : undefined;
+        const matches = allModules.filter(m => {
+          const v = m?.meta?.[cfg.moduleMetaKey];
+          if (String(v) !== String(metaValue)) return false;
+          if (cfg.moduleMetaSecondaryKey) {
+            return String(m?.meta?.[cfg.moduleMetaSecondaryKey]) === String(metaSecondaryValue);
+          }
+          return true;
+        });
+        effectiveTargetIds = matches.map(m => m.id);
       }
 
-      if (effectiveTargetId) {
+      if (effectiveTargetIds.length > 0) {
         const occList = Array.isArray(allOccurrences) ? allOccurrences : Object.values(allOccurrences);
-        // Skip deleted and template occurrences
-        const candidates = occList.filter(o => o.targetId === effectiveTargetId && !o.deleted && !o.meta?.isTemplate);
+        const candidates = occList.filter(o =>
+          effectiveTargetIds.includes(o.targetId) && !o.deleted && !o.meta?.isTemplate
+        );
 
         if (cfg.dateFieldId) {
-          // Filter by date field value matching the given date.
-          // $activeDate can be null when no filter is active — fall back to $today.
           const targetDateStr = resolveExpr(cfg.dateExpr, $vars) || resolveExpr("$today", $vars);
-          if (targetDateStr) {
-            const refDate = new Date(targetDateStr.length <= 10 ? targetDateStr + "T00:00:00" : targetDateStr);
+          const refDate = toLocalDate(targetDateStr);
+          if (refDate) {
             found = candidates.find(o => {
               const fv = o.fields?.[cfg.dateFieldId];
               const val = fv?.value !== undefined ? fv.value : fv;
-              if (!val) return false;
-              const d = new Date(val);
-              return !isNaN(d.getTime()) && d.toDateString() === refDate.toDateString();
+              const d = toLocalDate(val);
+              return d && d.toDateString() === refDate.toDateString();
             }) || null;
           }
         } else {
@@ -844,6 +907,12 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       const occurrenceId = globalThis.crypto?.randomUUID?.() ?? String(Date.now() + 1);
       $vars.$lastCreatedModuleId = moduleId;
       $vars.$lastCreatedOccurrenceId = occurrenceId;
+      // Optimistic-publish into $vars.$allModules so subsequent FIND_MODULE calls in
+      // the same pipeline run see the just-created module and don't duplicate.
+      const newModuleStub = { id: moduleId, name, label: name, role, kind, ...(cfg.extra?.meta ? { meta: cfg.extra.meta } : {}) };
+      if (Array.isArray($vars.$allModules)) {
+        $vars.$allModules = [...$vars.$allModules, newModuleStub];
+      }
       updates.push({
         _effect: "CREATE_MODULE",
         moduleId, occurrenceId, name, role, kind, parentId, viewId,
@@ -902,14 +971,65 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       // Optional pre-computed textmap from a $var (e.g. set by COMPUTE_TEXTMAP_FROM_TEMPLATE)
       const textmap = cfg.textmapVar ? ($vars[cfg.textmapVar] ?? null) : null;
 
+      const parentIdResolved = resolveExpr(cfg.parentIdExpr || cfg.parentId, $vars) || null;
+      const viewIdResolved = resolveExpr(cfg.viewIdExpr || cfg.viewId, $vars) || null;
+
+      // Optimistic-publish the new occurrence into $vars so subsequent FIND_OCCURRENCE
+      // calls in the same pipeline run see it (effects don't apply until after the
+      // pipeline returns, but the slot loop → preset seed flow needs the just-created
+      // slot occurrence to be visible immediately).
+      const newOccStub = {
+        id: occurrenceId,
+        targetType: "module",
+        targetId: moduleId,
+        parentId: parentIdResolved,
+        viewId: viewIdResolved,
+        fields,
+        textmap,
+        meta: { createdByOperation: true },
+      };
+      if (Array.isArray($vars.$allOccurrences)) {
+        $vars.$allOccurrences = [...$vars.$allOccurrences, newOccStub];
+      }
+
       updates.push({
         _effect: "CREATE_OCCURRENCE_FOR_MODULE",
         occurrenceId,
         moduleId,
-        parentId: resolveExpr(cfg.parentIdExpr || cfg.parentId, $vars) || null,
-        viewId: resolveExpr(cfg.viewIdExpr || cfg.viewId, $vars) || null,
+        parentId: parentIdResolved,
+        viewId: viewIdResolved,
         fields,
         textmap,
+        insertAtIndex: typeof cfg.insertAtIndex === "number" ? cfg.insertAtIndex : null,
+      });
+      break;
+    }
+
+    // ---- LINK_OCCURRENCE_TO_PARENT: idempotently add child to parent.occurrences[] ----
+    // The container's date FIELD value is the source of truth for "does this exist for
+    // the active date" — separate from where it lives in the page tree. FIND_OCCURRENCE
+    // matches on date FIELD across all occurrences (orphans included); this action
+    // re-links the matched orphan into the page so the renderer can see it.
+    // cfg: { occurrenceIdExpr, parentOccIdExpr }
+    case "LINK_OCCURRENCE_TO_PARENT": {
+      const occurrenceId = resolveExpr(cfg.occurrenceIdExpr || cfg.occurrenceId, $vars);
+      const parentOccurrenceId = resolveExpr(cfg.parentOccIdExpr || cfg.parentOccurrenceId, $vars);
+      if (!occurrenceId || !parentOccurrenceId) break;
+
+      // Optimistic-publish into $vars.$allOccurrences so subsequent steps see the link.
+      if (Array.isArray($vars.$allOccurrences)) {
+        $vars.$allOccurrences = $vars.$allOccurrences.map(o => {
+          if (o.id !== parentOccurrenceId) return o;
+          const childIds = Array.isArray(o.occurrences) ? o.occurrences : [];
+          if (childIds.includes(occurrenceId)) return o;
+          return { ...o, occurrences: [...childIds, occurrenceId] };
+        });
+      }
+
+      updates.push({
+        _effect: "LINK_OCCURRENCE_TO_PARENT",
+        occurrenceId,
+        parentOccurrenceId,
       });
       break;
     }

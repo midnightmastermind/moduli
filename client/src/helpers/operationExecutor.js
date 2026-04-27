@@ -480,7 +480,15 @@ function traverseStatements(block, ctx) {
  */
 export function runMatchingOperations(operations, transactionType, transaction, context, { onError } = {}) {
   const updates = [];
-  const ordered = [...operations].sort((a, b) => (a.sortOrder ?? 50) - (b.sortOrder ?? 50));
+  // Priority (1–10, default 5) wins over sortOrder so a high-priority op like the
+  // schedule auto-build runs to completion before downstream ops (field stamp,
+  // aggregations) read its newly-created occurrences.
+  const ordered = [...operations].sort((a, b) => {
+    const pa = a.priority ?? 5;
+    const pb = b.priority ?? 5;
+    if (pa !== pb) return pa - pb;
+    return (a.sortOrder ?? 50) - (b.sortOrder ?? 50);
+  });
   for (const op of ordered) {
     const match = computeTriggerMatch(op, transactionType, transaction);
     if (!match) continue;
@@ -551,6 +559,29 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     }
   }
 
+  // Resolve an ancestor chain (closest ancestor first, capped at depth 12).
+  // Used to enrich $allOccurrences items so HAS_ANCESTOR rules in $allOccurrences-driven
+  // loops have something to walk. parentId is the fallback when occurrences[] doesn't link.
+  const ancestorsFor = (occId) => {
+    const chain = [];
+    const seen = new Set();
+    let cur = parentByChildId[occId] ?? occurrencesById[occId]?.parentId;
+    while (cur && !seen.has(cur) && chain.length < 12) {
+      chain.push(cur);
+      seen.add(cur);
+      cur = parentByChildId[cur] ?? occurrencesById[cur]?.parentId;
+    }
+    return chain;
+  };
+
+  // Pre-enrich every occurrence so $allOccurrences-driven loops can see _ancestors
+  // without needing to convert them through gatherLoopItems first. Spread leaves the
+  // original Redux-state object untouched.
+  const allOccurrencesEnriched = Object.values(occurrencesById).map(occ => ({
+    ...occ,
+    _ancestors: ancestorsFor(occ.id),
+  }));
+
   // ---- Build $vars ----
   const _nowDate = new Date();
   const _activeIteration = (state?.grid?.iterations ?? []).find(i => i.id === state?.grid?.selectedIterationId);
@@ -605,7 +636,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     $templates: state?.grid?.templates ?? [],
     $iterationDefinitions: state?.grid?.iterations ?? [],
     // Built-in arrays — loop-ready collections of everything in the system
-    $allOccurrences: Object.values(occurrencesById),
+    $allOccurrences: allOccurrencesEnriched,
     $allModules: state?.modules ?? [],
     $allFields: Object.values(fieldsById),
     $grid: state?.grid ?? {},

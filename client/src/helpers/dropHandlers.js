@@ -20,6 +20,7 @@ import { operationsBridge } from "../state/bindSocketToStore";
 import { embedDeleteRegistry } from "./embedRegistry";
 import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
 import { createModuleAction, createOccurrenceAction } from "../state/actions";
+import { mimeToKind } from "./fileKind";
 
 function makeUUID() {
   return crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -504,57 +505,108 @@ export function handleFileDrop(ctx, drop) {
   const capturedPanelView = capturedPanelOcc?.viewId ? state?.viewsById?.[capturedPanelOcc.viewId] : null;
   const isExistingArtifactPanel = capturedPanelView?.viewType === "display" || capturedPanelView?.hasTree;
 
-  // Capture container occurrence before async upload
   const capturedContainerOcc = containerId
     ? Object.values(occurrencesById).find(o => o.targetId === containerId)
     : null;
 
+  // ── Build placeholder module + occurrence with client-generated IDs ──
+  const moduleId = makeUUID();
+  const occurrenceId = makeUUID();
+  const kind = mimeToKind(file.type, file.name);
+
+  const placeholderModule = {
+    id: moduleId,
+    userId: fileUserId,
+    gridId: fileGridId,
+    role: "artifact",
+    kind,
+    label: file.name,
+    fileRef: null,
+    defaultDragMode: "copy",
+    meta: {
+      uploadStatus: "pending",
+      originalName: file.name,
+      mimeType: file.type,
+      uploadSize: file.size,
+    },
+  };
+
+  const placeholderOccurrence = {
+    id: occurrenceId,
+    userId: fileUserId,
+    gridId: fileGridId,
+    targetType: "module",
+    targetId: moduleId,
+    fields: {},
+    meta: {},
+  };
+
+  // Optimistic local dispatch — renders the spinner immediately.
+  dispatch(createModuleAction(placeholderModule));
+  dispatch(createOccurrenceAction(placeholderOccurrence));
+
+  // Wire the placeholder into its destination so the spinner appears in the right spot.
+  if (capturedContainerOcc) {
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: capturedContainerOcc.id, occurrences: [...(capturedContainerOcc.occurrences || []), occurrenceId] },
+      emit: true,
+    });
+  } else if (isExistingArtifactPanel && capturedPanelView) {
+    CommitHelpers.updateView({ dispatch, socket, view: { ...capturedPanelView, activeOccurrenceId: occurrenceId } });
+  } else {
+    const targetCell = cell || { row: 0, col: 0 };
+    const newPanelModule = { id: makeUUID(), label: file.name || "Uploaded File", role: "panel", kind: "list" };
+    const panelResult = LayoutHelpers.createPanelInGrid({
+      dispatch, socket, grid: fileGrid, panel: newPanelModule,
+      placement: { row: targetCell.row, col: targetCell.col, width: 1, height: 1 },
+      userId: fileUserId, emit: true,
+    });
+    if (panelResult?.occurrence) {
+      const viewId = makeUUID();
+      const { viewType, artifactType } = viewFieldsForKindClient(kind);
+      CommitHelpers.createView({
+        dispatch, socket,
+        view: { id: viewId, userId: fileUserId, gridId: fileGridId, viewType, artifactType, hasTree: false, manifestId: null, activeOccurrenceId: occurrenceId },
+        emit: true,
+      });
+      CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...panelResult.occurrence, viewId }, emit: true });
+    }
+  }
+
+  // ── Background upload — server upserts using the IDs we just dispatched ──
   const formData = new FormData();
   formData.append("file", file);
   formData.append("userId", fileUserId);
   formData.append("gridId", fileGridId);
+  formData.append("moduleId", moduleId);
+  formData.append("occurrenceId", occurrenceId);
 
   fetch("/api/artifacts/upload", { method: "POST", body: formData })
     .then(r => r.json())
-    .then(({ module: uploadedModule, occurrence: uploadedOcc }) => {
-      if (!uploadedOcc?.id) return;
-      // Optimistic local dispatch — eliminates the blank-spot delay where the
-      // container update referenced an occurrence not yet in local state (the
-      // socket events arrive on a separate channel from the fetch response).
-      // Reducer is idempotent so the duplicate dispatch on socket arrival is a no-op.
-      if (uploadedModule) dispatch(createModuleAction(uploadedModule));
-      dispatch(createOccurrenceAction(uploadedOcc));
-      if (capturedContainerOcc) {
-        // File dropped onto a container — append the artifact occurrence to it
-        CommitHelpers.updateOccurrence({
-          dispatch, socket,
-          occurrence: { id: capturedContainerOcc.id, occurrences: [...(capturedContainerOcc.occurrences || []), uploadedOcc.id] },
-          emit: true,
-        });
-      } else if (isExistingArtifactPanel && capturedPanelView) {
-        CommitHelpers.updateView({ dispatch, socket, view: { ...capturedPanelView, activeOccurrenceId: uploadedOcc.id } });
-      } else {
-        const targetCell = cell || { row: 0, col: 0 };
-        const newPanelModule = { id: makeUUID(), label: file.name || "Uploaded File", role: "panel", kind: "list" };
-        const panelResult = LayoutHelpers.createPanelInGrid({
-          dispatch, socket, grid: fileGrid, panel: newPanelModule,
-          placement: { row: targetCell.row, col: targetCell.col, width: 1, height: 1 },
-          userId: fileUserId, emit: true,
-        });
-        if (panelResult?.occurrence) {
-          const viewId = makeUUID();
-          CommitHelpers.createView({
-            dispatch, socket,
-            view: { id: viewId, userId: fileUserId, gridId: fileGridId, viewType: "display", hasTree: false, manifestId: null, activeOccurrenceId: uploadedOcc.id },
-            emit: true,
-          });
-          CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...panelResult.occurrence, viewId }, emit: true });
-        }
+    .then(({ module: uploadedModule }) => {
+      if (uploadedModule?.id) {
+        // Local module already exists; reducer is idempotent — clears the spinner.
+        CommitHelpers.updateModule({ dispatch, socket, module: uploadedModule, emit: false });
       }
     })
-    .catch(err => console.error("[FILE DROP] Upload error:", err));
+    .catch(err => {
+      console.error("[FILE DROP] Upload error:", err);
+      CommitHelpers.updateModule({
+        dispatch, socket,
+        module: { id: moduleId, meta: { ...placeholderModule.meta, uploadStatus: "error" } },
+        emit: false,
+      });
+    });
 
   clearSession();
+}
+
+// Local mirror of server.js viewFieldsForKind (only used when creating an artifact panel).
+function viewFieldsForKindClient(kind) {
+  if (["image", "video", "audio", "pdf"].includes(kind)) return { viewType: "display", artifactType: kind };
+  if (kind === "code") return { viewType: "code", artifactType: null };
+  return { viewType: "markdown", artifactType: null };
 }
 
 // ============================================================

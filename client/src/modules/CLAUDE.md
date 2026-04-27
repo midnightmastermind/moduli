@@ -2,6 +2,11 @@
 
 _Updated: Apr 25 2026. This folder implements occurrence-based view routing._
 
+## Recent Changes (Apr 26 2026 — Per-day Container/Occurrence Pairs)
+- **ModulePage.jsx**: `containersList` (board pages) now returns `[{ container, occurrence }]` pairs instead of just containers. The lookup walks `occurrence.occurrences[]` and picks the FIRST child occurrence of each container module that passes `isOccurrenceVisible(occ, pageEffectiveFilters, …)`. When a container has no occurrence at all, falls back to `{ container, occurrence: null }` (preserves prior behavior for newly-created/empty containers).
+- **pages/PageBoard.jsx**: Consumes the pair shape directly — `containersList.map(({ container, occurrence }) => …)` and forwards `occurrenceOverride={containerOcc}` to `<Container>`. Removed the redundant `find(targetId === ...)` lookup that picked the wrong-day occurrence when multiple per-day occurrences of the same slot module existed (root cause of stale radial-menu / popover anchors on the schedule).
+- Fix scope: schedule slot containers now anchor to the correct per-day occurrence; container popover refs stay valid across day navigation.
+
 ## Recent Changes (Apr 25 2026 — Artifact + Textblock Roles)
 - **ArtifactCard.jsx** (NEW): Pure renderer for `role:"artifact"` modules sitting in a container. Thumbnail mode (~120px tall, click to expand) and expanded mode that fills the parent `.instance-wrap` row. Video uses `<video controls autoPlay>`, image uses `<img>`, audio uses `<audio controls>`, pdf uses `<iframe>`. X button (`.artifact-expand-close`) collapses back. Reads `module.kind` (image/video/audio/pdf) and `module.fileRef`. No state in occurrence, no view, no panel involved — just an inline card.
 - **TextblockCard.jsx** (NEW): Pure renderer for `role:"textblock"` modules. Wraps the existing `<Editor>` on `occurrence.textmap`. Save path is the same as DocContent (Editor's onChange → updateOccurrence). One CSS class `.textblock-card`.

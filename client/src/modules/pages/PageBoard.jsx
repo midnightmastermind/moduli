@@ -1,9 +1,8 @@
 // modules/pages/PageBoard.jsx
 // Board page — vertical list of sortable containers.
-import React, { useContext } from "react";
+import React from "react";
 import Container from "../ModuleContainer.jsx";
 import { Spinner } from "../../components/ui/spinner";
-import { GridActionsContext } from "../../GridActionsContext";
 
 export default function PageBoard({
   occurrence,
@@ -17,9 +16,6 @@ export default function PageBoard({
   isMobile,
   fullStateLoaded,
 }) {
-  const { occurrencesById } = useContext(GridActionsContext);
-  const childOccIds = occurrence.occurrences || [];
-
   return (
     <div
       ref={dropRef}
@@ -35,24 +31,20 @@ export default function PageBoard({
       }}
     >
       <div style={{ position: "relative", minHeight: "100%", zIndex: 1 }}>
-        {containersList.map((container) => {
-          const containerOccId = childOccIds.find(occId => occurrencesById[occId]?.targetId === container.id);
-          const containerOcc = containerOccId ? occurrencesById[containerOccId] : null;
-          return (
-            <Container
-              key={containerOccId || container.id}
-              module={container}
-              occurrenceOverride={containerOcc}
-              panelId={panelId}
-              pageOccurrenceId={occurrence.id}
-              panelLayoutOrientation="vertical"
-              addInstanceToContainer={addInstanceToContainer}
-              dispatch={dispatch}
-              socket={socket}
-              gapPx={12}
-            />
-          );
-        })}
+        {containersList.map(({ container, occurrence: containerOcc }) => (
+          <Container
+            key={containerOcc?.id || container.id}
+            module={container}
+            occurrenceOverride={containerOcc}
+            panelId={panelId}
+            pageOccurrenceId={occurrence.id}
+            panelLayoutOrientation="vertical"
+            addInstanceToContainer={addInstanceToContainer}
+            dispatch={dispatch}
+            socket={socket}
+            gapPx={12}
+          />
+        ))}
         {containersList.length === 0 && !fullStateLoaded && (occurrence.occurrences?.length > 0) && (
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "32px 0", opacity: 0.5 }}>
             <Spinner size="sm" />

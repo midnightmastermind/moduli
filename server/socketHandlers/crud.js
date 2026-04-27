@@ -151,34 +151,7 @@ export function registerCrudHandlers(socket, {
   });
 
   // ── OCCURRENCE (simple create/delete — update_occurrence is in occurrences.js) ──
-  socket.on("create_occurrence", async ({ occurrence } = {}) => {
-    try {
-      if (!userId) return;
-      const uc = await getUc();
-      const id = occurrence?.id;
-      if (!id) return;
-      const occurrenceData = {
-        ...createOccurrenceData({
-          id, userId,
-          targetType: occurrence.targetType, targetId: occurrence.targetId,
-          gridId: occurrence.gridId,
-          placement: occurrence.placement, fields: occurrence.fields,
-          meta: occurrence.meta, linkedGroupId: occurrence.linkedGroupId || null,
-        }),
-        // Pass through additional fields not in createOccurrenceData
-        ...(occurrence.parentId != null && { parentId: occurrence.parentId }),
-        ...(occurrence.textmap != null && { textmap: occurrence.textmap }),
-        ...(occurrence.viewId != null && { viewId: occurrence.viewId }),
-        ...(Array.isArray(occurrence.occurrences) && { occurrences: occurrence.occurrences }),
-      };
-      uc.occurrencesById[id] = occurrenceData;
-      await Occurrence.findOneAndUpdate({ id, userId }, occurrenceData, { upsert: true });
-      socket.to(userRoom(userId)).emit("occurrence_created", { occurrence: occurrenceData });
-    } catch (err) {
-      console.error("create_occurrence error:", err);
-      socket.emit("server_error", "Failed to create occurrence");
-    }
-  });
+  setupOccurrencesCRUD(socket, userId, getUc, { userRoom, createOccurrenceData });
 
   socket.on("delete_occurrence", async ({ occurrenceId } = {}) => {
     try {
@@ -765,4 +738,115 @@ export function registerCrudHandlers(socket, {
       socket.emit("server_error", "Failed to update occurrence hidden state");
     }
   });
+}
+
+// ── Standalone occurrence-CRUD setup ──────────────────────────────────────
+// Extracted as a named export so unit tests can attach to a mock socket without
+// booting the full Express + Socket.io server.
+export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
+  const userRoomFn = deps.userRoom || ((uid) => `user:${uid}`);
+  const createOccurrenceDataFn = deps.createOccurrenceData
+    || ((p) => ({ id: p.id, userId: p.userId, targetType: p.targetType, targetId: p.targetId, gridId: p.gridId, fields: p.fields || {}, meta: p.meta || {}, ...(p.placement && { placement: p.placement }), ...(p.linkedGroupId && { linkedGroupId: p.linkedGroupId }) }));
+
+  // Per-socket Promise chain: serializes create_occurrence so a pipeline that emits
+  // 49 events back-to-back persists them in emit order. Without this, concurrent
+  // $push calls land on the parent in arbival order — slots showed up randomized.
+  let createQueue = Promise.resolve();
+
+  socket.on("create_occurrence", ({ occurrence } = {}) => {
+    createQueue = createQueue.then(() => handleCreateOccurrence(occurrence)).catch(() => {});
+    return createQueue;
+  });
+
+  // Atomic, idempotent: append child to parent.occurrences[] only when missing.
+  // Used by the auto-build pipeline to re-link orphan occurrences (children whose
+  // parentId points at a parent whose occurrences[] doesn't include them yet) —
+  // the situation when a previous race lost some appends. Serialized through the
+  // same per-socket queue so concurrent links from one pipeline don't reorder.
+  socket.on("link_occurrence_to_parent", ({ occurrenceId, parentOccurrenceId } = {}) => {
+    createQueue = createQueue.then(() => handleLinkToParent(occurrenceId, parentOccurrenceId)).catch(() => {});
+    return createQueue;
+  });
+
+  async function handleLinkToParent(occurrenceId, parentOccurrenceId) {
+    try {
+      if (!userId || !occurrenceId || !parentOccurrenceId) return;
+      const uc = await getUc();
+      const updatedParent = await Occurrence.findOneAndUpdate(
+        { id: parentOccurrenceId, userId, occurrences: { $ne: occurrenceId } },
+        { $push: { occurrences: occurrenceId } },
+        { returnDocument: "after" }
+      );
+      if (!updatedParent) return; // already linked or parent missing — no-op
+      const parentObj = typeof updatedParent.toObject === "function" ? updatedParent.toObject() : updatedParent;
+      uc.occurrencesById[parentOccurrenceId] = parentObj;
+      socket.to(userRoomFn(userId)).emit("occurrence_updated", { occurrence: parentObj });
+      socket.emit("occurrence_updated", { occurrence: parentObj });
+    } catch (err) {
+      console.error("link_occurrence_to_parent error:", err);
+    }
+  }
+
+  async function handleCreateOccurrence(occurrence) {
+    try {
+      if (!userId) return;
+      const uc = await getUc();
+      const id = occurrence?.id;
+      if (!id) return;
+      const occurrenceData = {
+        ...createOccurrenceDataFn({
+          id, userId,
+          targetType: occurrence.targetType, targetId: occurrence.targetId,
+          gridId: occurrence.gridId,
+          placement: occurrence.placement, fields: occurrence.fields,
+          meta: occurrence.meta, linkedGroupId: occurrence.linkedGroupId || null,
+        }),
+        ...(occurrence.parentId != null && { parentId: occurrence.parentId }),
+        ...(occurrence.textmap != null && { textmap: occurrence.textmap }),
+        ...(occurrence.viewId != null && { viewId: occurrence.viewId }),
+        ...(Array.isArray(occurrence.occurrences) && { occurrences: occurrence.occurrences }),
+      };
+      uc.occurrencesById[id] = occurrenceData;
+      try {
+        await Occurrence.findOneAndUpdate({ id, userId }, occurrenceData, { upsert: true });
+      } catch (upsertErr) {
+        // E11000: an update_occurrence raced ahead and already inserted this id.
+        // Fall back to id-only $set so the create still persists its data.
+        if (upsertErr.code === 11000) {
+          await Occurrence.findOneAndUpdate({ id }, { $set: occurrenceData });
+        } else {
+          throw upsertErr;
+        }
+      }
+      socket.to(userRoomFn(userId)).emit("occurrence_created", { occurrence: occurrenceData });
+
+      // ── Auto-push into parent.occurrences[] (atomic — many concurrent
+      // creates from a pipeline loop must not clobber each other's appends) ──
+      // CRITICAL: do NOT echo the parent update back to the originating socket.
+      // The originating client already optimistically appended the new ID to
+      // parent.occurrences[] in CREATE_OCCURRENCE_FOR_MODULE. Echoing the server's
+      // snapshot back races with subsequent optimistic appends in the same tick:
+      // an echo from create #1 replaces the parent array with [..., #1], wiping
+      // out the optimistic [..., #1, #2, #3] state created moments later. Other
+      // sockets DO need the broadcast to learn about the structural change.
+      if (occurrenceData.parentId) {
+        const update = typeof occurrence.insertAtIndex === "number"
+          ? { $push: { occurrences: { $each: [id], $position: occurrence.insertAtIndex } } }
+          : { $push: { occurrences: id } };
+        const updatedParent = await Occurrence.findOneAndUpdate(
+          { id: occurrenceData.parentId, userId, occurrences: { $ne: id } },
+          update,
+          { returnDocument: "after" }
+        );
+        if (updatedParent) {
+          const parentObj = typeof updatedParent.toObject === "function" ? updatedParent.toObject() : updatedParent;
+          uc.occurrencesById[occurrenceData.parentId] = parentObj;
+          socket.to(userRoomFn(userId)).emit("occurrence_updated", { occurrence: parentObj });
+        }
+      }
+    } catch (err) {
+      console.error("create_occurrence error:", err);
+      socket.emit("server_error", "Failed to create occurrence");
+    }
+  }
 }

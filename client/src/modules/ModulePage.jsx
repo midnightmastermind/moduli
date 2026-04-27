@@ -28,7 +28,7 @@ import { GridDataContext } from "../GridDataContext";
 import { GridLiveContext } from "../GridLiveContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
-  getPageContainers,
+  getPageChildrenModules,
 } from "../helpers/LayoutHelpers";
 import {
   useDraggable,
@@ -162,14 +162,34 @@ function Page({
 
   const containersList = useMemo(() => {
     if (!occurrence) return [];
-    const allContainers = getPageContainers(occurrence, occurrencesById, containersById);
+    // Pages can host any module role (containers, artifacts, textblocks, nested pages).
+    // Pass full modulesById so non-container child modules also resolve.
+    const childModules = getPageChildrenModules(occurrence, occurrencesById, modulesById);
     const childOccIds = occurrence.occurrences || [];
-    return allContainers.filter(container => {
-      const containerOccId = childOccIds.find(occId => occurrencesById[occId]?.targetId === container.id);
-      const containerOcc = containerOccId ? occurrencesById[containerOccId] : null;
-      return isOccurrenceVisible(containerOcc ?? { id: container.id }, pageEffectiveFilters, pageActiveFilterConditions);
-    });
-  }, [occurrence, occurrencesById, containersById, pageEffectiveFilters, pageActiveFilterConditions]);
+    const pairs = [];
+    for (const container of childModules) {
+      // Pick the per-day occurrence that matches the page's effective filter. A page
+      // can host multiple occurrences of the same slot module (one per date), and we
+      // want the one belonging to the active date — not the first one find() returns.
+      let matchedOcc = null;
+      let hasAnyOcc = false;
+      for (const occId of childOccIds) {
+        const occ = occurrencesById[occId];
+        if (!occ || occ.targetId !== container.id) continue;
+        hasAnyOcc = true;
+        if (isOccurrenceVisible(occ, pageEffectiveFilters, pageActiveFilterConditions)) {
+          matchedOcc = occ;
+          break;
+        }
+      }
+      if (matchedOcc) {
+        pairs.push({ container, occurrence: matchedOcc });
+      } else if (!hasAnyOcc && isOccurrenceVisible({ id: container.id }, pageEffectiveFilters, pageActiveFilterConditions)) {
+        pairs.push({ container, occurrence: null });
+      }
+    }
+    return pairs;
+  }, [occurrence, occurrencesById, modulesById, pageEffectiveFilters, pageActiveFilterConditions]);
 
   // Label editing
   const startEdit = useCallback(() => {

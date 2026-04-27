@@ -351,16 +351,19 @@ export function getPanelPages(panelOccurrence, occurrencesLookup, modulesLookup)
 }
 
 /**
- * Gets containers inside a page occurrence.
+ * Gets the child MODULES of a page occurrence, in order. Pages can host any
+ * module role (containers, artifacts, textblocks, even nested pages) — pass a
+ * combined `modulesLookup` (e.g. `state.modulesById`) so all child kinds resolve.
+ * Caller can filter by role afterward if it wants only containers, etc.
  */
-export function getPageContainers(pageOccurrence, occurrencesLookup, containersLookup) {
+export function getPageChildrenModules(pageOccurrence, occurrencesLookup, modulesLookup) {
   const ids = resolveChildOccurrenceIds(pageOccurrence);
   if (!ids.length) return [];
   return ids
     .map(occId => {
       const occ = getItemById(occId, occurrencesLookup);
       if (!occ) return null;
-      return getItemById(occ.targetId, containersLookup);
+      return getItemById(occ.targetId, modulesLookup);
     })
     .filter(Boolean);
 }

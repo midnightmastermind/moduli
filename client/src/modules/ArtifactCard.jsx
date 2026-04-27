@@ -4,18 +4,38 @@
 //   - expanded mode: fills the parent instance row, with <video controls autoPlay>,
 //     a scaled <img>, an <audio controls>, or an <iframe> for pdf. X button collapses.
 import React, { useState, useCallback } from "react";
-import { X, Maximize2 } from "lucide-react";
+import { X, Maximize2, AlertCircle } from "lucide-react";
+import { Spinner } from "../components/ui/spinner.jsx";
 
 export default function ArtifactCard({ module, label }) {
   const [expanded, setExpanded] = useState(false);
   const fileRef = module?.fileRef;
   const kind = module?.kind;
+  const status = module?.meta?.uploadStatus;
   const src = fileRef ? `/uploads/${fileRef}` : null;
 
   const toggle = useCallback((e) => {
     e?.stopPropagation();
     setExpanded((v) => !v);
   }, []);
+
+  if (status === "pending") {
+    return (
+      <div className="artifact-card artifact-card--uploading" data-kind={kind}>
+        <Spinner size="md" />
+        <span className="artifact-upload-caption">{label || module?.label || "Uploading…"}</span>
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="artifact-card artifact-card--upload-error" data-kind={kind}>
+        <AlertCircle size={18} />
+        <span className="artifact-upload-caption">{label || module?.label || "Upload failed"}</span>
+      </div>
+    );
+  }
 
   if (!src) {
     return (
@@ -75,7 +95,7 @@ function renderThumbnail(kind, src, label) {
 
 function renderExpanded(kind, src, label) {
   if (kind === "image") return <img className="artifact-expanded-media" src={src} alt={label || "image"} />;
-  if (kind === "video") return <video className="artifact-expanded-media" src={src} controls autoPlay playsInline />;
+  if (kind === "video") return <video className="artifact-expanded-media" src={src} controls playsInline />;
   if (kind === "audio") return (
     <div className="artifact-expanded-audio">
       <audio src={src} controls autoPlay style={{ width: "100%" }} />

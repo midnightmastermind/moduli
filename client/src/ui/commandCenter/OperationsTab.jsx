@@ -92,13 +92,11 @@ export function getTriggerVars(eventType, subjectType) {
   return base;
 }
 
-// Legacy map for backwards-compat display in preview (old triggerType values)
-const TRIGGER_TYPES = EVENT_TYPES;
 
 // ============================================================
 // OP ITEM (Pragmatic DnD draggable — drag to instance to add operationBinding)
 // ============================================================
-export function OpItem({ op, selected, onClick, onPreview, isDuplicate = false }) {
+export function OpItem({ op, selected, onClick, onPreview, isDuplicate = false, onPriorityChange }) {
   const ref = useRef(null);
   const { state, fieldsById, occurrencesById } = useContext(GridActionsContext);
 
@@ -162,7 +160,7 @@ export function OpItem({ op, selected, onClick, onPreview, isDuplicate = false }
         fontSize: 11, fontFamily: "monospace", userSelect: "none",
       }}
     >
-      {/* Header row: grip + name + preview/run button */}
+      {/* Header row: grip + name + priority + preview/run button */}
       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
         <GripVertical style={{ width: 8, height: 8, opacity: 0.3, flexShrink: 0 }} />
         <span style={{ color: op.enabled ? "rgb(196,181,253)" : "var(--text-faint)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -170,6 +168,24 @@ export function OpItem({ op, selected, onClick, onPreview, isDuplicate = false }
         </span>
         {isDuplicate && (
           <span title="Another operation uses the same trigger + target field" style={{ fontSize: 9, color: "rgba(251,146,60,0.9)", flexShrink: 0 }}>⚠</span>
+        )}
+        {onPriorityChange && (
+          <select
+            value={op.priority ?? 5}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => { e.stopPropagation(); onPriorityChange(Number(e.target.value)); }}
+            title="Priority — lower runs first (1 = highest)"
+            style={{
+              fontSize: 9, fontFamily: "monospace",
+              background: "var(--input-bg)", color: "var(--text-muted)",
+              border: "1px solid var(--input-border)", borderRadius: 3,
+              padding: "0 2px", height: 16, cursor: "pointer", flexShrink: 0,
+            }}
+          >
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+              <option key={n} value={n}>P{n}</option>
+            ))}
+          </select>
         )}
         {nodeInputSources.length > 0 ? (
           <button
@@ -325,7 +341,21 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
   useMemo(() => setLocal(operation), [operation?.id]);
 
   // triggerObjects is authoritative. triggerTypes is a derived index for dispatch.
-  const triggerObjects = Array.isArray(local.triggerObjects) ? local.triggerObjects : [];
+  // Migrate older ops (triggerObjects null/missing) by deriving from triggerTypes/triggerType
+  // so the Triggers section never renders empty when the op clearly has triggers wired up.
+  const triggerObjects = useMemo(() => {
+    if (Array.isArray(local.triggerObjects)) return local.triggerObjects;
+    const types = Array.isArray(local.triggerTypes)
+      ? local.triggerTypes
+      : (local.triggerType ? [local.triggerType] : []);
+    return types
+      .filter(t => t && t !== "manual")
+      .map(eventType => {
+        if (eventType === "onLoad") return { eventType, subjectType: "grid", targetId: "" };
+        if (eventType === "onFilterChange") return { eventType, subjectType: "filterNav", targetId: "" };
+        return { eventType, subjectType: "field", targetId: "" };
+      });
+  }, [local.triggerObjects, local.triggerTypes, local.triggerType]);
 
   const setTriggerConfig = (triggerKey, patch) =>
     setLocal(p => ({
@@ -410,35 +440,6 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
             </select>
           </div>
         )}
-        <div>
-          <span style={labelStyle}>Target Field (legacy)</span>
-          <select
-            value={local.targetFieldId || ""}
-            onChange={(e) =>
-              setLocal((p) => ({ ...p, targetFieldId: e.target.value || null }))
-            }
-            style={{ ...inputStyle, width: "auto", minWidth: 120 }}
-          >
-            <option value="">None</option>
-            {fields.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name || f.type}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <span style={labelStyle}>Priority</span>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <input
-              type="number"
-              value={local.sortOrder ?? 50}
-              onChange={(e) => setLocal((p) => ({ ...p, sortOrder: Number(e.target.value) }))}
-              style={{ ...inputStyle, width: 70 }}
-            />
-            <span style={{ fontSize: 10, color: "var(--text-faint)", fontStyle: "italic" }}>lower runs first</span>
-          </div>
-        </div>
       </div>
 
       {/* ── Triggers ── */}
@@ -721,7 +722,7 @@ export function OperationsTab() {
   }, []);
 
   const handleCreate = (folderId = null) => {
-    const newOp = { id: uid(), gridId, name: "New Operation", description: "", pipeline: { sources: [], steps: [] }, targetFieldId: null, triggerType: "onChange", triggerTypes: ["onChange", "onLoad"], enabled: true, sortOrder: gridOperations.length, folderId };
+    const newOp = { id: uid(), gridId, name: "New Operation", description: "", pipeline: { sources: [], steps: [] }, triggerObjects: [{ eventType: "onLoad", subjectType: "grid", targetId: "" }], triggerTypes: ["onLoad"], triggerType: "onLoad", enabled: true, sortOrder: gridOperations.length, priority: 5, folderId };
     CommitHelpers.createOperation({ dispatch, socket, operation: newOp });
     setSelectedOpId(newOp.id);
   };
@@ -781,6 +782,9 @@ export function OperationsTab() {
             onClick={() => toggleSelect(op.id)}
             onPreview={() => handleRun(op)}
             isDuplicate={duplicateOpIds.has(op.id)}
+            onPriorityChange={(priority) =>
+              CommitHelpers.updateOperation({ dispatch, socket, operation: { ...op, priority } })
+            }
           />
         ))}
         {ops.length === 0 && (
@@ -849,7 +853,7 @@ export function OperationsTab() {
       {/* Preview panel — shown when Run is clicked */}
       {previewOp && (() => {
         const triggerTypes = Array.isArray(previewOp.triggerTypes) ? previewOp.triggerTypes : [previewOp.triggerType].filter(Boolean);
-        const triggerInfo = triggerTypes.map(t => TRIGGER_TYPES.find(tt => tt.value === t)).filter(Boolean);
+        const triggerInfo = triggerTypes.map(t => EVENT_TYPES.find(tt => tt.value === t)).filter(Boolean);
         const sources = previewOp.pipeline?.sources || [];
         const steps = previewOp.pipeline?.steps || [];
         const describeStep = (s) => {

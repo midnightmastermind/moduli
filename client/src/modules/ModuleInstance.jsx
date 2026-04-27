@@ -236,6 +236,7 @@ function InstanceInner({
     >
       {/* Content: [radial + label] on top, fields below */}
       <div
+        className="instance-content"
         style={{
           flex: 1,
           display: "flex",

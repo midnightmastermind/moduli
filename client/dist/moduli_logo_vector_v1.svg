@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" fill="none" role="img" aria-label="moduli logo">
+  <defs>
+    <!-- Gradient you can tweak -->
+    <linearGradient id="moduliGrad" x1="40" y1="40" x2="320" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#48F2E6"/>
+      <stop offset="0.55" stop-color="#39A9E6"/>
+      <stop offset="1" stop-color="#2C4FD9"/>
+    </linearGradient>
+
+    <!-- Subtle depth / glow -->
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feColorMatrix in="b" type="matrix"
+        values="1 0 0 0 0
+                0 1 0 0 0
+                0 0 1 0 0
+                0 0 0 .35 0" result="g"/>
+      <feMerge>
+        <feMergeNode in="g"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- A clip to fake the “over/under” knot in the center -->
+    <clipPath id="leftClip">
+      <rect x="0" y="0" width="180" height="260" rx="0"/>
+    </clipPath>
+    <clipPath id="rightClip">
+      <rect x="180" y="0" width="220" height="260" rx="0"/>
+    </clipPath>
+  </defs>
+
+  <!-- MARK: ribbon infinity / knot (true vector) -->
+  <g transform="translate(20,20)" filter="url(#softGlow)">
+    <!-- Base ribbon (thicker dark under-stroke for depth) -->
+    <path
+      d="M 40 130
+         C 40 70, 100 40, 150 70
+         C 190 94, 210 120, 240 130
+         C 270 140, 290 166, 330 190
+         C 380 220, 440 190, 440 130
+         C 440 70, 380 40, 330 70
+         C 290 94, 270 120, 240 130
+         C 210 140, 190 166, 150 190
+         C 100 220, 40 190, 40 130"
+      stroke="#06152e"
+      stroke-width="48"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.50"
+    />
+
+    <!-- Main gradient ribbon -->
+    <path
+      d="M 40 130
+         C 40 70, 100 40, 150 70
+         C 190 94, 210 120, 240 130
+         C 270 140, 290 166, 330 190
+         C 380 220, 440 190, 440 130
+         C 440 70, 380 40, 330 70
+         C 290 94, 270 120, 240 130
+         C 210 140, 190 166, 150 190
+         C 100 220, 40 190, 40 130"
+      stroke="url(#moduliGrad)"
+      stroke-width="40"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+
+    <!-- Inner highlight to sell “ribbon” -->
+    <path
+      d="M 58 130
+         C 58 84, 104 62, 142 84
+         C 175 103, 194 122, 222 130
+         C 250 138, 268 157, 300 176
+         C 338 198, 392 176, 392 130
+         C 392 84, 346 62, 308 84
+         C 275 103, 256 122, 228 130
+         C 200 138, 182 157, 150 176
+         C 112 198, 58 176, 58 130"
+      stroke="rgba(255,255,255,0.35)"
+      stroke-width="10"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+
+    <!-- Center “knot” illusion: draw two short segments on top -->
+    <g>
+      <!-- Left-over segment -->
+      <path
+        d="M 168 92 C 198 112, 214 124, 240 130"
+        stroke="url(#moduliGrad)"
+        stroke-width="42"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        clip-path="url(#leftClip)"
+      />
+      <!-- Right-over segment -->
+      <path
+        d="M 240 130 C 266 136, 286 148, 312 168"
+        stroke="url(#moduliGrad)"
+        stroke-width="42"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        clip-path="url(#rightClip)"
+      />
+    </g>
+  </g>
+
+  <!-- WORDMARK: “hacker” monospace vibe -->
+  <text
+    x="520" y="165"
+    fill="#0b1d3a"
+    font-family="JetBrains Mono, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace"
+    font-weight="800"
+    font-size="118"
+    letter-spacing="2"
+  >moduli</text>
+</svg>

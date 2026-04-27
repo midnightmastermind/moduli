@@ -337,6 +337,7 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
   try {
     const { userId, gridId, parentFolderId, manifestId } = req.body;
     if (!userId || !req.file) return res.status(400).json({ error: "Missing userId or file" });
+
     const subfolder = "user";
     const artifactSubdir = path.join(uploadsDir, subfolder);
     fs.mkdirSync(artifactSubdir, { recursive: true });
@@ -346,15 +347,46 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
     const fileRef = `${subfolder}/${destFileName}`;
     const kind = mimeToKind(req.file.mimetype, req.file.originalname);
     const { viewType, artifactType } = viewFieldsForKind(kind);
-    const moduleId = nanoid();
-    const occurrenceId = nanoid();
-    const mod = new Module({ id: moduleId, userId, gridId: gridId || null, role: "artifact", kind, label: req.file.originalname, fileRef, defaultDragMode: "copy", meta: { mimeType: req.file.mimetype, originalName: req.file.originalname, folderId: parentFolderId || null } });
-    await mod.save();
-    const artifactViewId = nanoid();
-    const artifactView = new View({ id: artifactViewId, userId, gridId: gridId || null, viewType, artifactType, layout: {} });
-    await artifactView.save();
-    const occ = new Occurrence({ id: occurrenceId, userId, gridId: gridId || null, targetId: moduleId, targetType: "module", parentId: parentFolderId || null, viewId: artifactViewId, textmap: kind === "markdown" ? { type: "doc", content: [] } : null });
-    await occ.save();
+
+    // Use supplied IDs if present (optimistic flow), otherwise generate fresh ones.
+    const moduleId = req.body.moduleId || nanoid();
+    const occurrenceId = req.body.occurrenceId || nanoid();
+
+    const existingMod = await Module.findOne({ id: moduleId });
+    const isUpdate = !!existingMod;
+
+    const moduleDoc = {
+      id: moduleId, userId, gridId: gridId || null,
+      role: "artifact", kind,
+      label: existingMod?.label || req.file.originalname,
+      fileRef, defaultDragMode: "copy",
+      meta: {
+        ...(existingMod?.meta || {}),
+        mimeType: req.file.mimetype,
+        originalName: req.file.originalname,
+        folderId: parentFolderId || existingMod?.meta?.folderId || null,
+        uploadStatus: "ready",
+      },
+    };
+    await Module.findOneAndUpdate({ id: moduleId }, moduleDoc, { upsert: true });
+
+    const existingOcc = await Occurrence.findOne({ id: occurrenceId });
+    const occDoc = existingOcc
+      ? { ...existingOcc.toObject(), targetType: "module", targetId: moduleId }
+      : {
+          id: occurrenceId, userId, gridId: gridId || null,
+          targetType: "module", targetId: moduleId,
+          parentId: parentFolderId || null,
+          textmap: kind === "markdown" ? { type: "doc", content: [] } : null,
+        };
+    if (!existingOcc) {
+      const artifactViewId = nanoid();
+      const artifactView = new View({ id: artifactViewId, userId, gridId: gridId || null, viewType, artifactType, layout: {} });
+      await artifactView.save();
+      occDoc.viewId = artifactViewId;
+    }
+    await Occurrence.findOneAndUpdate({ id: occurrenceId }, occDoc, { upsert: true });
+
     if (manifestId) {
       const manifestView = await View.findOne({ manifestId, userId });
       if (manifestView) {
@@ -366,12 +398,21 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
         io.to(userRoom(userId)).emit("view_updated", vc);
       }
     }
-    const modObj = { ...mod.toObject(), id: mod.id };
-    const occObj = { ...occ.toObject(), id: occ.id };
+
+    const modObj = await Module.findOne({ id: moduleId }).lean();
+    const occObj = await Occurrence.findOne({ id: occurrenceId }).lean();
     const cache = cacheByUser[userId];
-    if (cache) { cache.modulesById[modObj.id] = modObj; cache.occurrencesById[occObj.id] = occObj; }
-    io.to(userRoom(userId)).emit("module_created", modObj);
-    io.to(userRoom(userId)).emit("occurrence_created", occObj);
+    if (cache) {
+      cache.modulesById[modObj.id] = modObj;
+      cache.occurrencesById[occObj.id] = occObj;
+    }
+
+    if (isUpdate) {
+      io.to(userRoom(userId)).emit("module_updated", modObj);
+    } else {
+      io.to(userRoom(userId)).emit("module_created", modObj);
+      io.to(userRoom(userId)).emit("occurrence_created", occObj);
+    }
     io.to(userRoom(userId)).emit("artifact_created", { moduleId, occurrenceId, fileRef });
     res.json({ module: modObj, occurrence: occObj, fileRef, url: `/artifacts/${fileRef}` });
   } catch (err) {

@@ -1771,8 +1771,15 @@ div:hover > .page-tree-close-btn:hover { opacity: 1; color: var(--text-primary) 
 }
 .artifact-card:hover .artifact-thumb-expand-hint { opacity: 1; }
 
+.instance-content:has(.artifact-card--expanded) {
+  flex-direction: column !important;
+}
+
+.instance-body:has(.artifact-card) {
+  flex: unset !important;
+}
 .artifact-card--expanded {
-  position: absolute;
+  position: relative;
   inset: 0;
   z-index: 50;
   cursor: default;
@@ -1818,6 +1825,28 @@ div:hover > .page-tree-close-btn:hover { opacity: 1; color: var(--text-primary) 
 .instance-wrap:has(.artifact-card--expanded) {
   position: relative;
   min-height: 220px;
+}
+
+.artifact-card--uploading,
+.artifact-card--upload-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  min-height: 80px;
+  background: var(--input-bg);
+  border: 1px dashed var(--border-default);
+  border-radius: 6px;
+}
+.artifact-upload-caption {
+  font-size: 10px;
+  color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ============================================================ */

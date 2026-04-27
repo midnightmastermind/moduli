@@ -53,6 +53,9 @@ These are used by operations created in createDefaultUserData.js via `makeAggOp(
 - `data.occurrenceId` — optional: occurrence-specific key
 - slot `value` — the computed value to send
 
+## Recent Changes (Apr 26 2026 — ExprOrPath crash fix)
+- **OperationsBuilder.jsx**: `ExprOrPath` line 708 wrapped with `String(value ?? "").trim()`; line 728 type-guards `pathStringToChain(value)` with `typeof value === "string" && value`. Fixes editor crash (`.trim is not a function`) when an op step config carries a non-string value (boolean, number, object).
+
 ## Recent Changes (Mar 15 2026 — ADD_TO_POOL / REMOVE_FROM_POOL Config UI)
 - **OperationsBuilder.jsx**: Added `ActionConfig` cases for `ADD_TO_POOL` (pool container picker + labelExpr input) and `REMOVE_FROM_POOL` (occurrenceIdExpr input). These action types were already in SYSTEM_ACTION_TYPES list but had no config UI.
 

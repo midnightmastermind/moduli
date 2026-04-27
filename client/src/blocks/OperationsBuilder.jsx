@@ -243,18 +243,6 @@ function formatResultValue(value) {
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
-const COMPARATORS = [
-  { value: "IS", label: "=" },
-  { value: "IS_NOT", label: "≠" },
-  { value: "GREATER", label: ">" },
-  { value: "LESS", label: "<" },
-  { value: "GREATER_OR_EQUAL", label: ">=" },
-  { value: "LESS_OR_EQUAL", label: "<=" },
-  { value: "CONTAINS", label: "contains" },
-  { value: "IS_EMPTY", label: "is empty" },
-  { value: "IS_NOT_EMPTY", label: "not empty" },
-];
-
 // Variable actions — individual math/assignment operations on local variables
 const VAR_ACTION_TYPES = [
   { value: "INIT_VAR", label: "=  assign", hint: "$x = value or expr" },
@@ -717,7 +705,7 @@ function ExprInput({ value, onChange, placeholder, width = 120, title }) {
 // Use for fields that commonly take $trigger.* / $item.* expressions. Defaults to
 // path mode when value starts with $ (and isn't a literal: prefix), text mode otherwise.
 function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], fields = [], fieldsById, modulesById, occurrencesById, inLoop = true }) {
-  const v = (value ?? "").trim();
+  const v = String(value ?? "").trim();
   const initialMode = (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
   const [mode, setMode] = useState(initialMode);
   const pathConfig = useMemo(
@@ -737,7 +725,7 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
       {mode === "path"
         ? <SelectDrilldown
             config={pathConfig}
-            value={value ? [pathStringToChain(value)] : []}
+            value={typeof value === "string" && value ? [pathStringToChain(value)] : []}
             onChange={chains => onChange(chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "")}
           />
         : <ExprInput value={value} onChange={onChange} placeholder={placeholder} width={width} />}
@@ -878,59 +866,6 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, occ
   );
 }
 
-// ---- Condition Rule ----
-// All comparators including date and string variants
-const ALL_COMPARATORS = [
-  { value: "IS", label: "=" },
-  { value: "IS_NOT", label: "≠" },
-  { value: "GREATER", label: ">" },
-  { value: "LESS", label: "<" },
-  { value: "GREATER_OR_EQUAL", label: ">=" },
-  { value: "LESS_OR_EQUAL", label: "<=" },
-  { value: "CONTAINS", label: "contains" },
-  { value: "NOT_CONTAINS", label: "not contains" },
-  { value: "IS_EMPTY", label: "is empty" },
-  { value: "IS_NOT_EMPTY", label: "not empty" },
-  { value: "DATE_BEFORE_TODAY", label: "date before today" },
-  { value: "DATE_IS_TODAY", label: "date is today" },
-  { value: "DATE_AFTER_TODAY", label: "date after today" },
-  { value: "DATE_WITHIN_DAYS", label: "date within N days" },
-];
-
-function ConditionRule({ rule, onUpdate, onRemove, fields = [], sources = [], fieldsById, modulesById, occurrencesById }) {
-  const noRight = ["IS_EMPTY", "IS_NOT_EMPTY", "DATE_BEFORE_TODAY", "DATE_IS_TODAY", "DATE_AFTER_TODAY"].includes(rule.comparator);
-  const pathConfig = useMemo(
-    () => buildPathConfig({ sources, fields, inLoop: true, fieldsById, modulesById, occurrencesById }),
-    [sources, fields, fieldsById, modulesById, occurrencesById],
-  );
-  return (
-    <div style={rowStyle}>
-      <SelectDrilldown
-        config={pathConfig}
-        value={rule.left ? [pathStringToChain(rule.left)] : []}
-        onChange={chains => onUpdate({ left: chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "" })}
-      />
-      <select value={rule.comparator} onChange={e => onUpdate({ comparator: e.target.value })} style={selectSt}>
-        {ALL_COMPARATORS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-      </select>
-      {!noRight && (
-        <ExprOrPath
-          value={rule.right}
-          onChange={v => onUpdate({ right: v })}
-          placeholder="right side"
-          width={120}
-          sources={sources}
-          fields={fields}
-          fieldsById={fieldsById}
-          modulesById={modulesById}
-          occurrencesById={occurrencesById}
-        />
-      )}
-      <button style={removeBtnSt} onClick={onRemove}>✕</button>
-    </div>
-  );
-}
-
 // ---- Action Config (field config rendered below action type) ----
 function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources = [] }) {
   const allContainers = useMemo(() => Object.values(modulesById).filter(m => m.role === "container"), [modulesById]);
@@ -1060,19 +995,28 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
         </div>
       );
 
-    case "SET_FIELD_VALUE":
+    case "SET_FIELD_VALUE": {
+      // Display either valueExpr (expression) or value (literal). Editing this input
+      // sets valueExpr and clears value so we don't strand a stale literal next to
+      // a new expression. If the user types a bare literal (no $, not "literal:"),
+      // we still keep it in valueExpr — the resolveExpr handler treats unprefixed
+      // strings as plain values.
+      const displayed = cfg.valueExpr !== undefined
+        ? cfg.valueExpr
+        : (cfg.value !== undefined ? (typeof cfg.value === "string" ? cfg.value : JSON.stringify(cfg.value)) : "");
       return (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
           {fl("occurrence:")}
           <ExprOrPath value={cfg.occurrenceIdExpr || "$trigger.occurrenceId"} onChange={v => setCfg({ occurrenceIdExpr: v })} placeholder="$trigger.occurrenceId or $item.id" sources={sources} fields={fields} />
           {fl("field:")} <FieldPicker value={cfg.fieldId} onChange={v => setCfg({ fieldId: v })} fields={fields} />
           {fl("=")}
-          <ExprOrPath value={cfg.valueExpr || ""} onChange={v => setCfg({ valueExpr: v })} placeholder="$item.value or 5 or true" width={120} sources={sources} fields={fields} />
+          <ExprOrPath value={displayed} onChange={v => setCfg({ valueExpr: v, value: undefined })} placeholder="$item.value or 5 or true" width={120} sources={sources} fields={fields} />
           <select value={cfg.flow || "replace"} onChange={e => setCfg({ flow: e.target.value })} style={selectSt}>
             {["replace", "in", "out"].map(f => <option key={f} value={f}>{f}</option>)}
           </select>
         </div>
       );
+    }
 
     case "INCREMENT_FIELD":
       return (

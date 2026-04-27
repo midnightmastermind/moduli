@@ -11,6 +11,12 @@ const COMPARATORS = [
   "DATE_EQUALS", "DATE_IS_TODAY", "DATE_BEFORE_TODAY", "DATE_AFTER_TODAY",
 ];
 
+// Comparators that take no right-hand operand — chip terminates with the comparator.
+const NO_RIGHT_COMPARATORS = new Set([
+  "IS_EMPTY", "IS_NOT_EMPTY",
+  "DATE_IS_TODAY", "DATE_BEFORE_TODAY", "DATE_AFTER_TODAY",
+]);
+
 const selectSt = {
   fontSize: 10, fontFamily: "monospace", padding: "2px 4px", borderRadius: 4,
   background: "var(--input-bg)", border: "1px solid var(--input-border)",
@@ -107,6 +113,7 @@ function RuleRow({ rule, onChange, onRemove, pathConfig, sources, fields, fields
     () => buildPathConfig({ sources, fields, inLoop: true, fieldsById, modulesById, occurrencesById }),
     [sources, fields, fieldsById, modulesById, occurrencesById],
   );
+  const noRight = NO_RIGHT_COMPARATORS.has(rule.comparator);
   const v = (rule.right ?? "").toString().trim();
   const initialMode = (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
   const [rightMode, setRightMode] = React.useState(initialMode);
@@ -121,27 +128,31 @@ function RuleRow({ rule, onChange, onRemove, pathConfig, sources, fields, fields
       <select value={rule.comparator} onChange={(e) => onChange({ ...rule, comparator: e.target.value })} style={selectSt}>
         {COMPARATORS.map(c => <option key={c} value={c}>{c}</option>)}
       </select>
-      <button
-        onClick={toggleRightMode}
-        title="Toggle path picker / free text"
-        style={{ fontSize: 9, padding: "1px 4px", border: "1px solid var(--input-border)", borderRadius: 3, background: "var(--surface)", color: "var(--text-muted)", cursor: "pointer" }}
-      >
-        {rightMode === "path" ? "path" : "text"}
-      </button>
-      {rightMode === "path" ? (
-        <SelectDrilldown
-          config={rightConfig}
-          value={rule.right ? [pathStringToChain(String(rule.right))] : []}
-          onChange={chains => onChange({ ...rule, right: chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "" })}
-        />
-      ) : (
-        <input
-          type="text"
-          value={rule.right ?? ""}
-          onChange={(e) => onChange({ ...rule, right: e.target.value })}
-          placeholder="value or $var"
-          style={{ ...inputSt, width: 140 }}
-        />
+      {!noRight && (
+        <>
+          <button
+            onClick={toggleRightMode}
+            title="Toggle path picker / free text"
+            style={{ fontSize: 9, padding: "1px 4px", border: "1px solid var(--input-border)", borderRadius: 3, background: "var(--surface)", color: "var(--text-muted)", cursor: "pointer" }}
+          >
+            {rightMode === "path" ? "path" : "text"}
+          </button>
+          {rightMode === "path" ? (
+            <SelectDrilldown
+              config={rightConfig}
+              value={rule.right ? [pathStringToChain(String(rule.right))] : []}
+              onChange={chains => onChange({ ...rule, right: chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "" })}
+            />
+          ) : (
+            <input
+              type="text"
+              value={rule.right ?? ""}
+              onChange={(e) => onChange({ ...rule, right: e.target.value })}
+              placeholder="value or $var"
+              style={{ ...inputSt, width: 140 }}
+            />
+          )}
+        </>
       )}
       <button onClick={onRemove} style={removeBtnSt}>×</button>
     </div>

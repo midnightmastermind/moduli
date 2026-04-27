@@ -58,7 +58,19 @@ export function registerOccurrenceHandlers(socket, {
         }
       }
 
-      await Occurrence.findOneAndUpdate({ id, userId }, dbDoc, { upsert: true });
+      try {
+        await Occurrence.findOneAndUpdate({ id, userId }, dbDoc, { upsert: true });
+      } catch (upsertErr) {
+        // E11000: a concurrent create/update with this id already inserted before
+        // our upsert filter could match. Fall back to id-only $set so we still
+        // persist the change. Without this, the parent.occurrences[] $push later
+        // never runs and the slot ends up orphaned (visible only after reload).
+        if (upsertErr.code === 11000) {
+          await Occurrence.findOneAndUpdate({ id }, { $set: dbDoc });
+        } else {
+          throw upsertErr;
+        }
+      }
 
       // Broadcast includes textmap so other windows get it
       const broadcastOcc = textmap !== undefined ? { ...next, textmap } : next;
@@ -85,7 +97,15 @@ export function registerOccurrenceHandlers(socket, {
           const linkedDbDoc = linkedTextmap !== undefined
             ? { ...linkedWithoutTextmap, textmap: compressTextmap(linkedTextmap) }
             : linkedWithoutTextmap;
-          await Occurrence.findOneAndUpdate({ id: linked.id, userId }, linkedDbDoc, { upsert: true });
+          try {
+            await Occurrence.findOneAndUpdate({ id: linked.id, userId }, linkedDbDoc, { upsert: true });
+          } catch (upsertErr) {
+            if (upsertErr.code === 11000) {
+              await Occurrence.findOneAndUpdate({ id: linked.id }, { $set: linkedDbDoc });
+            } else {
+              throw upsertErr;
+            }
+          }
           socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: updatedLinked });
           socket.emit("occurrence_updated", { occurrence: updatedLinked });
         }

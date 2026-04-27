@@ -2,6 +2,12 @@
 
 _Updated: 2026-04-25. Check this file before re-reading source._
 
+## Recent Changes (Apr 27 2026 — Operation Priority Sort)
+- **operationExecutor.js (`runMatchingOperations`)**: Sort key is now `(priority ?? 5)` first, `sortOrder` second. Lower priority number runs first. Lets the schedule auto-build (priority 1) finish creating slot occurrences before stamp ops (priority 2) and goal aggregations (priority 3) read them.
+
+## Recent Changes (Apr 26 2026 — LINK_OCCURRENCE_TO_PARENT action)
+- **operationActions.js**: New `LINK_OCCURRENCE_TO_PARENT` action — emits a `LINK_OCCURRENCE_TO_PARENT` effect with `{ occurrenceId, parentOccurrenceId }`. Optimistically appends the child id to the parent stub inside `$vars.$allOccurrences` (with `includes` guard) so subsequent steps in the same pipeline pass see the link without waiting for the effect to apply. Used by the auto-build operation in the ELSE of "if Due/slot exists" — the container's date FIELD value (FIND_OCCURRENCE → `cfg.dateFieldId`/`cfg.dateExpr`) stays the source of truth for "exists for active date", and this action separately ensures the matched occurrence is wired into `schedPage.occurrences[]`.
+
 ## Recent Changes (Apr 25 2026 — Artifact + Textblock Roles + Optimistic Upload)
 - **dropHandlers.js**: `handleModuleDrop` now treats `role: "artifact"` and `role: "textblock"` as leaf-placeable (alongside `instance` / undefined) — see `isLeafRole`. Container drops + grid-cell drilldown both honor the new roles. Grid-cell drilldown now scans `state.modules` (not `state.instances`) so it finds artifact / textblock source modules too. `handleFileDrop` destructures `module` from the upload response and dispatches `createModuleAction` + `createOccurrenceAction` BEFORE updating the container — eliminates the blank-spot delay where the container update referenced an occurrence not yet in local state. Reducer is idempotent so the duplicate dispatch on socket arrival is a no-op.
 - **LayoutHelpers.js**: `getContainerItemsWithOccurrences` and `getContainerItems` now take `leafModulesLookup` (a merged map of instances + artifacts + textblocks) instead of `instancesLookup`. Return shape `{ instance, occurrence }` is unchanged for back-compat — the `instance` field is now any leaf module. `copyInstanceToContainer` writes `targetType: "module"` (was `"instance"`) so artifact/textblock occurrences pass autofill role detection correctly.

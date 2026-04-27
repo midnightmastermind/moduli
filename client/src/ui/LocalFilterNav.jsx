@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Lock, Unlock } from "lucide-react";
 import { GridActionsContext } from "../GridActionsContext";
 import { updateOccurrenceFilterOverride } from "../helpers/CommitHelpers";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
+import { operationsBridge } from "../state/bindSocketToStore";
 
 export default function LocalFilterNav({ occurrence, compact = false }) {
   const { socket, dispatch, occurrencesById, state: ctxState } = useContext(GridActionsContext);
@@ -40,10 +41,24 @@ export default function LocalFilterNav({ occurrence, compact = false }) {
       socket, dispatch, id: occurrence.id,
       filterOverride: overrideUpdate,
     });
+    operationsBridge.fireOperations?.("NavigationOp", {
+      type: "NavigationOp",
+      occurrenceId: occurrence.id,
+      fieldId: primaryNavFieldId,
+      date: next,
+      activeFilterValues: overrideUpdate,
+    });
   }
 
   function unlock() {
     updateOccurrenceFilterOverride({ socket, dispatch, id: occurrence.id, filterOverride: null });
+    operationsBridge.fireOperations?.("NavigationOp", {
+      type: "NavigationOp",
+      occurrenceId: occurrence.id,
+      fieldId: primaryNavFieldId,
+      date: null,
+      activeFilterValues: {},
+    });
   }
 
   const label = currentDate ? currentDate.slice(5) : "—";

@@ -7,27 +7,24 @@
 //   node --env-file=.env scripts/createTestGrid.js                 # default user (josh)
 //   node --env-file=.env scripts/createTestGrid.js test@moduli.test
 //
-// Creates only — does NOT drop existing data. Running this against a
-// user that already has a "Test Grid" will leave the old one in place
-// and create a second grid with the same name. To wipe + recreate for
-// both seeded users, use scripts/resetTestGridData.js instead.
+// Standalone runs (`node ... scripts/createTestGrid.js [email]`) drop the
+// existing "Test Grid" + its scoped data first so re-running gives a clean
+// re-seed. Other grids on the user are left untouched. The exported
+// `createTestGrid(userId)` function itself is still pure-create — callers
+// like `resetData.js` that have already wiped user data don't need a second
+// drop. To wipe + recreate the Test Grid for both seeded users in one shot,
+// use scripts/resetTestGridData.js.
 //
 // Layout (2×3):
-//   [0,0] Daily Toolkit  — Physical (Drink Water, Morning Run, Vitamins, Stretch)
+//   [0,0] Daily Toolkit  — Physical (Drink Water, Morning Run, Vitamins, Stretch, Take Medication, Go to Gym)
 //   [1,0] Todo List      — General (6 todos)
-//   [0,1] Center Hub ×2  — Schedule (48 slots, partially populated) | Notes
+//   [0,1] Center Hub ×2  — Schedule (slots created on-demand) | Notes
 //   [0,2] Daily Goals    — Physical (Water + Tasks total displays)
 //
-// Schedule pre-fill (for onLoad-driven Water/Tasks aggregations):
-//   7:00am  Drink Water (16oz, completed)
-//   8:30am  Morning Run (completed)
-//   9:00am  Drink Water (16oz, completed)
-//   11:00am Take Vitamins (completed)
-//   12:00pm Drink Water (16oz, completed)
-//   1:30pm  Stretch (not completed)
-//   3:00pm  Drink Water (8oz, completed)
-//   5:00pm  Drink Water (8oz, not completed)
-// Expected: Water Today = 56oz / 64oz; Tasks Completed = 6 / 6
+// Schedule slots and the preset routine (Drink Water / Take Medication / Go to Gym)
+// are created automatically by the "Schedule: Auto-Build for Active Date" operation
+// the first time the user opens or navigates to a given date. Re-running the
+// operation on the same date is a no-op.
 // ============================================================
 
 import mongoose from "mongoose";
@@ -54,18 +51,6 @@ import { generateTimeSlots } from "../utils/operationBuilders.js";
 const DEFAULT_USER_EMAIL = "josh@jpoms.com";
 const DEFAULT_GRID_NAME = "Test Grid";
 const uid = () => nanoid(12);
-
-// Schedule pre-fill recipe — instance kind + slot time + field overrides
-const SCHEDULE_PREFILL = [
-  { instance: "drinkWater", hour: 7,  minute: 0,  water: 16, completed: true  },
-  { instance: "morningRun", hour: 8,  minute: 30, completed: true             },
-  { instance: "drinkWater", hour: 9,  minute: 0,  water: 16, completed: true  },
-  { instance: "vitamins",   hour: 11, minute: 0,  completed: true             },
-  { instance: "drinkWater", hour: 12, minute: 0,  water: 16, completed: true  },
-  { instance: "stretch",    hour: 13, minute: 30, completed: false            },
-  { instance: "drinkWater", hour: 15, minute: 0,  water: 8,  completed: true  },
-  { instance: "drinkWater", hour: 17, minute: 0,  water: 8,  completed: false },
-];
 
 export async function dropExistingTestGrid(userId, gridName = DEFAULT_GRID_NAME) {
   const existing = await Grid.findOne({ userId, name: gridName });
@@ -114,6 +99,8 @@ export async function createTestGrid(userId, options = {}) {
   const morningRunModId = uid();
   const vitaminsModId   = uid();
   const stretchModId    = uid();
+  const takeMedicationModId = uid();
+  const goToGymModId        = uid();
   const todoGroceriesModId  = uid();
   const todoDentistModId    = uid();
   const todoReviewPRModId   = uid();
@@ -185,6 +172,16 @@ export async function createTestGrid(userId, options = {}) {
       fieldBindings: [{ fieldId: completedFieldId, role: "input", order: 0 }],
     },
     {
+      id: takeMedicationModId, userId, gridId, role: "instance", kind: "list", label: "Take Medication",
+      defaultDragMode: "copy",
+      fieldBindings: [{ fieldId: completedFieldId, role: "input", order: 0 }],
+    },
+    {
+      id: goToGymModId, userId, gridId, role: "instance", kind: "list", label: "Go to Gym",
+      defaultDragMode: "copy",
+      fieldBindings: [{ fieldId: completedFieldId, role: "input", order: 0 }],
+    },
+    {
       id: waterGoalModId, userId, gridId, role: "instance", kind: "list", label: "Physical Wellness",
       defaultDragMode: "move",
       fieldBindings: [
@@ -251,8 +248,21 @@ export async function createTestGrid(userId, options = {}) {
   await Module.insertMany([
     { id: physicalContId,     userId, gridId, role: "container", kind: "list", label: "Physical", styleMode: "own", ownStyle: { bg: "#b44a1a" } },
     { id: physicalGoalContId, userId, gridId, role: "container", kind: "list", label: "Physical", styleMode: "own", ownStyle: { bg: "#b44a1a" } },
-    { id: todoGeneralContId,  userId, gridId, role: "container", kind: "list", label: "General", defaultDragMode: "move" },
-    ...timeSlots.map(slot => ({ id: schedContainers[`slot_${slot.hour}_${slot.minute}`].id, userId, gridId, role: "container", kind: "list", label: slot.label })),
+    { id: todoGeneralContId,  userId, gridId, role: "container", kind: "list", label: "General",
+      defaultDragMode: "move", meta: { todoListContainer: true } },
+    ...timeSlots.map(slot => {
+      const key = `slot_${slot.hour}_${slot.minute}`;
+      return {
+        id: schedContainers[key].id, userId, gridId, role: "container", kind: "list",
+        label: slot.label,
+        meta: {
+          scheduleSlot: true,
+          slotHour: slot.hour,
+          slotMinute: slot.minute,
+          slotLabel: slot.label,
+        },
+      };
+    }),
   ]);
 
   // ── STEP 5: Panel modules ───────────────────────────────────────────────────
@@ -296,6 +306,14 @@ export async function createTestGrid(userId, options = {}) {
     targetType: "module", targetId: stretchModId,
     meta: { containerId: physicalContId }, fields: {},
   });
+  const takeMedicationOccId = await mkOcc({
+    targetType: "module", targetId: takeMedicationModId,
+    meta: { containerId: physicalContId }, fields: {},
+  });
+  const goToGymOccId = await mkOcc({
+    targetType: "module", targetId: goToGymModId,
+    meta: { containerId: physicalContId }, fields: {},
+  });
 
   // Goals container instances
   const waterGoalOccId = await mkOcc({
@@ -310,7 +328,7 @@ export async function createTestGrid(userId, options = {}) {
 
   const physContOccId = await mkOcc({
     targetType: "module", targetId: physicalContId,
-    occurrences: [drinkWaterOccId, morningRunOccId, vitaminsOccId, stretchOccId],
+    occurrences: [drinkWaterOccId, morningRunOccId, vitaminsOccId, stretchOccId, takeMedicationOccId, goToGymOccId],
   });
   const physGoalContOccId = await mkOcc({
     targetType: "module", targetId: physicalGoalContId,
@@ -355,60 +373,9 @@ export async function createTestGrid(userId, options = {}) {
     occurrences: [todoReviewPROccId, todoBillsOccId, todoGroceriesOccId, todoDentistOccId, todoReadOccId, todoEmailOccId],
   });
 
-  // Schedule slot container occurrences (created before pre-fill so we know each slot's id)
-  const slotOccByKey = {};
+  // Schedule slots are created on demand by the "Schedule: Auto-Build for Active Date"
+  // operation when the user navigates to a date that doesn't have slot occurrences yet.
   const scheduleOccIds = [];
-  for (const slot of timeSlots) {
-    const key = `slot_${slot.hour}_${slot.minute}`;
-    const occId = await mkOcc({
-      targetType: "module", targetId: schedContainers[key].id,
-      fields: {
-        [dateFieldId]: { value: today.toISOString(), flow: "in" },
-        [timeslotFieldId]: { value: slot.label, flow: "in" },
-      },
-    });
-    slotOccByKey[key] = { occId, slotModuleId: schedContainers[key].id, label: slot.label };
-    scheduleOccIds.push(occId);
-  }
-
-  // ── STEP 6b: Pre-fill schedule slots with sample tasks/waters ──────────────
-  // Each instance gets date = today so onLoad daily aggregations pick it up.
-  const instanceModuleByName = {
-    drinkWater: drinkWaterModId,
-    morningRun: morningRunModId,
-    vitamins:   vitaminsModId,
-    stretch:    stretchModId,
-  };
-
-  for (const entry of SCHEDULE_PREFILL) {
-    const key = `slot_${entry.hour}_${entry.minute}`;
-    const slot = slotOccByKey[key];
-    if (!slot) continue;
-    const moduleId = instanceModuleByName[entry.instance];
-    if (!moduleId) continue;
-
-    const fields = {
-      [dateFieldId]: { value: today.toISOString(), flow: "in", timestamp: new Date() },
-      [timeslotFieldId]: { value: slot.label, flow: "in", timestamp: new Date() },
-    };
-    if (entry.water !== undefined) {
-      fields[waterFieldId] = { value: entry.water, flow: "in", timestamp: new Date() };
-    }
-    if (entry.completed !== undefined) {
-      fields[completedFieldId] = { value: entry.completed, flow: "in", timestamp: new Date() };
-    }
-
-    const instOccId = await mkOcc({
-      targetType: "module", targetId: moduleId,
-      meta: { containerId: slot.slotModuleId },
-      fields,
-    });
-
-    await Occurrence.findOneAndUpdate(
-      { id: slot.occId },
-      { $push: { occurrences: instOccId } }
-    );
-  }
 
   // ── STEP 7: Manifest + folders ──────────────────────────────────────────────
   await new Manifest({ id: manifestId, userId, gridId, manifestType: "user", rootFolderId }).save();
@@ -491,6 +458,7 @@ export async function createTestGrid(userId, options = {}) {
   await new Operation({
     id: uid(), userId, gridId, name: "Water Today",
     description: "Sum daily water oz — only for occurrences under the Schedule page",
+    priority: 3, // Goal aggregation — runs after auto-build (1) and field stamps (2)
     triggerTypes: ["onChange", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: waterFieldId },
@@ -566,6 +534,7 @@ export async function createTestGrid(userId, options = {}) {
   await new Operation({
     id: uid(), userId, gridId, name: "Tasks Completed Today",
     description: "Count completed tasks under the Schedule page — fires on field change, add/remove, nav, load",
+    priority: 3, // Goal aggregation — runs after auto-build (1) and field stamps (2)
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId },
@@ -634,8 +603,270 @@ export async function createTestGrid(userId, options = {}) {
     },
   }).save();
 
+  // ── Operation: Schedule Build Day (priority 1) ──
+  // Single responsibility: ensure the schedule shell exists for the active date.
+  // Creates Due container occurrence + 48 timeslot occurrences. Does NOT seed
+  // any task instances — that's "Schedule: Seed Daily Routine" (priority 4).
+  // Also sweeps todos whose dueDate matches the active date into Due.
+  await new Operation({
+    id: uid(), userId, gridId, name: "Schedule: Build Day",
+    description: "Ensure Due + 48 timeslot containers exist for the active date. Sweep matching todos into Due.",
+    priority: 1,
+    triggerTypes: ["onLoad", "onFilterChange"],
+    triggerObjects: [
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "" },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "" },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [
+        { id: uid(), variableName: "triggerDate", entityType: "trigger", triggerProp: "date" },
+      ],
+      steps: [
+        // Resolve $schedDate = $triggerDate ?? $today
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$triggerDate" } },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
+          else: [],
+        },
+
+        // Locate the Schedule page; bail out if missing.
+        { id: uid(), type: "action", config: {
+            type: "FIND_OCCURRENCE",
+            moduleLabelExpr: "literal:Schedule",
+            resultIdVar: "$schedPageId",
+        }},
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            // Ensure Due container module + per-day occurrence.
+            { id: uid(), type: "action", config: {
+                type: "FIND_MODULE", nameExpr: "literal:Due", resultIdVar: "$dueModId",
+            }},
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$dueModId", comparator: "IS_EMPTY", right: "" }] },
+              then: [
+                { id: uid(), type: "action", config: {
+                    type: "CREATE_MODULE", nameExpr: "literal:Due", role: "container", kind: "list",
+                    extra: { meta: { scheduleDueContainer: true } },
+                }},
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dueModId", expr: "$lastCreatedModuleId" } },
+              ],
+              else: [],
+            },
+            { id: uid(), type: "action", config: {
+                type: "FIND_OCCURRENCE",
+                targetIdExpr: "$dueModId",
+                dateFieldId, dateExpr: "$schedDate",
+                resultIdVar: "$dueOccId",
+            }},
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$dueOccId", comparator: "IS_EMPTY", right: "" }] },
+              then: [
+                { id: uid(), type: "action", config: {
+                    type: "CREATE_OCCURRENCE_FOR_MODULE",
+                    moduleIdExpr: "$dueModId",
+                    parentIdExpr: "$schedPageId",
+                    dateFieldId, dateExpr: "$schedDate",
+                    insertAtIndex: 0,
+                    resultIdVar: "$dueOccId",
+                }},
+                { id: uid(), type: "action", config: {
+                    type: "SET_FIELD_VALUE",
+                    occurrenceIdExpr: "$dueOccId",
+                    fieldId: timeslotFieldId,
+                    valueExpr: "literal:Due",
+                }},
+              ],
+              else: [],
+            },
+
+            // Build all 48 timeslots in a single loop. The slot array is embedded at
+            // seed time so the loop runs without per-iteration module lookups.
+            // CREATE_OCCURRENCE_FOR_MODULE stamps the date field automatically via
+            // dateFieldId/dateExpr — only the timeslot label needs an explicit SET.
+            { id: uid(), type: "action", config: {
+                type: "INIT_VAR", name: "$slots",
+                arrayOf: timeSlots.map(s => ({
+                  moduleId: schedContainers[`slot_${s.hour}_${s.minute}`].id,
+                  label: s.label,
+                })),
+            }},
+            {
+              id: uid(), type: "loop", overExpr: "$slots", as: "$slot",
+              body: [
+                { id: uid(), type: "action", config: {
+                    type: "FIND_OCCURRENCE",
+                    targetIdExpr: "$slot.moduleId",
+                    dateFieldId, dateExpr: "$schedDate",
+                    resultIdVar: "$slotOccId",
+                }},
+                {
+                  id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [{ id: uid(), left: "$slotOccId", comparator: "IS_EMPTY", right: "" }] },
+                  then: [
+                    { id: uid(), type: "action", config: {
+                        type: "CREATE_OCCURRENCE_FOR_MODULE",
+                        moduleIdExpr: "$slot.moduleId",
+                        parentIdExpr: "$schedPageId",
+                        dateFieldId, dateExpr: "$schedDate",
+                        resultIdVar: "$newSlotOccId",
+                    }},
+                    { id: uid(), type: "action", config: {
+                        type: "SET_FIELD_VALUE",
+                        occurrenceIdExpr: "$newSlotOccId",
+                        fieldId: timeslotFieldId,
+                        valueExpr: "$slot.label",
+                    }},
+                  ],
+                  else: [],
+                },
+              ],
+            },
+
+            // Sweep todos with dueDate === active date into Due.
+            { id: uid(), type: "action", config: {
+                type: "FIND_OCCURRENCE",
+                moduleMetaKey: "todoListContainer",
+                moduleMetaValue: true,
+                resultIdVar: "$todoContId",
+            }},
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$todoContId", comparator: "IS_NOT_EMPTY", right: "" }] },
+              then: [{
+                id: uid(), type: "loop", overExpr: "$allOccurrences", as: "$todoItem",
+                body: [{
+                  id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$todoItem._ancestors", comparator: "HAS_ANCESTOR", right: "$todoContId" },
+                    { id: uid(), left: `$todoItem.fields.${dueFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+                  ]},
+                  then: [
+                    { id: uid(), type: "action", config: {
+                        type: "MOVE_OCCURRENCE_TO_PARENT",
+                        occurrenceIdExpr: "$todoItem.id",
+                        toParentOccIdExpr: "$dueOccId",
+                    }},
+                    { id: uid(), type: "action", config: {
+                        type: "SET_FIELD_VALUE",
+                        occurrenceIdExpr: "$todoItem.id",
+                        fieldId: dateFieldId,
+                        valueExpr: "$schedDate",
+                    }},
+                  ],
+                  else: [],
+                }],
+              }],
+              else: [],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+  }).save();
+
+  // ── Operation: Seed Daily Routine (priority 4) ──
+  // Adds the three test routine items into their slots, ONCE per day. Runs after
+  // Build Day (priority 1) so the slots already exist. Each preset is idempotent:
+  // if an occurrence of the source module already exists for the active date,
+  // the loop iteration short-circuits and creates nothing.
+  await new Operation({
+    id: uid(), userId, gridId, name: "Schedule: Seed Daily Routine",
+    description: "Drop the daily routine (Drink Water 7am, Take Medication 8am, Go to Gym 9am) into their slots once per day.",
+    priority: 4,
+    triggerTypes: ["onLoad", "onFilterChange"],
+    triggerObjects: [
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "" },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "" },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [
+        { id: uid(), variableName: "triggerDate", entityType: "trigger", triggerProp: "date" },
+      ],
+      steps: [
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$triggerDate" } },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
+          else: [],
+        },
+
+        // One presets array, one loop. Each preset = { moduleLabel, slotLabel }.
+        { id: uid(), type: "action", config: {
+            type: "INIT_VAR", name: "$presets",
+            arrayOf: [
+              { moduleLabel: "Drink Water",     slotLabel: "7:00am" },
+              { moduleLabel: "Take Medication", slotLabel: "8:00am" },
+              { moduleLabel: "Go to Gym",       slotLabel: "9:00am" },
+            ],
+        }},
+        {
+          id: uid(), type: "loop", overExpr: "$presets", as: "$preset",
+          body: [
+            // Resolve the source instance module by label → targetId.
+            { id: uid(), type: "action", config: {
+                type: "FIND_OCCURRENCE",
+                moduleLabelExpr: "$preset.moduleLabel",
+                resultVar: "$src",
+            }},
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$srcModId", expr: "$src.targetId" } },
+
+            // Skip if any occurrence of this source already exists for the day.
+            { id: uid(), type: "action", config: {
+                type: "FIND_OCCURRENCE",
+                targetIdExpr: "$srcModId",
+                dateFieldId, dateExpr: "$schedDate",
+                resultIdVar: "$existing",
+            }},
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$existing", comparator: "IS_EMPTY", right: "" }] },
+              then: [
+                // Locate the target slot for the day.
+                { id: uid(), type: "action", config: {
+                    type: "FIND_OCCURRENCE",
+                    moduleMetaKey: "scheduleSlot",
+                    moduleMetaValue: true,
+                    moduleMetaSecondaryKey: "slotLabel",
+                    moduleMetaSecondaryValue: "$preset.slotLabel",
+                    dateFieldId, dateExpr: "$schedDate",
+                    resultIdVar: "$slotId",
+                }},
+                {
+                  id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [{ id: uid(), left: "$slotId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                  then: [{
+                    id: uid(), type: "action", config: {
+                      type: "CREATE_OCCURRENCE_FOR_MODULE",
+                      moduleIdExpr: "$srcModId",
+                      parentIdExpr: "$slotId",
+                      dateFieldId, dateExpr: "$schedDate",
+                      resultIdVar: "$newOcc",
+                    },
+                  }],
+                  else: [],
+                },
+              ],
+              else: [],
+            },
+          ],
+        },
+      ],
+    },
+  }).save();
+
   await new Operation({
     id: uid(), userId, gridId, name: "Schedule: Stamp Date & Time Slot",
+    priority: 2, // Field stamp — runs after auto-build (1)
     triggerTypes: ["onCreate"],
     triggerObjects: [
       { eventType: "onCreate", subjectType: "module", subjectRole: "panel", targetId: centerHubId },
@@ -653,17 +884,55 @@ export async function createTestGrid(userId, options = {}) {
   }).save();
 
   await new Operation({
-    id: uid(), userId, gridId, name: "Schedule: Clear Date & Time Slot",
+    id: uid(), userId, gridId, name: "Schedule: Clear Date on Move-Out",
+    description:
+      "When an occurrence is moved (not copied), check whether it still lives under the Schedule page. " +
+      "If it has been moved out of the schedule, clear its date + timeslot fields. Copy creates a new " +
+      "occurrence with a different ID, so this op naturally does not fire on copy.",
+    priority: 2, // Field stamp — runs after auto-build (1)
     triggerTypes: ["onMove"],
     triggerObjects: [
-      { eventType: "onMove", subjectType: "module", subjectRole: "panel", targetId: centerHubId },
+      { eventType: "onMove", subjectType: "occurrence", targetId: "" },
     ],
     enabled: true,
     pipeline: {
-      sources: [],
+      sources: [
+        { id: uid(), variableName: "self", entityType: "trigger", triggerProp: "occurrenceId" },
+      ],
       steps: [
-        { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: dateFieldId,     value: null } },
-        { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: timeslotFieldId, value: null } },
+        { id: uid(), type: "action", config: {
+            type: "FIND_OCCURRENCE",
+            moduleLabelExpr: "literal:Schedule",
+            resultVar: "$schedPage",
+            resultIdVar: "$schedPageId",
+        }},
+        // Walk all occurrences (enriched with _ancestors); locate the moved one by id and
+        // clear its schedule fields if it no longer descends from the Schedule page.
+        {
+          id: uid(), type: "loop", overExpr: "$allOccurrences", as: "$item",
+          body: [{
+            id: uid(), type: "if",
+            condition: { operator: "AND", rules: [
+              { id: uid(), left: "$item.id",         comparator: "IS",                right: "$self" },
+              { id: uid(), left: "$item._ancestors", comparator: "NOT_HAS_ANCESTOR",  right: "$schedPageId" },
+            ]},
+            then: [
+              { id: uid(), type: "action", config: {
+                  type: "SET_FIELD_VALUE",
+                  occurrenceIdExpr: "$self",
+                  fieldId: dateFieldId,
+                  value: null,
+              }},
+              { id: uid(), type: "action", config: {
+                  type: "SET_FIELD_VALUE",
+                  occurrenceIdExpr: "$self",
+                  fieldId: timeslotFieldId,
+                  value: null,
+              }},
+            ],
+            else: [],
+          }],
+        },
       ],
     },
   }).save();
@@ -674,7 +943,6 @@ export async function createTestGrid(userId, options = {}) {
     schedPageOccId,
     fieldIds: { dateFieldId, waterFieldId, completedFieldId, timeslotFieldId, dueFieldId, totalWaterFieldId, totalTasksCompletedFieldId },
     panelOccIds,
-    prefillCount: SCHEDULE_PREFILL.length,
   };
 }
 
@@ -690,17 +958,21 @@ async function main() {
     const userId = user._id.toString();
     console.log(`✅ Found user: ${userId}\n`);
 
+    const dropped = await dropExistingTestGrid(userId);
+    console.log(dropped
+      ? `🗑️  Dropped existing "${DEFAULT_GRID_NAME}" + scoped data\n`
+      : `🆕 No existing "${DEFAULT_GRID_NAME}" to drop\n`);
+
     const result = await createTestGrid(userId);
 
     console.log("=".repeat(50));
     console.log("✅ Test grid created!");
     console.log(`   Grid ID: ${result.gridId}`);
-    console.log(`   Schedule pre-fill: ${result.prefillCount} occurrences`);
     console.log("=".repeat(50));
     console.log("Layout (2×3):");
-    console.log("  [0,0] Daily Toolkit  — Physical → Drink Water, Morning Run, Take Vitamins, Stretch");
+    console.log("  [0,0] Daily Toolkit  — Physical → Drink Water, Morning Run, Take Vitamins, Stretch, Take Medication, Go to Gym");
     console.log("  [1,0] Todo List      — General (6 items)");
-    console.log("  [0,1] Center Hub ×2  — Schedule (8 pre-filled slots) | Notes");
+    console.log("  [0,1] Center Hub ×2  — Schedule (slots created on-demand) | Notes");
     console.log("  [0,2] Daily Goals    — Physical → Water + Tasks totals");
     console.log("=".repeat(50));
   } catch (err) {

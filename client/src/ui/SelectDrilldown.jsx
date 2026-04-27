@@ -51,11 +51,14 @@ export function buildPathConfig({ sources = [], fields = [], inLoop = false, fie
   };
 
   // Resolve a raw segment (variable name or ID) to its display label.
+  // For unresolved IDs (e.g. fieldsById hasn't loaded yet, or the ID points at a deleted entity),
+  // surface the short-ID suffix as the visible title so the chip never renders as a raw 12-char UID.
   const resolveSegmentLabel = (seg) => {
     if (!seg) return { title: seg, sub: null };
     if (seg.startsWith("$")) return { title: seg, sub: null };
     const resolved = labelForId(seg, { fieldsById: mergedFieldsById, modulesById, occurrencesById });
     if (resolved?.label) return { title: resolved.label, sub: `…${resolved.shortId}` };
+    if (resolved && seg.length > 8) return { title: `…${resolved.shortId}`, sub: null };
     return { title: seg, sub: null };
   };
 

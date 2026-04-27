@@ -2,6 +2,9 @@
 
 _Updated: 2026-04-25. Check this file before re-reading source._
 
+## Recent Changes (Apr 26 2026 — LINK_OCCURRENCE_TO_PARENT effect)
+- **bindSocketToStore.js**: Added `case "LINK_OCCURRENCE_TO_PARENT"` in `applyOperationEffect`. Optimistic local update: if the parent's `occurrences[]` doesn't already include the child id, dispatches `updateOccurrenceAction({ id: parentId, occurrences: [...prev, childId] })` and patches `localOccsById[parentId]`. Then emits `link_occurrence_to_parent` to the server (atomic `$push` with `$ne` guard there). Effect is fully idempotent — re-runs on the same parent/child pair are no-ops. Added `updateOccurrenceAction` to the existing `actions` import.
+
 ## Recent Changes (Apr 25 2026 — Artifact + Textblock Role Buckets)
 - **masterReducer.js**: `deriveRoleArrays` now buckets `role: "artifact"` and `role: "textblock"` modules into new `artifacts` / `textblocks` arrays (alongside panels/containers/instances/pages). FULL_STATE return + LOGOUT clear include the two new keys.
 - **initialState.js**: Added `artifacts: []` and `textblocks: []` next to `instances: []`.
