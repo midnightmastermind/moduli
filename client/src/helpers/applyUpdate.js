@@ -1,0 +1,229 @@
+// helpers/applyUpdate.js
+//
+// Pure routing helper for the unified UPDATE verb. Parses a dotted path
+// string (e.g. `$item.fields.<id>.value`, `$display.<fieldId>.<itemId>`,
+// `$myVar`) and returns `{ effects, varWrites }` describing what should
+// happen.
+//
+// This module is intentionally pure: no socket, no Redux, no React.
+// The operations engine will call this helper and either apply the
+// `varWrites` to its in-pipeline `$vars` map, or hand the `effects`
+// off to the consumer (bindSocketToStore) for application.
+//
+// See plan: docs/superpowers/plans/2026-04-27-unified-operation-verbs.md
+// (Task 1: applyUpdate helper).
+
+// Reserved engine identifiers that may NOT be assigned via a single-segment
+// `$<var>` write. These are produced by the executor and read by ops.
+const RESERVED_VAR_NAMES = new Set([
+  "$item",
+  "$display",
+  "$trigger",
+  "$today",
+  "$activeDate",
+  "$activeDateLabel",
+  "$activeDayOfWeek",
+  "$nav",
+  "$schedDate",
+  "$schedDateLabel",
+  "$allItems",
+  "$allOccurrences",
+  "$allModules",
+]);
+
+const VAR_NAME_RE = /^\$[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+// ---------------------------------------------------------------------------
+// textmap template substitution
+// ---------------------------------------------------------------------------
+// Mirrors the inline approach in operationActions.js's
+// `COMPUTE_TEXTMAP_FROM_TEMPLATE` case: deep clone, walk every node, and
+// replace `[token]` strings inside `text` nodes. Inlined here on purpose so
+// applyUpdate stays self-contained.
+function substituteTextmapTokens(textmap, tokens) {
+  if (textmap == null) return textmap;
+  const cloned = JSON.parse(JSON.stringify(textmap));
+  const tokenEntries = Object.entries(tokens || {});
+
+  const walk = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (node.type === "text" && typeof node.text === "string") {
+      for (const [token, value] of tokenEntries) {
+        const replacement = value == null ? "" : String(value);
+        node.text = node.text.split(token).join(replacement);
+      }
+    }
+    if (Array.isArray(node.content)) {
+      for (const child of node.content) walk(child);
+    }
+  };
+
+  walk(cloned);
+  return cloned;
+}
+
+// ---------------------------------------------------------------------------
+// applyUpdate
+// ---------------------------------------------------------------------------
+/**
+ * Parse `path` and route the assignment to the right effect or var-write.
+ *
+ * @param {string} path  Dotted path. Examples:
+ *                       - `$item.fields.<fieldId>.value`
+ *                       - `$item.fields.<fieldId>.flow`
+ *                       - `$item.parentId`
+ *                       - `$item.meta.<key>`
+ *                       - `$item.textmap`
+ *                       - `$display.<fieldId>.<itemId>`
+ *                       - `$<varName>` (single segment, pipeline-internal)
+ * @param {*}      value The value to write.
+ * @param {Object} ctx   `{ vars, occurrencesById }` — `vars` is the live
+ *                       `$vars` map from the executor; `occurrencesById` is
+ *                       used for `$item.textmap` template lookups.
+ * @returns {{ effects: Array<Object>, varWrites: Object }}
+ */
+export function applyUpdate(path, value, ctx) {
+  if (typeof path !== "string" || path.length === 0) {
+    throw new Error(`unknown path head: ${String(path)}`);
+  }
+
+  const vars = ctx?.vars || {};
+  const occurrencesById = ctx?.occurrencesById || {};
+
+  const segments = path.split(".");
+  const head = segments[0];
+
+  // -------------------------------------------------------------------------
+  // Single-segment `$<var>` write — pipeline-internal var assignment.
+  // -------------------------------------------------------------------------
+  if (segments.length === 1) {
+    if (!VAR_NAME_RE.test(head)) {
+      throw new Error(`unknown path head: ${path}`);
+    }
+    if (RESERVED_VAR_NAMES.has(head)) {
+      throw new Error(`cannot write reserved identifier: ${head}`);
+    }
+    return { effects: [], varWrites: { [head]: value } };
+  }
+
+  // -------------------------------------------------------------------------
+  // `$item.*` paths — operate on the current loop item / trigger payload.
+  // -------------------------------------------------------------------------
+  if (head === "$item") {
+    const item = vars.$item;
+    if (item == null) {
+      throw new Error("$item not bound in current pipeline context");
+    }
+    const itemId = item.id;
+
+    // $item.fields.<fieldId>.value | .flow
+    if (segments[1] === "fields") {
+      const fieldId = segments[2];
+      const subKey = segments[3];
+      if (!fieldId || (subKey !== "value" && subKey !== "flow")) {
+        throw new Error(`unknown path head: ${path}`);
+      }
+      return {
+        effects: [
+          {
+            _effect: "UPDATE_ITEM_FIELD",
+            itemId,
+            fieldId,
+            value,
+            subKind: subKey === "flow" ? "flow" : "value",
+          },
+        ],
+        varWrites: {},
+      };
+    }
+
+    // $item.parentId
+    if (segments[1] === "parentId" && segments.length === 2) {
+      return {
+        effects: [
+          {
+            _effect: "UPDATE_ITEM_PARENT",
+            occurrenceId: itemId,
+            toParentOccurrenceId: value,
+          },
+        ],
+        varWrites: {},
+      };
+    }
+
+    // $item.meta.<key>
+    if (segments[1] === "meta") {
+      const metaKey = segments.slice(2).join(".");
+      if (!metaKey) {
+        throw new Error(`unknown path head: ${path}`);
+      }
+      return {
+        effects: [
+          {
+            _effect: "UPDATE_ITEM_META",
+            itemId,
+            metaPatch: { [metaKey]: value },
+          },
+        ],
+        varWrites: {},
+      };
+    }
+
+    // $item.textmap
+    if (segments[1] === "textmap" && segments.length === 2) {
+      let textmap = value;
+      if (
+        value &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        Object.prototype.hasOwnProperty.call(value, "fromTemplate")
+      ) {
+        const templateRef = value.fromTemplate;
+        const templateOcc =
+          occurrencesById[templateRef] ||
+          occurrencesById[templateRef?.id] ||
+          null;
+        const sourceTextmap = templateOcc?.textmap ?? null;
+        textmap = substituteTextmapTokens(sourceTextmap, value.tokens || {});
+      }
+      return {
+        effects: [
+          {
+            _effect: "UPDATE_ITEM_TEXTMAP",
+            itemId,
+            textmap,
+          },
+        ],
+        varWrites: {},
+      };
+    }
+
+    throw new Error(`unknown path head: ${path}`);
+  }
+
+  // -------------------------------------------------------------------------
+  // `$display.<fieldId>.<itemId>` — display-value publishing.
+  // -------------------------------------------------------------------------
+  if (head === "$display") {
+    if (segments.length === 2) {
+      throw new Error("display path requires itemId segment");
+    }
+    if (segments.length !== 3) {
+      throw new Error(`unknown path head: ${path}`);
+    }
+    const [, fieldId, itemId] = segments;
+    return {
+      effects: [
+        {
+          _effect: "UPDATE_DISPLAY_VALUE",
+          fieldId,
+          itemId,
+          value,
+        },
+      ],
+      varWrites: {},
+    };
+  }
+
+  throw new Error(`unknown path head: ${path}`);
+}
