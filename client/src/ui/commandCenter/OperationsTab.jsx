@@ -799,6 +799,13 @@ export function OperationsTab() {
             <ChevronLeft style={{ width: 11, height: 11 }} /> Operations
           </button>
           <span style={{ fontSize: 12, fontFamily: "monospace", color: "var(--text-primary)", fontWeight: 600 }}>{selectedOp.name}</span>
+          <button
+            onClick={() => setSelectedOpId(null)}
+            style={{ marginLeft: "auto", padding: "3px 12px", borderRadius: 5, fontSize: 11, fontFamily: "monospace", background: "var(--accent-blue-bg)", border: "1px solid var(--accent-blue-border)", color: "var(--accent-blue-text)", cursor: "pointer", fontWeight: 600 }}
+            title="Save and return to operations list (changes are auto-saved as you edit)"
+          >
+            Save
+          </button>
         </div>
         {/* Editor + Log panel side-by-side */}
         <div style={{ padding: "10px 14px", display: "flex", gap: 12, alignItems: "flex-start" }}>
