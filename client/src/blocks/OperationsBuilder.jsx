@@ -469,6 +469,7 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
                 instanceModules={instanceModules}
                 containerModules={containerModules}
                 modulesById={modulesById}
+                occurrencesById={occurrencesById}
                 fields={allFields}
               />
             ))}
@@ -500,7 +501,7 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
 }
 
 // ---- Source Row ----
-function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules, modulesById, fields }) {
+function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules, modulesById, occurrencesById, fields }) {
   const panelModules = useMemo(() => Object.values(modulesById || {}).filter(m => m.role === "panel"), [modulesById]);
   const entityTypeInfo = ENTITY_TYPES.find(et => et.value === src.entityType);
 
@@ -516,6 +517,64 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
   const needsFieldId = src.entityType === "field" || src.entityType === "localField";
   const needsTargetLabel = src.entityType === "effectiveFilter";
 
+  // Config for the module picker — one category per role, items show label + role + id.
+  const modulePickerConfig = useMemo(() => {
+    if (!needsPicker) return null;
+    const moduleRoleLabel = src.entityType === "instance" ? "Instances"
+      : src.entityType === "container" ? "Containers" : "Pages";
+    return {
+      placeholder: `Pick ${src.entityType}`,
+      categories: [
+        {
+          id: "modules",
+          label: moduleRoleLabel,
+          description: `Pick a ${src.entityType} template — operations bind by id, displayed as the label.`,
+          color: "rgba(34,197,94,0.7)",
+          icon: undefined,
+          resolveItems: () => entityOptions.map(m => ({
+            value: m.id,
+            title: m.label || m.name || "(unnamed)",
+            sub: m.role,
+            description: `id: ${m.id}`,
+            hasChildren: false,
+          })),
+        },
+      ],
+    };
+  }, [needsPicker, src.entityType, entityOptions]);
+
+  // Picker context isn't used for entity mode (categories override resolution),
+  // but the component requires it. Provide an empty shape.
+  const emptyCtx = useMemo(() => ({ sources: [], fields: [], localVars: [], modulesById, occurrencesById, fieldsById: {} }), [modulesById, occurrencesById]);
+
+  // Effective filter target — uses the same picker style. Categories: occurrences (by id, displays label) and By Label (free text).
+  const effectiveFilterConfig = useMemo(() => {
+    if (!needsTargetLabel) return null;
+    const allOccs = Object.values(occurrencesById || {}).filter(o => o && !o.deleted);
+    return {
+      placeholder: "Pick target",
+      categories: [
+        {
+          id: "byLabel",
+          label: "By Label",
+          description: "Match the first occurrence whose module label equals the entered string. Resolved at runtime.",
+          color: "rgba(251,191,36,0.7)",
+          resolveItems: () => allOccs
+            .map(o => modulesById[o.targetId]?.label)
+            .filter(Boolean)
+            .filter((label, idx, arr) => arr.indexOf(label) === idx)
+            .map(label => ({
+              value: `label:${label}`,
+              title: label,
+              sub: "label",
+              description: "Resolved by label at runtime.",
+              hasChildren: false,
+            })),
+        },
+      ],
+    };
+  }, [needsTargetLabel, occurrencesById, modulesById]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
       <div style={rowStyle}>
@@ -523,12 +582,13 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
           {ENTITY_TYPES.map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
         </select>
         {needsPicker && (
-          <select value={src.entityId} onChange={e => onUpdate({ entityId: e.target.value })} style={selectSt}>
-            <option value="">Pick...</option>
-            {entityOptions.map(m => (
-              <option key={m.id} value={m.id}>{m.label || m.id}</option>
-            ))}
-          </select>
+          <CategoryPathPicker
+            value={src.entityId || ""}
+            ctx={emptyCtx}
+            config={modulePickerConfig}
+            mode="entity"
+            onChange={(next) => onUpdate({ entityId: next })}
+          />
         )}
         {needsOccId && (
           <input
@@ -547,11 +607,12 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
           </select>
         )}
         {needsTargetLabel && (
-          <input
-            value={src.targetLabel || ""}
-            onChange={e => onUpdate({ targetLabel: e.target.value })}
-            placeholder='target label e.g. "Physical"'
-            style={{ ...inputSt, width: 160 }}
+          <CategoryPathPicker
+            value={src.targetLabel ? `label:${src.targetLabel}` : ""}
+            ctx={emptyCtx}
+            config={effectiveFilterConfig}
+            mode="entity"
+            onChange={(next) => onUpdate({ targetLabel: next.startsWith("label:") ? next.slice(6) : next })}
           />
         )}
         {src.entityType === "trigger" && (
