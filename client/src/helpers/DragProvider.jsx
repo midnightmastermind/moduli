@@ -246,16 +246,34 @@ export function DragProvider({
   // ============================================================
   // HIT TESTING — single elementsFromPoint per frame (B1)
   // ============================================================
+  // For schedule-style modules with one occurrence per date, multiple DOM nodes
+  // can share the same data-container-id / data-instance-id (the module ID).
+  // We also collect the per-occurrence IDs (data-occ-id on containers,
+  // data-occurrence-id on instances) so callers can target the SPECIFIC node
+  // under the cursor instead of `Object.values(...).find(o => o.targetId === ...)`
+  // which silently picks the wrong day.
   const getHoveredIds = useCallback((x, y) => {
     const elements = document.elementsFromPoint(x, y);
-    let panelId = null, containerId = null, instanceId = null;
+    let panelId = null, containerId = null, containerOccId = null, instanceId = null, instanceOccId = null;
     for (const el of elements) {
       if (!panelId) { const v = el.getAttribute("data-panel-id"); if (v) panelId = v; }
-      if (!containerId) { const v = el.getAttribute("data-container-id"); if (v) containerId = v; }
-      if (!instanceId) { const v = el.getAttribute("data-instance-id"); if (v) instanceId = v; }
+      if (!containerId) {
+        const v = el.getAttribute("data-container-id");
+        if (v) {
+          containerId = v;
+          containerOccId = el.getAttribute("data-occ-id") || null;
+        }
+      }
+      if (!instanceId) {
+        const v = el.getAttribute("data-instance-id");
+        if (v) {
+          instanceId = v;
+          instanceOccId = el.getAttribute("data-occurrence-id") || null;
+        }
+      }
       if (panelId && containerId && instanceId) break;
     }
-    return { panelId, containerId, instanceId };
+    return { panelId, containerId, containerOccId, instanceId, instanceOccId };
   }, []);
 
   // Keep individual getters for one-off callers (e.g. handleDrop fallbacks)
@@ -469,15 +487,15 @@ export function DragProvider({
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = 0;
 
-      const { panelId, containerId: rawContainerId, instanceId } = getHoveredIds(clientX, clientY);
+      const { panelId, containerId: rawContainerId, containerOccId: rawContainerOccId, instanceId, instanceOccId } = getHoveredIds(clientX, clientY);
       const cell = getCellFromPoint(clientX, clientY);
 
       // Sticky container highlight — when cursor passes over gaps/margins within
       // the same panel, keep the previous containerId to prevent flicker
       const last = lastHotRef.current;
-      const containerId = (!rawContainerId && panelId && panelId === last.panelId)
-        ? last.containerId
-        : rawContainerId;
+      const stickyToLast = !rawContainerId && panelId && panelId === last.panelId;
+      const containerId = stickyToLast ? last.containerId : rawContainerId;
+      const containerOccId = stickyToLast ? last.containerOccId : rawContainerOccId;
 
       // Update highlight only when containerId changes (not instanceId — avoids flicker)
       if (last.containerId !== containerId) {
@@ -485,7 +503,7 @@ export function DragProvider({
         setDropHighlight(shouldHL ? (containerId || null) : null);
       }
       if (last.panelId !== panelId || last.containerId !== containerId || last.instanceId !== instanceId) {
-        lastHotRef.current = { panelId, containerId, instanceId };
+        lastHotRef.current = { panelId, containerId, containerOccId, instanceId, instanceOccId };
       }
 
       if (s.payload?.type === DragType.PANEL) {
@@ -571,17 +589,28 @@ export function DragProvider({
         const fromC = s.startContainers?.find((c) => c.id === s.payload.context?.containerId);
         let toIndex = null;
 
-        // Find container occurrences via draftOccurrences
-        // The container occurrence is the occ whose targetId === container module id
-        const fromCOcc = fromC ? Object.values(s.draftOccurrences || {}).find(o => o.targetId === fromC.id) : null;
-        const toCOcc = toC ? (s.draftOccurrences ? Object.values(s.draftOccurrences).find(o => o.targetId === toC.id) : null) : null;
+        // Resolve container occurrences. Schedule slots have one occurrence per
+        // day sharing the same module id, so prefer the per-occurrence ids
+        // exposed via DOM attributes / payload context. Falling back to a
+        // targetId-based find() picks the first day's slot — which is rarely
+        // the visible one.
+        const fromCOccId = s.payload.context?.containerOccurrenceId
+          || s.payload.context?.containerOccId
+          || s.payload.context?.parentOccurrenceId
+          || null;
+        const fromCOcc = (fromCOccId && s.draftOccurrences?.[fromCOccId])
+          || (fromC ? Object.values(s.draftOccurrences || {}).find(o => o.targetId === fromC.id) : null);
+        const toCOcc = (containerOccId && s.draftOccurrences?.[containerOccId])
+          || (toC ? Object.values(s.draftOccurrences || {}).find(o => o.targetId === toC.id) : null);
 
-        // Find the occurrence ID for the dragged instance within the from container occurrence
-        const draggedOccId = fromCOcc ? LayoutHelpers.findOccurrenceIdByTarget(
-          s.payload.id,
-          fromCOcc.occurrences || [],
-          occurrencesById
-        ) : null;
+        // Source occurrence ID — prefer payload context (set by ModuleInstance) so
+        // we don't have to walk fromCOcc.occurrences[] looking for a target match.
+        const draggedOccId = s.payload.context?.occurrenceId
+          || (fromCOcc ? LayoutHelpers.findOccurrenceIdByTarget(
+            s.payload.id,
+            fromCOcc.occurrences || [],
+            occurrencesById
+          ) : null);
 
         if (toCOcc && instanceId && instanceId !== s.payload.id && draggedOccId) {
           // Find the index of hovered instance in target container occurrence
@@ -592,8 +621,13 @@ export function DragProvider({
           );
 
           if (hoveredIndex !== -1) {
-            // Calculate edge from cursor position
-            const instanceEl = document.querySelector(`[data-instance-id="${instanceId}"]`);
+            // Calculate edge from cursor position. Prefer the per-occurrence
+            // attribute so we hit the SPECIFIC DOM node under the cursor —
+            // querying by data-instance-id alone returns the first match,
+            // which can be far offscreen when the same instance module
+            // appears in multiple slots.
+            const instanceEl = (instanceOccId && document.querySelector(`[data-occurrence-id="${instanceOccId}"]`))
+              || document.querySelector(`[data-instance-id="${instanceId}"]`);
             if (instanceEl) {
               const rect = instanceEl.getBoundingClientRect();
               const { x, y } = pointerRef.current;
@@ -752,6 +786,11 @@ export function DragProvider({
     const panelId = dropTarget.context?.panelId || getHoveredPanelId();
     const containerId = dropTarget.context?.containerId || getHoveredContainerId();
     const instanceId = dropTarget.context?.instanceId || getHoveredInstanceId();
+    // Per-occurrence IDs disambiguate per-day modules (schedule slots) where
+    // multiple occurrences share the same module id.
+    const hovered = getHoveredIds(x, y);
+    const containerOccurrenceId = dropTarget.context?.occurrenceId || hovered.containerOccId || null;
+    const instanceOccurrenceId = hovered.instanceOccId || null;
 
     // Deduplication
     const now = Date.now();
@@ -767,7 +806,7 @@ export function DragProvider({
       dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers,
       clearSession, sessionRef, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId,
     };
-    const drop = { payload, dropTarget, panelId, containerId, instanceId, x, y, getCellFromPoint };
+    const drop = { payload, dropTarget, panelId, containerId, instanceId, containerOccurrenceId, instanceOccurrenceId, x, y, getCellFromPoint };
 
     // Route to extracted handler by payload type
     if (payload?.type === DragType.PANEL) {

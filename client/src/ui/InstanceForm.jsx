@@ -525,9 +525,9 @@ function FieldsSection({
       id: newFieldId,
       name: "",
       type: "number",
-      mode: "input",
+      inputEnabled: true,
+      displayEnabled: false,
       meta: { prefix: "", postfix: "", increment: 1 },
-      metric: null,
     };
     CommitHelpers.createField({ dispatch, socket, field: newField, emit: true });
     const newBinding = { fieldId: newFieldId, role: "input", order: localBindings.length };

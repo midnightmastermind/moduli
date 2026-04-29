@@ -419,7 +419,7 @@ export function deleteOperation({ dispatch, socket, operationId, emit = true }) 
 /**
  * Set a single field value on a specific occurrence.
  * Handles optimistic dispatch + server emit.
- * Used by: operation executor SET_FIELD_VALUE effect, future UI shortcuts.
+ * Used by: operation executor UPDATE_ITEM_FIELD effect, future UI shortcuts.
  */
 export function setOccurrenceFieldValue({ dispatch, socket, occurrences, occurrencesById, occurrenceId, fieldId, value, flow = "replace" }) {
   if (!occurrenceId || !fieldId) return;

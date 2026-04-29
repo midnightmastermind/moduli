@@ -453,15 +453,14 @@ export function createFieldBlocks(fields = [], options = {}) {
   return fields
     .filter(f => {
       if (filterByType && f.type !== filterByType) return false;
-      // Support both new (inputEnabled/displayEnabled) and old (mode) schemas
-      const isInput = f.inputEnabled !== false && f.mode !== "derived";
-      const isDisplay = f.displayEnabled === true || f.mode === "derived";
+      const isInput = f.inputEnabled !== false;
+      const isDisplay = f.displayEnabled === true;
       if (isInput && includeInput) return true;
       if (isDisplay && includeDisplay) return true;
       return false;
     })
     .map(field => {
-      const isDisplay = field.displayEnabled === true || field.mode === "derived";
+      const isDisplay = field.displayEnabled === true;
       const label = field.name || field.type;
       const displayLabel = isDisplay ? `📊 ${label}` : label;
 
@@ -469,8 +468,8 @@ export function createFieldBlocks(fields = [], options = {}) {
         fieldId: field.id,
         fieldName: field.name,
         fieldType: field.type,
-        inputEnabled: field.inputEnabled !== false && field.mode !== "derived",
-        displayEnabled: field.displayEnabled === true || field.mode === "derived",
+        inputEnabled: field.inputEnabled !== false,
+        displayEnabled: field.displayEnabled === true,
       }, {
         label: displayLabel,
         color: isDisplay ? "bg-indigo-500" : BLOCK_COLORS[BlockType.FIELD],
@@ -483,7 +482,7 @@ export function createFieldBlocks(fields = [], options = {}) {
  */
 export function createFieldBlock(field) {
   if (!field) return null;
-  const isDisplay = field.displayEnabled === true || field.mode === "derived";
+  const isDisplay = field.displayEnabled === true;
   const label = field.name || field.type;
   const displayLabel = isDisplay ? `📊 ${label}` : label;
 
@@ -491,8 +490,8 @@ export function createFieldBlock(field) {
     fieldId: field.id,
     fieldName: field.name,
     fieldType: field.type,
-    inputEnabled: field.inputEnabled !== false && field.mode !== "derived",
-    displayEnabled: field.displayEnabled === true || field.mode === "derived",
+    inputEnabled: field.inputEnabled !== false,
+    displayEnabled: field.displayEnabled === true,
   }, {
     label: displayLabel,
     color: isDisplay ? "bg-indigo-500" : BLOCK_COLORS[BlockType.FIELD],

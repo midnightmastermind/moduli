@@ -111,11 +111,14 @@ function Page({
     return (state?.grid?.namedFilters || []).find(f => f.id === activeId) || null;
   }, [state?.grid?.activeFilterId, state?.grid?.namedFilters]);
 
+  // Always walk the parent chain — `pageActiveNamedFilter.lock` controls whether
+  // THIS occurrence may write its own `filterOverride` (UI-level editability),
+  // not whether ancestor overrides cascade. Short-circuiting to grid filters
+  // here was breaking the cascade — e.g. navigating the Schedule page's local
+  // date wouldn't propagate to the slot containers below.
   const pageEffectiveFilters = useMemo(
-    () => pageActiveNamedFilter?.lock
-      ? (state?.grid?.activeFilterValues || {})
-      : getEffectiveFilterForOccurrence(occurrence, { grid: state?.grid, occurrencesById }),
-    [occurrence, state?.grid, occurrencesById, pageActiveNamedFilter?.lock]
+    () => getEffectiveFilterForOccurrence(occurrence, { grid: state?.grid, occurrencesById }),
+    [occurrence, state?.grid, occurrencesById]
   );
 
   const pageActiveFilterConditions = useMemo(

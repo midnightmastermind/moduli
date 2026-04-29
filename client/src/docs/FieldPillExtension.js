@@ -48,13 +48,6 @@ export const FieldPill = Node.create({
           "data-field-type": attributes.fieldType,
         }),
       },
-      fieldMode: {
-        default: "input",
-        parseHTML: (element) => element.getAttribute("data-field-mode"),
-        renderHTML: (attributes) => ({
-          "data-field-mode": attributes.fieldMode,
-        }),
-      },
       // Display options
       showValue: {
         default: true,

@@ -1,6 +1,19 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-04-27. Check this file before re-reading source._
+_Updated: 2026-04-28. Check this file before re-reading source._
+
+## Recent Changes (Apr 29 2026 — $schedDate flows from page's effective filter)
+- **scripts/createTestGrid.js**: Four ops (`Schedule: Build Day`, `Schedule: Seed Daily Routine`, `Water Today`, `Tasks Completed Today`) restructured so the schedule page is FIND'd first (`itemIdVar: "$schedPageId", itemVar: "$schedPage"`), then `$schedDate` is initialized from `$schedPage._effectiveFilter.${dateFieldId}` with fallback chain `$triggerDate → $today`. Why: on cold load `$trigger.date` is undefined and the previous fallback went straight to `$today`, so newly-created copies were dated today and stayed hidden by any non-today page filter — the symptom was "tasks only appear after I change the filter, never on load." `_effectiveFilter` resolves the parent-chain filter (page override → grid filter), so the auto-build now matches the date the user is actually viewing.
+- **client/src/helpers/operationExecutor.js (`executePipeline`)**: Each `$allItems` entry now carries `_effectiveFilter` — the result of `getEffectiveFilterForOccurrence(occ, …)` precomputed at pipeline start. Lets pipelines read a page's effective filter without having to walk the parent chain in pipeline language.
+- **Re-seed required**: `node --env-file=.env scripts/createTestGrid.js`.
+
+## Recent Changes (Apr 28 2026 — Slots created once, no date field)
+- **scripts/createTestGrid.js (`Schedule: Build Day` op)**: Removed `scope: { dateFieldId, dateExpr: "$schedDate" }` from the slot FIND step and `date: { fieldId: dateFieldId, value: "$schedDate" }` from both the slot CREATE step and the Due CREATE step. Same removal on the Due FIND. Slot containers (and the Due container) are now created ONCE per grid and have no date field — visibility is delegated to the page-level filter cascade walking down to the per-day instance copies inside them. Why: the prior per-day creation duplicated what the filter cascade already does and accumulated 48-occurrences-per-day clutter that the visible-slot picker (PageBoard `containersList`) couldn't reliably collapse to one per module across days.
+- **Re-seed required**: `node --env-file=.env scripts/createTestGrid.js` to push the simplified pipeline AND wipe the per-day duplicate slot occurrences left behind by the old logic.
+
+## Recent Changes (Apr 28 2026 — Schedule Auto-Build self-heals partial state)
+- **scripts/createTestGrid.js (`Schedule: Build Day` op)**: Replaced the top-level "any slot exists for $schedDate → skip the whole 48-slot loop" guard with a **per-slot** FIND/IF/CREATE inside the slot loop. Predicate: `meta.scheduleSlot IS true AND meta.slotLabel IS $slot.label`, scoped by `dateFieldId/$schedDate`. Removed the prior ELSE that re-stamped the timeslot label (was firing ~48 `update_occurrence` emits on every reload — that was the flood). Why: when a user reloaded mid-build, the server-side per-socket queue had only persisted 6 of the 48 CREATEs; the new full_state had only 6 slots, the old top-level guard saw "any slot exists → skip" and never filled the missing 42. The per-slot guard makes the op idempotent on reload AND self-healing on partial state — works against the existing DB without orphan cleanup because `$item.meta` is template+occurrence merged (operationExecutor.js:590), so the 6 partial-state occurrences carry `scheduleSlot/slotLabel` via their template and match the FIND.
+- **Re-seed required**: `node --env-file=.env scripts/createTestGrid.js` to push the new pipeline definition. The DB still holds the previous pipeline until re-seed.
 
 ## Recent Changes (Apr 27 2026 — Operation Priority + E11000 Retry on Occurrence Writes)
 - **models/Operation.js**: Added `priority: { type: Number, default: 5, min: 1, max: 10 }`. Lower runs first. Used by `runMatchingOperations` in `client/src/helpers/operationExecutor.js` as the primary sort key (sortOrder is now a tiebreaker).

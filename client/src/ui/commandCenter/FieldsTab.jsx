@@ -53,7 +53,7 @@ export function FieldPill({ field, selected, onClick, compact = false }) {
     });
   }, [field]);
 
-  const isInput = field.inputEnabled !== false && field.mode !== "derived";
+  const isInput = field.inputEnabled !== false;
   const isModule = field.type === "module";
   const base = isModule ? "6,182,212" : isInput ? "59,130,246" : "168,85,247"; // cyan / blue / purple
   const textColor = isModule ? "rgb(103,232,249)" : isInput ? "rgb(147,197,253)" : "rgb(216,180,254)";
@@ -199,6 +199,52 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
           </div>
         </div>
       </div>
+
+      {/* Display config — target value + period for displayEnabled fields. Operations
+          publish a value via UPDATE $display.<fieldId>.<itemId>; the target lives on
+          the field's displayConfig and is the basis for the progress bar. */}
+      {local.displayEnabled === true && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={labelStyle}>Target</span>
+            <input
+              type="number"
+              value={local.displayConfig?.targetValue ?? ""}
+              onChange={(e) => {
+                const raw = e.target.value;
+                const v = raw === "" ? null : Number(raw);
+                setLocal((p) => ({ ...p, displayConfig: { ...(p.displayConfig || {}), targetValue: Number.isNaN(v) ? null : v } }));
+              }}
+              placeholder="e.g. 64"
+              style={{ ...inputStyle, width: 90 }}
+            />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={labelStyle}>Period</span>
+            <select
+              value={local.displayConfig?.targetPeriod || "daily"}
+              onChange={(e) => setLocal((p) => ({ ...p, displayConfig: { ...(p.displayConfig || {}), targetPeriod: e.target.value } }))}
+              style={{ ...inputStyle, width: "auto", minWidth: 100 }}
+            >
+              <option value="daily">daily</option>
+              <option value="weekly">weekly</option>
+              <option value="monthly">monthly</option>
+              <option value="yearly">yearly</option>
+            </select>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={labelStyle}>Arrows</span>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)", cursor: "pointer", paddingTop: 2 }}>
+              <input
+                type="checkbox"
+                checked={local.displayConfig?.showArrows === true}
+                onChange={(e) => setLocal((p) => ({ ...p, displayConfig: { ...(p.displayConfig || {}), showArrows: e.target.checked } }))}
+              />
+              show
+            </label>
+          </div>
+        </div>
+      )}
 
       {/* Category */}
       {categoryFolders.length > 0 && (

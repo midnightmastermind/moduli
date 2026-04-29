@@ -1,6 +1,5 @@
 // state/selectors.js
 // Selectors for working with occurrences and entities in the state
-import * as CalcHelpers from "../helpers/CalculationHelpers";
 import { evalRule, evalGroup } from "../helpers/operationActions";
 
 /**
@@ -223,14 +222,6 @@ export function getGridPanels(state) {
     .map(occ => autofillOccurrence(occ, lookups));
 }
 
-
-/**
- * Calculates a derived field value
- * Delegates to CalculationHelpers for the actual computation
- */
-export function calculateDerivedField(state, field, context = {}) {
-  return CalcHelpers.calculateDerivedField(state, field, context);
-}
 
 // ============================================================
 // FILTER SYSTEM (Phase 0)

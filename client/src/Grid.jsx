@@ -16,7 +16,6 @@ import React, {
 import Panel from "./modules/ModulePanel";
 import ErrorBoundary from "./ui/ErrorBoundary";
 import FullscreenOverlay from "./ui/FullscreenOverlay";
-import GridFieldsBank from "./ui/GridFieldsBank";
 import GridRadialMenu from "./ui/GridRadialMenu";
 
 import { GridDataContext } from "./GridDataContext";
@@ -316,9 +315,6 @@ function GridInner() {
 
   const [dragTick, setDragTick] = useState(0);
   const onTick = useCallback(() => setDragTick((x) => x + 1), []);
-
-  // Fields Bank dialog state
-  const [fieldsBankOpen, setFieldsBankOpen] = useState(false);
 
   const {
     dispatch,
@@ -661,31 +657,16 @@ function GridInner() {
         rows={rows}
       />
 
-      {/* Grid Radial Menu - Undo/Redo/Fields (History moved to Toolbar) — hidden on mobile */}
+      {/* Grid Radial Menu - Undo/Redo (History in Toolbar; field config lives in CommandCenter FieldsTab) — hidden on mobile */}
       {!isMobile && (
         <GridRadialMenu
           onUndo={undo}
           onRedo={redo}
           canUndo={canUndo && !isProcessing}
           canRedo={canRedo && !isProcessing}
-          onFields={() => setFieldsBankOpen(true)}
           disabled={isProcessing}
         />
       )}
-
-      {/* Grid Fields Bank Dialog */}
-      <GridFieldsBank
-        open={fieldsBankOpen}
-        onOpenChange={setFieldsBankOpen}
-        gridId={gridId}
-        fields={state.fields || []}
-        panels={state.panels || []}
-        containers={state.containers || []}
-        instances={state.instances || []}
-        onCreateField={createField}
-        onUpdateField={updateField}
-        onDeleteField={deleteField}
-      />
 
     </DragProvider>
   );

@@ -59,6 +59,57 @@ function makeLogger() {
   return { entries: [], add(kind, data) { this.entries.push({ kind, t: Date.now(), ...data }); } };
 }
 
+// Snapshot user-facing $vars (skip _internal keys + huge built-ins).
+// Returned object is a shallow clone — values may still be live references.
+const _SNAPSHOT_SKIP = new Set(["_log", "_occurrencesById", "_fieldsById", "$allItems", "$allTemplates", "$allFields", "$grid"]);
+function snapshotVars($vars) {
+  const out = {};
+  for (const k of Object.keys($vars || {})) {
+    if (k.startsWith("_") && !k.startsWith("$")) continue;
+    if (_SNAPSHOT_SKIP.has(k)) continue;
+    out[k] = $vars[k];
+  }
+  return out;
+}
+
+// Resolve every leaf rule in a condition group using current $vars,
+// returning a parallel structure with `_leftValue` / `_rightValue` annotations
+// on each rule. Used so the run log can show "$preset.moduleLabel" → "Drink Water".
+function resolveGroupForLog(group, $vars) {
+  if (!group || !Array.isArray(group.rules)) return group;
+  const rules = group.rules.map(r => {
+    if (r.rules) return resolveGroupForLog(r, $vars);
+    let leftValue, rightValue;
+    try { leftValue = resolveExpr(r.left, $vars); } catch { leftValue = undefined; }
+    try { rightValue = resolveExpr(r.right, $vars) ?? r.right; } catch { rightValue = undefined; }
+    return { ...r, _leftValue: leftValue, _rightValue: rightValue };
+  });
+  return { ...group, rules };
+}
+
+// Resolve an action's config field expressions (cfg.parent, cfg.fields values, etc.)
+// into a `_resolved` map, so the log can show the actual values used at runtime.
+function resolveConfigForLog(cfg, $vars) {
+  if (!cfg || typeof cfg !== "object") return null;
+  const resolved = {};
+  for (const k of Object.keys(cfg)) {
+    const v = cfg[k];
+    if (typeof v === "string" && v.startsWith("$")) {
+      try { resolved[k] = resolveExpr(v, $vars); } catch { /* ignore */ }
+    } else if (k === "fields" && v && typeof v === "object") {
+      const fr = {};
+      for (const fk of Object.keys(v)) {
+        const fv = v[fk];
+        if (typeof fv === "string" && fv.startsWith("$")) {
+          try { fr[fk] = resolveExpr(fv, $vars); } catch { /* ignore */ }
+        }
+      }
+      if (Object.keys(fr).length > 0) resolved.fields = fr;
+    }
+  }
+  return Object.keys(resolved).length > 0 ? resolved : null;
+}
+
 // ============================================================
 // TRIGGER MATCHING
 // ============================================================
@@ -489,6 +540,16 @@ export function runMatchingOperations(operations, transactionType, transaction, 
     if (pa !== pb) return pa - pb;
     return (a.sortOrder ?? 50) - (b.sortOrder ?? 50);
   });
+
+  // Live overlay of occurrencesById that picks up each op's CREATE_ITEM /
+  // UPDATE_ITEM_* / DELETE_ITEM effects in batch-order. Without this the next
+  // op in the priority chain sees the same stale snapshot — e.g. on first
+  // onLoad the priority-3 goal aggregations would run before priority-1's
+  // schedule-build CREATEs reach the store, so totals come up empty until
+  // the user reloads twice.
+  const liveOccs = { ...(context.occurrencesById || {}) };
+  const liveCtx = { ...context, occurrencesById: liveOccs };
+
   for (const op of ordered) {
     const match = computeTriggerMatch(op, transactionType, transaction);
     if (!match) continue;
@@ -504,10 +565,11 @@ export function runMatchingOperations(operations, transactionType, transaction, 
     try {
       let results;
       if (op.pipeline) {
-        results = executePipeline(op, context, transaction, undefined, logger);
+        results = executePipeline(op, liveCtx, transaction, undefined, logger);
       } else {
-        results = executeOperation(op, transactionType, transaction, context);
+        results = executeOperation(op, transactionType, transaction, liveCtx);
       }
+      applyEffectsToLiveOccs(liveOccs, results);
       updates.push(...results);
       logger.add("end", { updates: results, durationMs: Date.now() - startedAt });
     } catch (err) {
@@ -518,6 +580,85 @@ export function runMatchingOperations(operations, transactionType, transaction, 
     recordRunLog(op.id, { runAt: startedAt, durationMs: Date.now() - startedAt, entries: logger.entries });
   }
   return updates;
+}
+
+// Apply pipeline effects to the in-batch occurrence overlay so the next op
+// can see them. Mirrors the effect handlers in bindSocketToStore but only
+// touches the speculative overlay — actual dispatch still happens once
+// runMatchingOperations returns.
+function applyEffectsToLiveOccs(liveOccs, effects) {
+  if (!Array.isArray(effects) || effects.length === 0) return;
+  for (const eff of effects) {
+    if (!eff?._effect) continue;
+    switch (eff._effect) {
+      case "CREATE_ITEM": {
+        const inst = eff.instance;
+        if (!inst?.id) break;
+        liveOccs[inst.id] = {
+          id: inst.id,
+          targetId: inst.templateId,
+          parentId: inst.parentId ?? null,
+          fields: inst.fields || {},
+          textmap: inst.textmap ?? null,
+          occurrences: [],
+        };
+        if (inst.parentId && liveOccs[inst.parentId]) {
+          const parent = liveOccs[inst.parentId];
+          const children = Array.isArray(parent.occurrences) ? parent.occurrences : [];
+          if (!children.includes(inst.id)) {
+            liveOccs[inst.parentId] = { ...parent, occurrences: [...children, inst.id] };
+          }
+        }
+        break;
+      }
+      case "UPDATE_ITEM_FIELD": {
+        const occ = liveOccs[eff.itemId];
+        if (!occ) break;
+        const fields = { ...(occ.fields || {}) };
+        const prev = fields[eff.fieldId] || {};
+        if (eff.subKind === "flow") fields[eff.fieldId] = { ...prev, flow: eff.value };
+        else fields[eff.fieldId] = { ...prev, value: eff.value, flow: prev.flow || "in" };
+        liveOccs[eff.itemId] = { ...occ, fields };
+        break;
+      }
+      case "UPDATE_ITEM_PARENT": {
+        const occ = liveOccs[eff.itemId];
+        if (!occ) break;
+        liveOccs[eff.itemId] = { ...occ, parentId: eff.toParentId };
+        break;
+      }
+      case "UPDATE_ITEM_META": {
+        const occ = liveOccs[eff.itemId];
+        if (!occ) break;
+        liveOccs[eff.itemId] = { ...occ, meta: { ...(occ.meta || {}), ...(eff.metaPatch || {}) } };
+        break;
+      }
+      case "UPDATE_ITEM_TEXTMAP": {
+        const occ = liveOccs[eff.itemId];
+        if (!occ) break;
+        liveOccs[eff.itemId] = { ...occ, textmap: eff.textmap };
+        break;
+      }
+      case "DELETE_ITEM":
+      case "REMOVE_OCCURRENCE": {
+        const id = eff.itemId || eff.occurrenceId;
+        if (id) delete liveOccs[id];
+        break;
+      }
+      case "LINK_OCCURRENCE_TO_PARENT": {
+        const parent = liveOccs[eff.parentOccurrenceId];
+        const childId = eff.occurrenceId;
+        if (!parent || !childId) break;
+        const children = Array.isArray(parent.occurrences) ? parent.occurrences : [];
+        if (!children.includes(childId)) {
+          liveOccs[eff.parentOccurrenceId] = { ...parent, occurrences: [...children, childId] };
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
 }
 
 // ============================================================
@@ -560,7 +701,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   }
 
   // Resolve an ancestor chain (closest ancestor first, capped at depth 12).
-  // Used to enrich $allOccurrences items so HAS_ANCESTOR rules in $allOccurrences-driven
+  // Used to enrich $allItems entries so HAS_ANCESTOR rules in $allItems-driven
   // loops have something to walk. parentId is the fallback when occurrences[] doesn't link.
   const ancestorsFor = (occId) => {
     const chain = [];
@@ -574,29 +715,47 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     return chain;
   };
 
-  // Pre-enrich every occurrence so $allOccurrences-driven loops can see _ancestors
-  // without needing to convert them through gatherLoopItems first. Spread leaves the
-  // original Redux-state object untouched.
-  const allOccurrencesEnriched = Object.values(occurrencesById).map(occ => ({
-    ...occ,
-    _ancestors: ancestorsFor(occ.id),
-  }));
+  // Pre-enrich every occurrence into a merged "item" carrying its template's
+  // label/name/role/kind/meta. The operation language never differentiates
+  // template (was Module) from instance (was Occurrence) — both are items.
+  // _effectiveFilter is the filter value chain resolved up to grid level —
+  // pipelines can read e.g. `$schedPage._effectiveFilter.<dateFieldId>` to
+  // know what date the user is viewing without firing as a NavigationOp.
+  const allTemplates = state?.modules ?? [];
+  const templateById = Object.fromEntries(allTemplates.map(t => [t.id, t]));
+  const allItems = Object.values(occurrencesById).map(occ => {
+    const tpl = occ.targetId ? templateById[occ.targetId] : null;
+    return {
+      ...occ,
+      label: occ.label ?? tpl?.label ?? tpl?.name ?? null,
+      name: occ.name ?? tpl?.name ?? tpl?.label ?? null,
+      role: occ.role ?? tpl?.role ?? null,
+      kind: occ.kind ?? tpl?.kind ?? null,
+      meta: { ...(tpl?.meta || {}), ...(occ.meta || {}) },
+      templateId: occ.targetId ?? null,
+      _ancestors: ancestorsFor(occ.id),
+      _effectiveFilter: getEffectiveFilterForOccurrence(occ, { grid: state?.grid, occurrencesById }),
+    };
+  });
 
   // ---- Build $vars ----
   const _nowDate = new Date();
-  const _activeIteration = (state?.grid?.iterations ?? []).find(i => i.id === state?.grid?.selectedIterationId);
+  // Use the user's local time zone for date strings, NOT UTC. `toISOString()`
+  // gives UTC, which silently rolls over to "tomorrow" anywhere west of UTC
+  // after local-evening. The active filter, the seeded test data, and every
+  // user-visible date in the app uses local-day semantics, so $today must too.
+  const _localDayString = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const _todayLocal = _localDayString(_nowDate);
   const $vars = {
     _log: logger,
     _occurrencesById: occurrencesById,
     _fieldsById: fieldsById,
     $now: _nowDate.toISOString(),
-    $today: _nowDate.toISOString().slice(0, 10),
-    $currentDate: _nowDate.toISOString().slice(0, 10),
+    $today: _todayLocal,
+    $currentDate: _todayLocal,
     $currentHour: _nowDate.getHours(),
     $currentTime: _nowDate.toTimeString().slice(0, 5),
-    $iterationId: state?.grid?.selectedIterationId ?? null,
-    $iterationValue: state?.grid?.currentIterationValue ?? null,
-    $iterationFilter: _activeIteration?.timeFilter ?? null,
     // Active filter date — scoped to the operation's target occurrence (not grid-global).
     // Walks the parent chain via filterOverride so each panel/container sees its own date.
     // Returns null when no date filter active (callers wanting today should use $today).
@@ -632,12 +791,12 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       const d = dateVal ? new Date(dateVal + "T00:00:00") : _nowDate;
       return d.toLocaleDateString("en-US", { weekday: "long" });
     })(),
-    // Templates + iteration definitions
-    $templates: state?.grid?.templates ?? [],
-    $iterationDefinitions: state?.grid?.iterations ?? [],
-    // Built-in arrays — loop-ready collections of everything in the system
-    $allOccurrences: allOccurrencesEnriched,
-    $allModules: state?.modules ?? [],
+    // Built-in arrays — loop-ready collections of everything in the system.
+    // $allItems = every placement (was $allOccurrences) merged with its template
+    // (label/name/role/kind/meta). $allTemplates = template-level records (was $allModules).
+    // (Saved grid layouts live on $grid.templates if anyone ever needs them.)
+    $allItems: allItems,
+    $allTemplates: allTemplates,
     $allFields: Object.values(fieldsById),
     $grid: state?.grid ?? {},
   };
@@ -804,7 +963,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   const sourceSummary = {};
   for (const [k, v] of Object.entries($vars)) {
     if (k.startsWith("_")) continue;
-    if (k.startsWith("$all") || k === "$grid" || k === "$templates" || k === "$iterationDefinitions") {
+    if (k.startsWith("$all") || k === "$grid") {
       sourceSummary[k] = Array.isArray(v) ? `[Array(${v.length})]` : "[Object]";
     } else {
       sourceSummary[k] = v;
@@ -831,13 +990,33 @@ function executeSteps(steps, $vars, context, transaction) {
   for (const step of steps || []) {
     if (step.type === "action") {
       const actionType = step.config?.type || step.actionType;
-      const result = executeActionItem(actionType, step.config || {}, $vars, context, transaction);
-      log?.add("action", { actionType, config: step.config, resultCount: result.length, result });
+      const cfg = step.config || {};
+      // Snapshot vars + resolve any predicate / config exprs BEFORE the action mutates state.
+      const varsBefore = log ? snapshotVars($vars) : null;
+      const resolvedConfig = log ? resolveConfigForLog(cfg, $vars) : null;
+      const resolvedPredicate = log && cfg.predicate ? resolveGroupForLog(cfg.predicate, $vars) : null;
+      const result = executeActionItem(actionType, cfg, $vars, context, transaction);
+      log?.add("action", {
+        actionType,
+        config: cfg,
+        resolvedConfig,
+        resolvedPredicate,
+        varsBefore,
+        resultCount: result.length,
+        result,
+      });
       updates.push(...result);
     } else if (step.type === "if") {
       const group = step.condition || { operator: "AND", rules: step.rules || [] };
+      const resolvedGroup = log ? resolveGroupForLog(group, $vars) : null;
+      const varsBefore = log ? snapshotVars($vars) : null;
       const branch = evalGroup(group, $vars);
-      log?.add("if", { condition: group, branch: branch ? "then" : "else" });
+      log?.add("if", {
+        condition: group,
+        resolvedCondition: resolvedGroup,
+        branch: branch ? "then" : "else",
+        varsBefore,
+      });
       if (branch) {
         updates.push(...executeSteps(step.then || [], $vars, context, transaction));
       } else {
@@ -845,7 +1024,7 @@ function executeSteps(steps, $vars, context, transaction) {
       }
     } else if (step.type === "loop") {
       // LOOP: iterate over any array expression or legacy typed collection.
-      // step.overExpr = any expression resolving to an array (e.g. "$allOccurrences", "$myArr")
+      // step.overExpr = any expression resolving to an array (e.g. "$allItems", "$myArr")
       // step.over = legacy typed string (e.g. "field_occurrences") — still supported
       // $vars is shared so variable mutations (ADD_TO_VAR) accumulate across iterations
       const varName = step.as || "$item";
@@ -857,9 +1036,12 @@ function executeSteps(steps, $vars, context, transaction) {
         items = gatherLoopItems(step, context, $vars);
       }
       log?.add("loop", { over: step.overExpr || step.over, as: varName, itemCount: items.length });
+      let i = 0;
       for (const item of items) {
         $vars[varName] = item;
+        log?.add("loop_iter", { as: varName, index: i, total: items.length, item });
         updates.push(...executeSteps(step.body || [], $vars, context, transaction));
+        i += 1;
       }
       delete $vars[varName];
     }

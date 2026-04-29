@@ -15,9 +15,11 @@ export function registerStateHandlers(socket, {
 
     try {
       // ── Resolve gridId ────────────────────────────────────────────
+      // maxTimeMS guards against a hung query starving the connection pool;
+      // socketTimeoutMS in server.js is the broader safety net.
       let gridDoc;
       if (gridId) {
-        gridDoc = await Grid.findOne({ _id: gridId, userId }).lean();
+        gridDoc = await Grid.findOne({ _id: gridId, userId }).maxTimeMS(8000).lean();
         if (!gridDoc) {
           gridDoc = await Grid.findOne({ userId }).sort({ createdAt: 1 }).lean();
         }
@@ -47,9 +49,12 @@ export function registerStateHandlers(socket, {
       const grids = await getAllGridsForUser(userId);
       const allGridOccs = getOccurrencesForGrid(gridId, uc);
 
-      // Modules: only those referenced by this grid's occurrences
-      const gridModuleIds = new Set(allGridOccs.map(o => o.targetId).filter(Boolean));
-      const gridModules = [...gridModuleIds].map(id => uc.modulesById[id]).filter(Boolean);
+      // Modules: all modules scoped to this grid. Operations may FIND/CREATE
+      // by template label, so unreferenced "stub" templates (e.g. the 48
+      // schedule slot containers seeded ahead of time) must be present in
+      // $allTemplates — otherwise CREATE re-mints duplicate templates on
+      // every load.
+      const gridModules = Object.values(uc.modulesById).filter(m => m && m.gridId === gridId);
 
       console.log(`[full_state] grid=${gridId} — ${allGridOccs.length} occurrences, ${gridModules.length} modules`);
 

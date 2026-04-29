@@ -1,5 +1,15 @@
 // utils/createDefaultUserData.js
 // ============================================================
+// FROZEN 2026-04-27 — Operations in this file reference the legacy action
+// vocabulary (FIND_OCCURRENCE, FIND_MODULE, CREATE_OCCURRENCE_FOR_MODULE,
+// CREATE_MODULE, MOVE_OCCURRENCE_TO_PARENT, LINK_OCCURRENCE_TO_PARENT,
+// SET_FIELD_VALUE, SHOW_VALUE, COMPUTE_TEXTMAP_FROM_TEMPLATE,
+// FILL_FROM_TEMPLATE) and will not run after the unified-verbs migration.
+// Kept for future reference / data shape only. Re-activating requires
+// rewriting all operations to FIND / CREATE / UPDATE / DELETE and
+// passing `itemId` to every operationBuilders helper that emits a
+// display write (now `UPDATE { path: "$display.<fieldId>.<itemId>" }`).
+// ============================================================
 // Creates comprehensive default grid showcasing all field capabilities
 //
 // LAYOUT (3x2 grid):
@@ -2866,11 +2876,6 @@ export async function createDefaultUserData(userId) {
   // Wire day journal container to Day Page panel (with sample textmap)
   const todayFmt = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
-  // Helper: field pill node
-  const fp = (fieldId, fieldName, fieldMode, occurrenceId) => ({
-    type: "fieldPill",
-    attrs: { fieldId, fieldName, fieldType: "text", fieldMode, showValue: true, showLabel: false, ...(occurrenceId ? { occurrenceId } : {}) },
-  });
   // Helper: instance pill node
   const ip = (instanceId, instanceLabel) => ({
     type: "instancePill",

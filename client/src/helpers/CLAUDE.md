@@ -2,6 +2,18 @@
 
 _Updated: 2026-04-25. Check this file before re-reading source._
 
+## Recent Changes (Apr 29 2026 — $today / nav defaults use local-tz day)
+- **operationExecutor.js (`executePipeline $vars`)**: `$today` and `$currentDate` now derive from `getFullYear / getMonth / getDate` (local tz), not `_nowDate.toISOString().slice(0, 10)` (UTC). The UTC variant rolls over to "tomorrow" anywhere west of UTC after local-evening — that was the "today is showing tomorrow" bug. New `_localDayString` helper.
+- **state/bindSocketToStore.js (`onFullState`)**: filter-nav default resolver (`"today"` / `"startOfWeek"` / `"startOfMonth"`) now uses the same local-tz `localDay()` helper instead of `toISOString().slice(0, 10)`.
+- **App.jsx (`handleFilterNav`)**: prev/next date arrows now produce a local-tz `YYYY-MM-DD` string for the same reason — pressing "next day" near midnight no longer skips ahead by the UTC offset.
+
+## Recent Changes (Apr 29 2026 — Iteration vars retired + json: literal)
+- **operationExecutor.js (`executePipeline $vars`)**: Removed `$iterationId` / `$iterationValue` / `$iterationFilter` / `$iterationDefinitions` / `$templates` and the `_activeIteration` lookup that fed them. The iteration system was retired in favour of named filters; these vars were dead weight cluttering the run log and the path picker. Saved grid layouts (`grid.templates`) are still reachable via `$grid.templates` if anyone ever needs them. `_SNAPSHOT_SKIP` updated.
+- **operationActions.js (`resolveExpr`)**: New `json:` prefix. Anything starting with `json:` is JSON-parsed once and returned as the literal value — used by `ExprOrPath`'s new array mode so users can hand-write a list inline (e.g. `json:["a","b","c"]`). Distinct from `literal:` which is for scalars.
+
+## Recent Changes (Apr 28 2026 — Run-log resolved values + per-iteration loop entries)
+- **operationExecutor.js (`executeSteps`)**: Each `action` / `if` log entry now carries `varsBefore` (snapshot of user-facing `$vars` taken just before the step ran), `resolvedConfig` (action `cfg` exprs walked through `resolveExpr`), and `resolvedPredicate` (predicate `rules[]` annotated with `_leftValue` / `_rightValue` per rule). New `loop_iter` entry logged once per iteration with `{ as, index, total, item }` so the run history can show `$preset = {moduleLabel: "Drink Water", slotLabel: "6:00am"}` for each pass instead of just "4 items". Helpers `snapshotVars` / `resolveGroupForLog` / `resolveConfigForLog` added at module top. `_SNAPSHOT_SKIP` excludes `$allItems`/`$allTemplates`/`$allFields`/`$grid` and the executor internals so log payloads stay small.
+
 ## Recent Changes (Apr 27 2026 — Operation Priority Sort)
 - **operationExecutor.js (`runMatchingOperations`)**: Sort key is now `(priority ?? 5)` first, `sortOrder` second. Lower priority number runs first. Lets the schedule auto-build (priority 1) finish creating slot occurrences before stamp ops (priority 2) and goal aggregations (priority 3) read them.
 

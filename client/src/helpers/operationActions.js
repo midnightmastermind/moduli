@@ -1,12 +1,29 @@
-// blocks/operationActions.js
+// helpers/operationActions.js
 // ============================================================
-// Pure action helpers extracted from operationExecutor.js
+// Pure action helpers used by operationExecutor.js.
+//
+// Four CRUD verbs route every data write in the engine:
+//   FIND    — locate items by predicate, store result in $vars
+//   CREATE  — mint a template (idempotent on label) and an instance
+//   UPDATE  — patch one piece of state at a path; routes through applyUpdate
+//   DELETE  — remove an item
+//
+// Flow primitives (INIT_VAR, SET_VAR, ADD_TO_VAR, INCREMENT_VAR,
+// DECREMENT_VAR, MULTIPLY_VAR, DIV_VAR, SUBTRACT_FROM_VAR, PUSH_TO_VAR)
+// remain — they are read-modify-write math sugar on $vars, not CRUD.
+//
+// $item always refers to the current loop item / trigger payload.
+// $allItems holds every item the operation can search; $allTemplates
+// holds the template-level records (was $allModules).
+//
+// See plan: docs/superpowers/plans/2026-04-27-unified-operation-verbs.md
 //
 // Exports: resolveExpr, evalRule, evalGroup,
 //          extractFieldValuesFiltered, executeActionItem
 // ============================================================
 
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
+import { applyUpdate } from "./applyUpdate";
 import { toast } from "sonner";
 
 // ============================================================
@@ -90,13 +107,20 @@ export function resolveExpr(expr, $vars) {
   if (expr === "") return null;
   if (expr.startsWith("literal:")) {
     const raw = expr.slice(8);
-    // Coerce well-known scalar literals so SET_FIELD_VALUE on boolean/number
+    // Coerce well-known scalar literals so UPDATE on boolean/number
     // fields round-trips correctly through the editor (literal:false → false).
     if (raw === "true") return true;
     if (raw === "false") return false;
     if (raw === "null") return null;
     if (raw !== "" && !isNaN(Number(raw)) && /^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
     return raw;
+  }
+
+  // json:[...] / json:{...} — literal JSON value. Used by ExprOrPath array mode
+  // to let users hand-write a list of items. Items inside the parsed JSON are
+  // returned as-is (not recursively resolved against $vars).
+  if (expr.startsWith("json:")) {
+    try { return JSON.parse(expr.slice(5)); } catch { return null; }
   }
 
   // occ:$trigger.occurrenceId.fieldId.value
@@ -388,15 +412,213 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
-    case "SHOW_VALUE":
-    case "SET_VALUE": {
-      const value = resolveExpr(cfg.sourceExpr, $vars);
-      if (cfg.targetFieldId) {
-        const target = cfg.targetValue != null
-          ? { value: Number(cfg.targetValue), period: cfg.targetPeriod || "daily" }
-          : null;
-        updates.push({ fieldId: cfg.targetFieldId, value, target });
+    // ============================================================
+    // Four CRUD verbs: FIND, CREATE, UPDATE, DELETE
+    // ============================================================
+
+    // ---- FIND: locate items by predicate ----
+    // cfg: { predicate, scope?: { dateFieldId, dateExpr },
+    //        multiple?: false, itemVar?, itemIdVar? }
+    // $allItems is pre-merged with template label/name/role/kind/meta in
+    // operationExecutor.js, so predicates like `$item.label` resolve directly.
+    case "FIND": {
+      const itemList = Array.isArray($vars.$allItems) ? $vars.$allItems : [];
+
+      const predicate = cfg.predicate;
+      const matchItem = (item) => {
+        if (!predicate || !Array.isArray(predicate.rules) || predicate.rules.length === 0) return true;
+        const prevItem = $vars.$item;
+        $vars.$item = item;
+        try {
+          return evalGroup(predicate, $vars);
+        } finally {
+          $vars.$item = prevItem;
+        }
+      };
+
+      let candidates = itemList
+        .filter(it => it && !it.deleted && !it.meta?.isTemplate)
+        .filter(matchItem);
+
+      // Optional date scope: items whose date field equals resolved date
+      if (cfg.scope?.dateFieldId) {
+        const targetDateStr = resolveExpr(cfg.scope.dateExpr, $vars) ?? resolveExpr("$today", $vars);
+        const toLocalDate = (val) => {
+          if (val == null || val === "") return null;
+          if (typeof val === "string" && val.length <= 10) return new Date(val + "T00:00:00");
+          const d = new Date(val);
+          return isNaN(d.getTime()) ? null : d;
+        };
+        const refDate = toLocalDate(targetDateStr);
+        if (refDate) {
+          candidates = candidates.filter(o => {
+            const fv = o.fields?.[cfg.scope.dateFieldId];
+            const v = fv?.value !== undefined ? fv.value : fv;
+            const d = toLocalDate(v);
+            return d && d.toDateString() === refDate.toDateString();
+          });
+        } else {
+          candidates = [];
+        }
       }
+
+      const result = cfg.multiple ? candidates : (candidates[0] || null);
+      if (cfg.itemVar) $vars[cfg.itemVar] = result;
+      if (cfg.itemIdVar) {
+        $vars[cfg.itemIdVar] = cfg.multiple
+          ? candidates.map(c => c.id)
+          : (result?.id ?? null);
+      }
+      break;
+    }
+
+    // ---- CREATE: mint template (idempotent on label) + instance ----
+    // cfg: { name, role?, kind?, meta?, parent?, date?: { fieldId, value },
+    //        fields?, textmap?, insertAtIndex?, itemIdVar?, itemVar? }
+    case "CREATE": {
+      const name = resolveExpr(cfg.name, $vars) ?? cfg.name;
+      if (!name) break;
+
+      // Resolve $var references inside meta values so authors can write
+      // `meta: { slotLabel: "$slot.label" }` and have it land as the
+      // resolved string on the template.
+      const resolvedMeta = cfg.meta && typeof cfg.meta === "object"
+        ? Object.fromEntries(
+            Object.entries(cfg.meta).map(([k, v]) => [k, resolveExpr(v, $vars) ?? v])
+          )
+        : null;
+
+      const templateList = Array.isArray($vars.$allTemplates) ? $vars.$allTemplates : [];
+      const existingTemplate = templateList.find(t => t && !t.trashed && (t.label === name || t.name === name));
+
+      let templateRecord = null;
+      let templateId;
+      if (existingTemplate) {
+        templateId = existingTemplate.id;
+      } else {
+        templateId = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
+        templateRecord = {
+          id: templateId,
+          name,
+          label: name,
+          role: cfg.role || "container",
+          kind: cfg.kind || "doc",
+          ...(resolvedMeta ? { meta: resolvedMeta } : {}),
+        };
+        // Optimistic publish so subsequent FIND in same pipeline sees it
+        if (Array.isArray($vars.$allTemplates)) {
+          $vars.$allTemplates = [...$vars.$allTemplates, templateRecord];
+        }
+      }
+
+      const instanceId = globalThis.crypto?.randomUUID?.() ?? String(Date.now() + 1);
+
+      // Initial fields: optional date stamp + cfg.fields map
+      const fields = {};
+      if (cfg.date?.fieldId) {
+        const dateVal = resolveExpr(cfg.date.value, $vars) ?? resolveExpr("$today", $vars);
+        if (dateVal) fields[cfg.date.fieldId] = { value: dateVal, flow: "in" };
+      }
+      if (cfg.fields) {
+        for (const [fid, expr] of Object.entries(cfg.fields)) {
+          const v = resolveExpr(expr, $vars);
+          if (v != null) fields[fid] = { value: v, flow: "in" };
+        }
+      }
+
+      // Resolve textmap (with optional fromTemplate substitution)
+      let textmap = null;
+      if (cfg.textmap) {
+        if (typeof cfg.textmap === "object" && cfg.textmap.fromTemplate !== undefined) {
+          const tokens = {};
+          for (const [k, v] of Object.entries(cfg.textmap.tokens || {})) {
+            tokens[k] = resolveExpr(v, $vars);
+          }
+          const updateRes = applyUpdate(
+            "$item.textmap",
+            { fromTemplate: resolveExpr(cfg.textmap.fromTemplate, $vars), tokens },
+            { vars: { $item: { id: instanceId } }, occurrencesById }
+          );
+          textmap = updateRes.effects?.[0]?.textmap ?? null;
+        } else {
+          textmap = cfg.textmap;
+        }
+      }
+
+      const parentId = resolveExpr(cfg.parent, $vars) ?? null;
+
+      const instance = {
+        id: instanceId,
+        targetType: "module",
+        targetId: templateId,
+        parentId,
+        fields,
+        textmap,
+        meta: { createdByOperation: true },
+      };
+
+      // Optimistic publish into $vars.$allItems so subsequent FIND sees it
+      if (Array.isArray($vars.$allItems)) {
+        $vars.$allItems = [...$vars.$allItems, instance];
+      }
+
+      if (cfg.itemIdVar) $vars[cfg.itemIdVar] = instanceId;
+      if (cfg.itemVar) $vars[cfg.itemVar] = instance;
+
+      updates.push({
+        _effect: "CREATE_ITEM",
+        template: templateRecord,
+        instance: {
+          id: instanceId,
+          templateId,
+          parentId,
+          fields,
+          textmap,
+          insertAtIndex: typeof cfg.insertAtIndex === "number" ? cfg.insertAtIndex : null,
+        },
+      });
+      break;
+    }
+
+    // ---- UPDATE: route writes by path through applyUpdate ----
+    // cfg: { path, value }
+    // path supports `${$varName}` interpolation so authors can address per-item
+    // display keys: `$display.<fieldId>.${$goalId}`.
+    case "UPDATE": {
+      if (!cfg.path) break;
+      const path = typeof cfg.path === "string" && cfg.path.includes("${")
+        ? cfg.path.replace(/\$\{([^}]+)\}/g, (_, inner) => {
+            const resolved = resolveExpr(inner.trim(), $vars);
+            return resolved != null ? String(resolved) : "";
+          })
+        : cfg.path;
+      let value;
+      // Object-shaped value (e.g. textmap fromTemplate). Resolve nested exprs.
+      if (cfg.value !== null && typeof cfg.value === "object" && !Array.isArray(cfg.value) && cfg.value.fromTemplate !== undefined) {
+        const tokens = {};
+        for (const [k, v] of Object.entries(cfg.value.tokens || {})) {
+          tokens[k] = resolveExpr(v, $vars);
+        }
+        value = {
+          fromTemplate: resolveExpr(cfg.value.fromTemplate, $vars),
+          tokens,
+        };
+      } else if (cfg.value !== null && typeof cfg.value === "object" && !Array.isArray(cfg.value)) {
+        value = cfg.value;
+      } else {
+        value = resolveExpr(cfg.value, $vars);
+      }
+      const result = applyUpdate(path, value, { vars: $vars, occurrencesById });
+      if (result.varWrites) Object.assign($vars, result.varWrites);
+      if (Array.isArray(result.effects)) updates.push(...result.effects);
+      break;
+    }
+
+    // ---- DELETE: remove an item ----
+    // cfg: { itemIdExpr }
+    case "DELETE": {
+      const itemId = resolveExpr(cfg.itemIdExpr, $vars);
+      if (itemId) updates.push({ _effect: "DELETE_ITEM", itemId });
       break;
     }
 
@@ -448,45 +670,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
-    // Real CRUD effects — dispatched + emitted by bindSocketToStore after execution
-
-    case "SET_FIELD_VALUE": {
-      const occId = resolveExpr(cfg.occurrenceIdExpr || "$trigger.occurrenceId", $vars);
-      // Distinguish "expression resolved to nothing" from "user wants to clear the field":
-      //   valueExpr present + resolves to null/undefined + no `value` key → skip the write
-      //   `value: null` set explicitly → write null (clears the field)
-      let value;
-      if (cfg.valueExpr !== undefined) {
-        const resolved = resolveExpr(cfg.valueExpr, $vars);
-        if ((resolved === null || resolved === undefined) && !("value" in cfg)) break;
-        value = resolved !== null && resolved !== undefined ? resolved : cfg.value;
-      } else {
-        value = cfg.value;
-      }
-      if (occId && cfg.fieldId) {
-        updates.push({ _effect: "SET_FIELD_VALUE", occurrenceId: occId, fieldId: cfg.fieldId, value, flow: cfg.flow || "replace" });
-      }
-      break;
-    }
+    // Other CRUD effects — dispatched + emitted by bindSocketToStore after execution
 
     case "MOVE_OCCURRENCE": {
       const occId = resolveExpr(cfg.occurrenceIdExpr || "$trigger.occurrenceId", $vars);
       const toContainerId = cfg.toContainerId || resolveExpr(cfg.toContainerIdExpr, $vars);
       if (occId && toContainerId) {
         updates.push({ _effect: "MOVE_OCCURRENCE", occurrenceId: occId, toContainerId });
-      }
-      break;
-    }
-
-    case "MOVE_OCCURRENCE_TO_PARENT": {
-      const occId         = resolveExpr(cfg.occurrenceIdExpr, $vars);
-      const toParentOccId = resolveExpr(cfg.toParentOccIdExpr, $vars);
-      if (occId && toParentOccId) {
-        updates.push({
-          _effect: "MOVE_OCCURRENCE_TO_PARENT",
-          occurrenceId: occId,
-          toParentOccurrenceId: toParentOccId,
-        });
       }
       break;
     }
@@ -690,7 +880,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       if (!occId || !completionFieldId) break;
 
       // Reset the completion field to false
-      updates.push({ _effect: "SET_FIELD_VALUE", occurrenceId: occId, fieldId: completionFieldId, value: false, flow: "replace" });
+      updates.push({ _effect: "UPDATE_ITEM_FIELD", itemId: occId, fieldId: completionFieldId, value: false, subKind: "value" });
 
       // Advance dueDate if recurrenceDays > 0
       if (dueDateFieldId && recurrenceDays > 0) {
@@ -700,7 +890,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         const baseDate = rawDate && !isNaN(new Date(rawDate).getTime()) ? new Date(rawDate) : new Date();
         const newDate = new Date(baseDate);
         newDate.setDate(newDate.getDate() + recurrenceDays);
-        updates.push({ _effect: "SET_FIELD_VALUE", occurrenceId: occId, fieldId: dueDateFieldId, value: newDate.toISOString(), flow: "replace" });
+        updates.push({ _effect: "UPDATE_ITEM_FIELD", itemId: occId, fieldId: dueDateFieldId, value: newDate.toISOString(), subKind: "value" });
       }
       break;
     }
@@ -784,7 +974,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
     // ---- CYCLE_FIELD_VALUE: rotate through a select field's options by day-of-year ----
     // cfg: { sourceFieldId, targetFieldId, cycleBy: "dayOfYear" | "sequential" }
-    // Picks options[dayOfYear % n].label and writes to targetFieldId as a SHOW_VALUE.
+    // Picks options[dayOfYear % n].label and writes to targetFieldId as a display value.
     case "CYCLE_FIELD_VALUE": {
       const sourceField = fieldsById?.[cfg.sourceFieldId];
       const options = sourceField?.meta?.options || [];
@@ -804,262 +994,6 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       if (chosen && cfg.targetFieldId) {
         updates.push({ fieldId: cfg.targetFieldId, value: chosen.label ?? chosen.value ?? "" });
       }
-      break;
-    }
-
-    // ---- FIND_MODULE: search $allModules by name, store result in $vars ----
-    // cfg: { nameExpr, resultVar?, resultIdVar? }
-    case "FIND_MODULE": {
-      const name = resolveExpr(cfg.nameExpr, $vars);
-      if (!name) break;
-      const allModules = $vars.$allModules || {};
-      const found = Object.values(allModules).find(m => m.name === name && !m.trashed)
-        || Object.values(allModules).find(m => m.label === name && !m.trashed);
-      $vars[cfg.resultVar || "$foundModule"] = found || null;
-      $vars[cfg.resultIdVar || "$foundModuleId"] = found?.id || null;
-      break;
-    }
-
-    // ---- FIND_OCCURRENCE: search by targetId, moduleLabel, or module meta key/value ----
-    // cfg: { targetIdExpr?, moduleLabel?, moduleLabelExpr?,
-    //        moduleMetaKey?, moduleMetaValue?, moduleMetaSecondaryKey?, moduleMetaSecondaryValue?,
-    //        dateFieldId?, dateExpr?, resultVar?, resultIdVar? }
-    // Skips template occurrences (meta.isTemplate === true).
-    case "FIND_OCCURRENCE": {
-      const targetId = resolveExpr(cfg.targetIdExpr, $vars);
-      const moduleLabel = resolveExpr(cfg.moduleLabelExpr, $vars) || cfg.moduleLabel;
-      const allOccurrences = $vars.$allOccurrences || occurrencesById || {};
-      const allModules = $vars.$allModules || [];
-      let found = null;
-
-      // Pad bare YYYY-MM-DD strings so storage + lookup both parse to local-midnight.
-      // Without this, "2026-04-25" parses as UTC on one side and local on the other,
-      // so toDateString() mismatches across timezone boundaries → existing date-tagged
-      // occurrences are never found and duplicates are created on every run.
-      const toLocalDate = (val) => {
-        if (val == null || val === "") return null;
-        if (typeof val === "string" && val.length <= 10) return new Date(val + "T00:00:00");
-        const d = new Date(val);
-        return isNaN(d.getTime()) ? null : d;
-      };
-
-      let effectiveTargetIds = [];
-      if (targetId) {
-        effectiveTargetIds = [targetId];
-      } else if (moduleLabel) {
-        const mod = allModules.find(m => m.label?.toLowerCase() === moduleLabel.toLowerCase());
-        if (mod) effectiveTargetIds = [mod.id];
-      } else if (cfg.moduleMetaKey) {
-        // Match modules by meta key/value (with optional secondary key/value). Both
-        // values run through resolveExpr so callers can reference $vars.
-        const metaValue = resolveExpr(cfg.moduleMetaValue, $vars);
-        const metaSecondaryValue = cfg.moduleMetaSecondaryKey != null
-          ? resolveExpr(cfg.moduleMetaSecondaryValue, $vars)
-          : undefined;
-        const matches = allModules.filter(m => {
-          const v = m?.meta?.[cfg.moduleMetaKey];
-          if (String(v) !== String(metaValue)) return false;
-          if (cfg.moduleMetaSecondaryKey) {
-            return String(m?.meta?.[cfg.moduleMetaSecondaryKey]) === String(metaSecondaryValue);
-          }
-          return true;
-        });
-        effectiveTargetIds = matches.map(m => m.id);
-      }
-
-      if (effectiveTargetIds.length > 0) {
-        const occList = Array.isArray(allOccurrences) ? allOccurrences : Object.values(allOccurrences);
-        const candidates = occList.filter(o =>
-          effectiveTargetIds.includes(o.targetId) && !o.deleted && !o.meta?.isTemplate
-        );
-
-        if (cfg.dateFieldId) {
-          const targetDateStr = resolveExpr(cfg.dateExpr, $vars) || resolveExpr("$today", $vars);
-          const refDate = toLocalDate(targetDateStr);
-          if (refDate) {
-            found = candidates.find(o => {
-              const fv = o.fields?.[cfg.dateFieldId];
-              const val = fv?.value !== undefined ? fv.value : fv;
-              const d = toLocalDate(val);
-              return d && d.toDateString() === refDate.toDateString();
-            }) || null;
-          }
-        } else {
-          found = candidates[0] || null;
-        }
-      }
-      $vars[cfg.resultVar || "$foundOccurrence"] = found || null;
-      $vars[cfg.resultIdVar || "$foundOccurrenceId"] = found?.id || null;
-      break;
-    }
-
-    // ---- CREATE_MODULE: create module + occurrence in one shot ----
-    // cfg: { nameExpr, role?, kind?, parentIdExpr?, parentId?, viewIdExpr?, viewId?, extra? }
-    // Sets $lastCreatedModuleId and $lastCreatedOccurrenceId in $vars.
-    case "CREATE_MODULE": {
-      const name = resolveExpr(cfg.nameExpr, $vars);
-      if (!name) break;
-      const role = cfg.role || "container";
-      const kind = cfg.kind || "doc";
-      const parentId = resolveExpr(cfg.parentIdExpr || cfg.parentId, $vars) || null;
-      const viewId = resolveExpr(cfg.viewIdExpr || cfg.viewId, $vars) || null;
-      const moduleId = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
-      const occurrenceId = globalThis.crypto?.randomUUID?.() ?? String(Date.now() + 1);
-      $vars.$lastCreatedModuleId = moduleId;
-      $vars.$lastCreatedOccurrenceId = occurrenceId;
-      // Optimistic-publish into $vars.$allModules so subsequent FIND_MODULE calls in
-      // the same pipeline run see the just-created module and don't duplicate.
-      const newModuleStub = { id: moduleId, name, label: name, role, kind, ...(cfg.extra?.meta ? { meta: cfg.extra.meta } : {}) };
-      if (Array.isArray($vars.$allModules)) {
-        $vars.$allModules = [...$vars.$allModules, newModuleStub];
-      }
-      updates.push({
-        _effect: "CREATE_MODULE",
-        moduleId, occurrenceId, name, role, kind, parentId, viewId,
-        ...(cfg.extra || {}),
-      });
-      break;
-    }
-
-    // ---- COMPUTE_TEXTMAP_FROM_TEMPLATE: clone template textmap + substitute [tokens] ----
-    // Pure computation — no effect emitted. Stores substituted TipTap JSON in a $var.
-    // cfg: { templateOccIdExpr, tokens: [{ token, valueExpr, value? }], resultVar? }
-    case "COMPUTE_TEXTMAP_FROM_TEMPLATE": {
-      const templateOccId = resolveExpr(cfg.templateOccIdExpr, $vars);
-      const templateOcc = occurrencesById[templateOccId];
-      if (!templateOcc?.textmap) break;
-
-      const textmap = JSON.parse(JSON.stringify(templateOcc.textmap));
-      const tokens = cfg.tokens || [];
-      const substitute = (node) => {
-        if (node.type === "text" && typeof node.text === "string") {
-          for (const tkn of tokens) {
-            const val = String(resolveExpr(tkn.valueExpr, $vars) ?? tkn.value ?? "");
-            node.text = node.text.split(tkn.token).join(val);
-          }
-        }
-        if (Array.isArray(node.content)) {
-          for (const child of node.content) substitute(child);
-        }
-      };
-      substitute(textmap);
-      $vars[cfg.resultVar || "$computedTextmap"] = textmap;
-      break;
-    }
-
-    // ---- CREATE_OCCURRENCE_FOR_MODULE: create a new occurrence for an existing module ----
-    // Unlike CREATE_MODULE (creates both module + occurrence), this creates only an occurrence.
-    // cfg: { moduleIdExpr, dateFieldId?, dateExpr?, textmapVar?, parentIdExpr?, parentId?,
-    //        viewIdExpr?, viewId?, resultVar?, resultIdVar? }
-    // Sets $lastCreatedOccurrenceId + cfg.resultIdVar in $vars.
-    case "CREATE_OCCURRENCE_FOR_MODULE": {
-      const moduleId = resolveExpr(cfg.moduleIdExpr || cfg.moduleId, $vars);
-      if (!moduleId) break;
-
-      const occurrenceId = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
-      $vars[cfg.resultVar || "$foundOccurrence"] = { id: occurrenceId };
-      $vars[cfg.resultIdVar || "$lastCreatedOccurrenceId"] = occurrenceId;
-
-      // Build initial fields
-      const fields = {};
-      if (cfg.dateFieldId) {
-        // $activeDate may be null when no filter is active — fall back to $today
-        const dateVal = resolveExpr(cfg.dateExpr, $vars) || resolveExpr("$today", $vars);
-        if (dateVal) fields[cfg.dateFieldId] = { value: dateVal, flow: "in" };
-      }
-
-      // Optional pre-computed textmap from a $var (e.g. set by COMPUTE_TEXTMAP_FROM_TEMPLATE)
-      const textmap = cfg.textmapVar ? ($vars[cfg.textmapVar] ?? null) : null;
-
-      const parentIdResolved = resolveExpr(cfg.parentIdExpr || cfg.parentId, $vars) || null;
-      const viewIdResolved = resolveExpr(cfg.viewIdExpr || cfg.viewId, $vars) || null;
-
-      // Optimistic-publish the new occurrence into $vars so subsequent FIND_OCCURRENCE
-      // calls in the same pipeline run see it (effects don't apply until after the
-      // pipeline returns, but the slot loop → preset seed flow needs the just-created
-      // slot occurrence to be visible immediately).
-      const newOccStub = {
-        id: occurrenceId,
-        targetType: "module",
-        targetId: moduleId,
-        parentId: parentIdResolved,
-        viewId: viewIdResolved,
-        fields,
-        textmap,
-        meta: { createdByOperation: true },
-      };
-      if (Array.isArray($vars.$allOccurrences)) {
-        $vars.$allOccurrences = [...$vars.$allOccurrences, newOccStub];
-      }
-
-      updates.push({
-        _effect: "CREATE_OCCURRENCE_FOR_MODULE",
-        occurrenceId,
-        moduleId,
-        parentId: parentIdResolved,
-        viewId: viewIdResolved,
-        fields,
-        textmap,
-        insertAtIndex: typeof cfg.insertAtIndex === "number" ? cfg.insertAtIndex : null,
-      });
-      break;
-    }
-
-    // ---- LINK_OCCURRENCE_TO_PARENT: idempotently add child to parent.occurrences[] ----
-    // The container's date FIELD value is the source of truth for "does this exist for
-    // the active date" — separate from where it lives in the page tree. FIND_OCCURRENCE
-    // matches on date FIELD across all occurrences (orphans included); this action
-    // re-links the matched orphan into the page so the renderer can see it.
-    // cfg: { occurrenceIdExpr, parentOccIdExpr }
-    case "LINK_OCCURRENCE_TO_PARENT": {
-      const occurrenceId = resolveExpr(cfg.occurrenceIdExpr || cfg.occurrenceId, $vars);
-      const parentOccurrenceId = resolveExpr(cfg.parentOccIdExpr || cfg.parentOccurrenceId, $vars);
-      if (!occurrenceId || !parentOccurrenceId) break;
-
-      // Optimistic-publish into $vars.$allOccurrences so subsequent steps see the link.
-      if (Array.isArray($vars.$allOccurrences)) {
-        $vars.$allOccurrences = $vars.$allOccurrences.map(o => {
-          if (o.id !== parentOccurrenceId) return o;
-          const childIds = Array.isArray(o.occurrences) ? o.occurrences : [];
-          if (childIds.includes(occurrenceId)) return o;
-          return { ...o, occurrences: [...childIds, occurrenceId] };
-        });
-      }
-
-      updates.push({
-        _effect: "LINK_OCCURRENCE_TO_PARENT",
-        occurrenceId,
-        parentOccurrenceId,
-      });
-      break;
-    }
-
-    // ---- FILL_FROM_TEMPLATE: apply substituted template textmap to an EXISTING occurrence ----
-    // Use this to refresh an already-created page from the template (re-fill).
-    // For NEW occurrences, use COMPUTE_TEXTMAP_FROM_TEMPLATE + CREATE_OCCURRENCE_FOR_MODULE instead.
-    // cfg: { templateOccIdExpr, targetOccIdExpr, tokens: [{ token, valueExpr, value? }] }
-    case "FILL_FROM_TEMPLATE": {
-      const templateOccId = resolveExpr(cfg.templateOccIdExpr, $vars);
-      const targetOccId = resolveExpr(cfg.targetOccIdExpr || cfg.occurrenceIdExpr, $vars);
-      const templateOcc = occurrencesById[templateOccId];
-      const targetOcc = occurrencesById[targetOccId];
-      if (!templateOcc?.textmap || !targetOcc) break;
-
-      const textmap = JSON.parse(JSON.stringify(templateOcc.textmap));
-      const tokens = cfg.tokens || [];
-      const substitute = (node) => {
-        if (node.type === "text" && typeof node.text === "string") {
-          for (const tkn of tokens) {
-            const val = String(resolveExpr(tkn.valueExpr, $vars) ?? tkn.value ?? "");
-            node.text = node.text.split(tkn.token).join(val);
-          }
-        }
-        if (Array.isArray(node.content)) {
-          for (const child of node.content) substitute(child);
-        }
-      };
-      substitute(textmap);
-      updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { ...targetOcc, textmap } });
       break;
     }
 

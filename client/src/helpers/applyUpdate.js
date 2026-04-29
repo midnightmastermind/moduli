@@ -27,8 +27,7 @@ const RESERVED_VAR_NAMES = new Set([
   "$schedDate",
   "$schedDateLabel",
   "$allItems",
-  "$allOccurrences",
-  "$allModules",
+  "$allTemplates",
 ]);
 
 const VAR_NAME_RE = /^\$[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -143,8 +142,8 @@ export function applyUpdate(path, value, ctx) {
         effects: [
           {
             _effect: "UPDATE_ITEM_PARENT",
-            occurrenceId: itemId,
-            toParentOccurrenceId: value,
+            itemId,
+            toParentId: value,
           },
         ],
         varWrites: {},

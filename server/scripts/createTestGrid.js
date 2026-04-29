@@ -457,7 +457,7 @@ export async function createTestGrid(userId, options = {}) {
 
   await new Operation({
     id: uid(), userId, gridId, name: "Water Today",
-    description: "Sum daily water oz — only for occurrences under the Schedule page",
+    description: "Sum daily water oz — only for items under the Schedule page",
     priority: 3, // Goal aggregation — runs after auto-build (1) and field stamps (2)
     triggerTypes: ["onChange", "onFilterChange", "onLoad"],
     triggerObjects: [
@@ -471,14 +471,40 @@ export async function createTestGrid(userId, options = {}) {
       sources: [
         { id: uid(), variableName: "triggerType",    entityType: "trigger", triggerProp: "type" },
         { id: uid(), variableName: "triggerFieldId", entityType: "trigger", triggerProp: "fieldId" },
+        { id: uid(), variableName: "triggerDate",    entityType: "trigger", triggerProp: "date" },
       ],
       steps: [
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$total", value: 0 } },
+        // Locate the Schedule page first so we can drive $schedDate off its
+        // effective filter (page override → grid filter → trigger → today).
         { id: uid(), type: "action", config: {
-            type: "FIND_OCCURRENCE",
-            moduleLabelExpr: "literal:Schedule",
-            resultVar: "$schedPage",
-            resultIdVar: "$schedPageId",
+            type: "FIND",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "$item.label", comparator: "IS", right: "Schedule" },
+            ]},
+            itemIdVar: "$schedPageId",
+            itemVar: "$schedPage",
+        }},
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$triggerDate" } }],
+          else: [],
+        },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
+          else: [],
+        },
+        // Locate the goal display item so we can address its display key.
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "$item.label", comparator: "IS", right: "Physical Wellness" },
+            ]},
+            itemIdVar: "$goalId",
         }},
         {
           id: uid(), type: "if",
@@ -504,7 +530,7 @@ export async function createTestGrid(userId, options = {}) {
           },
           then: [
             {
-              id: uid(), type: "loop", overExpr: "$allOccurrences", as: "$item",
+              id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
               body: [{
                 id: uid(), type: "if",
                 condition: {
@@ -512,7 +538,7 @@ export async function createTestGrid(userId, options = {}) {
                   rules: [
                     { id: uid(), left: `$item.fields.${waterFieldId}.value`,     comparator: "IS_NOT_EMPTY", right: "" },
                     { id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS",           right: true },
-                    { id: uid(), left: `$item.fields.${dateFieldId}.value`,      comparator: "SAME_DAY",     right: "$activeDate" },
+                    { id: uid(), left: `$item.fields.${dateFieldId}.value`,      comparator: "SAME_DAY",     right: "$schedDate" },
                     { id: uid(), left: "$item._ancestors",                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                   ],
                 },
@@ -520,9 +546,11 @@ export async function createTestGrid(userId, options = {}) {
                 else: [],
               }],
             },
+            // Write the aggregated total to the goal item's display field.
             { id: uid(), type: "action", config: {
-                type: "SHOW_VALUE", targetFieldId: totalWaterFieldId,
-                sourceExpr: "$total", targetValue: 64, targetPeriod: "daily",
+                type: "UPDATE",
+                path: `$display.${totalWaterFieldId}.\${$goalId}`,
+                value: "$total",
             }},
           ],
           else: [],
@@ -548,14 +576,40 @@ export async function createTestGrid(userId, options = {}) {
       sources: [
         { id: uid(), variableName: "triggerType",    entityType: "trigger", triggerProp: "type" },
         { id: uid(), variableName: "triggerFieldId", entityType: "trigger", triggerProp: "fieldId" },
+        { id: uid(), variableName: "triggerDate",    entityType: "trigger", triggerProp: "date" },
       ],
       steps: [
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$count", value: 0 } },
+        // Locate the Schedule page first so $schedDate can flow off its
+        // effective filter — same fallback chain as Water Today / Build Day.
         { id: uid(), type: "action", config: {
-            type: "FIND_OCCURRENCE",
-            moduleLabelExpr: "literal:Schedule",
-            resultVar: "$schedPage",
-            resultIdVar: "$schedPageId",
+            type: "FIND",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "$item.label", comparator: "IS", right: "Schedule" },
+            ]},
+            itemIdVar: "$schedPageId",
+            itemVar: "$schedPage",
+        }},
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$triggerDate" } }],
+          else: [],
+        },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
+          else: [],
+        },
+        // Locate the goal display item so we can address its display key.
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "$item.label", comparator: "IS", right: "Task Progress" },
+            ]},
+            itemIdVar: "$goalId",
         }},
         {
           id: uid(), type: "if",
@@ -577,14 +631,14 @@ export async function createTestGrid(userId, options = {}) {
           },
           then: [
             {
-              id: uid(), type: "loop", overExpr: "$allOccurrences", as: "$item",
+              id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
               body: [{
                 id: uid(), type: "if",
                 condition: {
                   operator: "AND",
                   rules: [
                     { id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS",           right: true },
-                    { id: uid(), left: `$item.fields.${dateFieldId}.value`,      comparator: "SAME_DAY",     right: "$activeDate" },
+                    { id: uid(), left: `$item.fields.${dateFieldId}.value`,      comparator: "SAME_DAY",     right: "$schedDate" },
                     { id: uid(), left: "$item._ancestors",                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                   ],
                 },
@@ -592,9 +646,11 @@ export async function createTestGrid(userId, options = {}) {
                 else: [],
               }],
             },
+            // Write the count to the goal item's display field.
             { id: uid(), type: "action", config: {
-                type: "SHOW_VALUE", targetFieldId: totalTasksCompletedFieldId,
-                sourceExpr: "$count", targetValue: 6, targetPeriod: "daily",
+                type: "UPDATE",
+                path: `$display.${totalTasksCompletedFieldId}.\${$goalId}`,
+                value: "$count",
             }},
           ],
           else: [],
@@ -623,77 +679,83 @@ export async function createTestGrid(userId, options = {}) {
         { id: uid(), variableName: "triggerDate", entityType: "trigger", triggerProp: "date" },
       ],
       steps: [
-        // Resolve $schedDate = $triggerDate ?? $today
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$triggerDate" } },
+        // Locate the Schedule page first — we want to drive $schedDate off its
+        // effective filter (page override → grid filter → ...). Without this,
+        // onLoad ran with $schedDate = $today even when the user was viewing a
+        // different date, so newly-created copies were dated today and stayed
+        // hidden by the page's date filter — looked like the op did nothing.
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "$item.label", comparator: "IS", right: "Schedule" },
+            ]},
+            itemIdVar: "$schedPageId",
+            itemVar: "$schedPage",
+        }},
+
+        // $schedDate fallback chain:
+        //   1. Schedule page's effective filter (page filterOverride layered on grid filter)
+        //   2. $trigger.date (set on NavigationOp by LocalFilterNav)
+        //   3. $today
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$triggerDate" } }],
+          else: [],
+        },
         {
           id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
           then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
           else: [],
         },
-
-        // Locate the Schedule page; bail out if missing.
-        { id: uid(), type: "action", config: {
-            type: "FIND_OCCURRENCE",
-            moduleLabelExpr: "literal:Schedule",
-            resultIdVar: "$schedPageId",
-        }},
         {
           id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
           then: [
-            // Ensure Due container module + per-day occurrence.
+            // Ensure the Due container exists. Created ONCE — not per day.
+            // Date filtering is handled by the page's filter cascade walking
+            // down to the per-day instance copies inside Due, not by stamping
+            // a date on the container itself.
             { id: uid(), type: "action", config: {
-                type: "FIND_MODULE", nameExpr: "literal:Due", resultIdVar: "$dueModId",
+                type: "FIND",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "$item.label", comparator: "IS", right: "Due" },
+                ]},
+                itemIdVar: "$dueId",
             }},
             {
               id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$dueModId", comparator: "IS_EMPTY", right: "" }] },
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$dueId", comparator: "IS_EMPTY", right: "" }] },
               then: [
                 { id: uid(), type: "action", config: {
-                    type: "CREATE_MODULE", nameExpr: "literal:Due", role: "container", kind: "list",
-                    extra: { meta: { scheduleDueContainer: true } },
-                }},
-                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dueModId", expr: "$lastCreatedModuleId" } },
-              ],
-              else: [],
-            },
-            { id: uid(), type: "action", config: {
-                type: "FIND_OCCURRENCE",
-                targetIdExpr: "$dueModId",
-                dateFieldId, dateExpr: "$schedDate",
-                resultIdVar: "$dueOccId",
-            }},
-            {
-              id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$dueOccId", comparator: "IS_EMPTY", right: "" }] },
-              then: [
-                { id: uid(), type: "action", config: {
-                    type: "CREATE_OCCURRENCE_FOR_MODULE",
-                    moduleIdExpr: "$dueModId",
-                    parentIdExpr: "$schedPageId",
-                    dateFieldId, dateExpr: "$schedDate",
+                    type: "CREATE",
+                    name: "Due",
+                    role: "container",
+                    kind: "list",
+                    meta: { scheduleDueContainer: true },
+                    parent: "$schedPageId",
+                    fields: { [timeslotFieldId]: "literal:Due" },
                     insertAtIndex: 0,
-                    resultIdVar: "$dueOccId",
-                }},
-                { id: uid(), type: "action", config: {
-                    type: "SET_FIELD_VALUE",
-                    occurrenceIdExpr: "$dueOccId",
-                    fieldId: timeslotFieldId,
-                    valueExpr: "literal:Due",
+                    itemIdVar: "$dueId",
                 }},
               ],
               else: [],
             },
 
-            // Build all 48 timeslots in a single loop. The slot array is embedded at
-            // seed time so the loop runs without per-iteration module lookups.
-            // CREATE_OCCURRENCE_FOR_MODULE stamps the date field automatically via
-            // dateFieldId/dateExpr — only the timeslot label needs an explicit SET.
+            // Build the 48 timeslot containers ONCE — not per day. The slot
+            // array itself never changes between days, so we don't need a
+            // per-day occurrence per slot. Each loop iteration FINDs by
+            // meta.slotLabel (no date scope); if any slot for that label
+            // already exists we skip the CREATE entirely. The page-level
+            // date filter cascades down through the slots to the per-day
+            // instances they hold — that's where date filtering happens,
+            // not on the slots themselves.
             { id: uid(), type: "action", config: {
                 type: "INIT_VAR", name: "$slots",
                 arrayOf: timeSlots.map(s => ({
-                  moduleId: schedContainers[`slot_${s.hour}_${s.minute}`].id,
+                  templateId: schedContainers[`slot_${s.hour}_${s.minute}`].id,
                   label: s.label,
                 })),
             }},
@@ -701,27 +763,26 @@ export async function createTestGrid(userId, options = {}) {
               id: uid(), type: "loop", overExpr: "$slots", as: "$slot",
               body: [
                 { id: uid(), type: "action", config: {
-                    type: "FIND_OCCURRENCE",
-                    targetIdExpr: "$slot.moduleId",
-                    dateFieldId, dateExpr: "$schedDate",
-                    resultIdVar: "$slotOccId",
+                    type: "FIND",
+                    predicate: { operator: "AND", rules: [
+                      { id: uid(), left: "$item.meta.scheduleSlot", comparator: "IS", right: true },
+                      { id: uid(), left: "$item.meta.slotLabel",    comparator: "IS", right: "$slot.label" },
+                    ]},
+                    itemIdVar: "$slotItemId",
                 }},
                 {
                   id: uid(), type: "if",
-                  condition: { operator: "AND", rules: [{ id: uid(), left: "$slotOccId", comparator: "IS_EMPTY", right: "" }] },
+                  condition: { operator: "AND", rules: [{ id: uid(), left: "$slotItemId", comparator: "IS_EMPTY", right: "" }] },
                   then: [
                     { id: uid(), type: "action", config: {
-                        type: "CREATE_OCCURRENCE_FOR_MODULE",
-                        moduleIdExpr: "$slot.moduleId",
-                        parentIdExpr: "$schedPageId",
-                        dateFieldId, dateExpr: "$schedDate",
-                        resultIdVar: "$newSlotOccId",
-                    }},
-                    { id: uid(), type: "action", config: {
-                        type: "SET_FIELD_VALUE",
-                        occurrenceIdExpr: "$newSlotOccId",
-                        fieldId: timeslotFieldId,
-                        valueExpr: "$slot.label",
+                        type: "CREATE",
+                        name: "$slot.label",
+                        role: "container",
+                        kind: "list",
+                        meta: { scheduleSlot: true, slotLabel: "$slot.label" },
+                        parent: "$schedPageId",
+                        fields: { [timeslotFieldId]: "$slot.label" },
+                        itemVar: "$item",
                     }},
                   ],
                   else: [],
@@ -729,36 +790,59 @@ export async function createTestGrid(userId, options = {}) {
               ],
             },
 
-            // Sweep todos with dueDate === active date into Due.
+            // Sweep todos whose due-date matches the active date into Due.
+            // CREATE a copy of the todo into Due — independent occurrence so the
+            // user can mark the schedule copy complete without affecting the
+            // original todo. Idempotent via a per-todo FIND scoped to $schedDate
+            // matching the source todo's templateId.
             { id: uid(), type: "action", config: {
-                type: "FIND_OCCURRENCE",
-                moduleMetaKey: "todoListContainer",
-                moduleMetaValue: true,
-                resultIdVar: "$todoContId",
+                type: "FIND",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "$item.meta.todoListContainer", comparator: "IS", right: true },
+                ]},
+                itemIdVar: "$todoContId",
             }},
             {
               id: uid(), type: "if",
               condition: { operator: "AND", rules: [{ id: uid(), left: "$todoContId", comparator: "IS_NOT_EMPTY", right: "" }] },
               then: [{
-                id: uid(), type: "loop", overExpr: "$allOccurrences", as: "$todoItem",
+                id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
                 body: [{
                   id: uid(), type: "if",
                   condition: { operator: "AND", rules: [
-                    { id: uid(), left: "$todoItem._ancestors", comparator: "HAS_ANCESTOR", right: "$todoContId" },
-                    { id: uid(), left: `$todoItem.fields.${dueFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+                    { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$todoContId" },
+                    { id: uid(), left: `$item.fields.${dueFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
                   ]},
                   then: [
+                    // Capture the source todo's templateId + label before we
+                    // start the copy guard so $item references stay stable.
+                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$todoTemplateId", expr: "$item.templateId" } },
+                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$todoLabel",      expr: "$item.label" } },
+                    // Has a copy of this todo already been swept into today's Due?
                     { id: uid(), type: "action", config: {
-                        type: "MOVE_OCCURRENCE_TO_PARENT",
-                        occurrenceIdExpr: "$todoItem.id",
-                        toParentOccIdExpr: "$dueOccId",
+                        type: "FIND",
+                        predicate: { operator: "AND", rules: [
+                          { id: uid(), left: "$item.templateId",    comparator: "IS", right: "$todoTemplateId" },
+                          { id: uid(), left: "$item._ancestors",    comparator: "HAS_ANCESTOR", right: "$dueId" },
+                        ]},
+                        scope: { dateFieldId, dateExpr: "$schedDate" },
+                        itemIdVar: "$existingCopyId",
                     }},
-                    { id: uid(), type: "action", config: {
-                        type: "SET_FIELD_VALUE",
-                        occurrenceIdExpr: "$todoItem.id",
-                        fieldId: dateFieldId,
-                        valueExpr: "$schedDate",
-                    }},
+                    {
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$existingCopyId", comparator: "IS_EMPTY", right: "" }] },
+                      then: [{
+                        id: uid(), type: "action", config: {
+                          type: "CREATE",
+                          name: "$todoLabel",
+                          role: "instance",
+                          kind: "list",
+                          parent: "$dueId",
+                          date: { fieldId: dateFieldId, value: "$schedDate" },
+                        },
+                      }],
+                      else: [],
+                    },
                   ],
                   else: [],
                 }],
@@ -780,7 +864,11 @@ export async function createTestGrid(userId, options = {}) {
   await new Operation({
     id: uid(), userId, gridId, name: "Schedule: Seed Daily Routine",
     description: "Drop the daily routine (Drink Water 7am, Take Medication 8am, Go to Gym 9am) into their slots once per day.",
-    priority: 4,
+    // Priority 2: runs after auto-build (1) creates the slots but BEFORE goal
+    // aggregations (3) read the data. The pre-completed 6am Drink Water needs
+    // to exist by the time Tasks Completed / Water Today aggregate, otherwise
+    // first-load totals come back empty.
+    priority: 2,
     triggerTypes: ["onLoad", "onFilterChange"],
     triggerObjects: [
       { eventType: "onLoad",         subjectType: "grid",      targetId: "" },
@@ -792,7 +880,24 @@ export async function createTestGrid(userId, options = {}) {
         { id: uid(), variableName: "triggerDate", entityType: "trigger", triggerProp: "date" },
       ],
       steps: [
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$triggerDate" } },
+        // Drive $schedDate off the schedule page's effective filter so onLoad
+        // creates copies for the date the user is viewing — not always $today.
+        // Same fallback chain as Schedule: Build Day.
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "$item.label", comparator: "IS", right: "Schedule" },
+            ]},
+            itemIdVar: "$schedPageId",
+            itemVar: "$schedPage",
+        }},
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$triggerDate" } }],
+          else: [],
+        },
         {
           id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
@@ -800,10 +905,14 @@ export async function createTestGrid(userId, options = {}) {
           else: [],
         },
 
-        // One presets array, one loop. Each preset = { moduleLabel, slotLabel }.
+        // One presets array, one loop. Each preset = { moduleLabel, slotLabel,
+        // completed?, water? }. The 6:00am Drink Water seed is pre-completed
+        // with 10oz so on-load aggregations have data to read (proves the
+        // Tasks Completed + Water Today goal pipelines actually fire on load).
         { id: uid(), type: "action", config: {
             type: "INIT_VAR", name: "$presets",
             arrayOf: [
+              { moduleLabel: "Drink Water",     slotLabel: "6:00am", completed: true, water: 10 },
               { moduleLabel: "Drink Water",     slotLabel: "7:00am" },
               { moduleLabel: "Take Medication", slotLabel: "8:00am" },
               { moduleLabel: "Go to Gym",       slotLabel: "9:00am" },
@@ -812,45 +921,68 @@ export async function createTestGrid(userId, options = {}) {
         {
           id: uid(), type: "loop", overExpr: "$presets", as: "$preset",
           body: [
-            // Resolve the source instance module by label → targetId.
+            // Resolve the source item (existing template-instance pair) by label.
             { id: uid(), type: "action", config: {
-                type: "FIND_OCCURRENCE",
-                moduleLabelExpr: "$preset.moduleLabel",
-                resultVar: "$src",
+                type: "FIND",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "$item.label", comparator: "IS", right: "$preset.moduleLabel" },
+                ]},
+                itemVar: "$src",
             }},
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$srcModId", expr: "$src.targetId" } },
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$srcTemplateId", expr: "$src.templateId" } },
 
-            // Skip if any occurrence of this source already exists for the day.
+            // Skip if a copy of this preset already lives in this preset's slot
+            // for the active date. Scoped by templateId + slotLabel so each
+            // (template, slot) pair is independently idempotent — that lets two
+            // presets share a moduleLabel (e.g. "Drink Water" at 6am and 7am)
+            // without one suppressing the other.
             { id: uid(), type: "action", config: {
-                type: "FIND_OCCURRENCE",
-                targetIdExpr: "$srcModId",
-                dateFieldId, dateExpr: "$schedDate",
-                resultIdVar: "$existing",
+                type: "FIND",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "$item.templateId",          comparator: "IS", right: "$srcTemplateId" },
+                  { id: uid(), left: `$item.fields.${timeslotFieldId}.value`, comparator: "IS", right: "$preset.slotLabel" },
+                ]},
+                scope: { dateFieldId, dateExpr: "$schedDate" },
+                itemIdVar: "$existingId",
             }},
             {
               id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$existing", comparator: "IS_EMPTY", right: "" }] },
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$srcTemplateId", comparator: "IS_NOT_EMPTY", right: "" },
+                { id: uid(), left: "$existingId",    comparator: "IS_EMPTY",     right: "" },
+              ]},
               then: [
-                // Locate the target slot for the day.
+                // Locate the target slot by meta.slotLabel only — slots are
+                // shared across days now, no date scope.
                 { id: uid(), type: "action", config: {
-                    type: "FIND_OCCURRENCE",
-                    moduleMetaKey: "scheduleSlot",
-                    moduleMetaValue: true,
-                    moduleMetaSecondaryKey: "slotLabel",
-                    moduleMetaSecondaryValue: "$preset.slotLabel",
-                    dateFieldId, dateExpr: "$schedDate",
-                    resultIdVar: "$slotId",
+                    type: "FIND",
+                    predicate: { operator: "AND", rules: [
+                      { id: uid(), left: "$item.meta.scheduleSlot", comparator: "IS", right: true },
+                      { id: uid(), left: "$item.meta.slotLabel",    comparator: "IS", right: "$preset.slotLabel" },
+                    ]},
+                    itemIdVar: "$slotId",
                 }},
                 {
                   id: uid(), type: "if",
                   condition: { operator: "AND", rules: [{ id: uid(), left: "$slotId", comparator: "IS_NOT_EMPTY", right: "" }] },
                   then: [{
                     id: uid(), type: "action", config: {
-                      type: "CREATE_OCCURRENCE_FOR_MODULE",
-                      moduleIdExpr: "$srcModId",
-                      parentIdExpr: "$slotId",
-                      dateFieldId, dateExpr: "$schedDate",
-                      resultIdVar: "$newOcc",
+                      type: "CREATE",
+                      name: "$preset.moduleLabel",
+                      role: "instance",
+                      kind: "list",
+                      parent: "$slotId",
+                      date: { fieldId: dateFieldId, value: "$schedDate" },
+                      // Stamp the slot label so the FIND above can de-dupe per
+                      // (template, slot) pair, and pass through preset-level
+                      // initial field values (water/completed). resolveExpr
+                      // returns null for absent preset keys so unset fields are
+                      // skipped on the create.
+                      fields: {
+                        [timeslotFieldId]: "$preset.slotLabel",
+                        [waterFieldId]:    "$preset.water",
+                        [completedFieldId]: "$preset.completed",
+                      },
                     },
                   }],
                   else: [],
@@ -875,10 +1007,26 @@ export async function createTestGrid(userId, options = {}) {
     pipeline: {
       sources: [
         { id: uid(), variableName: "containerLabel", entityType: "trigger", triggerProp: "containerLabel" },
+        { id: uid(), variableName: "triggerOccId",   entityType: "trigger", triggerProp: "occurrenceId" },
       ],
       steps: [
-        { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: dateFieldId,     valueExpr: "$parentFilter.date" } },
-        { id: uid(), type: "action", config: { type: "SET_FIELD_VALUE", fieldId: timeslotFieldId, valueExpr: "$containerLabel" } },
+        // Bind $item to the freshly-created occurrence so UPDATE paths resolve.
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "$item.id", comparator: "IS", right: "$triggerOccId" },
+            ]},
+            itemVar: "$item",
+        }},
+        // Date stamping is handled by the drop side (dropHandlers.stampPageFilterFields)
+        // which reads the slot's parent-chain effective filter at drop time. The
+        // Stamp op only handles the timeslot label, which is derived from the
+        // slot container the instance was dropped into.
+        { id: uid(), type: "action", config: {
+            type: "UPDATE",
+            path: `$item.fields.${timeslotFieldId}.value`,
+            value: "$containerLabel",
+        }},
       ],
     },
   }).save();
@@ -901,15 +1049,16 @@ export async function createTestGrid(userId, options = {}) {
       ],
       steps: [
         { id: uid(), type: "action", config: {
-            type: "FIND_OCCURRENCE",
-            moduleLabelExpr: "literal:Schedule",
-            resultVar: "$schedPage",
-            resultIdVar: "$schedPageId",
+            type: "FIND",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "$item.label", comparator: "IS", right: "Schedule" },
+            ]},
+            itemIdVar: "$schedPageId",
         }},
-        // Walk all occurrences (enriched with _ancestors); locate the moved one by id and
+        // Walk all items (enriched with _ancestors); locate the moved one by id and
         // clear its schedule fields if it no longer descends from the Schedule page.
         {
-          id: uid(), type: "loop", overExpr: "$allOccurrences", as: "$item",
+          id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
           body: [{
             id: uid(), type: "if",
             condition: { operator: "AND", rules: [
@@ -918,16 +1067,14 @@ export async function createTestGrid(userId, options = {}) {
             ]},
             then: [
               { id: uid(), type: "action", config: {
-                  type: "SET_FIELD_VALUE",
-                  occurrenceIdExpr: "$self",
-                  fieldId: dateFieldId,
-                  value: null,
+                  type: "UPDATE",
+                  path: `$item.fields.${dateFieldId}.value`,
+                  value: "literal:null",
               }},
               { id: uid(), type: "action", config: {
-                  type: "SET_FIELD_VALUE",
-                  occurrenceIdExpr: "$self",
-                  fieldId: timeslotFieldId,
-                  value: null,
+                  type: "UPDATE",
+                  path: `$item.fields.${timeslotFieldId}.value`,
+                  value: "literal:null",
               }},
             ],
             else: [],

@@ -29,36 +29,57 @@ export function pathStringToChain(str) {
  * @param {{ sources: Array, fields: Array, inLoop?: bool, fieldsById?: Object, modulesById?: Object, occurrencesById?: Object }} args
  * @returns SelectDrilldown config object
  */
-export function buildPathConfig({ sources = [], fields = [], inLoop = false, fieldsById, modulesById, occurrencesById }) {
+export function buildPathConfig({ sources = [], fields = [], inLoop = false, fieldsById, modulesById, occurrencesById, localVars = [] }) {
   const fieldsShape = {};
   for (const f of fields) fieldsShape[f.id] = { value: null, flow: null };
 
   const mergedFieldsById = fieldsById || Object.fromEntries(fields.map(f => [f.id, f]));
 
-  const occShape = { id: null, targetId: null, parentId: null, _ancestors: null, fields: fieldsShape };
+  const occShape = { id: null, targetId: null, parentId: null, _ancestors: null, fields: fieldsShape, meta: {}, label: null, templateId: null };
 
   const shapeByVar = {
-    $now: null, $today: null, $activeDate: null, $iterationValue: null,
-    $allOccurrences: [occShape],
+    $now: null, $today: null, $activeDate: null, $activeDateLabel: null, $activeDayOfWeek: null,
+    $allItems: [occShape],
+    $allTemplates: [{ id: null, name: null, label: null, role: null, kind: null, meta: {} }],
+    // $parentFilter: effective filter map walked up the trigger occurrence's parent chain.
+    // Field-id keys hold each filter's resolved value; `.date` is a convenience accessor
+    // returning the first YYYY-MM-DD value in the merged map. Drillable like a plain object.
+    $parentFilter: { date: null },
   };
   for (const src of sources) {
     if (src.variableName) shapeByVar[`$${src.variableName}`] = occShape;
   }
   if (inLoop) shapeByVar.$item = occShape;
-  shapeByVar.$trigger = {
-    occurrenceId: null, fieldId: null, value: null, type: null, occurrence: occShape,
-    containerId: null, panelId: null,
-  };
+  // Local vars declared by INIT_VAR / SET_VAR / loop.as. Without this, paths
+  // like `$schedDate` or `$slot.label` render as raw text instead of resolved
+  // chip chains. Loop iteration vars get the occShape (rich enough to drill
+  // into); plain INIT_VAR names are scalars (null) by default — the user can
+  // toggle to free-text mode if they need to drill deeper than that.
+  for (const name of localVars) {
+    if (!name || typeof name !== "string" || !name.startsWith("$")) continue;
+    if (shapeByVar[name] !== undefined) continue;
+    // Heuristic: $slot / $preset / $item etc. are usually loop vars carrying
+    // arbitrary object shapes — give them a permissive shape so pickers don't
+    // dead-end. The path resolver doesn't validate these against runtime
+    // values; the editor just needs something to drill into.
+    shapeByVar[name] = occShape;
+  }
+  // NOTE: $trigger is intentionally NOT exposed in the path picker. To use any
+  // $trigger.* property in your pipeline, add a Source row of type "trigger"
+  // with a triggerProp — that promotes it to a named $var which then appears
+  // here. This forces explicit declaration of which trigger props the pipeline
+  // depends on (and keeps the path picker focused on values that actually exist
+  // for THIS specific operation).
 
   // Resolve a raw segment (variable name or ID) to its display label.
-  // For unresolved IDs (e.g. fieldsById hasn't loaded yet, or the ID points at a deleted entity),
-  // surface the short-ID suffix as the visible title so the chip never renders as a raw 12-char UID.
+  // Full path is always shown — no truncation. If an ID resolves to a label we
+  // surface the friendly name; otherwise the raw segment is shown verbatim so
+  // the user can always read the complete path end-to-end.
   const resolveSegmentLabel = (seg) => {
     if (!seg) return { title: seg, sub: null };
     if (seg.startsWith("$")) return { title: seg, sub: null };
     const resolved = labelForId(seg, { fieldsById: mergedFieldsById, modulesById, occurrencesById });
     if (resolved?.label) return { title: resolved.label, sub: `…${resolved.shortId}` };
-    if (resolved && seg.length > 8) return { title: `…${resolved.shortId}`, sub: null };
     return { title: seg, sub: null };
   };
 
@@ -120,6 +141,10 @@ const chipChainSt = {
   background: "var(--input-bg)", border: "1px solid var(--border-default)",
   fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-primary)",
   cursor: "pointer", userSelect: "none",
+  // Show the full path. No truncation, no ellipsis, no max-width clamp.
+  // The chain wraps to the next line if it overflows but every segment stays
+  // legible end-to-end.
+  whiteSpace: "normal", wordBreak: "break-word", maxWidth: "100%",
 };
 
 const placeholderSt = {
@@ -220,15 +245,35 @@ export default function SelectDrilldown({ config = {}, value = [], onChange }) {
     return crumbs;
   }, [levels, drillPath]);
 
+  // When a value is selected, the chip chain itself is no longer a click target —
+  // the user has to clear (×) or re-pick from the dropdown affordance to change it.
+  // Empty state: the placeholder pill IS the click target.
+  const hasValue = value.length > 0;
+  const clearValue = (chainIdx) => {
+    const next = value.filter((_, i) => i !== chainIdx);
+    onChange(next);
+  };
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
       {/* Closed state: chip chains */}
-      <div ref={triggerRef} onClick={openDrop} style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-        {value.length === 0 ? (
+      <div
+        ref={triggerRef}
+        onClick={hasValue ? undefined : openDrop}
+        style={{
+          display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap",
+          cursor: hasValue ? "default" : "pointer",
+        }}
+      >
+        {!hasValue ? (
           <span style={placeholderSt}>{placeholder}</span>
         ) : (
           value.map((chain, ci) => (
-            <span key={ci} style={chipChainSt} title={chain.join(".")}>
+            <span
+              key={ci}
+              style={{ ...chipChainSt, cursor: "default" }}
+              title={chain.join(".")}
+            >
               {chain.map((seg, si) => {
                 const resolved = resolveSegmentLabel?.(seg) ?? { title: seg, sub: null };
                 return (
@@ -238,6 +283,18 @@ export default function SelectDrilldown({ config = {}, value = [], onChange }) {
                   </React.Fragment>
                 );
               })}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); clearValue(ci); }}
+                title="Clear path"
+                style={{
+                  marginLeft: 4, background: "none", border: "none",
+                  color: "var(--text-faint)", cursor: "pointer",
+                  fontSize: 12, lineHeight: 1, padding: "0 2px",
+                }}
+              >
+                ×
+              </button>
             </span>
           ))
         )}

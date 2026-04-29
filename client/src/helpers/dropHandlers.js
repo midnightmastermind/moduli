@@ -21,6 +21,43 @@ import { embedDeleteRegistry } from "./embedRegistry";
 import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
 import { createModuleAction, createOccurrenceAction } from "../state/actions";
 import { mimeToKind } from "./fileKind";
+import { getEffectiveFilterForOccurrence } from "../state/selectors";
+
+// Stamps the nav-filter values from the destination's effective filter chain
+// onto a freshly-placed occurrence. The rule (per the user): "all children
+// with date field should be the filter date or null." When you drop or move
+// an instance into a slot under a page that has a local date filter, the new
+// occurrence adopts that page's date — not the source's previous date, not
+// today. Walks the parent chain of `parentContainerOcc` to find any nav-
+// condition fieldIds with a value set, then writes them onto `occurrence`.
+function stampPageFilterFields({ dispatch, socket, state, occurrencesById, occurrence, parentContainerOcc }) {
+  if (!occurrence?.id || !parentContainerOcc) return;
+  const grid = state?.grid;
+  const activeNamedFilter = (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId);
+  const navFieldIds = (activeNamedFilter?.conditions || [])
+    .filter(c => c.isNav && c.fieldId)
+    .map(c => c.fieldId);
+  if (!navFieldIds.length) return;
+
+  const effective = getEffectiveFilterForOccurrence(parentContainerOcc, { grid, occurrencesById });
+  const merged = { ...(occurrence.fields || {}) };
+  let changed = false;
+  for (const fid of navFieldIds) {
+    const v = effective?.[fid];
+    if (v == null) continue;
+    const existing = merged[fid];
+    const existingValue = existing && typeof existing === "object" ? existing.value : existing;
+    if (existingValue === v) continue;
+    merged[fid] = { value: v, flow: existing?.flow ?? "in" };
+    changed = true;
+  }
+  if (!changed) return;
+  CommitHelpers.updateOccurrence({
+    dispatch, socket,
+    occurrence: { id: occurrence.id, fields: merged },
+    emit: true,
+  });
+}
 
 function makeUUID() {
   return crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -271,7 +308,7 @@ export function handleContainerDrop(ctx, drop) {
 // ============================================================
 export function handleInstanceDrop(ctx, drop) {
   const { dispatch, socket, state, occurrencesById, baseContainers, clearSession, sessionRef } = ctx;
-  const { payload, dropTarget, containerId, instanceId, y } = drop;
+  const { payload, dropTarget, containerId, instanceId, containerOccurrenceId, y } = drop;
 
   if (dropTarget.dataTransfer) {
     const parsed = parseExternalDrop(dropTarget.dataTransfer);
@@ -280,8 +317,18 @@ export function handleInstanceDrop(ctx, drop) {
 
   const fromC = baseContainers.find(c => c.id === payload.context?.containerId);
   const toC = baseContainers.find(c => c.id === containerId);
-  const fromCOcc = fromC ? Object.values(occurrencesById).find(o => o.targetId === fromC.id) : null;
-  const toCOcc = toC ? Object.values(occurrencesById).find(o => o.targetId === toC.id) : null;
+  // Schedule slots have one occurrence per day sharing the same module id, so
+  // prefer the per-occurrence id from the payload/drop context. Falling back
+  // to find-by-targetId silently picks the first day's slot, which is rarely
+  // the visible one — that's the "drop does nothing" symptom.
+  const fromCOccCandidateId = payload.context?.containerOccurrenceId
+    || payload.context?.containerOccId
+    || payload.context?.parentOccurrenceId
+    || null;
+  const fromCOcc = (fromCOccCandidateId && occurrencesById[fromCOccCandidateId])
+    || (fromC ? Object.values(occurrencesById).find(o => o.targetId === fromC.id) : null);
+  const toCOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
+    || (toC ? Object.values(occurrencesById).find(o => o.targetId === toC.id) : null);
 
   if (payload.context?.sourceType === "doc-embed") {
     // Instance dragged out of a doc embed — add to target container
@@ -387,6 +434,11 @@ export function handleInstanceDrop(ctx, drop) {
       toPanelId: toPanelOcc?.targetId || null,
     });
     autoCheckBooleanFields(state, dispatch, socket, draggedInstanceId, copyResult?.occurrence?.id);
+    stampPageFilterFields({
+      dispatch, socket, state, occurrencesById,
+      occurrence: copyResult?.occurrence,
+      parentContainerOcc: toCOcc,
+    });
   } else if (sameContainer) {
     if (fromCOcc) {
       const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
@@ -402,6 +454,11 @@ export function handleInstanceDrop(ctx, drop) {
       LayoutHelpers.moveInstanceBetweenContainers({
         dispatch, socket, fromContainerOccurrence: fromCOcc, toContainerOccurrence: toCOcc,
         occurrenceId, toIndex, emit: true,
+      });
+      stampPageFilterFields({
+        dispatch, socket, state, occurrencesById,
+        occurrence: occurrencesById[occurrenceId],
+        parentContainerOcc: toCOcc,
       });
 
       // Fire OccurrenceMoveOp
@@ -422,21 +479,24 @@ export function handleInstanceDrop(ctx, drop) {
         state, fieldsById, operationsById: state?.operationsById || {}, occurrencesById: { ...occurrencesById },
       });
       if (allUpdates?.length) {
-        // Split display updates (SHOW_VALUE) from effect updates (SET_FIELD_VALUE, etc.)
+        // Split display updates from effect updates (legacy non-effect rows feed
+        // computedValues; UPDATE_DISPLAY_VALUE effects are routed alongside).
         const displayUpdates = allUpdates.filter(u => !u._effect);
         const effectUpdates = allUpdates.filter(u => u._effect);
         if (displayUpdates.length) {
           dispatch({ type: "SET_COMPUTED_VALUES", updates: displayUpdates });
         }
         for (const eff of effectUpdates) {
-          if (eff._effect === "SET_FIELD_VALUE") {
+          if (eff._effect === "UPDATE_ITEM_FIELD" && eff.subKind !== "flow") {
             setOccurrenceFieldValue({
               dispatch, socket, occurrencesById,
-              occurrenceId: eff.occurrenceId,
+              occurrenceId: eff.itemId,
               fieldId: eff.fieldId,
               value: eff.value,
-              flow: eff.flow || "replace",
+              flow: "replace",
             });
+          } else if (eff._effect === "UPDATE_DISPLAY_VALUE") {
+            dispatch({ type: "SET_COMPUTED_VALUES", updates: [{ fieldId: eff.fieldId, occurrenceId: eff.itemId || null, value: eff.value }] });
           }
         }
       }
@@ -677,7 +737,7 @@ export function handleTemplateDrop(ctx, drop) {
 // ============================================================
 export function handleModuleDrop(ctx, drop) {
   const { dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, getCellFromPoint } = ctx;
-  const { payload, dropTarget, containerId, panelId, x, y } = drop;
+  const { payload, dropTarget, containerId, containerOccurrenceId, panelId, x, y } = drop;
 
   const role = payload?.data?.role || payload?.role;
   const gridId = state?.gridId || state?.grid?._id?.toString() || state?.grid?.id;
@@ -704,11 +764,20 @@ export function handleModuleDrop(ctx, drop) {
     if (targetContainer?.kind === "doc") return;
 
     if (targetContainer && gridId) {
-      const targetContainerOcc = Object.values(occurrencesById).find(o => o.targetId === targetContainer.id);
-      LayoutHelpers.copyInstanceToContainer({
+      // Prefer the drop context's per-occurrence id (so we hit the visible
+      // slot, not the first match by targetId — same disambiguation as
+      // handleInstanceDrop).
+      const targetContainerOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
+        || Object.values(occurrencesById).find(o => o.targetId === targetContainer.id);
+      const copyResult = LayoutHelpers.copyInstanceToContainer({
         dispatch, socket, gridId, sourceInstanceId: payload.id,
         toContainer: targetContainerOcc ? { ...targetContainer, _occurrence: targetContainerOcc } : targetContainer,
         userId: state?.userId, iterationMode: "persistent", emit: true,
+      });
+      stampPageFilterFields({
+        dispatch, socket, state, occurrencesById,
+        occurrence: copyResult?.occurrence,
+        parentContainerOcc: targetContainerOcc,
       });
     }
   }
@@ -794,17 +863,22 @@ export function handleModuleDrop(ctx, drop) {
 // ============================================================
 export function handleFieldDrop(ctx, drop) {
   const { dispatch, socket, state } = ctx;
-  const { payload, dropTarget, instanceId } = drop;
+  const { payload, dropTarget, instanceId, containerId } = drop;
 
-  const targetInstanceId = dropTarget.context?.instanceId || instanceId;
-  if (!targetInstanceId) return;
-  const instance = state?.instances?.find(i => i.id === targetInstanceId);
-  if (!instance) return;
+  // Allow dropping a field onto either an instance or a container — both can
+  // carry fieldBindings. Prefer the instance when both ids are present (the
+  // user clearly aimed at the smaller/inner element).
+  const targetId = dropTarget.context?.instanceId || dropTarget.context?.containerId || instanceId || containerId;
+  if (!targetId) return;
+  const target = (state?.instances || []).find(i => i.id === targetId)
+    || (state?.containers || []).find(c => c.id === targetId)
+    || (state?.modules || []).find(m => m.id === targetId);
+  if (!target) return;
 
   const fieldId = payload.id;
-  const existing = instance.fieldBindings || [];
+  const existing = target.fieldBindings || [];
   if (!existing.some(b => b.fieldId === fieldId)) {
-    CommitHelpers.updateModule({ dispatch, socket, module: { ...instance, fieldBindings: [...existing, { fieldId, showLabel: true }] } });
+    CommitHelpers.updateModule({ dispatch, socket, module: { ...target, fieldBindings: [...existing, { fieldId, showLabel: true }] } });
   }
 }
 
@@ -835,7 +909,7 @@ export function handleOperationDrop(ctx, drop) {
 // ============================================================
 export function handleArtifactDrop(ctx, drop) {
   const { dispatch, socket, state, occurrencesById, baseContainers, clearSession, getCellFromPoint } = ctx;
-  const { payload, dropTarget, panelId, containerId } = drop;
+  const { payload, dropTarget, panelId, containerId, containerOccurrenceId } = drop;
 
   // Drop on container → copy instance
   if (containerId) {
@@ -843,7 +917,8 @@ export function handleArtifactDrop(ctx, drop) {
     const artifactModule = artifactOcc ? (state?.modules || []).find(m => m.id === artifactOcc.targetId) : null;
     if (artifactModule) {
       const toC = baseContainers.find(c => c.id === containerId);
-      const toCOcc = toC ? Object.values(occurrencesById).find(o => o.targetId === toC.id) : null;
+      const toCOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
+        || (toC ? Object.values(occurrencesById).find(o => o.targetId === toC.id) : null);
       if (toCOcc) {
         LayoutHelpers.copyInstanceToContainer({
           dispatch, socket, sourceInstanceId: artifactModule.id,

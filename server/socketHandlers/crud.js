@@ -301,10 +301,12 @@ export function registerCrudHandlers(socket, {
       const fieldData = {
         id, userId, gridId,
         name: field.name || "Untitled", type: field.type || "text",
-        mode: field.mode || "input", unit: field.unit, metric: field.metric,
-        conditions: field.conditions, triggers: field.triggers || [],
-        display: field.display || { role: "input", showLabel: true, order: 0 },
+        inputEnabled: field.inputEnabled !== false,
+        displayEnabled: field.displayEnabled === true,
+        displayConfig: field.displayConfig || {},
+        unit: field.unit,
         meta: field.meta || {},
+        folderId: field.folderId || null,
       };
       uc.fieldsById[id] = fieldData;
       await Field.findOneAndUpdate({ id, userId }, fieldData, { upsert: true });
@@ -753,6 +755,12 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
   // $push calls land on the parent in arbival order — slots showed up randomized.
   let createQueue = Promise.resolve();
 
+  // Cancel queued work after the socket disconnects. Without this, a long auto-build
+  // burst would keep hammering Mongo after the client reloaded, starving the new
+  // socket's request_full_state of connections (Atlas Serverless pool exhaustion).
+  let disconnected = false;
+  socket.on("disconnect", () => { disconnected = true; });
+
   socket.on("create_occurrence", ({ occurrence } = {}) => {
     createQueue = createQueue.then(() => handleCreateOccurrence(occurrence)).catch(() => {});
     return createQueue;
@@ -770,6 +778,7 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
 
   async function handleLinkToParent(occurrenceId, parentOccurrenceId) {
     try {
+      if (disconnected) return;
       if (!userId || !occurrenceId || !parentOccurrenceId) return;
       const uc = await getUc();
       const updatedParent = await Occurrence.findOneAndUpdate(
@@ -788,8 +797,11 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
   }
 
   async function handleCreateOccurrence(occurrence) {
+    const _id = occurrence?.id || "?";
     try {
+      if (disconnected) { console.log("🟣 create_occurrence SKIP (disconnected)", _id); return; }
       if (!userId) return;
+      console.log("🟣 create_occurrence START", _id, "socket:", socket.id);
       const uc = await getUc();
       const id = occurrence?.id;
       if (!id) return;
@@ -824,8 +836,8 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       // creates from a pipeline loop must not clobber each other's appends) ──
       // CRITICAL: do NOT echo the parent update back to the originating socket.
       // The originating client already optimistically appended the new ID to
-      // parent.occurrences[] in CREATE_OCCURRENCE_FOR_MODULE. Echoing the server's
-      // snapshot back races with subsequent optimistic appends in the same tick:
+      // parent.occurrences[] when handling the CREATE_ITEM effect. Echoing the
+      // server's snapshot back races with subsequent optimistic appends in the same tick:
       // an echo from create #1 replaces the parent array with [..., #1], wiping
       // out the optimistic [..., #1, #2, #3] state created moments later. Other
       // sockets DO need the broadcast to learn about the structural change.
@@ -844,6 +856,7 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
           socket.to(userRoomFn(userId)).emit("occurrence_updated", { occurrence: parentObj });
         }
       }
+      console.log("🟣 create_occurrence DONE", _id);
     } catch (err) {
       console.error("create_occurrence error:", err);
       socket.emit("server_error", "Failed to create occurrence");

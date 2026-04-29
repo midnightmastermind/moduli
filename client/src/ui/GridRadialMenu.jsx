@@ -4,8 +4,8 @@
 // Opens downward to fit all options
 // ============================================================
 
-import React, { useState, useCallback, useMemo } from "react";
-import { Undo2, Redo2, Database, Settings } from "lucide-react";
+import React, { useMemo } from "react";
+import { Undo2, Redo2, Settings } from "lucide-react";
 import RadialMenu from "./RadialMenu";
 
 export default function GridRadialMenu({
@@ -13,8 +13,6 @@ export default function GridRadialMenu({
   onRedo,
   canUndo = false,
   canRedo = false,
-  onFields,
-  onSettings,
   disabled = false,
 }) {
   const menuItems = useMemo(() => [
@@ -34,13 +32,7 @@ export default function GridRadialMenu({
         ? "bg-amber-600 hover:bg-amber-500"
         : "bg-slate-700 opacity-50",
     },
-    {
-      icon: Database,
-      label: "Fields Bank",
-      onClick: onFields,
-      color: "bg-purple-600 hover:bg-purple-500",
-    },
-  ], [onUndo, onRedo, canUndo, canRedo, onFields]);
+  ], [onUndo, onRedo, canUndo, canRedo]);
 
   return (
     <div className="grid-radial-menu fixed bottom-4 right-4 z-50">

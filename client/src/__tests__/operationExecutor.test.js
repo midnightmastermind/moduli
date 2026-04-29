@@ -245,11 +245,11 @@ describe("executePipeline", () => {
     expect(executePipeline(op, {})).toEqual([]);
   });
 
-  test("SHOW_VALUE step with literal expr writes to field", () => {
-    const op = makeOp({ pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:42" })) });
+  test("UPDATE display step with literal expr emits UPDATE_DISPLAY_VALUE effect", () => {
+    const op = makeOp({ pipeline: pipe(s("UPDATE", { path: "$display.f1.t", value: "literal:42" })) });
     const result = executePipeline(op, {});
     expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({ fieldId: "f1", value: "42", target: null });
+    expect(result[0]).toMatchObject({ _effect: "UPDATE_DISPLAY_VALUE", fieldId: "f1", itemId: "t", value: 42 });
   });
 
   test("source resolves field values from occurrences into $var", () => {
@@ -259,7 +259,7 @@ describe("executePipeline", () => {
     const op = makeOp({
       pipeline: pipeWithSources(
         [{ id: "src1", variableName: "habit", entityType: "instance", entityId: "inst1" }],
-        s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "$habit.score" }),
+        s("UPDATE", { path: "$display.f1.t", value: "$habit.score" }),
       ),
     });
     const ctx = { state: {}, fieldsById: {}, occurrencesById: { o1: occs[0] } };
@@ -271,7 +271,7 @@ describe("executePipeline", () => {
     const op = makeOp({
       pipeline: pipe(
         ifS(andCond({ left: "literal:10", comparator: "GREATER", right: "5" }),
-          [s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:1" })]),
+          [s("UPDATE", { path: "$display.f1.t", value: "literal:1" })]),
       ),
     });
     const result = executePipeline(op, {});
@@ -282,22 +282,23 @@ describe("executePipeline", () => {
     const op = makeOp({
       pipeline: pipe(
         ifS(andCond({ left: "literal:3", comparator: "GREATER", right: "10" }),
-          [s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:then" })],
-          [s("SHOW_VALUE", { targetFieldId: "f2", sourceExpr: "literal:else" })]),
+          [s("UPDATE", { path: "$display.f1.t", value: "literal:then" })],
+          [s("UPDATE", { path: "$display.f2.t", value: "literal:else" })]),
       ),
     });
     const result = executePipeline(op, {});
     expect(result).toHaveLength(1);
     expect(result[0].fieldId).toBe("f2");
     expect(result[0].value).toBe("else");
+    expect(result[0]._effect).toBe("UPDATE_DISPLAY_VALUE");
   });
 
   test("action before if always runs regardless of condition", () => {
     const op = makeOp({
       pipeline: pipe(
-        s("SHOW_VALUE", { targetFieldId: "f0", sourceExpr: "literal:always" }),
+        s("UPDATE", { path: "$display.f0.t", value: "literal:always" }),
         ifS(andCond({ left: "literal:1", comparator: "GREATER", right: "100" }),
-          [s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:then" })]),
+          [s("UPDATE", { path: "$display.f1.t", value: "literal:then" })]),
       ),
     });
     const result = executePipeline(op, {});
@@ -311,7 +312,7 @@ describe("executePipeline", () => {
         ifS(orCond(
           { left: "literal:1", comparator: "GREATER", right: "100" }, // fails
           { left: "literal:5", comparator: "IS", right: "5" }, // passes
-        ), [s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:ok" })]),
+        ), [s("UPDATE", { path: "$display.f1.t", value: "literal:ok" })]),
       ),
     });
     const result = executePipeline(op, {});
@@ -322,7 +323,7 @@ describe("executePipeline", () => {
     const op = makeOp({
       pipeline: pipe(
         ifS(andCond({ left: "", comparator: "IS_EMPTY", right: "" }),
-          [s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:1" })]),
+          [s("UPDATE", { path: "$display.f1.t", value: "literal:1" })]),
       ),
     });
     expect(executePipeline(op, {})).toHaveLength(1);
@@ -332,18 +333,18 @@ describe("executePipeline", () => {
     const op = makeOp({
       pipeline: pipe(
         s("NOTIFY", { message: "Hello!" }),
-        s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:7" }),
+        s("UPDATE", { path: "$display.f1.t", value: "literal:7" }),
       ),
     });
     const result = executePipeline(op, {});
     expect(result).toHaveLength(1);
-    expect(result[0].value).toBe("7");
+    expect(result[0].value).toBe(7);
   });
 
   test("RUN_OPERATION recurses into sub-pipeline", () => {
     const subOp = makeOp({
       id: "sub1",
-      pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f2", sourceExpr: "literal:99" })),
+      pipeline: pipe(s("UPDATE", { path: "$display.f2.t", value: "literal:99" })),
     });
     const op = makeOp({
       pipeline: pipe(s("RUN_OPERATION", { operationId: "sub1" })),
@@ -352,7 +353,7 @@ describe("executePipeline", () => {
       state: {}, fieldsById: {}, occurrencesById: {}, operationsById: { sub1: subOp },
     });
     expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({ fieldId: "f2", value: "99", target: null });
+    expect(result[0]).toMatchObject({ fieldId: "f2", value: 99 });
   });
 
   test("RUN_OPERATION recurses into sub block-tree op", () => {
@@ -384,15 +385,15 @@ describe("executePipeline", () => {
   test("multiple steps write to multiple fields in order", () => {
     const op = makeOp({
       pipeline: pipe(
-        s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:10" }),
-        s("SHOW_VALUE", { targetFieldId: "f2", sourceExpr: "literal:20" }),
-        s("SHOW_VALUE", { targetFieldId: "f3", sourceExpr: "literal:30" }),
+        s("UPDATE", { path: "$display.f1.t", value: "literal:10" }),
+        s("UPDATE", { path: "$display.f2.t", value: "literal:20" }),
+        s("UPDATE", { path: "$display.f3.t", value: "literal:30" }),
       ),
     });
     const result = executePipeline(op, {});
     expect(result).toHaveLength(3);
     expect(result.map(r => r.fieldId)).toEqual(["f1", "f2", "f3"]);
-    expect(result.map(r => r.value)).toEqual(["10", "20", "30"]);
+    expect(result.map(r => r.value)).toEqual([10, 20, 30]);
   });
 
   test("nested if steps (if inside then branch)", () => {
@@ -401,7 +402,7 @@ describe("executePipeline", () => {
         ifS(andCond({ left: "literal:5", comparator: "IS", right: "5" }),
           [
             ifS(andCond({ left: "literal:3", comparator: "IS", right: "3" }),
-              [s("SHOW_VALUE", { targetFieldId: "deep", sourceExpr: "literal:nested" })]),
+              [s("UPDATE", { path: "$display.deep.t", value: "literal:nested" })]),
           ]),
       ),
     });
@@ -415,7 +416,7 @@ describe("executePipeline", () => {
     const op = makeOp({
       pipeline: pipeWithSources(
         [{ id: "src1", variableName: "trigOccId", entityType: "trigger", triggerProp: "occurrenceId" }],
-        s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "$trigOccId" }),
+        s("UPDATE", { path: "$display.f1.t", value: "$trigOccId" }),
       ),
     });
     const result = executePipeline(op, {}, transaction);
@@ -428,7 +429,7 @@ describe("executePipeline", () => {
     const op = makeOp({
       pipeline: pipeWithSources(
         [{ id: "src1", variableName: "changedField", entityType: "trigger", triggerProp: "fieldId" }],
-        s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "$changedField" }),
+        s("UPDATE", { path: "$display.f1.t", value: "$changedField" }),
       ),
     });
     const result = executePipeline(op, {}, transaction);
@@ -441,7 +442,7 @@ describe("executePipeline", () => {
     const op = makeOp({
       pipeline: pipeWithSources(
         [{ id: "src1", variableName: "validProp", entityType: "trigger", triggerProp: "occurrenceId" }],
-        s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "$validProp" }),
+        s("UPDATE", { path: "$display.f1.t", value: "$validProp" }),
       ),
     });
     // Verify that providing a valid triggerProp works correctly (guard path covered by prior tests)
@@ -449,7 +450,7 @@ describe("executePipeline", () => {
     const op2 = makeOp({
       pipeline: pipeWithSources(
         [{ id: "src2", variableName: "noProp", entityType: "trigger", triggerProp: "nonExistentProp" }],
-        s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "$noProp" }),
+        s("UPDATE", { path: "$display.f1.t", value: "$noProp" }),
       ),
     });
     const result = executePipeline(op2, {}, transaction);
@@ -493,13 +494,13 @@ describe("runMatchingOperations", () => {
       makeOp({ id: "op1", triggerType: "onLoad", blockTree: literalBlock(10), targetFieldId: "f1" }),
       makeOp({
         id: "op2", triggerType: "onLoad", blockTree: null,
-        pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f2", sourceExpr: "literal:20" })),
+        pipeline: pipe(s("UPDATE", { path: "$display.f2.t", value: "literal:20" })),
       }),
     ];
     const result = runMatchingOperations(ops, null, null, {});
     expect(result).toHaveLength(2);
     expect(result.find(r => r.fieldId === "f1").value).toBe(10);
-    expect(result.find(r => r.fieldId === "f2").value).toBe("20");
+    expect(result.find(r => r.fieldId === "f2").value).toBe(20);
   });
 
   test("errors in one op don't crash other ops", () => {
@@ -540,10 +541,11 @@ describe("Target propagation scenarios", () => {
     expect(result[0].target).toBeNull();
   });
 
-  test("pipeline SHOW_VALUE with no targetValue emits target: null", () => {
-    const op = makeOp({ pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:50" })) });
+  test("UPDATE display effect carries no target metadata (lives on field config now)", () => {
+    const op = makeOp({ pipeline: pipe(s("UPDATE", { path: "$display.f1.t", value: "literal:50" })) });
     const result = executePipeline(op, {});
-    expect(result[0].target).toBeNull();
+    expect(result[0]).not.toHaveProperty("target");
+    expect(result[0]).toMatchObject({ _effect: "UPDATE_DISPLAY_VALUE", fieldId: "f1", value: 50 });
   });
 });
 
@@ -782,7 +784,7 @@ describe("executePipeline — $trigger variable in if conditions", () => {
     const op = makeOp({
       pipeline: pipe(
         ifS(andCond({ left: "$trigger.value", comparator: "IS", right: "true" }),
-          [s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:1" })]),
+          [s("UPDATE", { path: "$display.f1.t", value: "literal:1" })]),
       ),
     });
     expect(executePipeline(op, {}, { value: "true" })).toHaveLength(1);
@@ -793,7 +795,7 @@ describe("executePipeline — $trigger variable in if conditions", () => {
     const op = makeOp({
       pipeline: pipe(
         ifS(andCond({ left: "$trigger.toContainerId", comparator: "IS_EMPTY", right: "" }),
-          [s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:ok" })]),
+          [s("UPDATE", { path: "$display.f1.t", value: "literal:ok" })]),
       ),
     });
     expect(executePipeline(op, {}, {})).toHaveLength(1);
@@ -806,7 +808,7 @@ describe("executePipeline — $trigger variable in if conditions", () => {
         ifS(orCond(
           { left: "$trigger.value", comparator: "IS", right: "true" },
           { left: "$trigger.toContainerId", comparator: "IS_EMPTY", right: "" },
-        ), [s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:1" })]),
+        ), [s("UPDATE", { path: "$display.f1.t", value: "literal:1" })]),
       ),
     });
     expect(executePipeline(op, {}, { value: "true" })).toHaveLength(1);
@@ -818,7 +820,7 @@ describe("executePipeline — $trigger variable in if conditions", () => {
     const op = makeOp({
       pipeline: pipe(
         ifS(andCond({ left: "$trigger.value", comparator: "IS", right: "true" }),
-          [s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:1" })]),
+          [s("UPDATE", { path: "$display.f1.t", value: "literal:1" })]),
       ),
     });
     expect(executePipeline(op, {}, null)).toHaveLength(0);
@@ -828,7 +830,7 @@ describe("executePipeline — $trigger variable in if conditions", () => {
     const op = makeOp({
       pipeline: pipe(
         ifS(andCond({ left: "$trigger.fieldId", comparator: "IS", right: "completed" }),
-          [s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:1" })]),
+          [s("UPDATE", { path: "$display.f1.t", value: "literal:1" })]),
       ),
     });
     expect(executePipeline(op, {}, { fieldId: "completed" })).toHaveLength(1);
@@ -838,9 +840,9 @@ describe("executePipeline — $trigger variable in if conditions", () => {
   test("action BEFORE if always runs, action INSIDE if is conditional", () => {
     const op = makeOp({
       pipeline: pipe(
-        s("SHOW_VALUE", { targetFieldId: "always", sourceExpr: "literal:yes" }),
+        s("UPDATE", { path: "$display.always.t", value: "literal:yes" }),
         ifS(andCond({ left: "$trigger.fieldId", comparator: "IS", right: "special" }),
-          [s("SHOW_VALUE", { targetFieldId: "conditional", sourceExpr: "literal:special" })]),
+          [s("UPDATE", { path: "$display.conditional.t", value: "literal:special" })]),
       ),
     });
     // Non-matching trigger: only "always" fires
@@ -993,7 +995,7 @@ describe("runMatchingOperations — integration with triggerTypes + triggerObjec
     const op = makeOp({
       id: "op1",
       triggerTypes: ["onChange", "onDrop"],
-      pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:fired" })),
+      pipeline: pipe(s("UPDATE", { path: "$display.f1.t", value: "literal:fired" })),
     });
     expect(runMatchingOperations([op], "MeasureOp", {}, {})).toHaveLength(1);
     expect(runMatchingOperations([op], "OccurrenceListOp", {}, {})).toHaveLength(1);
@@ -1006,7 +1008,7 @@ describe("runMatchingOperations — integration with triggerTypes + triggerObjec
       triggerObjects: [
         { eventType: "onChange", subjectType: "field", targetId: "completed" },
       ],
-      pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:1" })),
+      pipeline: pipe(s("UPDATE", { path: "$display.f1.t", value: "literal:1" })),
     });
     expect(runMatchingOperations([op], "MeasureOp", { fieldId: "completed" }, {})).toHaveLength(1);
     expect(runMatchingOperations([op], "MeasureOp", { fieldId: "duration" }, {})).toHaveLength(0);
@@ -1029,9 +1031,9 @@ describe("runMatchingOperations — integration with triggerTypes + triggerObjec
 
   test("multiple ops: each fires independently, results combined", () => {
     const ops = [
-      makeOp({ id: "op1", triggerType: "onFilterChange", pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:10" })) }),
-      makeOp({ id: "op2", triggerType: "onFilterChange", pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f2", sourceExpr: "literal:20" })) }),
-      makeOp({ id: "op3", triggerType: "onChange", pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f3", sourceExpr: "literal:30" })) }),
+      makeOp({ id: "op1", triggerType: "onFilterChange", pipeline: pipe(s("UPDATE", { path: "$display.f1.t", value: "literal:10" })) }),
+      makeOp({ id: "op2", triggerType: "onFilterChange", pipeline: pipe(s("UPDATE", { path: "$display.f2.t", value: "literal:20" })) }),
+      makeOp({ id: "op3", triggerType: "onChange", pipeline: pipe(s("UPDATE", { path: "$display.f3.t", value: "literal:30" })) }),
     ];
     const result = runMatchingOperations(ops, "NavigationOp", {}, {});
     expect(result).toHaveLength(2);
@@ -1195,8 +1197,8 @@ describe("Date comparators in IF conditions", () => {
           id: "step1",
           type: "if",
           condition: { operator: "AND", rules: [{ left: leftExpr, comparator, right: rightVal }] },
-          then: [{ id: "t1", type: "action", config: { type: "SHOW_VALUE", targetFieldId: thenTargetFieldId, sourceExpr: "literal:1" } }],
-          else: [{ id: "e1", type: "action", config: { type: "SHOW_VALUE", targetFieldId: thenTargetFieldId, sourceExpr: "literal:0" } }],
+          then: [{ id: "t1", type: "action", config: { type: "UPDATE", path: `$display.${thenTargetFieldId}.t`, value: "literal:1" } }],
+          else: [{ id: "e1", type: "action", config: { type: "UPDATE", path: `$display.${thenTargetFieldId}.t`, value: "literal:0" } }],
         }],
       },
     });
@@ -1214,22 +1216,22 @@ describe("Date comparators in IF conditions", () => {
 
   test("DATE_BEFORE_TODAY: true when date is in the past", () => {
     const op = makeOpWithIf("DATE_BEFORE_TODAY", "$occ1.dueDate", null, "result");
-    // SHOW_VALUE with literal:1 returns string "1"; literal:0 returns "0"
-    expect(runWithOcc(op, -1)[0].value).toBe("1"); // -1 day = past → then branch
-    expect(runWithOcc(op, 1)[0].value).toBe("0");  // +1 day = future → else branch
+    // resolveExpr coerces literal:1 → 1 (number), literal:0 → 0 (number)
+    expect(runWithOcc(op, -1)[0].value).toBe(1); // -1 day = past → then branch
+    expect(runWithOcc(op, 1)[0].value).toBe(0);  // +1 day = future → else branch
   });
 
   test("DATE_AFTER_TODAY: true when date is in the future", () => {
     const op = makeOpWithIf("DATE_AFTER_TODAY", "$occ1.dueDate", null, "result");
-    expect(runWithOcc(op, 1)[0].value).toBe("1");  // future → then
-    expect(runWithOcc(op, -1)[0].value).toBe("0"); // past → else
+    expect(runWithOcc(op, 1)[0].value).toBe(1);  // future → then
+    expect(runWithOcc(op, -1)[0].value).toBe(0); // past → else
   });
 
   test("DATE_WITHIN_DAYS: true when date is within window", () => {
     const op = makeOpWithIf("DATE_WITHIN_DAYS", "$occ1.dueDate", "7", "result");
-    expect(runWithOcc(op, 3)[0].value).toBe("1");  // 3 days = within 7 → then
-    expect(runWithOcc(op, 10)[0].value).toBe("0"); // 10 days = outside 7 → else
-    expect(runWithOcc(op, -1)[0].value).toBe("0"); // past = not upcoming → else
+    expect(runWithOcc(op, 3)[0].value).toBe(1);  // 3 days = within 7 → then
+    expect(runWithOcc(op, 10)[0].value).toBe(0); // 10 days = outside 7 → else
+    expect(runWithOcc(op, -1)[0].value).toBe(0); // past = not upcoming → else
   });
 });
 
@@ -1245,7 +1247,7 @@ describe("resolveExpr — bug fixes", () => {
         sources: [],
         steps: [
           { id: "s1", type: "action", config: { type: "INIT_VAR", name: "$total", value: 0 } },
-          { id: "s2", type: "action", config: { type: "SHOW_VALUE", targetFieldId: "f1", sourceExpr: "$total" } },
+          { id: "s2", type: "action", config: { type: "UPDATE", path: "$display.f1.t", value: "$total" } },
         ],
       },
     });
@@ -1262,7 +1264,7 @@ describe("resolveExpr — bug fixes", () => {
         sources: [],
         steps: [
           { id: "s1", type: "action", config: { type: "INIT_VAR", name: "$flag", value: false } },
-          { id: "s2", type: "action", config: { type: "SHOW_VALUE", targetFieldId: "f1", sourceExpr: "$flag" } },
+          { id: "s2", type: "action", config: { type: "UPDATE", path: "$display.f1.t", value: "$flag" } },
         ],
       },
     });
@@ -1279,7 +1281,7 @@ describe("resolveExpr — bug fixes", () => {
         steps: [
           { id: "s1", type: "action", config: { type: "INIT_VAR", name: "$x", value: 5 } },
           { id: "s2", type: "action", config: { type: "MULTIPLY_VAR", name: "$x", expr: -1 } },
-          { id: "s3", type: "action", config: { type: "SHOW_VALUE", targetFieldId: "f1", sourceExpr: "$x" } },
+          { id: "s3", type: "action", config: { type: "UPDATE", path: "$display.f1.t", value: "$x" } },
         ],
       },
     });
@@ -1313,7 +1315,7 @@ describe("resolveExpr — bug fixes", () => {
               else: [],
             }],
           },
-          { id: "s3", type: "action", config: { type: "SHOW_VALUE", targetFieldId: "f1", sourceExpr: "$count" } },
+          { id: "s3", type: "action", config: { type: "UPDATE", path: "$display.f1.t", value: "$count" } },
         ],
       },
     });
@@ -1340,7 +1342,7 @@ describe("resolveExpr — bug fixes", () => {
               else: [],
             }],
           },
-          { id: "s3", type: "action", config: { type: "SHOW_VALUE", targetFieldId: "totalDuration", sourceExpr: "$total", targetValue: 60, targetPeriod: "daily" } },
+          { id: "s3", type: "action", config: { type: "UPDATE", path: "$display.totalDuration.t", value: "$total" } },
         ],
       },
     });
@@ -1348,8 +1350,8 @@ describe("resolveExpr — bug fixes", () => {
     const result = runMatchingOperations([op], null, null, { state: {}, fieldsById: {}, occurrencesById: {} });
     expect(result).toHaveLength(1);
     expect(result[0].value).toBe(0);
-    // target should also be propagated
-    expect(result[0].target).toEqual({ value: 60, period: "daily" });
+    // target metadata now lives on the field config, not on the UPDATE effect
+    expect(result[0]).not.toHaveProperty("target");
   });
 
   test("LOOP sum accumulates values from today's occurrences", () => {
@@ -1376,7 +1378,7 @@ describe("resolveExpr — bug fixes", () => {
               else: [],
             }],
           },
-          { id: "s3", type: "action", config: { type: "SHOW_VALUE", targetFieldId: "totalDuration", sourceExpr: "$total" } },
+          { id: "s3", type: "action", config: { type: "UPDATE", path: "$display.totalDuration.t", value: "$total" } },
         ],
       },
     });
@@ -1384,7 +1386,7 @@ describe("resolveExpr — bug fixes", () => {
     expect(result[0].value).toBe(55);  // 30 + 25, old occurrence excluded
   });
 
-  test("SHOW_VALUE propagates targetValue and targetPeriod to result", () => {
+  test("UPDATE display effect carries fieldId/itemId/value (no target on the effect)", () => {
     const op = makeOp({
       triggerType: "onFilterChange",
       triggerTypes: ["onFilterChange", "onLoad"],
@@ -1392,13 +1394,13 @@ describe("resolveExpr — bug fixes", () => {
         sources: [],
         steps: [
           { id: "s1", type: "action", config: { type: "INIT_VAR", name: "$v", value: 42 } },
-          { id: "s2", type: "action", config: { type: "SHOW_VALUE", targetFieldId: "f1", sourceExpr: "$v", targetValue: 100, targetPeriod: "weekly" } },
+          { id: "s2", type: "action", config: { type: "UPDATE", path: "$display.f1.t", value: "$v" } },
         ],
       },
     });
     const result = runMatchingOperations([op], null, null, { state: {}, fieldsById: {}, occurrencesById: {} });
-    expect(result[0].value).toBe(42);
-    expect(result[0].target).toEqual({ value: 100, period: "weekly" });
+    expect(result[0]).toMatchObject({ _effect: "UPDATE_DISPLAY_VALUE", fieldId: "f1", itemId: "t", value: 42 });
+    expect(result[0]).not.toHaveProperty("target");
   });
 });
 
@@ -1445,8 +1447,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
             over: "field_occurrences", fieldId: "duration", timeFilter: "daily", as: "$item",
             body: [{ id: "b1", type: "action", config: { type: "ADD_TO_VAR", name: "$total", expr: "$item.value" } }],
           },
-          { id: "s3", type: "action", config: { type: "SHOW_VALUE", targetFieldId: "totalDuration",
-              sourceExpr: "$total", targetValue: 60, targetPeriod: "daily" } },
+          { id: "s3", type: "action", config: { type: "UPDATE", path: "$display.totalDuration.t", value: "$total" } },
         ],
       },
     });
@@ -1455,7 +1456,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
     expect(result).toHaveLength(1);
     expect(result[0].fieldId).toBe("totalDuration");
     expect(result[0].value).toBe(70); // 30 + 25 + 15
-    expect(result[0].target).toEqual({ value: 60, period: "daily" });
+    expect(result[0]).not.toHaveProperty("target");
   });
 
   test("workout sum: returns 0 (not null) when no occurrences today", () => {
@@ -1470,8 +1471,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
             over: "field_occurrences", fieldId: "duration", timeFilter: "daily", as: "$item",
             body: [{ id: "b1", type: "action", config: { type: "ADD_TO_VAR", name: "$total", expr: "$item.value" } }],
           },
-          { id: "s3", type: "action", config: { type: "SHOW_VALUE", targetFieldId: "totalDuration",
-              sourceExpr: "$total", targetValue: 60, targetPeriod: "daily" } },
+          { id: "s3", type: "action", config: { type: "UPDATE", path: "$display.totalDuration.t", value: "$total" } },
         ],
       },
     });
@@ -1479,7 +1479,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
     const result = runMatchingOperations([op], "NavigationOp", {}, { state: {}, fieldsById: {}, occurrencesById: {} });
     expect(result).toHaveLength(1);
     expect(result[0].value).toBe(0);
-    expect(result[0].target).toEqual({ value: 60, period: "daily" });
+    expect(result[0]).not.toHaveProperty("target");
   });
 
   // ── Completion rate pipeline ────────────────────────────────────────────────
@@ -1515,8 +1515,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
           },
           { id: "s4", type: "action", config: { type: "MULTIPLY_VAR", name: "$count", expr: 100 } },
           { id: "s5", type: "action", config: { type: "DIV_VAR", name: "$count", by: "$total" } },
-          { id: "s6", type: "action", config: { type: "SHOW_VALUE", targetFieldId: "completionRate",
-              sourceExpr: "$count", targetValue: 100, targetPeriod: "daily" } },
+          { id: "s6", type: "action", config: { type: "UPDATE", path: "$display.completionRate.t", value: "$count" } },
         ],
       },
     });
@@ -1525,7 +1524,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
     expect(result).toHaveLength(1);
     expect(result[0].fieldId).toBe("completionRate");
     expect(result[0].value).toBe(75); // 3/4 = 75%
-    expect(result[0].target).toEqual({ value: 100, period: "daily" });
+    expect(result[0]).not.toHaveProperty("target");
   });
 
   test("completion rate: returns 0 when no completions, not NaN or null", () => {
@@ -1556,8 +1555,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
           },
           { id: "s4", type: "action", config: { type: "MULTIPLY_VAR", name: "$count", expr: 100 } },
           { id: "s5", type: "action", config: { type: "DIV_VAR", name: "$count", by: "$total" } },
-          { id: "s6", type: "action", config: { type: "SHOW_VALUE", targetFieldId: "completionRate",
-              sourceExpr: "$count", targetValue: 100, targetPeriod: "daily" } },
+          { id: "s6", type: "action", config: { type: "UPDATE", path: "$display.completionRate.t", value: "$count" } },
         ],
       },
     });
@@ -1652,7 +1650,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
   test("onLoad trigger fires when transactionType is null", () => {
     const op = makeOp({
       triggerType: "onLoad",
-      pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:loaded" })),
+      pipeline: pipe(s("UPDATE", { path: "$display.f1.t", value: "literal:loaded" })),
     });
 
     const result = runMatchingOperations([op], null, {}, {});
@@ -1663,7 +1661,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
   test("onLoad trigger does NOT fire for MeasureOp or NavigationOp", () => {
     const op = makeOp({
       triggerType: "onLoad",
-      pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:1" })),
+      pipeline: pipe(s("UPDATE", { path: "$display.f1.t", value: "literal:1" })),
     });
     expect(runMatchingOperations([op], "MeasureOp", {}, {})).toHaveLength(0);
     expect(runMatchingOperations([op], "NavigationOp", {}, {})).toHaveLength(0);
@@ -1687,7 +1685,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
             { id: "s1", type: "action", config: { type: "INIT_VAR", name: "$dur", value: 0 } },
             { id: "s2", type: "loop", over: "field_occurrences", fieldId: "duration", timeFilter: "daily", as: "$item",
               body: [{ id: "b1", type: "action", config: { type: "ADD_TO_VAR", name: "$dur", expr: "$item.value" } }] },
-            { id: "s3", type: "action", config: { type: "SHOW_VALUE", targetFieldId: "totalDuration", sourceExpr: "$dur" } },
+            { id: "s3", type: "action", config: { type: "UPDATE", path: "$display.totalDuration.t", value: "$dur" } },
           ],
         },
       }),
@@ -1706,25 +1704,24 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
     expect(cal.value).toBe(600);
   });
 
-  // ── Progress bar target propagation ───────────────────────────────────────
-  test("SHOW_VALUE with no target returns null target (no progress bar)", () => {
+  // ── Display-write effect shape ───────────────────────────────────────
+  test("UPDATE display effect shape (no target slot — target lives on the field config)", () => {
     const op = makeOp({
       triggerType: "onFilterChange",
-      pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:42" })),
+      pipeline: pipe(s("UPDATE", { path: "$display.f1.t", value: "literal:42" })),
     });
     const result = runMatchingOperations([op], "NavigationOp", {}, {});
-    expect(result[0].target).toBeNull();
+    expect(result[0]).toMatchObject({ _effect: "UPDATE_DISPLAY_VALUE", fieldId: "f1", itemId: "t", value: 42 });
+    expect(result[0]).not.toHaveProperty("target");
   });
 
-  test("SHOW_VALUE with targetValue + targetPeriod enables progress bar via target object", () => {
+  test("UPDATE display effect carries the resolved value", () => {
     const op = makeOp({
       triggerType: "onFilterChange",
-      pipeline: pipe(s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "literal:30",
-        targetValue: 60, targetPeriod: "daily" })),
+      pipeline: pipe(s("UPDATE", { path: "$display.f1.t", value: "literal:30" })),
     });
     const result = runMatchingOperations([op], "NavigationOp", {}, {});
-    expect(result[0].value).toBe("30");
-    expect(result[0].target).toEqual({ value: 60, period: "daily" });
+    expect(result[0].value).toBe(30);
   });
 });
 
@@ -1826,7 +1823,7 @@ describe("executePipeline — $trigger.occurrence auto-injection", () => {
     };
     const op = makeOp({
       pipeline: pipe(
-        s("SHOW_VALUE", { targetFieldId: "f1", sourceExpr: "$trigger.occurrence.fields.water.value" }),
+        s("UPDATE", { path: "$display.f1.t", value: "$trigger.occurrence.fields.water.value" }),
       ),
     });
     const ctx = { state: {}, fieldsById: {}, occurrencesById: { "occ-water": occ } };
@@ -1839,9 +1836,9 @@ describe("executePipeline — $trigger.occurrence auto-injection", () => {
     const occ = { id: "occ1", targetId: "inst1", parentId: "page-april-17", fields: {} };
     const op = makeOp({
       pipeline: pipe(
-        s("SHOW_VALUE", { targetFieldId: "f_parent", sourceExpr: "$trigger.occurrence.parentId" }),
-        s("SHOW_VALUE", { targetFieldId: "f_id",     sourceExpr: "$trigger.occurrence.id" }),
-        s("SHOW_VALUE", { targetFieldId: "f_target", sourceExpr: "$trigger.occurrence.targetId" }),
+        s("UPDATE", { path: "$display.f_parent.t", value: "$trigger.occurrence.parentId" }),
+        s("UPDATE", { path: "$display.f_id.t", value: "$trigger.occurrence.id" }),
+        s("UPDATE", { path: "$display.f_target.t", value: "$trigger.occurrence.targetId" }),
       ),
     });
     const ctx = { state: {}, fieldsById: {}, occurrencesById: { occ1: occ } };
@@ -1859,8 +1856,8 @@ describe("executePipeline — $trigger.occurrence auto-injection", () => {
     };
     const op = makeOp({
       pipeline: pipe(
-        s("SHOW_VALUE", { targetFieldId: "v", sourceExpr: "$trigger.occurrence.fields.amount.value" }),
-        s("SHOW_VALUE", { targetFieldId: "f", sourceExpr: "$trigger.occurrence.fields.amount.flow" }),
+        s("UPDATE", { path: "$display.v.t", value: "$trigger.occurrence.fields.amount.value" }),
+        s("UPDATE", { path: "$display.f.t", value: "$trigger.occurrence.fields.amount.flow" }),
       ),
     });
     const ctx = { state: {}, fieldsById: {}, occurrencesById: { occ1: occ } };
@@ -1873,8 +1870,8 @@ describe("executePipeline — $trigger.occurrence auto-injection", () => {
     const op = makeOp({
       pipeline: pipe(
         ifS(andCond({ left: "$trigger.occurrence", comparator: "IS_EMPTY", right: "" }),
-          [s("SHOW_VALUE", { targetFieldId: "noOcc", sourceExpr: "literal:1" })],
-          [s("SHOW_VALUE", { targetFieldId: "hasOcc", sourceExpr: "literal:1" })]),
+          [s("UPDATE", { path: "$display.noOcc.t", value: "literal:1" })],
+          [s("UPDATE", { path: "$display.hasOcc.t", value: "literal:1" })]),
       ),
     });
     const result = executePipeline(op, { state: {}, fieldsById: {}, occurrencesById: {} }, { value: "x" });
@@ -1885,7 +1882,7 @@ describe("executePipeline — $trigger.occurrence auto-injection", () => {
   test("unknown occurrenceId leaves enrichment off but preserves other trigger fields", () => {
     const op = makeOp({
       pipeline: pipe(
-        s("SHOW_VALUE", { targetFieldId: "v", sourceExpr: "$trigger.value" }),
+        s("UPDATE", { path: "$display.v.t", value: "$trigger.value" }),
       ),
     });
     const result = executePipeline(op, { state: {}, fieldsById: {}, occurrencesById: {} },
@@ -1897,8 +1894,8 @@ describe("executePipeline — $trigger.occurrence auto-injection", () => {
     const occ = { id: "occ1", targetId: "inst1", fields: { water: { value: 16, flow: "in" } } };
     const op = makeOp({
       pipeline: pipe(
-        s("SHOW_VALUE", { targetFieldId: "field", sourceExpr: "$trigger.fieldId" }),
-        s("SHOW_VALUE", { targetFieldId: "water", sourceExpr: "$trigger.occurrence.fields.water.value" }),
+        s("UPDATE", { path: "$display.field.t", value: "$trigger.fieldId" }),
+        s("UPDATE", { path: "$display.water.t", value: "$trigger.occurrence.fields.water.value" }),
       ),
     });
     const ctx = { state: {}, fieldsById: {}, occurrencesById: { occ1: occ } };

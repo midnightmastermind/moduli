@@ -1,6 +1,37 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-04-24. Check this file before re-reading source._
+_Updated: 2026-04-28. Check this file before re-reading source._
+
+## Recent Changes (Apr 29 2026 — Path picker: full path + clear button + no $trigger drilldown)
+- **SelectDrilldown.jsx**: `chipChainSt` no longer truncates — `whiteSpace: normal` + `wordBreak: break-word` + `maxWidth: 100%`. The chip-chain wraps to multiple lines if the path is long but every segment stays legible end-to-end. `resolveSegmentLabel` no longer abbreviates unresolved IDs; segments render verbatim when `labelForId` can't resolve them.
+- **SelectDrilldown.jsx (closed-state trigger)**: Once a value is selected, the chip area is **not** clickable — clicks no longer reopen the drilldown. To change the value the user clicks the new × button on the chip (clears that chain) and then clicks the empty-state placeholder pill to pick a new path. Fixes "the path field is still clickable even when I have a path selected" complaint.
+- **SelectDrilldown.jsx (`buildPathConfig`)**: `$trigger` removed from `shapeByVar`. Trigger data is no longer drillable in the path picker — to use a trigger property in a pipeline, the user must add a Source row of `entityType: "trigger"` with a `triggerProp`, which promotes it to a named `$var`. That `$var` then appears in the picker. Forces explicit declaration of which trigger props the pipeline needs.
+- **SelectDrilldown.jsx (`shapeByVar`)**: Iteration vars dropped (`$iterationValue`); added `$activeDate` / `$activeDateLabel` / `$activeDayOfWeek` so date pickers can drill those.
+
+## Recent Changes (Apr 29 2026 — OperationsTab: onLoad in event-type dropdown, no toggle)
+- **commandCenter/OperationsTab.jsx**: Removed the standalone "Run on load" pill toggle that lived above the trigger rows. `onLoad` is now a normal entry in the event-type `<select>` for each trigger row. Switching a trigger to `onLoad` (or `onFilterChange`) auto-snaps `subjectType` to `grid` (or `filterNav`) and clears any stale `subjectRole`/`targetId`. Removed `hasOnLoad`/`toggleOnLoad` helpers. The short-symbol map for event-type chips lost `onIteration: "⟳"`.
+- **commandCenter/OperationsTab.jsx (`getTriggerVars`)**: `filterNav` subject's hint vars updated from `$trigger.iterationId / iterationValue / categoryValue / previousValue` to `$trigger.activeFilterValues / date / previousValue` — matches what `bindSocketToStore.onGridUpdated` actually puts on the NavigationOp transaction.
+
+## Recent Changes (Apr 28 2026 — OperationLogPanel: vertical params + JSON tree + resolved values)
+- **commandCenter/OperationLogPanel.jsx**: Second pass on the rewrite. Goals: parameters stack vertically, all JSON is an expandable tree (not a single `<pre>` blob), and resolved variable values appear inline next to the original expressions.
+  - **Vertical params**: each step body now uses a `display: grid; grid-template-columns: max-content 1fr` layout via `ParamRow`. FIND shows `where:` (predicate rules), `scope:`, `result id →`, `found:` etc. on separate rows. CREATE shows `name`, `role`, `kind`, `parent`, `fields`, `date` each on its own line. INIT_VAR splits into `name` + `value` rows with the resolved value indented underneath when different.
+  - **Predicate readout** (`GroupRows` + `RuleRow`): each rule is its own block with a left-border accent. Renders `$item.label IS "$preset.moduleLabel"` on the first line, then `→ resolves to: "Drink Water" IS "Drink Water"` underneath when the executor's `resolvedPredicate._leftValue` / `_rightValue` differ from the raw expr. ID-shaped strings are routed through `NameRef` so they appear as friendly names instead of long IDs.
+  - **JSON tree** (`JsonNode` + `JsonTree`): replaces the old `<pre>JSON.stringify(...)</pre>` raw block. Every object/array becomes a click-to-expand chevron with a header like `Array(48)` / `Object{5}`. Children indent recursively. ID strings inside the tree render as `Name …shortId`. `<details>`-based wrapper at the step level so the user can quickly drill into `step JSON`, `iteration value`, `all changes`, etc.
+  - **Per-iteration loop rows**: new entry kind `loop_iter` from the executor renders as `#3/4` badge + `$preset = {2 fields}` with the iteration's full value behind a JSON tree expander. Lets the user see what the loop variable actually held on each pass.
+  - **Var snapshot per step**: each action/if step has a `variables when this ran` expander. Lists every user-facing `$var` at that moment using the same `JsonNode` tree. This is what surfaces "$schedDate is empty here, that's why nothing happened."
+  - **Outcome lines** (`OutcomeLine`): green-checked rows for `Created item / Updated field / Linked to parent`, with `field:`, `on:`, `under:` references using `NameRef`. Now used both inline (under the producing action) and in the `DONE` summary.
+  - `inlineLiteral(v, maps)` helper: pretty-prints a single primitive — wraps strings in quotes, formats arrays/objects as `[N items]`/`{K fields}`, and routes ID-shaped strings to `NameRef` so they render as friendly names everywhere.
+
+## Recent Changes (Apr 28 2026 — OperationLogPanel: plain-English readout)
+- **commandCenter/OperationLogPanel.jsx**: Full rewrite of the visual layer (data layer untouched). Goals: a non-developer should be able to read a run and tell what each step did and why nothing came out. Changes:
+  - Action types render with a verb + icon (`FIND` → "Look up" 🔍, `CREATE` → "Create" ➕, `INIT_VAR` → "Set" 𝑥, `LOOP` → "Loop" 🔁, `IF` → "IF · YES/NO"). The raw action type name is gone from the primary line.
+  - Each action shows a one-line description derived from its `cfg` — e.g. `where $item.label IS "Schedule" → $schedPageId ✓ found`, `$schedDate = $today`, `Created item Due under $schedPageId`. No JSON in the primary view.
+  - "Effects" renamed to "changes" / "outcomes". `OutcomeRow` (was `EffectRow`) shows "Created item", "Updated field", "Linked to parent", etc. — never raw `_effect` constants. Green checkmark + icon per outcome.
+  - Status badge per run is now wordy: "3 changes" / "no-op" / "FAILED" (was a number or "ERR").
+  - Loop entries show `over $allItems as $item — 80 items` in plain English.
+  - Trigger details line breaks out `date / occurrence / field` for the trigger, with the rest tucked into a `RawDetail` toggle labelled "trigger details".
+  - All raw JSON is hidden behind a small `‹/›ᴿ raw data` toggle; when expanded, indented 2-space JSON in a scrollable `<pre>`. Default-collapsed everywhere except the start row.
+  - Indent prop added to `Row` so future nested loop bodies can shift right (currently flat — depth comes from logger entries when populated).
 
 ## Recent Changes (Apr 24 2026 — isNav replaces primaryDateFieldId)
 - **LocalFilterNav.jsx**: Rewrote to use `navConditions = conditions.filter(c => c.isNav && c.fieldId)`. Shows whenever any condition has `isNav: true`. Navigates all nav condition fields at once. Removed `primaryDateFieldId` dependency.

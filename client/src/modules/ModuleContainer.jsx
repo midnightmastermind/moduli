@@ -362,7 +362,7 @@ function Container({
   const { ref: headerDropRef, isOver: isHeaderOver } = useDroppable({
     type: "container-header",
     id: `container-header:${module.id}`,
-    context: { panelId, containerId: module.id, insertAt: 0 },
+    context: { panelId, containerId: module.id, occurrenceId: containerOccurrence?.id || null, insertAt: 0 },
     accepts: DropAccepts.CONTAINER_LIST,
     disabled: isContainerDrag,
   });
@@ -370,7 +370,7 @@ function Container({
   const { ref: listDropRef, isOver: isListOver } = useDroppable({
     type: "container-list",
     id: `container-list:${module.id}`,
-    context: { panelId, containerId: module.id },
+    context: { panelId, containerId: module.id, occurrenceId: containerOccurrence?.id || null },
     accepts: DropAccepts.CONTAINER_LIST,
     disabled: isContainerDrag,
   });
@@ -388,11 +388,13 @@ function Container({
     return (ctxState?.grid?.namedFilters || []).find(f => f.id === activeId) || null;
   }, [ctxState?.grid?.activeFilterId, ctxState?.grid?.namedFilters]);
 
+  // Always walk the parent chain — `activeNamedFilter.lock` controls whether THIS
+  // occurrence may write its own filterOverride (UI-level editability), not whether
+  // ancestor overrides cascade. Mirrors the same fix in ModulePage.jsx — without
+  // it, the schedule page's local date wouldn't propagate to slot containers below.
   const effectiveFilters = useMemo(
-    () => activeNamedFilter?.lock
-      ? (ctxState?.grid?.activeFilterValues || {})
-      : getEffectiveFilterForOccurrence(containerOccurrence, { grid: ctxState?.grid, occurrencesById }),
-    [containerOccurrence, ctxState?.grid, occurrencesById, activeNamedFilter?.lock]
+    () => getEffectiveFilterForOccurrence(containerOccurrence, { grid: ctxState?.grid, occurrencesById }),
+    [containerOccurrence, ctxState?.grid, occurrencesById]
   );
 
   const activeFilterConditions = useMemo(

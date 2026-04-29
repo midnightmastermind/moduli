@@ -30,10 +30,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, Equal, Shuffle, Link2 } from "lucide-react";
-import { calculateDerivedField } from "../state/selectors";
 import {
-  getDerivedFieldCacheKey,
-  getAggregationSymbol,
   checkTarget,
   getScaledTargetValue,
   calculateProgress,
@@ -219,29 +216,22 @@ function Field({
 }) {
   const isEditable = typeof onCommit === "function";
   const currentTimeFilter = context?.currentIteration || "daily";
-  const target = targetProp || field?.metric?.target || null;
+  const displayConfigTarget = useMemo(() => {
+    const dc = field?.displayConfig;
+    if (!dc || dc.targetValue == null) return null;
+    return { value: dc.targetValue, period: dc.targetPeriod || "daily" };
+  }, [field?.displayConfig]);
+  const target = targetProp || displayConfigTarget || null;
   const hasTarget = target?.value !== undefined && target?.value !== null;
 
   // ─── Value resolution (display) ─────────────────────────────
-  const cacheKey = useMemo(() => getDerivedFieldCacheKey(state, field, context),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state?.occurrences, field, context]);
-
-  const legacyCalculatedValue = useMemo(() => {
-    if (!field || field.mode !== "derived") return null;
-    if (value !== undefined && value !== null) return null;
-    return calculateDerivedField(state, field, context);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cacheKey, value]);
-
   const rawDisplayValue = useMemo(() => {
-    const resolved = value !== undefined && value !== null ? value : legacyCalculatedValue;
-    if (resolved && typeof resolved === "object") {
-      if ("value" in resolved) return resolved.value;
-      return undefined; // don't return raw object — prevents [object Object]
+    if (value && typeof value === "object") {
+      if ("value" in value) return value.value;
+      return undefined;
     }
-    return resolved;
-  }, [value, legacyCalculatedValue]);
+    return value;
+  }, [value]);
 
   // ─── Input state ─────────────────────────────────────────────
   const extractValue = (v) => (v && typeof v === "object" ? ("value" in v ? v.value : undefined) : v);
@@ -795,23 +785,15 @@ function Field({
     return checkTarget(rawDisplayValue ?? 0, target, currentTimeFilter);
   }, [hasTarget, target, rawDisplayValue, currentTimeFilter]);
   const targetProgress = useMemo(() => {
-    const resolvedTarget = targetProp || field?.metric?.target;
-    if (!resolvedTarget || rawDisplayValue == null) return null;
-    if (typeof resolvedTarget.value !== "number") return null;
+    if (!hasTarget || rawDisplayValue == null) return null;
+    if (typeof target.value !== "number") return null;
     const current = Number(rawDisplayValue);
     if (isNaN(current)) return null;
-    const scaledT = getScaledTargetValue(resolvedTarget, currentTimeFilter);
-    const progress = calculateProgress(current, resolvedTarget, currentTimeFilter) ?? 0;
-    const met = checkTarget(current, resolvedTarget, currentTimeFilter) ?? false;
+    const scaledT = getScaledTargetValue(target, currentTimeFilter);
+    const progress = calculateProgress(current, target, currentTimeFilter) ?? 0;
+    const met = checkTarget(current, target, currentTimeFilter) ?? false;
     return { progress, met, target: scaledT };
-  }, [targetProp, field, rawDisplayValue, currentTimeFilter]);
-  const aggregationLabel = useMemo(() => {
-    if (!field || field.mode !== "derived" || !field.metric) return null;
-    const labels = { sum: "Total", count: "Count", countTrue: "Completed", avg: "Average",
-      min: "Min", max: "Max", last: "Latest", first: "First", range: "Range",
-      median: "Median", mode: "Mode", stdDev: "Std Dev", product: "Product", concat: "Combined", unique: "Unique" };
-    return labels[field.metric.aggregation] || null;
-  }, [field]);
+  }, [hasTarget, target, rawDisplayValue, currentTimeFilter]);
 
   const fmt = (v) => typeof v === "number" ? (Number.isInteger(v) ? v : v.toFixed(2)) : v;
   const valueDisplay = hasTarget && scaledTarget !== null
@@ -931,7 +913,7 @@ function Field({
   if (type === "rating") {
     return (
       <div className="field-display" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        {showLabel && <span style={labelStyle}>{name}{aggregationLabel ? ` (${aggregationLabel})` : ""}</span>}
+        {showLabel && <span style={labelStyle}>{name}</span>}
         <Stars rating={rawDisplayValue} max={meta?.max || 5} size="w-5 h-5" />
       </div>
     );
@@ -951,7 +933,7 @@ function Field({
   if (type === "select") {
     return (
       <div className="field-display" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        {showLabel && <span style={labelStyle}>{name}{aggregationLabel ? ` (${aggregationLabel})` : ""}</span>}
+        {showLabel && <span style={labelStyle}>{name}</span>}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ ...roBox, minWidth: 80, justifyContent: "space-between", flex: 1, maxWidth: 200 }}>
             <span>{formattedValue}</span>
@@ -969,7 +951,7 @@ function Field({
     const dm = isNaN(totalMin) ? 0 : totalMin % 60;
     return (
       <div className="field-display" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        {showLabel && <span style={labelStyle}>{name}{aggregationLabel ? ` (${aggregationLabel})` : ""}</span>}
+        {showLabel && <span style={labelStyle}>{name}</span>}
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ ...roBox, minWidth: 36, justifyContent: "center" }}>{dh}</div>
           <span style={{ fontSize: 10, color: "var(--text-faint)" }}>h</span>
@@ -983,7 +965,7 @@ function Field({
   // Number / text / date / default
   return (
     <div className="field-display" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      {showLabel && <span style={labelStyle}>{name}{aggregationLabel ? ` (${aggregationLabel})` : ""}</span>}
+      {showLabel && <span style={labelStyle}>{name}</span>}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <div style={{ ...roBox, flex: type === "text" || type === "date" ? 1 : undefined }}>
           {valueDisplay}

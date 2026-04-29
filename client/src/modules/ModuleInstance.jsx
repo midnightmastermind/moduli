@@ -490,7 +490,7 @@ function ModuleInstance({
     type: DragType.INSTANCE,
     id: module.id,
     data: { ...module, occurrence },
-    context: { containerId, panelId, instanceId: module.id, occurrenceId: occurrence?.id, sourceType: embedSourceType },
+    context: { containerId, containerOccurrenceId: containerOccurrence?.id || null, panelId, instanceId: module.id, occurrenceId: occurrence?.id, sourceType: embedSourceType },
     disabled: isContainerDrag,
     nativeEnabled: true,
     accepts: DropAccepts.INSTANCE,

@@ -84,8 +84,8 @@ function FieldRenderer({
   }, [field?.meta, ctxState, dispatch, socket]);
 
   // Determine field role — module.meta.disabled forces display-only
-  const inputEnabled = !disabled && field.inputEnabled !== false && field.mode !== "derived";
-  const displayEnabled = field.displayEnabled === true || field.mode === "derived";
+  const inputEnabled = !disabled && field.inputEnabled !== false;
+  const displayEnabled = field.displayEnabled === true;
 
   // Per-occurrence stored value + display flags
   const { value: inputValue, flow: currentFlow, hideName, hidePrefix, hidePostfix } = useMemo(() => {

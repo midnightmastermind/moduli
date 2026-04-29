@@ -139,7 +139,15 @@ io.use((socket, next) => {
 // DATABASE
 // ========================================================
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/dnd_containers";
-mongoose.connect(MONGO_URI).then(async () => {
+mongoose.connect(MONGO_URI, {
+  // Without these, a Mongo response that never arrives (e.g. mid-write when the
+  // client F5'd) holds a connection forever and starves every later query —
+  // request_full_state then hangs at Grid.findOne and the app spins.
+  socketTimeoutMS: 20000,        // kill in-flight ops if Mongo goes silent for 20s
+  serverSelectionTimeoutMS: 10000, // fail fast if Mongo is unreachable
+  maxPoolSize: 20,                 // a few writers can run concurrently while reads stay snappy
+  bufferTimeoutMS: 8000,           // don't sit in Mongoose buffer forever waiting for a connection
+}).then(async () => {
   console.log("🟢 MongoDB connected");
   // One-time migration: stamp gridId on all untagged folders by BFS from each manifest
   try {

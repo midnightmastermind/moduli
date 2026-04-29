@@ -913,7 +913,7 @@ const Editor = forwardRef(function Editor({
           const field = data || {};
           insertAtPos(insertPos, {
             type: "fieldPill",
-            attrs: { fieldId: id || field.id, fieldName: field.name || "Field", fieldType: field.type || "text", fieldMode: field.mode || "input", showValue: true, showLabel: true },
+            attrs: { fieldId: id || field.id, fieldName: field.name || "Field", fieldType: field.type || "text", showValue: true, showLabel: true },
           });
         }
       },
@@ -992,7 +992,7 @@ const Editor = forwardRef(function Editor({
     const atIndex = textBefore.lastIndexOf("@");
     const chain = editor.chain().focus();
     if (atIndex >= 0) chain.deleteRange({ from: from - (textBefore.length - atIndex), to: from });
-    chain.insertFieldPill({ fieldId: field.id, fieldName: field.name, fieldType: field.type || "text", fieldMode: field.mode || "input", showValue: true, showLabel: true }).run();
+    chain.insertFieldPill({ fieldId: field.id, fieldName: field.name, fieldType: field.type || "text", showValue: true, showLabel: true }).run();
     setShowSuggestion(false); setSuggestionQuery("");
   }, [editor]);
 
@@ -1003,7 +1003,7 @@ const Editor = forwardRef(function Editor({
     const atIndex = textBefore.lastIndexOf("@");
     const chain = editor.chain().focus();
     if (atIndex >= 0) chain.deleteRange({ from: from - (textBefore.length - atIndex), to: from });
-    chain.insertFieldPill({ fieldId: field.id, fieldName: field.name, fieldType: field.type || "text", fieldMode: field.mode || "input", showValue: true, showLabel: false }).run();
+    chain.insertFieldPill({ fieldId: field.id, fieldName: field.name, fieldType: field.type || "text", showValue: true, showLabel: false }).run();
     setShowSuggestion(false); setSuggestionQuery("");
   }, [editor]);
 

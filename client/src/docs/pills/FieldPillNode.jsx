@@ -54,7 +54,6 @@ export default function FieldPillNode({ node, selected, deleteNode }) {
     fieldId,
     fieldName,
     fieldType = "text",
-    fieldMode = "input",
     showValue = true,
     showLabel = true,
   } = node.attrs;
@@ -171,7 +170,6 @@ export default function FieldPillNode({ node, selected, deleteNode }) {
           position: "relative",
         }}
         data-field-id={fieldId}
-        data-field-mode={fieldMode}
         onMouseEnter={() => { clearTimeout(hoverTimeout.current); setHovered(true); }}
         onMouseLeave={() => { hoverTimeout.current = setTimeout(() => setHovered(false), 200); }}
         onDoubleClick={handleDoubleClick}

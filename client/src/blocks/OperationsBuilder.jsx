@@ -243,6 +243,37 @@ function formatResultValue(value) {
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
+// Walks the steps tree and returns every var name declared by INIT_VAR/SET_VAR/
+// ADD_TO_VAR/etc. and every loop iteration var (`as`). Names always start with
+// `$`. The resulting array is consumed by buildPathConfig to keep path pickers
+// from rendering half-resolved chip chains for valid local refs.
+function collectLocalVars(steps) {
+  const found = new Set();
+  function visit(stepArr) {
+    if (!Array.isArray(stepArr)) return;
+    for (const step of stepArr) {
+      if (!step) continue;
+      if (step.type === "action" && step.config) {
+        const name = step.config.name || step.config.itemIdVar || step.config.itemVar;
+        if (typeof name === "string" && name.startsWith("$")) found.add(name);
+        // Some actions (FIND multi, RUN_OPERATION) declare both itemIdVar and itemVar
+        if (step.config.itemIdVar && typeof step.config.itemIdVar === "string" && step.config.itemIdVar.startsWith("$")) found.add(step.config.itemIdVar);
+        if (step.config.itemVar && typeof step.config.itemVar === "string" && step.config.itemVar.startsWith("$")) found.add(step.config.itemVar);
+      }
+      if (step.type === "loop") {
+        if (typeof step.as === "string" && step.as.startsWith("$")) found.add(step.as);
+        visit(step.body);
+      }
+      if (step.type === "if") {
+        visit(step.then);
+        visit(step.else);
+      }
+    }
+  }
+  visit(steps);
+  return Array.from(found);
+}
+
 // Variable actions — individual math/assignment operations on local variables
 const VAR_ACTION_TYPES = [
   { value: "INIT_VAR", label: "=  assign", hint: "$x = value or expr" },
@@ -258,6 +289,11 @@ const VAR_ACTION_TYPES = [
 
 // System actions — modify system state
 const SYSTEM_ACTION_TYPES = [
+  // ---- Unified verbs (the new core CRUD set; everything below is sugar) ----
+  { value: "FIND", label: "Find", hint: "Locate an item by predicate. Sets itemIdVar / itemVar." },
+  { value: "CREATE", label: "Create", hint: "Mint a template-instance pair. name, role, kind, parent, fields, date, itemVar." },
+  { value: "UPDATE", label: "Update", hint: "Write a value at a path. path: $item.fields.X.value, value: expr." },
+  { value: "DELETE", label: "Delete", hint: "Remove an item by id. itemIdExpr: $item.id." },
   { value: "SHOW_VALUE", label: "Display → field", hint: "Send computed value to a display field" },
   { value: "SET_FIELD_VALUE", label: "Set occurrence field", hint: "Write a value to occurrence.fields[id]" },
   { value: "INCREMENT_FIELD", label: "Increment field", hint: "Add/subtract from an occurrence field" },
@@ -287,15 +323,15 @@ const ALL_ACTION_TYPES = [...VAR_ACTION_TYPES, ...SYSTEM_ACTION_TYPES];
 
 // Property paths available per model type — shown as hints in ExprInput
 const MODEL_PROPS = {
-  occurrence: ["id", "targetId", "parentId", "fields.{fieldId}.value", "fields.{fieldId}.flow", "iteration.timeValue", "iteration.mode", "textmap"],
-  module: ["id", "label", "role", "kind", "ownStyle.background", "ownStyle.color", "fieldBindings", "iteration.mode"],
+  occurrence: ["id", "targetId", "parentId", "fields.{fieldId}.value", "fields.{fieldId}.flow", "filterOverride", "textmap"],
+  module: ["id", "label", "role", "kind", "ownStyle.background", "ownStyle.color", "fieldBindings"],
   field: ["id", "name", "type", "unit", "inputEnabled", "displayEnabled"],
-  grid: ["id", "currentIterationValue", "selectedIterationId", "currentCategoryValue"],
+  grid: ["id", "activeFilterId", "activeFilterValues", "namedFilters"],
   folder: ["id", "name", "parentId", "kind"],
 };
 
 // Built-in array variables always available in $vars
-const BUILTIN_ARRAYS = ["$allOccurrences", "$allModules", "$allFields", "$templates", "$iterationDefinitions"];
+const BUILTIN_ARRAYS = ["$allItems", "$allTemplates", "$allFields"];
 
 const AGGREGATION_TYPES = [
   "sum", "count", "countTrue", "avg", "min", "max", "last", "first", "median", "mode", "unique", "concat", "range", "stdDev", "product",
@@ -305,11 +341,11 @@ const ENTITY_TYPES = [
   { value: "instance", label: "Instance", hint: "$var.fieldId, $var.fieldId_flow" },
   { value: "container", label: "Container", hint: "$var.fieldId, $var.fieldId_flow" },
   { value: "panel", label: "Panel", hint: "$var.id, $var.label, $var.kind, $var.defaultDragMode" },
-  { value: "occurrence", label: "Occurrence (by ID)", hint: "$var.id, $var.targetId, $var.fieldId, $var.fieldId_flow, $var._iterationTimeValue" },
+  { value: "occurrence", label: "Occurrence (by ID)", hint: "$var.id, $var.targetId, $var.fields, $var.parentId, $var.filterOverride" },
   { value: "field", label: "Field (aggregated)", hint: "$var.id, $var.name, $var.type, $var.unit, $var.value, $var.flow" },
-  { value: "grid", label: "Grid (whole grid)", hint: "$var.gridId, $var.currentIterationValue, $var.currentCategoryValue" },
+  { value: "grid", label: "Grid (whole grid)", hint: "$var.gridId, $var.activeFilterId, $var.activeFilterValues, $var.namedFilters" },
   { value: "localField", label: "Local Field (node input)", hint: "$varName = value typed on the operation node — transient, not from DB" },
-  { value: "trigger", label: "Trigger Event", hint: "Properties: fieldId, value, occurrenceId, instanceId, containerId, panelId, date, activeFilterValues" },
+  { value: "trigger", label: "Trigger Event", hint: "Pulls a single property off the firing trigger into a named $var. Pick a property below." },
 ];
 
 // ---- Shared styles ----
@@ -390,7 +426,15 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
 
   const varOptions = sources.map(s => `$${s.variableName}`);
 
-  const sharedProps = { fields, varOptions, modulesById, occurrencesById, fieldsById: mergedFieldsById, operationsById, sources };
+  // Walk every step to collect local vars declared in this pipeline. Without
+  // this, path pickers downstream don't recognize names introduced by
+  // INIT_VAR / loop.as etc., and silently render half-resolved (e.g.
+  // "$schedDate" stays as raw text instead of a chip chain). The collection
+  // is order-insensitive — pipeline-time validity is the executor's job; the
+  // editor just needs to know the names so chips render.
+  const localVars = useMemo(() => collectLocalVars(steps), [steps]);
+
+  const sharedProps = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById: mergedFieldsById, operationsById, sources };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -398,13 +442,16 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
       {/* SOURCES — collapsible */}
       <div style={pipelineStageStyle}>
         <div style={pipelineHeaderStyle} onClick={() => setShowSources(!showSources)}>
-          <span>📥 Sources <span style={{ fontSize: 9, opacity: 0.5 }}>({sources.length}) — bind named $vars from entities</span></span>
+          <span>📥 Sources <span style={{ fontSize: 9, opacity: 0.5 }}>({sources.length}) — name pieces of the trigger / entities so steps can use them</span></span>
           <span style={{ fontSize: 9, opacity: 0.5 }}>{showSources ? "▲" : "▼"}</span>
         </div>
         {showSources && (
           <div style={pipelineBodyStyle}>
+            <div style={{ fontSize: 9, color: "var(--text-muted)", lineHeight: 1.5, padding: "2px 4px", background: "var(--input-bg)", borderRadius: 3, border: "1px solid var(--border-subtle)" }}>
+              Pipelines don't see <code style={{ background: "var(--border-subtle)", padding: "0 3px", borderRadius: 2 }}>$trigger.*</code> directly — bind the trigger props you need into named <code style={{ background: "var(--border-subtle)", padding: "0 3px", borderRadius: 2 }}>$vars</code> here, then reference them by name in steps.
+            </div>
             {sources.length === 0 && (
-              <span style={{ fontSize: 10, color: "var(--text-faint)", fontStyle: "italic" }}>No sources — $trigger is always available</span>
+              <span style={{ fontSize: 10, color: "var(--text-faint)", fontStyle: "italic" }}>No sources yet — add one to capture a trigger property or entity into a named variable.</span>
             )}
             {sources.map(src => (
               <SourceRow
@@ -498,15 +545,49 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
             style={selectSt}
           >
             <option value="">— pick property —</option>
-            <option value="fieldId">fieldId</option>
-            <option value="value">value</option>
-            <option value="occurrenceId">occurrenceId</option>
-            <option value="instanceId">instanceId</option>
-            <option value="containerId">containerId</option>
-            <option value="panelId">panelId</option>
-            <option value="date">date</option>
-            <option value="activeFilterValues">activeFilterValues</option>
-            <option value="type">type (transactionType)</option>
+            <optgroup label="Identity">
+              <option value="type">type (event name)</option>
+              <option value="userId">userId</option>
+              <option value="timestamp">timestamp</option>
+            </optgroup>
+            <optgroup label="Item / occurrence">
+              <option value="itemId">itemId (occurrence)</option>
+              <option value="occurrenceId">occurrenceId</option>
+              <option value="templateId">templateId (module)</option>
+              <option value="instanceId">instanceId</option>
+              <option value="role">role</option>
+              <option value="kind">kind</option>
+              <option value="label">label</option>
+              <option value="occurrence">occurrence (full)</option>
+            </optgroup>
+            <optgroup label="Field change">
+              <option value="fieldId">fieldId</option>
+              <option value="value">value</option>
+              <option value="previousValue">previousValue</option>
+              <option value="flow">flow</option>
+              <option value="changedField">changedField</option>
+            </optgroup>
+            <optgroup label="Parents / move">
+              <option value="parentId">parentId</option>
+              <option value="containerId">containerId</option>
+              <option value="panelId">panelId</option>
+              <option value="containerLabel">containerLabel</option>
+              <option value="panelLabel">panelLabel</option>
+              <option value="fromParentId">fromParentId</option>
+              <option value="toParentId">toParentId</option>
+              <option value="fromContainerId">fromContainerId</option>
+              <option value="toContainerId">toContainerId</option>
+              <option value="fromPanelId">fromPanelId</option>
+              <option value="toPanelId">toPanelId</option>
+            </optgroup>
+            <optgroup label="Filter / navigation">
+              <option value="date">date</option>
+              <option value="activeFilterValues">activeFilterValues</option>
+            </optgroup>
+            <optgroup label="Transaction">
+              <option value="transactionId">transactionId</option>
+              <option value="transactionType">transactionType</option>
+            </optgroup>
           </select>
         )}
         <span style={labelSt}>→ as $</span>
@@ -621,7 +702,7 @@ function DraggableStepWrapper({ step, depth, steps, onReorder, children }) {
   );
 }
 // ---- Steps List (recursive for nested if/else) ----
-function StepsList({ steps, onChange, fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources = [], depth = 0 }) {
+function StepsList({ steps, onChange, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], depth = 0 }) {
   const addAction = () => onChange([...steps, { id: uid(), type: "action", config: { type: "INIT_VAR" } }]);
   const addIf = () => onChange([...steps, {
     id: uid(), type: "if",
@@ -637,7 +718,7 @@ function StepsList({ steps, onChange, fields, varOptions, modulesById, occurrenc
   const updateStep = (id, patch) => onChange(steps.map(s => s.id === id ? { ...s, ...patch } : s));
   const removeStep = (id) => onChange(steps.filter(s => s.id !== id));
 
-  const shared = { fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources };
+  const shared = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById, operationsById, sources };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: depth > 0 ? 8 : 0 }}>
@@ -684,10 +765,10 @@ function ExprInput({ value, onChange, placeholder, width = 120, title }) {
   const hint = [
     "Literals: 5   true   \"text\"",
     "Variables: $myVar   $item.label   $item.calories",
-    "Built-in arrays: $allOccurrences   $allModules   $allFields",
-    "Built-ins: $today   $now   $iterationValue   $grid",
-    "Trigger: $trigger.occurrenceId   $trigger.value",
-    "Occurrence field: occ:$item.occurrenceId.fieldId.value",
+    "Built-in arrays: $allItems   $allTemplates   $allFields",
+    "Built-ins: $today   $now   $activeDate   $grid",
+    "Trigger: $trigger.itemId   $trigger.value   $trigger.date",
+    "Occurrence field: occ:$item.id.fieldId.value",
     "Field (first match): field:fieldId.value",
   ].join("\n");
   return (
@@ -701,42 +782,83 @@ function ExprInput({ value, onChange, placeholder, width = 120, title }) {
   );
 }
 
-// ---- ExprOrPath — toggles between free-text ExprInput and cascading PathPicker ----
+// ---- ExprOrPath — switches between path picker, free text, and array literal ----
 // Use for fields that commonly take $trigger.* / $item.* expressions. Defaults to
-// path mode when value starts with $ (and isn't a literal: prefix), text mode otherwise.
-function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], fields = [], fieldsById, modulesById, occurrencesById, inLoop = true }) {
+// path mode when value starts with $ (and isn't a literal: prefix), text otherwise.
+// "array" mode stores the literal as a JSON-serialized string prefixed with "json:";
+// resolveExpr already passes any non-$/non-literal: string through as-is, so we keep
+// the value shape backwards-compatible by writing JSON for arrays.
+function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], fields = [], fieldsById, modulesById, occurrencesById, inLoop = true, localVars = [] }) {
   const v = String(value ?? "").trim();
-  const initialMode = (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
+  const isArrayValue = v.startsWith("json:[");
+  const initialMode = isArrayValue
+    ? "array"
+    : (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
   const [mode, setMode] = useState(initialMode);
+
   const pathConfig = useMemo(
-    () => buildPathConfig({ sources, fields, inLoop, fieldsById, modulesById, occurrencesById }),
-    [sources, fields, inLoop, fieldsById, modulesById, occurrencesById],
+    () => buildPathConfig({ sources, fields, inLoop, fieldsById, modulesById, occurrencesById, localVars }),
+    [sources, fields, inLoop, fieldsById, modulesById, occurrencesById, localVars],
   );
-  const toggle = () => setMode(m => (m === "path" ? "text" : "path"));
+
+  const switchMode = (next) => {
+    setMode(next);
+    // Only clear the value when the user explicitly changes mode AND the existing value
+    // would be invalid for the new mode (path expects $-prefixed, array expects json:[).
+    if (next === "path" && v && !v.startsWith("$")) onChange("");
+    else if (next === "array" && !v.startsWith("json:[")) onChange("json:[]");
+    else if (next === "text" && v.startsWith("json:[")) onChange("");
+  };
+
+  const arrayValue = isArrayValue ? v.slice(5) : "[]";
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-      <button
-        onClick={toggle}
-        title="Toggle path picker / free text"
-        style={{ fontSize: 9, padding: "1px 4px", border: "1px solid var(--input-border)", borderRadius: 3, background: "var(--surface)", color: "var(--text-muted)", cursor: "pointer" }}
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 3, flexWrap: "wrap" }}>
+      <select
+        value={mode}
+        onChange={e => switchMode(e.target.value)}
+        title="How this value is entered"
+        style={{ fontSize: 9, padding: "1px 4px", border: "1px solid var(--input-border)", borderRadius: 3, background: "var(--surface)", color: "var(--text-muted)", cursor: "pointer", height: 22 }}
       >
-        {mode === "path" ? "path" : "text"}
-      </button>
-      {mode === "path"
-        ? <SelectDrilldown
-            config={pathConfig}
-            value={typeof value === "string" && value ? [pathStringToChain(value)] : []}
-            onChange={chains => onChange(chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "")}
-          />
-        : <ExprInput value={value} onChange={onChange} placeholder={placeholder} width={width} />}
+        <option value="path">path</option>
+        <option value="text">text</option>
+        <option value="array">array</option>
+      </select>
+      {mode === "path" && (
+        <SelectDrilldown
+          config={pathConfig}
+          value={typeof value === "string" && value ? [pathStringToChain(value)] : []}
+          onChange={chains => onChange(chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "")}
+        />
+      )}
+      {mode === "text" && (
+        <ExprInput value={value} onChange={onChange} placeholder={placeholder} width={width} />
+      )}
+      {mode === "array" && (
+        <textarea
+          value={arrayValue}
+          onChange={e => {
+            // Validate JSON; only persist if it parses as an array.
+            try {
+              const parsed = JSON.parse(e.target.value);
+              if (Array.isArray(parsed)) onChange("json:" + e.target.value);
+              else onChange("json:" + e.target.value); // keep raw text so the user can keep typing
+            } catch {
+              onChange("json:" + e.target.value);
+            }
+          }}
+          placeholder='[1, 2, 3]   or   [{"a": 1}]'
+          style={{ fontSize: 10, padding: "3px 5px", border: "1px solid var(--input-border)", borderRadius: 3, background: "var(--input-bg)", color: "var(--text-primary)", fontFamily: "monospace", width: Math.max(width, 220), minHeight: 60 }}
+        />
+      )}
     </div>
   );
 }
 
 // ---- LoopStep ----
 // loop [overExpr] as $[varName] { body steps }
-function LoopStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
-  const shared = { fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources };
+function LoopStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
+  const shared = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById, operationsById, sources };
   const varName = (step.as || "$item").replace(/^\$/, "");
 
   return (
@@ -754,6 +876,7 @@ function LoopStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, o
           fieldsById={fieldsById}
           modulesById={modulesById}
           occurrencesById={occurrencesById}
+          localVars={localVars}
         />
         <span style={labelSt}>as $</span>
         <input
@@ -776,7 +899,7 @@ function LoopStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, o
 }
 
 // ---- Action Step ----
-function ActionStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
+function ActionStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
   const cfg = step.config || {};
   const actionType = cfg.type || "SHOW_VALUE";
   const setCfg = patch => onUpdate({ config: { ...cfg, ...patch } });
@@ -799,14 +922,14 @@ function ActionStep({ step, onUpdate, onRemove, fields, varOptions, modulesById,
         </div>
       </div>
       <div style={{ paddingLeft: 44 }}>
-        <ActionConfig actionType={actionType} cfg={cfg} setCfg={setCfg} fields={fields} varOptions={varOptions} modulesById={modulesById} occurrencesById={occurrencesById} fieldsById={fieldsById} operationsById={operationsById} sources={sources} />
+        <ActionConfig actionType={actionType} cfg={cfg} setCfg={setCfg} fields={fields} varOptions={varOptions} localVars={localVars} modulesById={modulesById} occurrencesById={occurrencesById} fieldsById={fieldsById} operationsById={operationsById} sources={sources} />
       </div>
     </div>
   );
 }
 
 // ---- If Step ----
-function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
+function IfStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
   const condition = step.condition || { operator: "AND", rules: [] };
   const [showElse, setShowElse] = useState((step.else || []).length > 0);
 
@@ -815,7 +938,7 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, occ
   const updateRule = (rid, patch) => updateCond({ rules: condition.rules.map(r => r.id === rid ? { ...r, ...patch } : r) });
   const removeRule = rid => updateCond({ rules: condition.rules.filter(r => r.id !== rid) });
 
-  const shared = { fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources };
+  const shared = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById, operationsById, sources };
   const opLabel = (condition.operator === "OR" ? "ANY" : "ALL");
   return (
     <div key={step.id} style={ifStepSt}>
@@ -867,14 +990,14 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, modulesById, occ
 }
 
 // ---- Action Config (field config rendered below action type) ----
-function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById, occurrencesById, fieldsById, operationsById, sources = [] }) {
+function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [] }) {
   const allContainers = useMemo(() => Object.values(modulesById).filter(m => m.role === "container"), [modulesById]);
   const allInstances = useMemo(() => Object.values(modulesById).filter(m => m.role === "instance"), [modulesById]);
   const allOps = useMemo(() => Object.values(operationsById), [operationsById]);
 
   const fl = text => <span style={labelSt}>{text}</span>;
   // Centralized props for the path-aware expression input.
-  const exprProps = { sources, fields, fieldsById, modulesById, occurrencesById };
+  const exprProps = { sources, fields, fieldsById, modulesById, occurrencesById, localVars };
 
   // Helper: variable name input strip leading $
   const varNameInput = (key, placeholder = "varName") => (
@@ -888,14 +1011,61 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
 
   switch (actionType) {
     // ---- Variable operations ----
-    case "INIT_VAR":
+    case "INIT_VAR": {
+      const hasArrayOf = Array.isArray(cfg.arrayOf);
       return (
-        <div style={rowStyle}>
-          {fl("$")} {varNameInput("name")} {fl("=")}
-          <ExprOrPath value={cfg.expr ?? String(cfg.value ?? "")} onChange={v => setCfg({ expr: v, value: undefined })} placeholder="5   or   $item.label   or   false" width={150} {...exprProps} />
-          <span style={{ fontSize: 9, color: "var(--text-faint)", fontStyle: "italic" }}>initial value (any type)</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={rowStyle}>
+            {fl("$")} {varNameInput("name")} {fl("=")}
+            {hasArrayOf ? (
+              <span style={{ fontSize: 10, color: "var(--text-muted)", fontStyle: "italic" }}>
+                a list of {cfg.arrayOf.length} item{cfg.arrayOf.length === 1 ? "" : "s"} (edit JSON below)
+              </span>
+            ) : (
+              <>
+                <ExprOrPath value={cfg.expr ?? String(cfg.value ?? "")} onChange={v => setCfg({ expr: v, value: undefined })} placeholder="5   or   $item.label   or   false" width={150} {...exprProps} />
+                <span style={{ fontSize: 9, color: "var(--text-faint)", fontStyle: "italic" }}>any value: number, string, true/false, or another variable</span>
+                <button
+                  type="button"
+                  onClick={() => setCfg({ arrayOf: [], expr: undefined, value: undefined })}
+                  style={{ fontSize: 10, padding: "1px 6px", border: "1px solid var(--border)", borderRadius: 3, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}
+                  title="Make this a list of items (edit as JSON). Useful for things like a preset list of {moduleLabel, slotLabel} entries."
+                >
+                  Use list instead
+                </button>
+              </>
+            )}
+          </div>
+          {hasArrayOf && (
+            <div style={{ paddingLeft: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ fontSize: 9, color: "var(--text-faint)", fontStyle: "italic" }}>
+                JSON array — each item becomes one iteration when you LOOP over <code style={{ background: "var(--border-subtle)", padding: "0 3px", borderRadius: 2 }}>${cfg.name?.replace(/^\$/, "") || "name"}</code>.
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                <textarea
+                  value={JSON.stringify(cfg.arrayOf, null, 2)}
+                  onChange={e => {
+                    try {
+                      const parsed = JSON.parse(e.target.value);
+                      if (Array.isArray(parsed)) setCfg({ arrayOf: parsed });
+                    } catch { /* ignore until valid JSON */ }
+                  }}
+                  style={{ ...inputSt, flex: 1, minWidth: 280, fontFamily: "monospace", height: 120 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setCfg({ arrayOf: undefined })}
+                  style={{ fontSize: 10, padding: "1px 6px", border: "1px solid var(--border)", borderRadius: 3, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}
+                  title="Switch back to a single value"
+                >
+                  Single value
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       );
+    }
 
     case "SET_VAR":
       return (
@@ -958,6 +1128,142 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, modulesById
         <div style={rowStyle}>
           {fl("$")} {varNameInput("name")} {fl("[].push")}
           <ExprOrPath value={cfg.expr || ""} onChange={v => setCfg({ expr: v })} placeholder="$item   or   value" width={150} {...exprProps} />
+        </div>
+      );
+
+    // ---- Unified verbs (FIND/CREATE/UPDATE/DELETE) ----
+    case "FIND": {
+      const predicate = cfg.predicate || { operator: "AND", rules: [] };
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={rowStyle}>
+            {fl("Look for items where")}
+            <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{predicate.operator === "OR" ? "ANY rule passes" : "ALL rules pass"}</span>
+          </div>
+          <div style={{ paddingLeft: 12 }}>
+            <ConditionGroup
+              group={predicate}
+              onChange={next => setCfg({ predicate: next })}
+              sources={sources}
+              fields={fields}
+              fieldsById={fieldsById}
+              modulesById={modulesById}
+              occurrencesById={occurrencesById}
+            />
+          </div>
+          <div style={rowStyle}>
+            {fl("Date scope (optional):")}
+            <FieldPicker value={cfg.scope?.dateFieldId || ""} onChange={v => setCfg({ scope: v ? { ...(cfg.scope || {}), dateFieldId: v } : null })} fields={fields} placeholder="(none — match any date)" />
+            {cfg.scope?.dateFieldId && (
+              <>
+                <span style={{ fontSize: 10, color: "var(--text-muted)" }}>= </span>
+                <ExprOrPath value={cfg.scope.dateExpr || ""} onChange={v => setCfg({ scope: { ...cfg.scope, dateExpr: v } })} placeholder="$schedDate" width={120} {...exprProps} />
+              </>
+            )}
+          </div>
+          <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 4, marginTop: 2, display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ fontSize: 9, color: "var(--text-muted)", fontStyle: "italic" }}>
+              Save the result so later steps can use it:
+            </div>
+            <div style={rowStyle}>
+              {fl("Save id as $")} {varNameInput("itemIdVar", "myId")}
+              <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(just the matched item's id)</span>
+            </div>
+            <div style={rowStyle}>
+              {fl("Save full item as $")} {varNameInput("itemVar", "myItem")}
+              <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(whole record — fields, label, meta, etc.)</span>
+            </div>
+            <label style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, paddingLeft: 4 }}>
+              <input type="checkbox" checked={!!cfg.multiple} onChange={e => setCfg({ multiple: e.target.checked })} />
+              Return all matches as an array
+              <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(default: only the first match)</span>
+            </label>
+          </div>
+        </div>
+      );
+    }
+
+    case "CREATE": {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={rowStyle}>
+            {fl("name")}
+            <ExprOrPath value={cfg.name || ""} onChange={v => setCfg({ name: v })} placeholder='"Due"   or   $slot.label' width={160} {...exprProps} />
+            {fl("role")}
+            <select value={cfg.role || "container"} onChange={e => setCfg({ role: e.target.value })} style={selectSt}>
+              {["panel", "page", "container", "instance", "artifact", "textblock"].map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            {fl("kind")}
+            <select value={cfg.kind || "list"} onChange={e => setCfg({ kind: e.target.value })} style={selectSt}>
+              {["list", "doc", "board", "canvas", "folder", "display", "pool"].map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </div>
+          <div style={rowStyle}>
+            {fl("parent")}
+            <ExprOrPath value={cfg.parent || ""} onChange={v => setCfg({ parent: v })} placeholder="$schedPageId" width={160} {...exprProps} />
+          </div>
+          <div style={rowStyle}>
+            {fl("date field")}
+            <FieldPicker value={cfg.date?.fieldId || ""} onChange={v => setCfg({ date: v ? { ...(cfg.date || {}), fieldId: v } : null })} fields={fields} placeholder="(no date)" />
+            {cfg.date?.fieldId && (
+              <ExprOrPath value={cfg.date.value || ""} onChange={v => setCfg({ date: { ...cfg.date, value: v } })} placeholder="$schedDate" width={120} {...exprProps} />
+            )}
+          </div>
+          <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps} />
+          <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 4, marginTop: 2, display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ fontSize: 9, color: "var(--text-muted)", fontStyle: "italic" }}>
+              Save the new item so later steps can use it (optional):
+            </div>
+            <div style={rowStyle}>
+              {fl("Save id as $")} {varNameInput("itemIdVar", "newId")}
+              <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(just the new item's id)</span>
+            </div>
+            <div style={rowStyle}>
+              {fl("Save full item as $")} {varNameInput("itemVar", "newItem")}
+              <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(whole record)</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    case "UPDATE": {
+      // Object-shaped value carries fromTemplate/tokens — render as JSON for now.
+      const valueIsObject = cfg.value !== null && typeof cfg.value === "object" && !Array.isArray(cfg.value);
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={rowStyle}>
+            {fl("path")}
+            <input
+              value={cfg.path || ""}
+              onChange={e => setCfg({ path: e.target.value })}
+              placeholder="$item.fields.<id>.value"
+              style={{ ...inputSt, width: 240, fontFamily: "monospace" }}
+            />
+          </div>
+          <div style={rowStyle}>
+            {fl("value")}
+            {valueIsObject ? (
+              <textarea
+                value={JSON.stringify(cfg.value, null, 2)}
+                onChange={e => {
+                  try { setCfg({ value: JSON.parse(e.target.value) }); } catch { /* ignore until valid */ }
+                }}
+                style={{ ...inputSt, width: 320, fontFamily: "monospace", height: 60 }}
+              />
+            ) : (
+              <ExprOrPath value={cfg.value ?? ""} onChange={v => setCfg({ value: v })} placeholder='"$expr"   or   literal:42' width={240} {...exprProps} />
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    case "DELETE":
+      return (
+        <div style={rowStyle}>
+          {fl("delete item")}
+          <ExprOrPath value={cfg.itemIdExpr || ""} onChange={v => setCfg({ itemIdExpr: v })} placeholder="$item.id" width={200} {...exprProps} />
         </div>
       );
 
@@ -1331,6 +1637,48 @@ function FieldPicker({ value, onChange, fields, placeholder = "Pick field..." })
       <option value="">{placeholder}</option>
       {fields.map(f => <option key={f.id} value={f.id}>{f.name || f.type}</option>)}
     </select>
+  );
+}
+
+// Renders cfg.fields as a list of (fieldId → expression) rows, used by the
+// CREATE config UI. cfg.fields is shaped `{ [fieldId]: expr }` — an object,
+// not an array — because that's what operationActions expects.
+function FieldsMapEditor({ cfg, setCfg, fields, exprProps }) {
+  const entries = Object.entries(cfg.fields || {});
+  const setEntry = (oldFid, newFid, expr) => {
+    const next = {};
+    let replaced = false;
+    for (const [fid, val] of Object.entries(cfg.fields || {})) {
+      if (fid === oldFid) {
+        if (newFid) next[newFid] = expr;
+        replaced = true;
+      } else {
+        next[fid] = val;
+      }
+    }
+    if (!replaced && newFid) next[newFid] = expr;
+    setCfg({ fields: Object.keys(next).length ? next : undefined });
+  };
+  const addRow = () => setCfg({ fields: { ...(cfg.fields || {}), "": "" } });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingLeft: 8 }}>
+      <div style={{ fontSize: 10, color: "var(--text-muted)" }}>fields:</div>
+      {entries.map(([fid, expr], i) => (
+        <div key={`${fid}_${i}`} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <FieldPicker value={fid} onChange={v => setEntry(fid, v, expr)} fields={fields} placeholder="(field)" />
+          <span style={{ fontSize: 10, color: "var(--text-faint)" }}>=</span>
+          <ExprOrPath
+            value={typeof expr === "string" ? expr : (expr == null ? "" : String(expr))}
+            onChange={v => setEntry(fid, fid, v)}
+            placeholder="$preset.water   or   literal:Due"
+            width={180}
+            {...exprProps}
+          />
+          <button style={{ border: "none", background: "none", color: "var(--text-faint)", cursor: "pointer", padding: 2 }} onClick={() => setEntry(fid, "", "")} title="remove">✕</button>
+        </div>
+      ))}
+      <button onClick={addRow} style={{ alignSelf: "flex-start", fontSize: 10, color: "var(--text-muted)", border: "1px dashed var(--border-default)", background: "transparent", padding: "2px 6px", borderRadius: 3, cursor: "pointer" }}>+ field</button>
+    </div>
   );
 }
 

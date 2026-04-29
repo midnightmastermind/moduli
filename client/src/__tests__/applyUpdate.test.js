@@ -60,8 +60,8 @@ describe("applyUpdate — $item.parentId", () => {
     expect(result.effects).toEqual([
       {
         _effect: "UPDATE_ITEM_PARENT",
-        occurrenceId: "occ1",
-        toParentOccurrenceId: "newParent",
+        itemId: "occ1",
+        toParentId: "newParent",
       },
     ]);
     expect(result.varWrites).toEqual({});

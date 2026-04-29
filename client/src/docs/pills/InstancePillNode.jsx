@@ -74,7 +74,7 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
     return (instance.fieldBindings || [])
       .map(b => {
         const field = fieldsById[b.fieldId];
-        if (!field || field.mode === "derived") return null;
+        if (!field || field.displayEnabled) return null;
         const stored = merged[b.fieldId];
         if (!stored) return null;
         const raw = extractRaw(stored);

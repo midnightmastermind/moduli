@@ -1,5 +1,8 @@
 // utils/operationBuilders.js
-// Operation factory helpers used by createDefaultUserData.js
+// Operation factory helpers used by createDefaultUserData.js (frozen) and
+// any future seeds. Emits the unified UPDATE verb for display writes —
+// path = `$display.<targetFieldId>.<itemId>`. Callers MUST pass `itemId`
+// (the occurrence id of the display item that should render the value).
 
 import { nanoid } from "nanoid";
 
@@ -7,21 +10,34 @@ export function uid() {
   return nanoid(12);
 }
 
+// Build a display-write step that publishes a computed value onto a
+// specific item's computedValues entry.
+function makeDisplayUpdate({ targetFieldId, itemId, sourceExpr }) {
+  return {
+    id: uid(),
+    type: "action",
+    config: {
+      type: "UPDATE",
+      path: `$display.${targetFieldId}.${itemId}`,
+      value: sourceExpr,
+    },
+  };
+}
+
 // ============================================================
 // LOOP-BASED OPERATION HELPERS
-// These replace the old black-box AGGREGATE action with explicit
-// granular building blocks: LOOP → IF → variable accumulation → SHOW_VALUE.
-// All helpers fire on both field changes and iteration navigation.
+// LOOP → IF → variable accumulation → UPDATE display path.
+// All helpers fire on field changes, filter changes, and load.
 // ============================================================
 
 /** Sum a single field across occurrences (daily/weekly/all, optional flow filter) */
-export function makeLoopSumOp({ name, targetFieldId, fieldId, timeFilter = "daily", flowFilter = "any", targetValue, targetPeriod = "daily", folderId = null, userId, gridId }) {
+export function makeLoopSumOp({ name, targetFieldId, itemId, fieldId, timeFilter = "daily", flowFilter = "any", targetValue, targetPeriod = "daily", folderId = null, userId, gridId }) {
   return {
     id: uid(), userId, gridId, name, folderId,
     description: `Sum of ${name} values (${timeFilter}) — granular LOOP pipeline`,
     triggerType: "onChange",
     triggerTypes: ["onChange", "onFilterChange", "onLoad"],
-    triggerConfig: { onChange: { allowedFields: [fieldId] } },
+    triggerConfig: { onChange: { allowedFields: [fieldId] }, ...(targetValue != null ? { display: { targetValue, targetPeriod } } : {}) },
     enabled: true,
     pipeline: {
       sources: [],
@@ -37,14 +53,14 @@ export function makeLoopSumOp({ name, targetFieldId, fieldId, timeFilter = "dail
             else: [],
           }],
         },
-        { id: uid(), type: "action", config: { type: "SHOW_VALUE", targetFieldId, sourceExpr: "$total", ...(targetValue != null ? { targetValue, targetPeriod } : {}) } },
+        makeDisplayUpdate({ targetFieldId, itemId, sourceExpr: "$total" }),
       ],
     },
   };
 }
 
 /** Count non-empty field occurrences */
-export function makeLoopCountOp({ name, targetFieldId, fieldId, timeFilter = "daily", flowFilter = "any", folderId = null, userId, gridId }) {
+export function makeLoopCountOp({ name, targetFieldId, itemId, fieldId, timeFilter = "daily", flowFilter = "any", folderId = null, userId, gridId }) {
   return {
     id: uid(), userId, gridId, name, folderId,
     description: `Count of non-empty ${name} occurrences (${timeFilter}) — granular LOOP pipeline`,
@@ -66,7 +82,7 @@ export function makeLoopCountOp({ name, targetFieldId, fieldId, timeFilter = "da
             else: [],
           }],
         },
-        { id: uid(), type: "action", config: { type: "SHOW_VALUE", targetFieldId, sourceExpr: "$count" } },
+        makeDisplayUpdate({ targetFieldId, itemId, sourceExpr: "$count" }),
       ],
     },
   };
@@ -74,15 +90,16 @@ export function makeLoopCountOp({ name, targetFieldId, fieldId, timeFilter = "da
 
 /**
  * Count occurrences where boolean field === true.
- * Pass `pageLabel` to scope the loop to descendants of a named page occurrence.
+ * Pass `pageLabel` to scope the loop to descendants of a named page item.
  */
-export function makeLoopCountTrueOp({ name, targetFieldId, fieldId, timeFilter = "daily", folderId = null, targetValue, targetPeriod = "daily", userId, gridId, pageLabel = null, includeAddDelete = false }) {
+export function makeLoopCountTrueOp({ name, targetFieldId, itemId, fieldId, timeFilter = "daily", folderId = null, targetValue, targetPeriod = "daily", userId, gridId, pageLabel = null, includeAddDelete = false }) {
   const findStep = pageLabel ? [{
     id: uid(), type: "action", config: {
-      type: "FIND_OCCURRENCE",
-      moduleLabelExpr: `literal:${pageLabel}`,
-      resultVar: "$scopePage",
-      resultIdVar: "$scopePageId",
+      type: "FIND",
+      predicate: { operator: "AND", rules: [
+        { id: uid(), left: "$item.label", comparator: "IS", right: pageLabel },
+      ]},
+      itemIdVar: "$scopePageId",
     },
   }] : [];
 
@@ -97,7 +114,7 @@ export function makeLoopCountTrueOp({ name, targetFieldId, fieldId, timeFilter =
     triggerTypes: includeAddDelete
       ? ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"]
       : ["onChange", "onFilterChange", "onLoad"],
-    triggerConfig: { onChange: { allowedFields: [fieldId] } },
+    triggerConfig: { onChange: { allowedFields: [fieldId] }, ...(targetValue != null ? { display: { targetValue, targetPeriod } } : {}) },
     enabled: true,
     pipeline: {
       sources: [],
@@ -120,14 +137,14 @@ export function makeLoopCountTrueOp({ name, targetFieldId, fieldId, timeFilter =
             else: [],
           }],
         },
-        { id: uid(), type: "action", config: { type: "SHOW_VALUE", targetFieldId, sourceExpr: "$count", ...(targetValue != null ? { targetValue, targetPeriod } : {}) } },
+        makeDisplayUpdate({ targetFieldId, itemId, sourceExpr: "$count" }),
       ],
     },
   };
 }
 
 /** Capture last recorded value (overwrites $latest each iteration — final = last in time order) */
-export function makeLoopLastOp({ name, targetFieldId, fieldId, timeFilter = "daily", folderId = null, userId, gridId }) {
+export function makeLoopLastOp({ name, targetFieldId, itemId, fieldId, timeFilter = "daily", folderId = null, userId, gridId }) {
   return {
     id: uid(), userId, gridId, name, folderId,
     description: `Last recorded ${name} value (${timeFilter}) — granular LOOP pipeline`,
@@ -149,20 +166,20 @@ export function makeLoopLastOp({ name, targetFieldId, fieldId, timeFilter = "dai
             else: [],
           }],
         },
-        { id: uid(), type: "action", config: { type: "SHOW_VALUE", targetFieldId, sourceExpr: "$latest" } },
+        makeDisplayUpdate({ targetFieldId, itemId, sourceExpr: "$latest" }),
       ],
     },
   };
 }
 
 /** Sum across multiple source fields (e.g., set1Reps + set2Reps + set3Reps) — one LOOP per field */
-export function makeLoopMultiSumOp({ name, targetFieldId, fieldIds, timeFilter = "daily", folderId = null, targetValue, targetPeriod = "daily", userId, gridId }) {
+export function makeLoopMultiSumOp({ name, targetFieldId, itemId, fieldIds, timeFilter = "daily", folderId = null, targetValue, targetPeriod = "daily", userId, gridId }) {
   return {
     id: uid(), userId, gridId, name, folderId,
     description: `Sum of ${fieldIds.length} source fields (${timeFilter}) — granular LOOP pipeline`,
     triggerType: "onChange",
     triggerTypes: ["onChange", "onFilterChange", "onLoad"],
-    triggerConfig: { onChange: { allowedFields: fieldIds } },
+    triggerConfig: { onChange: { allowedFields: fieldIds }, ...(targetValue != null ? { display: { targetValue, targetPeriod } } : {}) },
     enabled: true,
     pipeline: {
       sources: [],
@@ -178,14 +195,14 @@ export function makeLoopMultiSumOp({ name, targetFieldId, fieldIds, timeFilter =
             else: [],
           }],
         })),
-        { id: uid(), type: "action", config: { type: "SHOW_VALUE", targetFieldId, sourceExpr: "$total", ...(targetValue != null ? { targetValue, targetPeriod } : {}) } },
+        makeDisplayUpdate({ targetFieldId, itemId, sourceExpr: "$total" }),
       ],
     },
   };
 }
 
 /** Net balance = income (flow:in) minus spent (flow:out) — two loops, then subtract */
-export function makeNetBalanceOp({ name, targetFieldId, incomeFieldId, spentFieldId, folderId = null, userId, gridId }) {
+export function makeNetBalanceOp({ name, targetFieldId, itemId, incomeFieldId, spentFieldId, folderId = null, userId, gridId }) {
   return {
     id: uid(), userId, gridId, name, folderId,
     description: `Net balance = Σ income (flow:in) − Σ spent (flow:out), all time — granular LOOP pipeline`,
@@ -199,7 +216,6 @@ export function makeNetBalanceOp({ name, targetFieldId, incomeFieldId, spentFiel
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$income", value: 0 } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$spent", value: 0 } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$net", value: 0 } },
-        // Accumulate income
         {
           id: uid(), type: "loop",
           over: "field_occurrences", fieldId: incomeFieldId, timeFilter: "all", flowFilter: "in", as: "$item",
@@ -210,7 +226,6 @@ export function makeNetBalanceOp({ name, targetFieldId, incomeFieldId, spentFiel
             else: [],
           }],
         },
-        // Accumulate spent
         {
           id: uid(), type: "loop",
           over: "field_occurrences", fieldId: spentFieldId, timeFilter: "all", flowFilter: "out", as: "$item",
@@ -225,14 +240,14 @@ export function makeNetBalanceOp({ name, targetFieldId, incomeFieldId, spentFiel
         { id: uid(), type: "action", config: { type: "SET_VAR", name: "$net", expr: "$income" } },
         { id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$spent", expr: -1 } },
         { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$net", expr: "$spent" } },
-        { id: uid(), type: "action", config: { type: "SHOW_VALUE", targetFieldId, sourceExpr: "$net" } },
+        makeDisplayUpdate({ targetFieldId, itemId, sourceExpr: "$net" }),
       ],
     },
   };
 }
 
 /** Completion rate as percentage: (done / total) × 100 — uses DIV_VAR */
-export function makeCompletionRateOp({ name, targetFieldId, fieldId, timeFilter = "all", folderId = null, userId, gridId }) {
+export function makeCompletionRateOp({ name, targetFieldId, itemId, fieldId, timeFilter = "all", folderId = null, userId, gridId }) {
   return {
     id: uid(), userId, gridId, name, folderId,
     description: `Completion rate % (${timeFilter}) — counts done vs total, divides, shows % — granular LOOP pipeline`,
@@ -266,14 +281,14 @@ export function makeCompletionRateOp({ name, targetFieldId, fieldId, timeFilter 
         // percent = ($done / $total) * 100
         { id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$done", expr: 100 } },
         { id: uid(), type: "action", config: { type: "DIV_VAR", name: "$done", by: "$total" } },
-        { id: uid(), type: "action", config: { type: "SHOW_VALUE", targetFieldId, sourceExpr: "$done" } },
+        makeDisplayUpdate({ targetFieldId, itemId, sourceExpr: "$done" }),
       ],
     },
   };
 }
 
 /** Create a static-literal operation using the pipeline steps format. */
-export function makeLiteralOp({ name, targetFieldId, value, userId, gridId }) {
+export function makeLiteralOp({ name, targetFieldId, itemId, value, userId, gridId }) {
   return {
     id: uid(), userId, gridId,
     name,
@@ -285,11 +300,7 @@ export function makeLiteralOp({ name, targetFieldId, value, userId, gridId }) {
     targetFieldId,
     pipeline: {
       sources: [],
-      steps: [{
-        id: uid(),
-        type: "action",
-        config: { type: "SHOW_VALUE", targetFieldId, sourceExpr: `literal:${value}` },
-      }],
+      steps: [makeDisplayUpdate({ targetFieldId, itemId, sourceExpr: `literal:${value}` })],
     },
   };
 }

@@ -70,23 +70,24 @@ const SUBJECT_TYPES = [
   { value: "folder",      label: "Folder",       desc: "A manifest folder" },
 ];
 
-// $trigger.* variables inferred from (eventType, subjectType)
+// $trigger.* variables inferred from (eventType, subjectType).
+// itemId = the placement (was occurrenceId); templateId = the template (was moduleId).
 export function getTriggerVars(eventType, subjectType) {
   const base = [];
-  if (subjectType === "module") {
-    base.push("$trigger.moduleId", "$trigger.role", "$trigger.kind", "$trigger.label");
+  if (subjectType === "module" || subjectType === "item") {
+    base.push("$trigger.itemId", "$trigger.templateId", "$trigger.role", "$trigger.kind", "$trigger.label");
     if (eventType === "onChange")  base.push("$trigger.changedField", "$trigger.value", "$trigger.previousValue");
     if (eventType === "onAdd" || eventType === "onRemove") base.push("$trigger.parentId");
     if (eventType === "onMove")    base.push("$trigger.fromParentId", "$trigger.toParentId");
     if (eventType === "onComplete") base.push("$trigger.fieldId", "$trigger.value");
   } else if (subjectType === "field") {
-    base.push("$trigger.fieldId", "$trigger.moduleId", "$trigger.value", "$trigger.previousValue", "$trigger.flow");
+    base.push("$trigger.fieldId", "$trigger.itemId", "$trigger.templateId", "$trigger.value", "$trigger.previousValue", "$trigger.flow");
   } else if (subjectType === "grid") {
     base.push("$trigger.gridId");
   } else if (subjectType === "filterNav") {
-    base.push("$trigger.iterationId", "$trigger.iterationValue", "$trigger.categoryValue", "$trigger.previousValue");
+    base.push("$trigger.activeFilterValues", "$trigger.date", "$trigger.previousValue");
   } else if (subjectType === "transaction") {
-    base.push("$trigger.transactionId", "$trigger.transactionType", "$trigger.moduleId");
+    base.push("$trigger.transactionId", "$trigger.transactionType", "$trigger.templateId");
   }
   base.push("$trigger.userId", "$trigger.timestamp");
   return base;
@@ -250,7 +251,7 @@ export function OperationPill({ op, selected, onClick, onRun, onToggleEnabled })
   const triggerLabel = (() => {
     const types = Array.isArray(op.triggerTypes) ? op.triggerTypes : [op.triggerType].filter(Boolean);
     if (types.length === 0) return "manual";
-    const short = { onChange: "Δ", onDrop: "↓", onCreate: "+", onDelete: "✕", onMove: "→", onComplete: "✓", onModuleUpdate: "M↑", onFilterChange: "⟳", onIteration: "⟳", onLoad: "⬛", onWebhook: "⚡", manual: "▶" };
+    const short = { onChange: "Δ", onDrop: "↓", onCreate: "+", onDelete: "✕", onMove: "→", onComplete: "✓", onModuleUpdate: "M↑", onFilterChange: "⟳", onLoad: "⬛", onWebhook: "⚡", manual: "▶" };
     return types.map(t => short[t] || t).join("+");
   })();
 
@@ -392,15 +393,6 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
     commitTriggerObjects(triggerObjects.filter((_, i) => i !== idx));
   };
 
-  const hasOnLoad = triggerObjects.some(t => t.eventType === "onLoad");
-  const toggleOnLoad = () => {
-    if (hasOnLoad) {
-      commitTriggerObjects(triggerObjects.filter(t => t.eventType !== "onLoad"));
-    } else {
-      commitTriggerObjects([...triggerObjects, { eventType: "onLoad", subjectType: "grid", targetId: "" }]);
-    }
-  };
-
   // Container + panel options for onDrop config
   const getRole = useCallback((m) => roleByModuleId?.[m.id] || m.role || "instance", [roleByModuleId]);
   const allContainers = useMemo(() => Object.values(modulesById || {}).filter(m => getRole(m) === "container"), [modulesById, getRole]);
@@ -445,30 +437,8 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
       {/* ── Triggers ── */}
       <div>
         <span style={labelStyle}>Triggers</span>
-        {/* On Load switch — quick toggle for the no-subject "fire on grid open" case */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, padding: "4px 8px", borderRadius: 5, background: "var(--input-bg)", border: "1px solid var(--border-subtle)" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)", flex: 1 }}>
-            <span
-              onClick={toggleOnLoad}
-              style={{
-                display: "inline-block", width: 28, height: 14, borderRadius: 7, cursor: "pointer",
-                background: hasOnLoad ? "rgb(52,211,153)" : "var(--border-default)",
-                position: "relative", transition: "background 0.15s",
-              }}
-            >
-              <span style={{
-                position: "absolute", top: 2, left: hasOnLoad ? 14 : 2,
-                width: 10, height: 10, borderRadius: "50%", background: "#fff",
-                transition: "left 0.15s",
-              }} />
-            </span>
-            Run on load
-          </label>
-          <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "monospace" }}>fires once when grid opens</span>
-        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {triggerObjects.map((trigObj, idx) => {
-            if (trigObj.eventType === "onLoad") return null;
             const eventType = trigObj.eventType || "onChange";
             const subjectType = trigObj.subjectType || "field";
             const subjectRole = trigObj.subjectRole || "";
@@ -493,10 +463,16 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                 <select
                   value={eventType}
                   title="Event type"
-                  onChange={e => updateTriggerObject(idx, { eventType: e.target.value })}
+                  onChange={e => {
+                    const next = e.target.value;
+                    // Snap subject to a sensible default when the event has no module/field subject.
+                    if (next === "onLoad")          updateTriggerObject(idx, { eventType: next, subjectType: "grid",      subjectRole: "", targetId: "" });
+                    else if (next === "onFilterChange") updateTriggerObject(idx, { eventType: next, subjectType: "filterNav", subjectRole: "", targetId: "" });
+                    else                            updateTriggerObject(idx, { eventType: next });
+                  }}
                   style={{ ...inputStyle, width: "auto", minWidth: 110, fontSize: 10 }}
                 >
-                  {EVENT_TYPES.filter(et => et.value !== "onLoad").map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
+                  {EVENT_TYPES.map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
                 </select>
                 {/* Subject type */}
                 <select
@@ -689,14 +665,20 @@ export function OperationsTab() {
     return groups;
   }, [gridOperations, categoryFolders]);
 
-  // Detect duplicate operations: same triggerType + same SHOW_VALUE targetFieldId
+  // Detect duplicate operations: same triggerType + same display-field write target.
+  // Display writes are now `UPDATE { path: "$display.<fieldId>.<itemId>" }` — the
+  // fieldId is extracted from the path's first segment.
   const duplicateOpIds = useMemo(() => {
     const seen = {};
     const dupes = new Set();
+    const displayPathRe = /^\$display\.([^.]+)/;
     for (const op of gridOperations) {
       const trigger = op.triggers?.[0]?.triggerType || op.triggerType;
-      const showStep = op.pipeline?.steps?.find(s => s.type === "action" && s.config?.type === "SHOW_VALUE");
-      const fieldId = showStep?.config?.targetFieldId;
+      const updateStep = op.pipeline?.steps?.find(s => {
+        if (s.type !== "action" || s.config?.type !== "UPDATE") return false;
+        return typeof s.config?.path === "string" && displayPathRe.test(s.config.path);
+      });
+      const fieldId = updateStep?.config?.path?.match(displayPathRe)?.[1];
       if (!trigger || !fieldId) continue;
       const key = `${trigger}:${fieldId}`;
       if (seen[key]) { dupes.add(seen[key]); dupes.add(op.id); }

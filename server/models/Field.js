@@ -33,12 +33,18 @@ const FieldSchema = new mongoose.Schema(
     // Values are stored in client React state (computedValues), NOT in the DB
     displayEnabled: { type: Boolean, default: false },
 
-    // Display config: visual settings for display fields
+    // Display config: visual settings for display fields. The progress bar +
+    // value/target string in Field.jsx fall back to these when an op doesn't
+    // publish a target via UPDATE_DISPLAY_VALUE.
     displayConfig: {
       // Show up/down arrows when value changes (green = up, red = down)
       showArrows: { type: Boolean, default: false },
       // Hardcoded arrow color instead of auto (optional)
       arrowColor: { type: String, enum: ["green", "red", "auto", null], default: null },
+      // Numeric goal value rendered as the progress bar's max
+      targetValue: { type: Number, default: null },
+      // Period the target applies to — used to scale e.g. weekly→daily views
+      targetPeriod: { type: String, enum: ["daily", "weekly", "monthly", "yearly", null], default: "daily" },
     },
 
     // Category folder — references a Folder with folderType "category"

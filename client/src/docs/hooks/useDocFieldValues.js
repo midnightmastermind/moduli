@@ -65,19 +65,15 @@ export function useDocFieldValues(docContent) {
       }
 
       try {
-        // Display fields: prefer operation-computed value, fall back to calculateDerivedField
+        // Display fields read the operation-computed value (operations write to
+        // computedValues via UPDATE $display.<fieldId>[.<occId>]).
         if (field.displayEnabled) {
-          if (computedValues[fieldId] != null) {
-            const cv = computedValues[fieldId];
-            result[fieldId] = { value: cv, displayValue: formatValue(cv, field), error: null };
-          } else {
-            const calculatedValue = CalculationHelpers.calculateDerivedField(state, field);
-            result[fieldId] = {
-              value: calculatedValue,
-              displayValue: formatValue(calculatedValue, field),
-              error: null,
-            };
-          }
+          const cv = computedValues[fieldId];
+          result[fieldId] = {
+            value: cv ?? null,
+            displayValue: formatValue(cv ?? null, field),
+            error: null,
+          };
         } else {
           // Input field — aggregate values from all occurrences
           const occurrences = Object.values(occurrencesById);
@@ -183,22 +179,12 @@ export function useFieldValue(fieldId) {
     }
 
     try {
-      // For derived fields, prefer executor-computed value (from operations) when available
-      if (field.displayEnabled && computedValues[fieldId] != null) {
+      // Display fields read the operation-computed value.
+      if (field.displayEnabled) {
         const cv = computedValues[fieldId];
         return {
-          value: cv,
-          displayValue: formatValue(cv, field),
-          error: null,
-        };
-      }
-
-      if (field.mode === "derived" || field.displayEnabled) {
-        // Fall back to calculateDerivedField
-        const calculatedValue = CalculationHelpers.calculateDerivedField(state, field);
-        return {
-          value: calculatedValue,
-          displayValue: formatValue(calculatedValue, field),
+          value: cv ?? null,
+          displayValue: formatValue(cv ?? null, field),
           error: null,
         };
       } else {

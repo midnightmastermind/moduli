@@ -52,16 +52,21 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
     socketDispatch({ type: ActionTypes.FULL_STATE, payload });
 
-    // Initialize ephemeral filter nav values from each occurrence's filter defaultNavValue
+    // Initialize ephemeral filter nav values from each occurrence's filter defaultNavValue.
+    // All date strings are LOCAL-tz YYYY-MM-DD. `toISOString().slice(0,10)` returns the
+    // UTC day, which rolls over after local-evening anywhere west of UTC and silently
+    // resolves "today" → tomorrow (or yesterday) — the bug this app keeps hitting.
     const navMap = {};
     const now = new Date(); now.setHours(0, 0, 0, 0);
+    const localDay = (d) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const resolveDefault = (defaultNavValue) => {
-      if (!defaultNavValue || defaultNavValue === "today") return now.toISOString().slice(0, 10);
+      if (!defaultNavValue || defaultNavValue === "today") return localDay(now);
       if (defaultNavValue === "startOfWeek") {
         const d = new Date(now);
         const dow = d.getDay();
         d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
-        return d.toISOString().slice(0, 10);
+        return localDay(d);
       }
       if (defaultNavValue === "startOfMonth") {
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
@@ -495,57 +500,103 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (!effect?._effect) return;
 
     switch (effect._effect) {
-      case "SET_FIELD_VALUE":
-        // Overlay localOccsById on top of the frozen pass-state so SET_FIELD_VALUE
-        // can find occurrences that were CREATEd earlier in the SAME pipeline run.
-        // Without this, a SET_FIELD_VALUE that targets `$newSlotOccId` (returned by
-        // a CREATE_OCCURRENCE_FOR_MODULE step in the same tick) silently no-ops —
-        // the new occ isn't in state.occurrencesById yet but IS in localOccsById.
-        setOccurrenceFieldValue({
-          dispatch: socketDispatch,
-          socket,
-          occurrencesById: { ...(state.occurrencesById || {}), ...localOccsById },
-          occurrences: state.occurrences,
-          occurrenceId: effect.occurrenceId,
-          fieldId: effect.fieldId,
-          value: effect.value,
-          flow: effect.flow,
-        });
+      // ======================================================
+      // Unified UPDATE-verb effects (routed by applyUpdate.js)
+      // ======================================================
+
+      case "UPDATE_ITEM_FIELD": {
+        // subKind: "value" (fires MeasureOp → onChange triggers) or "flow" (no trigger)
+        // Overlays localOccsById on the frozen pass-state so writes can find items
+        // that were CREATEd earlier in the same pipeline tick.
+        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        if (effect.subKind === "flow") {
+          const occ = occOverlay[effect.itemId];
+          if (!occ) break;
+          const existing = occ.fields?.[effect.fieldId];
+          const fields = {
+            ...occ.fields,
+            [effect.fieldId]: {
+              value: existing?.value !== undefined ? existing.value : existing,
+              flow: effect.value,
+            },
+          };
+          updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, fields } });
+        } else {
+          setOccurrenceFieldValue({
+            dispatch: socketDispatch,
+            socket,
+            occurrencesById: occOverlay,
+            occurrences: state.occurrences,
+            occurrenceId: effect.itemId,
+            fieldId: effect.fieldId,
+            value: effect.value,
+            flow: "replace",
+          });
+        }
         break;
+      }
 
       case "MOVE_OCCURRENCE":
         moveOccurrence({ socket, occurrenceId: effect.occurrenceId, toContainerId: effect.toContainerId });
         break;
 
-      case "MOVE_OCCURRENCE_TO_PARENT": {
-        const occ = state.occurrencesById?.[effect.occurrenceId];
+      case "UPDATE_ITEM_PARENT": {
+        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occ = occOverlay[effect.itemId];
         if (!occ) break;
         const fromParentId = occ.parentId;
 
-        if (fromParentId && fromParentId !== effect.toParentOccurrenceId) {
-          const fromParent = state.occurrencesById[fromParentId];
+        if (fromParentId && fromParentId !== effect.toParentId) {
+          const fromParent = occOverlay[fromParentId];
           if (fromParent) {
             updateOccurrence({ dispatch: socketDispatch, socket, occurrence: {
               id: fromParentId,
-              occurrences: (fromParent.occurrences || []).filter(x => x !== effect.occurrenceId),
+              occurrences: (fromParent.occurrences || []).filter(x => x !== effect.itemId),
             }});
           }
         }
 
         updateOccurrence({ dispatch: socketDispatch, socket, occurrence: {
-          id: effect.occurrenceId,
-          parentId: effect.toParentOccurrenceId,
+          id: effect.itemId,
+          parentId: effect.toParentId,
         }});
 
-        const toParent = state.occurrencesById[effect.toParentOccurrenceId];
-        if (toParent && !(toParent.occurrences || []).includes(effect.occurrenceId)) {
+        const toParent = occOverlay[effect.toParentId];
+        if (toParent && !(toParent.occurrences || []).includes(effect.itemId)) {
           updateOccurrence({ dispatch: socketDispatch, socket, occurrence: {
-            id: effect.toParentOccurrenceId,
-            occurrences: [...(toParent.occurrences || []), effect.occurrenceId],
+            id: effect.toParentId,
+            occurrences: [...(toParent.occurrences || []), effect.itemId],
           }});
         }
         break;
       }
+
+      case "UPDATE_ITEM_META": {
+        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occ = occOverlay[effect.itemId];
+        if (!occ) break;
+        const merged = { ...(occ.meta || {}), ...(effect.metaPatch || {}) };
+        updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, meta: merged } });
+        break;
+      }
+
+      case "UPDATE_ITEM_TEXTMAP": {
+        if (!effect.itemId) break;
+        updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, textmap: effect.textmap } });
+        break;
+      }
+
+      case "UPDATE_DISPLAY_VALUE": {
+        if (!effect.fieldId) break;
+        socketDispatch(setComputedValuesAction([
+          { fieldId: effect.fieldId, occurrenceId: effect.itemId || null, value: effect.value },
+        ]));
+        break;
+      }
+
+      case "DELETE_ITEM":
+        if (effect.itemId) deleteOccurrence({ dispatch: socketDispatch, socket, occurrenceId: effect.itemId });
+        break;
 
       case "REMOVE_OCCURRENCE":
         deleteOccurrence({ dispatch: socketDispatch, socket, occurrenceId: effect.occurrenceId });
@@ -555,49 +606,66 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         createOccurrenceInContainer({ socket, instanceId: effect.instanceId, containerId: effect.containerId, fields: effect.fields });
         break;
 
-      case "CREATE_OCCURRENCE_FOR_MODULE": {
-        // Create a new occurrence for an existing module (no new module created).
-        // Used by the Day Page Auto-Create + Schedule Auto-Build pipelines.
+      case "CREATE_ITEM": {
+        // Mints a new instance + (optionally) a new template. Both records are dispatched
+        // optimistically and emitted to the server; the server's broadcast excludes the
+        // sender, so the optimistic dispatch is what makes the originating client see
+        // the new item immediately.
         const gridId = state.grid?._id || state.gridId;
-        if (!gridId || !effect.moduleId) break;
+        const userId = state.userId;
+        if (!gridId || !userId) break;
+        const inst = effect.instance;
+        if (!inst?.id || !inst?.templateId) break;
 
+        // Mint template if one was created
+        if (effect.template?.id) {
+          const newModule = {
+            id: effect.template.id,
+            role: effect.template.role || "container",
+            kind: effect.template.kind || "doc",
+            label: effect.template.label || effect.template.name,
+            name: effect.template.name || effect.template.label,
+            userId,
+            gridId,
+            fieldBindings: [],
+            ...(effect.template.meta && { meta: effect.template.meta }),
+          };
+          socketDispatch(createModuleAction(newModule));
+          socket?.emit("create_module", { module: newModule });
+        }
+
+        // Mint instance
         const newOcc = {
-          id: effect.occurrenceId,
-          userId: state.userId,
+          id: inst.id,
+          userId,
           targetType: "module",
-          targetId: effect.moduleId,
+          targetId: inst.templateId,
           gridId,
-          parentId: effect.parentId || null,
-          viewId: effect.viewId || null,
-          fields: effect.fields || {},
+          parentId: inst.parentId || null,
+          viewId: inst.viewId || null,
+          fields: inst.fields || {},
           meta: { createdByOperation: true },
-          textmap: effect.textmap || null,
+          textmap: inst.textmap || null,
           occurrences: [],
         };
-
-        // Optimistic local dispatch so the originating client sees the new occurrence
-        // immediately. Server's broadcast uses `socket.to(room)` which excludes the
-        // sender, so without this the new occurrence wouldn't appear until refresh.
         socketDispatch(createOccurrenceAction(newOcc));
         localOccsById[newOcc.id] = newOcc;
 
-        // Also optimistically append to the parent's occurrences[] (server auto-pushes
-        // and broadcasts to other sockets, but again excludes the sender).
-        // CRITICAL: prefer localOccsById over state.occurrencesById — `state` is frozen
-        // for the entire op pass, so without this, each of N effects overwrites the
-        // parent's occurrences[] with only its own ID (losing all prior siblings).
+        // Optimistically append to the parent's occurrences[] — server auto-pushes
+        // server-side, but its broadcast excludes the sender. localOccsById is preferred
+        // over state.occurrencesById since state is frozen for the entire op pass.
         if (newOcc.parentId) {
           const parent = localOccsById[newOcc.parentId] || state.occurrencesById?.[newOcc.parentId];
           if (parent && !(parent.occurrences || []).includes(newOcc.id)) {
             const current = Array.isArray(parent.occurrences) ? parent.occurrences : [];
-            const insertAt = typeof effect.insertAtIndex === "number" ? effect.insertAtIndex : current.length;
+            const insertAt = typeof inst.insertAtIndex === "number" ? inst.insertAtIndex : current.length;
             const next = [...current];
             next.splice(insertAt, 0, newOcc.id);
             updateOccurrence({
               dispatch: socketDispatch,
               socket,
               occurrence: { id: newOcc.parentId, occurrences: next },
-              emit: false,                      // server auto-pushes; broadcasts back to other sockets
+              emit: false,
             });
             localOccsById[newOcc.parentId] = { ...parent, occurrences: next };
           }
@@ -606,29 +674,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         socket?.emit("create_occurrence", {
           occurrence: {
             ...newOcc,
-            ...(typeof effect.insertAtIndex === "number" && { insertAtIndex: effect.insertAtIndex }),
+            ...(typeof inst.insertAtIndex === "number" && { insertAtIndex: inst.insertAtIndex }),
           },
-        });
-        break;
-      }
-
-      case "LINK_OCCURRENCE_TO_PARENT": {
-        // Atomic, idempotent server-side $push — used by the auto-build pipeline to
-        // re-link orphan slot/Due occurrences (children whose parentId points at the
-        // schedule page but whose ID is missing from the page's occurrences[] array,
-        // typically the aftermath of a prior race condition during bulk creates).
-        // The optimistic local update is bounded by `!includes` so re-runs are no-ops.
-        const parent = localOccsById[effect.parentOccurrenceId] || state.occurrencesById?.[effect.parentOccurrenceId];
-        if (!parent || !effect.occurrenceId) break;
-        const childIds = Array.isArray(parent.occurrences) ? parent.occurrences : [];
-        if (!childIds.includes(effect.occurrenceId)) {
-          const next = [...childIds, effect.occurrenceId];
-          socketDispatch(updateOccurrenceAction({ id: effect.parentOccurrenceId, occurrences: next }));
-          localOccsById[effect.parentOccurrenceId] = { ...parent, occurrences: next };
-        }
-        socket?.emit("link_occurrence_to_parent", {
-          occurrenceId: effect.occurrenceId,
-          parentOccurrenceId: effect.parentOccurrenceId,
         });
         break;
       }
@@ -679,47 +726,6 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           gridId: state.grid?._id || state.gridId,
         });
         break;
-
-      case "CREATE_MODULE": {
-        // Creates a module + its occurrence in one shot via generic CRUD handlers.
-        const gridId = state.grid?._id || state.gridId;
-        const userId = state.userId;
-        if (gridId && userId) {
-          const newModule = {
-            id: effect.moduleId,
-            role: effect.role || "container",
-            kind: effect.kind || "doc",
-            label: effect.name,
-            name: effect.name,
-            userId,
-            gridId,
-            fieldBindings: [],
-            ...(effect.meta && { meta: effect.meta }),
-          };
-          const newOcc = {
-            id: effect.occurrenceId,
-            userId,
-            targetType: "module",
-            targetId: effect.moduleId,
-            gridId,
-            parentId: effect.parentId || null,
-            viewId: effect.viewId || null,
-            fields: {},
-            meta: { createdByOperation: true },
-            textmap: effect.kind === "doc" ? { type: "doc", content: [] } : null,
-            occurrences: [],
-          };
-          // Optimistic local dispatch — server broadcast via socket.to(room) excludes
-          // the sender, so without this the originating client wouldn't see the new
-          // module and FIND_MODULE on the next run would create another duplicate.
-          socketDispatch(createModuleAction(newModule));
-          socketDispatch(createOccurrenceAction(newOcc));
-          localOccsById[newOcc.id] = newOcc;
-          socket?.emit("create_module", { module: newModule });
-          socket?.emit("create_occurrence", { occurrence: newOcc });
-        }
-        break;
-      }
 
       case "UPDATE_VIEW":
         socket?.emit("update_view", { view: { id: effect.viewId, ...effect.patch } });

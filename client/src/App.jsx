@@ -274,7 +274,9 @@ export default function App() {
     else if (timeUnit === "month") base.setMonth(base.getMonth() + dir);
     else if (timeUnit === "year")  base.setFullYear(base.getFullYear() + dir);
     else                           base.setDate(base.getDate() + dir);
-    const next = base.toISOString().slice(0, 10);
+    // Local-tz YYYY-MM-DD (toISOString rolls over to UTC day — "next" silently
+    // becomes tomorrow anywhere west of UTC after local-evening).
+    const next = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
     const updatedValues = navConditions.reduce((acc, c) => {
       acc[c.fieldId] = next;
       return acc;
