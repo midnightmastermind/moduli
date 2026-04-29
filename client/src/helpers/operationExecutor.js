@@ -807,7 +807,13 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     // This makes $trigger.occurrence.fields.water.value work in stamp/onAdd operations
     // without requiring the user to configure a separate source.
     // type is explicitly seeded first so it's always present even when transaction is empty.
-    const enriched = { type: transaction?.type || "onLoad", ...transaction };
+    // Iteration keys are stripped — the iteration system was retired in favor of named
+    // filters; legacy transactions may still carry them.
+    const enriched = { type: transaction?.type || "onLoad" };
+    for (const [k, v] of Object.entries(transaction)) {
+      if (k.startsWith("iteration") || k === "_iterationTimeValue" || k === "_iterationCategoryValue") continue;
+      enriched[k] = v;
+    }
     const occId = transaction.occurrenceId;
     if (occId && occurrencesById[occId]) {
       const occ = occurrencesById[occId];
@@ -881,8 +887,6 @@ export function executePipeline(operation, context, transaction, extraVars, exte
         label: mod.label,
         kind: mod.kind,
         defaultDragMode: mod.defaultDragMode,
-        iterationTimeValue: mod.placement?.iterationTimeValue,
-        iterationCategoryValue: mod.placement?.iterationCategoryValue,
       } : {};
     } else if (entityType === "occurrence") {
       const occ = occurrencesById[entityId];
@@ -900,8 +904,6 @@ export function executePipeline(operation, context, transaction, extraVars, exte
           parentId: occ.parentId,
           fields,
           _ancestors: [],  // will be populated below
-          _iterationTimeValue: occ.iteration?.timeValue || occ.iteration?.value,
-          _iterationCategoryValue: occ.iteration?.categoryValue,
         };
         // Back-compat: flat field values (old expressions keep working)
         for (const [fid, fdata] of Object.entries(occ.fields || {})) {
