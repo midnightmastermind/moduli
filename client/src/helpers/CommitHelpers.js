@@ -151,10 +151,32 @@ export function updateOccurrence({ dispatch, socket, occurrence, emit = true, tr
   }
 }
 
-export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOverride }) {
+export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOverride, occurrencesById, modulesById }) {
   if (!id) return;
   dispatch?.(updateOccurrenceAction({ id, filterOverride }));
   safeEmit(socket, "update_occurrence", { occurrence: { id, filterOverride } });
+  // Fire NavigationOp so onFilterChange triggers configured with an
+  // ancestorLabel/ancestorId can match against the chain of the changed
+  // occurrence. The trigger is otherwise unscoped — ops without an ancestor
+  // filter still fire on every change.
+  if (occurrencesById && modulesById) {
+    const ancestorIds = [];
+    const ancestorLabels = [];
+    let cur = occurrencesById[id];
+    let depth = 0;
+    while (cur && depth++ < 20) {
+      ancestorIds.push(cur.id);
+      const label = modulesById[cur.targetId]?.label;
+      if (label) ancestorLabels.push(label);
+      cur = cur.parentId ? occurrencesById[cur.parentId] : null;
+    }
+    operationsBridge.fireOperations?.("NavigationOp", {
+      type: "NavigationOp",
+      sourceOccurrenceId: id,
+      _ancestorIds: ancestorIds,
+      _ancestorLabels: ancestorLabels,
+    });
+  }
 }
 
 export function deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, emit = true }) {

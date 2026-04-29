@@ -2033,6 +2033,41 @@ describe("shouldTrigger — onFieldChange / onFilterChange aliases", () => {
   });
 });
 
+describe("onFilterChange ancestor scoping", () => {
+  test("trigger with ancestorLabel fires when label is in transaction's ancestor chain", () => {
+    const op = makeOp({
+      triggerTypes: ["onFilterChange"],
+      triggerObjects: [{ eventType: "onFilterChange", subjectType: "filterNav", ancestorLabel: "Physical" }],
+    });
+    expect(shouldTrigger(op, "NavigationOp", { _ancestorLabels: ["Water Today", "Physical"] })).toBe(true);
+  });
+
+  test("trigger with ancestorLabel does NOT fire on grid-level (no ancestor data)", () => {
+    const op = makeOp({
+      triggerTypes: ["onFilterChange"],
+      triggerObjects: [{ eventType: "onFilterChange", subjectType: "filterNav", ancestorLabel: "Physical" }],
+    });
+    expect(shouldTrigger(op, "NavigationOp", { activeFilterValues: { date: "2026-04-29" } })).toBe(false);
+  });
+
+  test("trigger with ancestorId fires when id is in ancestor chain", () => {
+    const op = makeOp({
+      triggerTypes: ["onFilterChange"],
+      triggerObjects: [{ eventType: "onFilterChange", subjectType: "filterNav", ancestorId: "occ-physical" }],
+    });
+    expect(shouldTrigger(op, "NavigationOp", { _ancestorIds: ["occ-water", "occ-physical", "occ-grid"] })).toBe(true);
+  });
+
+  test("trigger without ancestor scoping fires on every NavigationOp", () => {
+    const op = makeOp({
+      triggerTypes: ["onFilterChange"],
+      triggerObjects: [{ eventType: "onFilterChange", subjectType: "filterNav" }],
+    });
+    expect(shouldTrigger(op, "NavigationOp")).toBe(true);
+    expect(shouldTrigger(op, "NavigationOp", { _ancestorLabels: ["Anything"] })).toBe(true);
+  });
+});
+
 describe("effectiveFilterFor", () => {
   test("walks ancestor chain and merges filterOverrides (closer wins)", () => {
     const occurrencesById = {

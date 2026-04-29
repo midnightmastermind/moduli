@@ -210,10 +210,29 @@ function matchesTrigger(t, operation, transactionType, transaction) {
   }
 
   for (const to of forThisEvent) {
-    if (matchSubjectFilter(to, t, transaction)) {
-      return { matched: true, triggerObject: to };
-    }
+    if (!matchSubjectFilter(to, t, transaction)) continue;
+    if (!matchAncestorScope(to, t, transaction)) continue;
+    return { matched: true, triggerObject: to };
   }
+  return false;
+}
+
+/**
+ * Optional ancestor scoping for onFilterChange / onNavigation triggers.
+ * When ancestorId or ancestorLabel is set on the trigger object, only fire
+ * when the changed-filter source occurrence is the chosen ancestor or one of
+ * its own ancestors. Grid-level filter changes carry no ancestor data and
+ * are treated as out-of-scope.
+ */
+function matchAncestorScope(to, eventType, transaction) {
+  if (eventType !== "onFilterChange" && eventType !== "onNavigation") return true;
+  const { ancestorId, ancestorLabel } = to || {};
+  if (!ancestorId && !ancestorLabel) return true;
+  const ids = transaction?._ancestorIds || [];
+  const labels = transaction?._ancestorLabels || [];
+  if (ids.length === 0 && labels.length === 0) return false;
+  if (ancestorId && ids.includes(ancestorId)) return true;
+  if (ancestorLabel && labels.includes(ancestorLabel)) return true;
   return false;
 }
 

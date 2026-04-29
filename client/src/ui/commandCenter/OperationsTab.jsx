@@ -563,6 +563,27 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                     POST: {`${window.location.origin}/api/webhooks/${local.id}`}
                   </div>
                 )}
+                {/* Ancestor scoping for onFilterChange (B16) — fire only when an */}
+                {/* ancestor of the changed occurrence matches by id or label.    */}
+                {eventType === "onFilterChange" && (
+                  <div style={{ width: "100%", display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center", marginTop: 2, paddingTop: 4, borderTop: "1px dashed var(--accent-blue-border)" }}>
+                    <span style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: "monospace" }}>only fire when an ancestor matches:</span>
+                    <span style={{ fontSize: 9, color: "var(--text-faint)" }}>id</span>
+                    <input
+                      value={trigObj.ancestorId || ""}
+                      onChange={e => updateTriggerObject(idx, { ancestorId: e.target.value || undefined })}
+                      placeholder="(any)"
+                      style={{ ...inputStyle, width: 130, fontSize: 10 }}
+                    />
+                    <span style={{ fontSize: 9, color: "var(--text-faint)" }}>or label</span>
+                    <input
+                      value={trigObj.ancestorLabel || ""}
+                      onChange={e => updateTriggerObject(idx, { ancestorLabel: e.target.value || undefined })}
+                      placeholder='e.g. "Physical"'
+                      style={{ ...inputStyle, width: 130, fontSize: 10 }}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
