@@ -449,14 +449,11 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
       {/* SOURCES — collapsible */}
       <div style={pipelineStageStyle}>
         <div style={pipelineHeaderStyle} onClick={() => setShowSources(!showSources)}>
-          <span>📥 Sources <span style={{ fontSize: 9, opacity: 0.5 }}>({sources.length}) — name pieces of the trigger / entities so steps can use them</span></span>
+          <span>📥 Inputs (bind variables) <span style={{ fontSize: 9, opacity: 0.5 }}>({sources.length})</span></span>
           <span style={{ fontSize: 9, opacity: 0.5 }}>{showSources ? "▲" : "▼"}</span>
         </div>
         {showSources && (
           <div style={pipelineBodyStyle}>
-            <div style={{ fontSize: 9, color: "var(--text-muted)", lineHeight: 1.5, padding: "2px 4px", background: "var(--input-bg)", borderRadius: 3, border: "1px solid var(--border-subtle)" }}>
-              Pipelines don't see <code style={{ background: "var(--border-subtle)", padding: "0 3px", borderRadius: 2 }}>$trigger.*</code> directly — bind the trigger props you need into named <code style={{ background: "var(--border-subtle)", padding: "0 3px", borderRadius: 2 }}>$vars</code> here, then reference them by name in steps.
-            </div>
             {sources.length === 0 && (
               <span style={{ fontSize: 10, color: "var(--text-faint)", fontStyle: "italic" }}>No sources yet — add one to capture a trigger property or entity into a named variable.</span>
             )}
@@ -1088,61 +1085,19 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
 
   switch (actionType) {
     // ---- Variable operations ----
-    case "INIT_VAR": {
-      const hasArrayOf = Array.isArray(cfg.arrayOf);
+    case "INIT_VAR":
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={rowStyle}>
-            {fl("$")} {varNameInput("name")} {fl("=")}
-            {hasArrayOf ? (
-              <span style={{ fontSize: 10, color: "var(--text-muted)", fontStyle: "italic" }}>
-                a list of {cfg.arrayOf.length} item{cfg.arrayOf.length === 1 ? "" : "s"} (edit JSON below)
-              </span>
-            ) : (
-              <>
-                <ExprOrPath value={cfg.expr ?? String(cfg.value ?? "")} onChange={v => setCfg({ expr: v, value: undefined })} placeholder="5   or   $item.label   or   false" width={150} {...exprProps} />
-                <span style={{ fontSize: 9, color: "var(--text-faint)", fontStyle: "italic" }}>any value: number, string, true/false, or another variable</span>
-                <button
-                  type="button"
-                  onClick={() => setCfg({ arrayOf: [], expr: undefined, value: undefined })}
-                  style={{ fontSize: 10, padding: "1px 6px", border: "1px solid var(--border)", borderRadius: 3, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}
-                  title="Make this a list of items (edit as JSON). Useful for things like a preset list of {moduleLabel, slotLabel} entries."
-                >
-                  Use list instead
-                </button>
-              </>
-            )}
-          </div>
-          {hasArrayOf && (
-            <div style={{ paddingLeft: 12, display: "flex", flexDirection: "column", gap: 4 }}>
-              <div style={{ fontSize: 9, color: "var(--text-faint)", fontStyle: "italic" }}>
-                JSON array — each item becomes one iteration when you LOOP over <code style={{ background: "var(--border-subtle)", padding: "0 3px", borderRadius: 2 }}>${cfg.name?.replace(/^\$/, "") || "name"}</code>.
-              </div>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-                <textarea
-                  value={JSON.stringify(cfg.arrayOf, null, 2)}
-                  onChange={e => {
-                    try {
-                      const parsed = JSON.parse(e.target.value);
-                      if (Array.isArray(parsed)) setCfg({ arrayOf: parsed });
-                    } catch { /* ignore until valid JSON */ }
-                  }}
-                  style={{ ...inputSt, flex: 1, minWidth: 280, fontFamily: "monospace", height: 120 }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setCfg({ arrayOf: undefined })}
-                  style={{ fontSize: 10, padding: "1px 6px", border: "1px solid var(--border)", borderRadius: 3, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}
-                  title="Switch back to a single value"
-                >
-                  Single value
-                </button>
-              </div>
-            </div>
-          )}
+        <div style={rowStyle}>
+          {fl("$")} {varNameInput("name")} {fl("=")}
+          <ExprOrPath
+            value={cfg.expr ?? (Array.isArray(cfg.arrayOf) ? `json:${JSON.stringify(cfg.arrayOf)}` : String(cfg.value ?? ""))}
+            onChange={v => setCfg({ expr: v, value: undefined, arrayOf: undefined })}
+            placeholder="5   or   $item.label   or   false   (use array mode for lists)"
+            width={150}
+            {...exprProps}
+          />
         </div>
       );
-    }
 
     case "SET_VAR":
       return (
@@ -1227,16 +1182,6 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
               modulesById={modulesById}
               occurrencesById={occurrencesById}
             />
-          </div>
-          <div style={rowStyle}>
-            {fl("Date scope (optional):")}
-            <FieldPicker value={cfg.scope?.dateFieldId || ""} onChange={v => setCfg({ scope: v ? { ...(cfg.scope || {}), dateFieldId: v } : null })} fields={fields} placeholder="(none — match any date)" />
-            {cfg.scope?.dateFieldId && (
-              <>
-                <span style={{ fontSize: 10, color: "var(--text-muted)" }}>= </span>
-                <ExprOrPath value={cfg.scope.dateExpr || ""} onChange={v => setCfg({ scope: { ...cfg.scope, dateExpr: v } })} placeholder="$schedDate" width={120} {...exprProps} />
-              </>
-            )}
           </div>
           <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 4, marginTop: 2, display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ fontSize: 9, color: "var(--text-muted)", fontStyle: "italic" }}>

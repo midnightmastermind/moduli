@@ -417,10 +417,11 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // ============================================================
 
     // ---- FIND: locate items by predicate ----
-    // cfg: { predicate, scope?: { dateFieldId, dateExpr },
-    //        multiple?: false, itemVar?, itemIdVar? }
+    // cfg: { predicate, multiple?: false, itemVar?, itemIdVar? }
     // $allItems is pre-merged with template label/name/role/kind/meta in
     // operationExecutor.js, so predicates like `$item.label` resolve directly.
+    // Date filtering is now expressed inside `predicate` (e.g.
+    // `$item.fields.date.value SAME_DAY $today`) — no separate scope.
     case "FIND": {
       const itemList = Array.isArray($vars.$allItems) ? $vars.$allItems : [];
 
@@ -436,31 +437,9 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         }
       };
 
-      let candidates = itemList
+      const candidates = itemList
         .filter(it => it && !it.deleted && !it.meta?.isTemplate)
         .filter(matchItem);
-
-      // Optional date scope: items whose date field equals resolved date
-      if (cfg.scope?.dateFieldId) {
-        const targetDateStr = resolveExpr(cfg.scope.dateExpr, $vars) ?? resolveExpr("$today", $vars);
-        const toLocalDate = (val) => {
-          if (val == null || val === "") return null;
-          if (typeof val === "string" && val.length <= 10) return new Date(val + "T00:00:00");
-          const d = new Date(val);
-          return isNaN(d.getTime()) ? null : d;
-        };
-        const refDate = toLocalDate(targetDateStr);
-        if (refDate) {
-          candidates = candidates.filter(o => {
-            const fv = o.fields?.[cfg.scope.dateFieldId];
-            const v = fv?.value !== undefined ? fv.value : fv;
-            const d = toLocalDate(v);
-            return d && d.toDateString() === refDate.toDateString();
-          });
-        } else {
-          candidates = [];
-        }
-      }
 
       const result = cfg.multiple ? candidates : (candidates[0] || null);
       if (cfg.itemVar) $vars[cfg.itemVar] = result;
