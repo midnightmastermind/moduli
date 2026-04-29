@@ -544,7 +544,7 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
   // but the component requires it. Provide an empty shape.
   const emptyCtx = useMemo(() => ({ sources: [], fields: [], localVars: [], modulesById, occurrencesById, fieldsById: {} }), [modulesById, occurrencesById]);
 
-  // Effective filter target — uses the same picker style. Categories: occurrences (by id, displays label) and By Label (free text).
+  // Effective filter target — Occurrences (by id, displays label) + By Label (label match).
   const effectiveFilterConfig = useMemo(() => {
     if (!needsTargetLabel) return null;
     const allOccs = Object.values(occurrencesById || {}).filter(o => o && !o.deleted);
@@ -552,9 +552,24 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
       placeholder: "Pick target",
       categories: [
         {
+          id: "occurrences",
+          label: "Occurrences",
+          description: "Bind to a real occurrence by id — stable across renames. Picker shows the module's label.",
+          color: "rgba(34,197,94,0.7)",
+          resolveItems: () => allOccs
+            .filter(o => modulesById[o.targetId])
+            .map(o => ({
+              value: `id:${o.id}`,
+              title: modulesById[o.targetId]?.label || "(unnamed)",
+              sub: modulesById[o.targetId]?.role || "occurrence",
+              description: `id: ${o.id}`,
+              hasChildren: false,
+            })),
+        },
+        {
           id: "byLabel",
           label: "By Label",
-          description: "Match the first occurrence whose module label equals the entered string. Resolved at runtime.",
+          description: "Match the first occurrence whose module label equals the chosen string. Useful when the id isn't stable.",
           color: "rgba(251,191,36,0.7)",
           resolveItems: () => allOccs
             .map(o => modulesById[o.targetId]?.label)
@@ -571,6 +586,18 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
       ],
     };
   }, [needsTargetLabel, occurrencesById, modulesById]);
+
+  const effectiveFilterValue = useMemo(() => {
+    if (src.targetId) return `id:${src.targetId}`;
+    if (src.targetLabel) return `label:${src.targetLabel}`;
+    return "";
+  }, [src.targetId, src.targetLabel]);
+
+  const handleEffectiveFilterChange = (next) => {
+    if (next.startsWith("id:")) onUpdate({ targetId: next.slice(3), targetLabel: undefined });
+    else if (next.startsWith("label:")) onUpdate({ targetLabel: next.slice(6), targetId: undefined });
+    else onUpdate({ targetId: undefined, targetLabel: undefined });
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -605,11 +632,11 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
         )}
         {needsTargetLabel && (
           <CategoryPathPicker
-            value={src.targetLabel ? `label:${src.targetLabel}` : ""}
+            value={effectiveFilterValue}
             ctx={emptyCtx}
             config={effectiveFilterConfig}
             mode="entity"
-            onChange={(next) => onUpdate({ targetLabel: next.startsWith("label:") ? next.slice(6) : next })}
+            onChange={handleEffectiveFilterChange}
           />
         )}
         {src.entityType === "trigger" && (

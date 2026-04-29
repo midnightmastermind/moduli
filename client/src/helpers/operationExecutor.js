@@ -30,6 +30,35 @@ const RUN_HISTORY_LIMIT = 20;            // newest first; oldest evicted past ca
 const runHistory = new Map();            // Map<opId, RunLog[]>
 const logSubscribers = new Map();        // Map<opId, Set<fn>>
 
+// Walk an occurrence's ancestor chain and return the merged effective filter
+// values. Closer ancestors win over distant ones; grid.activeFilterValues acts
+// as the floor. Public so callers outside the executor (tests, panels) can
+// share the same resolution.
+export function effectiveFilterFor(occurrenceId, { occurrencesById = {}, gridFilters = null } = {}) {
+  const occ = occurrencesById[occurrenceId];
+  if (!occ) return {};
+  const merged = { ...(gridFilters || {}) };
+  const seen = new Set();
+  let cur = occ;
+  let depth = 0;
+  const chain = [];
+  while (cur && !seen.has(cur.id) && depth++ < 20) {
+    seen.add(cur.id);
+    chain.push(cur);
+    cur = cur.parentId ? occurrencesById[cur.parentId] : null;
+  }
+  for (let i = chain.length - 1; i >= 0; i--) {
+    const override = chain[i].filterOverride;
+    if (override == null) continue;
+    if (Object.keys(override).length === 0) {
+      for (const k of Object.keys(merged)) delete merged[k];
+      continue;
+    }
+    Object.assign(merged, override);
+  }
+  return merged;
+}
+
 export function getOpRunHistory(opId) {
   return runHistory.get(opId) || [];
 }
@@ -957,13 +986,19 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     } else if (entityType === "parentFilter") {
       $vars[varKey] = $vars["$parentFilter"];
     } else if (entityType === "effectiveFilter") {
-      // Walk ancestor chain from a chosen container/page label and return the
-      // merged effective filter map. Lets ops read e.g. the "Physical" container's
-      // active date without depending on the trigger occurrence's parent chain.
+      // Walk ancestor chain from a chosen occurrence (by id or by label) and
+      // return the merged effective filter map. Binding by id is preferred
+      // (stable across renames); label-based binding is offered for ops that
+      // genuinely want a label match.
+      const targetId = source.targetId;
       const targetLabel = source.targetLabel;
-      const target = targetLabel
-        ? allItems.find(i => i.label === targetLabel)
-        : null;
+      let target = null;
+      if (targetId && occurrencesById[targetId]) {
+        target = allItems.find(i => i.id === targetId) || null;
+      }
+      if (!target && targetLabel) {
+        target = allItems.find(i => i.label === targetLabel) || null;
+      }
       $vars[varKey] = target?._effectiveFilter || {};
     } else {
       // instance / container — aggregate field values across occurrences targeting this entity

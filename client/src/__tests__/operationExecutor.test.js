@@ -16,6 +16,7 @@ import {
   executeOperation,
   executePipeline,
   runMatchingOperations,
+  effectiveFilterFor,
 } from "../helpers/operationExecutor";
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -2029,5 +2030,50 @@ describe("shouldTrigger — onFieldChange / onFilterChange aliases", () => {
     expect(shouldTrigger(op, "MeasureOp", { fieldId: "x" })).toBe(true);
     expect(shouldTrigger(op, "NavigationOp")).toBe(true);
     expect(shouldTrigger(op, "OccurrenceListOp")).toBe(false);
+  });
+});
+
+describe("effectiveFilterFor", () => {
+  test("walks ancestor chain and merges filterOverrides (closer wins)", () => {
+    const occurrencesById = {
+      a: { id: "a", parentId: "b", filterOverride: { date: "2026-04-29" } },
+      b: { id: "b", parentId: "c", filterOverride: { context: "work" } },
+      c: { id: "c", parentId: null, filterOverride: { area: "physical" } },
+    };
+    expect(effectiveFilterFor("a", { occurrencesById })).toEqual({
+      date: "2026-04-29",
+      context: "work",
+      area: "physical",
+    });
+  });
+
+  test("closer ancestor overrides distant one for the same key", () => {
+    const occurrencesById = {
+      a: { id: "a", parentId: "b", filterOverride: { date: "2026-04-29" } },
+      b: { id: "b", parentId: null, filterOverride: { date: "2026-01-01" } },
+    };
+    expect(effectiveFilterFor("a", { occurrencesById })).toEqual({ date: "2026-04-29" });
+  });
+
+  test("uses gridFilters as the floor when ancestors don't override a key", () => {
+    const occurrencesById = {
+      a: { id: "a", parentId: null, filterOverride: { context: "work" } },
+    };
+    expect(effectiveFilterFor("a", {
+      occurrencesById,
+      gridFilters: { date: "2026-04-29", context: "personal" },
+    })).toEqual({ date: "2026-04-29", context: "work" });
+  });
+
+  test("returns empty for unknown id", () => {
+    expect(effectiveFilterFor("missing", { occurrencesById: {} })).toEqual({});
+  });
+
+  test("empty filterOverride object clears merged filters", () => {
+    const occurrencesById = {
+      a: { id: "a", parentId: "b", filterOverride: {} },
+      b: { id: "b", parentId: null, filterOverride: { date: "2026-04-29" } },
+    };
+    expect(effectiveFilterFor("a", { occurrencesById })).toEqual({});
   });
 });
