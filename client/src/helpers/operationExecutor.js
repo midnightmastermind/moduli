@@ -981,14 +981,13 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   const contextWithExecutors = { ...context, _executors: { executePipeline, executeOperation }, _extraVars: extraVars, _parentByChildId: parentByChildId };
 
   // Log a snapshot of the resolved source vars (skip internals starting with _).
+  // Pass raw values through — the renderer (OperationLogPanel.JsonNode) makes
+  // every array/object expandable, so coercing to "[Array(N)]" strings here
+  // would defeat that.
   const sourceSummary = {};
   for (const [k, v] of Object.entries($vars)) {
     if (k.startsWith("_")) continue;
-    if (k.startsWith("$all") || k === "$grid") {
-      sourceSummary[k] = Array.isArray(v) ? `[Array(${v.length})]` : "[Object]";
-    } else {
-      sourceSummary[k] = v;
-    }
+    sourceSummary[k] = v;
   }
   logger.add("sources", { vars: sourceSummary });
 
