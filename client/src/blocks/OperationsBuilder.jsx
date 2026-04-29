@@ -15,7 +15,7 @@ import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-d
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { GripVertical } from "lucide-react";
 import { arrayMove } from "../helpers/LayoutHelpers";
-import SelectDrilldown, { buildPathConfig, chainToPathString, pathStringToChain } from "../ui/SelectDrilldown";
+import CategoryPathPicker from "../ui/CategoryPathPicker";
 import ConditionGroup from "./ConditionGroup";
 
 /**
@@ -796,9 +796,9 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
     : (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
   const [mode, setMode] = useState(initialMode);
 
-  const pathConfig = useMemo(
-    () => buildPathConfig({ sources, fields, inLoop, fieldsById, modulesById, occurrencesById, localVars }),
-    [sources, fields, inLoop, fieldsById, modulesById, occurrencesById, localVars],
+  const pickerCtx = useMemo(
+    () => ({ sources, fields, fieldsById, modulesById, occurrencesById, localVars }),
+    [sources, fields, fieldsById, modulesById, occurrencesById, localVars],
   );
 
   const switchMode = (next) => {
@@ -825,10 +825,10 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
         <option value="array">array</option>
       </select>
       {mode === "path" && (
-        <SelectDrilldown
-          config={pathConfig}
-          value={typeof value === "string" && value ? [pathStringToChain(value)] : []}
-          onChange={chains => onChange(chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "")}
+        <CategoryPathPicker
+          value={typeof value === "string" ? value : ""}
+          ctx={pickerCtx}
+          onChange={onChange}
         />
       )}
       {mode === "text" && (

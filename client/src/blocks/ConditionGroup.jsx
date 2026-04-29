@@ -1,7 +1,7 @@
 // blocks/ConditionGroup.jsx
 // Recursive condition builder supporting nested AND/OR groups.
 import React, { useMemo } from "react";
-import SelectDrilldown, { buildPathConfig, chainToPathString, pathStringToChain } from "../ui/SelectDrilldown";
+import CategoryPathPicker from "../ui/CategoryPathPicker";
 
 const COMPARATORS = [
   "IS", "IS_NOT", "GREATER", "LESS", "GREATER_OR_EQUAL", "LESS_OR_EQUAL",
@@ -66,7 +66,10 @@ export default function ConditionGroup({ group, onChange, sources, fields, field
   const addRule = () => onChange({ ...group, rules: [...rules, { left: "", comparator: "IS", right: "" }] });
   const addGroup = () => onChange({ ...group, rules: [...rules, { operator: "AND", rules: [] }] });
 
-  const pathConfig = buildPathConfig({ sources, fields, inLoop: true, fieldsById, modulesById, occurrencesById });
+  const pickerCtx = useMemo(
+    () => ({ sources, fields, fieldsById, modulesById, occurrencesById, localVars: [] }),
+    [sources, fields, fieldsById, modulesById, occurrencesById],
+  );
 
   return (
     <div style={{
@@ -94,12 +97,7 @@ export default function ConditionGroup({ group, onChange, sources, fields, field
               rule={entry}
               onChange={(next) => setRule(i, next)}
               onRemove={() => removeRule(i)}
-              pathConfig={pathConfig}
-              sources={sources}
-              fields={fields}
-              fieldsById={fieldsById}
-              modulesById={modulesById}
-              occurrencesById={occurrencesById}
+              pickerCtx={pickerCtx}
             />
           )}
         </div>
@@ -108,11 +106,7 @@ export default function ConditionGroup({ group, onChange, sources, fields, field
   );
 }
 
-function RuleRow({ rule, onChange, onRemove, pathConfig, sources, fields, fieldsById, modulesById, occurrencesById }) {
-  const rightConfig = useMemo(
-    () => buildPathConfig({ sources, fields, inLoop: true, fieldsById, modulesById, occurrencesById }),
-    [sources, fields, fieldsById, modulesById, occurrencesById],
-  );
+function RuleRow({ rule, onChange, onRemove, pickerCtx }) {
   const noRight = NO_RIGHT_COMPARATORS.has(rule.comparator);
   const v = (rule.right ?? "").toString().trim();
   const initialMode = (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
@@ -120,10 +114,10 @@ function RuleRow({ rule, onChange, onRemove, pathConfig, sources, fields, fields
   const toggleRightMode = () => setRightMode(m => (m === "path" ? "text" : "path"));
   return (
     <div style={rowStyle}>
-      <SelectDrilldown
-        config={pathConfig}
-        value={rule.left ? [pathStringToChain(rule.left)] : []}
-        onChange={chains => onChange({ ...rule, left: chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "" })}
+      <CategoryPathPicker
+        value={typeof rule.left === "string" ? rule.left : ""}
+        ctx={pickerCtx}
+        onChange={(next) => onChange({ ...rule, left: next })}
       />
       <select value={rule.comparator} onChange={(e) => onChange({ ...rule, comparator: e.target.value })} style={selectSt}>
         {COMPARATORS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -138,10 +132,10 @@ function RuleRow({ rule, onChange, onRemove, pathConfig, sources, fields, fields
             {rightMode === "path" ? "path" : "text"}
           </button>
           {rightMode === "path" ? (
-            <SelectDrilldown
-              config={rightConfig}
-              value={rule.right ? [pathStringToChain(String(rule.right))] : []}
-              onChange={chains => onChange({ ...rule, right: chains.length > 0 ? chainToPathString(chains[chains.length - 1]) : "" })}
+            <CategoryPathPicker
+              value={typeof rule.right === "string" ? rule.right : ""}
+              ctx={pickerCtx}
+              onChange={(next) => onChange({ ...rule, right: next })}
             />
           ) : (
             <input
