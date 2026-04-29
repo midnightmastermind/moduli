@@ -346,6 +346,13 @@ const ENTITY_TYPES = [
   { value: "grid", label: "Grid (whole grid)", hint: "$var.gridId, $var.activeFilterId, $var.activeFilterValues, $var.namedFilters" },
   { value: "localField", label: "Local Field (node input)", hint: "$varName = value typed on the operation node — transient, not from DB" },
   { value: "trigger", label: "Trigger Event", hint: "Pulls a single property off the firing trigger into a named $var. Pick a property below." },
+  { value: "allOccurrences", label: "All occurrences", hint: "$var = every occurrence on the grid (array)" },
+  { value: "allContainers",  label: "All containers",  hint: "$var = every container occurrence (array)" },
+  { value: "allPages",       label: "All pages",       hint: "$var = every page-role panel occurrence (array)" },
+  { value: "allInstances",   label: "All instances",   hint: "$var = every leaf instance occurrence (array)" },
+  { value: "allTemplates",   label: "All templates",   hint: "$var = every module template (array)" },
+  { value: "parentFilter",   label: "Parent filter",   hint: "$var = filter walked from trigger occurrence ancestors" },
+  { value: "effectiveFilter", label: "Effective filter (for ancestor)", hint: "$var = effective filter walked from a chosen container/page" },
 ];
 
 // ---- Shared styles ----
@@ -504,9 +511,10 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
     return [];
   }, [src.entityType, instanceModules, containerModules, panelModules]);
 
-  const needsPicker = !["grid", "occurrence", "field", "localField", "trigger"].includes(src.entityType);
+  const needsPicker = ["instance", "container", "panel"].includes(src.entityType);
   const needsOccId = src.entityType === "occurrence";
   const needsFieldId = src.entityType === "field" || src.entityType === "localField";
+  const needsTargetLabel = src.entityType === "effectiveFilter";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -537,6 +545,14 @@ function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules,
               <option key={f.id} value={f.id}>{f.name}</option>
             ))}
           </select>
+        )}
+        {needsTargetLabel && (
+          <input
+            value={src.targetLabel || ""}
+            onChange={e => onUpdate({ targetLabel: e.target.value })}
+            placeholder='target label e.g. "Physical"'
+            style={{ ...inputSt, width: 160 }}
+          />
         )}
         {src.entityType === "trigger" && (
           <select

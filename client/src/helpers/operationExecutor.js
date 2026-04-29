@@ -942,6 +942,27 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     } else if (entityType === "trigger" && triggerProp) {
       // trigger — maps a named property from $trigger into a pipeline var
       $vars[varKey] = $vars["$trigger"]?.[triggerProp] ?? null;
+    } else if (entityType === "allOccurrences") {
+      $vars[varKey] = allItems;
+    } else if (entityType === "allContainers") {
+      $vars[varKey] = allItems.filter(i => i.role === "container");
+    } else if (entityType === "allPages") {
+      $vars[varKey] = allItems.filter(i => i.role === "panel");
+    } else if (entityType === "allInstances") {
+      $vars[varKey] = allItems.filter(i => i.role === "instance");
+    } else if (entityType === "allTemplates") {
+      $vars[varKey] = allTemplates;
+    } else if (entityType === "parentFilter") {
+      $vars[varKey] = $vars["$parentFilter"];
+    } else if (entityType === "effectiveFilter") {
+      // Walk ancestor chain from a chosen container/page label and return the
+      // merged effective filter map. Lets ops read e.g. the "Physical" container's
+      // active date without depending on the trigger occurrence's parent chain.
+      const targetLabel = source.targetLabel;
+      const target = targetLabel
+        ? allItems.find(i => i.label === targetLabel)
+        : null;
+      $vars[varKey] = target?._effectiveFilter || {};
     } else {
       // instance / container — aggregate field values across occurrences targeting this entity
       const occs = Object.values(occurrencesById).filter(o => o.targetId === entityId);

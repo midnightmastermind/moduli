@@ -37,17 +37,25 @@ export function buildPathConfig({ sources = [], fields = [], inLoop = false, fie
 
   const occShape = { id: null, targetId: null, parentId: null, _ancestors: null, fields: fieldsShape, meta: {}, label: null, templateId: null };
 
+  // Built-in shapes only include scalars and $grid. Collection vars
+  // ($allItems, $allTemplates, $parentFilter) are no longer auto-exposed —
+  // a Source row must bind them so the user explicitly picks what shows up
+  // in the path picker (matches the new CategoryPathPicker gating).
   const shapeByVar = {
     $now: null, $today: null, $activeDate: null, $activeDateLabel: null, $activeDayOfWeek: null,
-    $allItems: [occShape],
-    $allTemplates: [{ id: null, name: null, label: null, role: null, kind: null, meta: {} }],
-    // $parentFilter: effective filter map walked up the trigger occurrence's parent chain.
-    // Field-id keys hold each filter's resolved value; `.date` is a convenience accessor
-    // returning the first YYYY-MM-DD value in the merged map. Drillable like a plain object.
-    $parentFilter: { date: null },
   };
   for (const src of sources) {
-    if (src.variableName) shapeByVar[`$${src.variableName}`] = occShape;
+    if (!src.variableName) continue;
+    const k = `$${src.variableName}`;
+    if (src.entityType === "allOccurrences" || src.entityType === "allContainers" || src.entityType === "allPages" || src.entityType === "allInstances") {
+      shapeByVar[k] = [occShape];
+    } else if (src.entityType === "allTemplates") {
+      shapeByVar[k] = [{ id: null, name: null, label: null, role: null, kind: null, meta: {} }];
+    } else if (src.entityType === "parentFilter" || src.entityType === "effectiveFilter") {
+      shapeByVar[k] = { date: null };
+    } else {
+      shapeByVar[k] = occShape;
+    }
   }
   if (inLoop) shapeByVar.$item = occShape;
   // Local vars declared by INIT_VAR / SET_VAR / loop.as. Without this, paths
