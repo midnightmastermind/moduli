@@ -746,15 +746,16 @@ function DraggableStepWrapper({ step, depth, steps, onReorder, children }) {
         const fromIdx = steps.findIndex(s => s.id === sourceId);
         const toIdx = steps.findIndex(s => s.id === step.id);
 
-        if (fromIdx === -1 || toIdx === -1) return;
+        if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
 
-        let insertAt =
-          extractClosestEdge(self.data) === "top"
-            ? toIdx
-            : toIdx + 1;
+        const edge = extractClosestEdge(self.data);
+        if (edge !== "top" && edge !== "bottom") return;
 
+        let insertAt = edge === "top" ? toIdx : toIdx + 1;
         if (fromIdx < toIdx) insertAt--;
+        insertAt = Math.max(0, Math.min(insertAt, steps.length - 1));
 
+        if (insertAt === fromIdx) return;
         onReorder(arrayMove(steps, fromIdx, insertAt));
       },
     });
