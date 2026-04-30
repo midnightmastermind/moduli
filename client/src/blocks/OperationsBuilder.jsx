@@ -865,11 +865,11 @@ function StepsList({ steps, onChange, fields, varOptions, localVars = [], module
 //          model refs (occ:$id.fieldId.value, field:id.value), or any other expression string.
 function ExprInput({ value, onChange, placeholder, width = 120, title }) {
   const hint = [
-    "Literals: 5   true   \"text\"",
+    "Literals: 5   true   \"text\"   literal:42",
+    "Arrays: json:[1,2,3]   json:[{\"a\":1}]",
     "Variables: $myVar   $item.label   $item.calories",
-    "Built-in arrays: $allItems   $allTemplates   $allFields",
-    "Built-ins: $today   $now   $activeDate   $grid",
-    "Trigger: $trigger.itemId   $trigger.value   $trigger.date",
+    "Built-ins: $today   $now   $activeDate   $activeDateLabel   $activeDayOfWeek   $grid",
+    "Need a collection or trigger prop? Add a Source row to bind it as $var.",
     "Occurrence field: occ:$item.id.fieldId.value",
     "Field (first match): field:fieldId.value",
   ].join("\n");
