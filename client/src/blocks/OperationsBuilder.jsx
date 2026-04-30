@@ -967,7 +967,7 @@ function LoopStep({ step, onUpdate, onRemove, fields, varOptions, localVars = []
     <div style={{ ...ifStepSt, borderLeftColor: "rgba(167,139,250,0.4)" }}>
       {/* Header row */}
       <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10, color: "rgba(167,139,250,0.8)", fontFamily: "monospace", minWidth: 28 }}>loop</span>
+        <span style={{ fontSize: 10, color: "rgba(167,139,250,0.8)", fontFamily: "monospace", minWidth: 28 }}>for each</span>
         <ExprOrPath
           value={step.overExpr || ""}
           onChange={v => onUpdate({ overExpr: v })}
@@ -1009,12 +1009,12 @@ function ActionStep({ step, onUpdate, onRemove, fields, varOptions, localVars = 
   return (
     <div style={actionStepSt}>
       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-        <span style={{ fontSize: 9, color: "rgba(99,202,183,0.6)", fontFamily: "monospace", minWidth: 38 }}>action</span>
+        <span style={{ fontSize: 9, color: "rgba(99,202,183,0.6)", fontFamily: "monospace", minWidth: 38 }}>do</span>
         <select value={actionType} onChange={e => onUpdate({ config: { type: e.target.value } })} style={selectSt}>
-          <optgroup label="— Variables —">
+          <optgroup label="— Set variables —">
             {VAR_ACTION_TYPES.map(at => <option key={at.value} value={at.value}>{at.label}</option>)}
           </optgroup>
-          <optgroup label="— System —">
+          <optgroup label="— Run / Find / Update —">
             {SYSTEM_ACTION_TYPES.map(at => <option key={at.value} value={at.value}>{at.label}</option>)}
           </optgroup>
         </select>
