@@ -492,16 +492,37 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
       const instanceId = globalThis.crypto?.randomUUID?.() ?? String(Date.now() + 1);
 
-      // Initial fields: optional date stamp + cfg.fields map
+      // Initial fields: optional date stamp + cfg.fields map. Date-typed
+      // writes are validated — if a resolveExpr leak produces a literal
+      // string like "date" (the field name), the executor falls back to
+      // $today instead of stamping the literal value (B20).
+      const isDateValue = (v) => {
+        if (v == null) return false;
+        if (v instanceof Date) return !isNaN(v.getTime());
+        if (typeof v !== "string") return false;
+        if (!/^\d{4}-\d{2}-\d{2}/.test(v)) return false;
+        return !isNaN(new Date(v).getTime());
+      };
       const fields = {};
       if (cfg.date?.fieldId) {
-        const dateVal = resolveExpr(cfg.date.value, $vars) ?? resolveExpr("$today", $vars);
+        let dateVal = resolveExpr(cfg.date.value, $vars);
+        if (!isDateValue(dateVal)) dateVal = resolveExpr("$today", $vars);
         if (dateVal) fields[cfg.date.fieldId] = { value: dateVal, flow: "in" };
       }
       if (cfg.fields) {
         for (const [fid, expr] of Object.entries(cfg.fields)) {
           const v = resolveExpr(expr, $vars);
-          if (v != null) fields[fid] = { value: v, flow: "in" };
+          if (v == null) continue;
+          const ftype = fieldsById?.[fid]?.type;
+          if (ftype === "date" && !isDateValue(v)) {
+            // Literal-string leak (e.g. resolveExpr returned "date" because
+            // the user typed the field name as a value). Fall back to $today
+            // rather than write a non-date string into a date field.
+            const fallback = resolveExpr("$today", $vars);
+            if (fallback) fields[fid] = { value: fallback, flow: "in" };
+            continue;
+          }
+          fields[fid] = { value: v, flow: "in" };
         }
       }
 
