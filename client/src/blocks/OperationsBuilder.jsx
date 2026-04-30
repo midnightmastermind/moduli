@@ -319,20 +319,6 @@ const SYSTEM_ACTION_TYPES = [
   { value: "REMOVE_FROM_POOL", label: "Remove from pool", hint: "Delete pool occurrence by module ID. cfg: poolContainerId, moduleIdExpr (default: $trigger.instanceId)" },
 ];
 
-const ALL_ACTION_TYPES = [...VAR_ACTION_TYPES, ...SYSTEM_ACTION_TYPES];
-
-// Property paths available per model type — shown as hints in ExprInput
-const MODEL_PROPS = {
-  occurrence: ["id", "targetId", "parentId", "fields.{fieldId}.value", "fields.{fieldId}.flow", "filterOverride", "textmap"],
-  module: ["id", "label", "role", "kind", "ownStyle.background", "ownStyle.color", "fieldBindings"],
-  field: ["id", "name", "type", "unit", "inputEnabled", "displayEnabled"],
-  grid: ["id", "activeFilterId", "activeFilterValues", "namedFilters"],
-  folder: ["id", "name", "parentId", "kind"],
-};
-
-// Built-in array variables always available in $vars
-const BUILTIN_ARRAYS = ["$allItems", "$allTemplates", "$allFields"];
-
 const AGGREGATION_TYPES = [
   "sum", "count", "countTrue", "avg", "min", "max", "last", "first", "median", "mode", "unique", "concat", "range", "stdDev", "product",
 ];

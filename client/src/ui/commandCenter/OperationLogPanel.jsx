@@ -347,16 +347,6 @@ function ActionBody({ actionType, cfg = {}, resolvedConfig, resolvedPredicate, r
     rows.push(<ParamRow key="where" label="where">
       <GroupRows group={predicate} maps={maps} />
     </ParamRow>);
-    if (cfg.scope?.dateFieldId) {
-      rows.push(<ParamRow key="scope" label="scope">
-        <span style={{ fontSize: 10 }}>
-          date field <NameRef id={cfg.scope.dateFieldId} maps={maps} /> = <code style={codeSt}>{cfg.scope.dateExpr}</code>
-          {resolvedConfig?.scope?.dateExpr && cfg.scope.dateExpr !== resolvedConfig.scope.dateExpr && (
-            <> → {inlineLiteral(resolvedConfig.scope.dateExpr, maps)}</>
-          )}
-        </span>
-      </ParamRow>);
-    }
     if (cfg.itemIdVar) rows.push(<ParamRow key="iidv" label="result id →">{<code style={codeSt}>{cfg.itemIdVar}</code>}</ParamRow>);
     if (cfg.itemVar)   rows.push(<ParamRow key="iv" label="result item →">{<code style={codeSt}>{cfg.itemVar}</code>}</ParamRow>);
     // Show actual result
