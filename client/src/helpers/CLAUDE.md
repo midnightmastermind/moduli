@@ -1,6 +1,16 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-04-25. Check this file before re-reading source._
+_Updated: 2026-04-30. Check this file before re-reading source._
+
+## Recent Changes (Apr 30 2026 — Operations editor overhaul)
+- **operationExecutor.js**: Exported `effectiveFilterFor(occurrenceId, { occurrencesById, gridFilters })` — walks ancestor chain, merges `filterOverride` maps with closer ancestors winning; `gridFilters` acts as the floor; empty override clears merged keys per the existing `getEffectiveFilterForOccurrence` semantics. 5 unit tests cover the merge, override, floor, missing-id, and clear paths.
+- **operationExecutor.js (source resolution)**: New entityType branches for `allOccurrences` / `allContainers` / `allPages` / `allInstances` / `allTemplates` (slices of `allItems` / `allTemplates`), `parentFilter` (alias of pre-built `$parentFilter`), and `effectiveFilter` (binds by `targetId` first, falls back to `targetLabel`). (B5, B6, B15)
+- **operationExecutor.js (`$trigger`)**: The enrichment loop now filters out any key starting with `iteration` and `_iterationTimeValue` / `_iterationCategoryValue` so legacy transactions don't pollute the trigger snapshot. The panel source no longer copies `iterationTimeValue` / `iterationCategoryValue`. The occurrence source no longer copies `_iterationTimeValue` / `_iterationCategoryValue`. (B14)
+- **operationExecutor.js (run-log source snapshot)**: Stopped coercing `$all*` / `$grid` to `[Array(N)]` / `[Object]` strings. Pass the raw values through — `OperationLogPanel.JsonNode` makes everything expandable. (B13)
+- **operationExecutor.js (`matchesTrigger`)**: New `matchAncestorScope(to, eventType, transaction)` — when an `onFilterChange` / `onNavigation` trigger has `ancestorId` or `ancestorLabel`, only matches when the changed-filter source is the chosen ancestor or one of its own ancestors. Grid-level `activeFilterValues` changes carry no ancestor data, so any ancestor-scoped trigger ignores them. 4 unit tests cover the new matching semantics. (B16)
+- **operationActions.js (`FIND`)**: Removed the `cfg.scope?.dateFieldId` branch. Date filtering belongs in the predicate rules (e.g. `$item.fields.date.value SAME_DAY $today`) — the editor no longer surfaces a separate scope row either. (B8)
+- **operationActions.js (`CREATE`)**: Date-typed field writes now validate the resolved value via `isDateValue()`. If the value isn't a `Date` or YYYY-MM-DD-prefixed parseable string, the executor falls back to `$today` rather than stamping a literal string (e.g. the field name `"date"`) into a date field. (B20)
+- **CommitHelpers.js (`updateOccurrenceFilterOverride`)**: When called with `occurrencesById` and `modulesById`, fires a `NavigationOp` with `sourceOccurrenceId` plus the source's `_ancestorIds` and `_ancestorLabels` chain — lets `matchesTrigger` ancestor scoping decide which ops to fire. Grid-level filter changes still fire a NavigationOp without ancestor data. (B16)
 
 ## Recent Changes (Apr 29 2026 — $today / nav defaults use local-tz day)
 - **operationExecutor.js (`executePipeline $vars`)**: `$today` and `$currentDate` now derive from `getFullYear / getMonth / getDate` (local tz), not `_nowDate.toISOString().slice(0, 10)` (UTC). The UTC variant rolls over to "tomorrow" anywhere west of UTC after local-evening — that was the "today is showing tomorrow" bug. New `_localDayString` helper.

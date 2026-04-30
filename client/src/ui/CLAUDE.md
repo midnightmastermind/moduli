@@ -1,6 +1,14 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-04-28. Check this file before re-reading source._
+_Updated: 2026-04-30. Check this file before re-reading source._
+
+## Recent Changes (Apr 30 2026 — Operations editor overhaul)
+- **CategoryPathPicker.jsx (NEW)**: Config-driven, category-first path / entity picker. Closed: fluffed-out chip chain joined with `›` (no dots) + clear button. Open: level-1 renders 5 category tiles (Sources / Occurrences / Fields / Local Variables / Built-ins) — rich rows (icon block / title / sub / description). Drill-in walks a SHAPES map; every row with `hasChildren` exposes a "Pick this" chevron (`data-testid="pick-this-{value}"`) so any level is stoppable. Accepts a `config` prop with custom categories — used by SourceRow for entity/effective-filter selection. 7 unit tests cover every interaction. (B1, B2, B3, B4, B17)
+- **categoryRegistry.js (NEW)**: Pure data layer for the picker. Five top-level categories, each with `resolveItems(ctx)` that produces rich items (title, sub, description, hasChildren). Occurrences items only render when a Source binds an `allOccurrences/allContainers/allPages/allInstances/allTemplates` entity type — no more auto-exposed `$allItems`. (B5, B6)
+- **SelectDrilldown.jsx (`buildPathConfig`)**: Removed auto-exposed `$allItems`/`$allTemplates`/`$parentFilter` from `shapeByVar`. `shapeByVar` now derives entirely from the source list (each source maps to a shape per its entityType). `localVars` still register as permissive occurrence-shaped vars. (B5, B6)
+- **QuickAddMenu.jsx**: Two-tier picker — when matching modules span more than one `kind`, level-1 shows category tiles (Lists / Documents / Boards / Artifacts / Textblocks) with the same row layout as CategoryPathPicker; click drills into the filtered list. Single-kind targets skip the category step. Categories ← back button on level 2. (B18)
+- **commandCenter/OperationsTab.jsx**: Sticky-header Save button (accent-blue) returns to operations list (live-saving stays on every edit). onFilterChange triggers gain `ancestorId` + `ancestorLabel` text inputs — visible only when eventType is onFilterChange. (B10, B16)
+- **commandCenter/OperationLogPanel.jsx**: No code changes; the inlineLiteral / JsonNode tree was already array-aware. The fix for B13 was removing the executor-side stringification (`[Array(N)]`) that was bypassing this. (B13)
 
 ## Recent Changes (Apr 29 2026 — Path picker: full path + clear button + no $trigger drilldown)
 - **SelectDrilldown.jsx**: `chipChainSt` no longer truncates — `whiteSpace: normal` + `wordBreak: break-word` + `maxWidth: 100%`. The chip-chain wraps to multiple lines if the path is long but every segment stays legible end-to-end. `resolveSegmentLabel` no longer abbreviates unresolved IDs; segments render verbatim when `labelForId` can't resolve them.

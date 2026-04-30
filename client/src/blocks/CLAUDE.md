@@ -1,6 +1,15 @@
 # client/src/blocks — Blocks CLAUDE.md
 
-_Updated: 2026-04-28. Check this file before re-reading source._
+_Updated: 2026-04-30. Check this file before re-reading source._
+
+## Recent Changes (Apr 30 2026 — Operations editor overhaul)
+- **OperationsBuilder.jsx (`ExprOrPath`)**: Path-mode renderer swapped from `SelectDrilldown` + `buildPathConfig` to `<CategoryPathPicker>` (config-driven). The mode `<select>` (path / text / array) stays. New `pickerCtx` memo bundles `{ sources, fields, fieldsById, modulesById, occurrencesById, localVars }` for the picker.
+- **OperationsBuilder.jsx (`SourceRow`)**: Module sources (instance / container / panel) now use `CategoryPathPicker` in entity mode — picks the module by id, displays the module's label. `effectiveFilter` source type renders a two-category picker (Occurrences by id / By Label) so Water/Completed-style ops can bind to a real ancestor instead of label-matching.
+- **OperationsBuilder.jsx (`ENTITY_TYPES`)**: Added `allOccurrences`, `allContainers`, `allPages`, `allInstances`, `allTemplates`, `parentFilter`, `effectiveFilter`. `needsPicker` narrowed to `instance/container/panel`.
+- **OperationsBuilder.jsx (`ActionConfig`)**: INIT_VAR collapsed — removed the "Use list instead" / "Single value" toggle and the inline JSON-array textarea. Array literals come through `ExprOrPath` array mode (`json:[…]`). FIND lost the "Date scope (optional)" row; date filtering is expressed inside `predicate`. ActionStep header reads "do"; the action-type dropdown's optgroups are "Set variables" and "Run / Find / Update". LoopStep header reads "for each".
+- **OperationsBuilder.jsx (Sources panel)**: Removed the helper paragraph "Pipelines don't see `$trigger.*`…". Header relabeled "📥 Inputs (bind variables)".
+- **OperationsBuilder.jsx (`DraggableStepWrapper`)**: Reorder onDrop early-returns on `fromIdx === toIdx`, on null `extractClosestEdge`, and clamps `insertAt` to `[0, steps.length - 1]`. LOOP body / IF then-else children move with their parent automatically — the step is one object `arrayMove` swaps.
+- **ConditionGroup.jsx**: Replaced `SelectDrilldown` for left and right (when right is in path mode) with `<CategoryPathPicker>`. Shared `pickerCtx` memo.
 
 ## Recent Changes (Apr 29 2026 — Editor cleanup pass)
 - **OperationsBuilder.jsx (`ExprOrPath`)**: Toggle button replaced with a `<select>` dropdown — options `path` / `text` / `array`. Array mode persists as `json:[…]` and `resolveExpr` parses it back to a real array; the textarea stays editable through partial JSON typing without resetting state.
