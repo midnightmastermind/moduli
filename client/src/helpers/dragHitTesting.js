@@ -114,6 +114,92 @@ export function walkHoveredOccurrence(x, y, env = {}) {
 }
 
 // ------------------------------------------------------------
+// buildRawDropEvent
+// ------------------------------------------------------------
+// Pure assembly of a RawDropEvent from the legacy dropTarget shape
+// emitted by useDroppable/useDragDrop hooks plus the active session
+// payload. Extracted from DragProvider.handleDrop so the conversion
+// is testable without mounting React.
+//
+// Inputs:
+//   dropTarget — { type, id, context, clientX, clientY, source, dataTransfer, ... }
+//   payload    — session payload (createPayload-shaped) or dropTarget.source fallback
+//   sessionMode — current session mode ("move" | "copy" | "copylink")
+//   hovered    — { panelOccId, containerOccId, instanceOccId } from a DOM walk
+//   getCellFromPoint — fn(x, y) → { row, col, cellId } | null (for FILE fallback)
+//
+// Returns RawDropEvent | null (null when no usable target).
+export function buildRawDropEvent({ dropTarget, payload, sessionMode, hovered = {}, getCellFromPoint = () => null }) {
+  if (!dropTarget) return null;
+  const x = dropTarget.clientX ?? 0;
+  const y = dropTarget.clientY ?? 0;
+
+  const hoveredOccurrenceId =
+    dropTarget.context?.occurrenceId
+    || dropTarget.context?.instanceOccurrenceId
+    || dropTarget.context?.containerOccurrenceId
+    || hovered.instanceOccId
+    || hovered.containerOccId
+    || hovered.panelOccId
+    || null;
+
+  let dropTargetData = null;
+  if (dropTarget.type === DROP_TARGET_KIND.GRID_CELL && dropTarget.context?.row !== undefined) {
+    dropTargetData = {
+      kind: DROP_TARGET_KIND.GRID_CELL,
+      gridCell: {
+        row: dropTarget.context.row,
+        col: dropTarget.context.col,
+        cellId: dropTarget.context.cellId,
+      },
+      ...(dropTarget.context || {}),
+    };
+  } else if (hoveredOccurrenceId) {
+    dropTargetData = {
+      occurrenceId: hoveredOccurrenceId,
+      closestEdge: dropTarget.context?.closestEdge || null,
+      ...(dropTarget.context || {}),
+    };
+  } else if (payload?.type === "file") {
+    const cell = getCellFromPoint(x, y);
+    if (cell) {
+      dropTargetData = {
+        kind: DROP_TARGET_KIND.GRID_CELL,
+        gridCell: { row: cell.row, col: cell.col, cellId: cell.cellId },
+      };
+    }
+  }
+  if (!dropTargetData) return null;
+
+  return {
+    source: {
+      occurrenceId: payload?.context?.occurrenceId
+        || payload?.context?.containerOccurrenceId
+        || payload?.occurrenceId
+        || null,
+      moduleId: payload?.id || null,
+      sourceKind: payload?.context?.sourceType || payload?.sourceType || "in-grid",
+      defaultMode: sessionMode || "move",
+      payloadType: payload?.type,
+      data: payload?.data,
+      context: payload?.context,
+      sourceContainerId: payload?.context?.containerId,
+      sourceContainerOccurrenceId: payload?.context?.containerOccurrenceId,
+      childOccurrenceIds: payload?.childOccurrenceIds,
+    },
+    hover: { x, y, dropTargetData },
+    modifiers: {
+      shift: dropTarget.shiftKey ?? false,
+      alt: dropTarget.altKey ?? false,
+      ctrl: dropTarget.ctrlKey ?? false,
+      meta: dropTarget.metaKey ?? false,
+    },
+    pointer: { x, y },
+    dataTransfer: dropTarget.dataTransfer || null,
+  };
+}
+
+// ------------------------------------------------------------
 // buildDropContext
 // ------------------------------------------------------------
 // The single reconciliation point. Given a RawDropEvent and the

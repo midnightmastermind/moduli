@@ -28,7 +28,7 @@ import * as LayoutHelpers from "./LayoutHelpers";
 import { runMatchingOperations } from "./operationExecutor";
 import { batchUpdateModulesAction } from "../state/actions";
 import { routeDrop } from "./dropHandlers";
-import { buildDropContext, DROP_TARGET_KIND } from "./dragHitTesting";
+import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND } from "./dragHitTesting";
 
 // ============================================================
 // UTILITIES
@@ -773,10 +773,9 @@ export function DragProvider({
   const handleDrop = useCallback((dropTarget) => {
     const s = sessionRef.current;
     // Pragmatic DnD fires onDrop on every nested drop target the cursor was
-    // over. We want to commit ONCE per drag, on the call whose context
-    // resolves to a usable target. Calls without a usable target return
-    // without setting `dropHandled` so a sibling onDrop with a better
-    // context can still commit. handleDragEnd does the final clearSession.
+    // over. Commit ONCE per drag, on the call whose context resolves to a
+    // usable target. Calls without a target return silently so a sibling
+    // onDrop can still commit. handleDragEnd does the final clearSession.
     if (s.dropHandled) return;
     const payload = s?.payload || dropTarget?.source;
     if (!s.dragging && !payload) return;
@@ -785,99 +784,39 @@ export function DragProvider({
       pointerRef.current = { x: dropTarget.clientX, y: dropTarget.clientY };
     }
     const { x, y } = pointerRef.current;
-
-    // Resolve the innermost hovered occurrence via DOM walk (data-* attrs)
-    // and merge with any occurrence id the dragSystem hook stamped on the
-    // drop-target context. The DOM walk disambiguates schedule-slot day
-    // pages where multiple occurrences share a moduleId.
+    const dt = { ...dropTarget, clientX: x, clientY: y };
     const hovered = getHoveredIds(x, y);
-    const hoveredOccurrenceId =
-      dropTarget.context?.occurrenceId
-      || dropTarget.context?.instanceOccurrenceId
-      || dropTarget.context?.containerOccurrenceId
-      || hovered.instanceOccId
-      || hovered.containerOccId
-      || hovered.panelOccId
-      || null;
 
-    // Synthesize the drop-target data the unified hit-tester expects.
-    let dropTargetData = null;
-    if (dropTarget.type === DROP_TARGET_KIND.GRID_CELL && dropTarget.context?.row !== undefined) {
-      dropTargetData = {
-        kind: DROP_TARGET_KIND.GRID_CELL,
-        gridCell: {
-          row: dropTarget.context.row,
-          col: dropTarget.context.col,
-          cellId: dropTarget.context.cellId,
-        },
-        ...(dropTarget.context || {}),
-      };
-    } else if (hoveredOccurrenceId) {
-      dropTargetData = {
-        occurrenceId: hoveredOccurrenceId,
-        closestEdge: dropTarget.context?.closestEdge || null,
-        ...(dropTarget.context || {}),
-      };
-    } else if (payload?.type === DragType.FILE) {
-      const cell = getCellFromPoint(x, y);
-      if (cell) {
-        dropTargetData = {
-          kind: DROP_TARGET_KIND.GRID_CELL,
-          gridCell: { row: cell.row, col: cell.col, cellId: cell.cellId },
-        };
-      }
-    }
-    if (!dropTargetData) return; // No target on this onDrop; let siblings try.
+    const rawEvent = buildRawDropEvent({
+      dropTarget: dt,
+      payload,
+      sessionMode: s?.mode,
+      hovered,
+      getCellFromPoint,
+    });
+    if (!rawEvent) return;
 
     // Skip doc-container drops — Editor.jsx owns insertion via moduleEmbed.
-    if (hoveredOccurrenceId) {
-      const occ = occurrencesById[hoveredOccurrenceId];
+    const hoveredOccId = rawEvent.hover.dropTargetData?.occurrenceId;
+    if (hoveredOccId) {
+      const occ = occurrencesById[hoveredOccId];
       const mod = occ ? state?.modulesById?.[occ.moduleId] : null;
       if (mod?.kind === "doc" && mod.role === "container") { s.dropHandled = true; clearSession(); return; }
     }
 
-    const rawEvent = {
-      source: {
-        occurrenceId: payload?.context?.occurrenceId
-          || payload?.context?.containerOccurrenceId
-          || payload?.occurrenceId
-          || null,
-        moduleId: payload?.id || null,
-        sourceKind: payload?.context?.sourceType || payload?.sourceType || "in-grid",
-        defaultMode: s?.mode || "move",
-        payloadType: payload?.type,
-        data: payload?.data,
-        context: payload?.context,
-        sourceContainerId: payload?.context?.containerId,
-        sourceContainerOccurrenceId: payload?.context?.containerOccurrenceId,
-        childOccurrenceIds: payload?.childOccurrenceIds,
-      },
-      hover: { x, y, dropTargetData },
-      modifiers: {
-        shift: dropTarget.shiftKey ?? false,
-        alt: dropTarget.altKey ?? false,
-        ctrl: dropTarget.ctrlKey ?? false,
-        meta: dropTarget.metaKey ?? false,
-      },
-      pointer: { x, y },
-      dataTransfer: dropTarget.dataTransfer || null,
-    };
-
-    const env = {
+    const dropContext = buildDropContext(rawEvent, {
       occurrencesById,
       modulesById: state?.modulesById || {},
-    };
-    const dropContext = buildDropContext(rawEvent, env);
-    if (!dropContext) return; // Sibling onDrop may have a usable context.
+    });
+    if (!dropContext) return;
 
-    const ctx = {
+    s.dropHandled = true;
+    routeDrop(dropContext, {
       dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers,
       clearSession, sessionRef, getCellFromPoint,
-    };
-    s.dropHandled = true;
-    routeDrop(dropContext, ctx);
+    });
     clearSession();
-  }, [dispatch, socket, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId, baseAllPanels, baseContainers, occurrencesById, clearSession, state]);
+  }, [dispatch, socket, getCellFromPoint, getHoveredIds, baseAllPanels, baseContainers, occurrencesById, clearSession, state]);
 
   const handleDragEnd = useCallback(() => {
     clearSession();
