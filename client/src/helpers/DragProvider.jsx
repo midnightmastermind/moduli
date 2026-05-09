@@ -525,10 +525,14 @@ export function DragProvider({
         }
       }
 
-      // Mobile drag-to-edge cell navigation (B3: reads from dragConfigRef)
+      // Mobile drag-to-edge cell navigation (B3: reads from dragConfigRef).
+      // EDGE_DWELL_MS is the hold-at-edge time before the active grid cell
+      // advances. Long enough to feel deliberate (not triggered by accidental
+      // edge-grazes during a normal drop) but short enough to feel responsive.
       const dc = dragConfigRef.current;
       if (dc.isMobile && dc.activeCell && dc.setActiveCell) {
         const edgeZone = 60;
+        const EDGE_DWELL_MS = 900;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
         let dir = null;
@@ -555,7 +559,7 @@ export function DragProvider({
               dragEdgeIndicatorRef.current.remove();
               dragEdgeIndicatorRef.current = null;
             }
-          }, 300);
+          }, EDGE_DWELL_MS);
         } else if (!dir) {
           if (dragEdgeTimerRef.current) {
             clearTimeout(dragEdgeTimerRef.current);

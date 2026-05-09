@@ -39,12 +39,6 @@ const OccurrenceListOpSchema = new mongoose.Schema(
     // The instance this occurrence represents
     instanceId: { type: String },
 
-    // Iteration context (when this happened in time/version space)
-    iteration: {
-      key: { type: String },
-      value: { type: mongoose.Schema.Types.Mixed },
-    },
-
     // FROM context (where it came from) - for moves/copies/removes
     from: {
       containerId: { type: String },
@@ -81,12 +75,6 @@ const MeasureOpSchema = new mongoose.Schema(
     containerId: { type: String },    // Which container
     panelId: { type: String },        // Which panel
 
-    // Iteration context (when in time/version)
-    iteration: {
-      key: { type: String },          // "time", "version", etc.
-      value: { type: mongoose.Schema.Types.Mixed }, // The specific iteration value
-    },
-
     // The field that changed
     fieldId: { type: String, required: true },
 
@@ -96,16 +84,6 @@ const MeasureOpSchema = new mongoose.Schema(
 
     // Flow type for numeric values
     flow: { type: String, enum: ["in", "out", "replace"], default: "in" },
-
-    // Optional: action that triggered this (for move operations)
-    trigger: {
-      type: { type: String, enum: ["manual", "drop", "automation", "calculation"] },
-      // For drops: where it came from
-      fromContainerId: { type: String },
-      fromPanelId: { type: String },
-      // For automations: which trigger fired
-      triggerId: { type: String },
-    },
   },
   { _id: false }
 );
@@ -179,12 +157,6 @@ const TransactionSchema = new mongoose.Schema(
 
     // Grid this transaction belongs to
     gridId: { type: String, required: true, index: true },
-
-    // Iteration context when transaction was created
-    iteration: {
-      key: { type: String, default: "time" },
-      value: { type: mongoose.Schema.Types.Mixed },
-    },
 
     // When the transaction was created
     timestamp: { type: Date, default: Date.now, index: true },
