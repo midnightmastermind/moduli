@@ -8,20 +8,18 @@ const OccurrenceSchema = new mongoose.Schema(
 
     userId: { type: String, required: true, index: true },
 
-    // What this occurrence represents. Field is now redundant with the
-    // referenced module's role; defaults to "module" so writes don't need
-    // to specify it. Phase 3 will drop the field entirely.
+    // Redundant with module.role; kept for back-compat with existing data
+    // and indexes. Defaults to "module" so writes don't need to set it.
     targetType: {
       type: String,
       default: "module",
       enum: ["module"],
       index: true
     },
+    // Reference to the Module record this placement renders. Exposed as
+    // both `targetId` (DB field, legacy name) and `moduleId` (virtual,
+    // used by drag/drop and any new code).
     targetId: { type: String, required: true, index: true },
-    // moduleId is the canonical name in the drag/drop pipeline. The DB field
-    // is still targetId (no migration yet); the virtual below exposes both
-    // names so the drag/drop layer can read/write `moduleId` cleanly while
-    // the rest of the codebase keeps using `targetId`.
 
     // Grid this occurrence belongs to
     gridId: { type: String, required: true, index: true },

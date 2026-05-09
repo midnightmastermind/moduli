@@ -28,7 +28,7 @@ import * as LayoutHelpers from "./LayoutHelpers";
 import { runMatchingOperations } from "./operationExecutor";
 import { batchUpdateModulesAction } from "../state/actions";
 import { routeDrop } from "./dropHandlers";
-import { buildDropContext } from "./dragHitTesting";
+import { buildDropContext, DROP_TARGET_KIND } from "./dragHitTesting";
 
 // ============================================================
 // UTILITIES
@@ -786,9 +786,9 @@ export function DragProvider({
 
     // Synthesize the drop-target data the unified hit-tester expects.
     let dropTargetData = null;
-    if (dropTarget.type === "grid-cell" && dropTarget.context?.row !== undefined) {
+    if (dropTarget.type === DROP_TARGET_KIND.GRID_CELL && dropTarget.context?.row !== undefined) {
       dropTargetData = {
-        kind: "grid-cell",
+        kind: DROP_TARGET_KIND.GRID_CELL,
         gridCell: {
           row: dropTarget.context.row,
           col: dropTarget.context.col,
@@ -806,7 +806,7 @@ export function DragProvider({
       const cell = getCellFromPoint(x, y);
       if (cell) {
         dropTargetData = {
-          kind: "grid-cell",
+          kind: DROP_TARGET_KIND.GRID_CELL,
           gridCell: { row: cell.row, col: cell.col, cellId: cell.cellId },
         };
       }

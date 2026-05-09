@@ -1,6 +1,7 @@
 // helpers/CommitHelpers.js
 import { operationsBridge } from "../state/bindSocketToStore";
 import { safeEmit } from "./offlineQueue";
+import { aliasOccurrence, buildParentMap } from "./dragHitTesting";
 import {
   createGridAction,
   updateGridAction,
@@ -108,13 +109,8 @@ export function createInstanceInContainer({
 // ===== OCCURRENCE =====
 export function createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null }) {
   if (!occurrence?.id) return;
-  // Accept either name; downstream operationsBridge + state both read targetId.
-  // Drag/drop callers pass `moduleId`; legacy callers pass `targetId`.
-  if (occurrence.moduleId && !occurrence.targetId) {
-    occurrence = { ...occurrence, targetId: occurrence.moduleId };
-  } else if (occurrence.targetId && !occurrence.moduleId) {
-    occurrence = { ...occurrence, moduleId: occurrence.targetId };
-  }
+  // Normalize at the write boundary so callers can pass moduleId or targetId.
+  occurrence = aliasOccurrence(occurrence);
   operationsBridge.updateLocalOcc?.(occurrence);
   dispatch?.(createOccurrenceAction(occurrence));
   if (shouldEmit(emit)) safeEmit(socket, "create_occurrence", { occurrence });
@@ -222,13 +218,7 @@ function _ancestorChain(occId, occurrencesById, modulesById) {
   const labels = [];
   if (!occurrencesById) return { ids, labels };
 
-  // Build parent-by-child reverse index from each occurrence's children list.
-  const parentByChildId = {};
-  for (const occ of Object.values(occurrencesById)) {
-    for (const childId of occ?.occurrences || []) {
-      parentByChildId[childId] = occ.id;
-    }
-  }
+  const parentByChildId = buildParentMap(occurrencesById);
 
   let cur = occurrencesById[occId];
   const seen = new Set();

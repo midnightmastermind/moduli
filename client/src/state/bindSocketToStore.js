@@ -21,6 +21,7 @@ import {
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
+import { aliasOccurrence } from "../helpers/dragHitTesting";
 
 /**
  * Module-level bridge so CommitHelpers can fire operations immediately
@@ -95,10 +96,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     for (const o of payload.occurrences || []) {
       const id = o.id || o._id?.toString?.();
       if (id) {
-        // Phase-2 dual-name alias: drag/drop code reads `moduleId`; legacy
-        // call sites still read `targetId`. Both populated at ingest so the
-        // two layers can coexist without runtime fallbacks.
-        const aliased = { ...o, id, moduleId: o.moduleId ?? o.targetId };
+        const aliased = aliasOccurrence({ ...o, id });
         occurrencesById[id] = aliased;
         localOccsById[id] = aliased;
       }
@@ -190,8 +188,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // ======================================================
   function onOccurrenceCreated({ occurrence } = {}) {
     if (!occurrence?.id) return;
-    // Phase-2 dual-name alias (see onFullState).
-    if (occurrence.moduleId === undefined) occurrence = { ...occurrence, moduleId: occurrence.targetId };
+    occurrence = aliasOccurrence(occurrence);
 
     // Keep local cache current before React re-renders stateRef
     localOccsById[occurrence.id] = occurrence;
@@ -225,8 +222,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
   function onOccurrenceUpdated({ occurrence } = {}) {
     if (!occurrence?.id) return;
-    // Phase-2 dual-name alias (see onFullState).
-    if (occurrence.moduleId === undefined) occurrence = { ...occurrence, moduleId: occurrence.targetId };
+    occurrence = aliasOccurrence(occurrence);
 
     const prevOcc = localOccsById[occurrence.id];
 

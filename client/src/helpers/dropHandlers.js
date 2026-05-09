@@ -1,14 +1,12 @@
 // helpers/dropHandlers.js
 // ============================================================
-// Extracted drop handlers from DragProvider.jsx
+// Per-type drop handlers + the routeDrop dispatcher.
 //
-// Each handler receives a context object (ctx) with:
-//   dispatch, socket, state, occurrencesById, baseAllPanels,
-//   baseContainers, clearSession, sessionRef, getCellFromPoint,
-//   getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId
-//
-// And a drop descriptor (drop) with:
-//   payload, dropTarget, panelId, containerId, instanceId, x, y
+// Each handler is `(dropContext, ctx)` — `dropContext` is the unified
+// shape produced by dragHitTesting.buildDropContext, `ctx` carries the
+// commit-side bag (dispatch, socket, state, occurrencesById, etc.).
+// Role-aware locals (containerId / panelId / instanceId / etc.) are
+// derived once per handler via dropView() at the top of each function.
 // ============================================================
 
 import * as CommitHelpers from "./CommitHelpers";
@@ -121,15 +119,7 @@ export function handlePanelDrop(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseAllPanels, getCellFromPoint } = ctx;
   const { payload, target, position, pointer, mode, modifiers, dataTransfer } = dropContext;
   const { x, y } = pointer || { x: 0, y: 0 };
-  const dropTarget = {
-    type: target.kind === DROP_TARGET_KIND.GRID_CELL ? "grid-cell" : (target.raw?.type || null),
-    context: {
-      ...(target.raw || {}),
-      closestEdge: position.edge,
-      insertAt: position.insertIndex,
-    },
-    dataTransfer,
-  };
+  const { dropTarget } = dropView(dropContext, ctx);
 
   let isCrossWindow = false;
   if (dropTarget.dataTransfer) {
@@ -138,7 +128,7 @@ export function handlePanelDrop(dropContext, ctx) {
   }
 
   let cell = null;
-  if (dropTarget.type === "grid-cell" && dropTarget.context?.row !== undefined && dropTarget.context?.col !== undefined) {
+  if (dropTarget.type === DROP_TARGET_KIND.GRID_CELL && dropTarget.context?.row !== undefined && dropTarget.context?.col !== undefined) {
     cell = { row: dropTarget.context.row, col: dropTarget.context.col, cellId: dropTarget.context.cellId };
   } else {
     cell = getCellFromPoint(x, y);
@@ -222,24 +212,7 @@ export function handlePanelDrop(dropContext, ctx) {
 export function handleContainerDrop(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, clearSession, sessionRef } = ctx;
   const { payload, target, position, mode, modifiers, dataTransfer } = dropContext;
-  const view = dropView(dropContext, ctx);
-
-  // Derive role-aware locals from the unified contract
-  const containerId = view.targetRole === "container" ? view.targetModuleId
-                    : view.parentRole === "container" ? view.parentModuleId : null;
-  const panelId = (view.targetRole === "panel" || view.targetRole === "page") ? view.targetModuleId
-                : (view.parentRole === "panel" || view.parentRole === "page") ? view.parentModuleId : null;
-
-  // Synthesize the dropTarget-shaped object the legacy body still reads.
-  const dropTarget = {
-    type: target.kind === DROP_TARGET_KIND.GRID_CELL ? "grid-cell" : (target.raw?.type || null),
-    context: {
-      ...(target.raw || {}),
-      closestEdge: position.edge,
-      insertAt: position.insertIndex,
-    },
-    dataTransfer,
-  };
+  const { containerId, panelId, dropTarget } = dropView(dropContext, ctx);
   const drop = { dropTarget };
 
   let isCrossWindow = false;
@@ -386,25 +359,7 @@ export function handleInstanceDrop(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseContainers, clearSession, sessionRef } = ctx;
   const { payload, target, position, pointer, mode, modifiers, dataTransfer } = dropContext;
   const { x, y } = pointer || { x: 0, y: 0 };
-  const view = dropView(dropContext, ctx);
-
-  // Derive role-aware locals from the unified contract
-  const containerId = view.targetRole === "container" ? view.targetModuleId
-                    : view.parentRole === "container" ? view.parentModuleId : null;
-  const containerOccurrenceId = view.targetRole === "container" ? target.occurrenceId
-                              : view.parentRole === "container" ? view.parentOcc?.id : null;
-  const instanceId = (view.targetRole === "instance" || view.targetRole === "page" || view.targetRole === "artifact" || view.targetRole === "textblock")
-                     ? view.targetModuleId : null;
-
-  const dropTarget = {
-    type: target.kind === DROP_TARGET_KIND.GRID_CELL ? "grid-cell" : (target.raw?.type || null),
-    context: {
-      ...(target.raw || {}),
-      closestEdge: position.edge,
-      insertAt: position.insertIndex,
-    },
-    dataTransfer,
-  };
+  const { containerId, containerOccurrenceId, instanceId, dropTarget } = dropView(dropContext, ctx);
 
   if (dropTarget.dataTransfer) {
     const parsed = parseExternalDrop(dropTarget.dataTransfer);
@@ -659,12 +614,7 @@ export function handleFileDrop(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseContainers, clearSession, getCellFromPoint } = ctx;
   const { payload, target, pointer } = dropContext;
   const { x, y } = pointer || { x: 0, y: 0 };
-  const view = dropView(dropContext, ctx);
-
-  const containerId = view.targetRole === "container" ? view.targetModuleId
-                    : view.parentRole === "container" ? view.parentModuleId : null;
-  const panelId = (view.targetRole === "panel" || view.targetRole === "page") ? view.targetModuleId
-                : (view.parentRole === "panel" || view.parentRole === "page") ? view.parentModuleId : null;
+  const { containerId, panelId } = dropView(dropContext, ctx);
 
   const file = payload.data.files[0];
   const cell = getCellFromPoint(x, y);
@@ -788,20 +738,7 @@ export function handleExternalDrop(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseContainers, clearSession } = ctx;
   const { payload, target, position, pointer, dataTransfer } = dropContext;
   const { y } = pointer || { x: 0, y: 0 };
-  const view = dropView(dropContext, ctx);
-
-  const containerId = view.targetRole === "container" ? view.targetModuleId
-                    : view.parentRole === "container" ? view.parentModuleId : null;
-
-  const dropTarget = {
-    type: target.kind === DROP_TARGET_KIND.GRID_CELL ? "grid-cell" : (target.raw?.type || null),
-    context: {
-      ...(target.raw || {}),
-      closestEdge: position.edge,
-      insertAt: position.insertIndex,
-    },
-    dataTransfer,
-  };
+  const { containerId, dropTarget } = dropView(dropContext, ctx);
 
   let label = "Untitled";
   if (payload.payloadType === DragType.TEXT) label = (payload.data?.text || "").slice(0, 80) || "Text";
@@ -828,20 +765,7 @@ export function handleCrossWindowDrop(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseContainers, clearSession } = ctx;
   const { target, position, pointer, dataTransfer } = dropContext;
   const { y } = pointer || { x: 0, y: 0 };
-  const view = dropView(dropContext, ctx);
-
-  const containerId = view.targetRole === "container" ? view.targetModuleId
-                    : view.parentRole === "container" ? view.parentModuleId : null;
-
-  const dropTarget = {
-    type: target.kind === DROP_TARGET_KIND.GRID_CELL ? "grid-cell" : (target.raw?.type || null),
-    context: {
-      ...(target.raw || {}),
-      closestEdge: position.edge,
-      insertAt: position.insertIndex,
-    },
-    dataTransfer,
-  };
+  const { containerId, dropTarget } = dropView(dropContext, ctx);
 
   const parsed = parseExternalDrop(dropTarget.dataTransfer);
   if (!parsed.isCrossWindow || parsed.type !== DragType.INSTANCE) return;
@@ -867,9 +791,7 @@ export function handleCrossWindowDrop(dropContext, ctx) {
 export function handleTemplateDrop(dropContext, ctx) {
   const { socket, state } = ctx;
   const { payload } = dropContext;
-  const view = dropView(dropContext, ctx);
-  const containerId = view.targetRole === "container" ? view.targetModuleId
-                    : view.parentRole === "container" ? view.parentModuleId : null;
+  const { containerId } = dropView(dropContext, ctx);
 
   if (!containerId) return;
   const gridId = state?.gridId || state?.grid?._id;
@@ -884,24 +806,7 @@ export function handleModuleDrop(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, getCellFromPoint } = ctx;
   const { payload, target, position, pointer, mode, modifiers, dataTransfer } = dropContext;
   const { x, y } = pointer || { x: 0, y: 0 };
-  const view = dropView(dropContext, ctx);
-
-  const containerId = view.targetRole === "container" ? view.targetModuleId
-                    : view.parentRole === "container" ? view.parentModuleId : null;
-  const containerOccurrenceId = view.targetRole === "container" ? target.occurrenceId
-                              : view.parentRole === "container" ? view.parentOcc?.id : null;
-  const panelId = (view.targetRole === "panel" || view.targetRole === "page") ? view.targetModuleId
-                : (view.parentRole === "panel" || view.parentRole === "page") ? view.parentModuleId : null;
-
-  const dropTarget = {
-    type: target.kind === DROP_TARGET_KIND.GRID_CELL ? "grid-cell" : (target.raw?.type || null),
-    context: {
-      ...(target.raw || {}),
-      closestEdge: position.edge,
-      insertAt: position.insertIndex,
-    },
-    dataTransfer,
-  };
+  const { containerId, containerOccurrenceId, panelId, dropTarget } = dropView(dropContext, ctx);
 
   const role = payload?.data?.role || payload?.role;
   const gridId = state?.gridId || state?.grid?._id?.toString() || state?.grid?.id;
@@ -963,7 +868,7 @@ export function handleModuleDrop(dropContext, ctx) {
   }
 
   // CONTAINER role → GRID CELL: drilldown
-  if (role === "container" && dropTarget.type === "grid-cell" && dropTarget.context?.row !== undefined) {
+  if (role === "container" && dropTarget.type === DROP_TARGET_KIND.GRID_CELL && dropTarget.context?.row !== undefined) {
     const cell = { row: dropTarget.context.row, col: dropTarget.context.col };
     const grid = state?.grid;
     const userId = state?.userId;
@@ -982,7 +887,7 @@ export function handleModuleDrop(dropContext, ctx) {
   }
 
   // LEAF role → GRID CELL: drilldown (works for instance | artifact | textblock)
-  if (isLeafRole && dropTarget.type === "grid-cell" && dropTarget.context?.row !== undefined) {
+  if (isLeafRole && dropTarget.type === DROP_TARGET_KIND.GRID_CELL && dropTarget.context?.row !== undefined) {
     const cell = { row: dropTarget.context.row, col: dropTarget.context.col };
     const grid = state?.grid;
     const userId = state?.userId;
@@ -1007,7 +912,7 @@ export function handleModuleDrop(dropContext, ctx) {
 
   // PANEL role: move to different grid cell
   if (role === "panel" && gridId) {
-    const cell = (dropTarget.type === "grid-cell" && dropTarget.context?.row !== undefined)
+    const cell = (dropTarget.type === DROP_TARGET_KIND.GRID_CELL && dropTarget.context?.row !== undefined)
       ? { row: dropTarget.context.row, col: dropTarget.context.col }
       : getCellFromPoint(x, y);
     if (cell) {
@@ -1031,22 +936,7 @@ export function handleModuleDrop(dropContext, ctx) {
 export function handleFieldDrop(dropContext, ctx) {
   const { dispatch, socket, state } = ctx;
   const { payload, target, position, dataTransfer } = dropContext;
-  const view = dropView(dropContext, ctx);
-
-  const containerId = view.targetRole === "container" ? view.targetModuleId
-                    : view.parentRole === "container" ? view.parentModuleId : null;
-  const instanceId = (view.targetRole === "instance" || view.targetRole === "page" || view.targetRole === "artifact" || view.targetRole === "textblock")
-                     ? view.targetModuleId : null;
-
-  const dropTarget = {
-    type: target.kind === DROP_TARGET_KIND.GRID_CELL ? "grid-cell" : (target.raw?.type || null),
-    context: {
-      ...(target.raw || {}),
-      closestEdge: position.edge,
-      insertAt: position.insertIndex,
-    },
-    dataTransfer,
-  };
+  const { containerId, instanceId, dropTarget } = dropView(dropContext, ctx);
 
   // Allow dropping a field onto either an instance or a container — both can
   // carry fieldBindings. Prefer the instance when both ids are present (the
@@ -1071,20 +961,7 @@ export function handleFieldDrop(dropContext, ctx) {
 export function handleOperationDrop(dropContext, ctx) {
   const { dispatch, socket, state } = ctx;
   const { payload, target, position, dataTransfer } = dropContext;
-  const view = dropView(dropContext, ctx);
-
-  const instanceId = (view.targetRole === "instance" || view.targetRole === "page" || view.targetRole === "artifact" || view.targetRole === "textblock")
-                     ? view.targetModuleId : null;
-
-  const dropTarget = {
-    type: target.kind === DROP_TARGET_KIND.GRID_CELL ? "grid-cell" : (target.raw?.type || null),
-    context: {
-      ...(target.raw || {}),
-      closestEdge: position.edge,
-      insertAt: position.insertIndex,
-    },
-    dataTransfer,
-  };
+  const { instanceId, dropTarget } = dropView(dropContext, ctx);
 
   const targetInstanceId = dropTarget.context?.instanceId || instanceId;
   if (!targetInstanceId) return;
@@ -1107,24 +984,7 @@ export function handleOperationDrop(dropContext, ctx) {
 export function handleArtifactDrop(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseContainers, clearSession, getCellFromPoint } = ctx;
   const { payload, target, position, dataTransfer } = dropContext;
-  const view = dropView(dropContext, ctx);
-
-  const containerId = view.targetRole === "container" ? view.targetModuleId
-                    : view.parentRole === "container" ? view.parentModuleId : null;
-  const containerOccurrenceId = view.targetRole === "container" ? target.occurrenceId
-                              : view.parentRole === "container" ? view.parentOcc?.id : null;
-  const panelId = (view.targetRole === "panel" || view.targetRole === "page") ? view.targetModuleId
-                : (view.parentRole === "panel" || view.parentRole === "page") ? view.parentModuleId : null;
-
-  const dropTarget = {
-    type: target.kind === DROP_TARGET_KIND.GRID_CELL ? "grid-cell" : (target.raw?.type || null),
-    context: {
-      ...(target.raw || {}),
-      closestEdge: position.edge,
-      insertAt: position.insertIndex,
-    },
-    dataTransfer,
-  };
+  const { containerId, containerOccurrenceId, panelId, dropTarget } = dropView(dropContext, ctx);
 
   // Drop on container → copy instance
   if (containerId) {
@@ -1157,7 +1017,7 @@ export function handleArtifactDrop(dropContext, ctx) {
   }
 
   // Drop on grid cell → create artifact panel
-  if (dropTarget.type === "grid-cell" && dropTarget.context?.row !== undefined) {
+  if (dropTarget.type === DROP_TARGET_KIND.GRID_CELL && dropTarget.context?.row !== undefined) {
     const cell = { row: dropTarget.context.row, col: dropTarget.context.col };
     const grid = state?.grid;
     const userId = state?.userId;
@@ -1250,15 +1110,20 @@ function resolveNearestIndex(containerOcc, occurrencesById, y) {
 // ============================================================
 // dropView — projection of DropContext + ctx into resolved locals
 // ============================================================
-// Each handler can call `dropView(dropContext, ctx)` to get the
-// resolved target/parent occurrences and their roles, instead of
-// re-deriving them inline. Pure projection — no side effects.
+// Pure projection. Returns role-aware locals each handler needs so the
+// per-handler preamble stays a single destructure.
 //
-// Reads `parentOcc.moduleId` directly. The dual-name alias is set up at
-// the state-ingest boundary in bindSocketToStore.js, so every occurrence
-// in client state carries both names.
-export function dropView(dropContext, ctx) {
-  const { target } = dropContext;
+// Returns:
+//   targetOcc / parentOcc / targetRole / parentRole / targetModuleId / parentModuleId
+//   containerId / panelId / instanceId / containerOccurrenceId
+//   dropTarget — synthetic { type, context, dataTransfer } so handler
+//                bodies that read top-level `dropTarget.X` keep working
+//                without each one re-synthesizing the projection.
+const _INSTANCE_ROLES = new Set(["instance", "page", "artifact", "textblock"]);
+const _PANEL_ROLES = new Set(["panel", "page"]);
+
+function dropView(dropContext, ctx) {
+  const { target, position, dataTransfer } = dropContext;
   const occs = ctx.occurrencesById || {};
   const modules = ctx.state?.modulesById || {};
 
@@ -1266,12 +1131,33 @@ export function dropView(dropContext, ctx) {
   const parentOcc = target.parentOccurrenceId ? occs[target.parentOccurrenceId] : null;
 
   const targetModuleId = target.moduleId || null;
-  const parentModuleId = parentOcc ? (parentOcc.moduleId || null) : null;
-
+  const parentModuleId = parentOcc?.moduleId || null;
   const targetRole = targetModuleId ? (modules[targetModuleId]?.role || null) : null;
   const parentRole = parentModuleId ? (modules[parentModuleId]?.role || null) : null;
 
-  return { targetOcc, parentOcc, targetRole, parentRole, targetModuleId, parentModuleId };
+  const containerId = targetRole === "container" ? targetModuleId
+    : parentRole === "container" ? parentModuleId : null;
+  const containerOccurrenceId = targetRole === "container" ? target.occurrenceId
+    : parentRole === "container" ? parentOcc?.id || null : null;
+  const instanceId = _INSTANCE_ROLES.has(targetRole) ? targetModuleId : null;
+  const panelId = _PANEL_ROLES.has(targetRole) ? targetModuleId
+    : _PANEL_ROLES.has(parentRole) ? parentModuleId : null;
+
+  const dropTarget = {
+    type: target.kind,
+    context: {
+      ...(target.raw || {}),
+      closestEdge: position.edge,
+      insertAt: position.insertIndex,
+    },
+    dataTransfer,
+  };
+
+  return {
+    targetOcc, parentOcc, targetRole, parentRole, targetModuleId, parentModuleId,
+    containerId, containerOccurrenceId, instanceId, panelId,
+    dropTarget,
+  };
 }
 
 // ============================================================

@@ -17,6 +17,7 @@ import { evaluateBlock } from "./blockEvaluator";
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { toast } from "sonner";
 import { resolveExpr, evalRule, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleAgainstRecord } from "./operationActions";
+import { buildParentMap } from "./dragHitTesting";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import { operationsBridge } from "../state/bindSocketToStore";
 
@@ -856,15 +857,9 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   const { sources = [], steps = [] } = pipeline;
   const { state, fieldsById = {}, occurrencesById = {}, operationsById = {} } = context;
 
-  // Build reverse parent map from occurrences[] arrays.
   // parentId on the occurrence itself is not always set — the authoritative ordering
   // is maintained via parent.occurrences[] — so we derive the parent from those arrays.
-  const parentByChildId = {};
-  for (const occ of Object.values(occurrencesById)) {
-    for (const childId of (occ.occurrences || [])) {
-      parentByChildId[childId] = occ.id;
-    }
-  }
+  const parentByChildId = buildParentMap(occurrencesById);
 
   // Resolve an ancestor chain (closest ancestor first, capped at depth 12).
   // Used to enrich $allItems entries so HAS_ANCESTOR rules in $allItems-driven

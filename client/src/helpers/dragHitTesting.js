@@ -69,6 +69,25 @@ export function buildParentMap(occurrencesById) {
 }
 
 // ------------------------------------------------------------
+// aliasOccurrence
+// ------------------------------------------------------------
+// Ensures every occurrence object carries both `moduleId` and `targetId`.
+// Drag/drop code reads `moduleId`; the rest of the codebase reads
+// `targetId`. Called at every state-ingest boundary (full_state,
+// occurrence_created, occurrence_updated) and at write boundaries
+// (CommitHelpers.createOccurrence) so the two layers coexist without
+// per-call-site fallbacks.
+export function aliasOccurrence(occ) {
+  if (!occ) return occ;
+  const hasModule = occ.moduleId != null;
+  const hasTarget = occ.targetId != null;
+  if (hasModule && hasTarget) return occ;
+  if (hasModule) return { ...occ, targetId: occ.moduleId };
+  if (hasTarget) return { ...occ, moduleId: occ.targetId };
+  return occ;
+}
+
+// ------------------------------------------------------------
 // walkHoveredOccurrence
 // ------------------------------------------------------------
 // Walk elementsFromPoint and return the innermost ancestor that
