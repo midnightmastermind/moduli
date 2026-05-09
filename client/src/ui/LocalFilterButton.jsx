@@ -10,7 +10,7 @@ import { getEffectiveFilterForOccurrence } from "../state/selectors";
 
 export default function LocalFilterButton({ occurrence }) {
   const [open, setOpen] = useState(false);
-  const { socket, dispatch, occurrencesById, state: ctxState } = useContext(GridActionsContext);
+  const { socket, dispatch, occurrencesById, modulesById, state: ctxState } = useContext(GridActionsContext);
   if (!occurrence) return null;
 
   const grid = ctxState?.grid;
@@ -35,7 +35,8 @@ export default function LocalFilterButton({ occurrence }) {
     else if (timeUnit === "month") base.setMonth(base.getMonth() + dir);
     else if (timeUnit === "year")  base.setFullYear(base.getFullYear() + dir);
     else                           base.setDate(base.getDate() + dir);
-    const next = base.toISOString().slice(0, 10);
+    // Local-tz YYYY-MM-DD — toISOString rolls to UTC day, drifting east of UTC.
+    const next = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
     const overrideUpdate = navConditions.reduce((acc, c) => {
       acc[c.fieldId] = next;
       return acc;
@@ -43,6 +44,8 @@ export default function LocalFilterButton({ occurrence }) {
     updateOccurrenceFilterOverride({
       socket, dispatch, id: occurrence.id,
       filterOverride: overrideUpdate,
+      occurrencesById, modulesById,
+      navFieldId: primaryNavFieldId, date: next,
     });
   }
 
@@ -55,11 +58,18 @@ export default function LocalFilterButton({ occurrence }) {
     updateOccurrenceFilterOverride({
       socket, dispatch, id: occurrence.id,
       filterOverride: overrideUpdate,
+      occurrencesById, modulesById,
+      navFieldId: primaryNavFieldId, date: dateStr,
     });
   }
 
   function inherit() {
-    updateOccurrenceFilterOverride({ socket, dispatch, id: occurrence.id, filterOverride: null });
+    updateOccurrenceFilterOverride({
+      socket, dispatch, id: occurrence.id,
+      filterOverride: null,
+      occurrencesById, modulesById,
+      navFieldId: primaryNavFieldId, date: null,
+    });
   }
 
   const dateLabel = currentDate ? currentDate.slice(5) : "—";

@@ -408,8 +408,16 @@ function Field({
     }
 
     if (compact && type === "date") {
+      // Parse YYYY-MM-DD as local midnight so toLocaleDateString renders the
+      // intended day. `new Date("2026-05-07")` is UTC midnight — in any tz
+      // west of UTC that formats as the previous day.
+      const parseLocalDay = (v) => {
+        if (!v) return null;
+        if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + "T00:00:00");
+        return new Date(v);
+      };
       const formatted = localValue
-        ? new Date(localValue).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+        ? parseLocalDay(localValue)?.toLocaleDateString(undefined, { month: "short", day: "numeric" }) ?? "date"
         : "date";
       return (
         <label className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
@@ -619,7 +627,11 @@ function Field({
       const relativeDateLabel = useMemo(() => {
         if (!localValue) return null;
         const today = new Date(); today.setHours(0, 0, 0, 0);
-        const d = new Date(localValue); d.setHours(0, 0, 0, 0);
+        // Parse YYYY-MM-DD as local midnight (UTC parse drifts a day west of UTC).
+        const d = (typeof localValue === "string" && /^\d{4}-\d{2}-\d{2}$/.test(localValue))
+          ? new Date(localValue + "T00:00:00")
+          : new Date(localValue);
+        d.setHours(0, 0, 0, 0);
         const diff = Math.round((d - today) / (1000 * 60 * 60 * 24));
         if (diff === 0) return { text: "today", color: "#22c55e" };
         if (diff === 1) return { text: "tomorrow", color: "#22c55e" };
@@ -737,9 +749,14 @@ function Field({
       case "date": {
         if (!rawDisplayValue) return "—";
         try {
-          const date = new Date(rawDisplayValue);
+          // Parse YYYY-MM-DD as local midnight (UTC parse drifts a day west of UTC).
+          const parseLocalDay = (v) => {
+            if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + "T00:00:00");
+            return new Date(v);
+          };
+          const date = parseLocalDay(rawDisplayValue);
           const today = new Date(); today.setHours(0, 0, 0, 0);
-          const d = new Date(rawDisplayValue); d.setHours(0, 0, 0, 0);
+          const d = parseLocalDay(rawDisplayValue); d.setHours(0, 0, 0, 0);
           const diff = Math.round((d - today) / (1000 * 60 * 60 * 24));
           const dateStr = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
           if (diff === 0) return `${dateStr} · today`;

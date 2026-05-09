@@ -166,11 +166,11 @@ function InstanceInner({
     const dateVal = Object.values(activeFilterValues).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
     return {
       gridId: occurrence?.gridId,
-      containerId: occurrence?.meta?.containerId,
+      containerId: occurrence?.parentId,
       currentIteration: currentTimeFilter,
       iterationDate: dateVal || new Date().toISOString(),
     };
-  }, [occurrence?.gridId, occurrence?.meta?.containerId, state?.grid]);
+  }, [occurrence?.gridId, occurrence?.parentId, state?.grid]);
 
   // Resolved cascading style for this instance
   const resolvedInstanceCSS = useMemo(
@@ -326,14 +326,14 @@ function InstanceInner({
                       {linkedSiblings.map(sib => {
                         const sibInstance = instancesById?.[sib.targetId];
                         const sibLabel = sibInstance?.label || sib.targetId || "Unknown";
-                        const sibContainerId = sib.meta?.containerId;
+                        const sibParentId = sib.parentId;
                         return (
                           <li key={sib.id} className="text-xs text-foreground/80 flex items-center gap-1.5 py-0.5 px-1 rounded hover:bg-muted/50">
                             <Link2 className="w-2.5 h-2.5 text-blue-400 flex-shrink-0" />
                             <span className="truncate">{sibLabel}</span>
-                            {sibContainerId && (
+                            {sibParentId && (
                               <span className="text-muted-foreground/50 text-[10px] ml-auto flex-shrink-0">
-                                {sibContainerId.slice(0, 6)}...
+                                {sibParentId.slice(0, 6)}...
                               </span>
                             )}
                           </li>

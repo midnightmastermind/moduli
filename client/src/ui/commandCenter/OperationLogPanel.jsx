@@ -278,6 +278,100 @@ function RuleRow({ rule, maps }) {
   );
 }
 
+// Per-record breakdown for FIND. `data` is { rules, candidates, totalIterated }.
+// FIND iterates many records — even with no match, the user wants to see what
+// each record's left-paths actually held when compared against the right side.
+// Collapsed by default; clicking expands the list. Each candidate row is
+// itself expandable to show every rule's leftValue/rightValue/✓✗.
+function FindCandidates({ data, matched, maps }) {
+  const [open, setOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+  const { candidates = [], totalIterated = 0 } = data || {};
+  if (!candidates.length) return null;
+  const headerLabel = matched
+    ? `show all ${totalIterated} comparisons`
+    : `not found · show all ${totalIterated} comparisons`;
+  const moreCount = totalIterated > candidates.length ? totalIterated - candidates.length : 0;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: "flex", alignItems: "center", gap: 4,
+          fontSize: 10, color: matched ? "var(--text-muted)" : "var(--text-faint)",
+          background: "transparent", border: "none", cursor: "pointer",
+          padding: "1px 2px", textAlign: "left",
+        }}
+      >
+        {open
+          ? <ChevronDown style={{ width: 10, height: 10, flexShrink: 0 }} />
+          : <ChevronRight style={{ width: 10, height: 10, flexShrink: 0 }} />}
+        <span>{headerLabel}</span>
+      </button>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingLeft: 12 }}>
+          {candidates.map((c, i) => {
+            const isExpanded = expandedId === c.id;
+            const matchPct = c.total > 0 ? c.score / c.total : 0;
+            const badgeColor = c.score === c.total
+              ? "var(--accent-green-text)"
+              : matchPct >= 0.5 ? "var(--accent-amber-text, #c79b3c)" : "var(--text-faint)";
+            return (
+              <div key={c.id || i} style={{ borderLeft: c.isMatched ? "2px solid var(--accent-green-text)" : "1px solid var(--border-subtle)", paddingLeft: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 4,
+                    fontSize: 10, color: "var(--text-primary)",
+                    background: "transparent", border: "none", cursor: "pointer",
+                    padding: "1px 2px", textAlign: "left", width: "100%",
+                  }}
+                >
+                  {isExpanded
+                    ? <ChevronDown style={{ width: 9, height: 9, flexShrink: 0 }} />
+                    : <ChevronRight style={{ width: 9, height: 9, flexShrink: 0 }} />}
+                  <NameRef id={c.id} maps={maps} />
+                  {Array.isArray(c.ancestorLabels) && c.ancestorLabels.length > 0 && (
+                    <span style={{ fontSize: 9, color: "var(--text-faint)", fontStyle: "italic" }}>
+                      {c.ancestorLabels.join(" › ")}
+                    </span>
+                  )}
+                  <span style={{ marginLeft: "auto", fontSize: 9, color: badgeColor, fontFamily: "monospace" }}>
+                    {c.score}/{c.total}{c.isMatched ? " ✓" : ""}
+                  </span>
+                </button>
+                {isExpanded && (
+                  <div style={{ paddingLeft: 14, display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
+                    {c.ruleEvals.map((re, ri) => (
+                      <div key={ri} style={{ fontSize: 10, lineHeight: 1.5 }}>
+                        <span style={{ color: re.matched ? "var(--accent-green-text)" : "var(--text-faint)", marginRight: 4 }}>
+                          {re.matched ? "✓" : "✗"}
+                        </span>
+                        <code style={codeSt}>{String(re.left)}</code>
+                        {": "}
+                        {inlineLiteral(re.leftValue, maps)}
+                        <span style={{ color: "var(--text-muted)", margin: "0 4px" }}>{re.comparator}</span>
+                        {inlineLiteral(re.rightValue, maps)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {moreCount > 0 && (
+            <div style={{ fontSize: 9, color: "var(--text-faint)", paddingLeft: 6 }}>
+              …and {moreCount} more not shown (capped to keep log small)
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GroupRows({ group, maps }) {
   if (!group?.rules || group.rules.length === 0) {
     return <div style={{ fontSize: 10, color: "var(--text-faint)" }}>(no conditions — matches anything)</div>;
@@ -302,7 +396,7 @@ function GroupRows({ group, maps }) {
 
 // ─── Action body — vertical, stacked params ────────────────────────────
 
-function ActionBody({ actionType, cfg = {}, resolvedConfig, resolvedPredicate, result = [], maps }) {
+function ActionBody({ actionType, cfg = {}, resolvedConfig, resolvedPredicate, result = [], boundVars, candidates, maps }) {
   const rows = [];
 
   // Variable assignments
@@ -349,15 +443,45 @@ function ActionBody({ actionType, cfg = {}, resolvedConfig, resolvedPredicate, r
     </ParamRow>);
     if (cfg.itemIdVar) rows.push(<ParamRow key="iidv" label="result id →">{<code style={codeSt}>{cfg.itemIdVar}</code>}</ParamRow>);
     if (cfg.itemVar)   rows.push(<ParamRow key="iv" label="result item →">{<code style={codeSt}>{cfg.itemVar}</code>}</ParamRow>);
-    // Show actual result
-    const found = result?.[0];
-    if (found?.id) {
+    // FIND doesn't push to `result`; the executor logs the bound vars on the
+    // entry (see executeSteps boundVars capture). Prefer those over `result`.
+    let foundId = null;
+    let foundCount = 0;
+    const itemBound = cfg.itemVar ? boundVars?.[cfg.itemVar] : undefined;
+    const idBound = cfg.itemIdVar ? boundVars?.[cfg.itemIdVar] : undefined;
+    if (Array.isArray(itemBound)) {
+      foundCount = itemBound.length;
+      foundId = itemBound[0]?.id ?? null;
+    } else if (itemBound && typeof itemBound === "object" && itemBound.id) {
+      foundCount = 1;
+      foundId = itemBound.id;
+    } else if (Array.isArray(idBound)) {
+      foundCount = idBound.length;
+      foundId = idBound[0] ?? null;
+    } else if (typeof idBound === "string" && idBound) {
+      foundCount = 1;
+      foundId = idBound;
+    } else if (result?.[0]?.id) {
+      foundCount = result.length;
+      foundId = result[0].id;
+    }
+    if (foundCount > 1) {
       rows.push(<ParamRow key="r" label="found">
-        <span style={{ color: "var(--accent-green-text)" }}>✓ <NameRef id={found.id} maps={maps} /></span>
+        <span style={{ color: "var(--accent-green-text)" }}>
+          ✓ {foundCount} matches{foundId ? <> · <NameRef id={foundId} maps={maps} /> + {foundCount - 1} more</> : null}
+        </span>
+      </ParamRow>);
+    } else if (foundId) {
+      rows.push(<ParamRow key="r" label="found">
+        <span style={{ color: "var(--accent-green-text)" }}>✓ <NameRef id={foundId} maps={maps} /></span>
       </ParamRow>);
     } else if (cfg.itemIdVar || cfg.itemVar) {
-      // FIND with no match
       rows.push(<ParamRow key="r" label="found"><span style={{ color: "var(--text-faint)" }}>(no match)</span></ParamRow>);
+    }
+    if (candidates && Array.isArray(candidates.candidates) && candidates.candidates.length > 0) {
+      rows.push(<ParamRow key="cand" label="comparisons">
+        <FindCandidates data={candidates} matched={!!foundId} maps={maps} />
+      </ParamRow>);
     }
   }
 
@@ -597,6 +721,8 @@ function LogEntry({ entry, maps }) {
           resolvedConfig={entry.resolvedConfig}
           resolvedPredicate={entry.resolvedPredicate}
           result={entry.result || []}
+          boundVars={entry.boundVars}
+          candidates={entry.candidates}
           maps={maps}
         />
         <VarsSnapshot vars={entry.varsBefore} maps={maps} label="variables when this ran" />

@@ -514,6 +514,87 @@ describe("runMatchingOperations", () => {
   });
 });
 
+// ─── runMatchingOperations — per-trigger priority sort ────────────────────────
+
+describe("runMatchingOperations — per-trigger priority sort", () => {
+  test("sorts by matched triggerObject.priority (lower runs first)", () => {
+    const ops = [
+      makeOp({
+        id: "low", triggerType: "onLoad", blockTree: literalBlock(1), targetFieldId: "fLow",
+        triggerObjects: [{ eventType: "onLoad", subjectType: "grid", priority: 5 }],
+      }),
+      makeOp({
+        id: "hi", triggerType: "onLoad", blockTree: literalBlock(2), targetFieldId: "fHi",
+        triggerObjects: [{ eventType: "onLoad", subjectType: "grid", priority: 1 }],
+      }),
+    ];
+    const result = runMatchingOperations(ops, null, null, {});
+    expect(result.map(r => r.fieldId)).toEqual(["fHi", "fLow"]);
+  });
+
+  test("op with two triggerObjects uses the matched one's priority", () => {
+    // op A's onLoad priority is 1 (high). op B's onLoad priority is 3.
+    // op A also carries an onChange trigger at priority 9. For an onLoad fire, A's
+    // onLoad (1) wins; for an onChange fire (different test), A's onChange (9)
+    // would lose to B's onChange (5) — verifies the right trigger's priority is used.
+    const opA = makeOp({
+      id: "A", triggerTypes: ["onLoad", "onChange"], blockTree: literalBlock(1), targetFieldId: "fA",
+      triggerObjects: [
+        { eventType: "onLoad",  subjectType: "grid", priority: 1 },
+        { eventType: "onChange", subjectType: "field", priority: 9 },
+      ],
+    });
+    const opB = makeOp({
+      id: "B", triggerTypes: ["onLoad", "onChange"], blockTree: literalBlock(2), targetFieldId: "fB",
+      triggerObjects: [
+        { eventType: "onLoad",  subjectType: "grid", priority: 3 },
+        { eventType: "onChange", subjectType: "field", priority: 5 },
+      ],
+    });
+    const onLoad = runMatchingOperations([opB, opA], null, null, {});
+    expect(onLoad.map(r => r.fieldId)).toEqual(["fA", "fB"]);
+
+    const onChange = runMatchingOperations([opA, opB], "MeasureOp", {}, {});
+    expect(onChange.map(r => r.fieldId)).toEqual(["fB", "fA"]);
+  });
+
+  test("missing priority defaults to 5", () => {
+    const ops = [
+      makeOp({
+        id: "noPri", triggerType: "onLoad", blockTree: literalBlock(1), targetFieldId: "fNo",
+        triggerObjects: [{ eventType: "onLoad", subjectType: "grid" }],
+      }),
+      makeOp({
+        id: "explicitLow", triggerType: "onLoad", blockTree: literalBlock(2), targetFieldId: "fLow",
+        triggerObjects: [{ eventType: "onLoad", subjectType: "grid", priority: 2 }],
+      }),
+      makeOp({
+        id: "explicitHi", triggerType: "onLoad", blockTree: literalBlock(3), targetFieldId: "fHi",
+        triggerObjects: [{ eventType: "onLoad", subjectType: "grid", priority: 8 }],
+      }),
+    ];
+    const result = runMatchingOperations(ops, null, null, {});
+    expect(result.map(r => r.fieldId)).toEqual(["fLow", "fNo", "fHi"]);
+  });
+
+  test("sortOrder breaks priority ties", () => {
+    const ops = [
+      makeOp({
+        id: "second", triggerType: "onLoad", blockTree: literalBlock(1), targetFieldId: "fSecond",
+        triggerObjects: [{ eventType: "onLoad", subjectType: "grid", priority: 5 }],
+        sortOrder: 20,
+      }),
+      makeOp({
+        id: "first", triggerType: "onLoad", blockTree: literalBlock(2), targetFieldId: "fFirst",
+        triggerObjects: [{ eventType: "onLoad", subjectType: "grid", priority: 5 }],
+        sortOrder: 10,
+      }),
+    ];
+    const result = runMatchingOperations(ops, null, null, {});
+    expect(result.map(r => r.fieldId)).toEqual(["fFirst", "fSecond"]);
+  });
+});
+
 // ─── Target scenarios (daily / weekly / monthly) ──────────────────────────────
 
 describe("Target propagation scenarios", () => {
@@ -2110,5 +2191,386 @@ describe("effectiveFilterFor", () => {
       b: { id: "b", parentId: null, filterOverride: { date: "2026-04-29" } },
     };
     expect(effectiveFilterFor("a", { occurrencesById })).toEqual({});
+  });
+});
+
+// ─── Seed dedup FIND — full pipeline integration ─────────────────────────────
+// Mirrors the Schedule: Seed Daily Routine FIND that's been re-creating
+// duplicates on every reload. Asserts the FIND finds the previously-seeded
+// copy and the conditional CREATE is short-circuited.
+describe("seed-style dedup FIND through executePipeline", () => {
+  test("second run is a no-op — FIND matches the previously-seeded copy", () => {
+    // Templates (state.modules)
+    const drinkWaterMod = { id: "mod_dw",   role: "instance",  kind: "list", label: "Drink Water" };
+    const slotMod       = { id: "mod_slot", role: "container", kind: "list", label: "6:00am",
+                            meta: { scheduleSlot: true, slotLabel: "6:00am" } };
+    const schedPageMod  = { id: "mod_sched", role: "page",     kind: "board", label: "Schedule" };
+
+    // Occurrences (no enrichment — executePipeline derives templateId/_ancestors).
+    const schedPageOcc = { id: "occ_sched", targetId: "mod_sched", parentId: null, fields: {}, occurrences: ["occ_slot"] };
+    const slotOcc      = { id: "occ_slot",  targetId: "mod_slot",  parentId: "occ_sched", fields: {}, occurrences: ["occ_dw_seeded"] };
+    // The previously-seeded "Drink Water" copy at 6:00am for 2026-05-05.
+    const seededOcc    = {
+      id: "occ_dw_seeded", targetId: "mod_dw", parentId: "occ_slot",
+      fields: {
+        f_date:     { value: "2026-05-05", flow: "in" },
+        f_timeslot: { value: "6:00am",     flow: "in" },
+      },
+    };
+    // Original Drink Water in the toolkit — same template, no timeslot/date — must not match.
+    const origOcc = { id: "occ_dw_orig", targetId: "mod_dw", parentId: null, fields: {} };
+
+    const occurrencesById = {
+      occ_sched: schedPageOcc, occ_slot: slotOcc, occ_dw_seeded: seededOcc, occ_dw_orig: origOcc,
+    };
+    const ctx = {
+      state: { modules: [drinkWaterMod, slotMod, schedPageMod] },
+      fieldsById: { f_date: { id: "f_date", type: "date" }, f_timeslot: { id: "f_timeslot", type: "select" } },
+      occurrencesById,
+      operationsById: {},
+    };
+
+    // Pipeline = a single iteration of the seed loop, simplified.
+    // 1) FIND $src by label
+    // 2) INIT $srcTemplateId from $src.templateId
+    // 3) FIND existing copy by templateId + timeslot + date (bare record paths)
+    // 4) IF $existingId IS_EMPTY, CREATE
+    const op = makeOp({
+      pipeline: pipe(
+        s("INIT_VAR", { name: "$schedDate", expr: "literal:2026-05-05" }),
+        s("FIND", {
+          predicate: andCond({ left: "label", comparator: "IS", right: "Drink Water" }),
+          itemVar: "$src",
+        }),
+        s("INIT_VAR", { name: "$srcTemplateId", expr: "$src.templateId" }),
+        s("FIND", {
+          predicate: andCond(
+            { left: "templateId",            comparator: "IS",       right: "$srcTemplateId" },
+            { left: "fields.f_timeslot.value", comparator: "IS",     right: "6:00am" },
+            { left: "fields.f_date.value",   comparator: "SAME_DAY", right: "$schedDate" },
+          ),
+          itemIdVar: "$existingId",
+        }),
+        ifS(
+          andCond({ left: "$existingId", comparator: "IS_EMPTY", right: "" }),
+          [s("CREATE", { name: "Drink Water", role: "instance", kind: "list", parent: "occ_slot" })],
+          [],
+        ),
+      ),
+    });
+    const updates = executePipeline(op, ctx);
+    // No CREATE_ITEM emitted — the existing copy was found and the IF branch skipped.
+    expect(updates.find(u => u._effect === "CREATE_ITEM")).toBeUndefined();
+  });
+
+  // Same scenario but with legacy $item. prefixes on the predicate paths.
+  // The runtime must still find the existing copy — `resolveRecordPath` strips
+  // the prefix — so this test guards against silent regressions in the strip.
+  test("legacy $item. prefix on rule.left still locates the seeded copy", () => {
+    const drinkWaterMod = { id: "mod_dw", role: "instance", kind: "list", label: "Drink Water" };
+    const slotMod       = { id: "mod_slot", role: "container", kind: "list", label: "6:00am" };
+    const seededOcc = {
+      id: "occ_dw_seeded", targetId: "mod_dw", parentId: "occ_slot",
+      fields: {
+        f_date:     { value: "2026-05-05", flow: "in" },
+        f_timeslot: { value: "6:00am",     flow: "in" },
+      },
+    };
+    const slotOcc = { id: "occ_slot", targetId: "mod_slot", parentId: null, fields: {}, occurrences: ["occ_dw_seeded"] };
+    const ctx = {
+      state: { modules: [drinkWaterMod, slotMod] },
+      fieldsById: { f_date: { id: "f_date", type: "date" }, f_timeslot: { id: "f_timeslot", type: "select" } },
+      occurrencesById: { occ_slot: slotOcc, occ_dw_seeded: seededOcc },
+      operationsById: {},
+    };
+    const op = makeOp({
+      pipeline: pipe(
+        s("INIT_VAR", { name: "$schedDate",      expr: "literal:2026-05-05" }),
+        s("INIT_VAR", { name: "$srcTemplateId", expr: "literal:mod_dw" }),
+        s("FIND", {
+          predicate: andCond(
+            { left: "templateId",                comparator: "IS",       right: "$srcTemplateId" },
+            { left: "$item.fields.f_timeslot.value", comparator: "IS",   right: "6:00am" },
+            { left: "$item.fields.f_date.value", comparator: "SAME_DAY", right: "$schedDate" },
+          ),
+          itemIdVar: "$existingId",
+        }),
+        ifS(
+          andCond({ left: "$existingId", comparator: "IS_EMPTY", right: "" }),
+          [s("CREATE", { name: "Drink Water", role: "instance", parent: "occ_slot" })],
+          [],
+        ),
+      ),
+    });
+    const updates = executePipeline(op, ctx);
+    expect(updates.find(u => u._effect === "CREATE_ITEM")).toBeUndefined();
+  });
+});
+
+// ─── FIND log surfaces bound vars on the action entry ────────────────────────
+// Regression for "operations log always shows empty for FIND" — the action
+// runs correctly (binds itemIdVar/itemVar in $vars) but executeActionItem
+// returns no `updates`, so the panel had nothing to display. The executor now
+// captures the bound vars onto the log entry as `boundVars`.
+describe("FIND action log entries carry boundVars", () => {
+  test("matched record's id/object lands on the action's boundVars", () => {
+    const mod = { id: "mod_a", role: "instance", kind: "list", label: "A" };
+    const occA = { id: "occ_a", targetId: "mod_a", parentId: null, fields: {} };
+    const ctx = {
+      state: { modules: [mod] },
+      fieldsById: {},
+      occurrencesById: { occ_a: occA },
+      operationsById: {},
+    };
+    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const op = makeOp({
+      pipeline: pipe(
+        s("FIND", {
+          predicate: andCond({ left: "label", comparator: "IS", right: "A" }),
+          itemIdVar: "$foundId",
+          itemVar:   "$foundItem",
+        }),
+      ),
+    });
+    executePipeline(op, ctx, null, undefined, logger);
+    const findEntry = logger.entries.find(e => e.kind === "action" && e.actionType === "FIND");
+    expect(findEntry).toBeDefined();
+    expect(findEntry.boundVars).toBeDefined();
+    expect(findEntry.boundVars.$foundId).toBe("occ_a");
+    expect(findEntry.boundVars.$foundItem?.id).toBe("occ_a");
+  });
+
+  test("matched record's bare-path lefts (templateId, _ancestors, fields.X.value, meta.X) resolve in the log predicate", () => {
+    // Pre-seeded record under Schedule with everything FIND would key on.
+    const schedPageMod = { id: "mod_sched", role: "page", label: "Schedule" };
+    const slotMod = { id: "mod_slot", role: "container", label: "6:00am",
+                      meta: { scheduleSlot: true, slotLabel: "6:00am" } };
+    const dwMod = { id: "mod_dw", role: "instance", label: "Drink Water" };
+    const schedPageOcc = { id: "occ_sched", targetId: "mod_sched", parentId: null, fields: {}, occurrences: ["occ_slot"] };
+    const slotOcc = { id: "occ_slot", targetId: "mod_slot", parentId: "occ_sched", fields: {}, occurrences: ["occ_seeded"] };
+    const seededOcc = {
+      id: "occ_seeded", targetId: "mod_dw", parentId: "occ_slot",
+      fields: {
+        f_date:     { value: "2026-05-06", flow: "in" },
+        f_timeslot: { value: "6:00am",     flow: "in" },
+      },
+    };
+    const ctx = {
+      state: { modules: [schedPageMod, slotMod, dwMod] },
+      fieldsById: { f_date: { id: "f_date", type: "date" }, f_timeslot: { id: "f_timeslot", type: "select" } },
+      occurrencesById: { occ_sched: schedPageOcc, occ_slot: slotOcc, occ_seeded: seededOcc },
+      operationsById: {},
+    };
+    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    // Seed the schedule-page id ahead of time so $schedPageId resolves on the right.
+    const op = makeOp({
+      pipeline: pipe(
+        s("INIT_VAR", { name: "$schedPageId",   expr: "literal:occ_sched" }),
+        s("INIT_VAR", { name: "$srcTemplateId", expr: "literal:mod_dw" }),
+        s("INIT_VAR", { name: "$schedDate",     expr: "literal:2026-05-06" }),
+        s("FIND", {
+          predicate: andCond(
+            { left: "templateId",                   comparator: "IS",           right: "$srcTemplateId" },
+            { left: "fields.f_timeslot.value",      comparator: "IS",           right: "6:00am" },
+            { left: "fields.f_date.value",          comparator: "SAME_DAY",     right: "$schedDate" },
+            { left: "_ancestors",                   comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+            { left: "meta.scheduleSlot",            comparator: "IS_NOT",       right: true }, // matched record is the instance, slot meta lives on its container — left should resolve to null
+          ),
+          itemIdVar: "$existingId",
+          itemVar:   "$existingItem",
+        }),
+      ),
+    });
+    executePipeline(op, ctx, null, undefined, logger);
+    const findEntry = logger.entries.find(e => e.kind === "action" && e.actionType === "FIND" && e.config.itemIdVar === "$existingId");
+    expect(findEntry).toBeDefined();
+    expect(findEntry.boundVars.$existingId).toBe("occ_seeded");
+    const rules = findEntry.resolvedPredicate.rules;
+    // templateId resolves to the matched record's templateId (mod_dw)
+    expect(rules.find(r => r.left === "templateId")._leftValue).toBe("mod_dw");
+    // fields.f_timeslot.value resolves to the matched record's timeslot
+    expect(rules.find(r => r.left === "fields.f_timeslot.value")._leftValue).toBe("6:00am");
+    // fields.f_date.value resolves to the matched record's date
+    expect(rules.find(r => r.left === "fields.f_date.value")._leftValue).toBe("2026-05-06");
+    // _ancestors resolves to the matched record's ancestor chain (array)
+    expect(rules.find(r => r.left === "_ancestors")._leftValue).toEqual(expect.arrayContaining(["occ_slot", "occ_sched"]));
+    // meta.scheduleSlot on the seeded INSTANCE is undefined/null (slot meta lives on the container template) — resolved value reflects that
+    expect(rules.find(r => r.left === "meta.scheduleSlot")._leftValue == null).toBe(true);
+    // Right-side resolution still works alongside (existing behavior preserved)
+    expect(rules.find(r => r.left === "templateId")._rightValue).toBe("mod_dw");
+    expect(rules.find(r => r.left === "_ancestors")._rightValue).toBe("occ_sched");
+  });
+
+  test("falls back to id-only itemIdVar by looking up the enriched record in $allItems", () => {
+    const dwMod = { id: "mod_dw", role: "instance", label: "Drink Water" };
+    const dwOcc = { id: "occ_dw", targetId: "mod_dw", parentId: null, fields: {} };
+    const ctx = {
+      state: { modules: [dwMod] },
+      fieldsById: {},
+      occurrencesById: { occ_dw: dwOcc },
+      operationsById: {},
+    };
+    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const op = makeOp({
+      pipeline: pipe(
+        s("FIND", {
+          predicate: andCond({ left: "templateId", comparator: "IS", right: "mod_dw" }),
+          itemIdVar: "$foundId", // no itemVar — forces the $allItems lookup fallback
+        }),
+      ),
+    });
+    executePipeline(op, ctx, null, undefined, logger);
+    const findEntry = logger.entries.find(e => e.kind === "action" && e.actionType === "FIND");
+    expect(findEntry.boundVars.$foundId).toBe("occ_dw");
+    expect(findEntry.resolvedPredicate.rules[0]._leftValue).toBe("mod_dw");
+  });
+
+  test("FIND captures per-record candidates with rule evals (matched + non-matching)", () => {
+    // 3 records — 1 matches all 2 rules, 1 matches the first rule only, 1 matches neither.
+    const tplDw = { id: "mod_dw", role: "instance", label: "Drink Water" };
+    const tplGym = { id: "mod_gym", role: "instance", label: "Go to Gym" };
+    const occA = { id: "occ_match", targetId: "mod_dw", parentId: null,
+                   fields: { f_slot: { value: "9:00am" } } };
+    const occB = { id: "occ_close", targetId: "mod_dw", parentId: null,
+                   fields: { f_slot: { value: "8:00am" } } };
+    const occC = { id: "occ_far", targetId: "mod_gym", parentId: null,
+                   fields: { f_slot: { value: "8:00am" } } };
+    const ctx = {
+      state: { modules: [tplDw, tplGym] },
+      fieldsById: { f_slot: { id: "f_slot", type: "select" } },
+      occurrencesById: { occ_match: occA, occ_close: occB, occ_far: occC },
+      operationsById: {},
+    };
+    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const op = makeOp({
+      pipeline: pipe(
+        s("INIT_VAR", { name: "$srcTemplateId", expr: "literal:mod_dw" }),
+        s("FIND", {
+          predicate: andCond(
+            { left: "templateId",          comparator: "IS", right: "$srcTemplateId" },
+            { left: "fields.f_slot.value", comparator: "IS", right: "9:00am" },
+          ),
+          itemIdVar: "$id",
+        }),
+      ),
+    });
+    executePipeline(op, ctx, null, undefined, logger);
+    const findEntry = logger.entries.find(e => e.kind === "action" && e.actionType === "FIND");
+    expect(findEntry.candidates).toBeDefined();
+    expect(findEntry.candidates.candidates).toHaveLength(3);
+    // First entry is the matched record (sort puts isMatched first)
+    expect(findEntry.candidates.candidates[0].id).toBe("occ_match");
+    expect(findEntry.candidates.candidates[0].score).toBe(2);
+    expect(findEntry.candidates.candidates[0].total).toBe(2);
+    expect(findEntry.candidates.candidates[0].isMatched).toBe(true);
+    // Per-rule evals carry the leftValue from THIS record
+    const matchRules = findEntry.candidates.candidates[0].ruleEvals;
+    expect(matchRules[0].leftValue).toBe("mod_dw");
+    expect(matchRules[0].matched).toBe(true);
+    expect(matchRules[1].leftValue).toBe("9:00am");
+    expect(matchRules[1].matched).toBe(true);
+    // Near-miss record: same template, wrong slot
+    const closeIdx = findEntry.candidates.candidates.findIndex(c => c.id === "occ_close");
+    expect(findEntry.candidates.candidates[closeIdx].score).toBe(1);
+    const closeRules = findEntry.candidates.candidates[closeIdx].ruleEvals;
+    expect(closeRules[0].matched).toBe(true); // templateId IS mod_dw → true
+    expect(closeRules[1].matched).toBe(false); // slot 8:00am IS 9:00am → false
+    expect(closeRules[1].leftValue).toBe("8:00am");
+    // Far record: wrong template AND wrong slot
+    const farIdx = findEntry.candidates.candidates.findIndex(c => c.id === "occ_far");
+    expect(findEntry.candidates.candidates[farIdx].score).toBe(0);
+  });
+
+  test("$allPages filters role:'page' (was incorrectly filtering role:'panel')", () => {
+    const pageMod = { id: "mod_sched", role: "page", label: "Schedule" };
+    const panelMod = { id: "mod_centerHub", role: "panel", label: "Panel C" };
+    const pageOcc = { id: "occ_sched", targetId: "mod_sched", parentId: null, fields: {} };
+    const panelOcc = { id: "occ_centerHub", targetId: "mod_centerHub", parentId: null, fields: {} };
+    const ctx = {
+      state: { modules: [pageMod, panelMod] },
+      fieldsById: {},
+      occurrencesById: { occ_sched: pageOcc, occ_centerHub: panelOcc },
+      operationsById: {},
+    };
+    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const op = makeOp({
+      pipeline: pipe(
+        s("FIND", {
+          over: "$allPages",
+          predicate: andCond({ left: "label", comparator: "IS", right: "Schedule" }),
+          itemIdVar: "$pageId",
+        }),
+        s("FIND", {
+          over: "$allPanels",
+          predicate: andCond({ left: "label", comparator: "IS", right: "Panel C" }),
+          itemIdVar: "$panelId",
+        }),
+      ),
+    });
+    executePipeline(op, ctx, null, undefined, logger);
+    const findEntries = logger.entries.filter(e => e.kind === "action" && e.actionType === "FIND");
+    expect(findEntries[0].boundVars.$pageId).toBe("occ_sched");   // $allPages now finds the page
+    expect(findEntries[1].boundVars.$panelId).toBe("occ_centerHub"); // $allPanels finds the panel
+    // And the per-collection iteration only iterates that role
+    expect(findEntries[0].candidates.totalIterated).toBe(1); // only the page-role record
+    expect(findEntries[1].candidates.totalIterated).toBe(1); // only the panel-role record
+  });
+
+  test("FIND with no match still captures candidate evals so user sees why it failed", () => {
+    const tpl = { id: "mod_x", role: "instance", label: "X" };
+    const occ = { id: "occ_x", targetId: "mod_x", parentId: null, fields: {} };
+    const ctx = {
+      state: { modules: [tpl] },
+      fieldsById: {},
+      occurrencesById: { occ_x: occ },
+      operationsById: {},
+    };
+    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const op = makeOp({
+      pipeline: pipe(
+        s("FIND", {
+          predicate: andCond({ left: "templateId", comparator: "IS", right: "mod_does_not_exist" }),
+          itemIdVar: "$missId",
+        }),
+      ),
+    });
+    executePipeline(op, ctx, null, undefined, logger);
+    const findEntry = logger.entries.find(e => e.kind === "action" && e.actionType === "FIND");
+    expect(findEntry.boundVars.$missId).toBeNull();
+    expect(findEntry.candidates).toBeDefined();
+    expect(findEntry.candidates.candidates).toHaveLength(1);
+    // The candidate's leftValue is captured even though the FIND came back empty,
+    // so the user can see what each iterated record's path actually held.
+    const c = findEntry.candidates.candidates[0];
+    expect(c.id).toBe("occ_x");
+    expect(c.isMatched).toBe(false);
+    expect(c.score).toBe(0);
+    expect(c.ruleEvals[0].leftValue).toBe("mod_x");
+    expect(c.ruleEvals[0].rightValue).toBe("mod_does_not_exist");
+    expect(c.ruleEvals[0].matched).toBe(false);
+  });
+
+  test("no match → predicate left stays at the literal path (nothing to resolve)", () => {
+    const ctx = {
+      state: { modules: [] },
+      fieldsById: {},
+      occurrencesById: {},
+      operationsById: {},
+    };
+    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const op = makeOp({
+      pipeline: pipe(
+        s("FIND", {
+          predicate: andCond({ left: "label", comparator: "IS", right: "Nonexistent" }),
+          itemIdVar: "$missId",
+        }),
+      ),
+    });
+    executePipeline(op, ctx, null, undefined, logger);
+    const findEntry = logger.entries.find(e => e.kind === "action" && e.actionType === "FIND");
+    // null is a real assignment by FIND on no-match; the entry should reflect it.
+    expect(findEntry.boundVars.$missId).toBeNull();
+    // No matched record → bare path stays as literal (resolveExpr fallback).
+    expect(findEntry.resolvedPredicate.rules[0]._leftValue).toBe("label");
   });
 });

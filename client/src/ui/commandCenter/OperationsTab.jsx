@@ -97,7 +97,7 @@ export function getTriggerVars(eventType, subjectType) {
 // ============================================================
 // OP ITEM (Pragmatic DnD draggable — drag to instance to add operationBinding)
 // ============================================================
-export function OpItem({ op, selected, onClick, onPreview, isDuplicate = false, onPriorityChange }) {
+export function OpItem({ op, selected, onClick, onPreview, isDuplicate = false }) {
   const ref = useRef(null);
   const { state, fieldsById, occurrencesById } = useContext(GridActionsContext);
 
@@ -161,7 +161,8 @@ export function OpItem({ op, selected, onClick, onPreview, isDuplicate = false, 
         fontSize: 11, fontFamily: "monospace", userSelect: "none",
       }}
     >
-      {/* Header row: grip + name + priority + preview/run button */}
+      {/* Header row: grip + name + preview/run button. Priority lives on each
+          trigger row inside OperationEditor — see the trigger list editor. */}
       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
         <GripVertical style={{ width: 8, height: 8, opacity: 0.3, flexShrink: 0 }} />
         <span style={{ color: op.enabled ? "rgb(196,181,253)" : "var(--text-faint)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -169,24 +170,6 @@ export function OpItem({ op, selected, onClick, onPreview, isDuplicate = false, 
         </span>
         {isDuplicate && (
           <span title="Another operation uses the same trigger + target field" style={{ fontSize: 9, color: "rgba(251,146,60,0.9)", flexShrink: 0 }}>⚠</span>
-        )}
-        {onPriorityChange && (
-          <select
-            value={op.priority ?? 5}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => { e.stopPropagation(); onPriorityChange(Number(e.target.value)); }}
-            title="Priority — lower runs first (1 = highest)"
-            style={{
-              fontSize: 9, fontFamily: "monospace",
-              background: "var(--input-bg)", color: "var(--text-muted)",
-              border: "1px solid var(--input-border)", borderRadius: 3,
-              padding: "0 2px", height: 16, cursor: "pointer", flexShrink: 0,
-            }}
-          >
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-              <option key={n} value={n}>P{n}</option>
-            ))}
-          </select>
         )}
         {nodeInputSources.length > 0 ? (
           <button
@@ -352,9 +335,9 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
     return types
       .filter(t => t && t !== "manual")
       .map(eventType => {
-        if (eventType === "onLoad") return { eventType, subjectType: "grid", targetId: "" };
-        if (eventType === "onFilterChange") return { eventType, subjectType: "filterNav", targetId: "" };
-        return { eventType, subjectType: "field", targetId: "" };
+        if (eventType === "onLoad") return { eventType, subjectType: "grid", targetId: "", priority: 5 };
+        if (eventType === "onFilterChange") return { eventType, subjectType: "filterNav", targetId: "", priority: 5 };
+        return { eventType, subjectType: "field", targetId: "", priority: 5 };
       });
   }, [local.triggerObjects, local.triggerTypes, local.triggerType]);
 
@@ -379,8 +362,8 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
 
   const addTriggerObject = (eventType = "onChange") => {
     const defaults = eventType === "onLoad" || eventType === "onFilterChange"
-      ? { eventType, subjectType: eventType === "onLoad" ? "grid" : "filterNav", targetId: "" }
-      : { eventType, subjectType: "field", targetId: "" };
+      ? { eventType, subjectType: eventType === "onLoad" ? "grid" : "filterNav", targetId: "", priority: 5 }
+      : { eventType, subjectType: "field", targetId: "", priority: 5 };
     commitTriggerObjects([...triggerObjects, defaults]);
   };
 
@@ -525,10 +508,19 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                 <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)", marginLeft: 4 }}>
                   {eventType} · {subjectLabel} · {targetLabel}
                 </span>
+                {/* Per-trigger priority (1 = highest, 10 = lowest, 5 = default) */}
+                <select
+                  value={trigObj.priority ?? 5}
+                  title="Priority for this trigger — lower runs first"
+                  onChange={e => updateTriggerObject(idx, { priority: Number(e.target.value) })}
+                  style={{ ...inputStyle, width: "auto", minWidth: 44, fontSize: 10, marginLeft: "auto" }}
+                >
+                  {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>P{n}</option>)}
+                </select>
                 {/* Remove trigger */}
                 <button
                   onClick={() => removeTriggerObject(idx)}
-                  style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", fontSize: 13, padding: "0 2px", lineHeight: 1, marginLeft: "auto" }}
+                  style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", fontSize: 13, padding: "0 2px", lineHeight: 1 }}
                   title="Remove trigger"
                 >×</button>
                 {/* $trigger var hints */}
@@ -725,7 +717,7 @@ export function OperationsTab() {
   }, []);
 
   const handleCreate = (folderId = null) => {
-    const newOp = { id: uid(), gridId, name: "New Operation", description: "", pipeline: { sources: [], steps: [] }, triggerObjects: [{ eventType: "onLoad", subjectType: "grid", targetId: "" }], triggerTypes: ["onLoad"], triggerType: "onLoad", enabled: true, sortOrder: gridOperations.length, priority: 5, folderId };
+    const newOp = { id: uid(), gridId, name: "New Operation", description: "", pipeline: { sources: [], steps: [] }, triggerObjects: [{ eventType: "onLoad", subjectType: "grid", targetId: "", priority: 5 }], triggerTypes: ["onLoad"], triggerType: "onLoad", enabled: true, sortOrder: gridOperations.length, folderId };
     CommitHelpers.createOperation({ dispatch, socket, operation: newOp });
     setSelectedOpId(newOp.id);
   };
@@ -785,9 +777,6 @@ export function OperationsTab() {
             onClick={() => toggleSelect(op.id)}
             onPreview={() => handleRun(op)}
             isDuplicate={duplicateOpIds.has(op.id)}
-            onPriorityChange={(priority) =>
-              CommitHelpers.updateOperation({ dispatch, socket, operation: { ...op, priority } })
-            }
           />
         ))}
         {ops.length === 0 && (

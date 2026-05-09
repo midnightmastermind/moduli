@@ -109,6 +109,7 @@ const io = new Server(server, {
   allowEIO3: true,
   pingTimeout: 60000,    // 60s (default 20s) — remote DB can block event loop during cache load
   pingInterval: 25000,   // 25s (default 25s)
+  maxHttpBufferSize: 64 * 1024 * 1024,
 });
 
 io.engine.on("connection_error", (err) => { console.error("❌ [io.engine] connection_error:", err.req?.url, err.code, err.message); });
@@ -454,7 +455,7 @@ app.post("/api/storage-settings", async (req, res) => {
   try {
     const { userId, manifestId, settings } = req.body;
     if (!manifestId) return res.status(400).json({ error: "Missing manifestId" });
-    const manifest = await Manifest.findOneAndUpdate({ id: manifestId }, { $set: { "meta.storageSettings": settings } }, { new: true });
+    const manifest = await Manifest.findOneAndUpdate({ id: manifestId }, { $set: { "meta.storageSettings": settings } }, { returnDocument: 'after' });
     if (!manifest) return res.status(404).json({ error: "Manifest not found" });
     const obj = manifest.toObject();
     const cache = cacheByUser[userId];

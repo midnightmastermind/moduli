@@ -19,7 +19,7 @@ import {
   deleteModule,
   updateOccurrence,
 } from "../helpers/CommitHelpers";
-import { flushOfflineQueue } from "../helpers/offlineQueue";
+import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
 
 /**
@@ -873,6 +873,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // On transaction_created: fire operations + toast notification
   function onTransactionCreated({ transaction } = {}) {
     if (!transaction) return;
+    // Guard against typeless transactions — historically `type` wasn't on the
+    // server's Transaction schema so it was dropped on save, then `undefined`
+    // matched onLoad triggers (undefined == null) and every tracker UPDATE
+    // looped back into another transaction_created echo.
+    if (!transaction.type) return;
     fireOperations(transaction.type, transaction);
 
     // Toast per transaction

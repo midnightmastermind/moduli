@@ -16,8 +16,9 @@ import { BlockType } from "./blockTypes";
 import { evaluateBlock } from "./blockEvaluator";
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { toast } from "sonner";
-import { resolveExpr, evalRule, evalGroup, extractFieldValuesFiltered, executeActionItem } from "./operationActions";
+import { resolveExpr, evalRule, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleAgainstRecord } from "./operationActions";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
+import { operationsBridge } from "../state/bindSocketToStore";
 
 // ============================================================
 // RUN LOG — per-operation run history for the editor's log panel
@@ -90,7 +91,19 @@ function makeLogger() {
 
 // Snapshot user-facing $vars (skip _internal keys + huge built-ins).
 // Returned object is a shallow clone — values may still be live references.
-const _SNAPSHOT_SKIP = new Set(["_log", "_occurrencesById", "_fieldsById", "$allItems", "$allTemplates", "$allFields", "$grid"]);
+const _SNAPSHOT_SKIP = new Set([
+  "_log", "_occurrencesById", "_fieldsById",
+  "$allItems", "$allOccurrences", "$allContainers", "$allPages", "$allPanels", "$allInstances",
+  "$allTemplates", "$allFields", "$grid",
+]);
+// Actions whose `cfg.name` is the target $var to mutate (vs CREATE where
+// cfg.name is the new item's label). Used by the post-action boundVars
+// snapshot to surface what got assigned.
+const _VAR_TARGET_ACTIONS = new Set([
+  "INIT_VAR", "SET_VAR",
+  "ADD_TO_VAR", "SUBTRACT_FROM_VAR", "MULTIPLY_VAR", "DIV_VAR",
+  "INCREMENT_VAR", "DECREMENT_VAR", "PUSH_TO_VAR",
+]);
 function snapshotVars($vars) {
   const out = {};
   for (const k of Object.keys($vars || {})) {
@@ -101,15 +114,114 @@ function snapshotVars($vars) {
   return out;
 }
 
-// Resolve every leaf rule in a condition group using current $vars,
-// returning a parallel structure with `_leftValue` / `_rightValue` annotations
-// on each rule. Used so the run log can show "$preset.moduleLabel" → "Drink Water".
-function resolveGroupForLog(group, $vars) {
+function _isFindAction(actionType) {
+  return actionType === "FIND" || actionType === "FIND_OCCURRENCE" || actionType === "FIND_MODULE";
+}
+
+// For each record FIND iterated, capture per-rule { left, leftValue, comparator,
+// rightValue, matched }. The display panel surfaces this under each FIND row so
+// the user can see WHICH rules failed on WHICH records. Sorts by match-score
+// desc — best near-misses first; the matched record (if any) is always first.
+function collectFindCandidates(cfg, $vars, matchedId) {
+  const overExpr = cfg.over || "$allOccurrences";
+  const itemList = Array.isArray(resolveExpr(overExpr, $vars)) ? resolveExpr(overExpr, $vars) : [];
+  const predicate = cfg.predicate;
+  if (!predicate || !Array.isArray(predicate.rules)) return null;
+
+  // Flatten leaf rules — nested groups are evaluated as a whole; show flat
+  // breakdowns for the common case (top-level AND of leaf rules).
+  const leafRules = predicate.rules.filter(r => r && !r.rules);
+
+  // Build an id→label map from the full item pool so we can resolve each
+  // candidate's ancestor IDs to readable names. Multiple occurrences of the
+  // same template share a label (every "Drink Water" reads "Drink Water"),
+  // so the candidates list looks like duplicates without a parent path.
+  const fullPool = $vars.$allItems || $vars.$allOccurrences || [];
+  const labelById = new Map();
+  for (const item of fullPool) {
+    if (item && item.id) labelById.set(item.id, item.label ?? item.name ?? null);
+  }
+
+  const evaluated = [];
+  for (const record of itemList) {
+    if (!record || record.deleted || record.meta?.isTemplate) continue;
+    const ruleEvals = leafRules.map(rule => {
+      let leftValue;
+      try {
+        if (_isBareRecordPath(rule.left)) {
+          leftValue = resolveRecordPath(record, rule.left);
+        } else {
+          leftValue = resolveExpr(rule.left, $vars);
+        }
+      } catch { leftValue = undefined; }
+      let rightValue;
+      try { rightValue = resolveExpr(rule.right, $vars) ?? rule.right; } catch { rightValue = undefined; }
+      let matched = false;
+      try { matched = evalRuleAgainstRecord(rule, record, $vars); } catch { matched = false; }
+      return { left: rule.left, comparator: rule.comparator, right: rule.right, leftValue, rightValue, matched };
+    });
+    const score = ruleEvals.filter(r => r.matched).length;
+    // _ancestors is closest-first; reverse for breadcrumb display (root → leaf).
+    // Drop unresolved ancestors so the path doesn't have gaps.
+    const ancestorLabels = (Array.isArray(record._ancestors) ? record._ancestors : [])
+      .map(aid => labelById.get(aid))
+      .filter(Boolean)
+      .reverse();
+    evaluated.push({
+      id: record.id,
+      label: record.label ?? record.name ?? null,
+      ancestorLabels,
+      score,
+      total: leafRules.length,
+      isMatched: !!matchedId && record.id === matchedId,
+      ruleEvals,
+    });
+  }
+
+  // Sort: matched record first; then by match score desc; then by id for stability.
+  evaluated.sort((a, b) => {
+    if (a.isMatched !== b.isMatched) return a.isMatched ? -1 : 1;
+    if (a.score !== b.score) return b.score - a.score;
+    return String(a.id).localeCompare(String(b.id));
+  });
+  const totalIterated = evaluated.length;
+  return { rules: leafRules.map(r => ({ left: r.left, comparator: r.comparator, right: r.right })), candidates: evaluated, totalIterated };
+}
+
+// Bare record paths used by FIND predicates (`templateId`, `_ancestors`,
+// `fields.<fid>.value`, `meta.scheduleSlot`, etc.) — no $-prefix and no
+// special prefix. resolveExpr would just return these strings literally,
+// so the log used to show "templateId IS mod_dw" with the left unresolved.
+// When we have a record context (e.g. the record FIND actually matched),
+// these paths route through resolveRecordPath instead.
+function _isBareRecordPath(s) {
+  if (typeof s !== "string" || s === "") return false;
+  if (s.startsWith("$") || s.includes("${")) return false;
+  if (s.startsWith("literal:") || s.startsWith("json:")) return false;
+  if (s.startsWith("occ:") || s.startsWith("field:") || s.startsWith("daysUntil:")) return false;
+  return true;
+}
+
+// Resolve every leaf rule in a condition group, returning a parallel structure
+// with `_leftValue` / `_rightValue` annotations on each rule. Used so the run
+// log can show "$preset.moduleLabel" → "Drink Water".
+//
+// When `record` is provided (FIND with a match, or `$item` inside a loop body),
+// bare record paths on the LEFT side resolve against the record. Without a
+// record, bare paths resolve via resolveExpr which returns them as literal
+// strings — so the log line ends up showing the path itself, not a value.
+function resolveGroupForLog(group, $vars, record = null) {
   if (!group || !Array.isArray(group.rules)) return group;
   const rules = group.rules.map(r => {
-    if (r.rules) return resolveGroupForLog(r, $vars);
+    if (r.rules) return resolveGroupForLog(r, $vars, record);
     let leftValue, rightValue;
-    try { leftValue = resolveExpr(r.left, $vars); } catch { leftValue = undefined; }
+    try {
+      if (record && _isBareRecordPath(r.left)) {
+        leftValue = resolveRecordPath(record, r.left);
+      } else {
+        leftValue = resolveExpr(r.left, $vars);
+      }
+    } catch { leftValue = undefined; }
     try { rightValue = resolveExpr(r.right, $vars) ?? r.right; } catch { rightValue = undefined; }
     return { ...r, _leftValue: leftValue, _rightValue: rightValue };
   });
@@ -579,14 +691,21 @@ function traverseStatements(block, ctx) {
  */
 export function runMatchingOperations(operations, transactionType, transaction, context, { onError } = {}) {
   const updates = [];
-  // Priority (1–10, default 5) wins over sortOrder so a high-priority op like the
-  // schedule auto-build runs to completion before downstream ops (field stamp,
-  // aggregations) read its newly-created occurrences.
-  const ordered = [...operations].sort((a, b) => {
-    const pa = a.priority ?? 5;
-    const pb = b.priority ?? 5;
+  // Priority is per-trigger (1–10, default 5). Pre-match every op so we can sort
+  // by the priority of the triggerObject that actually matched — an op with two
+  // triggers can carry different priorities for each, and the matching one wins.
+  // Tiebreaker: sortOrder. Ops that don't match are filtered out before sort.
+  const matched = [];
+  for (const op of operations) {
+    const m = computeTriggerMatch(op, transactionType, transaction);
+    if (!m) continue;
+    matched.push({ op, match: m });
+  }
+  matched.sort((a, b) => {
+    const pa = a.match.triggerObject?.priority ?? 5;
+    const pb = b.match.triggerObject?.priority ?? 5;
     if (pa !== pb) return pa - pb;
-    return (a.sortOrder ?? 50) - (b.sortOrder ?? 50);
+    return (a.op.sortOrder ?? 50) - (b.op.sortOrder ?? 50);
   });
 
   // Live overlay of occurrencesById that picks up each op's CREATE_ITEM /
@@ -598,9 +717,7 @@ export function runMatchingOperations(operations, transactionType, transaction, 
   const liveOccs = { ...(context.occurrencesById || {}) };
   const liveCtx = { ...context, occurrencesById: liveOccs };
 
-  for (const op of ordered) {
-    const match = computeTriggerMatch(op, transactionType, transaction);
-    if (!match) continue;
+  for (const { op, match } of matched) {
     const startedAt = Date.now();
     const logger = makeLogger();
     logger.add("start", {
@@ -625,7 +742,8 @@ export function runMatchingOperations(operations, transactionType, transaction, 
       logger.add("error", { message: String(err?.message || err), stack: err?.stack });
       onError?.(op.name, err);
     }
-    recordRunLog(op.id, { runAt: startedAt, durationMs: Date.now() - startedAt, entries: logger.entries });
+    const runLog = { runAt: startedAt, durationMs: Date.now() - startedAt, entries: logger.entries };
+    recordRunLog(op.id, runLog);
   }
   return updates;
 }
@@ -840,10 +958,22 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       return d.toLocaleDateString("en-US", { weekday: "long" });
     })(),
     // Built-in arrays — loop-ready collections of everything in the system.
-    // $allItems = every placement (was $allOccurrences) merged with its template
-    // (label/name/role/kind/meta). $allTemplates = template-level records (was $allModules).
-    // (Saved grid layouts live on $grid.templates if anyone ever needs them.)
+    // Every placement (merged with its template: label/name/role/kind/meta) is
+    // exposed under three names so authors can write what reads naturally:
+    //   $allItems / $allOccurrences   — everything
+    //   $allPanels / $allPages / $allContainers / $allInstances — role-filtered
+    //   $allTemplates                 — template-level records
+    //   $allFields                    — every field record
+    // NOTE: $allPages filters role:"page" (the grid's named pages — Schedule,
+    // Daily Toolkit, etc.). $allPanels filters role:"panel" (the grid-cell
+    // shells that hold pages). These were conflated previously — $allPages
+    // was incorrectly filtering "panel", missing every page-role module.
     $allItems: allItems,
+    $allOccurrences: allItems,
+    $allContainers: allItems.filter(i => i.role === "container"),
+    $allPages: allItems.filter(i => i.role === "page"),
+    $allPanels: allItems.filter(i => i.role === "panel"),
+    $allInstances: allItems.filter(i => i.role === "instance"),
     $allTemplates: allTemplates,
     $allFields: Object.values(fieldsById),
     $grid: state?.grid ?? {},
@@ -882,25 +1012,33 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     $vars["$trigger"] = enriched;
   }
 
-  // ---- $parentFilter: effective filter values applied to the trigger occurrence's parent ----
-  // Walks the parent chain via parentByChildId (parent.occurrences[] is authoritative)
-  // and merges each ancestor's `filterOverride` on top of grid.activeFilterValues.
-  // `.date` is a convenience accessor returning the first YYYY-MM-DD value found in the merged map.
+  // ---- $parentFilter: effective filter values at the trigger occurrence ----
+  // Walks the chain via parentByChildId (parent.occurrences[] is authoritative)
+  // STARTING AT THE TRIGGER ITSELF, so the trigger's own filterOverride is honoured.
+  // Merges each occurrence's `filterOverride` on top of grid.activeFilterValues
+  // top-down so closer occurrences win. `.date` is a convenience accessor
+  // returning the first YYYY-MM-DD value found in the merged map.
+  //
+  // Why include the trigger itself: when a page-level filter changes, the source
+  // NavigationOp's `transaction.occurrenceId` is the page. If we skipped the page,
+  // its NEW override would be invisible to `$parentFilter`, so the source fire
+  // would compute against grid filters while the descendant cascade fires
+  // computed against the new override — producing two conflicting writes per
+  // filter change.
   $vars["$parentFilter"] = (() => {
     const triggerOccId = transaction?.occurrenceId;
     const gridFilters = state?.grid?.activeFilterValues || {};
     let effective = { ...gridFilters };
     if (triggerOccId) {
-      // Collect ancestors from immediate parent upward
       const chain = [];
-      let cur = parentByChildId[triggerOccId];
+      let cur = triggerOccId;
       while (cur) {
         const occ = occurrencesById[cur];
         if (!occ) break;
         chain.push(occ);
         cur = parentByChildId[cur];
       }
-      // Merge top-down so closer ancestors win over distant ones
+      // Merge top-down so closer occurrences win over distant ones
       for (let i = chain.length - 1; i >= 0; i--) {
         const override = chain[i].filterOverride;
         if (override == null) continue;
@@ -1070,8 +1208,61 @@ function executeSteps(steps, $vars, context, transaction) {
       // Snapshot vars + resolve any predicate / config exprs BEFORE the action mutates state.
       const varsBefore = log ? snapshotVars($vars) : null;
       const resolvedConfig = log ? resolveConfigForLog(cfg, $vars) : null;
-      const resolvedPredicate = log && cfg.predicate ? resolveGroupForLog(cfg.predicate, $vars) : null;
+      let resolvedPredicate = log && cfg.predicate ? resolveGroupForLog(cfg.predicate, $vars) : null;
       const result = executeActionItem(actionType, cfg, $vars, context, transaction);
+      // For FIND, recompute the predicate's resolved values against the matched
+      // record. Without this, bare record paths on the left side (`templateId`,
+      // `_ancestors`, `fields.<fid>.value`, `meta.scheduleSlot`) display as the
+      // literal path string because resolveExpr has no record context. With a
+      // match, the log can now show "mod_dw IS mod_dw ✓" etc.
+      let candidates = null;
+      if (log && cfg.predicate && _isFindAction(actionType)) {
+        let matched = cfg.itemVar ? $vars[cfg.itemVar] : null;
+        // Fall back: seed pipelines often only pass `itemIdVar`. Look the
+        // matched id up in the enriched $allItems collection (NOT raw
+        // occurrencesById — raw occs lack templateId / _ancestors / merged
+        // meta, so resolveRecordPath against them would miss the same fields
+        // FIND was matching on).
+        if ((!matched || typeof matched !== "object") && cfg.itemIdVar) {
+          const matchedId = $vars[cfg.itemIdVar];
+          const pool = $vars.$allItems || $vars.$allOccurrences;
+          if (typeof matchedId === "string" && Array.isArray(pool)) {
+            matched = pool.find(it => it && it.id === matchedId) || null;
+          }
+        }
+        if (matched && typeof matched === "object" && !Array.isArray(matched)) {
+          resolvedPredicate = resolveGroupForLog(cfg.predicate, $vars, matched);
+        }
+        // Per-record candidate evaluations — surface every record FIND
+        // iterated, with each rule's leftValue from THAT record + a matched
+        // bool. Lets the panel show "no match" callouts where the user can
+        // see what each candidate's `templateId / fields.X.value / _ancestors`
+        // actually held when compared to the right side.
+        candidates = collectFindCandidates(cfg, $vars, matched?.id);
+      }
+
+      // FIND / INIT_VAR / *_VAR mutate $vars without pushing into `result`, so
+      // the display panel previously had nothing to inspect — FIND always
+      // rendered "(no match)" even when it bound a record. Snapshot the
+      // assigned vars post-action so the log entry shows what was bound.
+      // Sources are action-type specific:
+      //   - itemVar / itemIdVar: FIND / FIND_OCCURRENCE / FIND_MODULE / CREATE
+      //   - cfg.name: INIT_VAR / SET_VAR / ADD_TO_VAR / etc. (the target var)
+      let boundVars = null;
+      if (log) {
+        const bindKeys = [];
+        if (typeof cfg.itemVar === "string" && cfg.itemVar.startsWith("$")) bindKeys.push(cfg.itemVar);
+        if (typeof cfg.itemIdVar === "string" && cfg.itemIdVar.startsWith("$")) bindKeys.push(cfg.itemIdVar);
+        if (_VAR_TARGET_ACTIONS.has(actionType) && typeof cfg.name === "string" && cfg.name.startsWith("$")) {
+          bindKeys.push(cfg.name);
+        }
+        if (bindKeys.length) {
+          boundVars = {};
+          for (const k of bindKeys) {
+            if (k in $vars) boundVars[k] = $vars[k];
+          }
+        }
+      }
       log?.add("action", {
         actionType,
         config: cfg,
@@ -1080,6 +1271,8 @@ function executeSteps(steps, $vars, context, transaction) {
         varsBefore,
         resultCount: result.length,
         result,
+        ...(boundVars ? { boundVars } : {}),
+        ...(candidates ? { candidates } : {}),
       });
       updates.push(...result);
     } else if (step.type === "if") {

@@ -116,6 +116,7 @@ export function createOccurrence({ dispatch, socket, occurrence, emit = true, pa
     occurrenceId: occurrence.id,
     instanceId: occurrence.targetId,
     containerId: occurrence.parentId,
+    gridId: occurrence.gridId,
     ...(panelId ? { panelId } : {}),
   });
   // Fire MeasureOp for each field so onChange operations (e.g. aggregations) retrigger on add
@@ -151,31 +152,147 @@ export function updateOccurrence({ dispatch, socket, occurrence, emit = true, tr
   }
 }
 
-export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOverride, occurrencesById, modulesById }) {
+// Diff two filterOverride maps and return the set of keys whose value changed.
+// Treats null/undefined override as empty {}. Going from null → {date: x} yields
+// ["date"]; {date: a} → {date: b} yields ["date"]; identity → [].
+function _changedFilterKeys(prev, next) {
+  const a = (prev && typeof prev === "object") ? prev : {};
+  const b = (next && typeof next === "object") ? next : {};
+  const all = new Set([...Object.keys(a), ...Object.keys(b)]);
+  const out = [];
+  for (const k of all) if (a[k] !== b[k]) out.push(k);
+  return out;
+}
+
+// Walk descendants of rootId via occurrence.occurrences[]. Collect every descendant
+// whose effective filter actually moved when changedKeys at the root flipped.
+//   filterOverride: null    — fully inheriting → all changedKeys propagate, recurse
+//   filterOverride: {}      — cleared → child sees no filter regardless of root, stop
+//   filterOverride: {keys}  — partial → only keys NOT in override still inherit;
+//                             if any of those overlap changedKeys, child is affected
+//                             and we recurse with the still-inherited subset.
+function _walkInheritingDescendants(rootId, changedKeys, occurrencesById) {
+  if (!changedKeys.length) return [];
+  const out = [];
+  const visited = new Set([rootId]);
+  function visit(parentId, keys) {
+    const parent = occurrencesById[parentId];
+    if (!parent) return;
+    for (const childId of parent.occurrences || []) {
+      if (visited.has(childId)) continue;
+      visited.add(childId);
+      const child = occurrencesById[childId];
+      if (!child) continue;
+      const override = child.filterOverride;
+      let stillInherited;
+      if (override == null) {
+        stillInherited = keys;
+      } else if (Object.keys(override).length === 0) {
+        continue; // {} blocks inheritance entirely
+      } else {
+        stillInherited = keys.filter(k => !(k in override));
+        if (!stillInherited.length) continue;
+      }
+      out.push(child);
+      visit(childId, stillInherited);
+    }
+  }
+  visit(rootId, changedKeys);
+  return out;
+}
+
+// Walk source → root, returning [ancestorIds, ancestorLabels].
+// Uses parent-by-child derived from `occ.occurrences[]` arrays as the
+// authoritative ordering source, falling back to `cur.parentId`. The fallback
+// matters because many seeded grids (e.g. the test grid) only set parentId on
+// leaf instances; pages and panels track children via `occurrences[]` and have
+// no parentId, so a cur.parentId-only walk used to stop after one hop and
+// ancestor-scoped triggers (`ancestorLabel: "Daily Goals"` etc.) silently
+// failed to match. Mirrors the executor's `ancestorsFor` logic so triggers and
+// HAS_ANCESTOR predicates resolve from the same chain.
+function _ancestorChain(occId, occurrencesById, modulesById) {
+  const ids = [];
+  const labels = [];
+  if (!occurrencesById) return { ids, labels };
+
+  // Build parent-by-child reverse index from each occurrence's children list.
+  const parentByChildId = {};
+  for (const occ of Object.values(occurrencesById)) {
+    for (const childId of occ?.occurrences || []) {
+      parentByChildId[childId] = occ.id;
+    }
+  }
+
+  let cur = occurrencesById[occId];
+  const seen = new Set();
+  let depth = 0;
+  while (cur && !seen.has(cur.id) && depth++ < 20) {
+    seen.add(cur.id);
+    ids.push(cur.id);
+    const label = modulesById?.[cur.targetId]?.label;
+    if (label) labels.push(label);
+    const nextId = parentByChildId[cur.id] ?? cur.parentId;
+    cur = nextId ? occurrencesById[nextId] : null;
+  }
+  return { ids, labels };
+}
+
+export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOverride, occurrencesById, modulesById, navFieldId, date }) {
   if (!id) return;
+  const prevOcc = occurrencesById?.[id];
+  const prevOverride = prevOcc?.filterOverride;
+  const changedKeys = _changedFilterKeys(prevOverride, filterOverride);
+
   dispatch?.(updateOccurrenceAction({ id, filterOverride }));
   safeEmit(socket, "update_occurrence", { occurrence: { id, filterOverride } });
-  // Fire NavigationOp so onFilterChange triggers configured with an
-  // ancestorLabel/ancestorId can match against the chain of the changed
-  // occurrence. The trigger is otherwise unscoped — ops without an ancestor
-  // filter still fire on every change.
-  if (occurrencesById && modulesById) {
-    const ancestorIds = [];
-    const ancestorLabels = [];
-    let cur = occurrencesById[id];
-    let depth = 0;
-    while (cur && depth++ < 20) {
-      ancestorIds.push(cur.id);
-      const label = modulesById[cur.targetId]?.label;
-      if (label) ancestorLabels.push(label);
-      cur = cur.parentId ? occurrencesById[cur.parentId] : null;
+  // Update the executor's local cache so subsequent reads of $foo._effectiveFilter
+  // resolve against the NEW override, not the previous Redux snapshot. Without
+  // this the NavigationOp below sees stale data and ops like "Schedule: Build Day"
+  // build for the previous date.
+  if (prevOcc) {
+    operationsBridge.updateLocalOcc?.({ ...prevOcc, filterOverride });
+  } else {
+    operationsBridge.updateLocalOcc?.({ id, filterOverride });
+  }
+
+  if (!occurrencesById || !modulesById) return;
+
+  // Fire NavigationOp for the source occurrence — onFilterChange / onNavigation
+  // triggers configured with ancestorId/ancestorLabel use the source's ancestor
+  // chain to decide scope.
+  const sourceChain = _ancestorChain(id, occurrencesById, modulesById);
+  operationsBridge.fireOperations?.("NavigationOp", {
+    type: "NavigationOp",
+    sourceOccurrenceId: id,
+    occurrenceId: id,
+    fieldId: navFieldId,
+    date,
+    activeFilterValues: filterOverride || {},
+    _ancestorIds: sourceChain.ids,
+    _ancestorLabels: sourceChain.labels,
+  });
+
+  // Cascade: descendants whose effective filter actually moved (still inheriting
+  // any of the changed keys) need their own NavigationOp so per-occurrence
+  // triggers (e.g. ancestorLabel:"Schedule" + subjectRole:"container" on a
+  // timeslot) fire. The descendant's stored data is unchanged — only the
+  // derived effective filter shifted — so without an explicit fire here, those
+  // ops would never run when a parent's filter moves.
+  if (changedKeys.length) {
+    const affected = _walkInheritingDescendants(id, changedKeys, occurrencesById);
+    for (const desc of affected) {
+      const chain = _ancestorChain(desc.id, occurrencesById, modulesById);
+      operationsBridge.fireOperations?.("NavigationOp", {
+        type: "NavigationOp",
+        sourceOccurrenceId: desc.id,
+        occurrenceId: desc.id,
+        fieldId: navFieldId,
+        date,
+        activeFilterValues: desc.filterOverride || {},
+        _ancestorIds: chain.ids,
+        _ancestorLabels: chain.labels,
+      });
     }
-    operationsBridge.fireOperations?.("NavigationOp", {
-      type: "NavigationOp",
-      sourceOccurrenceId: id,
-      _ancestorIds: ancestorIds,
-      _ancestorLabels: ancestorLabels,
-    });
   }
 }
 

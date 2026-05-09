@@ -36,7 +36,7 @@ import { CATEGORIES, resolveCategoryItems } from "./categoryRegistry";
 // deterministic without poking at runtime data.
 const SHAPES = {
   occurrence: {
-    keys: () => [
+    keys: (ctx) => [
       { value: "id",          title: "id",          sub: "string",   description: "Unique occurrence ID",                           hasChildren: false },
       { value: "targetId",    title: "targetId",    sub: "string",   description: "Module template ID",                              hasChildren: false },
       { value: "parentId",    title: "parentId",    sub: "string",   description: "Parent occurrence ID",                            hasChildren: false },
@@ -45,7 +45,8 @@ const SHAPES = {
       { value: "templateId",  title: "templateId",  sub: "string",   description: "Same as targetId — module template",              hasChildren: false },
       { value: "fields",      title: "fields",      sub: "object",   description: "Field values map keyed by field ID",              hasChildren: true,  childShape: "fieldsMap" },
       { value: "meta",        title: "meta",        sub: "object",   description: "Module/occurrence meta",                          hasChildren: false },
-      { value: "filterOverride", title: "filterOverride", sub: "object", description: "Per-occurrence filter override",              hasChildren: false },
+      { value: "filterOverride",   title: "filterOverride",   sub: "object", description: "Per-occurrence filter override",                                       hasChildren: false },
+      { value: "_effectiveFilter", title: "_effectiveFilter", sub: "object", description: "Effective filter merged from grid + ancestor chain (read-only)",      hasChildren: true, childShape: "filter" },
     ],
   },
   fieldValue: {
@@ -55,9 +56,26 @@ const SHAPES = {
     ],
   },
   filter: {
-    keys: () => [
-      { value: "date", title: "date", sub: "string", description: "First YYYY-MM-DD value in the merged map", hasChildren: false },
-    ],
+    // Per-field key drilling. The merged filter map is keyed by fieldId so
+    // pipelines like `$page._effectiveFilter.<dateFieldId>` need to resolve to
+    // a concrete field. Surface every grid date/text/number field from ctx.
+    keys: (ctx) => {
+      const list = ctx?.fields || [];
+      const items = list.map(f => ({
+        value: f.id,
+        title: f.name || "(unnamed field)",
+        sub: f.type || "field",
+        description: `Filter value for ${f.name || "this field"} on the merged map`,
+        hasChildren: false,
+      }));
+      // Convenience accessor returning the first YYYY-MM-DD value found.
+      items.unshift({
+        value: "date", title: "date", sub: "string",
+        description: "First YYYY-MM-DD value in the merged map",
+        hasChildren: false,
+      });
+      return items;
+    },
   },
   grid: {
     keys: () => [
@@ -79,10 +97,10 @@ function shapeForSourceEntityType(entityType) {
   return null;
 }
 
-function arrayItemsAsKeys(arrayShape) {
+function arrayItemsAsKeys(arrayShape, ctx) {
   // For a collection (e.g. $allContainers), we surface the same keys as a single
   // occurrence — drilling into the array gives you the per-item shape.
-  if (arrayShape === "occurrenceArray") return SHAPES.occurrence.keys();
+  if (arrayShape === "occurrenceArray") return SHAPES.occurrence.keys(ctx);
   if (arrayShape === "templateArray") return [
     { value: "id",    title: "id",    sub: "string", description: "Module ID",         hasChildren: false },
     { value: "label", title: "label", sub: "string", description: "Module label",       hasChildren: false },
@@ -90,6 +108,13 @@ function arrayItemsAsKeys(arrayShape) {
     { value: "role",  title: "role",  sub: "string", description: "panel / container / instance", hasChildren: false },
     { value: "kind",  title: "kind",  sub: "string", description: "list / doc / board / artifact", hasChildren: false },
     { value: "meta",  title: "meta",  sub: "object", description: "Module meta",        hasChildren: false },
+  ];
+  if (arrayShape === "fieldArray") return [
+    { value: "id",    title: "id",    sub: "string", description: "Field ID",         hasChildren: false },
+    { value: "name",  title: "name",  sub: "string", description: "Display name",      hasChildren: false },
+    { value: "type",  title: "type",  sub: "string", description: "number / text / boolean / select / date / rating / duration", hasChildren: false },
+    { value: "meta",  title: "meta",  sub: "object", description: "Field meta (unit, options, prefix, postfix, etc.)", hasChildren: false },
+    { value: "folderId", title: "folderId", sub: "string", description: "Category folder ID", hasChildren: false },
   ];
   return [];
 }
@@ -108,23 +133,94 @@ function fieldsMapItems(ctx) {
 
 function descendShape(shape, ctx) {
   if (!shape) return [];
-  if (shape === "occurrence") return SHAPES.occurrence.keys();
-  if (shape === "fieldValue") return SHAPES.fieldValue.keys();
-  if (shape === "filter") return SHAPES.filter.keys();
-  if (shape === "grid") return SHAPES.grid.keys();
+  if (shape === "occurrence") return SHAPES.occurrence.keys(ctx);
+  if (shape === "fieldValue") return SHAPES.fieldValue.keys(ctx);
+  if (shape === "filter") return SHAPES.filter.keys(ctx);
+  if (shape === "grid") return SHAPES.grid.keys(ctx);
   if (shape === "fieldsMap") return fieldsMapItems(ctx);
-  if (shape === "occurrenceArray" || shape === "templateArray") return arrayItemsAsKeys(shape);
+  if (shape === "occurrenceArray" || shape === "templateArray" || shape === "fieldArray") return arrayItemsAsKeys(shape, ctx);
   return [];
 }
+
+// Built-in vars that the executor populates on every run, keyed to their shape.
+// Used so $allItems / $parentFilter / $trigger drill correctly even without an
+// explicit Source row.
+const BUILTIN_VAR_SHAPES = {
+  $allItems: "occurrenceArray",
+  $allOccurrences: "occurrenceArray",
+  $allContainers: "occurrenceArray",
+  $allInstances: "occurrenceArray",
+  $allPages: "occurrenceArray",
+  $allPanels: "occurrenceArray",
+  $allTemplates: "templateArray",
+  $allFields: "fieldArray",
+  $parentFilter: "filter",
+  $trigger: "occurrence",
+  $grid: "grid",
+};
 
 function findSourceForVarName(ctx, varName) {
   const stripped = varName.startsWith("$") ? varName.slice(1) : varName;
   return (ctx.sources || []).find(s => s.variableName === stripped);
 }
 
+// Resolve a single chip segment to a friendly display label. The picker stores
+// raw values (`field:fieldId`, ids), but chips should read like names so the
+// path is legible at a glance — `[Water] [value]` instead of `[field:abc123]
+// [value]`. Anything that doesn't resolve falls back to the raw segment.
+function segmentDisplay(seg, ctx) {
+  if (!seg) return seg;
+  if (seg.startsWith("field:")) {
+    const fid = seg.slice(6);
+    const f = ctx?.fieldsById?.[fid];
+    if (f?.name) return f.name;
+    return seg;
+  }
+  if (seg.startsWith("$")) return seg;
+  // Filter maps key by fieldId, so a raw fieldId may appear as a chip segment
+  // (e.g. `$parentFilter.<fieldId>` or `$page._effectiveFilter.<fieldId>`).
+  if (ctx?.fieldsById?.[seg]) {
+    return ctx.fieldsById[seg].name || seg;
+  }
+  if (ctx?.modulesById?.[seg]) {
+    const m = ctx.modulesById[seg];
+    return m.label || m.name || seg;
+  }
+  if (ctx?.occurrencesById?.[seg]) {
+    const occ = ctx.occurrencesById[seg];
+    const m = occ.targetId && ctx.modulesById?.[occ.targetId];
+    return m?.label || m?.name || seg;
+  }
+  return seg;
+}
+
 // Given the chain so far (e.g. ["sources", "$everyOcc", "fields"]), return the
 // items for the next level + a label describing what we're looking at.
-function itemsForLevel(chain, ctx, categories) {
+//
+// `recordShape` (optional): when set, the picker bypasses the category-picking
+// step entirely. Level 0 lists the keys of that shape; subsequent levels drill
+// via each item's `childShape`. The committed value is just the dotted record
+// path (`label`, `fields.<fid>.value`) — no `$` prefix, no category id. Used by
+// Find's predicate left-side, which iterates a chosen collection and evaluates
+// each rule against the current record.
+function itemsForLevel(chain, ctx, categories, recordShape) {
+  if (recordShape) {
+    let currentItems = descendShape(recordShape, ctx);
+    if (chain.length === 0) {
+      return { label: "Pick a record field", items: currentItems };
+    }
+    let currentLabel = "Record fields";
+    for (let i = 0; i < chain.length; i++) {
+      const seg = chain[i];
+      const matchedItem = currentItems.find(it => it.value === seg);
+      if (!matchedItem) { currentItems = []; currentLabel = seg; break; }
+      currentLabel = matchedItem.title;
+      if (matchedItem.childShape) currentItems = descendShape(matchedItem.childShape, ctx);
+      else { currentItems = []; break; }
+    }
+    return { label: currentLabel, items: currentItems };
+  }
+
   if (chain.length === 0) {
     return {
       label: "Where does this come from?",
@@ -154,13 +250,22 @@ function itemsForLevel(chain, ctx, categories) {
   const variable = chain[1];
   let shape = null;
   if (variable.startsWith("$")) {
-    const src = findSourceForVarName(ctx, variable);
-    if (src) {
-      shape = shapeForSourceEntityType(src.entityType);
+    // Built-in vars take precedence — they're exposed in the picker as items
+    // that don't necessarily have a Source row, but the executor still populates
+    // them ($allItems, $parentFilter, $trigger, etc.).
+    if (BUILTIN_VAR_SHAPES[variable]) {
+      shape = BUILTIN_VAR_SHAPES[variable];
     } else {
-      // Local var or built-in.
-      if (variable === "$grid") shape = "grid";
-      else if (chain[0] === "localVars") shape = "occurrence"; // permissive
+      const src = findSourceForVarName(ctx, variable);
+      if (src) {
+        shape = shapeForSourceEntityType(src.entityType);
+      } else {
+        // Anything else starting with `$` — local var, source we can't classify,
+        // built-in object — gets the permissive occurrence shape so the picker is
+        // never a dead end. The runtime decides whether the path actually
+        // resolves; the editor just exposes the names.
+        shape = "occurrence";
+      }
     }
   } else if (variable.startsWith("field:")) {
     shape = "fieldValue";
@@ -190,25 +295,32 @@ function itemsForLevel(chain, ctx, categories) {
 }
 
 // ---- Styles ----
+// The dropdown layers two surfaces: the panel itself (`--surface` / fallback to
+// the dark editor bg) and a slightly lighter list area inside. Without an
+// explicit list bg the open panel reads as transparent against the editor.
 const dropdownSt = {
   position: "fixed", zIndex: 9999,
-  background: "var(--input-bg)", border: "1px solid var(--border-default)",
-  borderRadius: 8, boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
+  background: "var(--surface, #1f2125)",
+  border: "1px solid var(--border-default)",
+  borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
   minWidth: 320, maxHeight: 420, overflow: "hidden",
   display: "flex", flexDirection: "column",
 };
 const breadcrumbSt = {
   display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap",
-  padding: "6px 10px", borderBottom: "1px solid var(--border-subtle)",
+  padding: "6px 10px",
+  background: "var(--input-bg, rgba(255,255,255,0.03))",
+  borderBottom: "1px solid var(--border-subtle)",
   fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)",
 };
 const tileSt = {
   display: "flex", alignItems: "flex-start", gap: 10,
   width: "100%", padding: "8px 10px",
-  background: "transparent", border: "none", borderRadius: 6,
+  background: "var(--input-bg, rgba(255,255,255,0.04))",
+  border: "1px solid var(--border-subtle)", borderRadius: 6,
   cursor: "pointer", textAlign: "left",
 };
-const tileHoverSt = { background: "var(--border-subtle)" };
+const tileHoverSt = { background: "var(--accent-blue-bg, rgba(59,130,246,0.15))" };
 const iconBlockSt = (color) => ({
   width: 28, height: 28, borderRadius: 6,
   background: color, display: "flex", alignItems: "center", justifyContent: "center",
@@ -297,6 +409,7 @@ export default function CategoryPathPicker({
 }) {
   const placeholder = config?.placeholder || (mode === "entity" ? "Pick reference" : "Pick path");
   const categories = config?.categories || CATEGORIES;
+  const recordShape = config?.recordShape || null;
 
   const [open, setOpen] = useState(false);
   const [drillChain, setDrillChain] = useState([]); // values of items chosen on the way down
@@ -333,15 +446,20 @@ export default function CategoryPathPicker({
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const level = useMemo(() => itemsForLevel(drillChain, ctx, categories), [drillChain, ctx, categories]);
+  const level = useMemo(
+    () => itemsForLevel(drillChain, ctx, categories, recordShape),
+    [drillChain, ctx, categories, recordShape],
+  );
 
   const commitChain = useCallback((extra) => {
-    // drillChain[0] is always a category id — drop it from the persisted value.
-    const segments = [...drillChain.slice(1)];
+    // In recordShape mode every drill segment is part of the value (no synthetic
+    // category step); in normal mode drillChain[0] is the category id and gets
+    // dropped from the persisted value.
+    const segments = recordShape ? [...drillChain] : [...drillChain.slice(1)];
     if (extra !== undefined) segments.push(extra);
     onChange(segments.join("."));
     setOpen(false);
-  }, [drillChain, onChange]);
+  }, [drillChain, onChange, recordShape]);
 
   const handleBodyClick = useCallback((item) => {
     if (item.hasChildren) {
@@ -380,14 +498,15 @@ export default function CategoryPathPicker({
   const goToDepth = useCallback((depth) => setDrillChain(prev => prev.slice(0, depth)), []);
 
   const breadcrumbs = useMemo(() => {
-    const crumbs = [{ label: "Categories", depth: 0 }];
+    const rootLabel = recordShape ? "Record" : "Categories";
+    const crumbs = [{ label: rootLabel, depth: 0 }];
     for (let i = 0; i < drillChain.length; i++) {
-      const sub = itemsForLevel(drillChain.slice(0, i), ctx, categories);
+      const sub = itemsForLevel(drillChain.slice(0, i), ctx, categories, recordShape);
       const found = sub.items.find(it => it.value === drillChain[i]);
       crumbs.push({ label: found?.title || drillChain[i], depth: i + 1 });
     }
     return crumbs;
-  }, [drillChain, ctx, categories]);
+  }, [drillChain, ctx, categories, recordShape]);
 
   const clearValue = (e) => {
     e.stopPropagation();
@@ -411,7 +530,7 @@ export default function CategoryPathPicker({
             {chipSegments.map((seg, i) => (
               <React.Fragment key={i}>
                 {i > 0 && <span style={sepSt}>›</span>}
-                <span style={chipSt}>{seg}</span>
+                <span style={chipSt} title={seg}>{segmentDisplay(seg, ctx)}</span>
               </React.Fragment>
             ))}
             <button

@@ -61,18 +61,37 @@ export const CATEGORIES = [
   {
     id: "occurrences",
     label: "Occurrences",
-    description: "Collections of placements on the grid. Bind a Source first to expose one here.",
+    description: "Collections of placements on the grid. $allItems and $allTemplates are always available; bind a Source for filtered subsets.",
     icon: Box,
     color: "rgba(34,197,94,0.7)",    // green
-    resolveItems: (ctx) => (ctx.sources || [])
-      .filter(s => OCCURRENCE_COLLECTION_TYPES.has(s.entityType))
-      .map(s => ({
-        value: `$${s.variableName}`,
-        title: `$${s.variableName}`,
-        sub: s.entityType,
-        description: describeSource(s),
-        hasChildren: true,
-      })),
+    resolveItems: (ctx) => {
+      const builtins = [
+        {
+          value: "$allItems",
+          title: "$allItems",
+          sub: "occurrenceArray",
+          description: "Every occurrence on the grid, merged with its template (label/role/kind/meta)",
+          hasChildren: true,
+        },
+        {
+          value: "$allTemplates",
+          title: "$allTemplates",
+          sub: "templateArray",
+          description: "Every module template (id, label, role, kind, meta)",
+          hasChildren: true,
+        },
+      ];
+      const sourceBound = (ctx.sources || [])
+        .filter(s => OCCURRENCE_COLLECTION_TYPES.has(s.entityType))
+        .map(s => ({
+          value: `$${s.variableName}`,
+          title: `$${s.variableName}`,
+          sub: s.entityType,
+          description: describeSource(s),
+          hasChildren: true,
+        }));
+      return [...builtins, ...sourceBound];
+    },
   },
   {
     id: "fields",
@@ -81,6 +100,13 @@ export const CATEGORIES = [
     icon: Hash,
     color: "rgba(168,85,247,0.7)",   // purple
     resolveItems: (ctx) => {
+      const builtins = [{
+        value: "$allFields",
+        title: "$allFields",
+        sub: "fieldArray",
+        description: "Every field record on the grid (id, name, type, meta)",
+        hasChildren: true,
+      }];
       const sourceFields = (ctx.sources || [])
         .filter(s => FIELD_LIKE_TYPES.has(s.entityType))
         .map(s => ({
@@ -97,7 +123,7 @@ export const CATEGORIES = [
         description: f.meta?.description || `Aggregated ${f.type || "field"} value`,
         hasChildren: true,
       }));
-      return [...sourceFields, ...templateFields];
+      return [...builtins, ...sourceFields, ...templateFields];
     },
   },
   {
@@ -127,6 +153,8 @@ export const CATEGORIES = [
       { value: "$activeDateLabel",  title: "$activeDateLabel",  sub: "string",     description: "Human-readable active date",      hasChildren: false },
       { value: "$activeDayOfWeek",  title: "$activeDayOfWeek",  sub: "string",     description: "Monday/Tuesday/...",              hasChildren: false },
       { value: "$grid",             title: "$grid",             sub: "object",     description: "The current grid record",          hasChildren: true  },
+      { value: "$trigger",          title: "$trigger",          sub: "object",     description: "The triggering event payload (occurrence-shaped + extras)", hasChildren: true },
+      { value: "$parentFilter",     title: "$parentFilter",     sub: "filter",     description: "Effective filter values walked from the trigger occurrence's ancestor chain (keyed by fieldId)", hasChildren: true },
     ],
   },
 ];
@@ -134,4 +162,92 @@ export const CATEGORIES = [
 export function resolveCategoryItems(categoryId, ctx) {
   const cat = CATEGORIES.find(c => c.id === categoryId);
   return cat ? cat.resolveItems(ctx) : [];
+}
+
+// ---- Specialized picker configs ----------------------------------------------
+// Find and Loop both take a single collection variable as their iteration target.
+// COLLECTION_PICKER_CONFIG drives a CategoryPathPicker that exposes only those
+// collections — picked value is committed in one click (no further drilling).
+//
+// $allOccurrences / $allItems are aliases at runtime; we surface both because
+// authors reach for different names depending on context. Same for the
+// role-filtered slices.
+
+const COLLECTION_ITEMS = [
+  {
+    value: "$allOccurrences", title: "$allOccurrences", sub: "occurrenceArray",
+    description: "Every occurrence on the grid (alias of $allItems — pick whichever reads better)",
+    hasChildren: false,
+  },
+  {
+    value: "$allItems", title: "$allItems", sub: "occurrenceArray",
+    description: "Every occurrence on the grid",
+    hasChildren: false,
+  },
+  {
+    value: "$allContainers", title: "$allContainers", sub: "occurrenceArray",
+    description: "Every container occurrence",
+    hasChildren: false,
+  },
+  {
+    value: "$allPages", title: "$allPages", sub: "occurrenceArray",
+    description: "Every page-role occurrence (Schedule, Daily Toolkit, …)",
+    hasChildren: false,
+  },
+  {
+    value: "$allPanels", title: "$allPanels", sub: "occurrenceArray",
+    description: "Every panel-role grid-cell occurrence",
+    hasChildren: false,
+  },
+  {
+    value: "$allInstances", title: "$allInstances", sub: "occurrenceArray",
+    description: "Every leaf instance occurrence",
+    hasChildren: false,
+  },
+  {
+    value: "$allTemplates", title: "$allTemplates", sub: "templateArray",
+    description: "Every module template",
+    hasChildren: false,
+  },
+  {
+    value: "$allFields", title: "$allFields", sub: "fieldArray",
+    description: "Every field record on the grid",
+    hasChildren: false,
+  },
+];
+
+export const COLLECTION_PICKER_CONFIG = {
+  placeholder: "Pick collection",
+  categories: [{
+    id: "collections",
+    label: "Pick a collection to iterate",
+    description: "What set of records this step looks at",
+    icon: Box,
+    color: "rgba(34,197,94,0.7)",
+    resolveItems: () => COLLECTION_ITEMS,
+  }],
+};
+
+// Map a collection variable name to the per-record shape the picker should
+// drill into. Used by Find: once the user picks `$allOccurrences` for
+// `cfg.over`, the predicate left-side picker walks occurrence keys (label,
+// fields, role, etc.). `$allTemplates` walks template keys; `$allFields` walks
+// field keys.
+export function recordShapeForCollection(over) {
+  if (!over) return "occurrence";
+  if (over === "$allTemplates") return "templateArray";
+  if (over === "$allFields") return "fieldArray";
+  // Everything else (allOccurrences/allItems/allContainers/allPages/allInstances)
+  // resolves to per-occurrence keys.
+  return "occurrence";
+}
+
+// Build a config for a CategoryPathPicker that picks a record-key path on the
+// record currently being iterated. There are no $-prefixed names in the
+// committed value — just the dotted key (`label`, `fields.<fid>.value`).
+export function buildRecordKeyPickerConfig(over, { placeholder } = {}) {
+  return {
+    placeholder: placeholder || "Pick record field",
+    recordShape: recordShapeForCollection(over),
+  };
 }

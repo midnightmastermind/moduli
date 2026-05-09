@@ -16,6 +16,7 @@ import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-
 import { GripVertical } from "lucide-react";
 import { arrayMove } from "../helpers/LayoutHelpers";
 import CategoryPathPicker from "../ui/CategoryPathPicker";
+import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig } from "../ui/categoryRegistry";
 import ConditionGroup from "./ConditionGroup";
 
 /**
@@ -261,7 +262,12 @@ function collectLocalVars(steps) {
         if (step.config.itemVar && typeof step.config.itemVar === "string" && step.config.itemVar.startsWith("$")) found.add(step.config.itemVar);
       }
       if (step.type === "loop") {
-        if (typeof step.as === "string" && step.as.startsWith("$")) found.add(step.as);
+        // Loop iteration variable surfaces as a $var inside the loop body so
+        // IF conditions / nested actions can pick it through the path picker
+        // (e.g. `$preset.label` or `$item.fields.X.value`).
+        if (step.as && typeof step.as === "string" && step.as.startsWith("$")) {
+          found.add(step.as);
+        }
         visit(step.body);
       }
       if (step.type === "if") {
@@ -321,24 +327,6 @@ const SYSTEM_ACTION_TYPES = [
 
 const AGGREGATION_TYPES = [
   "sum", "count", "countTrue", "avg", "min", "max", "last", "first", "median", "mode", "unique", "concat", "range", "stdDev", "product",
-];
-
-const ENTITY_TYPES = [
-  { value: "instance", label: "Instance", hint: "$var.fieldId, $var.fieldId_flow" },
-  { value: "container", label: "Container", hint: "$var.fieldId, $var.fieldId_flow" },
-  { value: "panel", label: "Panel", hint: "$var.id, $var.label, $var.kind, $var.defaultDragMode" },
-  { value: "occurrence", label: "Occurrence (by ID)", hint: "$var.id, $var.targetId, $var.fields, $var.parentId, $var.filterOverride" },
-  { value: "field", label: "Field (aggregated)", hint: "$var.id, $var.name, $var.type, $var.unit, $var.value, $var.flow" },
-  { value: "grid", label: "Grid (whole grid)", hint: "$var.gridId, $var.activeFilterId, $var.activeFilterValues, $var.namedFilters" },
-  { value: "localField", label: "Local Field (node input)", hint: "$varName = value typed on the operation node — transient, not from DB" },
-  { value: "trigger", label: "Trigger Event", hint: "Pulls a single property off the firing trigger into a named $var. Pick a property below." },
-  { value: "allOccurrences", label: "All occurrences", hint: "$var = every occurrence on the grid (array)" },
-  { value: "allContainers",  label: "All containers",  hint: "$var = every container occurrence (array)" },
-  { value: "allPages",       label: "All pages",       hint: "$var = every page-role panel occurrence (array)" },
-  { value: "allInstances",   label: "All instances",   hint: "$var = every leaf instance occurrence (array)" },
-  { value: "allTemplates",   label: "All templates",   hint: "$var = every module template (array)" },
-  { value: "parentFilter",   label: "Parent filter",   hint: "$var = filter walked from trigger occurrence ancestors" },
-  { value: "effectiveFilter", label: "Effective filter (for ancestor)", hint: "$var = effective filter walked from a chosen container/page" },
 ];
 
 // ---- Shared styles ----
@@ -404,13 +392,15 @@ const ifStepSt = {
  */
 export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = {}, occurrencesById = {}, fieldsById, operationsById = {} }) {
   const local = pipeline || { sources: [], steps: [] };
-  const [showSources, setShowSources] = useState(false);
 
+  // Sources are no longer surfaced in the editor — they're a duplicate of
+  // inline INIT_VAR steps. Existing pipelines with sources still execute (the
+  // executor reads them) and we preserve them on save by passing through
+  // `local.sources`, but new ops never declare any. To bind a trigger prop,
+  // use an INIT_VAR step with `expr: "$trigger.fieldId"` instead.
   const sources = local.sources || [];
   const steps = local.steps || [];
 
-  const instanceModules = useMemo(() => Object.values(modulesById).filter(m => m.role === "instance"), [modulesById]);
-  const containerModules = useMemo(() => Object.values(modulesById).filter(m => m.role === "container"), [modulesById]);
   const allFields = fields;
   const mergedFieldsById = useMemo(
     () => fieldsById || Object.fromEntries(fields.map(f => [f.id, f])),
@@ -431,43 +421,12 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-
-      {/* SOURCES — collapsible */}
-      <div style={pipelineStageStyle}>
-        <div style={pipelineHeaderStyle} onClick={() => setShowSources(!showSources)}>
-          <span>📥 Inputs (bind variables) <span style={{ fontSize: 9, opacity: 0.5 }}>({sources.length})</span></span>
-          <span style={{ fontSize: 9, opacity: 0.5 }}>{showSources ? "▲" : "▼"}</span>
-        </div>
-        {showSources && (
-          <div style={pipelineBodyStyle}>
-            {sources.length === 0 && (
-              <span style={{ fontSize: 10, color: "var(--text-faint)", fontStyle: "italic" }}>No sources yet — add one to capture a trigger property or entity into a named variable.</span>
-            )}
-            {sources.map(src => (
-              <SourceRow
-                key={src.id}
-                src={src}
-                onUpdate={patch => onChange({ ...local, sources: sources.map(s => s.id === src.id ? { ...s, ...patch } : s) })}
-                onRemove={() => onChange({ ...local, sources: sources.filter(s => s.id !== src.id) })}
-                instanceModules={instanceModules}
-                containerModules={containerModules}
-                modulesById={modulesById}
-                occurrencesById={occurrencesById}
-                fields={allFields}
-              />
-            ))}
-            <button style={addBtnStyle} onClick={() => onChange({ ...local, sources: [...sources, { id: uid(), variableName: "source" + (sources.length + 1), entityType: "instance", entityId: "" }] })}>
-              + Add Source
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* STEPS — main code flow */}
+      {/* STEPS — main code flow. The header doubles as the only top-level
+          chrome now that Sources is gone. */}
       <div style={pipelineStageStyle}>
         <div style={{ ...pipelineHeaderStyle, cursor: "default" }}>
           <span>⚡ Steps</span>
-          <span style={{ fontSize: 9, opacity: 0.4 }}>top-down • actions run immediately • if blocks are conditional</span>
+          <span style={{ fontSize: 9, opacity: 0.4 }}>top-down • use $trigger.* directly • declare vars with INIT_VAR</span>
         </div>
         <div style={pipelineBodyStyle}>
           {steps.length === 0 && (
@@ -478,233 +437,6 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
           <StepsList steps={steps} onChange={st => onChange({ ...local, steps: st })} {...sharedProps} />
         </div>
       </div>
-
-    </div>
-  );
-}
-
-// ---- Source Row ----
-function SourceRow({ src, onUpdate, onRemove, instanceModules, containerModules, modulesById, occurrencesById, fields }) {
-  const panelModules = useMemo(() => Object.values(modulesById || {}).filter(m => m.role === "panel"), [modulesById]);
-  const entityTypeInfo = ENTITY_TYPES.find(et => et.value === src.entityType);
-
-  const entityOptions = useMemo(() => {
-    if (src.entityType === "instance") return instanceModules;
-    if (src.entityType === "container") return containerModules;
-    if (src.entityType === "panel") return panelModules;
-    return [];
-  }, [src.entityType, instanceModules, containerModules, panelModules]);
-
-  const needsPicker = ["instance", "container", "panel"].includes(src.entityType);
-  const needsOccId = src.entityType === "occurrence";
-  const needsFieldId = src.entityType === "field" || src.entityType === "localField";
-  const needsTargetLabel = src.entityType === "effectiveFilter";
-
-  // Config for the module picker — one category per role, items show label + role + id.
-  const modulePickerConfig = useMemo(() => {
-    if (!needsPicker) return null;
-    const moduleRoleLabel = src.entityType === "instance" ? "Instances"
-      : src.entityType === "container" ? "Containers" : "Pages";
-    return {
-      placeholder: `Pick ${src.entityType}`,
-      categories: [
-        {
-          id: "modules",
-          label: moduleRoleLabel,
-          description: `Pick a ${src.entityType} template — operations bind by id, displayed as the label.`,
-          color: "rgba(34,197,94,0.7)",
-          icon: undefined,
-          resolveItems: () => entityOptions.map(m => ({
-            value: m.id,
-            title: m.label || m.name || "(unnamed)",
-            sub: m.role,
-            description: `id: ${m.id}`,
-            hasChildren: false,
-          })),
-        },
-      ],
-    };
-  }, [needsPicker, src.entityType, entityOptions]);
-
-  // Picker context isn't used for entity mode (categories override resolution),
-  // but the component requires it. Provide an empty shape.
-  const emptyCtx = useMemo(() => ({ sources: [], fields: [], localVars: [], modulesById, occurrencesById, fieldsById: {} }), [modulesById, occurrencesById]);
-
-  // Effective filter target — Occurrences (by id, displays label) + By Label (label match).
-  const effectiveFilterConfig = useMemo(() => {
-    if (!needsTargetLabel) return null;
-    const allOccs = Object.values(occurrencesById || {}).filter(o => o && !o.deleted);
-    return {
-      placeholder: "Pick target",
-      categories: [
-        {
-          id: "occurrences",
-          label: "Occurrences",
-          description: "Bind to a real occurrence by id — stable across renames. Picker shows the module's label.",
-          color: "rgba(34,197,94,0.7)",
-          resolveItems: () => allOccs
-            .filter(o => modulesById[o.targetId])
-            .map(o => ({
-              value: `id:${o.id}`,
-              title: modulesById[o.targetId]?.label || "(unnamed)",
-              sub: modulesById[o.targetId]?.role || "occurrence",
-              description: `id: ${o.id}`,
-              hasChildren: false,
-            })),
-        },
-        {
-          id: "byLabel",
-          label: "By Label",
-          description: "Match the first occurrence whose module label equals the chosen string. Useful when the id isn't stable.",
-          color: "rgba(251,191,36,0.7)",
-          resolveItems: () => allOccs
-            .map(o => modulesById[o.targetId]?.label)
-            .filter(Boolean)
-            .filter((label, idx, arr) => arr.indexOf(label) === idx)
-            .map(label => ({
-              value: `label:${label}`,
-              title: label,
-              sub: "label",
-              description: "Resolved by label at runtime.",
-              hasChildren: false,
-            })),
-        },
-      ],
-    };
-  }, [needsTargetLabel, occurrencesById, modulesById]);
-
-  const effectiveFilterValue = useMemo(() => {
-    if (src.targetId) return `id:${src.targetId}`;
-    if (src.targetLabel) return `label:${src.targetLabel}`;
-    return "";
-  }, [src.targetId, src.targetLabel]);
-
-  const handleEffectiveFilterChange = (next) => {
-    if (next.startsWith("id:")) onUpdate({ targetId: next.slice(3), targetLabel: undefined });
-    else if (next.startsWith("label:")) onUpdate({ targetLabel: next.slice(6), targetId: undefined });
-    else onUpdate({ targetId: undefined, targetLabel: undefined });
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <div style={rowStyle}>
-        <select value={src.entityType} onChange={e => onUpdate({ entityType: e.target.value, entityId: "" })} style={selectSt}>
-          {ENTITY_TYPES.map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
-        </select>
-        {needsPicker && (
-          <CategoryPathPicker
-            value={src.entityId || ""}
-            ctx={emptyCtx}
-            config={modulePickerConfig}
-            mode="entity"
-            onChange={(next) => onUpdate({ entityId: next })}
-          />
-        )}
-        {needsOccId && (
-          <input
-            value={src.entityId}
-            onChange={e => onUpdate({ entityId: e.target.value })}
-            placeholder="occurrence ID or $trigger.occurrenceId"
-            style={{ ...inputSt, width: 160 }}
-          />
-        )}
-        {needsFieldId && (
-          <select value={src.entityId} onChange={e => onUpdate({ entityId: e.target.value })} style={selectSt}>
-            <option value="">Pick field...</option>
-            {(fields || []).map(f => (
-              <option key={f.id} value={f.id}>{f.name}</option>
-            ))}
-          </select>
-        )}
-        {needsTargetLabel && (
-          <CategoryPathPicker
-            value={effectiveFilterValue}
-            ctx={emptyCtx}
-            config={effectiveFilterConfig}
-            mode="entity"
-            onChange={handleEffectiveFilterChange}
-          />
-        )}
-        {src.entityType === "trigger" && (
-          <select
-            value={src.triggerProp || ""}
-            onChange={e => onUpdate({ ...src, triggerProp: e.target.value })}
-            style={selectSt}
-          >
-            <option value="">— pick property —</option>
-            <optgroup label="Identity">
-              <option value="type">type (event name)</option>
-              <option value="userId">userId</option>
-              <option value="timestamp">timestamp</option>
-            </optgroup>
-            <optgroup label="Item / occurrence">
-              <option value="itemId">itemId (occurrence)</option>
-              <option value="occurrenceId">occurrenceId</option>
-              <option value="templateId">templateId (module)</option>
-              <option value="instanceId">instanceId</option>
-              <option value="role">role</option>
-              <option value="kind">kind</option>
-              <option value="label">label</option>
-              <option value="occurrence">occurrence (full)</option>
-            </optgroup>
-            <optgroup label="Field change">
-              <option value="fieldId">fieldId</option>
-              <option value="value">value</option>
-              <option value="previousValue">previousValue</option>
-              <option value="flow">flow</option>
-              <option value="changedField">changedField</option>
-            </optgroup>
-            <optgroup label="Parents / move">
-              <option value="parentId">parentId</option>
-              <option value="containerId">containerId</option>
-              <option value="panelId">panelId</option>
-              <option value="containerLabel">containerLabel</option>
-              <option value="panelLabel">panelLabel</option>
-              <option value="fromParentId">fromParentId</option>
-              <option value="toParentId">toParentId</option>
-              <option value="fromContainerId">fromContainerId</option>
-              <option value="toContainerId">toContainerId</option>
-              <option value="fromPanelId">fromPanelId</option>
-              <option value="toPanelId">toPanelId</option>
-            </optgroup>
-            <optgroup label="Filter / navigation">
-              <option value="date">date</option>
-              <option value="activeFilterValues">activeFilterValues</option>
-            </optgroup>
-            <optgroup label="Transaction">
-              <option value="transactionId">transactionId</option>
-              <option value="transactionType">transactionType</option>
-            </optgroup>
-          </select>
-        )}
-        <span style={labelSt}>→ as $</span>
-        <input
-          value={src.variableName}
-          onChange={e => onUpdate({ variableName: e.target.value.replace(/\W/g, "") })}
-          style={{ ...inputSt, width: 70 }}
-          placeholder="varName"
-        />
-        <button style={removeBtnSt} onClick={onRemove}>✕</button>
-      </div>
-      {entityTypeInfo?.hint && (
-        <div style={{ fontSize: 9, fontFamily: "monospace", color: "var(--text-faint)", paddingLeft: 6 }}>
-          {entityTypeInfo.hint}
-        </div>
-      )}
-      {src.entityType === "localField" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 6 }}>
-          <input
-            type="checkbox"
-            id={`nodeInput-${src.id}`}
-            checked={!!src.nodeInput}
-            onChange={e => onUpdate({ nodeInput: e.target.checked })}
-            style={{ cursor: "pointer" }}
-          />
-          <label htmlFor={`nodeInput-${src.id}`} style={{ fontSize: 9, fontFamily: "monospace", color: "var(--text-muted)", cursor: "pointer" }}>
-            Show as input on operation node
-          </label>
-        </div>
-      )}
     </div>
   );
 }
@@ -879,7 +611,10 @@ function ExprInput({ value, onChange, placeholder, width = 120, title }) {
 function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], fields = [], fieldsById, modulesById, occurrencesById, inLoop = true, localVars = [] }) {
   const v = String(value ?? "").trim();
   const isArrayValue = v.startsWith("json:[");
-  const initialMode = isArrayValue
+  const isNullValue = value === null || v === "literal:null";
+  const initialMode = isNullValue
+    ? "null"
+    : isArrayValue
     ? "array"
     : (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
   const [mode, setMode] = useState(initialMode);
@@ -895,7 +630,8 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
     // would be invalid for the new mode (path expects $-prefixed, array expects json:[).
     if (next === "path" && v && !v.startsWith("$")) onChange("");
     else if (next === "array" && !v.startsWith("json:[")) onChange("json:[]");
-    else if (next === "text" && v.startsWith("json:[")) onChange("");
+    else if (next === "text" && (v.startsWith("json:[") || isNullValue)) onChange("");
+    else if (next === "null") onChange(null);
   };
 
   const arrayValue = isArrayValue ? v.slice(5) : "[]";
@@ -911,6 +647,7 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
         <option value="path">path</option>
         <option value="text">text</option>
         <option value="array">array</option>
+        <option value="null">null</option>
       </select>
       {mode === "path" && (
         <CategoryPathPicker
@@ -939,39 +676,46 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
           style={{ fontSize: 10, padding: "3px 5px", border: "1px solid var(--input-border)", borderRadius: 3, background: "var(--input-bg)", color: "var(--text-primary)", fontFamily: "monospace", width: Math.max(width, 220), minHeight: 60 }}
         />
       )}
+      {mode === "null" && (
+        <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-faint)", padding: "3px 5px", border: "1px dashed var(--border-subtle)", borderRadius: 3 }}>
+          null
+        </span>
+      )}
     </div>
   );
 }
 
 // ---- LoopStep ----
-// loop [overExpr] as $[varName] { body steps }
+// loop [overExpr] { body steps }
+// The iteration variable (`step.as`, default $item) is INTERNAL — record-key
+// paths inside the body are expressed against the per-record shape determined
+// by `overExpr`, so $item never needs to surface in the editor. We still keep
+// `step.as` on the model for the executor.
 function LoopStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
   const shared = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById, operationsById, sources };
-  const varName = (step.as || "$item").replace(/^\$/, "");
+  const pickerCtx = useMemo(
+    () => ({ sources, fields, fieldsById, modulesById, occurrencesById, localVars }),
+    [sources, fields, fieldsById, modulesById, occurrencesById, localVars],
+  );
 
   return (
     <div style={{ ...ifStepSt, borderLeftColor: "rgba(167,139,250,0.4)" }}>
       {/* Header row */}
       <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10, color: "rgba(167,139,250,0.8)", fontFamily: "monospace", minWidth: 28 }}>for each</span>
-        <ExprOrPath
+        <span style={{ fontSize: 10, color: "rgba(167,139,250,0.8)", fontFamily: "monospace", minWidth: 28 }}>for each in</span>
+        <CategoryPathPicker
           value={step.overExpr || ""}
-          onChange={v => onUpdate({ overExpr: v })}
-          placeholder="$allOccurrences or any array"
-          width={180}
-          sources={sources}
-          fields={fields}
-          fieldsById={fieldsById}
-          modulesById={modulesById}
-          occurrencesById={occurrencesById}
-          localVars={localVars}
+          ctx={pickerCtx}
+          config={COLLECTION_PICKER_CONFIG}
+          onChange={v => onUpdate({ overExpr: v, as: step.as || "$item" })}
         />
-        <span style={labelSt}>as $</span>
+        <span style={{ fontSize: 10, color: "rgba(167,139,250,0.8)", fontFamily: "monospace" }}>as $</span>
         <input
-          value={varName}
+          value={(step.as || "$item").replace(/^\$/, "")}
           onChange={e => onUpdate({ as: `$${e.target.value.replace(/\W/g, "")}` })}
           placeholder="item"
-          style={{ ...inputSt, width: 70, fontFamily: "monospace" }}
+          title="Loop iteration variable name. Body steps reference this as $myName."
+          style={{ fontSize: 10, padding: "1px 4px", width: 80, fontFamily: "monospace", border: "1px solid var(--input-border)", borderRadius: 3, background: "var(--input-bg)", color: "var(--text-primary)" }}
         />
         <div ref={dragHandleRef} style={{ marginLeft: "auto", display: "flex", gap: 2, alignItems: "center" }}>
           <GripVertical style={{ width: 10, height: 10, opacity: 0.25, cursor: "grab", flexShrink: 0 }} />
@@ -1050,6 +794,7 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], 
           fieldsById={fieldsById}
           modulesById={modulesById}
           occurrencesById={occurrencesById}
+          localVars={localVars}
         />
       </div>
 
@@ -1096,7 +841,9 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
       style={{ ...inputSt, width: 80, fontFamily: "monospace" }}
     />
   );
-
+  if (actionType == "RUN_OPERATION") {
+    console.log(cfg);
+  }
   switch (actionType) {
     // ---- Variable operations ----
     case "INIT_VAR":
@@ -1180,10 +927,24 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
     // ---- Unified verbs (FIND/CREATE/UPDATE/DELETE) ----
     case "FIND": {
       const predicate = cfg.predicate || { operator: "AND", rules: [] };
+      const over = cfg.over || "$allOccurrences";
+      const collectionPickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars };
+      // The predicate's left-side picker walks the per-record shape determined
+      // by `cfg.over` — picked values are bare record keys (no $-prefix). The
+      // executor evaluates each rule against the current record during
+      // iteration, so authors never type or pick `$item.X` in the editor.
+      const leftConfig = useMemo(() => buildRecordKeyPickerConfig(over), [over]);
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={rowStyle}>
-            {fl("Look for items where")}
+            {fl("Look in")}
+            <CategoryPathPicker
+              value={over}
+              ctx={collectionPickerCtx}
+              config={COLLECTION_PICKER_CONFIG}
+              onChange={v => setCfg({ over: v || "$allOccurrences" })}
+            />
+            <span style={{ fontSize: 10, color: "var(--text-muted)" }}>where</span>
             <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{predicate.operator === "OR" ? "ANY rule passes" : "ALL rules pass"}</span>
           </div>
           <div style={{ paddingLeft: 12 }}>
@@ -1195,6 +956,8 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
               fieldsById={fieldsById}
               modulesById={modulesById}
               occurrencesById={occurrencesById}
+              localVars={localVars}
+              leftConfig={leftConfig}
             />
           </div>
           <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 4, marginTop: 2, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1238,13 +1001,6 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
             {fl("parent")}
             <ExprOrPath value={cfg.parent || ""} onChange={v => setCfg({ parent: v })} placeholder="$schedPageId" width={160} {...exprProps} />
           </div>
-          <div style={rowStyle}>
-            {fl("date field")}
-            <FieldPicker value={cfg.date?.fieldId || ""} onChange={v => setCfg({ date: v ? { ...(cfg.date || {}), fieldId: v } : null })} fields={fields} placeholder="(no date)" />
-            {cfg.date?.fieldId && (
-              <ExprOrPath value={cfg.date.value || ""} onChange={v => setCfg({ date: { ...cfg.date, value: v } })} placeholder="$schedDate" width={120} {...exprProps} />
-            )}
-          </div>
           <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps} />
           <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 4, marginTop: 2, display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ fontSize: 9, color: "var(--text-muted)", fontStyle: "italic" }}>
@@ -1266,15 +1022,15 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
     case "UPDATE": {
       // Object-shaped value carries fromTemplate/tokens — render as JSON for now.
       const valueIsObject = cfg.value !== null && typeof cfg.value === "object" && !Array.isArray(cfg.value);
+      const updatePickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars };
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={rowStyle}>
             {fl("path")}
-            <input
+            <CategoryPathPicker
               value={cfg.path || ""}
-              onChange={e => setCfg({ path: e.target.value })}
-              placeholder="$item.fields.<id>.value"
-              style={{ ...inputSt, width: 240, fontFamily: "monospace" }}
+              ctx={updatePickerCtx}
+              onChange={v => setCfg({ path: v })}
             />
           </div>
           <div style={rowStyle}>
@@ -1288,9 +1044,10 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
                 style={{ ...inputSt, width: 320, fontFamily: "monospace", height: 60 }}
               />
             ) : (
-              <ExprOrPath value={cfg.value ?? ""} onChange={v => setCfg({ value: v })} placeholder='"$expr"   or   literal:42' width={240} {...exprProps} />
+              <ExprOrPath value={cfg.value ?? ""} onChange={v => setCfg({ value: v })} placeholder='"$expr"   or   literal:42   or   null' width={240} {...exprProps} />
             )}
           </div>
+          
         </div>
       );
     }
@@ -1496,9 +1253,9 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
       return (
         <div style={rowStyle}>
           {fl("operation:")}
-          <select value={cfg.operationId || ""} onChange={e => setCfg({ operationId: e.target.value })} style={selectSt}>
+          <select value={cfg.operationName || ""} onChange={e => setCfg({ operationName: e.target.value })} style={selectSt}>
             <option value="">Pick operation...</option>
-            {allOps.map(o => <option key={o.id} value={o.id}>{o.name || o.id}</option>)}
+            {allOps.map(o => <option key={o.id} value={o.name}>{o.name || o.id}</option>)}
           </select>
         </div>
       );

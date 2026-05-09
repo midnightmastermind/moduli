@@ -36,10 +36,6 @@ const OperationSchema = new mongoose.Schema(
     enabled: { type: Boolean, default: true },
 
     sortOrder: { type: Number, default: 0 },
-    // Run priority within a single trigger (1 = highest, 10 = lowest, 5 = default).
-    // Lower numbers run first so e.g. auto-build (1) finishes creating slots before
-    // schedule-fill (2) and goal aggregations (3) read them.
-    priority: { type: Number, default: 5, min: 1, max: 10 },
     // Category folder — references a Folder with folderType "category"
     folderId: { type: String, default: null },
     meta: { type: mongoose.Schema.Types.Mixed, default: {} },

@@ -12,10 +12,14 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { GridActionsContext } from "../GridActionsContext";
 import { setFilterNavAction } from "../state/actions";
 
+function localDay(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function addDays(isoDate, n) {
-  const d = new Date(isoDate);
+  const d = new Date(isoDate + "T00:00:00");
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return localDay(d);
 }
 
 function formatDate(isoDate) {
@@ -37,7 +41,7 @@ export default function FilterNavControl({ filter, navValue, dispatch }) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
         <button
-          onClick={() => set(addDays(navValue || new Date().toISOString().slice(0, 10), -1))}
+          onClick={() => set(addDays(navValue || localDay(new Date()), -1))}
           style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: "0 2px" }}
         >
           <ChevronLeft size={13} />
@@ -46,7 +50,7 @@ export default function FilterNavControl({ filter, navValue, dispatch }) {
           {formatDate(navValue)}
         </span>
         <button
-          onClick={() => set(addDays(navValue || new Date().toISOString().slice(0, 10), 1))}
+          onClick={() => set(addDays(navValue || localDay(new Date()), 1))}
           style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: "0 2px" }}
         >
           <ChevronRight size={13} />

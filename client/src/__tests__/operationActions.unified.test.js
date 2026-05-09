@@ -99,7 +99,7 @@ describe("FIND action", () => {
   ];
 
   it("finds a single item by predicate and stores id", () => {
-    const $vars = { $allItems: items };
+    const $vars = { $allOccurrences: items, $allItems: items };
     const updates = executeActionItem("FIND", {
       predicate: { operator: "AND", rules: [{ left: "$item.label", comparator: "IS", right: "Schedule" }] },
       itemIdVar: "$schedId",
@@ -109,7 +109,7 @@ describe("FIND action", () => {
   });
 
   it("stores the full item when itemVar is set", () => {
-    const $vars = { $allItems: items };
+    const $vars = { $allOccurrences: items, $allItems: items };
     executeActionItem("FIND", {
       predicate: { operator: "AND", rules: [{ left: "$item.label", comparator: "IS", right: "Schedule" }] },
       itemVar: "$page",
@@ -118,7 +118,7 @@ describe("FIND action", () => {
   });
 
   it("returns null when no match", () => {
-    const $vars = { $allItems: items };
+    const $vars = { $allOccurrences: items, $allItems: items };
     executeActionItem("FIND", {
       predicate: { operator: "AND", rules: [{ left: "$item.label", comparator: "IS", right: "Nope" }] },
       itemIdVar: "$x",
@@ -126,18 +126,20 @@ describe("FIND action", () => {
     expect($vars.$x).toBe(null);
   });
 
-  it("filters by date scope", () => {
-    const $vars = { $allItems: items, $today: "2026-04-27" };
+  it("filters by date inside the predicate (SAME_DAY rule)", () => {
+    const $vars = { $allOccurrences: items, $allItems: items, $today: "2026-04-27" };
     executeActionItem("FIND", {
-      predicate: { operator: "AND", rules: [{ left: "$item.label", comparator: "IS", right: "Due" }] },
-      scope: { dateFieldId: "f_date", dateExpr: "$today" },
+      predicate: { operator: "AND", rules: [
+        { left: "label", comparator: "IS", right: "Due" },
+        { left: "fields.f_date.value", comparator: "SAME_DAY", right: "$today" },
+      ]},
       itemIdVar: "$dueId",
     }, $vars, makeContext());
     expect($vars.$dueId).toBe("i2");
   });
 
   it("returns array when multiple is true", () => {
-    const $vars = { $allItems: items };
+    const $vars = { $allOccurrences: items, $allItems: items };
     executeActionItem("FIND", {
       predicate: { operator: "AND", rules: [{ left: "$item.label", comparator: "IS", right: "Due" }] },
       multiple: true,
@@ -147,12 +149,81 @@ describe("FIND action", () => {
   });
 
   it("skips template items (meta.isTemplate)", () => {
-    const $vars = { $allItems: items };
+    const $vars = { $allOccurrences: items, $allItems: items };
     executeActionItem("FIND", {
       predicate: { operator: "AND", rules: [{ left: "$item.label", comparator: "IS", right: "trash" }] },
       itemIdVar: "$x",
     }, $vars, makeContext());
     expect($vars.$x).toBe(null);
+  });
+
+  // Regression: seed dedup FIND scopes to schedule descendants.
+  // The seed FIND must locate previously-created (template, slot, date) tuples
+  // even when a stray occurrence with the same template lives outside the schedule.
+  it("matches a seeded copy by templateId + timeslot + date + ancestor scope", () => {
+    const enriched = [
+      // The original Drink Water in the toolkit (no timeslot, no date) — must NOT match.
+      {
+        id: "occ_orig", label: "Drink Water", role: "instance",
+        targetId: "mod_drinkwater", templateId: "mod_drinkwater",
+        meta: {}, fields: {},
+        _ancestors: ["cont_toolkit", "page_toolkit"],
+      },
+      // Yesterday's seeded copy under Schedule.
+      {
+        id: "occ_yest", label: "Drink Water", role: "instance",
+        targetId: "mod_drinkwater", templateId: "mod_drinkwater",
+        meta: {},
+        fields: {
+          f_date:     { value: "2026-05-04" },
+          f_timeslot: { value: "6:00am" },
+        },
+        _ancestors: ["slot_6am", "page_sched"],
+      },
+      // Today's seeded copy under Schedule — what we want the FIND to return.
+      {
+        id: "occ_today", label: "Drink Water", role: "instance",
+        targetId: "mod_drinkwater", templateId: "mod_drinkwater",
+        meta: {},
+        fields: {
+          f_date:     { value: "2026-05-05" },
+          f_timeslot: { value: "6:00am" },
+        },
+        _ancestors: ["slot_6am", "page_sched"],
+      },
+    ];
+    const $vars = {
+      $allOccurrences: enriched, $allItems: enriched,
+      $srcTemplateId: "mod_drinkwater",
+      $schedDate: "2026-05-05",
+      $schedPageId: "page_sched",
+    };
+    executeActionItem("FIND", {
+      predicate: { operator: "AND", rules: [
+        { left: "templateId",            comparator: "IS",           right: "$srcTemplateId" },
+        { left: "fields.f_timeslot.value", comparator: "IS",         right: "6:00am" },
+        { left: "fields.f_date.value",   comparator: "SAME_DAY",     right: "$schedDate" },
+        { left: "_ancestors",            comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+      ]},
+      itemIdVar: "$existingId",
+    }, $vars, makeContext());
+    expect($vars.$existingId).toBe("occ_today");
+  });
+
+  // Regression: tolerate the legacy "$item." prefix on rule.left so DB rows
+  // saved before the predicate was switched to bare record paths still match.
+  it("accepts legacy $item. prefix on rule.left", () => {
+    const enriched = [
+      { id: "occ1", label: "x", templateId: "mod1", fields: { f_date: { value: "2026-05-05" } } },
+    ];
+    const $vars = { $allOccurrences: enriched, $allItems: enriched, $schedDate: "2026-05-05" };
+    executeActionItem("FIND", {
+      predicate: { operator: "AND", rules: [
+        { left: "$item.fields.f_date.value", comparator: "SAME_DAY", right: "$schedDate" },
+      ]},
+      itemIdVar: "$id",
+    }, $vars, makeContext());
+    expect($vars.$id).toBe("occ1");
   });
 });
 
@@ -191,12 +262,13 @@ describe("CREATE action", () => {
     expect(updates[0].instance.templateId).toBe("tpl_existing");
   });
 
-  it("stamps a date field via cfg.date.fieldId/value", () => {
+  it("stamps a date field via the fields map (cfg.fields[fieldId] = $expr)", () => {
     const $vars = { $allTemplates: [], $allItems: [], $today: "2026-04-27" };
+    const fieldsById = { f_date: { id: "f_date", type: "date" } };
     const updates = executeActionItem("CREATE", {
       name: "Slot",
-      date: { fieldId: "f_date", value: "$today" },
-    }, $vars, makeContext());
+      fields: { f_date: "$today" },
+    }, $vars, { state: {}, fieldsById, occurrencesById: {}, operationsById: {} });
 
     expect(updates[0].instance.fields.f_date).toEqual({ value: "2026-04-27", flow: "in" });
   });
@@ -226,6 +298,92 @@ describe("CREATE action", () => {
     const $vars = { $allTemplates: [], $allItems: [] };
     const updates = executeActionItem("CREATE", { name: null }, $vars, makeContext());
     expect(updates).toEqual([]);
+  });
+
+  // Regression: cross-recursion dedup. When an op CREATEs an instance and
+  // then RUN_OPERATIONs into a child op, the child's parentByChildId rebuild
+  // must see the new linkage so HAS_ANCESTOR predicates match the just-
+  // created row. Prior bug: CREATE published the new instance to
+  // context.occurrencesById but never appended it to the parent's
+  // occurrences[], so the recursive callee's _ancestors came back empty,
+  // dedup FINDs missed the row, and seed-style ops created duplicates at
+  // every recursion level (up to the depth-4 cap).
+  it("appends new instance to parent.occurrences in the overlay", () => {
+    const slotOcc = { id: "slot1", occurrences: [] };
+    const pageOcc = { id: "page1", occurrences: ["slot1"] };
+    const occurrencesById = { slot1: slotOcc, page1: pageOcc };
+    const $vars = { $allTemplates: [], $allItems: [], $allOccurrences: [], $slotId: "slot1" };
+    const updates = executeActionItem("CREATE", {
+      name: "Drink Water", role: "instance", parent: "$slotId",
+    }, $vars, { state: {}, fieldsById: {}, occurrencesById, operationsById: {} });
+
+    const newId = updates[0].instance.id;
+    // Parent slot in the overlay now lists the new child.
+    expect(occurrencesById.slot1.occurrences).toContain(newId);
+    // Original cached slot object is NOT mutated (we spread it).
+    expect(slotOcc.occurrences).toEqual([]);
+  });
+
+  it("populates _ancestors on the new instance from the parent chain", () => {
+    const slotOcc = { id: "slot1", occurrences: [], parentId: "page1" };
+    const pageOcc = { id: "page1", occurrences: ["slot1"], parentId: null };
+    const occurrencesById = { slot1: slotOcc, page1: pageOcc };
+    const $vars = { $allTemplates: [], $allItems: [], $allOccurrences: [], $slotId: "slot1" };
+    executeActionItem("CREATE", {
+      name: "Drink Water", role: "instance", parent: "$slotId",
+    }, $vars, { state: {}, fieldsById: {}, occurrencesById, operationsById: {} });
+
+    const newRow = $vars.$allItems[0];
+    // Ancestors walk via parentId fallback when _parentByChildId isn't passed.
+    expect(newRow._ancestors).toEqual(["slot1", "page1"]);
+  });
+
+  it("uses _parentByChildId when present to compute _ancestors", () => {
+    // Slots typically don't carry parentId — the parent is derived from
+    // page.occurrences[]. Mirror that here: the executor builds
+    // _parentByChildId from .occurrences[] arrays and passes it in context.
+    const slotOcc = { id: "slot1", occurrences: [] };
+    const pageOcc = { id: "page1", occurrences: ["slot1"] };
+    const occurrencesById = { slot1: slotOcc, page1: pageOcc };
+    const _parentByChildId = { slot1: "page1" };
+    const $vars = { $allTemplates: [], $allItems: [], $allOccurrences: [], $slotId: "slot1" };
+    executeActionItem("CREATE", {
+      name: "Drink Water", role: "instance", parent: "$slotId",
+    }, $vars, { state: {}, fieldsById: {}, occurrencesById, operationsById: {}, _parentByChildId });
+
+    const newRow = $vars.$allItems[0];
+    expect(newRow._ancestors).toEqual(["slot1", "page1"]);
+    // _parentByChildId is updated so the next FIND that walks it sees the link.
+    expect(_parentByChildId[newRow.id]).toBe("slot1");
+  });
+
+  it("dedups same-pipeline FIND with HAS_ANCESTOR after CREATE", () => {
+    // The smoking-gun scenario: a seed-style pipeline creates an item, then
+    // a follow-up FIND with HAS_ANCESTOR must find that item — otherwise the
+    // dedup fails and the next loop iteration / recursive call re-creates it.
+    const slotOcc = { id: "slot1", occurrences: [], parentId: "page1" };
+    const pageOcc = { id: "page1", occurrences: ["slot1"], parentId: null };
+    const occurrencesById = { slot1: slotOcc, page1: pageOcc };
+    const $vars = {
+      $allTemplates: [],
+      $allItems: [],
+      $allOccurrences: [],
+      $slotId: "slot1",
+      $pageId: "page1",
+    };
+
+    executeActionItem("CREATE", {
+      name: "Drink Water", role: "instance", parent: "$slotId",
+    }, $vars, { state: {}, fieldsById: {}, occurrencesById, operationsById: {} });
+
+    executeActionItem("FIND", {
+      predicate: { operator: "AND", rules: [
+        { left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$pageId" },
+      ]},
+      itemIdVar: "$found",
+    }, $vars, { state: {}, fieldsById: {}, occurrencesById, operationsById: {} });
+
+    expect($vars.$found).toBe($vars.$allItems[0].id);
   });
 });
 

@@ -33,7 +33,7 @@ export function registerCrudHandlers(socket, {
         colSizes: Array.isArray(grid.colSizes) ? grid.colSizes : [],
         name: grid.name ?? "", userId,
       };
-      const saved = await Grid.findOneAndUpdate({ _id: gridId, userId }, { _id: gridId, ...next }, { upsert: true, new: true }).lean();
+      const saved = await Grid.findOneAndUpdate({ _id: gridId, userId }, { _id: gridId, ...next }, { upsert: true, returnDocument: 'after' }).lean();
       socket.to(userRoom(userId)).emit("grid_created", { grid: { id: gridId, _id: gridId, ...saved } });
     } catch (err) {
       console.error("create_grid error:", err);
@@ -778,6 +778,9 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
 
   async function handleLinkToParent(occurrenceId, parentOccurrenceId) {
     try {
+      // Same reasoning as handleCreateOccurrence — cancel queued links on
+      // disconnect so the next session's idempotency checks don't race against
+      // a draining old queue.
       if (disconnected) return;
       if (!userId || !occurrenceId || !parentOccurrenceId) return;
       const uc = await getUc();
@@ -799,17 +802,39 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
   async function handleCreateOccurrence(occurrence) {
     const _id = occurrence?.id || "?";
     try {
+      // Bail on disconnect. Reason: each Build Day run mints fresh UUIDs for its
+      // CREATE effects (executor doesn't support deterministic IDs yet). If the
+      // user reloads mid-flight, the OLD socket's queue continues draining (this
+      // is just a Promise chain — disconnect doesn't kill it) AND the NEW socket
+      // fires Build Day again from a partial full_state. Both runs produce the
+      // same logical slots with different IDs → duplicates pile up on every
+      // reload. Cancelling the rest of the old queue on disconnect lets the new
+      // socket's FIND see whatever already persisted and only create what's
+      // missing. The maxHttpBufferSize bump in server.js is what prevented this
+      // disconnect from happening on a clean first load in the first place.
       if (disconnected) { console.log("🟣 create_occurrence SKIP (disconnected)", _id); return; }
       if (!userId) return;
       console.log("🟣 create_occurrence START", _id, "socket:", socket.id);
       const uc = await getUc();
       const id = occurrence?.id;
       if (!id) return;
+      // gridId fallback chain: payload → socket's active grid. Without this, a
+      // CREATE_ITEM effect from a pipeline that didn't set state.gridId on its
+      // optimistic newOcc emits gridId=undefined, Mongoose fails its `required`
+      // validator, the catch block silently drops the write, and the
+      // occurrence never persists — so the seed's idempotency FIND on the next
+      // reload finds nothing and creates ANOTHER copy. Same fallback as the
+      // update_occurrence handler.
+      const gridId = occurrence.gridId || socket.data.activeGridId;
+      if (!gridId) {
+        console.error("create_occurrence: missing gridId for", id);
+        return;
+      }
       const occurrenceData = {
         ...createOccurrenceDataFn({
           id, userId,
           targetType: occurrence.targetType, targetId: occurrence.targetId,
-          gridId: occurrence.gridId,
+          gridId,
           placement: occurrence.placement, fields: occurrence.fields,
           meta: occurrence.meta, linkedGroupId: occurrence.linkedGroupId || null,
         }),

@@ -49,7 +49,7 @@ const rowStyle = {
   background: "var(--border-subtle)", borderRadius: 4, padding: "4px 6px",
 };
 
-export default function ConditionGroup({ group, onChange, sources, fields, fieldsById, modulesById, occurrencesById, depth = 0 }) {
+export default function ConditionGroup({ group, onChange, sources, fields, fieldsById, modulesById, occurrencesById, localVars = [], leftConfig = null, depth = 0 }) {
   const { operator = "AND", rules = [] } = group;
 
   const setOperator = (op) => onChange({ ...group, operator: op });
@@ -67,8 +67,8 @@ export default function ConditionGroup({ group, onChange, sources, fields, field
   const addGroup = () => onChange({ ...group, rules: [...rules, { operator: "AND", rules: [] }] });
 
   const pickerCtx = useMemo(
-    () => ({ sources, fields, fieldsById, modulesById, occurrencesById, localVars: [] }),
-    [sources, fields, fieldsById, modulesById, occurrencesById],
+    () => ({ sources, fields, fieldsById, modulesById, occurrencesById, localVars }),
+    [sources, fields, fieldsById, modulesById, occurrencesById, localVars],
   );
 
   return (
@@ -89,7 +89,7 @@ export default function ConditionGroup({ group, onChange, sources, fields, field
         <div key={i} style={{ marginBottom: 4 }}>
           {Array.isArray(entry.rules) ? (
             <div style={{ display: "flex", gap: 4, alignItems: "flex-start" }}>
-              <ConditionGroup group={entry} onChange={(next) => setRule(i, next)} sources={sources} fields={fields} fieldsById={fieldsById} modulesById={modulesById} occurrencesById={occurrencesById} depth={depth + 1} />
+              <ConditionGroup group={entry} onChange={(next) => setRule(i, next)} sources={sources} fields={fields} fieldsById={fieldsById} modulesById={modulesById} occurrencesById={occurrencesById} localVars={localVars} leftConfig={leftConfig} depth={depth + 1} />
               <button onClick={() => removeRule(i)} style={removeBtnSt}>×</button>
             </div>
           ) : (
@@ -98,6 +98,7 @@ export default function ConditionGroup({ group, onChange, sources, fields, field
               onChange={(next) => setRule(i, next)}
               onRemove={() => removeRule(i)}
               pickerCtx={pickerCtx}
+              leftConfig={leftConfig}
             />
           )}
         </div>
@@ -106,7 +107,7 @@ export default function ConditionGroup({ group, onChange, sources, fields, field
   );
 }
 
-function RuleRow({ rule, onChange, onRemove, pickerCtx }) {
+function RuleRow({ rule, onChange, onRemove, pickerCtx, leftConfig }) {
   const noRight = NO_RIGHT_COMPARATORS.has(rule.comparator);
   const v = (rule.right ?? "").toString().trim();
   const initialMode = (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
@@ -117,6 +118,7 @@ function RuleRow({ rule, onChange, onRemove, pickerCtx }) {
       <CategoryPathPicker
         value={typeof rule.left === "string" ? rule.left : ""}
         ctx={pickerCtx}
+        config={leftConfig || undefined}
         onChange={(next) => onChange({ ...rule, left: next })}
       />
       <select value={rule.comparator} onChange={(e) => onChange({ ...rule, comparator: e.target.value })} style={selectSt}>

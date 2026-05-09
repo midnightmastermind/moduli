@@ -2,6 +2,16 @@
 
 _Updated: 2026-04-30. Check this file before re-reading source._
 
+## Recent Changes (May 3 2026 — Find / Loop redesign: collection picker + record-key picker)
+- **`OperationsBuilder.jsx` LoopStep**: Replaced `<ExprOrPath>` for `step.overExpr` with a `<CategoryPathPicker config={COLLECTION_PICKER_CONFIG}>`. The collection picker exposes only the iterable built-ins ($allOccurrences / $allItems / $allContainers / $allPages / $allInstances / $allTemplates / $allFields) as one-click leaves. The iteration variable input (`step.as`) was removed from the editor entirely — the executor still uses it under the hood (defaults to `$item`) but it never surfaces.
+- **`OperationsBuilder.jsx` FIND ActionConfig**: Added a "Look in" row at the top of the FIND config — the same collection picker writes `cfg.over` (default `$allOccurrences`). The predicate's `<ConditionGroup>` now receives `leftConfig={buildRecordKeyPickerConfig(over)}` so the rule's left-side picker drills the chosen collection's per-record shape directly. Stored predicate `rule.left` values are bare record paths (`label`, `fields.<fid>.value`, `_ancestors`) — no `$item.` prefix.
+- **`OperationsBuilder.jsx` `collectLocalVars`**: No longer adds `step.as` (loop iteration var) to localVars. `$item` is gone from the "Local Variables" category — record-key paths are written against the iterating collection's shape, never against the iteration variable.
+- **`ConditionGroup.jsx`**: New `leftConfig` prop. When provided (FIND case), it's passed as `config` to the left-side `CategoryPathPicker`; otherwise the picker uses the standard 5-category menu (used by IfStep conditions, where the left side is still a general path).
+
+## Recent Changes (May 3 2026 — ConditionGroup localVars threading)
+- **ConditionGroup.jsx**: Now accepts `localVars` prop, passes into `pickerCtx` (was hard-coded to `[]`). Recursive call also forwards `localVars`. Without this, loop iteration vars (`$item`) and INIT_VAR-declared vars never showed up in the path picker's "Local Variables" category when used inside a `Find` predicate or an `If` block — the user could see chips for paths typed earlier (`$item.label`) but couldn't re-pick them through the UI.
+- **OperationsBuilder.jsx (`IfStep` + `ActionConfig` FIND case)**: Both `<ConditionGroup>` call sites now thread `localVars={localVars}` so loop-as / INIT_VAR / FIND result vars (already collected by `collectLocalVars`) reach the picker. Fixes the "$item is in scope but unselectable" symptom.
+
 ## Recent Changes (Apr 30 2026 — Operations editor overhaul)
 - **OperationsBuilder.jsx (`ExprOrPath`)**: Path-mode renderer swapped from `SelectDrilldown` + `buildPathConfig` to `<CategoryPathPicker>` (config-driven). The mode `<select>` (path / text / array) stays. New `pickerCtx` memo bundles `{ sources, fields, fieldsById, modulesById, occurrencesById, localVars }` for the picker.
 - **OperationsBuilder.jsx (`SourceRow`)**: Module sources (instance / container / panel) now use `CategoryPathPicker` in entity mode — picks the module by id, displays the module's label. `effectiveFilter` source type renders a two-category picker (Occurrences by id / By Label) so Water/Completed-style ops can bind to a real ancestor instead of label-matching.

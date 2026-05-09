@@ -31,9 +31,11 @@ describe("categoryRegistry", () => {
     expect(typeof it0.description).toBe("string");
   });
 
-  it("Occurrences resolves only from sources that bound an occurrence collection", () => {
+  it("Occurrences always exposes $allItems and $allTemplates plus any source-bound collections", () => {
     const ctxNone = { sources: [], localVars: [], modulesById: {}, occurrencesById: {}, fields: [] };
-    expect(resolveCategoryItems("occurrences", ctxNone)).toEqual([]);
+    const noneValues = resolveCategoryItems("occurrences", ctxNone).map(i => i.value);
+    expect(noneValues).toContain("$allItems");
+    expect(noneValues).toContain("$allTemplates");
 
     const ctxBound = {
       sources: [
@@ -45,24 +47,27 @@ describe("categoryRegistry", () => {
     const items = resolveCategoryItems("occurrences", ctxBound);
     expect(items.find(i => i.value === "$everyOcc")).toBeTruthy();
     expect(items.find(i => i.value === "$containers")).toBeTruthy();
+    expect(items.find(i => i.value === "$allItems")).toBeTruthy();
   });
 
-  it("Fields lists every field with type as the description", () => {
+  it("Fields exposes $allFields built-in plus every grid field with type as the description", () => {
     const ctx = {
       sources: [], localVars: [], modulesById: {}, occurrencesById: {},
       fields: [{ id: "f1", name: "Water", type: "number" }],
     };
     const items = resolveCategoryItems("fields", ctx);
-    expect(items[0]).toMatchObject({ value: "field:f1", title: "Water", sub: "number" });
-    expect(items[0].description).toBeTruthy();
+    expect(items.find(i => i.value === "$allFields")).toBeTruthy();
+    expect(items.find(i => i.value === "field:f1")).toMatchObject({ value: "field:f1", title: "Water", sub: "number" });
   });
 
-  it("Built-ins always returns the date/time/grid scalars", () => {
+  it("Built-ins always returns the date/time/grid scalars + $trigger and $parentFilter", () => {
     const items = resolveCategoryItems("builtins", { sources: [], localVars: [], modulesById: {}, occurrencesById: {}, fields: [] });
     const values = items.map(i => i.value);
     expect(values).toContain("$today");
     expect(values).toContain("$now");
     expect(values).toContain("$activeDate");
     expect(values).toContain("$grid");
+    expect(values).toContain("$trigger");
+    expect(values).toContain("$parentFilter");
   });
 });

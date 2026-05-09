@@ -144,8 +144,7 @@ export function resolveEffectiveIteration(item, itemType, lookups = {}) {
     // Otherwise, walk up to parent
     if (currentType === "instance") {
       // Instance → Container
-      const containerId = current.meta?.containerId || current.containerId;
-      current = containersById[containerId];
+      current = containersById[current.parentId];
       currentType = "container";
     } else if (currentType === "container") {
       // Container → Panel
@@ -352,7 +351,7 @@ export function filterOccurrencesByScope(occurrences, scope, context = {}) {
 
     case "container":
       return occurrences.filter(occ =>
-        occ.gridId === gridId && occ.meta?.containerId === containerId
+        occ.gridId === gridId && occ.parentId === containerId
       );
 
     case "instance":

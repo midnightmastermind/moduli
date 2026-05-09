@@ -23,40 +23,86 @@ import { createModuleAction, createOccurrenceAction } from "../state/actions";
 import { mimeToKind } from "./fileKind";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 
-// Stamps the nav-filter values from the destination's effective filter chain
-// onto a freshly-placed occurrence. The rule (per the user): "all children
-// with date field should be the filter date or null." When you drop or move
-// an instance into a slot under a page that has a local date filter, the new
-// occurrence adopts that page's date — not the source's previous date, not
-// today. Walks the parent chain of `parentContainerOcc` to find any nav-
-// condition fieldIds with a value set, then writes them onto `occurrence`.
-function stampPageFilterFields({ dispatch, socket, state, occurrencesById, occurrence, parentContainerOcc }) {
-  if (!occurrence?.id || !parentContainerOcc) return;
+// Normalize a date-typed filter value to a local-tz YYYY-MM-DD string. Handles
+// the three input shapes the filter pipeline produces in the wild:
+//   1) "2026-05-23"        — already a day-key, return as-is
+//   2) "2026-05-23T...Z"   — ISO timestamp, slice the date prefix; the time
+//      component shouldn't bleed into local-tz interpretation downstream.
+//   3) Date instance       — format via getFullYear/getMonth/getDate.
+// null/undefined/empty → null. Other shapes → null (caller skips stamp).
+//
+// Why this exists: stampPageFilterFields previously passed `effective[fid]`
+// straight through. When the page filter stored a UTC midnight ISO string
+// ("2026-05-23T00:00:00.000Z"), downstream date-field renders called
+// `new Date(...)` and shifted to the previous day in any TZ west of UTC —
+// the "stamping as May 22 when the filter says May 23" bug.
+export function normalizeFilterDateValue(v) {
+  if (v == null || v === "") return null;
+  if (typeof v === "string") {
+    if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
+  }
+  return null;
+}
+
+// Resolves the page-filter date stamps that should land on an occurrence
+// placed under `parentContainerOcc`, returning a merged fields map (existing +
+// stamped) without writing anything. Use BEFORE creating the occurrence so the
+// new record is born with the correct date — otherwise the in-flight
+// OccurrenceCreateOp + per-field MeasureOps fire against the source's old
+// date and trackers (which check `fields.<dateFieldId>.value SAME_DAY
+// $goalDate`) silently exclude it. Returns the original `existingFields`
+// reference unchanged when there are no nav fields or no value to stamp, so
+// callers can cheaply detect a no-op via identity.
+function computePageFilterFields({ state, occurrencesById, parentContainerOcc, existingFields = {} }) {
+  if (!parentContainerOcc) return existingFields;
   const grid = state?.grid;
   const activeNamedFilter = (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId);
   const navFieldIds = (activeNamedFilter?.conditions || [])
     .filter(c => c.isNav && c.fieldId)
     .map(c => c.fieldId);
-  if (!navFieldIds.length) return;
+  if (!navFieldIds.length) return existingFields;
 
   const effective = getEffectiveFilterForOccurrence(parentContainerOcc, { grid, occurrencesById });
-  const merged = { ...(occurrence.fields || {}) };
-  let changed = false;
+  let merged = existingFields;
   for (const fid of navFieldIds) {
-    const v = effective?.[fid];
+    const v = normalizeFilterDateValue(effective?.[fid]);
     if (v == null) continue;
     const existing = merged[fid];
     const existingValue = existing && typeof existing === "object" ? existing.value : existing;
-    if (existingValue === v) continue;
+    if (normalizeFilterDateValue(existingValue) === v) continue;
+    if (merged === existingFields) merged = { ...existingFields };
     merged[fid] = { value: v, flow: existing?.flow ?? "in" };
-    changed = true;
   }
-  if (!changed) return;
+  return merged;
+}
+
+// Post-create / post-move stamp for an existing occurrence. Writes the
+// stamped fields via updateOccurrence AND mirrors them into the executor's
+// local cache so the next fireOperations pass (e.g. the per-field MeasureOp
+// loop after a move) sees the new date in $allItems. Pre-creates should call
+// `computePageFilterFields` directly and fold the result into the create
+// payload — this function is for the rare case where the occurrence already
+// exists.
+function stampPageFilterFields({ dispatch, socket, state, occurrencesById, occurrence, parentContainerOcc }) {
+  if (!occurrence?.id || !parentContainerOcc) return;
+  const merged = computePageFilterFields({
+    state, occurrencesById,
+    parentContainerOcc,
+    existingFields: occurrence.fields || {},
+  });
+  if (merged === (occurrence.fields || {})) return;
   CommitHelpers.updateOccurrence({
     dispatch, socket,
     occurrence: { id: occurrence.id, fields: merged },
     emit: true,
   });
+  operationsBridge.updateLocalOcc?.({ ...occurrence, fields: merged });
 }
 
 function makeUUID() {
@@ -425,20 +471,30 @@ export function handleInstanceDrop(ctx, drop) {
     const _revMap = buildReverseMap(Object.values(occurrencesById));
     const _gridOccSet = new Set(state?.grid?.occurrences || []);
     const toPanelOcc = toCOcc ? findGridPanelOcc(toCOcc, _revMap, occurrencesById, _gridOccSet) : null;
+    // Pre-stamp page-filter fields onto the source's fields so the create
+    // lands with the destination's date already set. Without this, the
+    // OccurrenceCreateOp + per-field MeasureOps fired by createOccurrence see
+    // the source's old date and trackers' SAME_DAY predicate silently rejects
+    // the new occurrence — the post-create stamp then quietly fixes the date
+    // but no operation re-fires, so trackers stay stale until you edit a
+    // field.
+    const sourceOcc = occurrenceId ? occurrencesById[occurrenceId] : null;
+    const stampedFields = computePageFilterFields({
+      state, occurrencesById,
+      parentContainerOcc: toCOcc,
+      existingFields: sourceOcc?.fields || {},
+    });
     const copyResult = LayoutHelpers.copyInstanceToContainer({
       dispatch, socket, gridId, sourceInstanceId: draggedInstanceId,
       toContainer: toCOcc ? { ...toC, _occurrence: toCOcc } : toC,
       userId: state?.userId, toIndex, emit: true,
       iterationMode: "specific", iterationValue: currentIterationDate,
-      sourceOccurrence: occurrenceId ? occurrencesById[occurrenceId] : null,
+      sourceOccurrence: sourceOcc
+        ? { ...sourceOcc, fields: stampedFields }
+        : (Object.keys(stampedFields).length ? { fields: stampedFields } : null),
       toPanelId: toPanelOcc?.targetId || null,
     });
     autoCheckBooleanFields(state, dispatch, socket, draggedInstanceId, copyResult?.occurrence?.id);
-    stampPageFilterFields({
-      dispatch, socket, state, occurrencesById,
-      occurrence: copyResult?.occurrence,
-      parentContainerOcc: toCOcc,
-    });
   } else if (sameContainer) {
     if (fromCOcc) {
       const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
@@ -769,15 +825,18 @@ export function handleModuleDrop(ctx, drop) {
       // handleInstanceDrop).
       const targetContainerOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
         || Object.values(occurrencesById).find(o => o.targetId === targetContainer.id);
-      const copyResult = LayoutHelpers.copyInstanceToContainer({
+      // Pre-stamp the destination's page-filter fields so the create lands
+      // with the right date — same reasoning as handleInstanceDrop copy mode.
+      const stampedFields = computePageFilterFields({
+        state, occurrencesById,
+        parentContainerOcc: targetContainerOcc,
+        existingFields: {},
+      });
+      LayoutHelpers.copyInstanceToContainer({
         dispatch, socket, gridId, sourceInstanceId: payload.id,
         toContainer: targetContainerOcc ? { ...targetContainer, _occurrence: targetContainerOcc } : targetContainer,
         userId: state?.userId, iterationMode: "persistent", emit: true,
-      });
-      stampPageFilterFields({
-        dispatch, socket, state, occurrencesById,
-        occurrence: copyResult?.occurrence,
-        parentContainerOcc: targetContainerOcc,
+        sourceOccurrence: Object.keys(stampedFields).length ? { fields: stampedFields } : null,
       });
     }
   }

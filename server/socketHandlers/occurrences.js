@@ -26,7 +26,12 @@ export function registerOccurrenceHandlers(socket, {
 
       // Store occurrence in cache — keep decompressed textmap so full_state can serve it
       const { textmap, ...occWithoutTextmap } = occurrence;
-      const next = { ...prev, ...occWithoutTextmap, id, userId };
+      // gridId fallback chain: client payload → cached prev → active socket grid.
+      // Without this the MeasureOp Transaction below threw `gridId required` on
+      // partial-shape updates from FieldRenderer, the outer catch bailed out, and
+      // the field change never persisted (looked like "nothing is being saved").
+      const txGridId = occurrence.gridId || prev.gridId || socket.data.activeGridId;
+      const next = { ...prev, ...occWithoutTextmap, id, userId, ...(txGridId ? { gridId: txGridId } : {}) };
       if (textmap !== undefined) next.textmap = textmap; // keep raw (decompressed) textmap in cache
       uc.occurrencesById[id] = next;
 
@@ -35,8 +40,11 @@ export function registerOccurrenceHandlers(socket, {
         ? { ...next, textmap: compressTextmap(textmap) }
         : next;
 
-      // Create MeasureOp transaction when fields change
-      if (occurrence.fields && Object.keys(occurrence.fields).length > 0) {
+      // Create MeasureOp transaction when fields change. Isolate from the
+      // persistence path: a transaction-write failure (e.g. validation, race)
+      // must not roll back the occurrence write — the user's edit takes
+      // priority over the audit trail.
+      if (occurrence.fields && Object.keys(occurrence.fields).length > 0 && txGridId) {
         const ops = [];
         for (const [fieldId, fieldValue] of Object.entries(occurrence.fields)) {
           const prevFieldVal = prev.fields?.[fieldId];
@@ -46,15 +54,19 @@ export function registerOccurrenceHandlers(socket, {
           ops.push({ type: "measure", measure: { occurrenceId: id, fieldId, value: newVal, previousValue: oldVal, flow } });
         }
         if (ops.length > 0) {
-          const tx = new Transaction({
-            id: nanoid(12), userId, gridId: next.gridId,
-            type: "MeasureOp", timestamp: new Date(),
-            operations: ops, state: "applied",
-          });
-          await tx.save();
-          const txJson = tx.toJSON();
-          socket.emit("transaction_created", { transaction: txJson });
-          socket.to(userRoom(userId)).emit("transaction_created", { transaction: txJson });
+          try {
+            const tx = new Transaction({
+              id: nanoid(12), userId, gridId: txGridId,
+              type: "MeasureOp", timestamp: new Date(),
+              operations: ops, state: "applied",
+            });
+            await tx.save();
+            const txJson = tx.toJSON();
+            socket.emit("transaction_created", { transaction: txJson });
+            socket.to(userRoom(userId)).emit("transaction_created", { transaction: txJson });
+          } catch (txErr) {
+            console.error("update_occurrence transaction save failed (continuing with persist):", txErr?.message || txErr);
+          }
         }
       }
 

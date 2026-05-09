@@ -338,6 +338,55 @@ export function evalGroup(group, $vars) {
   return rules.every(evaluate);
 }
 
+// ----- Record-path predicate evaluation (used by FIND) -----------------------
+// FIND iterates a collection internally; each rule's `left` is a dotted path
+// on the current record (`label`, `fields.<fid>.value`, `_ancestors`). The
+// right side is still a regular expression resolved against $vars.
+
+export function resolveRecordPath(record, path) {
+  if (record == null || !path) return null;
+  // Tolerate legacy `$item.X` predicates from seed data — the editor writes
+  // bare record paths (`label`, `fields.X.value`) going forward, but DB rows
+  // saved under the old FIND-inside-loop pattern still carry `$item.` prefixes.
+  // Stripping it here means we never need to touch existing data.
+  const normalized = path.startsWith("$item.") ? path.slice(6) : path;
+  const parts = String(normalized).split(".");
+  let cur = record;
+  for (const seg of parts) {
+    if (cur == null) return null;
+    cur = cur[seg];
+  }
+  return cur ?? null;
+}
+
+export function evalRuleAgainstRecord(rule, record, $vars) {
+  // Reuse the comparator switch by feeding evalRule a synthetic rule whose
+  // `left` is a literal already-resolved value. The simplest way is to bind
+  // a temporary $-var and rewrite the rule to reference it.
+  const leftVal = resolveRecordPath(record, rule.left);
+  // Use a unique key per call so concurrent evaluations don't clobber each
+  // other (evalRule reads $vars synchronously so this is fine).
+  const key = "$__find_left__";
+  const prev = $vars[key];
+  $vars[key] = leftVal;
+  try {
+    return evalRule({ ...rule, left: key }, $vars);
+  } finally {
+    $vars[key] = prev;
+  }
+}
+
+export function evalGroupAgainstRecord(group, record, $vars) {
+  const { operator = "AND", rules = [] } = group;
+  if (rules.length === 0) return true;
+  const evaluate = (entry) => {
+    if (Array.isArray(entry?.rules)) return evalGroupAgainstRecord(entry, record, $vars);
+    return evalRuleAgainstRecord(entry, record, $vars);
+  };
+  if (operator === "OR") return rules.some(evaluate);
+  return rules.every(evaluate);
+}
+
 // ============================================================
 // ACTION EXECUTOR
 // ============================================================
@@ -417,24 +466,25 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // ============================================================
 
     // ---- FIND: locate items by predicate ----
-    // cfg: { predicate, multiple?: false, itemVar?, itemIdVar? }
-    // $allItems is pre-merged with template label/name/role/kind/meta in
-    // operationExecutor.js, so predicates like `$item.label` resolve directly.
-    // Date filtering is now expressed inside `predicate` (e.g.
-    // `$item.fields.date.value SAME_DAY $today`) — no separate scope.
+    // cfg: { over, predicate, multiple?: false, itemVar?, itemIdVar? }
+    //
+    // FIND owns its own iteration. `cfg.over` names a collection ($allOccurrences,
+    // $allTemplates, $allFields, etc.). For each record in that collection, the
+    // predicate is evaluated with `rule.left` interpreted as a record sub-path
+    // (`label`, `fields.<fid>.value`, `_ancestors`) and `rule.right` resolved as
+    // a regular expression against $vars. There is no `$item` namespace —
+    // record-key paths are bare, and the editor's left-picker drills the
+    // collection's record shape directly.
     case "FIND": {
-      const itemList = Array.isArray($vars.$allItems) ? $vars.$allItems : [];
+      const overExpr = cfg.over || "$allOccurrences";
+      const itemList = Array.isArray(resolveExpr(overExpr, $vars))
+        ? resolveExpr(overExpr, $vars)
+        : [];
 
       const predicate = cfg.predicate;
-      const matchItem = (item) => {
+      const matchItem = (record) => {
         if (!predicate || !Array.isArray(predicate.rules) || predicate.rules.length === 0) return true;
-        const prevItem = $vars.$item;
-        $vars.$item = item;
-        try {
-          return evalGroup(predicate, $vars);
-        } finally {
-          $vars.$item = prevItem;
-        }
+        return evalGroupAgainstRecord(predicate, record, $vars);
       };
 
       const candidates = itemList
@@ -492,10 +542,12 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
       const instanceId = globalThis.crypto?.randomUUID?.() ?? String(Date.now() + 1);
 
-      // Initial fields: optional date stamp + cfg.fields map. Date-typed
-      // writes are validated — if a resolveExpr leak produces a literal
+      // Initial fields: cfg.fields map only. Date-typed writes are validated
+      // against the field's type — if a resolveExpr leak produces a literal
       // string like "date" (the field name), the executor falls back to
-      // $today instead of stamping the literal value (B20).
+      // $today instead of stamping the literal value (B20). No special-case
+      // cfg.date branch — date is just another field, identified by its
+      // field type via fieldsById.
       const isDateValue = (v) => {
         if (v == null) return false;
         if (v instanceof Date) return !isNaN(v.getTime());
@@ -504,11 +556,6 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         return !isNaN(new Date(v).getTime());
       };
       const fields = {};
-      if (cfg.date?.fieldId) {
-        let dateVal = resolveExpr(cfg.date.value, $vars);
-        if (!isDateValue(dateVal)) dateVal = resolveExpr("$today", $vars);
-        if (dateVal) fields[cfg.date.fieldId] = { value: dateVal, flow: "in" };
-      }
       if (cfg.fields) {
         for (const [fid, expr] of Object.entries(cfg.fields)) {
           const v = resolveExpr(expr, $vars);
@@ -547,6 +594,31 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
       const parentId = resolveExpr(cfg.parent, $vars) ?? null;
 
+      // Compute the ancestor chain for the NEW instance from its parentId,
+      // walking the existing parent chain in context.occurrencesById. Without
+      // this, $allItems entries for just-CREATEd items have empty _ancestors,
+      // so a same-pipeline FIND with `_ancestors HAS_ANCESTOR <pageId>` fails
+      // to match them — the dedup check that's supposed to prevent re-creates
+      // silently misses the new row. parentByChildId is rebuilt only at the
+      // top of executePipeline, so we have to derive ancestors directly here.
+      const newAncestors = [];
+      if (parentId && context.occurrencesById) {
+        const seen = new Set();
+        let cur = parentId;
+        let depth = 0;
+        while (cur && !seen.has(cur) && depth++ < 12) {
+          seen.add(cur);
+          newAncestors.push(cur);
+          const parentOcc = context.occurrencesById[cur];
+          // Prefer the parent-by-child reverse map (from .occurrences[]); fall
+          // back to .parentId. Mirrors executePipeline's ancestorsFor.
+          let next = null;
+          if (context._parentByChildId) next = context._parentByChildId[cur];
+          if (!next && parentOcc) next = parentOcc.parentId || null;
+          cur = next;
+        }
+      }
+
       const instance = {
         id: instanceId,
         targetType: "module",
@@ -555,11 +627,79 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         fields,
         textmap,
         meta: { createdByOperation: true },
+        _ancestors: newAncestors,
       };
 
-      // Optimistic publish into $vars.$allItems so subsequent FIND sees it
+      // Optimistic publish into the built-in collections so subsequent FIND
+      // steps in the same pipeline see the new instance. $allItems and
+      // $allOccurrences are runtime aliases — keep them in sync. The role-
+      // filtered slices ($allContainers/$allPages/$allInstances) get the new
+      // instance too if its role matches.
       if (Array.isArray($vars.$allItems)) {
         $vars.$allItems = [...$vars.$allItems, instance];
+      }
+      if (Array.isArray($vars.$allOccurrences)) {
+        $vars.$allOccurrences = [...$vars.$allOccurrences, instance];
+      }
+      const newRole = cfg.role || "container";
+      if (newRole === "container" && Array.isArray($vars.$allContainers)) {
+        $vars.$allContainers = [...$vars.$allContainers, instance];
+      } else if (newRole === "panel" && Array.isArray($vars.$allPanels)) {
+        $vars.$allPanels = [...$vars.$allPanels, instance];
+      } else if (newRole === "page" && Array.isArray($vars.$allPages)) {
+        $vars.$allPages = [...$vars.$allPages, instance];
+      } else if (newRole === "instance" && Array.isArray($vars.$allInstances)) {
+        $vars.$allInstances = [...$vars.$allInstances, instance];
+      }
+
+      // Also patch the context's occurrencesById overlay so nested RUN_OPERATION
+      // callees — which build their own fresh $vars from `context.occurrencesById`
+      // — see the just-created instance. Without this, an op that CREATEs an
+      // item then RUN_OPERATIONs into a child op causes the child's FIND
+      // idempotency checks to miss the new item and re-CREATE it on every
+      // recursion level (capped at 4 → up to 4 dupes per call chain). The
+      // overlay is the in-batch `liveOccs` from runMatchingOperations; mutating
+      // it is its intended use.
+      if (context.occurrencesById && typeof context.occurrencesById === "object") {
+        context.occurrencesById[instanceId] = {
+          id: instanceId,
+          targetType: "module",
+          targetId: templateId,
+          parentId,
+          fields,
+          textmap,
+          meta: { createdByOperation: true },
+          occurrences: [],
+        };
+        // Append the new instance to the parent's occurrences[] in the overlay
+        // so the next executePipeline rebuild of parentByChildId picks up the
+        // linkage. Without this, recursive RUN_OPERATION chains (e.g. tracker
+        // → seed → tracker) compute empty _ancestors for the new rows, fail
+        // their HAS_ANCESTOR dedup, and re-CREATE the same items at every
+        // recursion level — the schedule duplicates a user sees on completion
+        // / drag-to-schedule. Spread the parent so we don't mutate the cached
+        // localOccsById entry; the overlay is per-call.
+        if (parentId && context.occurrencesById[parentId]) {
+          const parent = context.occurrencesById[parentId];
+          if (!(parent.occurrences || []).includes(instanceId)) {
+            context.occurrencesById[parentId] = {
+              ...parent,
+              occurrences: [...(parent.occurrences || []), instanceId],
+            };
+          }
+        }
+        // Keep the parent-by-child reverse map in sync if the executor passed
+        // one in. Same reason as above — recursive callees rebuild ancestors
+        // from parentByChildId; if it's stale, HAS_ANCESTOR misses.
+        if (context._parentByChildId && parentId) {
+          context._parentByChildId[instanceId] = parentId;
+        }
+        // Mint the new template into context.state.modules too, so the next
+        // CREATE's existingTemplate lookup finds it instead of minting yet
+        // another fresh module with a different id.
+        if (templateRecord && context.state && Array.isArray(context.state.modules)) {
+          context.state.modules = [...context.state.modules, templateRecord];
+        }
       }
 
       if (cfg.itemIdVar) $vars[cfg.itemIdVar] = instanceId;
@@ -1027,15 +1167,39 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     }
 
     case "RUN_OPERATION": {
+      // Invoke another operation's pipeline inline. Look up by id (preferred,
+      // stable) or by operationName (ergonomic for hand-written seeds).
+      // The called op runs with the SAME `transaction` (so its $trigger.* is
+      // identical to the caller's) but with a FRESH $vars built from its own
+      // sources — that's important: vars from the caller would clobber the
+      // callee's INIT_VARs and vice versa. Effects from the called op bubble
+      // up and merge into the caller's effect list.
+      //
+      // Recursion guard: depth tracked via context._opCallDepth, capped at 4.
+      const depth = (context._opCallDepth || 0);
+      if (depth >= 4) {
+        console.warn("[RUN_OPERATION] recursion depth cap hit, skipping");
+        break;
+      }
+
+      let subOp = null;
       if (cfg.operationId) {
-        const subOp = operationsById[cfg.operationId];
-        // Use injected executors to avoid circular imports
-        const { executePipeline: _execPipeline, executeOperation: _execOp } = context._executors || {};
-        if (subOp?.pipeline && _execPipeline) {
-          updates.push(..._execPipeline(subOp, context, transaction, context._extraVars));
-        } else if (subOp && _execOp) {
-          updates.push(..._execOp(subOp, null, transaction, context));
-        }
+        subOp = operationsById[cfg.operationId];
+      } else if (cfg.operationName) {
+        const wanted = String(cfg.operationName);
+        subOp = Object.values(operationsById).find(o => o?.name === wanted) || null;
+      }
+      if (!subOp) {
+        console.warn(`[RUN_OPERATION] operation not found: ${cfg.operationId || cfg.operationName}`);
+        break;
+      }
+
+      const { executePipeline: _execPipeline, executeOperation: _execOp } = context._executors || {};
+      const childContext = { ...context, _opCallDepth: depth + 1 };
+      if (subOp.pipeline && _execPipeline) {
+        updates.push(..._execPipeline(subOp, childContext, transaction, context._extraVars));
+      } else if (_execOp) {
+        updates.push(..._execOp(subOp, null, transaction, childContext));
       }
       break;
     }

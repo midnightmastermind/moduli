@@ -297,7 +297,6 @@ export function createInstanceInContainer({
 }) {
   if (!gridId || !container || !instance?.id || !userId) return;
 
-  const containerId = container.id || container._id?.toString();
   const occurrenceId = uid();
 
   // 1. Create the instance entity as a module
@@ -313,7 +312,7 @@ export function createInstanceInContainer({
     iteration: { key: "time", value: new Date(), timeValue: new Date(), timeFilter: "daily", mode: iterationMode },
     timestamp: new Date(),
     fields: {},
-    meta: { containerId },
+    parentId: containerOccurrence?.id || null,
   };
 
   CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit });
@@ -653,7 +652,6 @@ export function copyInstanceToContainer({
 }) {
   if (!gridId || !sourceInstanceId || !toContainer || !userId) return null;
 
-  const containerId = toContainer.id || toContainer._id?.toString();
   const occurrenceId = uid();
 
   // Determine the iteration value - use provided date or current date
@@ -684,7 +682,7 @@ export function copyInstanceToContainer({
     timestamp: new Date(),
     fields: copiedFields,
     parentId: toContainer._occurrence?.id || null,
-    meta: { containerId, ...(initialMeta || {}) },
+    ...(initialMeta ? { meta: initialMeta } : {}),
   };
 
   CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit, panelId: toPanelId });
@@ -722,7 +720,6 @@ export function copylinkInstanceToContainer({
 }) {
   if (!gridId || !sourceInstanceId || !toContainer || !userId) return null;
 
-  const containerId = toContainer.id || toContainer._id?.toString();
   const occurrenceId = uid();
   const dateValue = iterationValue || new Date();
 
@@ -753,7 +750,8 @@ export function copylinkInstanceToContainer({
     timestamp: new Date(),
     fields: copiedFields,
     linkedGroupId,
-    meta: { containerId, ...(initialMeta || {}) },
+    parentId: toContainer._occurrence?.id || null,
+    ...(initialMeta ? { meta: initialMeta } : {}),
   };
 
   // Also tag the source occurrence with the same linkedGroupId if it doesn't have one

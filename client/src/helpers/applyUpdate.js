@@ -113,91 +113,7 @@ export function applyUpdate(path, value, ctx) {
     if (item == null) {
       throw new Error("$item not bound in current pipeline context");
     }
-    const itemId = item.id;
-
-    // $item.fields.<fieldId>.value | .flow
-    if (segments[1] === "fields") {
-      const fieldId = segments[2];
-      const subKey = segments[3];
-      if (!fieldId || (subKey !== "value" && subKey !== "flow")) {
-        throw new Error(`unknown path head: ${path}`);
-      }
-      return {
-        effects: [
-          {
-            _effect: "UPDATE_ITEM_FIELD",
-            itemId,
-            fieldId,
-            value,
-            subKind: subKey === "flow" ? "flow" : "value",
-          },
-        ],
-        varWrites: {},
-      };
-    }
-
-    // $item.parentId
-    if (segments[1] === "parentId" && segments.length === 2) {
-      return {
-        effects: [
-          {
-            _effect: "UPDATE_ITEM_PARENT",
-            itemId,
-            toParentId: value,
-          },
-        ],
-        varWrites: {},
-      };
-    }
-
-    // $item.meta.<key>
-    if (segments[1] === "meta") {
-      const metaKey = segments.slice(2).join(".");
-      if (!metaKey) {
-        throw new Error(`unknown path head: ${path}`);
-      }
-      return {
-        effects: [
-          {
-            _effect: "UPDATE_ITEM_META",
-            itemId,
-            metaPatch: { [metaKey]: value },
-          },
-        ],
-        varWrites: {},
-      };
-    }
-
-    // $item.textmap
-    if (segments[1] === "textmap" && segments.length === 2) {
-      let textmap = value;
-      if (
-        value &&
-        typeof value === "object" &&
-        !Array.isArray(value) &&
-        Object.prototype.hasOwnProperty.call(value, "fromTemplate")
-      ) {
-        const templateRef = value.fromTemplate;
-        const templateOcc =
-          occurrencesById[templateRef] ||
-          occurrencesById[templateRef?.id] ||
-          null;
-        const sourceTextmap = templateOcc?.textmap ?? null;
-        textmap = substituteTextmapTokens(sourceTextmap, value.tokens || {});
-      }
-      return {
-        effects: [
-          {
-            _effect: "UPDATE_ITEM_TEXTMAP",
-            itemId,
-            textmap,
-          },
-        ],
-        varWrites: {},
-      };
-    }
-
-    throw new Error(`unknown path head: ${path}`);
+    return routeRecordPath(path, segments, value, { item, occurrencesById });
   }
 
   // -------------------------------------------------------------------------
@@ -218,6 +134,113 @@ export function applyUpdate(path, value, ctx) {
           fieldId,
           itemId,
           value,
+        },
+      ],
+      varWrites: {},
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // `$<var>.<...>` — write to any FOUND record bound to a user var by an
+  // earlier FIND step (`itemVar: "$myVar"`). Reuses the same record routing
+  // as `$item.*`.
+  // -------------------------------------------------------------------------
+  if (VAR_NAME_RE.test(head)) {
+    const bound = vars[head];
+    if (bound == null) {
+      throw new Error(`${head} not bound in current pipeline context`);
+    }
+    if (typeof bound !== "object" || !bound.id) {
+      throw new Error(`${head} is not a record (no .id) — UPDATE needs a FOUND occurrence`);
+    }
+    return routeRecordPath(path, segments, value, { item: bound, occurrencesById });
+  }
+
+  throw new Error(`unknown path head: ${path}`);
+}
+
+// ---------------------------------------------------------------------------
+// routeRecordPath — shared sub-path routing for any var head bound to an
+// occurrence-shaped record. Sub-paths: `fields.<fid>.value|.flow`,
+// `parentId`, `meta.<key>`, `textmap`. Produces the same effect shapes the
+// `$item.*` branch always has (UPDATE_ITEM_FIELD/PARENT/META/TEXTMAP) so
+// downstream apply code is unchanged.
+// ---------------------------------------------------------------------------
+function routeRecordPath(path, segments, value, { item, occurrencesById }) {
+  const itemId = item.id;
+
+  if (segments[1] === "fields") {
+    const fieldId = segments[2];
+    const subKey = segments[3];
+    if (!fieldId || (subKey !== "value" && subKey !== "flow")) {
+      throw new Error(`unknown path head: ${path}`);
+    }
+    return {
+      effects: [
+        {
+          _effect: "UPDATE_ITEM_FIELD",
+          itemId,
+          fieldId,
+          value,
+          subKind: subKey === "flow" ? "flow" : "value",
+        },
+      ],
+      varWrites: {},
+    };
+  }
+
+  if (segments[1] === "parentId" && segments.length === 2) {
+    return {
+      effects: [
+        {
+          _effect: "UPDATE_ITEM_PARENT",
+          itemId,
+          toParentId: value,
+        },
+      ],
+      varWrites: {},
+    };
+  }
+
+  if (segments[1] === "meta") {
+    const metaKey = segments.slice(2).join(".");
+    if (!metaKey) {
+      throw new Error(`unknown path head: ${path}`);
+    }
+    return {
+      effects: [
+        {
+          _effect: "UPDATE_ITEM_META",
+          itemId,
+          metaPatch: { [metaKey]: value },
+        },
+      ],
+      varWrites: {},
+    };
+  }
+
+  if (segments[1] === "textmap" && segments.length === 2) {
+    let textmap = value;
+    if (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.prototype.hasOwnProperty.call(value, "fromTemplate")
+    ) {
+      const templateRef = value.fromTemplate;
+      const templateOcc =
+        occurrencesById[templateRef] ||
+        occurrencesById[templateRef?.id] ||
+        null;
+      const sourceTextmap = templateOcc?.textmap ?? null;
+      textmap = substituteTextmapTokens(sourceTextmap, value.tokens || {});
+    }
+    return {
+      effects: [
+        {
+          _effect: "UPDATE_ITEM_TEXTMAP",
+          itemId,
+          textmap,
         },
       ],
       varWrites: {},
