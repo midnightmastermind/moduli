@@ -917,40 +917,23 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     $currentDate: _todayLocal,
     $currentHour: _nowDate.getHours(),
     $currentTime: _nowDate.toTimeString().slice(0, 5),
-    // Active filter date — scoped to the operation's target occurrence (not grid-global).
-    // Walks the parent chain via filterOverride so each panel/container sees its own date.
-    // Returns null when no date filter active (callers wanting today should use $today).
-    $activeDate: (() => {
+    // Active filter date — scoped to the operation's target occurrence
+    // (walks the parent chain via filterOverride). $activeDate / $filterDate
+    // are the YYYY-MM-DD string (or null when no date filter); the label
+    // and day-of-week variants format the same date for token interpolation.
+    ...(() => {
       const targetOccId = operation.targetOccurrenceId;
       const targetOcc = targetOccId ? occurrencesById[targetOccId] : null;
       const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById });
       const dateVal = Object.values(efv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
-      return dateVal ? dateVal.slice(0, 10) : null;
-    })(),
-    // Alias for legacy callers. Same scoped semantics as $activeDate.
-    $filterDate: (() => {
-      const targetOccId = operation.targetOccurrenceId;
-      const targetOcc = targetOccId ? occurrencesById[targetOccId] : null;
-      const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById });
-      const dateVal = Object.values(efv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
-      return dateVal ? dateVal.slice(0, 10) : null;
-    })(),
-    // Formatted labels for the active date — used in COMPUTE_TEXTMAP_FROM_TEMPLATE tokens
-    $activeDateLabel: (() => {
-      const targetOccId = operation.targetOccurrenceId;
-      const targetOcc = targetOccId ? occurrencesById[targetOccId] : null;
-      const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById });
-      const dateVal = Object.values(efv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
+      const dayKey = dateVal ? dateVal.slice(0, 10) : null;
       const d = dateVal ? new Date(dateVal + "T00:00:00") : _nowDate;
-      return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-    })(),
-    $activeDayOfWeek: (() => {
-      const targetOccId = operation.targetOccurrenceId;
-      const targetOcc = targetOccId ? occurrencesById[targetOccId] : null;
-      const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById });
-      const dateVal = Object.values(efv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
-      const d = dateVal ? new Date(dateVal + "T00:00:00") : _nowDate;
-      return d.toLocaleDateString("en-US", { weekday: "long" });
+      return {
+        $activeDate: dayKey,
+        $filterDate: dayKey,
+        $activeDateLabel: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
+        $activeDayOfWeek: d.toLocaleDateString("en-US", { weekday: "long" }),
+      };
     })(),
     // Built-in arrays — loop-ready collections of everything in the system.
     // Every placement (merged with its template: label/name/role/kind/meta) is
