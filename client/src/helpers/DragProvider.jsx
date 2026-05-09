@@ -178,6 +178,19 @@ export function DragProvider({
     return map;
   }, [state?.occurrences]);
 
+  // Modules lookup. Redux state stores modules as an array — drop routing
+  // and dropView need a moduleId→module map to resolve role. App.jsx builds
+  // its own from state.modules; we build ours here so the drag layer doesn't
+  // depend on App.jsx's GridActionsContext memo.
+  const modulesById = useMemo(() => {
+    const map = Object.create(null);
+    const mods = Array.isArray(state?.modules) ? state.modules : [];
+    for (const m of mods) {
+      if (m?.id) map[m.id] = m;
+    }
+    return map;
+  }, [state?.modules]);
+
   // ============================================================
   // DRAFT-AWARE GETTERS
   // ============================================================
@@ -487,7 +500,11 @@ export function DragProvider({
 
       // Update highlight only when containerId changes (not instanceId — avoids flicker)
       if (last.containerId !== containerId) {
-        const shouldHL = s.payload?.type !== DragType.PANEL;
+        // Container-into-target highlighting only applies to leaf drops
+        // (instance/module/external/file). Container-on-container drags
+        // get edge indicators instead — see useDragDrop's closestEdge path.
+        const t = s.payload?.type;
+        const shouldHL = t !== DragType.PANEL && t !== DragType.CONTAINER && t !== DragType.PAGE;
         setDropHighlight(shouldHL ? (containerId || null) : null);
       }
       if (last.panelId !== panelId || last.containerId !== containerId || last.instanceId !== instanceId) {
@@ -763,7 +780,8 @@ export function DragProvider({
     }
 
     lastHotRef.current = { panelId: newPanelId, containerId: newContainerId, instanceId: newInstanceId };
-    const shouldHighlight = s.payload?.type !== DragType.PANEL;
+    const t = s.payload?.type;
+    const shouldHighlight = t !== DragType.PANEL && t !== DragType.CONTAINER && t !== DragType.PAGE;
     setDropHighlight(shouldHighlight ? (newContainerId || null) : null);
   }, []);
 
@@ -772,10 +790,6 @@ export function DragProvider({
   // ============================================================
   const handleDrop = useCallback((dropTarget) => {
     const s = sessionRef.current;
-    // Pragmatic DnD fires onDrop on every nested drop target the cursor was
-    // over. Commit ONCE per drag, on the call whose context resolves to a
-    // usable target. Calls without a target return silently so a sibling
-    // onDrop can still commit. handleDragEnd does the final clearSession.
     if (s.dropHandled) return;
     const payload = s?.payload || dropTarget?.source;
     if (!s.dragging && !payload) return;
@@ -796,27 +810,27 @@ export function DragProvider({
     });
     if (!rawEvent) return;
 
-    // Skip doc-container drops — Editor.jsx owns insertion via moduleEmbed.
     const hoveredOccId = rawEvent.hover.dropTargetData?.occurrenceId;
     if (hoveredOccId) {
       const occ = occurrencesById[hoveredOccId];
-      const mod = occ ? state?.modulesById?.[occ.moduleId] : null;
-      if (mod?.kind === "doc" && mod.role === "container") { s.dropHandled = true; clearSession(); return; }
+      const mod = occ ? modulesById[occ.moduleId] : null;
+      if (mod?.kind === "doc" && mod.role === "container") {
+        s.dropHandled = true; clearSession(); return;
+      }
     }
 
-    const dropContext = buildDropContext(rawEvent, {
-      occurrencesById,
-      modulesById: state?.modulesById || {},
-    });
+    const dropContext = buildDropContext(rawEvent, { occurrencesById, modulesById });
     if (!dropContext) return;
 
     s.dropHandled = true;
     routeDrop(dropContext, {
-      dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers,
+      dispatch, socket,
+      state: { ...state, modulesById },
+      occurrencesById, baseAllPanels, baseContainers,
       clearSession, sessionRef, getCellFromPoint,
     });
     clearSession();
-  }, [dispatch, socket, getCellFromPoint, getHoveredIds, baseAllPanels, baseContainers, occurrencesById, clearSession, state]);
+  }, [dispatch, socket, getCellFromPoint, getHoveredIds, baseAllPanels, baseContainers, occurrencesById, modulesById, clearSession, state]);
 
   const handleDragEnd = useCallback(() => {
     clearSession();
