@@ -103,9 +103,10 @@ OccurrenceSchema.virtual("moduleId")
 // Defensive pre-validate hook: if a caller constructs `new Occurrence({ moduleId })`
 // where the Mongoose constructor route bypasses the virtual setter, copy the
 // raw payload value over to targetId before required-field validation runs.
-OccurrenceSchema.pre("validate", function (next) {
+// Sync style (no `next`) — Mongoose treats hooks without a return value as
+// synchronous middleware.
+OccurrenceSchema.pre("validate", function () {
   if (!this.targetId && this._doc?.moduleId) this.targetId = this._doc.moduleId;
-  next();
 });
 
 // Hide Mongo internals in API responses
