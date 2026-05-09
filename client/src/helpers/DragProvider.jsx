@@ -27,20 +27,8 @@ import * as CommitHelpers from "./CommitHelpers";
 import * as LayoutHelpers from "./LayoutHelpers";
 import { runMatchingOperations } from "./operationExecutor";
 import { batchUpdateModulesAction } from "../state/actions";
-import {
-  handlePanelDrop,
-  handleContainerDrop,
-  handleInstanceDrop,
-  handleFileDrop,
-  handleExternalDrop,
-  handleCrossWindowDrop,
-  handleTemplateDrop,
-  handleModuleDrop,
-  handleFieldDrop,
-  handleOperationDrop,
-  handleArtifactDrop,
-  handleFolderDrop,
-} from "./dropHandlers";
+import { routeDrop } from "./dropHandlers";
+import { buildDropContext } from "./dragHitTesting";
 
 // ============================================================
 // UTILITIES
@@ -775,76 +763,102 @@ export function DragProvider({
   const handleDrop = useCallback((dropTarget) => {
     const s = sessionRef.current;
     const payload = s?.payload || dropTarget?.source;
-
     if (!s.dragging && !payload) { clearSession(); return; }
 
     if (dropTarget.clientX !== undefined && dropTarget.clientY !== undefined) {
       pointerRef.current = { x: dropTarget.clientX, y: dropTarget.clientY };
     }
-
     const { x, y } = pointerRef.current;
-    const panelId = dropTarget.context?.panelId || getHoveredPanelId();
-    const containerId = dropTarget.context?.containerId || getHoveredContainerId();
-    const instanceId = dropTarget.context?.instanceId || getHoveredInstanceId();
-    // Per-occurrence IDs disambiguate per-day modules (schedule slots) where
-    // multiple occurrences share the same module id.
+
+    // Resolve the innermost hovered occurrence via DOM walk (data-* attrs)
+    // and merge with any occurrence id the dragSystem hook stamped on the
+    // drop-target context. The DOM walk disambiguates schedule-slot day
+    // pages where multiple occurrences share a moduleId.
     const hovered = getHoveredIds(x, y);
-    const containerOccurrenceId = dropTarget.context?.occurrenceId || hovered.containerOccId || null;
-    const instanceOccurrenceId = hovered.instanceOccId || null;
+    const hoveredOccurrenceId =
+      dropTarget.context?.occurrenceId
+      || dropTarget.context?.instanceOccurrenceId
+      || dropTarget.context?.containerOccurrenceId
+      || hovered.instanceOccId
+      || hovered.containerOccId
+      || hovered.panelOccId
+      || null;
 
-    // Deduplication
-    const now = Date.now();
-    const last = lastDropRef.current;
-    const isDuplicate = last.payload === payload?.id &&
-      (last.containerId === containerId || payload?.id === "__file__") &&
-      (now - last.timestamp) < 100;
-    if (isDuplicate) return;
-    lastDropRef.current = { payload: payload?.id, containerId, timestamp: now };
-
-    // Shared context for all handlers
-    const ctx = {
-      dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers,
-      clearSession, sessionRef, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId,
-    };
-    const drop = { payload, dropTarget, panelId, containerId, instanceId, containerOccurrenceId, instanceOccurrenceId, x, y, getCellFromPoint };
-
-    // Route to extracted handler by payload type
-    if (payload?.type === DragType.PANEL) {
-      handlePanelDrop(ctx, drop);
-    } else if (payload?.type === DragType.CONTAINER && panelId) {
-      // Skip doc containers — Editor.jsx handles embed insertion via moduleEmbed node
-      if (containerId) {
-        const targetContainer = baseContainers.find(c => c.id === containerId);
-        if (targetContainer?.kind === "doc") { clearSession(); return; }
+    // Synthesize the drop-target data the unified hit-tester expects.
+    let dropTargetData = null;
+    if (dropTarget.type === "grid-cell" && dropTarget.context?.row !== undefined) {
+      dropTargetData = {
+        kind: "grid-cell",
+        gridCell: {
+          row: dropTarget.context.row,
+          col: dropTarget.context.col,
+          cellId: dropTarget.context.cellId,
+        },
+        ...(dropTarget.context || {}),
+      };
+    } else if (hoveredOccurrenceId) {
+      dropTargetData = {
+        occurrenceId: hoveredOccurrenceId,
+        closestEdge: dropTarget.context?.closestEdge || null,
+        ...(dropTarget.context || {}),
+      };
+    } else if (payload?.type === DragType.FILE) {
+      const cell = getCellFromPoint(x, y);
+      if (cell) {
+        dropTargetData = {
+          kind: "grid-cell",
+          gridCell: { row: cell.row, col: cell.col, cellId: cell.cellId },
+        };
       }
-      handleContainerDrop(ctx, drop);
-    } else if (payload?.type === DragType.INSTANCE && containerId) {
-      // Skip doc containers — Editor.jsx's Pragmatic DnD drop target handles insertion
-      const targetContainer = baseContainers.find(c => c.id === containerId);
-      if (targetContainer?.kind === "doc") { clearSession(); return; }
-      handleInstanceDrop(ctx, drop);
-    } else if (payload?.type === DragType.FILE && payload?.data?.files?.length > 0) {
-      handleFileDrop(ctx, drop);
-      return; // handleFileDrop calls clearSession internally
-    } else if ([DragType.TEXT, DragType.URL, DragType.EXTERNAL].includes(payload?.type) && containerId) {
-      handleExternalDrop(ctx, drop);
-    } else if (dropTarget.dataTransfer && containerId) {
-      handleCrossWindowDrop(ctx, drop);
-    } else if (payload?.type === "template" && payload?.sourceType === "command-center") {
-      handleTemplateDrop(ctx, drop);
-    } else if (payload?.type === "module" && (payload?.sourceType === "command-center" || payload?.sourceType === "pool" || payload?.sourceType === "doc" || payload?.sourceType === "canvas" || payload?.sourceType === "tree-anchor" || payload?.sourceType === "tree-page")) {
-      handleModuleDrop(ctx, drop);
-    } else if (payload?.type === "field" && payload?.sourceType === "command-center") {
-      handleFieldDrop(ctx, drop);
-    } else if (payload?.type === "operation" && payload?.sourceType === "command-center") {
-      handleOperationDrop(ctx, drop);
-    } else if (payload?.type === DragType.ARTIFACT && payload?.occurrenceId) {
-      handleArtifactDrop(ctx, drop);
-      if (containerId) return; // handleArtifactDrop returns early for container drops
-    } else if (payload?.type === "folder" && payload?.childOccurrenceIds?.length > 0) {
-      handleFolderDrop(ctx, drop);
+    }
+    if (!dropTargetData) { clearSession(); return; }
+
+    // Skip doc-container drops — Editor.jsx owns insertion via moduleEmbed.
+    if (hoveredOccurrenceId) {
+      const occ = occurrencesById[hoveredOccurrenceId];
+      const mod = occ ? state?.modulesById?.[occ.moduleId ?? occ.targetId] : null;
+      if (mod?.kind === "doc" && mod.role === "container") { clearSession(); return; }
     }
 
+    const rawEvent = {
+      source: {
+        occurrenceId: payload?.context?.occurrenceId
+          || payload?.context?.containerOccurrenceId
+          || payload?.occurrenceId
+          || null,
+        moduleId: payload?.id || null,
+        sourceKind: payload?.context?.sourceType || payload?.sourceType || "in-grid",
+        defaultMode: s?.mode || "move",
+        payloadType: payload?.type,
+        data: payload?.data,
+        context: payload?.context,
+        sourceContainerId: payload?.context?.containerId,
+        sourceContainerOccurrenceId: payload?.context?.containerOccurrenceId,
+        childOccurrenceIds: payload?.childOccurrenceIds,
+      },
+      hover: { x, y, dropTargetData },
+      modifiers: {
+        shift: dropTarget.shiftKey ?? false,
+        alt: dropTarget.altKey ?? false,
+        ctrl: dropTarget.ctrlKey ?? false,
+        meta: dropTarget.metaKey ?? false,
+      },
+      pointer: { x, y },
+      dataTransfer: dropTarget.dataTransfer || null,
+    };
+
+    const env = {
+      occurrencesById,
+      modulesById: state?.modulesById || {},
+    };
+    const dropContext = buildDropContext(rawEvent, env);
+    if (!dropContext) { clearSession(); return; }
+
+    const ctx = {
+      dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers,
+      clearSession, sessionRef, getCellFromPoint,
+    };
+    routeDrop(dropContext, ctx);
     clearSession();
   }, [dispatch, socket, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId, baseAllPanels, baseContainers, occurrencesById, clearSession, state]);
 
