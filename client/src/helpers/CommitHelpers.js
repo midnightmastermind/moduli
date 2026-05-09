@@ -108,6 +108,13 @@ export function createInstanceInContainer({
 // ===== OCCURRENCE =====
 export function createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null }) {
   if (!occurrence?.id) return;
+  // Accept either name; downstream operationsBridge + state both read targetId.
+  // Drag/drop callers pass `moduleId`; legacy callers pass `targetId`.
+  if (occurrence.moduleId && !occurrence.targetId) {
+    occurrence = { ...occurrence, targetId: occurrence.moduleId };
+  } else if (occurrence.targetId && !occurrence.moduleId) {
+    occurrence = { ...occurrence, moduleId: occurrence.targetId };
+  }
   operationsBridge.updateLocalOcc?.(occurrence);
   dispatch?.(createOccurrenceAction(occurrence));
   if (shouldEmit(emit)) safeEmit(socket, "create_occurrence", { occurrence });

@@ -708,8 +708,7 @@ export function handleFileDrop(dropContext, ctx) {
     id: occurrenceId,
     userId: fileUserId,
     gridId: fileGridId,
-    targetType: "module",
-    targetId: moduleId,
+    moduleId,
     fields: {},
     meta: {},
   };
@@ -1204,7 +1203,7 @@ export function handleFolderDrop(dropContext, ctx) {
     const pageModId = crypto.randomUUID();
     const pageOccId = crypto.randomUUID();
     CommitHelpers.createModule({ dispatch, socket, module: { id: pageModId, role: "page", kind: "doc", label: childMod.label || "Untitled" }, emit: true });
-    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: pageOccId, userId: state?.userId, gridId: state?.grid?._id, targetId: pageModId, targetType: "module", fields: {} }, emit: true });
+    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: pageOccId, userId: state?.userId, gridId: state?.grid?._id, moduleId: pageModId, fields: {} }, emit: true });
     existingOccs.push(pageOccId);
   }
   CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOcc.id, occurrences: existingOccs }, emit: true });
