@@ -285,6 +285,7 @@ export function DragProvider({
     if (s.dragging) return;
 
     s.dragging = true;
+    s.dropHandled = false;
     s.payload = payload;
     s.mode = mode; // Store mode in session ref for immediate access in drop handlers
     s.startPanels = deepClonePanels(basePanels);
@@ -740,23 +741,29 @@ export function DragProvider({
   }, [getCellFromPoint, getHoveredIds, previewMoveInstance, previewMoveContainer, occurrencesById, onTick]);
 
   const handleDragOver = useCallback((target) => {
-    // Called by useDroppable/useDragDrop on dragover.
-    // Deduplicate: only update state when panel/container actually changes,
-    // not on every pixel of mouse movement (which would cause 60fps re-renders).
+    // Called by useDroppable/useDragDrop on dragover. Pragmatic DnD fires
+    // onDrag on EVERY nested drop target, not just the innermost — so when
+    // a slot's container-list is inside a page's page-content drop zone,
+    // both fire and the outer one (no containerId) would clobber the inner
+    // one's highlight, causing rapid flicker. Sticky behaviour: when the
+    // new context has no containerId but the panel matches, keep the
+    // previous containerId.
     const s = sessionRef.current;
     if (!s.dragging) return;
 
     const newPanelId = target.context?.panelId ?? null;
-    const newContainerId = target.context?.containerId ?? null;
+    const rawContainerId = target.context?.containerId ?? null;
     const newInstanceId = target.context?.instanceId ?? null;
 
     const last = lastHotRef.current;
+    const stickyToLast = !rawContainerId && newPanelId && newPanelId === last.panelId && last.containerId;
+    const newContainerId = stickyToLast ? last.containerId : rawContainerId;
+
     if (last.panelId === newPanelId && last.containerId === newContainerId && last.instanceId === newInstanceId) {
-      return; // Nothing changed — skip re-render
+      return;
     }
 
     lastHotRef.current = { panelId: newPanelId, containerId: newContainerId, instanceId: newInstanceId };
-    // Only highlight containers for instance/external drags, not container drags
     const shouldHighlight = s.payload?.type !== DragType.PANEL;
     setDropHighlight(shouldHighlight ? (newContainerId || null) : null);
   }, []);
@@ -766,8 +773,14 @@ export function DragProvider({
   // ============================================================
   const handleDrop = useCallback((dropTarget) => {
     const s = sessionRef.current;
+    // Pragmatic DnD fires onDrop on EVERY nested drop target (innermost-first).
+    // Once we've handled the innermost drop in this session, ignore the rest —
+    // otherwise an outer page-content drop with no containerId clobbers the
+    // inner container-list drop (the bug for drop-into-schedule-timeslot).
+    if (s.dropHandled) return;
     const payload = s?.payload || dropTarget?.source;
     if (!s.dragging && !payload) { clearSession(); return; }
+    s.dropHandled = true;
 
     if (dropTarget.clientX !== undefined && dropTarget.clientY !== undefined) {
       pointerRef.current = { x: dropTarget.clientX, y: dropTarget.clientY };
