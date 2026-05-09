@@ -18,6 +18,7 @@ import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { toast } from "sonner";
 import { resolveExpr, evalRule, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleAgainstRecord } from "./operationActions";
 import { buildParentMap } from "./dragHitTesting";
+import { isEventCompatible } from "./triggerTypes";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import { operationsBridge } from "../state/bindSocketToStore";
 
@@ -349,55 +350,9 @@ function matchAncestorScope(to, eventType, transaction) {
   return false;
 }
 
-/**
- * Gate an event name against the current transaction type and payload semantics.
- * Pure type/shape check — no subject/target filtering.
- */
-function isEventCompatible(eventType, transactionType, transaction) {
-  switch (eventType) {
-    case "onChange":
-    case "onFieldChange":
-      return transactionType === "MeasureOp";
-    case "onComplete": {
-      if (transactionType !== "MeasureOp") return false;
-      const v = transaction?.value;
-      return Boolean(v) || v === 1;
-    }
-    case "onUncomplete":
-      return transactionType === "MeasureOp" && !transaction?.value;
-    case "onAdd":
-    case "onCreate":
-      return transactionType === "OccurrenceCreateOp";
-    case "onRemove":
-    case "onDelete":
-      return transactionType === "OccurrenceDeleteOp";
-    case "onMove":
-      return transactionType === "OccurrenceMoveOp" || transactionType === "OccurrenceListOp";
-    case "onReorder":
-      return transactionType === "OccurrenceListOp" && transaction?.fromContainerId === transaction?.toContainerId;
-    case "onDrop":
-      return transactionType === "OccurrenceListOp";
-    case "onFilterChange":
-    case "onNavigation":
-      return transactionType === "NavigationOp";
-    case "onLoad":
-      return transactionType == null;
-    case "onButton":
-      return transactionType === "ButtonOp";
-    case "onNodeInput":
-      return transactionType === "NodeInputOp";
-    case "onModuleUpdate":
-      return transactionType === "ModuleOp";
-    case "onWebhook":
-      return transactionType === "WebhookOp";
-    case "onSchedule":
-      return transactionType === "ScheduleOp";
-    case "manual":
-      return false;
-    default:
-      return false;
-  }
-}
+// Gate an event name against the current transaction type and payload
+// semantics. Sourced from helpers/triggerTypes.js so the editor and
+// runtime never drift out of sync.
 
 /**
  * Evaluate a triggerObject's subject/target filter against the transaction.
