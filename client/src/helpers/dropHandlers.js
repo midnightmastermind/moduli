@@ -5,8 +5,8 @@
 // Each handler is `(dropContext, ctx)` — `dropContext` is the unified
 // shape produced by dragHitTesting.buildDropContext, `ctx` carries the
 // commit-side bag (dispatch, socket, state, occurrencesById, etc.).
-// Role-aware locals (containerId / panelId / instanceId / etc.) are
-// derived once per handler via dropView() at the top of each function.
+// Role-aware locals are derived once per handler via dropView() at the
+// top of each function.
 // ============================================================
 
 import * as CommitHelpers from "./CommitHelpers";
@@ -355,7 +355,54 @@ export function handleContainerDrop(dropContext, ctx) {
 // ============================================================
 // INSTANCE → CONTAINER
 // ============================================================
-export function handleInstanceDrop(dropContext, ctx) {
+// Resolve the target index for inserting a dragged occurrence into
+// `toCOcc.occurrences[]`. Reads `dropTarget.context.insertAt` (set by the
+// drop zone) first; otherwise honours the closestEdge of the hovered
+// instance, with the same-container forward-shift adjustment.
+function _resolveToIndex({ dropTarget, instanceId, toCOcc, occurrencesById, fromCOcc, draggedInstanceId }) {
+  if (dropTarget.context?.insertAt !== undefined) return dropTarget.context.insertAt;
+  if (!instanceId || !toCOcc) return null;
+  const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(instanceId, toCOcc.occurrences || [], occurrencesById);
+  if (hoveredIndex === -1) return null;
+  const edge = dropTarget.context?.closestEdge;
+  let toIndex = (edge === "bottom" || edge === "right") ? hoveredIndex + 1 : hoveredIndex;
+  if (fromCOcc && fromCOcc.id === toCOcc.id && draggedInstanceId) {
+    const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
+    if (fromIndex !== -1 && fromIndex < hoveredIndex) toIndex = Math.max(0, toIndex - 1);
+  }
+  return toIndex;
+}
+
+// Drop a doc-embed instance (TipTap moduleEmbed node) onto a target
+// container. The occurrence already exists; we just splice it into
+// the destination's children list and (in move mode) ask the embed
+// registry to remove the source node. Routed here from routeDrop so
+// handleOccurrenceMove can stay focused on in-grid moves/copies.
+export function handleDocEmbedDrop(dropContext, ctx) {
+  const { dispatch, socket, occurrencesById, baseContainers, clearSession, sessionRef } = ctx;
+  const { payload } = dropContext;
+  const { containerId, containerOccurrenceId, instanceId, dropTarget } = dropView(dropContext, ctx);
+
+  const toC = baseContainers.find(c => c.id === containerId);
+  const toCOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
+    || (toC ? Object.values(occurrencesById).find(o => o.moduleId === toC.id) : null);
+  if (!toC || !toCOcc) { clearSession(); return; }
+
+  const occurrenceId = payload.context?.occurrenceId;
+  if (!occurrenceId) { clearSession(); return; }
+
+  const toIndex = _resolveToIndex({ dropTarget, instanceId, toCOcc, occurrencesById });
+  const newOccurrences = [...(toCOcc.occurrences || [])];
+  if (toIndex !== null) newOccurrences.splice(toIndex, 0, occurrenceId);
+  else newOccurrences.push(occurrenceId);
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: toCOcc.id, occurrences: newOccurrences }, emit: true });
+
+  if (sessionRef.current.mode !== "copy") {
+    embedDeleteRegistry.get(occurrenceId)?.();
+  }
+}
+
+export function handleOccurrenceMove(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseContainers, clearSession, sessionRef } = ctx;
   const { payload, target, position, pointer, mode, modifiers, dataTransfer } = dropContext;
   const { x, y } = pointer || { x: 0, y: 0 };
@@ -380,37 +427,6 @@ export function handleInstanceDrop(dropContext, ctx) {
     || (fromC ? Object.values(occurrencesById).find(o => o.moduleId === fromC.id) : null);
   const toCOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
     || (toC ? Object.values(occurrencesById).find(o => o.moduleId === toC.id) : null);
-
-  if (payload.context?.sourceType === "doc-embed") {
-    // Instance dragged out of a doc embed — add to target container
-    if (!toC || !toCOcc) { clearSession(); return; }
-    const occurrenceId = payload.context?.occurrenceId;
-    if (!occurrenceId) { clearSession(); return; }
-
-    let toIndex = null;
-    if (dropTarget.context?.insertAt !== undefined) {
-      toIndex = dropTarget.context.insertAt;
-    } else if (instanceId) {
-      const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(instanceId, toCOcc.occurrences || [], occurrencesById);
-      if (hoveredIndex !== -1) {
-        const edge = dropTarget.context?.closestEdge;
-        if (edge === "top" || edge === "left") toIndex = hoveredIndex;
-        else if (edge === "bottom" || edge === "right") toIndex = hoveredIndex + 1;
-        else toIndex = hoveredIndex;
-      }
-    }
-
-    const newOccurrences = [...(toCOcc.occurrences || [])];
-    if (toIndex !== null) newOccurrences.splice(toIndex, 0, occurrenceId);
-    else newOccurrences.push(occurrenceId);
-    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: toCOcc.id, occurrences: newOccurrences }, emit: true });
-
-    // Move mode: remove from doc embed
-    if (sessionRef.current.mode !== "copy") {
-      embedDeleteRegistry.get(occurrenceId)?.();
-    }
-    return;
-  }
 
   if (!fromC || !toC) return;
 
@@ -835,11 +851,11 @@ export function handleModuleDrop(dropContext, ctx) {
     if (targetContainer && gridId) {
       // Prefer the drop context's per-occurrence id (so we hit the visible
       // slot, not the first match by targetId — same disambiguation as
-      // handleInstanceDrop).
+      // handleOccurrenceMove).
       const targetContainerOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
         || Object.values(occurrencesById).find(o => o.moduleId === targetContainer.id);
       // Pre-stamp the destination's page-filter fields so the create lands
-      // with the right date — same reasoning as handleInstanceDrop copy mode.
+      // with the right date — same reasoning as handleOccurrenceMove copy mode.
       const stampedFields = computePageFilterFields({
         state, occurrencesById,
         parentContainerOcc: targetContainerOcc,
@@ -1178,7 +1194,7 @@ export function routeDrop(dropContext, ctx) {
   }
   if (payload.sourceKind === "field") return handleFieldDrop(dropContext, ctx);
   if (payload.sourceKind === "operation") return handleOperationDrop(dropContext, ctx);
-  if (payload.sourceKind === "doc-embed") return handleInstanceDrop(dropContext, ctx);
+  if (payload.sourceKind === "doc-embed") return handleDocEmbedDrop(dropContext, ctx);
 
   if (payload.sourceKind === "command-center" || payload.sourceKind === "pool"
       || payload.sourceKind === "doc" || payload.sourceKind === "canvas"
@@ -1194,7 +1210,7 @@ export function routeDrop(dropContext, ctx) {
   if (sourceRole === "panel") return handlePanelDrop(dropContext, ctx);
   if (sourceRole === "container") return handleContainerDrop(dropContext, ctx);
   if (sourceRole === "instance" || sourceRole === "page" || sourceRole === "artifact" || sourceRole === "textblock") {
-    return handleInstanceDrop(dropContext, ctx);
+    return handleOccurrenceMove(dropContext, ctx);
   }
 
   ctx.clearSession?.();
