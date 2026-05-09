@@ -109,7 +109,7 @@ export function walkHoveredOccurrence(x, y, env = {}) {
 // DropContext shape: see spec §4.
 export function buildDropContext(rawEvent, env) {
   if (!rawEvent || !env) return null;
-  const { source, hover, modifiers = {}, pointer } = rawEvent;
+  const { source, hover, modifiers = {}, pointer, dataTransfer = null } = rawEvent;
   const dtd = hover?.dropTargetData;
   if (!dtd) return null;
 
@@ -121,6 +121,11 @@ export function buildDropContext(rawEvent, env) {
   const ptr = pointer || { x: hover.x, y: hover.y };
   const mode = resolveDragMode(modifiers, source?.defaultMode);
 
+  // The full original dropTargetData is preserved on `target.raw` so handlers
+  // that need ad-hoc fields (e.g. board page-occurrence id, grid-cell row/col,
+  // cellId) can reach them without polluting the contract.
+  const rawTargetData = dtd;
+
   if (kind === DROP_TARGET_KIND.GRID_CELL) {
     return {
       payload: { ...source },
@@ -131,9 +136,10 @@ export function buildDropContext(rawEvent, env) {
         kind: DROP_TARGET_KIND.GRID_CELL,
         gridCell: dtd.gridCell || null,
         docCursor: null,
+        raw: rawTargetData,
       },
       position: { edge: null, insertIndex: 0 },
-      mode, modifiers, pointer: ptr,
+      mode, modifiers, pointer: ptr, dataTransfer,
     };
   }
 
@@ -148,9 +154,10 @@ export function buildDropContext(rawEvent, env) {
         kind: DROP_TARGET_KIND.DOC_CURSOR,
         gridCell: null,
         docCursor: { editorPos: dtd.editorPos ?? null, occurrenceId: dtd.occurrenceId || null },
+        raw: rawTargetData,
       },
       position: { edge: null, insertIndex: 0 },
-      mode, modifiers, pointer: ptr,
+      mode, modifiers, pointer: ptr, dataTransfer,
     };
   }
 
@@ -188,8 +195,9 @@ export function buildDropContext(rawEvent, env) {
       kind: DROP_TARGET_KIND.OCCURRENCE,
       gridCell: null,
       docCursor: null,
+      raw: rawTargetData,
     },
     position: { edge, insertIndex },
-    mode, modifiers, pointer: ptr,
+    mode, modifiers, pointer: ptr, dataTransfer,
   };
 }
