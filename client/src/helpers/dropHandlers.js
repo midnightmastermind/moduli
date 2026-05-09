@@ -22,6 +22,7 @@ import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
 import { createModuleAction, createOccurrenceAction } from "../state/actions";
 import { mimeToKind } from "./fileKind";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
+import { DROP_TARGET_KIND } from "./dragHitTesting";
 
 // Normalize a date-typed filter value to a local-tz YYYY-MM-DD string. Handles
 // the three input shapes the filter pipeline produces in the wild:
@@ -1089,4 +1090,71 @@ function resolveNearestIndex(containerOcc, occurrencesById, y) {
     }
   }
   return null;
+}
+
+// ============================================================
+// dropView — projection of DropContext + ctx into resolved locals
+// ============================================================
+// Each handler can call `dropView(dropContext, ctx)` to get the
+// resolved target/parent occurrences and their roles, instead of
+// re-deriving them inline. Pure projection — no side effects.
+//
+// The `parentOcc.moduleId ?? parentOcc.targetId` aliasing is the
+// only Phase-1 → Phase-2 bridge in this file; it's removed when the
+// rename lands.
+export function dropView(dropContext, ctx) {
+  const { target } = dropContext;
+  const occs = ctx.occurrencesById || {};
+  const modules = ctx.state?.modulesById || {};
+
+  const targetOcc = target.occurrenceId ? occs[target.occurrenceId] : null;
+  const parentOcc = target.parentOccurrenceId ? occs[target.parentOccurrenceId] : null;
+
+  const targetModuleId = target.moduleId || null;
+  const parentModuleId = parentOcc ? (parentOcc.moduleId ?? parentOcc.targetId ?? null) : null;
+
+  const targetRole = targetModuleId ? (modules[targetModuleId]?.role || null) : null;
+  const parentRole = parentModuleId ? (modules[parentModuleId]?.role || null) : null;
+
+  return { targetOcc, parentOcc, targetRole, parentRole, targetModuleId, parentModuleId };
+}
+
+// ============================================================
+// routeDrop — entry point for the unified drag pipeline
+// ============================================================
+// Dispatches a fully-built DropContext to the appropriate per-type
+// handler. All handlers take (dropContext, ctx).
+export function routeDrop(dropContext, ctx) {
+  if (!dropContext) { ctx.clearSession?.(); return; }
+  const { payload } = dropContext;
+  const sourceModule = payload.moduleId ? ctx.state?.modulesById?.[payload.moduleId] : null;
+  const sourceRole = sourceModule?.role || null;
+
+  // Source-kind first — these are unambiguous and don't depend on role.
+  if (payload.sourceKind === "file") return handleFileDrop(dropContext, ctx);
+  if (payload.sourceKind === "external" || payload.sourceKind === "text" || payload.sourceKind === "url") {
+    return handleExternalDrop(dropContext, ctx);
+  }
+  if (payload.sourceKind === "field") return handleFieldDrop(dropContext, ctx);
+  if (payload.sourceKind === "operation") return handleOperationDrop(dropContext, ctx);
+  if (payload.sourceKind === "doc-embed") return handleInstanceDrop(dropContext, ctx);
+
+  if (payload.sourceKind === "command-center" || payload.sourceKind === "pool"
+      || payload.sourceKind === "doc" || payload.sourceKind === "canvas"
+      || payload.sourceKind === "tree-anchor" || payload.sourceKind === "tree-page") {
+    return handleModuleDrop(dropContext, ctx);
+  }
+
+  if (payload.payloadType === "template") return handleTemplateDrop(dropContext, ctx);
+  if (payload.payloadType === "artifact") return handleArtifactDrop(dropContext, ctx);
+  if (payload.payloadType === "folder") return handleFolderDrop(dropContext, ctx);
+
+  // In-grid drag: dispatch by source role.
+  if (sourceRole === "panel") return handlePanelDrop(dropContext, ctx);
+  if (sourceRole === "container") return handleContainerDrop(dropContext, ctx);
+  if (sourceRole === "instance" || sourceRole === "page" || sourceRole === "artifact" || sourceRole === "textblock") {
+    return handleInstanceDrop(dropContext, ctx);
+  }
+
+  ctx.clearSession?.();
 }
