@@ -120,7 +120,6 @@ export function DragProvider({
   const dragConfigRef = useRef({ activeCell, setActiveCell, rows, cols, isMobile });
   dragConfigRef.current = { activeCell, setActiveCell, rows, cols, isMobile };
   const rafRef = useRef(0);
-  const lastDropRef = useRef({ payload: null, containerId: null, timestamp: 0 });
   // Mobile drag-to-edge cell navigation timer
   const dragEdgeTimerRef = useRef(null);
   const dragEdgeIndicatorRef = useRef(null);
@@ -773,14 +772,14 @@ export function DragProvider({
   // ============================================================
   const handleDrop = useCallback((dropTarget) => {
     const s = sessionRef.current;
-    // Pragmatic DnD fires onDrop on EVERY nested drop target (innermost-first).
-    // Once we've handled the innermost drop in this session, ignore the rest —
-    // otherwise an outer page-content drop with no containerId clobbers the
-    // inner container-list drop (the bug for drop-into-schedule-timeslot).
+    // Pragmatic DnD fires onDrop on every nested drop target the cursor was
+    // over. We want to commit ONCE per drag, on the call whose context
+    // resolves to a usable target. Calls without a usable target return
+    // without setting `dropHandled` so a sibling onDrop with a better
+    // context can still commit. handleDragEnd does the final clearSession.
     if (s.dropHandled) return;
     const payload = s?.payload || dropTarget?.source;
-    if (!s.dragging && !payload) { clearSession(); return; }
-    s.dropHandled = true;
+    if (!s.dragging && !payload) return;
 
     if (dropTarget.clientX !== undefined && dropTarget.clientY !== undefined) {
       pointerRef.current = { x: dropTarget.clientX, y: dropTarget.clientY };
@@ -828,13 +827,13 @@ export function DragProvider({
         };
       }
     }
-    if (!dropTargetData) { clearSession(); return; }
+    if (!dropTargetData) return; // No target on this onDrop; let siblings try.
 
     // Skip doc-container drops — Editor.jsx owns insertion via moduleEmbed.
     if (hoveredOccurrenceId) {
       const occ = occurrencesById[hoveredOccurrenceId];
       const mod = occ ? state?.modulesById?.[occ.moduleId] : null;
-      if (mod?.kind === "doc" && mod.role === "container") { clearSession(); return; }
+      if (mod?.kind === "doc" && mod.role === "container") { s.dropHandled = true; clearSession(); return; }
     }
 
     const rawEvent = {
@@ -869,12 +868,13 @@ export function DragProvider({
       modulesById: state?.modulesById || {},
     };
     const dropContext = buildDropContext(rawEvent, env);
-    if (!dropContext) { clearSession(); return; }
+    if (!dropContext) return; // Sibling onDrop may have a usable context.
 
     const ctx = {
       dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers,
       clearSession, sessionRef, getCellFromPoint,
     };
+    s.dropHandled = true;
     routeDrop(dropContext, ctx);
     clearSession();
   }, [dispatch, socket, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId, baseAllPanels, baseContainers, occurrencesById, clearSession, state]);
