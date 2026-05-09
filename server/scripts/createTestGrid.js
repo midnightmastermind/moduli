@@ -337,73 +337,73 @@ export async function createTestGrid(userId, options = {}) {
 
   // Toolkit Physical container instances
   const drinkWaterOccId = await mkOcc({
-    targetType: "module", targetId: drinkWaterModId,
+    moduleId: drinkWaterModId,
     parentId: physContOccId, fields: {},
   });
   const morningRunOccId = await mkOcc({
-    targetType: "module", targetId: morningRunModId,
+    moduleId: morningRunModId,
     parentId: physContOccId, fields: {},
   });
   const vitaminsOccId = await mkOcc({
-    targetType: "module", targetId: vitaminsModId,
+    moduleId: vitaminsModId,
     parentId: physContOccId,
     fields: { [completedFieldId]: { value: true, flow: "in", timestamp: new Date() } },
   });
   const stretchOccId = await mkOcc({
-    targetType: "module", targetId: stretchModId,
+    moduleId: stretchModId,
     parentId: physContOccId, fields: {},
   });
   const takeMedicationOccId = await mkOcc({
-    targetType: "module", targetId: takeMedicationModId,
+    moduleId: takeMedicationModId,
     parentId: physContOccId, fields: {},
   });
   const goToGymOccId = await mkOcc({
-    targetType: "module", targetId: goToGymModId,
+    moduleId: goToGymModId,
     parentId: physContOccId, fields: {},
   });
 
   // Goals container instances — goals are persistent (no date field), so they
   // remain visible regardless of the active filter date.
   const waterGoalOccId = await mkOcc({
-    targetType: "module", targetId: waterGoalModId,
+    moduleId: waterGoalModId,
     parentId: physGoalContOccId,
     fields: {},
   });
   const tasksGoalOccId = await mkOcc({
-    targetType: "module", targetId: tasksGoalModId,
+    moduleId: tasksGoalModId,
     parentId: physGoalContOccId, fields: {},
   });
 
   await mkOcc({
     id: physContOccId,
-    targetType: "module", targetId: physicalContId,
+    moduleId: physicalContId,
     occurrences: [drinkWaterOccId, morningRunOccId, vitaminsOccId, stretchOccId, takeMedicationOccId, goToGymOccId],
     filterOverride: {}
   });
   await mkOcc({
     id: physGoalContOccId,
-    targetType: "module", targetId: physicalGoalContId,
+    moduleId: physicalGoalContId,
     occurrences: [waterGoalOccId, tasksGoalOccId],
   });
 
   // Todo instances
   const todoGroceriesOccId = await mkOcc({
-    targetType: "module", targetId: todoGroceriesModId,
+    moduleId: todoGroceriesModId,
     parentId: todoContOccId,
     fields: { [dueFieldId]: { value: in2Days.toISOString(), flow: "in", timestamp: new Date() } },
   });
   const todoDentistOccId = await mkOcc({
-    targetType: "module", targetId: todoDentistModId,
+    moduleId: todoDentistModId,
     parentId: todoContOccId,
     fields: { [dueFieldId]: { value: in7Days.toISOString(), flow: "in", timestamp: new Date() } },
   });
   const todoReviewPROccId = await mkOcc({
-    targetType: "module", targetId: todoReviewPRModId,
+    moduleId: todoReviewPRModId,
     parentId: todoContOccId,
     fields: { [dueFieldId]: { value: in1Day.toISOString(), flow: "in", timestamp: new Date() } },
   });
   const todoBillsOccId = await mkOcc({
-    targetType: "module", targetId: todoBillsModId,
+    moduleId: todoBillsModId,
     parentId: todoContOccId,
     fields: {
       [completedFieldId]: { value: true, flow: "in", timestamp: new Date() },
@@ -411,17 +411,17 @@ export async function createTestGrid(userId, options = {}) {
     },
   });
   const todoReadOccId = await mkOcc({
-    targetType: "module", targetId: todoReadModId,
+    moduleId: todoReadModId,
     parentId: todoContOccId, fields: {},
   });
   const todoEmailOccId = await mkOcc({
-    targetType: "module", targetId: todoEmailModId,
+    moduleId: todoEmailModId,
     parentId: todoContOccId, fields: {},
   });
 
   await mkOcc({
     id: todoContOccId,
-    targetType: "module", targetId: todoGeneralContId,
+    moduleId: todoGeneralContId,
     occurrences: [todoReviewPROccId, todoBillsOccId, todoGroceriesOccId, todoDentistOccId, todoReadOccId, todoEmailOccId],
     filterOverride: {}
   });
@@ -438,20 +438,20 @@ export async function createTestGrid(userId, options = {}) {
   // ── STEP 8: Page modules + page occurrences ─────────────────────────────────
   const toolkitPageModId = uid(); const toolkitPageOccId = uid();
   await new Module({ id: toolkitPageModId, userId, gridId, role: "page", kind: "board", label: "Daily Toolkit" }).save();
-  await mkOcc({ id: toolkitPageOccId, targetType: "module", targetId: toolkitPageModId, parentId: rootFolderId, sortOrder: 0, occurrences: [physContOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
+  await mkOcc({ id: toolkitPageOccId, moduleId: toolkitPageModId, parentId: rootFolderId, sortOrder: 0, occurrences: [physContOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
 
   const goalsPageModId = uid(); const goalsPageOccId = uid();
   await new Module({ id: goalsPageModId, userId, gridId, role: "page", kind: "board", label: "Daily Goals" }).save();
-  await mkOcc({ id: goalsPageOccId, targetType: "module", targetId: goalsPageModId, parentId: rootFolderId, sortOrder: 1, occurrences: [physGoalContOccId], iteration: { mode: "persistent" }, fields: {} });
+  await mkOcc({ id: goalsPageOccId, moduleId: goalsPageModId, parentId: rootFolderId, sortOrder: 1, occurrences: [physGoalContOccId], iteration: { mode: "persistent" }, fields: {} });
 
   const todoPageModId = uid(); const todoPageOccId = uid();
   await new Module({ id: todoPageModId, userId, gridId, role: "page", kind: "board", label: "Todo List" }).save();
-  await mkOcc({ id: todoPageOccId, targetType: "module", targetId: todoPageModId, parentId: rootFolderId, sortOrder: 2, occurrences: [todoContOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
+  await mkOcc({ id: todoPageOccId, moduleId: todoPageModId, parentId: rootFolderId, sortOrder: 2, occurrences: [todoContOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
 
   const schedPageModId = uid(); const schedPageOccId = uid();
   await new Module({ id: schedPageModId, userId, gridId, role: "page", kind: "board", label: "Schedule" }).save();
   await mkOcc({
-    id: schedPageOccId, targetType: "module", targetId: schedPageModId,
+    id: schedPageOccId, moduleId: schedPageModId,
     parentId: rootFolderId, sortOrder: 3, occurrences: scheduleOccIds,
     iteration: { mode: "persistent" }, fields: {},
     filters: [{
@@ -473,7 +473,7 @@ export async function createTestGrid(userId, options = {}) {
 
   const notesPageModId = uid(); const notesPageOccId = uid();
   await new Module({ id: notesPageModId, userId, gridId, role: "page", kind: "doc", label: "Notes" }).save();
-  await mkOcc({ id: notesPageOccId, targetType: "module", targetId: notesPageModId, parentId: notesFolderId, sortOrder: 0, iteration: { mode: "persistent" }, textmap: { type: "doc", content: [{ type: "paragraph" }] }, fields: {} });
+  await mkOcc({ id: notesPageOccId, moduleId: notesPageModId, parentId: notesFolderId, sortOrder: 0, iteration: { mode: "persistent" }, textmap: { type: "doc", content: [{ type: "paragraph" }] }, fields: {} });
 
   await new View({ id: centerHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: schedPageOccId }).save();
 
@@ -489,7 +489,7 @@ export async function createTestGrid(userId, options = {}) {
   const gridOccIds = [];
   for (const p of placements) {
     const occId = await mkOcc({
-      targetType: "module", targetId: p.panelId,
+      moduleId: p.panelId,
       placement: { row: p.row, col: p.col, width: p.width, height: p.height },
       ...(p.viewId && { viewId: p.viewId }),
     });

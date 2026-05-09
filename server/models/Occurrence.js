@@ -8,14 +8,20 @@ const OccurrenceSchema = new mongoose.Schema(
 
     userId: { type: String, required: true, index: true },
 
-    // What this occurrence represents
+    // What this occurrence represents. Field is now redundant with the
+    // referenced module's role; defaults to "module" so writes don't need
+    // to specify it. Phase 3 will drop the field entirely.
     targetType: {
       type: String,
-      required: true,
+      default: "module",
       enum: ["module"],
       index: true
     },
     targetId: { type: String, required: true, index: true },
+    // moduleId is the canonical name in the drag/drop pipeline. The DB field
+    // is still targetId (no migration yet); the virtual below exposes both
+    // names so the drag/drop layer can read/write `moduleId` cleanly while
+    // the rest of the codebase keeps using `targetId`.
 
     // Grid this occurrence belongs to
     gridId: { type: String, required: true, index: true },
@@ -89,6 +95,21 @@ OccurrenceSchema.index({ gridId: 1, targetType: 1 });
 OccurrenceSchema.index({ gridId: 1, timestamp: -1 });
 OccurrenceSchema.index({ targetId: 1, gridId: 1 });
 
+// Virtual alias: moduleId ↔ targetId. The drag/drop pipeline reads/writes
+// `moduleId`; everywhere else still uses `targetId`. With `toJSON: { virtuals: true }`
+// below, Occurrences serialized to clients carry both fields.
+OccurrenceSchema.virtual("moduleId")
+  .get(function () { return this.targetId; })
+  .set(function (v) { this.targetId = v; });
+
+// Defensive pre-validate hook: if a caller constructs `new Occurrence({ moduleId })`
+// where the Mongoose constructor route bypasses the virtual setter, copy the
+// raw payload value over to targetId before required-field validation runs.
+OccurrenceSchema.pre("validate", function (next) {
+  if (!this.targetId && this._doc?.moduleId) this.targetId = this._doc.moduleId;
+  next();
+});
+
 // Hide Mongo internals in API responses
 OccurrenceSchema.set("toJSON", {
   virtuals: true,
@@ -98,5 +119,6 @@ OccurrenceSchema.set("toJSON", {
     return ret;
   },
 });
+OccurrenceSchema.set("toObject", { virtuals: true });
 
 export default mongoose.model("Occurrence", OccurrenceSchema);

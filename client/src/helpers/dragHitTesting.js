@@ -11,7 +11,8 @@
 // DropContext that the routeDrop dispatcher can act on without
 // caring which input modality fired.
 //
-// Bridge line `moduleId = occ.targetId` is removed in Phase 2.
+// Reads `occ.moduleId` directly. The dual-name alias (moduleId ↔ targetId)
+// is set up at the state-ingest boundary in bindSocketToStore.js.
 // ============================================================
 
 export const DROP_TARGET_KIND = Object.freeze({
@@ -149,7 +150,7 @@ export function buildDropContext(rawEvent, env) {
       payload: { ...source },
       target: {
         occurrenceId: dtd.occurrenceId || null,
-        moduleId: docOcc ? (docOcc.moduleId ?? docOcc.targetId ?? null) : null,
+        moduleId: docOcc?.moduleId || null,
         parentOccurrenceId: null,
         kind: DROP_TARGET_KIND.DOC_CURSOR,
         gridCell: null,
@@ -185,7 +186,7 @@ export function buildDropContext(rawEvent, env) {
     edge = null;
   }
 
-  const targetModuleId = targetOcc.moduleId ?? targetOcc.targetId ?? null;
+  const targetModuleId = targetOcc.moduleId || null;
   return {
     payload: { ...source },
     target: {

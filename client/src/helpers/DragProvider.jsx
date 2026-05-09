@@ -587,9 +587,9 @@ export function DragProvider({
           || s.payload.context?.parentOccurrenceId
           || null;
         const fromCOcc = (fromCOccId && s.draftOccurrences?.[fromCOccId])
-          || (fromC ? Object.values(s.draftOccurrences || {}).find(o => o.targetId === fromC.id) : null);
+          || (fromC ? Object.values(s.draftOccurrences || {}).find(o => o.moduleId === fromC.id) : null);
         const toCOcc = (containerOccId && s.draftOccurrences?.[containerOccId])
-          || (toC ? Object.values(s.draftOccurrences || {}).find(o => o.targetId === toC.id) : null);
+          || (toC ? Object.values(s.draftOccurrences || {}).find(o => o.moduleId === toC.id) : null);
 
         // Source occurrence ID — prefer payload context (set by ModuleInstance) so
         // we don't have to walk fromCOcc.occurrences[] looking for a target match.
@@ -816,7 +816,7 @@ export function DragProvider({
     // Skip doc-container drops — Editor.jsx owns insertion via moduleEmbed.
     if (hoveredOccurrenceId) {
       const occ = occurrencesById[hoveredOccurrenceId];
-      const mod = occ ? state?.modulesById?.[occ.moduleId ?? occ.targetId] : null;
+      const mod = occ ? state?.modulesById?.[occ.moduleId] : null;
       if (mod?.kind === "doc" && mod.role === "container") { clearSession(); return; }
     }
 

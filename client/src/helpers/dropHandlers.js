@@ -422,9 +422,9 @@ export function handleInstanceDrop(dropContext, ctx) {
     || payload.context?.parentOccurrenceId
     || null;
   const fromCOcc = (fromCOccCandidateId && occurrencesById[fromCOccCandidateId])
-    || (fromC ? Object.values(occurrencesById).find(o => o.targetId === fromC.id) : null);
+    || (fromC ? Object.values(occurrencesById).find(o => o.moduleId === fromC.id) : null);
   const toCOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
-    || (toC ? Object.values(occurrencesById).find(o => o.targetId === toC.id) : null);
+    || (toC ? Object.values(occurrencesById).find(o => o.moduleId === toC.id) : null);
 
   if (payload.context?.sourceType === "doc-embed") {
     // Instance dragged out of a doc embed — add to target container
@@ -542,7 +542,7 @@ export function handleInstanceDrop(dropContext, ctx) {
       sourceOccurrence: sourceOcc
         ? { ...sourceOcc, fields: stampedFields }
         : (Object.keys(stampedFields).length ? { fields: stampedFields } : null),
-      toPanelId: toPanelOcc?.targetId || null,
+      toPanelId: toPanelOcc?.moduleId || null,
     });
     autoCheckBooleanFields(state, dispatch, socket, draggedInstanceId, copyResult?.occurrence?.id);
   } else if (sameContainer) {
@@ -576,8 +576,8 @@ export function handleInstanceDrop(dropContext, ctx) {
       const tx = {
         type: "OccurrenceMoveOp", occurrenceId, instanceId: draggedInstanceId,
         fromContainerId: fromC.id, toContainerId: toC.id,
-        fromPanelId: fromPanelOcc?.targetId || null,
-        toPanelId: toPanelOcc?.targetId || null,
+        fromPanelId: fromPanelOcc?.moduleId || null,
+        toPanelId: toPanelOcc?.moduleId || null,
       };
       const operations = Object.values(state?.operationsById || {});
       const fieldsById = Object.fromEntries((state?.fields || []).map(f => [f.id, f]));
@@ -674,12 +674,12 @@ export function handleFileDrop(dropContext, ctx) {
 
   if (!fileGridId || !fileUserId || !fileGrid) { clearSession(); return; }
 
-  const capturedPanelOcc = panelId ? Object.values(occurrencesById).find(o => o.targetId === panelId) : null;
+  const capturedPanelOcc = panelId ? Object.values(occurrencesById).find(o => o.moduleId === panelId) : null;
   const capturedPanelView = capturedPanelOcc?.viewId ? state?.viewsById?.[capturedPanelOcc.viewId] : null;
   const isExistingArtifactPanel = capturedPanelView?.viewType === "display" || capturedPanelView?.hasTree;
 
   const capturedContainerOcc = containerId
-    ? Object.values(occurrencesById).find(o => o.targetId === containerId)
+    ? Object.values(occurrencesById).find(o => o.moduleId === containerId)
     : null;
 
   // ── Build placeholder module + occurrence with client-generated IDs ──
@@ -811,7 +811,7 @@ export function handleExternalDrop(dropContext, ctx) {
   const container = baseContainers.find(c => c.id === containerId);
   if (!container) { clearSession(); return; }
 
-  const containerOcc = Object.values(occurrencesById).find(o => o.targetId === container.id);
+  const containerOcc = Object.values(occurrencesById).find(o => o.moduleId === container.id);
   let toIndex = dropTarget.context?.insertAt ?? null;
   if (toIndex === null) toIndex = resolveNearestIndex(containerOcc, occurrencesById, y);
 
@@ -850,7 +850,7 @@ export function handleCrossWindowDrop(dropContext, ctx) {
   const container = baseContainers.find(c => c.id === containerId);
   if (!container) { clearSession(); return; }
 
-  const xwContainerOcc = Object.values(occurrencesById).find(o => o.targetId === container.id);
+  const xwContainerOcc = Object.values(occurrencesById).find(o => o.moduleId === container.id);
   let toIndex = dropTarget.context?.insertAt ?? null;
   if (toIndex === null) toIndex = resolveNearestIndex(xwContainerOcc, occurrencesById, y);
 
@@ -920,7 +920,7 @@ export function handleModuleDrop(dropContext, ctx) {
       if (panel) {
         const panelOcc = panel._occurrence ? occurrencesById[panel._occurrence.id] : null;
         const panelContainerIds = (panelOcc?.occurrences || [])
-          .map(occId => occurrencesById[occId]).filter(occ => occ?.targetId).map(occ => occ.targetId);
+          .map(occId => occurrencesById[occId]).filter(occ => occ?.moduleId).map(occ => occ.moduleId);
         const candidates = baseContainers.filter(c => panelContainerIds.includes(c.id));
         targetContainer = candidates.find(c => !(c.behaviorMode === "own" && c.behavior?.droppable === false)) || candidates[0] || null;
       }
@@ -933,7 +933,7 @@ export function handleModuleDrop(dropContext, ctx) {
       // slot, not the first match by targetId — same disambiguation as
       // handleInstanceDrop).
       const targetContainerOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
-        || Object.values(occurrencesById).find(o => o.targetId === targetContainer.id);
+        || Object.values(occurrencesById).find(o => o.moduleId === targetContainer.id);
       // Pre-stamp the destination's page-filter fields so the create lands
       // with the right date — same reasoning as handleInstanceDrop copy mode.
       const stampedFields = computePageFilterFields({
@@ -1130,11 +1130,11 @@ export function handleArtifactDrop(dropContext, ctx) {
   // Drop on container → copy instance
   if (containerId) {
     const artifactOcc = occurrencesById[payload.occurrenceId];
-    const artifactModule = artifactOcc ? (state?.modules || []).find(m => m.id === artifactOcc.targetId) : null;
+    const artifactModule = artifactOcc ? (state?.modules || []).find(m => m.id === artifactOcc.moduleId) : null;
     if (artifactModule) {
       const toC = baseContainers.find(c => c.id === containerId);
       const toCOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
-        || (toC ? Object.values(occurrencesById).find(o => o.targetId === toC.id) : null);
+        || (toC ? Object.values(occurrencesById).find(o => o.moduleId === toC.id) : null);
       if (toCOcc) {
         LayoutHelpers.copyInstanceToContainer({
           dispatch, socket, sourceInstanceId: artifactModule.id,
@@ -1149,7 +1149,7 @@ export function handleArtifactDrop(dropContext, ctx) {
 
   // Drop on panel-content → switch active doc
   if (panelId && !containerId && dropTarget.type === "panel-content") {
-    const panelOcc = Object.values(occurrencesById).find(o => o.targetId === panelId);
+    const panelOcc = Object.values(occurrencesById).find(o => o.moduleId === panelId);
     const viewId = panelOcc?.viewId;
     const view = viewId ? state?.viewsById?.[viewId] : null;
     if (view) {
@@ -1164,7 +1164,7 @@ export function handleArtifactDrop(dropContext, ctx) {
     const userId = state?.userId;
     if (cell && grid && userId) {
       const artifactOcc = occurrencesById[payload.occurrenceId];
-      const artifactModule = artifactOcc ? (state?.modules || []).find(m => m.id === artifactOcc.targetId) : null;
+      const artifactModule = artifactOcc ? (state?.modules || []).find(m => m.id === artifactOcc.moduleId) : null;
       const label = artifactModule?.label || "Artifact";
       const newPanel = { id: makeUUID(), label, role: "panel", kind: "list" };
       const { occurrence: panelOcc } = LayoutHelpers.createPanelInGrid({
@@ -1192,14 +1192,14 @@ export function handleFolderDrop(dropContext, ctx) {
   const hoveredPanelId = getHoveredPanelId();
   if (!hoveredPanelId) return;
 
-  const panelOcc = Object.values(occurrencesById || {}).find(o => o.targetId === hoveredPanelId);
+  const panelOcc = Object.values(occurrencesById || {}).find(o => o.moduleId === hoveredPanelId);
   if (!panelOcc) return;
 
   const existingOccs = [...(panelOcc.occurrences || [])];
   for (const childOccId of payload.childOccurrenceIds) {
     const childOcc = occurrencesById[childOccId];
     if (!childOcc) continue;
-    const childMod = (state?.modules || []).find(m => m.id === childOcc.targetId);
+    const childMod = (state?.modules || []).find(m => m.id === childOcc.moduleId);
     if (!childMod) continue;
     const pageModId = crypto.randomUUID();
     const pageOccId = crypto.randomUUID();
@@ -1223,7 +1223,7 @@ function resolveNearestIndex(containerOcc, occurrencesById, y) {
   occurrenceIds.forEach((occId, index) => {
     const occ = occurrencesById[occId];
     if (occ && occ.targetType === 'instance') {
-      const el = document.querySelector(`[data-instance-id="${occ.targetId}"]`);
+      const el = document.querySelector(`[data-instance-id="${occ.moduleId}"]`);
       if (el) {
         const rect = el.getBoundingClientRect();
         const centerY = rect.top + rect.height / 2;
@@ -1238,7 +1238,7 @@ function resolveNearestIndex(containerOcc, occurrencesById, y) {
 
   const nearestOcc = occurrencesById[occurrenceIds[nearestIndex]];
   if (nearestOcc) {
-    const nearestEl = document.querySelector(`[data-instance-id="${nearestOcc.targetId}"]`);
+    const nearestEl = document.querySelector(`[data-instance-id="${nearestOcc.moduleId}"]`);
     if (nearestEl) {
       const rect = nearestEl.getBoundingClientRect();
       const centerY = rect.top + rect.height / 2;
@@ -1255,9 +1255,9 @@ function resolveNearestIndex(containerOcc, occurrencesById, y) {
 // resolved target/parent occurrences and their roles, instead of
 // re-deriving them inline. Pure projection — no side effects.
 //
-// The `parentOcc.moduleId ?? parentOcc.targetId` aliasing is the
-// only Phase-1 → Phase-2 bridge in this file; it's removed when the
-// rename lands.
+// Reads `parentOcc.moduleId` directly. The dual-name alias is set up at
+// the state-ingest boundary in bindSocketToStore.js, so every occurrence
+// in client state carries both names.
 export function dropView(dropContext, ctx) {
   const { target } = dropContext;
   const occs = ctx.occurrencesById || {};
@@ -1267,7 +1267,7 @@ export function dropView(dropContext, ctx) {
   const parentOcc = target.parentOccurrenceId ? occs[target.parentOccurrenceId] : null;
 
   const targetModuleId = target.moduleId || null;
-  const parentModuleId = parentOcc ? (parentOcc.moduleId ?? parentOcc.targetId ?? null) : null;
+  const parentModuleId = parentOcc ? (parentOcc.moduleId || null) : null;
 
   const targetRole = targetModuleId ? (modules[targetModuleId]?.role || null) : null;
   const parentRole = parentModuleId ? (modules[parentModuleId]?.role || null) : null;

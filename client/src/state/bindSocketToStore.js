@@ -95,8 +95,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     for (const o of payload.occurrences || []) {
       const id = o.id || o._id?.toString?.();
       if (id) {
-        occurrencesById[id] = { ...o, id };
-        localOccsById[id] = { ...o, id };
+        // Phase-2 dual-name alias: drag/drop code reads `moduleId`; legacy
+        // call sites still read `targetId`. Both populated at ingest so the
+        // two layers can coexist without runtime fallbacks.
+        const aliased = { ...o, id, moduleId: o.moduleId ?? o.targetId };
+        occurrencesById[id] = aliased;
+        localOccsById[id] = aliased;
       }
     }
     const hydratedState = { ...stateRef.current, ...payload, occurrencesById, operations, fields: payload.fields || [] };
@@ -186,6 +190,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // ======================================================
   function onOccurrenceCreated({ occurrence } = {}) {
     if (!occurrence?.id) return;
+    // Phase-2 dual-name alias (see onFullState).
+    if (occurrence.moduleId === undefined) occurrence = { ...occurrence, moduleId: occurrence.targetId };
 
     // Keep local cache current before React re-renders stateRef
     localOccsById[occurrence.id] = occurrence;
@@ -219,6 +225,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
   function onOccurrenceUpdated({ occurrence } = {}) {
     if (!occurrence?.id) return;
+    // Phase-2 dual-name alias (see onFullState).
+    if (occurrence.moduleId === undefined) occurrence = { ...occurrence, moduleId: occurrence.targetId };
 
     const prevOcc = localOccsById[occurrence.id];
 
