@@ -278,7 +278,14 @@ export function buildDropContext(rawEvent, env) {
 
   let insertIndex = 0;
   let edge = dtd.closestEdge ?? null;
-  if (parentOcc && Array.isArray(parentOcc.occurrences)) {
+  // Explicit insertAt from the drop zone wins — used for "drop INTO the
+  // target's children" semantics (e.g. empty page drops where the page is
+  // the target and we want index 0 or the children-length, not a position
+  // in the panel that holds the page).
+  if (typeof dtd.insertAt === "number") {
+    insertIndex = dtd.insertAt;
+    edge = null;
+  } else if (parentOcc && Array.isArray(parentOcc.occurrences)) {
     const hoveredIndex = parentOcc.occurrences.indexOf(targetOcc.id);
     const fromIndex = source?.occurrenceId
       ? parentOcc.occurrences.indexOf(source.occurrenceId)

@@ -800,6 +800,23 @@ export function DragProvider({
     const { x, y } = pointerRef.current;
     const dt = { ...dropTarget, clientX: x, clientY: y };
     const hovered = getHoveredIds(x, y);
+    // Pages register `useDroppable({ type: "page-content", context: {pageOccurrenceId} })`
+    // and don't put `occurrenceId` in context — so empty-page or above/below
+    // drops would otherwise resolve to no target. Forward the page's id and
+    // also compute insertAt directly (0 if cursor in top half of the page,
+    // page.occurrences.length if bottom half). This bypasses the parent-
+    // relative edge math in buildDropContext, which would otherwise treat
+    // the target as a position next to the page within its panel — wrong
+    // for "drop INTO the page" semantics.
+    if (!dt.context?.occurrenceId && dt.context?.pageOccurrenceId) {
+      const pageOccId = dt.context.pageOccurrenceId;
+      const pageEl = document.querySelector(`[data-page-occ-id="${pageOccId}"]`);
+      const pageRect = pageEl?.getBoundingClientRect?.();
+      const pageOcc = occurrencesById[pageOccId];
+      const childCount = (pageOcc?.occurrences || []).length;
+      const insertAt = pageRect && y < pageRect.top + pageRect.height / 2 ? 0 : childCount;
+      dt.context = { ...dt.context, occurrenceId: pageOccId, insertAt };
+    }
 
     const rawEvent = buildRawDropEvent({
       dropTarget: dt,
