@@ -841,9 +841,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
       style={{ ...inputSt, width: 80, fontFamily: "monospace" }}
     />
   );
-  if (actionType == "RUN_OPERATION") {
-    console.log(cfg);
-  }
+
   switch (actionType) {
     // ---- Variable operations ----
     case "INIT_VAR":

@@ -155,9 +155,9 @@ function GridRender({
       for (let c = 0; c < cols; c++) {
         const cellPanels = panelsRender.filter((p) => p.row === r && p.col === c);
         const visiblePanel = cellPanels.find((p) => (p?.layout?.style?.display ?? "block") !== "none");
-        console.log(cellPanels);
+
         const hasPanel = !!visiblePanel;
-        console.log(hasPanel);
+
         const hasHiddenStack = !hasPanel && cellPanels.length > 1;
         const stackCount = cellPanels.length;
         arr.push({ r, c, dark: (r + c) % 2 === 0, hasPanel, hasHiddenStack, stackCount });
