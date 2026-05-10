@@ -685,6 +685,7 @@ export function copyInstanceToContainer({
     ...(initialMeta ? { meta: initialMeta } : {}),
   };
 
+  console.log("[copy] new occ", { id: occurrenceId, parentId: occurrence.parentId, fields: occurrence.fields });
   CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit, panelId: toPanelId });
 
   // Add occurrence to container occurrence (ordering lives on the container occurrence)

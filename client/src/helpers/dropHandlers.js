@@ -59,25 +59,26 @@ export function normalizeFilterDateValue(v) {
 // reference unchanged when there are no nav fields or no value to stamp, so
 // callers can cheaply detect a no-op via identity.
 function computePageFilterFields({ state, occurrencesById, parentContainerOcc, existingFields = {} }) {
-  if (!parentContainerOcc) return existingFields;
+  if (!parentContainerOcc) { console.log("[stamp] no parent container"); return existingFields; }
   const grid = state?.grid;
   const activeNamedFilter = (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId);
   const navFieldIds = (activeNamedFilter?.conditions || [])
     .filter(c => c.isNav && c.fieldId)
     .map(c => c.fieldId);
-  if (!navFieldIds.length) return existingFields;
+  if (!navFieldIds.length) { console.log("[stamp] no nav fields"); return existingFields; }
 
   const effective = getEffectiveFilterForOccurrence(parentContainerOcc, { grid, occurrencesById });
   let merged = existingFields;
   for (const fid of navFieldIds) {
     const v = normalizeFilterDateValue(effective?.[fid]);
-    if (v == null) continue;
+    if (v == null) { console.log("[stamp] effective[", fid, "] is null"); continue; }
     const existing = merged[fid];
     const existingValue = existing && typeof existing === "object" ? existing.value : existing;
-    if (normalizeFilterDateValue(existingValue) === v) continue;
+    if (normalizeFilterDateValue(existingValue) === v) { console.log("[stamp] same as existing"); continue; }
     if (merged === existingFields) merged = { ...existingFields };
     merged[fid] = { value: v, flow: existing?.flow ?? "in" };
   }
+  console.log("[stamp] result", { existingKeys: Object.keys(existingFields), mergedKeys: Object.keys(merged), changed: merged !== existingFields });
   return merged;
 }
 
@@ -289,6 +290,14 @@ export function handleContainerDrop(dropContext, ctx) {
     const toPageOccId = dropTarget.context?.pageOccurrenceId;
     const fromOrderOcc = fromPageOccId ? (occurrencesById[fromPageOccId] || fromPanelOcc) : fromPanelOcc;
     const toOrderOcc = toPageOccId ? (occurrencesById[toPageOccId] || toPanelOcc || fromOrderOcc) : (toPanelOcc || fromOrderOcc);
+
+    console.log("[container-drop]", {
+      fromPanelId: payload.context?.panelId, foundFromPanel: !!fromPanel,
+      toPanelId: panelId, foundToPanel: !!toPanel,
+      fromPageOccId, toPageOccId,
+      fromOrderOccId: fromOrderOcc?.id, toOrderOccId: toOrderOcc?.id,
+      draggedContainerId: payload.moduleId, mode: sessionRef.current.mode,
+    });
 
     if (fromPanel && toPanel && fromOrderOcc) {
       const draggedContainerId = payload.moduleId;
