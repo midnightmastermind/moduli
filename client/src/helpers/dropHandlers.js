@@ -536,11 +536,11 @@ export function handleOccurrenceMove(dropContext, ctx) {
     // user edits a field.
     const newOccId = copyResult?.occurrence?.id;
     if (newOccId) {
-      // Read the post-stamp occurrence from local cache (Schedule: Stamp Date
-      // wrote to it via UPDATE_ITEM_FIELD effects → setOccurrenceFieldValue →
-      // updateLocalOcc).
+      // Read the post-stamp occurrence from operationsBridge (Schedule: Stamp
+      // Date's UPDATE effects wrote into localOccsById via updateLocalOcc).
+      // Closure-captured `occurrencesById` is the pre-drop snapshot — stale.
       requestAnimationFrame(() => {
-        const finalOcc = occurrencesById[newOccId] || copyResult?.occurrence;
+        const finalOcc = operationsBridge.getLocalOcc?.(newOccId) || copyResult?.occurrence;
         if (finalOcc?.fields) {
           for (const fieldId of Object.keys(finalOcc.fields)) {
             const fv = finalOcc.fields[fieldId];

@@ -27,7 +27,7 @@ import { aliasOccurrence } from "../helpers/dragHitTesting";
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, updateLocalOcc: null, removeLocalOcc: null };
+export const operationsBridge = { fireOperations: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null };
 
 export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) {
   // Wrap dispatch to tag all socket-originated actions
@@ -884,6 +884,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   operationsBridge.fireOperations = fireOperationsOptimistic;
   operationsBridge.updateLocalOcc = (occ) => { if (occ?.id) localOccsById[occ.id] = occ; };
   operationsBridge.removeLocalOcc = (occurrenceId) => { delete localOccsById[occurrenceId]; };
+  operationsBridge.getLocalOcc = (occurrenceId) => localOccsById[occurrenceId] || null;
 
   // On transaction_created: fire operations + toast notification
   function onTransactionCreated({ transaction } = {}) {
