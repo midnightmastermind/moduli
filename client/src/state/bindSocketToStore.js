@@ -814,16 +814,6 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const fields = state.fields || [];
     const occurrences = state.occurrences || [];
 
-    if (transactionType === "OccurrenceCreateOp" || transactionType === "MeasureOp") {
-      console.log(`[fireOps] ${transactionType}`, {
-        occurrenceId: transaction.occurrenceId,
-        instanceId: transaction.instanceId,
-        containerId: transaction.containerId,
-        fieldId: transaction.fieldId,
-        value: transaction.value,
-        opCount: operations.length,
-      });
-    }
 
     // Rebuild fieldsById only when fields array changes
     if (fields !== _lastFields) {

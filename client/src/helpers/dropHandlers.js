@@ -59,26 +59,25 @@ export function normalizeFilterDateValue(v) {
 // reference unchanged when there are no nav fields or no value to stamp, so
 // callers can cheaply detect a no-op via identity.
 function computePageFilterFields({ state, occurrencesById, parentContainerOcc, existingFields = {} }) {
-  if (!parentContainerOcc) { console.log("[stamp] no parent container"); return existingFields; }
+  if (!parentContainerOcc) return existingFields;
   const grid = state?.grid;
   const activeNamedFilter = (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId);
   const navFieldIds = (activeNamedFilter?.conditions || [])
     .filter(c => c.isNav && c.fieldId)
     .map(c => c.fieldId);
-  if (!navFieldIds.length) { console.log("[stamp] no nav fields"); return existingFields; }
+  if (!navFieldIds.length) return existingFields;
 
   const effective = getEffectiveFilterForOccurrence(parentContainerOcc, { grid, occurrencesById });
   let merged = existingFields;
   for (const fid of navFieldIds) {
     const v = normalizeFilterDateValue(effective?.[fid]);
-    if (v == null) { console.log("[stamp] effective[", fid, "] is null"); continue; }
+    if (v == null) continue;
     const existing = merged[fid];
     const existingValue = existing && typeof existing === "object" ? existing.value : existing;
-    if (normalizeFilterDateValue(existingValue) === v) { console.log("[stamp] same as existing"); continue; }
+    if (normalizeFilterDateValue(existingValue) === v) continue;
     if (merged === existingFields) merged = { ...existingFields };
     merged[fid] = { value: v, flow: existing?.flow ?? "in" };
   }
-  console.log("[stamp] result", { existingKeys: Object.keys(existingFields), mergedKeys: Object.keys(merged), changed: merged !== existingFields });
   return merged;
 }
 
@@ -538,30 +537,11 @@ export function handleOccurrenceMove(dropContext, ctx) {
     // the fully-realized state. Without this, dragging a completed task from
     // Daily Toolkit lands in Schedule but goal totals stay stale until the
     // user edits a field.
-    const newOccId = copyResult?.occurrence?.id;
-    if (newOccId) {
-      requestAnimationFrame(() => {
-        const finalOcc = operationsBridge.getLocalOcc?.(newOccId) || copyResult?.occurrence;
-        console.log("[copy-rerun]", {
-          newOccId,
-          source: operationsBridge.getLocalOcc?.(newOccId) ? "localOccsById" : "copyResult fallback",
-          fieldKeys: Object.keys(finalOcc?.fields || {}),
-          fields: finalOcc?.fields,
-        });
-        if (finalOcc?.fields) {
-          for (const fieldId of Object.keys(finalOcc.fields)) {
-            const fv = finalOcc.fields[fieldId];
-            operationsBridge.fireOperations?.("MeasureOp", {
-              type: "MeasureOp",
-              occurrenceId: newOccId,
-              instanceId: draggedInstanceId,
-              fieldId,
-              value: fv && typeof fv === "object" && "value" in fv ? fv.value : fv,
-            });
-          }
-        }
-      });
-    }
+    // CommitHelpers.createOccurrence already fires OccurrenceCreateOp +
+    // per-field MeasureOps for the new occurrence's stamped fields; with
+    // the dateFieldId UPDATE removed from Schedule: Stamp Date the values
+    // aren't corrupted any more, so the tracker recounts correctly off the
+    // initial burst — no rAF re-fire needed.
   } else if (sameContainer) {
     if (fromCOcc) {
       const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
