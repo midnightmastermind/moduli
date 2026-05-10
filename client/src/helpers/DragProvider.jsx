@@ -523,29 +523,35 @@ export function DragProvider({
         setPanelOverCellId(cell?.cellId || null);
       }
 
-      // Auto-scroll panel content when dragging instances/containers/external (not panels)
+      // Auto-scroll the cursor's nearest scrollable ancestor when dragging
+      // anything but a panel. Walks up from the element under the cursor to
+      // find an element with overflow-y auto/scroll AND scrollable content.
+      // Works for panels (.panel-content), pages (PageBoard's inline-styled
+      // scroll div), embedded containers, doc bodies — anything scrollable.
       const isDraggingPanel = s.payload?.type === DragType.PANEL;
-      if (panelId && !isDraggingPanel) {
-        const panelElement = document.querySelector(`[data-panel-id="${panelId}"]`);
-        if (panelElement) {
-          const panelRect = panelElement.getBoundingClientRect();
-          const panelContent = panelElement.querySelector('.panel-content');
-
-          if (panelContent && panelContent.scrollHeight > panelContent.clientHeight) {
-            const scrollZone = 80; // Pixels from top/bottom to trigger scroll
-            const scrollSpeed = 10; // Pixels per frame
-
-            // Check if cursor is in top zone (including header)
-            if (clientY < panelRect.top + scrollZone) {
-              panelContent.scrollTop = Math.max(0, panelContent.scrollTop - scrollSpeed);
-            }
-            // Check if cursor is in bottom zone
-            else if (clientY > panelRect.bottom - scrollZone) {
-              panelContent.scrollTop = Math.min(
-                panelContent.scrollHeight - panelContent.clientHeight,
-                panelContent.scrollTop + scrollSpeed
-              );
-            }
+      if (!isDraggingPanel) {
+        const stack = document.elementsFromPoint(clientX, clientY);
+        let scrollEl = null;
+        for (const el of stack) {
+          if (!el || el === document.body || el === document.documentElement) continue;
+          const cs = getComputedStyle(el);
+          const oy = cs.overflowY;
+          if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) {
+            scrollEl = el;
+            break;
+          }
+        }
+        if (scrollEl) {
+          const rect = scrollEl.getBoundingClientRect();
+          const scrollZone = 80;
+          const scrollSpeed = 10;
+          if (clientY < rect.top + scrollZone) {
+            scrollEl.scrollTop = Math.max(0, scrollEl.scrollTop - scrollSpeed);
+          } else if (clientY > rect.bottom - scrollZone) {
+            scrollEl.scrollTop = Math.min(
+              scrollEl.scrollHeight - scrollEl.clientHeight,
+              scrollEl.scrollTop + scrollSpeed,
+            );
           }
         }
       }
