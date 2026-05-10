@@ -179,25 +179,28 @@ const gridOptions = useMemo(
 
         {/* ── Center: Global date nav ── */}
         {primaryDate && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center" style={{ gap: 0 }}>
             <button
               onClick={() => onFilterNav?.(-1)}
-              className="h-7 w-7 rounded flex items-center justify-center hover:bg-accent text-text-muted hover:text-foreground transition-colors"
+              className="rounded flex items-center justify-center hover:bg-accent text-text-muted hover:text-foreground transition-colors"
+              style={{ height: 26, width: 20, minWidth: 20, padding: 0 }}
               title="Previous"
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
+              <ChevronLeft className="h-3 w-3" />
             </button>
             <span
-              className="text-xs font-mono text-text-primary px-1 min-w-[110px] text-center select-none"
+              className="text-text-primary font-mono flex-1 text-center select-none"
+              style={{ fontSize: 9, minWidth: 0, padding: "0 2px" }}
             >
               {formatNavDate(primaryDate)}
             </span>
             <button
               onClick={() => onFilterNav?.(1)}
-              className="h-7 w-7 rounded flex items-center justify-center hover:bg-accent text-text-muted hover:text-foreground transition-colors"
+              className="rounded flex items-center justify-center hover:bg-accent text-text-muted hover:text-foreground transition-colors"
+              style={{ height: 26, width: 20, minWidth: 20, padding: 0 }}
               title="Next"
             >
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ChevronRight className="h-3 w-3" />
             </button>
           </div>
         )}

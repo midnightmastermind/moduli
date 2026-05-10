@@ -194,14 +194,18 @@ export default function MobileGridNav({
 
       if (t.axis === 'vertical') {
         const direction = dy < 0 ? 'down' : 'up';
-        // Only auto-nav if panel spans 2+ rows AND target cell is still within the panel
         const panelHeight = panel ? (panel.height || 1) : 1;
         const targetRow = direction === 'down' ? cell.row + 1 : cell.row - 1;
-        const canNav = panelHeight >= 2 && panel &&
-          targetRow >= panel.row && targetRow < panel.row + panelHeight &&
-          targetRow >= 0 && targetRow < rows;
-        const atBound = isAtScrollBoundary(scrollEl, direction);
 
+        // Allow nav if: (1) target cell is within the same panel bounds, OR (2) panel is single-row
+        const targetWithinPanel = panel &&
+          targetRow >= panel.row &&
+          targetRow < panel.row + panelHeight &&
+          targetRow >= 0 && targetRow < rows;
+        const panelIsSingleRow = panelHeight === 1;
+        const canNav = targetWithinPanel || panelIsSingleRow;
+
+        const atBound = isAtScrollBoundary(scrollEl, direction);
 
         if (canNav && atBound) {
           // Mark where we first hit the boundary
@@ -214,12 +218,6 @@ export default function MobileGridNav({
 
           if (overDist > OVERSCROLL_THRESHOLD) {
             const dRow = direction === 'down' ? 1 : -1;
-            // Auto-nav only fires within the same multi-row panel (canNav
-            // gate above). The panel itself is one continuous scroll
-            // container; the viewport just transforms to show a different
-            // cell of the same panel. Resetting scrollTop here yanks the
-            // user back to 3am instead of leaving them at 8pm — preserve
-            // scrollTop and let the transform do the visual shift.
             navigate(dRow, 0);
 
             cooldownRef.current = true;
@@ -239,12 +237,17 @@ export default function MobileGridNav({
       } else {
         // Horizontal
         const direction = dx < 0 ? 'right' : 'left';
-        // Only auto-nav if panel spans 2+ cols AND target cell is still within the panel
         const panelWidth = panel ? (panel.width || 1) : 1;
         const targetCol = direction === 'right' ? cell.col + 1 : cell.col - 1;
-        const canNav = panelWidth >= 2 && panel &&
-          targetCol >= panel.col && targetCol < panel.col + panelWidth &&
+
+        // Allow nav if: (1) target cell is within the same panel bounds, OR (2) panel is single-col
+        const targetWithinPanel = panel &&
+          targetCol >= panel.col &&
+          targetCol < panel.col + panelWidth &&
           targetCol >= 0 && targetCol < cols;
+        const panelIsSingleCol = panelWidth === 1;
+        const canNav = targetWithinPanel || panelIsSingleCol;
+
         const atBound = isAtScrollBoundary(scrollEl, direction);
 
         if (canNav && atBound) {
@@ -256,9 +259,6 @@ export default function MobileGridNav({
 
           if (overDist > OVERSCROLL_THRESHOLD) {
             const dCol = direction === 'right' ? 1 : -1;
-            // Same reasoning as the vertical case: same panel, continuous
-            // scroll container, preserve scrollLeft so the user stays at
-            // the column they were viewing instead of jumping to the edge.
             navigate(0, dCol);
 
             cooldownRef.current = true;
@@ -309,16 +309,20 @@ export default function MobileGridNav({
 
   const { row, col } = activeCell;
 
-  const hasLeft = col > 0;
-  const hasRight = col < cols - 1;
-  const hasUp = row > 0;
-  const hasDown = row < rows - 1;
-
   // Boundary hints for multi-cell panels
   const currentPanel = findPanelForCell(visiblePanels, row, col);
-  const hasMoreDown = currentPanel && (currentPanel.row + (currentPanel.height || 1) > row + 1);
+  const panelHeight = currentPanel ? (currentPanel.height || 1) : 1;
+  const panelWidth = currentPanel ? (currentPanel.width || 1) : 1;
+
+  const hasLeft = col > 0;
+  const hasRight = col < cols - 1;
+  // Hide up/down buttons when panel spans 2+ rows (only scroll, don't nav)
+  const hasUp = row > 0 && panelHeight < 2;
+  const hasDown = row < rows - 1 && panelHeight < 2;
+
+  const hasMoreDown = currentPanel && (currentPanel.row + panelHeight > row + 1);
   const hasMoreUp = currentPanel && (currentPanel.row < row);
-  const hasMoreRight = currentPanel && (currentPanel.col + (currentPanel.width || 1) > col + 1);
+  const hasMoreRight = currentPanel && (currentPanel.col + panelWidth > col + 1);
   const hasMoreLeft = currentPanel && (currentPanel.col < col);
 
   // Zoomed-in: translate to show active cell

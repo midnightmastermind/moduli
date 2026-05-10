@@ -716,7 +716,7 @@ export default function App() {
           gridId={state.gridId}
         />
 
-        <div data-testid="app-root" className="app-root grid-frame bg-background2 ring-1 ring-black/40 rounded-xl p-3 shadow-inner border border-border"
+        <div data-testid="app-root" className={`app-root grid-frame bg-background2 shadow-inner ${isMobile ? 'p-0 border-0 rounded-none ring-0' : 'p-3 ring-1 ring-black/40 rounded-xl border border-border'}`}
           onTouchStart={(ev) => {
             if (!commandCenterOpen) return;
             const startY = ev.touches[0].clientY;

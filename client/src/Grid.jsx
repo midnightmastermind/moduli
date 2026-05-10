@@ -32,7 +32,7 @@ import { Layers } from "lucide-react";
 // ============================================================
 // GRID CELL - Drop zone for panels
 // ============================================================
-const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack, stackCount }) {
+const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack, stackCount, rows, cols }) {
   const { isPanelDrag, cyclePanelStack } = useDragContext();
   const { panelOverCellId } = useDragHotContext();
 
@@ -46,13 +46,26 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
     accepts: DropAccepts.GRID_CELL,
     disabled: !isPanelDrag,
   });
-  
+
   const highlight = isPanelDrag && (panelOverCellId === cellId || isOver);
+
+  // Mobile: Add padding on edges to accommodate rail buttons
+  // Top edge: 10px (rail height) + 4px offset
+  // Left/Right edges: 10px (rail width) + 4px offset
+  // Bottom edge: 10px (rail height) + 4px offset
+  const isTopEdge = r === 0;
+  const isBottomEdge = r === rows - 1;
+  const isLeftEdge = c === 0;
+  const isRightEdge = c === cols - 1;
 
   return (
     <div
       ref={ref}
       data-id={cellId}
+      data-edge-top={isTopEdge}
+      data-edge-bottom={isBottomEdge}
+      data-edge-left={isLeftEdge}
+      data-edge-right={isRightEdge}
       className={[
         "grid-cell",
         highlight ? "is-highlight" : "",
@@ -183,7 +196,8 @@ function GridRender({
     <div
       ref={gridRef}
       className={[
-        "bg-background2 rounded-xl border border-border shadow-inner ring-1 ring-black/30",
+        "bg-background2 shadow-inner",
+        isMobile ? "" : "rounded-xl border border-border ring-1 ring-black/30",
         fullscreenPanelId !== null ? "pointer-events-none opacity-0" : "",
       ].join(" ")}
       style={{
@@ -194,13 +208,13 @@ function GridRender({
         height: "100%",
         position: "relative",
         overflow: "visible",
-        borderRadius: isMobile ? 0 : 12,
         transition: "opacity 0.15s ease",
         boxSizing: "border-box",
+        margin: isMobile ? "-2px" : "0",
       }}
     >
       {cellsData.map(({ r, c, dark, hasPanel, hasHiddenStack, stackCount }) => (
-        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} hasHiddenStack={hasHiddenStack} stackCount={stackCount} />
+        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} hasHiddenStack={hasHiddenStack} stackCount={stackCount} rows={rows} cols={cols} />
       ))}
 
       {/* Vertical resize handles (between columns) — hidden on mobile */}

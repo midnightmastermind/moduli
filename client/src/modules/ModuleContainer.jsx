@@ -538,7 +538,7 @@ function Container({
         className={`container-header module-header-row no-select ${embedded ? "embedded-container-header" : "border-b border-gray-700 border-solid"}`}
         style={embedded
           ? { padding: "0", alignItems: "stretch", flexDirection: "column", ...embeddedHeaderStyle }
-          : { height: "20px", gap: 6, paddingLeft: 3 }
+          : { height: "20px", gap: 6, padding: "2px 3px" }
         }
         onContextMenu={(e) => {
           if ("ontouchstart" in window) return;

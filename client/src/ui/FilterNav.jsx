@@ -203,19 +203,19 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
 
             {/* Date navigation */}
             {hasDateNav && (
-              <div className="flex items-center gap-0">
-                <Button size="sm" className="px-0.5 h-7" onClick={handlePrev}>
+              <div className="flex items-center" style={{ gap: 0 }}>
+                <Button size="sm" onClick={handlePrev} className="!p-0" style={{ height: 26, width: 20, minWidth: 20 }}>
                   <ChevronLeft className="h-3 w-3" />
                 </Button>
                 <Button
                   size="sm"
                   onClick={handleToday}
-                  className={`px-1 flex-1 h-7 text-xs ${isCurrentPeriod ? "text-primary" : ""}`}
+                  className={`!px-1 flex-1 ${isCurrentPeriod ? "text-primary" : ""}`}
+                  style={{ height: 26, minWidth: 0, fontSize: 9 }}
                 >
-                  <CalendarDays className="h-3 w-3 mr-1" />
                   {formatDateDisplay(currentDate, timeScale)}
                 </Button>
-                <Button size="sm" className="px-0.5 h-7" onClick={handleNext}>
+                <Button size="sm" onClick={handleNext} className="!p-0" style={{ height: 26, width: 20, minWidth: 20 }}>
                   <ChevronRight className="h-3 w-3" />
                 </Button>
               </div>
