@@ -107,7 +107,7 @@ export function createInstanceInContainer({
 }
 
 // ===== OCCURRENCE =====
-export function createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null }) {
+export function createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null, containerLabel = "", panelLabel = "" }) {
   if (!occurrence?.id) return;
   // Normalize at the write boundary so callers can pass moduleId or targetId.
   occurrence = aliasOccurrence(occurrence);
@@ -121,6 +121,11 @@ export function createOccurrence({ dispatch, socket, occurrence, emit = true, pa
     containerId: occurrence.parentId,
     gridId: occurrence.gridId,
     ...(panelId ? { panelId } : {}),
+    // Trigger enrichment — operations like Schedule: Stamp Date read these
+    // off $trigger to populate slot fields. Without them the optimistic
+    // create writes nulls that overwrite drop-side pre-stamps.
+    containerLabel,
+    panelLabel,
   });
   // Fire MeasureOp for each field so onChange operations (e.g. aggregations) retrigger on add
   const fields = occurrence.fields;

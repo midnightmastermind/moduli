@@ -1146,20 +1146,18 @@ export async function createTestGrid(userId, options = {}) {
             ]},
             itemVar: "$item",
         }},
-        // Date stamping is handled by the drop side (dropHandlers.stampPageFilterFields)
-        // which reads the slot's parent-chain effective filter at drop time. The
-        // Stamp op only handles the timeslot label, which is derived from the
-        // slot container the instance was dropped into.
+        // Date stamping is handled by the drop side (dropHandlers.stampPageFilterFields /
+        // computePageFilterFields) which reads the slot's parent-chain effective
+        // filter at drop time and pre-stamps the new occurrence's fields BEFORE
+        // the OccurrenceCreateOp dispatch. The Stamp op only handles the timeslot
+        // label here — writing the date again would overwrite the drop-side stamp
+        // with $trigger._effectiveFilter.Date, which doesn't exist on the
+        // optimistic OccurrenceCreateOp transaction (resolves to undefined → null).
         { id: uid(), type: "action", config: {
             type: "UPDATE",
             path: `$item.fields.${timeslotFieldId}.value`,
             value: "$trigger.containerLabel",
         }},
-        { id: uid(), type: "action", config: {
-                type: "UPDATE",
-                path: `$item.fields.${dateFieldId}.value`,
-                value: "$trigger._effectiveFilter.Date",
-            }},
       ],
     },
   }).save();

@@ -649,6 +649,7 @@ export function copyInstanceToContainer({
   sourceOccurrence = null,     // Source occurrence to copy field values from
   initialMeta = null,          // Extra meta fields (e.g. { x, y } for canvas containers)
   toPanelId = null,            // Panel module ID — passed to createOccurrence for operation triggers
+  toPanelLabel = "",           // Panel label — enriches the optimistic OccurrenceCreateOp
 }) {
   if (!gridId || !sourceInstanceId || !toContainer || !userId) return null;
 
@@ -686,7 +687,12 @@ export function copyInstanceToContainer({
   };
 
   console.log("[copy] new occ", { id: occurrenceId, parentId: occurrence.parentId, fields: occurrence.fields });
-  CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit, panelId: toPanelId });
+  CommitHelpers.createOccurrence({
+    dispatch, socket, occurrence, emit,
+    panelId: toPanelId,
+    containerLabel: toContainer.label || "",
+    panelLabel: toPanelLabel,
+  });
 
   // Add occurrence to container occurrence (ordering lives on the container occurrence)
   const toContainerOcc = toContainer._occurrence || null;

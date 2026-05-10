@@ -511,6 +511,9 @@ export function handleOccurrenceMove(dropContext, ctx) {
       parentContainerOcc: toCOcc,
       existingFields: sourceOcc?.fields || {},
     });
+    const toPanelMod = toPanelOcc?.moduleId
+      ? state?.modulesById?.[toPanelOcc.moduleId]
+      : null;
     const copyResult = LayoutHelpers.copyInstanceToContainer({
       dispatch, socket, gridId, sourceInstanceId: draggedInstanceId,
       toContainer: toCOcc ? { ...toC, _occurrence: toCOcc } : toC,
@@ -520,6 +523,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
         ? { ...sourceOcc, fields: stampedFields }
         : (Object.keys(stampedFields).length ? { fields: stampedFields } : null),
       toPanelId: toPanelOcc?.moduleId || null,
+      toPanelLabel: toPanelMod?.label || "",
     });
     autoCheckBooleanFields(state, dispatch, socket, draggedInstanceId, copyResult?.occurrence?.id);
 
@@ -536,11 +540,14 @@ export function handleOccurrenceMove(dropContext, ctx) {
     // user edits a field.
     const newOccId = copyResult?.occurrence?.id;
     if (newOccId) {
-      // Read the post-stamp occurrence from operationsBridge (Schedule: Stamp
-      // Date's UPDATE effects wrote into localOccsById via updateLocalOcc).
-      // Closure-captured `occurrencesById` is the pre-drop snapshot — stale.
       requestAnimationFrame(() => {
         const finalOcc = operationsBridge.getLocalOcc?.(newOccId) || copyResult?.occurrence;
+        console.log("[copy-rerun]", {
+          newOccId,
+          source: operationsBridge.getLocalOcc?.(newOccId) ? "localOccsById" : "copyResult fallback",
+          fieldKeys: Object.keys(finalOcc?.fields || {}),
+          fields: finalOcc?.fields,
+        });
         if (finalOcc?.fields) {
           for (const fieldId of Object.keys(finalOcc.fields)) {
             const fv = finalOcc.fields[fieldId];
