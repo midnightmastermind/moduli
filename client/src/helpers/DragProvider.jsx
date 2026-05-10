@@ -128,24 +128,26 @@ export function DragProvider({
   // B2: Cache last preview target to skip redundant draft mutations
   const lastPreviewRef = useRef({ containerId: null, instanceId: null, panelId: null });
 
-  // Direct DOM highlight — bypasses React state for zero-lag container outline
-  const highlightedContainerRef = useRef(null);
+  // Direct DOM highlight — bypasses React state for zero-lag drop outline.
+  // Targets either container (data-container-id) or panel (data-panel-id)
+  // depending on what's being dragged: leaf drops light up the container,
+  // page drops light up the destination panel.
+  const highlightedRef = useRef({ id: null, attr: null });
   const highlightRAFRef = useRef(null);
-  const setDropHighlight = useCallback((containerId) => {
-    if (highlightedContainerRef.current === containerId) return;
+  const setDropHighlight = useCallback((id, attr = "data-container-id") => {
+    const cur = highlightedRef.current;
+    if (cur.id === id && cur.attr === attr) return;
     cancelAnimationFrame(highlightRAFRef.current);
     highlightRAFRef.current = requestAnimationFrame(() => {
-      // Clear previous
-      if (highlightedContainerRef.current) {
-        document.querySelector(`[data-container-id="${highlightedContainerRef.current}"]`)
+      if (cur.id) {
+        document.querySelector(`[${cur.attr}="${cur.id}"]`)
           ?.removeAttribute("data-drop-active");
       }
-      // Set new
-      if (containerId) {
-        document.querySelector(`[data-container-id="${containerId}"]`)
+      if (id) {
+        document.querySelector(`[${attr}="${id}"]`)
           ?.setAttribute("data-drop-active", "true");
       }
-      highlightedContainerRef.current = containerId;
+      highlightedRef.current = { id, attr };
     });
   }, []);
 
@@ -498,13 +500,19 @@ export function DragProvider({
       const containerId = stickyToLast ? last.containerId : rawContainerId;
       const containerOccId = stickyToLast ? last.containerOccId : rawContainerOccId;
 
-      // Update highlight only when containerId changes (not instanceId — avoids flicker)
-      if (last.containerId !== containerId) {
-        // Container-into-target highlighting only applies to leaf drops
-        // (instance/module/external/file). Container-on-container drags
-        // get edge indicators instead — see useDragDrop's closestEdge path.
-        const t = s.payload?.type;
-        const shouldHL = t !== DragType.PANEL && t !== DragType.CONTAINER && t !== DragType.PAGE;
+      // Update highlight when the relevant target changes.
+      // Page drags highlight the destination PANEL (where the page tab will
+      // land); leaf drags (instance/module/external/file) highlight the
+      // CONTAINER they're dropping into; container/panel drags get edge
+      // indicators via useDragDrop's closestEdge instead, no panel/container
+      // outline.
+      const t = s.payload?.type;
+      if (t === DragType.PAGE) {
+        if (last.panelId !== panelId) {
+          setDropHighlight(panelId || null, "data-panel-id");
+        }
+      } else if (last.containerId !== containerId) {
+        const shouldHL = t !== DragType.PANEL && t !== DragType.CONTAINER;
         setDropHighlight(shouldHL ? (containerId || null) : null);
       }
       if (last.panelId !== panelId || last.containerId !== containerId || last.instanceId !== instanceId) {
@@ -781,8 +789,12 @@ export function DragProvider({
 
     lastHotRef.current = { panelId: newPanelId, containerId: newContainerId, instanceId: newInstanceId };
     const t = s.payload?.type;
-    const shouldHighlight = t !== DragType.PANEL && t !== DragType.CONTAINER && t !== DragType.PAGE;
-    setDropHighlight(shouldHighlight ? (newContainerId || null) : null);
+    if (t === DragType.PAGE) {
+      setDropHighlight(newPanelId || null, "data-panel-id");
+    } else {
+      const shouldHighlight = t !== DragType.PANEL && t !== DragType.CONTAINER;
+      setDropHighlight(shouldHighlight ? (newContainerId || null) : null);
+    }
   }, []);
 
   // ============================================================

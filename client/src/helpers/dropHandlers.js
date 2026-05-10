@@ -1232,10 +1232,13 @@ export function routeDrop(dropContext, ctx) {
   if (payload.payloadType === "artifact") return handleArtifactDrop(dropContext, ctx);
   if (payload.payloadType === "folder") return handleFolderDrop(dropContext, ctx);
 
-  // In-grid drag: dispatch by source role.
+  // In-grid drag: dispatch by source role. Pages live as direct children
+  // of panels (panel.occurrences[] holds page occurrence ids) — same shape
+  // as containers — so they go through handleContainerDrop, not the
+  // leaf-level handleOccurrenceMove.
   if (sourceRole === "panel") return handlePanelDrop(dropContext, ctx);
-  if (sourceRole === "container") return handleContainerDrop(dropContext, ctx);
-  if (sourceRole === "instance" || sourceRole === "page" || sourceRole === "artifact" || sourceRole === "textblock") {
+  if (sourceRole === "container" || sourceRole === "page") return handleContainerDrop(dropContext, ctx);
+  if (sourceRole === "instance" || sourceRole === "artifact" || sourceRole === "textblock") {
     return handleOccurrenceMove(dropContext, ctx);
   }
 

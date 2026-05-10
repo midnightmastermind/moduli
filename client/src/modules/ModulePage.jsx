@@ -90,7 +90,7 @@ function Page({
     type: DragType.PAGE,
     id: pageModule?.id,
     data: { module: pageModule, occurrence },
-    context: { panelId, pageId: pageModule?.id },
+    context: { panelId, pageId: pageModule?.id, pageOccurrenceId: occurrence?.id || null },
     disabled: !pageModule,
     dragHandleRef: handleRef,
   });

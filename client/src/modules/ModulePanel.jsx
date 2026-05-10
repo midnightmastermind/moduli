@@ -498,6 +498,17 @@ function Panel({
     dragHandleRef: panelHandleRef,
   });
 
+  // Drop zone for incoming page drags — pages are children of panels
+  // (panel.occurrences[] holds page occurrence ids), so a panel-level drop
+  // target lets the user move a page tab from one panel into another.
+  const { ref: pageDropRef } = useDroppable({
+    type: "panel-pages",
+    id: `panel-pages:${module.id}`,
+    context: { panelId: module.id, panelOccurrenceId: panelOccurrence?.id || null },
+    accepts: [DragType.PAGE],
+    disabled: hidden,
+  });
+
 
   // Build page list from panel children (all children are pages)
   const pagesList = useMemo(() => {
@@ -610,6 +621,7 @@ function Panel({
     <div
       ref={(node) => {
         if (typeof dragRef === "function") dragRef(node); else if (dragRef) dragRef.current = node;
+        if (typeof pageDropRef === "function") pageDropRef(node); else if (pageDropRef) pageDropRef.current = node;
       }}
       role="region"
       aria-label={layout.name || module.label || `Panel ${module.id}`}
@@ -1023,7 +1035,7 @@ function Panel({
 
       {/* Resize handle — inline in bottom bar, not overlayed */}
       {!isFullscreen && (
-        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, position: "absolute", bottom: 0, right: 0}}>
           <ResizeHandle
             panel={module}
             cols={cols}
