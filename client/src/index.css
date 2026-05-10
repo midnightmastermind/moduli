@@ -1387,7 +1387,19 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    ============================================================================= */
 
 /* Viewport container — clips to one cell. flex:1 so it fills parent in flex column */
-.mobile-grid-viewport { position: relative; overflow: hidden; width: 100%; height: 100%; flex: 1; min-height: 0; }
+.mobile-grid-viewport {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  /* Inset so the rail buttons sit in the gutter rather than overlapping
+     panel content. 4px outer offset (the rails' `left/top/right/bottom: 4px`)
+     + 10px rail width + 2px breathing room. */
+  padding: 16px;
+  box-sizing: border-box;
+}
 
 /* Inner slider — expanded to full grid size, animated */
 .mobile-grid-slider { will-change: transform; backface-visibility: hidden; }
@@ -1412,23 +1424,25 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   color: var(--text-primary);
 }
 
-/* Left/Right: full viewport height, narrow width, inset from edge */
+/* Left/Right: full viewport height, narrow width, inset from edge.
+   Width matches the viewport's `padding` minus inset+gap so the rail sits
+   in the gutter and never overlaps the panel. */
 .mobile-rail-left {
-  left: 4px; top: 0; bottom: 0; width: 14px;
+  left: 4px; top: 0; bottom: 0; width: 10px;
   border-radius: 0 3px 3px 0; border-left: none;
 }
 .mobile-rail-right {
-  right: 4px; top: 0; bottom: 0; width: 14px;
+  right: 4px; top: 0; bottom: 0; width: 10px;
   border-radius: 3px 0 0 3px; border-right: none;
 }
 
 /* Up/Down: full viewport width, narrow height */
 .mobile-rail-up {
-  top: 0; left: 0; right: 0; height: 14px;
+  top: 0; left: 0; right: 0; height: 10px;
   border-radius: 0 0 3px 3px; border-top: none;
 }
 .mobile-rail-down {
-  bottom: 0; left: 0; right: 0; height: 14px;
+  bottom: 0; left: 0; right: 0; height: 10px;
   border-radius: 3px 3px 0 0; border-bottom: none;
 }
 
