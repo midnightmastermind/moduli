@@ -214,12 +214,13 @@ export default function MobileGridNav({
 
           if (overDist > OVERSCROLL_THRESHOLD) {
             const dRow = direction === 'down' ? 1 : -1;
+            // Auto-nav only fires within the same multi-row panel (canNav
+            // gate above). The panel itself is one continuous scroll
+            // container; the viewport just transforms to show a different
+            // cell of the same panel. Resetting scrollTop here yanks the
+            // user back to 3am instead of leaving them at 8pm — preserve
+            // scrollTop and let the transform do the visual shift.
             navigate(dRow, 0);
-
-            if (scrollEl) {
-              if (direction === 'down') scrollEl.scrollTop = 0;
-              else scrollEl.scrollTop = scrollEl.scrollHeight;
-            }
 
             cooldownRef.current = true;
             setTimeout(() => { cooldownRef.current = false; }, NAVIGATE_COOLDOWN);
@@ -255,12 +256,10 @@ export default function MobileGridNav({
 
           if (overDist > OVERSCROLL_THRESHOLD) {
             const dCol = direction === 'right' ? 1 : -1;
+            // Same reasoning as the vertical case: same panel, continuous
+            // scroll container, preserve scrollLeft so the user stays at
+            // the column they were viewing instead of jumping to the edge.
             navigate(0, dCol);
-
-            if (scrollEl) {
-              if (direction === 'right') scrollEl.scrollLeft = 0;
-              else scrollEl.scrollLeft = scrollEl.scrollWidth;
-            }
 
             cooldownRef.current = true;
             setTimeout(() => { cooldownRef.current = false; }, NAVIGATE_COOLDOWN);
