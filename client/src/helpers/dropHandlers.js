@@ -291,15 +291,12 @@ export function handleContainerDrop(dropContext, ctx) {
     const fromOrderOcc = fromPageOccId ? (occurrencesById[fromPageOccId] || fromPanelOcc) : fromPanelOcc;
     const toOrderOcc = toPageOccId ? (occurrencesById[toPageOccId] || toPanelOcc || fromOrderOcc) : (toPanelOcc || fromOrderOcc);
 
-    console.log("[container-drop]", {
-      fromPanelId: payload.context?.panelId, foundFromPanel: !!fromPanel,
-      toPanelId: panelId, foundToPanel: !!toPanel,
-      fromPageOccId, toPageOccId,
-      fromOrderOccId: fromOrderOcc?.id, toOrderOccId: toOrderOcc?.id,
-      draggedContainerId: payload.moduleId, mode: sessionRef.current.mode,
-    });
-
-    if (fromPanel && toPanel && fromOrderOcc) {
+    // The handler used to require both fromPanel and toPanel to exist, but
+    // when source/destination is a board *page* (role: "page", not "panel")
+    // baseAllPanels doesn't contain it. fromOrderOcc + toOrderOcc are the
+    // real ordering anchors — they're populated for both panels and pages
+    // via the pageOccurrenceId branch above. Gate on those instead.
+    if (fromOrderOcc && toOrderOcc) {
       const draggedContainerId = payload.moduleId;
       const occurrenceId = LayoutHelpers.findOccurrenceIdByTarget(draggedContainerId, fromOrderOcc.occurrences || [], occurrencesById);
       if (!occurrenceId) { clearSession(); return; }
@@ -324,7 +321,7 @@ export function handleContainerDrop(dropContext, ctx) {
 
       const gridId = state?.gridId || state?.grid?._id;
       const isCopyMode = sessionRef.current.mode === 'copy';
-      const samePanel = fromPanel.id === toPanel.id;
+      const samePanel = !!(fromPanel && toPanel && fromPanel.id === toPanel.id);
       const sameOrderOcc = fromOrderOcc.id === toOrderOcc.id;
 
       if (isCopyMode && sameOrderOcc) {
@@ -525,6 +522,39 @@ export function handleOccurrenceMove(dropContext, ctx) {
       toPanelId: toPanelOcc?.moduleId || null,
     });
     autoCheckBooleanFields(state, dispatch, socket, draggedInstanceId, copyResult?.occurrence?.id);
+
+    // Trackers + onChange-bound aggregations fire while createOccurrence is
+    // still inside the OccurrenceCreateOp dispatch — at that moment the new
+    // occurrence's fields haven't been stamped by Schedule: Stamp Date yet
+    // (UPDATE effects are applied to the live overlay during the same batch,
+    // but the tracker pipeline reads $allItems from the snapshot it built at
+    // dispatch time). Mirror what the MOVE branch does: after the create +
+    // stamps + autoCheck have all run, sync the new occurrence into the
+    // executor cache and fire one final MeasureOp per field so trackers see
+    // the fully-realized state. Without this, dragging a completed task from
+    // Daily Toolkit lands in Schedule but goal totals stay stale until the
+    // user edits a field.
+    const newOccId = copyResult?.occurrence?.id;
+    if (newOccId) {
+      // Read the post-stamp occurrence from local cache (Schedule: Stamp Date
+      // wrote to it via UPDATE_ITEM_FIELD effects → setOccurrenceFieldValue →
+      // updateLocalOcc).
+      requestAnimationFrame(() => {
+        const finalOcc = occurrencesById[newOccId] || copyResult?.occurrence;
+        if (finalOcc?.fields) {
+          for (const fieldId of Object.keys(finalOcc.fields)) {
+            const fv = finalOcc.fields[fieldId];
+            operationsBridge.fireOperations?.("MeasureOp", {
+              type: "MeasureOp",
+              occurrenceId: newOccId,
+              instanceId: draggedInstanceId,
+              fieldId,
+              value: fv && typeof fv === "object" && "value" in fv ? fv.value : fv,
+            });
+          }
+        }
+      });
+    }
   } else if (sameContainer) {
     if (fromCOcc) {
       const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
