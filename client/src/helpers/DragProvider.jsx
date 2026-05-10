@@ -123,6 +123,24 @@ export function DragProvider({
   // Mobile drag-to-edge cell navigation timer
   const dragEdgeTimerRef = useRef(null);
   const dragEdgeIndicatorRef = useRef(null);
+  // Continuous-autoscroll loop. Per-frame scroll while the finger sits in
+  // the scroll edge zone — without this, mobile autoscroll only happens
+  // while the finger is actively moving (no touchmove → no autoscroll).
+  const autoscrollRafRef = useRef(0);
+  const autoscrollStateRef = useRef({ el: null, dir: 0 });
+  const stopAutoscroll = useCallback(() => {
+    if (autoscrollRafRef.current) cancelAnimationFrame(autoscrollRafRef.current);
+    autoscrollRafRef.current = 0;
+    autoscrollStateRef.current = { el: null, dir: 0 };
+  }, []);
+  const tickAutoscroll = useCallback(() => {
+    const { el, dir } = autoscrollStateRef.current;
+    if (!el || !dir) { autoscrollRafRef.current = 0; return; }
+    const speed = 10;
+    if (dir < 0) el.scrollTop = Math.max(0, el.scrollTop - speed);
+    else el.scrollTop = Math.min(el.scrollHeight - el.clientHeight, el.scrollTop + speed);
+    autoscrollRafRef.current = requestAnimationFrame(tickAutoscroll);
+  }, []);
   // Track last hot target to skip redundant DOM updates on every mouse-move
   const lastHotRef = useRef({ panelId: null, containerId: null, instanceId: null });
   // B2: Cache last preview target to skip redundant draft mutations
@@ -383,6 +401,7 @@ export function DragProvider({
 
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = 0;
+    stopAutoscroll();
 
     // Clear mobile drag-to-edge timer + indicator
     if (dragEdgeTimerRef.current) {
@@ -525,34 +544,38 @@ export function DragProvider({
 
       // Auto-scroll the cursor's nearest scrollable ancestor when dragging
       // anything but a panel. Walks up from the element under the cursor to
-      // find an element with overflow-y auto/scroll AND scrollable content.
-      // Works for panels (.panel-content), pages (PageBoard's inline-styled
-      // scroll div), embedded containers, doc bodies — anything scrollable.
+      // find an element with overflow-y auto/scroll AND overflowing content.
+      // Drives a continuous rAF loop (autoscrollStateRef + tickAutoscroll)
+      // so the scroll keeps progressing even if the finger stops moving —
+      // mobile drag has no equivalent of mousemove-while-still.
       const isDraggingPanel = s.payload?.type === DragType.PANEL;
+      let nextScrollEl = null, nextScrollDir = 0;
       if (!isDraggingPanel) {
         const stack = document.elementsFromPoint(clientX, clientY);
-        let scrollEl = null;
         for (const el of stack) {
           if (!el || el === document.body || el === document.documentElement) continue;
           const cs = getComputedStyle(el);
           const oy = cs.overflowY;
           if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) {
-            scrollEl = el;
+            nextScrollEl = el;
             break;
           }
         }
-        if (scrollEl) {
-          const rect = scrollEl.getBoundingClientRect();
+        if (nextScrollEl) {
+          const rect = nextScrollEl.getBoundingClientRect();
           const scrollZone = 80;
-          const scrollSpeed = 10;
-          if (clientY < rect.top + scrollZone) {
-            scrollEl.scrollTop = Math.max(0, scrollEl.scrollTop - scrollSpeed);
-          } else if (clientY > rect.bottom - scrollZone) {
-            scrollEl.scrollTop = Math.min(
-              scrollEl.scrollHeight - scrollEl.clientHeight,
-              scrollEl.scrollTop + scrollSpeed,
-            );
-          }
+          if (clientY < rect.top + scrollZone) nextScrollDir = -1;
+          else if (clientY > rect.bottom - scrollZone) nextScrollDir = 1;
+        }
+      }
+      const cur = autoscrollStateRef.current;
+      if (cur.el !== nextScrollEl || cur.dir !== nextScrollDir) {
+        autoscrollStateRef.current = { el: nextScrollEl, dir: nextScrollDir };
+        if (nextScrollDir === 0 || !nextScrollEl) {
+          if (autoscrollRafRef.current) cancelAnimationFrame(autoscrollRafRef.current);
+          autoscrollRafRef.current = 0;
+        } else if (!autoscrollRafRef.current) {
+          autoscrollRafRef.current = requestAnimationFrame(tickAutoscroll);
         }
       }
 
