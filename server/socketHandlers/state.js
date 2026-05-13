@@ -3,6 +3,7 @@
 // No priority_state / lazy viewport traversal — everything ships in one emission.
 import Grid from "../models/Grid.js";
 import { getOccurrencesForGrid } from "../utils/occurrenceHelpers.js";
+import { ensureTemplatesManifest } from "../utils/templatesManifest.js";
 
 export function registerStateHandlers(socket, {
   cacheByUser, gridCacheKey, ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -45,6 +46,9 @@ export function registerStateHandlers(socket, {
       const uc = userCacheReady(userId, gridId)
         ? ensureUserCache(userId, gridId)
         : await loadUserIntoCache(userId, gridId);
+
+      // Ensure every grid has a templates manifest (idempotent, deterministic IDs)
+      await ensureTemplatesManifest({ gridId, userId, uc });
 
       const grids = await getAllGridsForUser(userId);
       const allGridOccs = getOccurrencesForGrid(gridId, uc);
