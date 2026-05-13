@@ -84,4 +84,11 @@ describe("Module schema validation", () => {
     const m = makeValid();
     expect(m.behavior.droppable).toBe(true);
   });
+
+  it("meta.templateModule stores a boolean flag", () => {
+    const m = makeValid({ meta: { templateModule: true } });
+    const err = m.validateSync();
+    expect(err).toBeUndefined();
+    expect(m.meta.templateModule).toBe(true);
+  });
 });
