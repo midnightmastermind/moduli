@@ -20,6 +20,11 @@ const OccurrenceSchema = new mongoose.Schema(
     // { [fieldId]: value } = use these specific values instead of parent's
     filterOverride: { type: mongoose.Schema.Types.Mixed, default: null },
 
+    // Per-occurrence nav widget config keyed by filter id (Grid.namedFilters[i].id).
+    // Each entry carries { visible, style, options?, step? } to drive type-dispatched
+    // nav widgets (arrows / pills / input / custom). Default {} = no nav shown.
+    filterNavConfig: { type: mongoose.Schema.Types.Mixed, default: {} },
+
     // Hidden flag — set by HIDE_OCCURRENCE operation effect
     hidden: { type: Boolean, default: false },
 

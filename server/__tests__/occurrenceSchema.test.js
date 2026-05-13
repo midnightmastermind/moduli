@@ -79,3 +79,19 @@ describe("Occurrence schema validation", () => {
     expect(err.errors["gridId"]).toBeDefined();
   });
 });
+
+test("Occurrence accepts filterNavConfig", () => {
+  const occ = new Occurrence({
+    id: "test-1", userId: "u1", targetId: "m1", targetType: "module",
+    filterNavConfig: { f1: { visible: true, style: "pills", options: ["a","b"] } },
+  });
+  expect(occ.filterNavConfig.f1.style).toBe("pills");
+});
+
+test("Occurrence meta accepts appliedFromTemplateId", () => {
+  const occ = new Occurrence({
+    id: "test-2", userId: "u1", targetId: "m1", targetType: "module",
+    meta: { appliedFromTemplateId: "tpl-123" },
+  });
+  expect(occ.meta.appliedFromTemplateId).toBe("tpl-123");
+});
