@@ -523,14 +523,19 @@ export function updateGridFilter({ dispatch, socket, gridId, patch, emit = true 
 }
 
 // ---- templates ----
-export function saveTemplate({ socket, gridId, template }) {
-  if (!gridId || !template?.id) return;
-  safeEmit(socket, "save_template", { gridId, template });
+export function commitCloneSubtreeAsTemplate(socket, { sourceOccurrenceId, name, parentFolderId }) {
+  if (!socket) return;
+  safeEmit(socket, "clone_subtree_as_template", { sourceOccurrenceId, name, parentFolderId });
 }
 
-export function fillFromTemplate({ socket, gridId, templateId, containerId, iterationValue }) {
-  if (!gridId || !templateId || !containerId) return;
-  safeEmit(socket, "fill_from_template", { gridId, templateId, containerId, iterationValue });
+export function commitApplyTemplate(socket, { templateOccurrenceId, targetOccurrenceId, mode = "append" }) {
+  if (!socket) return;
+  safeEmit(socket, "apply_template", { templateOccurrenceId, targetOccurrenceId, mode });
+}
+
+export function commitSaveOverTemplate(socket, { sourceOccurrenceId, templateOccurrenceId }) {
+  if (!socket) return;
+  safeEmit(socket, "save_over_template", { sourceOccurrenceId, templateOccurrenceId });
 }
 
 // ===== OPERATION =====

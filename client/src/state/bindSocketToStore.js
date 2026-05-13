@@ -728,16 +728,6 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         }
         break;
 
-      case "APPLY_TEMPLATE":
-        // Delegates to server fill_from_template handler
-        socket?.emit("fill_from_template", {
-          gridId: state.grid?._id || state.gridId,
-          templateId: effect.templateId,
-          containerId: effect.containerId,
-          iterationValue: effect.iterationValue,
-        });
-        break;
-
       case "CREATE_FOLDER":
         socket?.emit("create_folder", {
           folder: {
