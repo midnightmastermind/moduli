@@ -32,6 +32,7 @@ import LocalFilterNav from "../ui/LocalFilterNav";
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import TemplatesSection from "../ui/TemplatesSection";
 
 import {
   ChevronRight,
@@ -1134,6 +1135,7 @@ function Container({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={containerOccurrence} />
+          <TemplatesSection occurrence={containerOccurrence} />
         </HeaderDropdown>
       )}
     </div>

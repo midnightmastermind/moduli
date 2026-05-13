@@ -13,6 +13,7 @@ import LocalFilterNav from "../ui/LocalFilterNav";
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import TemplatesSection from "../ui/TemplatesSection";
 import NodePill from "./NodePill.jsx";
 import PreviewNode from "./PreviewNode.jsx";
 
@@ -451,6 +452,7 @@ function Page({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={occurrence} />
+          <TemplatesSection occurrence={occurrence} />
         </HeaderDropdown>
       )}
     </div>

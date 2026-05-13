@@ -56,6 +56,7 @@ import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import TemplatesSection from "../ui/TemplatesSection";
 
 // ============================================================
 // LAYOUT HELPERS
@@ -1092,6 +1093,7 @@ function Panel({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={panelOccurrence} />
+          <TemplatesSection occurrence={panelOccurrence} />
         </HeaderDropdown>
       )}
     </div>
