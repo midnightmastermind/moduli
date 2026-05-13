@@ -1,11 +1,10 @@
-// socketHandlers/templates.js — save_template + fill_from_template
-import Grid from "../models/Grid.js";
+// socketHandlers/templates.js — clone_subtree_as_template + apply_template + save_over_template
 import Occurrence from "../models/Occurrence.js";
-import Field from "../models/Field.js";
+import Module from "../models/Module.js";
+import { cloneSubtree } from "../utils/cloneSubtree.js";
 
 export function registerTemplateHandlers(socket, {
-  ensureUserCache, userCacheReady, loadUserIntoCache,
-  userRoom, createOccurrenceData,
+  ensureUserCache, userCacheReady, loadUserIntoCache, userRoom,
 }) {
   const userId = socket.userId;
   const getUc = async () => {
@@ -14,73 +13,120 @@ export function registerTemplateHandlers(socket, {
     return ensureUserCache(userId, gId);
   };
 
-  socket.on("save_template", async ({ gridId, template } = {}) => {
+  function broadcastClones(uc, occIds, modIds) {
+    for (const mId of modIds) {
+      const m = uc.modulesById[mId];
+      if (!m) continue;
+      socket.emit("module_created", { module: m });
+      socket.to(userRoom(userId)).emit("module_created", { module: m });
+    }
+    for (const oId of occIds) {
+      const o = uc.occurrencesById[oId];
+      if (!o) continue;
+      socket.emit("occurrence_created", { occurrence: o });
+      socket.to(userRoom(userId)).emit("occurrence_created", { occurrence: o });
+    }
+  }
+
+  socket.on("clone_subtree_as_template", async ({ sourceOccurrenceId, name, parentFolderId } = {}) => {
     try {
-      if (!userId || !gridId || !template?.id) return;
-      // Templates are stored on the Grid doc — read/write DB directly
-      const grid = await Grid.findOne({ _id: gridId, userId }).lean();
-      if (!grid) return;
-      const templates = [...(grid.templates || [])];
-      const idx = templates.findIndex(t => t.id === template.id);
-      if (idx >= 0) templates[idx] = { ...templates[idx], ...template };
-      else templates.push(template);
-      await Grid.findOneAndUpdate({ _id: gridId, userId }, { templates }, { upsert: true });
-      socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: { templates } });
+      if (!userId || !sourceOccurrenceId) return;
+      const uc = await getUc();
+      const gridId = socket.data.activeGridId;
+      const r = await cloneSubtree({
+        rootOccurrenceId: sourceOccurrenceId, userId, gridId, uc,
+        moduleMetaPatch: { templateModule: true },
+        occMetaPatch: { templateName: name },
+        newParentId: parentFolderId,
+      });
+      if (!r.rootClonedOccurrenceId) return;
+      broadcastClones(uc, r.occurrenceIds, r.moduleIds);
+      socket.emit("template_created", { templateOccurrenceId: r.rootClonedOccurrenceId });
     } catch (err) {
-      console.error("save_template error:", err);
+      console.error("clone_subtree_as_template error:", err);
     }
   });
 
-  socket.on("fill_from_template", async ({ gridId, templateId, containerId, date } = {}) => {
+  socket.on("apply_template", async ({ templateOccurrenceId, targetOccurrenceId, mode = "append" } = {}) => {
     try {
-      if (!userId || !gridId || !templateId || !containerId) return;
+      if (!userId || !templateOccurrenceId || !targetOccurrenceId) return;
       const uc = await getUc();
-      const grid = await Grid.findOne({ _id: gridId, userId }).lean();
-      if (!grid) return;
-      const template = (grid.templates || []).find(t => t.id === templateId);
-      if (!template?.items?.length) return;
+      const gridId = socket.data.activeGridId;
+      const target = uc.occurrencesById[targetOccurrenceId];
+      if (!target) return;
+      const r = await cloneSubtree({
+        rootOccurrenceId: templateOccurrenceId, userId, gridId, uc,
+        moduleMetaPatch: { templateModule: false },
+        occMetaPatch: { appliedFromTemplateId: templateOccurrenceId },
+        newParentId: targetOccurrenceId,
+      });
+      if (!r.rootClonedOccurrenceId) return;
 
-      // Find date field for this grid (to set on new occurrences if date is provided)
-      const dateField = Object.values(uc.fieldsById || {}).find(f => f.name === "Date" && f.gridId === gridId);
-      const dateISO = date ? new Date(date).toISOString() : null;
-      const dateFields = (dateField && dateISO)
-        ? { [dateField.id]: { value: dateISO, flow: "in", timestamp: new Date() } }
-        : {};
-
-      const createdOccurrences = [];
-
-      for (const item of template.items) {
-        if (!item.instanceId) continue;
-        const occId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const occ = createOccurrenceData({
-          id: occId, userId,
-          moduleId: item.instanceId,
-          gridId,
-          fields: { ...dateFields, ...(item.fieldDefaults || {}) },
-          meta: dateISO ? { date: dateISO } : {},
-          ...(item.linkedGroupId ? { linkedGroupId: item.linkedGroupId } : {}),
-        });
-        uc.occurrencesById[occId] = occ;
-        await Occurrence.findOneAndUpdate({ id: occId, userId }, occ, { upsert: true });
-        createdOccurrences.push(occ);
+      if (mode === "replace") {
+        target.occurrences = [r.rootClonedOccurrenceId];
+      } else {
+        target.occurrences = [...(target.occurrences || []), r.rootClonedOccurrenceId];
       }
+      uc.occurrencesById[target.id] = target;
+      await Occurrence.findOneAndUpdate({ id: target.id }, target, { upsert: true });
+      socket.emit("occurrence_updated", { occurrence: target });
+      socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: target });
 
-      const containerOcc = Object.values(uc.occurrencesById).find(o => o.moduleId === containerId);
-      if (containerOcc) {
-        const newOccIds = createdOccurrences.map(o => o.id);
-        containerOcc.occurrences = [...(containerOcc.occurrences || []), ...newOccIds];
-        uc.occurrencesById[containerOcc.id] = containerOcc;
-        await Occurrence.findOneAndUpdate({ id: containerOcc.id, userId }, containerOcc, { upsert: true });
-        socket.emit("occurrence_updated", { occurrence: containerOcc });
-        socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: containerOcc });
-      }
-
-      for (const occ of createdOccurrences) {
-        socket.emit("occurrence_created", { occurrence: occ });
-        socket.to(userRoom(userId)).emit("occurrence_created", { occurrence: occ });
-      }
+      broadcastClones(uc, r.occurrenceIds, r.moduleIds);
+      socket.emit("template_applied", {
+        rootOccurrenceId: r.rootClonedOccurrenceId,
+        newOccurrenceIds: r.occurrenceIds,
+        newModuleIds: r.moduleIds,
+      });
     } catch (err) {
-      console.error("fill_from_template error:", err);
+      console.error("apply_template error:", err);
+    }
+  });
+
+  socket.on("save_over_template", async ({ sourceOccurrenceId, templateOccurrenceId } = {}) => {
+    try {
+      if (!userId || !sourceOccurrenceId || !templateOccurrenceId) return;
+      const uc = await getUc();
+      const gridId = socket.data.activeGridId;
+      const oldRoot = uc.occurrencesById[templateOccurrenceId];
+      if (!oldRoot) return;
+
+      const toDelete = [];
+      (function walk(id) {
+        const o = uc.occurrencesById[id];
+        if (!o) return;
+        toDelete.push(o);
+        (o.occurrences || []).forEach(walk);
+      })(templateOccurrenceId);
+
+      for (const o of toDelete) {
+        await Occurrence.deleteOne({ id: o.id });
+        delete uc.occurrencesById[o.id];
+        const modId = o.moduleId || o.targetId;
+        if (modId && uc.modulesById[modId]) {
+          await Module.deleteOne({ id: modId });
+          delete uc.modulesById[modId];
+          socket.emit("module_deleted", { id: modId });
+          socket.to(userRoom(userId)).emit("module_deleted", { id: modId });
+        }
+        socket.emit("occurrence_deleted", { id: o.id });
+        socket.to(userRoom(userId)).emit("occurrence_deleted", { id: o.id });
+      }
+
+      const r = await cloneSubtree({
+        rootOccurrenceId: sourceOccurrenceId, userId, gridId, uc,
+        moduleMetaPatch: { templateModule: true },
+        occMetaPatch: { templateName: oldRoot.meta?.templateName },
+        newParentId: oldRoot.parentId,
+      });
+      if (!r.rootClonedOccurrenceId) return;
+      broadcastClones(uc, r.occurrenceIds, r.moduleIds);
+      socket.emit("template_saved_over", {
+        oldTemplateId: templateOccurrenceId,
+        newTemplateId: r.rootClonedOccurrenceId,
+      });
+    } catch (err) {
+      console.error("save_over_template error:", err);
     }
   });
 }
