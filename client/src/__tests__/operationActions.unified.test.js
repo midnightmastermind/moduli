@@ -492,3 +492,87 @@ describe("SET_FILTER action", () => {
     expect(updates[0]).toMatchObject({ fieldId: "f_date", value: "2026-04-27" });
   });
 });
+
+// ============================================================
+// APPLY_TEMPLATE
+// ============================================================
+describe("APPLY_TEMPLATE", () => {
+  it("clones a single-node template into the target", () => {
+    const tplOccId = "tpl-1";
+    const tplModId = "tpl-mod-1";
+    const targetId = "tgt-1";
+    const targetModId = "tgt-mod-1";
+
+    const state = {
+      modulesById: {
+        [tplModId]: { id: tplModId, label: "Slot", role: "container", kind: "list", meta: { templateModule: true } },
+        [targetModId]: { id: targetModId, label: "Page", role: "page" },
+      },
+      grid: { _id: "g1" },
+      userId: "u1",
+    };
+    const occurrencesById = {
+      [tplOccId]: { id: tplOccId, moduleId: tplModId, targetId: tplModId, parentId: "tpl-folder", occurrences: [], meta: { templateName: "Slot" } },
+      [targetId]: { id: targetId, moduleId: targetModId, targetId: targetModId, occurrences: [] },
+    };
+    const $vars = { $allOccurrences: [], $allItems: [], $tgt: targetId, $tpl: tplOccId };
+    const ctx = makeContext({ state, occurrencesById });
+
+    const updates = executeActionItem(
+      "APPLY_TEMPLATE",
+      { templateRef: "$tpl", targetOccurrenceVar: "$tgt", resultVar: "$new", mode: "append" },
+      $vars, ctx, {}
+    );
+
+    // resultVar bound to array of new occ ids
+    expect(Array.isArray($vars.$new)).toBe(true);
+    expect($vars.$new.length).toBe(1);
+
+    // A CREATE_ITEM effect was pushed
+    const createEffect = updates.find(u => u._effect === "CREATE_ITEM");
+    expect(createEffect).toBeTruthy();
+    expect(createEffect.template.role).toBe("container");
+    expect(createEffect.template.meta.templateModule).toBe(false);
+    expect(createEffect.instance.parentId).toBe(targetId);
+
+    // Optimistic publish happened
+    expect($vars.$allOccurrences.length).toBe(1);
+    expect($vars.$allItems.length).toBe(1);
+  });
+
+  it("breaks without error when templateRef is missing", () => {
+    const ctx = makeContext({ state: { modulesById: {} }, occurrencesById: { tgt: { id: "tgt", occurrences: [] } } });
+    const $vars = { $tgt: "tgt" };
+    const updates = executeActionItem(
+      "APPLY_TEMPLATE",
+      { templateRef: null, targetOccurrenceVar: "$tgt" },
+      $vars, ctx, {}
+    );
+    expect(updates).toEqual([]);
+  });
+
+  it("mode replace emits UPDATE_OCCURRENCE to clear target children first", () => {
+    const tplModId = "m1";
+    const state = {
+      modulesById: {
+        [tplModId]: { id: tplModId, label: "T", role: "instance", kind: "list", meta: {} },
+      },
+    };
+    const occurrencesById = {
+      tpl: { id: "tpl", moduleId: tplModId, targetId: tplModId, occurrences: [] },
+      tgt: { id: "tgt", occurrences: ["existing-child"] },
+    };
+    const $vars = { $allOccurrences: [], $allItems: [], $tgt: "tgt", $tpl: "tpl" };
+    const ctx = makeContext({ state, occurrencesById });
+
+    const updates = executeActionItem(
+      "APPLY_TEMPLATE",
+      { templateRef: "$tpl", targetOccurrenceVar: "$tgt", mode: "replace" },
+      $vars, ctx, {}
+    );
+
+    const clearEffect = updates.find(u => u._effect === "UPDATE_OCCURRENCE" && u.occurrence?.id === "tgt");
+    expect(clearEffect).toBeTruthy();
+    expect(clearEffect.occurrence.occurrences).toEqual([]);
+  });
+});

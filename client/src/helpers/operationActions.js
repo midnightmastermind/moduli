@@ -1034,15 +1034,118 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
-    // ---- APPLY_TEMPLATE: fill a container from a named/id'd template ----
+    // ============================================================
+    // APPLY_TEMPLATE — clone a template subtree into a target occurrence
+    // cfg: { templateRef, targetOccurrenceVar, mode?: "append"|"replace", resultVar? }
+    // ============================================================
     case "APPLY_TEMPLATE": {
-      const containerId = resolveExpr(cfg.containerId || cfg.containerIdExpr, $vars);
-      const templateId = resolveExpr(cfg.templateId || cfg.templateIdExpr, $vars)
-        || (state?.grid?.templates ?? []).find(t => t.name === resolveExpr(cfg.templateName, $vars))?.id;
-      if (containerId && templateId) {
-        const iterationValue = resolveExpr(cfg.iterationValue ?? "$iterationValue", $vars);
-        updates.push({ _effect: "APPLY_TEMPLATE", containerId, templateId, iterationValue });
+      const templateRef = resolveExpr(cfg.templateRef, $vars);
+      const targetRaw = resolveExpr(cfg.targetOccurrenceVar, $vars);
+      const targetOccurrenceId = (typeof targetRaw === "object" && targetRaw !== null)
+        ? (targetRaw.id || null)
+        : (typeof targetRaw === "string" ? targetRaw : null);
+      const mode = cfg.mode === "replace" ? "replace" : "append";
+
+      if (!templateRef || !targetOccurrenceId) break;
+      const target = occurrencesById[targetOccurrenceId];
+      if (!target) break;
+
+      // Walk the template subtree from occurrencesById, mint new ids, push CREATE_ITEM
+      // per node so bindSocketToStore.CREATE_ITEM does the local dispatch + socket emit.
+      const newId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const newOccIds = [];
+
+      function clone(srcOccId, parentId, isRoot) {
+        const srcOcc = occurrencesById[srcOccId];
+        if (!srcOcc) return null;
+        const srcModId = srcOcc.moduleId || srcOcc.targetId;
+        const srcMod = srcModId ? state?.modulesById?.[srcModId] : null;
+        if (!srcMod) return null;
+
+        const cloneModId = newId();
+        const cloneOccId = newId();
+
+        const childIds = [];
+        for (const childOccId of (srcOcc.occurrences || [])) {
+          const childCloneId = clone(childOccId, cloneOccId, false);
+          if (childCloneId) childIds.push(childCloneId);
+        }
+
+        // Strip templateModule marker on apply, attach appliedFromTemplateId on root
+        const newModuleMeta = { ...(srcMod.meta || {}), templateModule: false };
+        const newOccMeta = isRoot
+          ? { ...(srcOcc.meta || {}), appliedFromTemplateId: templateRef }
+          : { ...(srcOcc.meta || {}) };
+
+        updates.push({
+          _effect: "CREATE_ITEM",
+          template: {
+            id: cloneModId,
+            name: srcMod.label || srcMod.name,
+            label: srcMod.label || srcMod.name,
+            role: srcMod.role,
+            kind: srcMod.kind,
+            meta: newModuleMeta,
+          },
+          instance: {
+            id: cloneOccId,
+            templateId: cloneModId,
+            parentId,
+            fields: { ...(srcOcc.fields || {}) },
+            textmap: srcOcc.textmap || null,
+            viewId: srcOcc.viewId || null,
+          },
+        });
+
+        // Pre-link the children into our local subtree by emitting a follow-up
+        // UPDATE_OCCURRENCE for the new occurrence with its children list (CREATE_ITEM
+        // alone doesn't carry children — the handler creates the occurrence with empty
+        // occurrences[] and only appends to its parent).
+        if (childIds.length) {
+          updates.push({
+            _effect: "UPDATE_OCCURRENCE",
+            occurrence: { id: cloneOccId, occurrences: childIds },
+          });
+        }
+
+        newOccIds.push(cloneOccId);
+
+        // Optimistic publish so subsequent FIND/LOOP in same pipeline sees it
+        if (Array.isArray($vars.$allOccurrences)) {
+          const stub = {
+            id: cloneOccId,
+            moduleId: cloneModId,
+            targetId: cloneModId,
+            parentId,
+            fields: { ...(srcOcc.fields || {}) },
+            occurrences: childIds,
+            meta: newOccMeta,
+            role: srcMod.role,
+          };
+          $vars.$allOccurrences = [...$vars.$allOccurrences, stub];
+          if (Array.isArray($vars.$allItems)) {
+            $vars.$allItems = [...$vars.$allItems, stub];
+          }
+        }
+
+        return cloneOccId;
       }
+
+      // Mode "replace" first clears the target's children
+      if (mode === "replace" && (target.occurrences || []).length) {
+        updates.push({
+          _effect: "UPDATE_OCCURRENCE",
+          occurrence: { id: target.id, occurrences: [] },
+        });
+      }
+
+      const rootCloneId = clone(templateRef, target.id, true);
+      if (!rootCloneId) break;
+
+      // CREATE_ITEM auto-appends each new occurrence to its parent. Root clone's parent
+      // is the target — let the handler do the append automatically (it already does).
+
+      if (cfg.resultVar) $vars[cfg.resultVar] = newOccIds;
       break;
     }
 
