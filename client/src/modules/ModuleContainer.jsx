@@ -42,7 +42,6 @@ import {
   X,
 } from "lucide-react";
 
-import { CanvasCard } from "./containerHelpers.jsx";
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import { DocEditorShell } from "./DocContent.jsx";
 import ContainerPool from "./containers/ContainerPool.jsx";
@@ -195,7 +194,7 @@ function Container({
 
   const containerOccurrence = useMemo(() => {
     if (occurrenceOverride) return occurrencesById[occurrenceOverride.id] || occurrenceOverride;
-    return Object.values(occurrencesById).find(occ => occ.targetId === module.id);
+    return Object.values(occurrencesById).find(occ => occ.moduleId === module.id);
   }, [occurrenceOverride, occurrencesById, module.id]);
 
   const containerDragMode = containerOccurrence?.dragMode ?? module?.defaultDragMode ?? "move";
@@ -267,8 +266,7 @@ function Container({
       id: occId,
       userId: module.userId,
       gridId: module.gridId,
-      targetId: instanceModule.id,
-      targetType: "module",
+      moduleId: instanceModule.id,
       iteration: { mode: "persistent" },
       fields: {},
     };
@@ -328,7 +326,7 @@ function Container({
     const items = orderedIds.map(occId => {
       const occ = occurrencesById[occId];
       if (!occ) return null;
-      return { instanceId: occ.targetId, fieldDefaults: occ.fields || {}, ...(occ.linkedGroupId ? { linkedGroupId: occ.linkedGroupId } : {}) };
+      return { instanceId: occ.moduleId, fieldDefaults: occ.fields || {}, ...(occ.linkedGroupId ? { linkedGroupId: occ.linkedGroupId } : {}) };
     }).filter(Boolean);
     const templateName = window.prompt("Template name:", module.label || "Template");
     if (!templateName) return;
@@ -432,31 +430,59 @@ function Container({
     return ids.map(occId => {
       const occ = occurrencesById[occId];
       if (!occ) return null;
-      const mod = modulesById[occ.targetId];
+      const mod = modulesById[occ.moduleId];
       if (!mod) return null;
       return { module: mod, occurrence: occ };
     }).filter(Boolean);
   }, [isCanvasContainer, containerOccurrence, module, occurrencesById, modulesById]);
 
-  // Canvas card renderer — called by CanvasDrawSection for each item.
-  // Renders <CanvasCard> with <Instance> or <Container embedded> as children.
-  const renderCanvasCard = useCallback(({ module: mod, occurrence: occ, style, containerId: cid, panelId: pid }) => (
-    <CanvasCard
-      key={occ.id}
-      module={mod}
-      occurrence={occ}
-      dispatch={dispatch}
-      socket={socket}
-      containerId={cid}
-      panelId={pid}
-      style={style}
-    >
-      {mod.role === "container"
-        ? <Container module={mod} occurrenceOverride={occ} panelId={pid} embedded dispatch={dispatch} socket={socket} />
-        : <ModuleInstance id={mod.id} label={mod.label} instance={mod} occurrence={occ} dispatch={dispatch} socket={socket} />
-      }
-    </CanvasCard>
-  ), [dispatch, socket]);
+  // Canvas card renderer — wraps <ModuleInstance>/<Container> in an
+  // absolute-positioning shell. The inner module handles its own drag
+  // (useDragDrop), so canvas children are the same components used in
+  // board/doc — only positioning differs.
+  const renderCanvasCard = useCallback(({ module: mod, occurrence: occ, containerId: cid, panelId: pid }) => {
+    let renderBody = null;
+    if (mod.role === "textblock") {
+      renderBody = () => <TextblockCard occurrence={occ} />;
+    } else if (mod.role === "artifact") {
+      renderBody = () => <ArtifactCard module={mod} label={mod.label} />;
+    }
+    return (
+      <div
+        key={occ.id}
+        style={{
+          position: "absolute",
+          left: occ?.meta?.x ?? 20,
+          top: occ?.meta?.y ?? 20,
+          minWidth: 160,
+          maxWidth: 300,
+        }}
+      >
+        {mod.role === "container" ? (
+          <Container
+            module={mod}
+            occurrenceOverride={occ}
+            panelId={pid}
+            embedded={mod.kind === "doc"}
+            dispatch={dispatch}
+            socket={socket}
+          />
+        ) : (
+          <ModuleInstance
+            module={mod}
+            occurrence={occ}
+            containerId={cid}
+            containerOccurrence={containerOccurrence}
+            panelId={pid}
+            dispatch={dispatch}
+            socket={socket}
+            renderBody={renderBody}
+            floatHandle={!!renderBody}
+          />
+        )}
+      </div>
+    );
+  }, [dispatch, socket, containerOccurrence]);
 
 
   return (
@@ -845,7 +871,7 @@ function Container({
         const foTimeStr = String(getOccDate(fo)).slice(0, 10);
 
         const getSiblingOcc = (sibId) => {
-          const sibs = allOccurrences.filter(o => o.targetId === sibId);
+          const sibs = allOccurrences.filter(o => o.moduleId === sibId);
           if (foTimeStr) {
             const matched = sibs.find(o => String(getOccDate(o)).slice(0, 10) === foTimeStr);
             if (matched) return matched;
@@ -856,7 +882,7 @@ function Container({
         };
 
         const historyOccs = allOccurrences
-          .filter(o => o.targetId === fi.id && o.id !== fo?.id)
+          .filter(o => o.moduleId === fi.id && o.id !== fo?.id)
           .sort((a, b) => new Date(getOccDate(b)) - new Date(getOccDate(a)));
 
         const formatHistoryDate = (occ) => {
@@ -931,7 +957,7 @@ function Container({
                       <span className="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-wide">Sub-items ({childInstances.length})</span>
                     </div>
                     {childInstances.map(child => {
-                      const childOccs = allOccurrences.filter(o => o.targetId === child.id);
+                      const childOccs = allOccurrences.filter(o => o.moduleId === child.id);
                       let childOcc = foTimeStr
                         ? childOccs.find(o => String(getOccDate(o)).slice(0, 10) === foTimeStr)
                         : null;
@@ -976,7 +1002,7 @@ function Container({
                       const hTimeStr = String(getOccDate(hOcc)).slice(0, 10);
                       const siblingPreviews = siblingInstances.map(sib => {
                         const sibHOcc = allOccurrences.find(o =>
-                          o.targetId === sib.id &&
+                          o.moduleId === sib.id &&
                           String(getOccDate(o)).slice(0, 10) === hTimeStr
                         );
                         return { sib, text: extractDocText(sibHOcc?.textmap, 120).trim() };

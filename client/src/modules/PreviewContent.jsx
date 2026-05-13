@@ -25,7 +25,7 @@ export default function PreviewContent({ occurrence, view, dispatch, socket }) {
   const { modulesById } = useContext(GridActionsContext);
   const dragRef = useRef(null);
 
-  const module = occurrence?.targetId ? modulesById?.[occurrence.targetId] : null;
+  const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const label = module?.label || "Untitled";
   const fileRef = module?.fileRef;
   const artifactType = view?.artifactType;

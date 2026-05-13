@@ -13,6 +13,13 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
   const editorRef = useRef(null);
   const isLocked = !!occurrence?.locked;
   const autoCreateCooldownRef = useRef(false);
+  // Tracks the most recent auto-created textblock so the outer editor's merge
+  // pre-pass only absorbs paragraphs that landed during the focus-race window.
+  // `occId` is set when auto-create runs, cleared the moment focus lands in
+  // the sub-editor (or the rAF retry cap is hit). `expireAt` adds a short
+  // time gate (~200ms) so deliberate gestures that happen later — Enter,
+  // Shift+Enter, click, cursor move — don't fall into the merge path.
+  const recentAutoCreateRef = useRef({ occId: null, expireAt: 0 });
 
   // Scroll-to-anchor: when scrollAnchor is set, find the element and scroll to it
   useEffect(() => {
@@ -43,10 +50,11 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
     const modId = crypto.randomUUID();
     const occId = crypto.randomUUID();
 
-    // Create the text module (instance role, kind: doc)
+    // Create the text module (role: textblock — same role used by the
+    // QuickAddMenu "+ Textblock" path so all textblocks share one shape).
     CommitHelpers.createModule({
       dispatch, socket,
-      module: { id: modId, userId, gridId, role: "instance", kind: "doc", label: "" },
+      module: { id: modId, userId, gridId, role: "textblock", kind: "doc", label: "" },
       emit: true,
     });
 
@@ -58,7 +66,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       dispatch, socket,
       occurrence: {
         id: occId, userId, gridId,
-        targetId: modId, targetType: "module",
+        moduleId: modId,
         parentId: occurrence.id,
         iteration: { mode: "persistent" },
         textmap: initialTextmap,
@@ -78,26 +86,51 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
     }));
     editor.view.dispatch(tr);
 
-    // Focus the sub-editor at END of content as soon as it appears in the DOM
+    // Mark this occurrence as the active focus-race target. The merge
+    // pre-pass uses `occId` to fold continuation keystrokes into the right
+    // textblock; `expireAt` is a SLIDING bound that the merge bumps after
+    // every successful absorption (Editor.jsx). A short initial window
+    // (300 ms) means a pause closes it quickly so post-exit typing spawns
+    // a fresh textblock — fast continuous typing keeps re-arming it.
+    recentAutoCreateRef.current = { occId, expireAt: Date.now() + 300 };
+
+    // Focus the sub-editor at END of content as soon as it appears in the DOM.
+    // Retry generously (~1s) because the inner ProseMirror is mounted by
+    // React + TipTap on the next render cycle and may not appear for several
+    // frames. The outer-editor onUpdate merge pre-pass catches any chars
+    // that land in a fresh paragraph after the textblock during this window.
     const tryFocus = (attempts = 0) => {
       const wrapper = editor.view.dom.closest(".doc-editor-wrapper");
       const subEditor = wrapper?.querySelector(`[data-occurrence-id="${occId}"] .ProseMirror`);
       if (subEditor) {
         subEditor.focus();
-        // Place cursor at end so subsequent keystrokes append, not prepend
         try {
           const range = document.createRange();
           range.selectNodeContents(subEditor);
-          range.collapse(false); // collapse to end
+          range.collapse(false);
           const sel = window.getSelection();
           sel?.removeAllRanges();
           sel?.addRange(range);
         } catch (_) {}
-        autoCreateCooldownRef.current = false;
-      } else if (attempts < 10) {
+        // VERIFY focus actually moved before we close the merge window.
+        // The element can appear in the DOM a frame before it accepts
+        // focus (React paint still in flight); clearing the refs at that
+        // point lets the next fast keystroke escape the merge and spawn
+        // a brand-new textblock, which looks to the user like "the text
+        // wrapped to a new line inside the textblock."
+        const focused = document.activeElement === subEditor
+          || subEditor.contains(document.activeElement);
+        if (focused) {
+          autoCreateCooldownRef.current = false;
+          recentAutoCreateRef.current = { occId: null, expireAt: 0 };
+          return;
+        }
+      }
+      if (attempts < 60) {
         requestAnimationFrame(() => tryFocus(attempts + 1));
       } else {
         autoCreateCooldownRef.current = false;
+        recentAutoCreateRef.current = { occId: null, expireAt: 0 };
       }
     };
     requestAnimationFrame(() => tryFocus());
@@ -151,6 +184,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         onConvertListToInstances={onConvertListToInstances}
         onExitBlock={onExitBlock}
         onDeleteBlock={onDeleteBlock}
+        recentAutoCreateRef={recentAutoCreateRef}
         onAutoCreateTextblock={onExitBlock ? null : (onAutoCreateTextblock || handleAutoCreateTextblock)}
       />
     </div>

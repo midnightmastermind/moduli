@@ -41,19 +41,19 @@ export default function GlobalTree({ onNavigate }) {
     return gridOccIds.map(panelOccId => {
       const panelOcc = occurrencesById?.[panelOccId];
       if (!panelOcc) return null;
-      const panelMod = modulesById?.[panelOcc.targetId];
+      const panelMod = modulesById?.[panelOcc.moduleId];
       if (!panelMod) return null;
       const label = panelMod.label || panelMod.name || "Panel";
 
       const containers = (panelOcc.occurrences || []).map(cOccId => {
         const cOcc = occurrencesById?.[cOccId];
         if (!cOcc) return null;
-        const cMod = modulesById?.[cOcc.targetId];
+        const cMod = modulesById?.[cOcc.moduleId];
         if (!cMod) return null;
         const instances = (cOcc.occurrences || []).map(iOccId => {
           const iOcc = occurrencesById?.[iOccId];
           if (!iOcc) return null;
-          const iMod = modulesById?.[iOcc.targetId];
+          const iMod = modulesById?.[iOcc.moduleId];
           return iOcc && iMod ? { occId: iOccId, label: iMod.label || "Instance", mod: iMod } : null;
         }).filter(Boolean);
         return { occId: cOccId, label: cMod.label || "Container", mod: cMod, instances };
@@ -76,7 +76,7 @@ export default function GlobalTree({ onNavigate }) {
     const byFolder = {};
     for (const m of artifacts) {
       // Find the occurrence to get parentId (folderId)
-      const occ = Object.values(occurrencesById || {}).find(o => o.targetId === m.id);
+      const occ = Object.values(occurrencesById || {}).find(o => o.moduleId === m.id);
       const folderId = occ?.parentId || "__none__";
       if (!byFolder[folderId]) byFolder[folderId] = [];
       byFolder[folderId].push({ mod: m, occ });

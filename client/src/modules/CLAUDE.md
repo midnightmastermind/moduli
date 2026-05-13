@@ -1,6 +1,19 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: Apr 25 2026. This folder implements occurrence-based view routing._
+_Updated: May 11 2026. This folder implements occurrence-based view routing._
+
+## Recent Changes (May 11 2026 — Canvas toolbar: line tool + undo/redo + hide)
+- **CanvasContent.jsx**: Added `line` tool (Minus icon) alongside pen/rect/circle/eraser. `renderStrokes` + `onPointerMove` (live preview) + `onPointerUp` (commit) each have a `line` branch that draws a single segment from `currentPath[0]` to the drop point.
+- **CanvasContent.jsx**: Stroke history is now undoable. Added a `redoStack` state; `undo` pops the last stroke onto `redoStack` and persists the truncated list, `redo` reverses it. Drawing a new stroke clears `redoStack` (standard branch-cut semantics). Undo / Redo / Clear are three buttons in the toolbar's right cluster, with `disabled` states wired to `strokes.length === 0` / `redoStack.length === 0`.
+- **CanvasContent.jsx**: Added an in-toolbar **Hide** button (ChevronUp) that flips `toolbarOpen` to false; while collapsed, a small `<Pencil> Tools` pill renders top-right of the canvas surface to re-open. `toolbarOpen` re-syncs from the `showToolbar` prop via `useEffect` so parents can still force the toolbar open/closed.
+
+## Recent Changes (May 10 2026 — Local tree + instance field wrap + date picker)
+- **ManifestTree.jsx**: Added `LocalFolderGroup` component that mirrors `FolderNode`'s render structure (chevron + folder NodePill, children indented `marginLeft` via depth). The `isPagePanel` branch now uses left-aligned layout — replaced the right-aligned "LOCAL 📁" banner + `justify-content: flex-end` folder headers + `reverseIndent={true}` PageTreeNodes with `LocalFolderGroup` for folder groups + plain `PageTreeNode depth={0}` for root pages. Local now visually matches Root.
+- **ModuleInstance.jsx**: `.instance-content` flex row gains `flexWrap: "wrap"` + `rowGap: 4`; `.instance-fields` changes `flex: 1` → `flex: "1 1 160px"`. Together: when the parent panel is wide enough the fields stay inline-right of the label, but when the row would force fields to crush the label (e.g. narrow Schedule slots, mobile), the entire fields block wraps to a second row underneath the label at full width.
+
+## Recent Changes (May 10 2026 — Page Header Tweaks)
+- **ModulePanel.jsx**: Added `Layers` lucide import. Page panel header now includes the grid-cell stack switcher (`panel-stack-btn-inline` with Layers icon + count) inline to the RIGHT of QuickAddMenu, inside the existing actions div. Reads `dragCtx.getStackForPanel(module)` and only renders when `stack.length > 1`. Removed `marginLeft: 18` from the active page label `<span>` — handle and label now sit flush (gap is just the parent flex `gap: 6`).
+- **Grid.jsx**: GridCell-level stack button now gated by `stackCount > 0 && !hasPanel` (was just `stackCount > 0`). When a panel occupies the cell, the switcher lives in the panel header instead — prevents double rendering.
 
 ## Recent Changes (Apr 26 2026 — Per-day Container/Occurrence Pairs)
 - **ModulePage.jsx**: `containersList` (board pages) now returns `[{ container, occurrence }]` pairs instead of just containers. The lookup walks `occurrence.occurrences[]` and picks the FIRST child occurrence of each container module that passes `isOccurrenceVisible(occ, pageEffectiveFilters, …)`. When a container has no occurrence at all, falls back to `{ container, occurrence: null }` (preserves prior behavior for newly-created/empty containers).

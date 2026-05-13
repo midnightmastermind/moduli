@@ -16,7 +16,6 @@ import React, {
 import Panel from "./modules/ModulePanel";
 import ErrorBoundary from "./ui/ErrorBoundary";
 import FullscreenOverlay from "./ui/FullscreenOverlay";
-import GridRadialMenu from "./ui/GridRadialMenu";
 
 import { GridDataContext } from "./GridDataContext";
 import { GridActionsContext } from "./GridActionsContext";
@@ -76,8 +75,8 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
         overflow: "visible",
       }}
     >
-      {/* Panel switcher — always top-left, cycles through stack including empty */}
-      {stackCount > 0 && (
+      {/* Panel switcher — only on empty cells; populated cells show the switcher inside the panel header */}
+      {stackCount > 0 && !hasPanel && (
         <button
           className="panel-stack-btn-inline"
           style={{ border: "none", position: "absolute", top: 5, left: 28, minHeight: 21, zIndex: 90, pointerEvents: "auto" }}
@@ -367,7 +366,7 @@ function GridInner() {
     const panelOccurrences = getGridPanels(state);
 
     // Map occurrences to panels with placement merged in
-    // occ.panel is set by autofillOccurrence for both targetType "panel" and "module" with role "panel"
+    // occ.panel is set by autofillOccurrence when the linked module has role "panel"
     return panelOccurrences
       .filter(occ => !!occ.panel)
       .map(occ => ({
@@ -671,16 +670,9 @@ function GridInner() {
         rows={rows}
       />
 
-      {/* Grid Radial Menu - Undo/Redo (History in Toolbar; field config lives in CommandCenter FieldsTab) — hidden on mobile */}
-      {!isMobile && (
-        <GridRadialMenu
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={canUndo && !isProcessing}
-          canRedo={canRedo && !isProcessing}
-          disabled={isProcessing}
-        />
-      )}
+      {/* Grid Radial Menu removed — undo/redo + history live in Toolbar.
+          The fixed bottom-right placement was covering the bottom-right
+          panel's resize handle. */}
 
     </DragProvider>
   );

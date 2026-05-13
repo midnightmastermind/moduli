@@ -15,7 +15,7 @@ const folder = await Folder.findOne({ id: TARGET_ID }).lean();
 console.log(`Looking up: ${TARGET_ID}\n`);
 if (occ) {
   console.log("FOUND as Occurrence:");
-  console.log(`  targetId=${occ.targetId} parentId=${occ.parentId} userId=${occ.userId} gridId=${occ.gridId}`);
+  console.log(`  moduleId=${occ.moduleId} parentId=${occ.parentId} userId=${occ.userId} gridId=${occ.gridId}`);
   console.log(`  meta=${JSON.stringify(occ.meta)} fields=${JSON.stringify(occ.fields)}`);
 }
 if (mod) {

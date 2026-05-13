@@ -89,7 +89,7 @@ export default function PageFolder({
   const scopeLabels = useMemo(() => {
     return drilldownStack.map(occId => {
       const occ = occurrencesById[occId];
-      const mod = occ ? modulesById[occ.targetId] : null;
+      const mod = occ ? modulesById[occ.moduleId] : null;
       return { occId, label: mod?.label || "…" };
     });
   }, [drilldownStack, occurrencesById, modulesById]);
@@ -188,7 +188,7 @@ export default function PageFolder({
       }}>
         <div className="preview-node-grid">
           {childOccs.map((occ, i) => {
-            const mod = modulesById[occ.targetId];
+            const mod = modulesById[occ.moduleId];
             return (
               <PreviewNode
                 key={occ.id}

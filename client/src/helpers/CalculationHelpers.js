@@ -356,7 +356,7 @@ export function filterOccurrencesByScope(occurrences, scope, context = {}) {
 
     case "instance":
       return occurrences.filter(occ =>
-        occ.gridId === gridId && occ.targetId === instanceId
+        occ.gridId === gridId && occ.moduleId === instanceId
       );
 
     default:

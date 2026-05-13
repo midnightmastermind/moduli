@@ -21,7 +21,7 @@ const withFields = occs.filter(o => o.fields && Object.keys(o.fields).length > 0
 console.log(`With non-empty fields: ${withFields.length}\n`);
 
 for (const o of withFields) {
-  const m = modById[o.targetId];
+  const m = modById[o.moduleId];
   const entries = Object.entries(o.fields).map(([k, v]) => {
     const val = v?.value ?? v;
     return `${k.slice(0, 8)}=${JSON.stringify(val)}`;

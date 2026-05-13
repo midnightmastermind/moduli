@@ -416,18 +416,44 @@ function Field({
         if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + "T00:00:00");
         return new Date(v);
       };
-      const formatted = localValue
-        ? parseLocalDay(localValue)?.toLocaleDateString(undefined, { month: "short", day: "numeric" }) ?? "date"
+      // <input type="date"> only accepts yyyy-MM-dd. Stored values can be
+      // ISO timestamps (seed data) — normalize before binding to the input,
+      // otherwise the picker opens empty and the user can't see the current value.
+      const toInputDate = (v) => {
+        if (!v) return "";
+        if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+        const d = parseLocalDay(v);
+        if (!d || Number.isNaN(d.getTime())) return "";
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      };
+      const inputDate = toInputDate(localValue);
+      const formatted = inputDate
+        ? parseLocalDay(inputDate)?.toLocaleDateString(undefined, { month: "short", day: "numeric" }) ?? "date"
         : "date";
+      // The hidden input has 0 size + pointer-events:none, so the browser
+      // can't auto-open its picker via label-click forwarding. Trigger
+      // showPicker() on click so the user can actually pick a date.
+      const openPicker = (e) => {
+        if (disabled) return;
+        const el = inputRef.current;
+        if (el?.showPicker) {
+          e.preventDefault();
+          try { el.showPicker(); } catch { /* picker may throw if already open */ }
+        }
+      };
       return (
         <label className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
           bg-white/5 border-white/10 text-white/55 cursor-pointer hover:brightness-110
           ${disabled ? "opacity-50 pointer-events-none" : ""}`}
           title={`${name}: ${formatted} — Click to change`}
+          onClick={openPicker}
         >
           {!hideName && name && <span style={{ fontFamily: "var(--font-mono)", opacity: 0.6 }}>{name}:</span>}
           <span style={{ fontFamily: "var(--font-mono)" }}>{formatted}</span>
-          <input type="date" value={localValue ?? ""} disabled={disabled}
+          <input ref={inputRef} type="date" value={inputDate} disabled={disabled}
             onChange={e => { handleChange(e.target.value); onCommit?.(e.target.value); }}
             style={{ position: "absolute", opacity: 0, width: 0, height: 0, pointerEvents: "none" }}
             tabIndex={-1} />

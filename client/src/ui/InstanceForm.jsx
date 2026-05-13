@@ -6,14 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronUp, Plus, X, Eye, EyeOff } from "lucide-react";
-import MultiSelectPills from "./MultiSelectPills";
+import { X, Eye, EyeOff, Hash, Plus } from "lucide-react";
+import CategoryPathPicker from "./CategoryPathPicker";
 import StyleEditor from "./StyleEditor";
 import { GridActionsContext } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { uid } from "../uid";
-import { INPUT_FLOWS } from "../helpers/CalculationHelpers";
 import {
   Select,
   SelectContent,
@@ -462,22 +460,11 @@ function OtherPlacements({ moduleId, excludeOccId, occurrencesById, modulesById 
   );
 }
 
-// Flow options for input fields
-const INPUT_FLOW_OPTIONS = Object.entries(INPUT_FLOWS).map(([value, config]) => ({
-  value,
-  label: config.label,
-}));
-
-// Field type options
-const FIELD_TYPES = [
-  { value: "number", label: "Number" },
-  { value: "text", label: "Text" },
-  { value: "boolean", label: "Boolean" },
-  { value: "date", label: "Date" },
-];
-
 /**
- * FieldsSection - MultiSelect-based field binding management
+ * FieldsSection — CategoryPathPicker (set to fields) drives attach/detach.
+ * Field creation, renaming, type changes, and deletion live exclusively in
+ * the Command Center → Fields tab. This popover only binds/unbinds fields
+ * and toggles per-binding visibility.
  */
 function FieldsSection({
   instance,
@@ -488,27 +475,34 @@ function FieldsSection({
   dispatch,
   socket,
 }) {
-  const fieldOptions = useMemo(() => {
-    return allFields.map(f => ({
-      value: f.id,
-      label: f.name || f.type,
-      description: `${f.type}`,
-      color: f.inputEnabled
-        ? "bg-blue-500/20 text-blue-300"
-        : "bg-violet-500/20 text-violet-300",
-    }));
-  }, [allFields]);
+  const boundFieldIds = useMemo(
+    () => new Set(localBindings.map(b => b.fieldId).filter(Boolean)),
+    [localBindings]
+  );
 
-  const selectedFieldIds = useMemo(() => {
-    return localBindings.map(b => b.fieldId).filter(Boolean);
-  }, [localBindings]);
+  // Single-category picker exposing the grid's fields, minus the ones already
+  // bound. One click commits — no drilling past the category step.
+  const pickerConfig = useMemo(() => ({
+    placeholder: "Add field",
+    categories: [{
+      id: "fields",
+      label: "Pick a field to bind",
+      description: "Fields are created and edited in Command Center → Fields.",
+      icon: Hash,
+      color: "rgba(168,85,247,0.7)",
+      resolveItems: () => allFields
+        .filter(f => !boundFieldIds.has(f.id))
+        .map(f => ({
+          value: f.id,
+          title: f.name || "(unnamed field)",
+          sub: f.type || "field",
+          description: f.meta?.description || `${f.type || "field"} field`,
+          hasChildren: false,
+        })),
+    }],
+  }), [allFields, boundFieldIds]);
 
-  const handleFieldSelectionChange = useCallback((selectedIds) => {
-    const newBindings = selectedIds.map((fieldId, index) => {
-      const existing = localBindings.find(b => b.fieldId === fieldId);
-      if (existing) return existing;
-      return { fieldId, role: "input", order: index };
-    });
+  const commitBindings = useCallback((newBindings) => {
     setLocalBindings(newBindings);
     if (instance) {
       CommitHelpers.updateModule({
@@ -517,74 +511,49 @@ function FieldsSection({
         emit: true,
       });
     }
-  }, [localBindings, instance, dispatch, socket, setLocalBindings]);
+  }, [instance, dispatch, socket, setLocalBindings]);
 
-  const addNewField = useCallback(() => {
-    const newFieldId = uid();
-    const newField = {
-      id: newFieldId,
-      name: "",
-      type: "number",
-      inputEnabled: true,
-      displayEnabled: false,
-      meta: { prefix: "", postfix: "", increment: 1 },
-    };
-    CommitHelpers.createField({ dispatch, socket, field: newField, emit: true });
-    const newBinding = { fieldId: newFieldId, role: "input", order: localBindings.length };
-    const newBindings = [...localBindings, newBinding];
-    setLocalBindings(newBindings);
-    if (instance) {
-      CommitHelpers.updateModule({
-        dispatch, socket,
-        module: { id: instance.id, fieldBindings: newBindings },
-        emit: true,
-      });
-    }
-  }, [localBindings, instance, dispatch, socket, setLocalBindings]);
-
-  const updateField = useCallback((field) => {
-    CommitHelpers.updateField({ dispatch, socket, field, emit: true });
-  }, [dispatch, socket]);
+  const handlePickField = useCallback((picked) => {
+    if (!picked) return;
+    // Picker commits the picked field id as a dot-joined chain. With our
+    // single-flat-category config, that chain is just the field id.
+    const fieldId = picked.split(".").pop();
+    if (!fieldId || boundFieldIds.has(fieldId)) return;
+    commitBindings([
+      ...localBindings,
+      { fieldId, role: "input", order: localBindings.length },
+    ]);
+  }, [localBindings, boundFieldIds, commitBindings]);
 
   const updateBinding = useCallback((fieldId, updates) => {
-    const newBindings = localBindings.map(b =>
+    commitBindings(localBindings.map(b =>
       b.fieldId === fieldId ? { ...b, ...updates } : b
-    );
-    setLocalBindings(newBindings);
-    if (instance) {
-      CommitHelpers.updateModule({
-        dispatch, socket,
-        module: { id: instance.id, fieldBindings: newBindings },
-        emit: true,
-      });
-    }
-  }, [localBindings, instance, dispatch, socket, setLocalBindings]);
+    ));
+  }, [localBindings, commitBindings]);
+
+  const removeBinding = useCallback((fieldId) => {
+    commitBindings(localBindings.filter(b => b.fieldId !== fieldId));
+  }, [localBindings, commitBindings]);
 
   return (
     <div className="py-2">
-      <div className="flex items-center justify-between mb-2">
+      <div className="mb-2">
         <h4 className="text-xs font-semibold text-white">Fields</h4>
-        <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={addNewField}>
-          <Plus className="h-3 w-3 mr-1" />
-          Add New Field
-        </Button>
       </div>
 
       <p className="text-[10px] text-foregroundScale-2/80 mb-2">
-        Select existing fields or add new ones.
+        Attach existing fields. Create, rename, or change types in Command Center → Fields.
       </p>
 
-      <MultiSelectPills
-        options={fieldOptions}
-        selected={selectedFieldIds}
-        onChange={handleFieldSelectionChange}
-        placeholder="Select existing fields..."
-        emptyMessage="No fields defined yet"
-        compact
+      <CategoryPathPicker
+        value=""
+        onChange={handlePickField}
+        ctx={{ fields: allFields, sources: [], localVars: [] }}
+        config={pickerConfig}
       />
 
       {localBindings.filter(b => b.fieldId).length > 0 && (
-        <div className="mt-3 space-y-2">
+        <div className="mt-3 space-y-1">
           {localBindings.filter(b => b.fieldId).map((binding) => {
             const field = fieldsById[binding.fieldId];
             if (!field) return null;
@@ -593,9 +562,8 @@ function FieldsSection({
                 key={binding.fieldId}
                 field={field}
                 binding={binding}
-                allFields={allFields}
-                onUpdateField={updateField}
                 onUpdateBinding={(updates) => updateBinding(binding.fieldId, updates)}
+                onRemove={() => removeBinding(binding.fieldId)}
               />
             );
           })}
@@ -606,38 +574,20 @@ function FieldsSection({
 }
 
 /**
- * FieldBindingRow - Individual field binding with full field editing
+ * FieldBindingRow — read-only label + per-binding toggles only.
+ * No field name/type/meta editing.
  */
-function FieldBindingRow({ field, binding, allFields, onUpdateField, onUpdateBinding }) {
-  const [expanded, setExpanded] = useState(false);
+function FieldBindingRow({ field, binding, onUpdateBinding, onRemove }) {
   const pillColor = "bg-blue-500/20 text-blue-300 border-blue-500/30";
-
-  const handleFieldChange = useCallback((key, value) => {
-    onUpdateField({ ...field, [key]: value });
-  }, [field, onUpdateField]);
-
-  const handleMetaChange = useCallback((key, value) => {
-    onUpdateField({ ...field, meta: { ...(field.meta || {}), [key]: value } });
-  }, [field, onUpdateField]);
-
   return (
     <div className="border border-border rounded-md overflow-hidden">
-      <div className={`w-full flex items-center justify-between px-2 py-1.5 ${binding.hidden ? "bg-muted/10" : "bg-muted/30"} hover:bg-muted/50`}>
-        <button
-          type="button"
-          className="flex items-center gap-2 flex-1 text-left"
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? (
-            <ChevronUp className="h-3 w-3 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
-          )}
+      <div className={`w-full flex items-center justify-between px-2 py-1.5 ${binding.hidden ? "bg-muted/10" : "bg-muted/30"}`}>
+        <div className="flex items-center gap-2 flex-1">
           <span className={`px-2 py-0.5 text-[10px] rounded-full border ${binding.hidden ? "opacity-40 " : ""}${pillColor}`}>
             {field.name || field.type}
           </span>
           <span className="text-[10px] text-muted-foreground">{field.type}</span>
-        </button>
+        </div>
         <button
           type="button"
           title={binding.hidden ? "Show field" : "Hide field"}
@@ -646,79 +596,15 @@ function FieldBindingRow({ field, binding, allFields, onUpdateField, onUpdateBin
         >
           {binding.hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
         </button>
+        <button
+          type="button"
+          title="Unbind field"
+          className="ml-1 p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        >
+          <X className="h-3 w-3" />
+        </button>
       </div>
-
-      {expanded && (
-        <div className="p-2 space-y-3 border-t border-border">
-          <Input
-            type="text"
-            value={field.name || ""}
-            onChange={(e) => handleFieldChange("name", e.target.value)}
-            placeholder="Field name"
-            className="h-7 text-xs w-full"
-          />
-
-          <div className="space-y-2">
-            <div>
-              <Label className="text-[10px] text-muted-foreground">Type</Label>
-              <Select value={field.type} onValueChange={(v) => handleFieldChange("type", v)}>
-                <SelectTrigger className="h-7 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FIELD_TYPES.map(t => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {field.type === "number" && (
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Prefix</Label>
-                  <Input
-                    type="text"
-                    value={field.meta?.prefix || ""}
-                    onChange={(e) => handleMetaChange("prefix", e.target.value)}
-                    placeholder="e.g., $"
-                    className="h-6 text-xs"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Postfix</Label>
-                  <Input
-                    type="text"
-                    value={field.meta?.postfix || ""}
-                    onChange={(e) => handleMetaChange("postfix", e.target.value)}
-                    placeholder="e.g., kg"
-                    className="h-6 text-xs"
-                  />
-                </div>
-              </div>
-            )}
-
-            {field.type === "number" && (
-              <div>
-                <Label className="text-[10px] text-muted-foreground">Flow (how value affects aggregates)</Label>
-                <Select
-                  value={field.meta?.flow || "in"}
-                  onValueChange={(v) => handleMetaChange("flow", v)}
-                >
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INPUT_FLOW_OPTIONS.map(f => (
-                      <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -63,6 +63,11 @@ export default function NodePill({
   }, [dragData]);
 
   const isEntity = variant === "entity";
+  // Indent INSIDE the pill so the right edge stays at the container's right
+  // edge regardless of depth — every pill ends up the same width with content
+  // shifted to suggest hierarchy. Outer wrappers should NOT marginLeft.
+  const basePaddingLeft = isEntity ? 6 : 4;
+  const indentedPaddingLeft = basePaddingLeft + depth * 12;
 
   return (
     <div
@@ -74,7 +79,7 @@ export default function NodePill({
         alignItems: "center",
         gap: isEntity ? 5 : 3,
         padding: isEntity ? "5px 8px" : "1px 5px 1px 4px",
-        paddingLeft: isEntity ? 6 : 4,
+        paddingLeft: indentedPaddingLeft,
         paddingRight: isEntity ? 8 : 5,
         borderRadius: isEntity ? 6 : 4,
         border: isActive
@@ -86,6 +91,7 @@ export default function NodePill({
         cursor: "pointer",
         userSelect: "none",
         marginBottom: 0,
+        boxSizing: "border-box",
         ...extraStyle,
       }}
     >

@@ -49,7 +49,7 @@ function CodeViewer({ fileRef, label }) {
 
 export default function ArtifactContent({ occurrence, viewType, artifactType, embedded = false, dispatch, socket, view, onScrollHighlight }) {
   const { modulesById } = useContext(GridActionsContext);
-  const module = occurrence?.targetId ? modulesById?.[occurrence.targetId] : null;
+  const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const fileRef = module?.fileRef;
   const docAccentBg = hexToRgba(module?.ownStyle?.bg, 0.1) ?? null;
   const scrollRef = useRef(null);

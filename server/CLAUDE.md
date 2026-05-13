@@ -1,6 +1,14 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-05-07. Check this file before re-reading source._
+_Updated: 2026-05-11. Check this file before re-reading source._
+
+## Recent Changes (May 11 2026 — Canvas page filter cleared)
+- **scripts/createTestGrid.js (canvas page occurrence)**: Added explicit `filterOverride: {}` on the Canvas Test page occurrence. Without it the page inherits the grid's daily date filter, and the two seed canvas notes (which carry no date) get hidden as soon as the user navigates away from today. Matches the same `filterOverride: {}` convention Physical (Daily Toolkit) and General (Todo List) containers use to opt out of date filtering.
+
+## Recent Changes (May 11 2026 — Schedule CREATE ops pass fieldHidden + dueFieldId stamp)
+- **scripts/createTestGrid.js (`Schedule: Build Day` + `Schedule: Seed Daily Routine`)**: Every CREATE that stamps `dateFieldId` / `timeslotFieldId` onto a new container/instance now also passes `fieldHidden: { ... }` with those field ids set to true. Reason: the CREATE action's `buildBindings` previously un-hid existing bindings on the matched template module — once the user fixed up Drink Water's hidden Date binding, the next seed run would silently flip it back to visible. With explicit `fieldHidden`, the executor's new conservative `buildBindings` (helpers/operationActions.js change in same session) leaves user-set visibility intact and any new auto-bound field (e.g. timeslot added by seed) ships hidden out of the box.
+- **scripts/createTestGrid.js (`Schedule: Build Day` todo sweep)**: The CREATE that sweeps todos into Due now stamps `[dueFieldId]: "$schedDate"` in addition to `[dateFieldId]`. Symptom was "Due field shows literal 'Due: date' on swept todos" — the swept copy had no value bound to its template's existing dueFieldId binding, so the field renderer fell back to the field's name. The dueDate is the same as the active scheduled date by virtue of the sweep predicate, so we can stamp it directly.
+- **Re-seed required**: `node --env-file=.env scripts/createTestGrid.js` to push the new pipelines and re-mint the template bindings cleanly (the corrupted hidden flags on existing Drink Water / Take Medication / etc. templates are wiped by `dropExistingTestGrid` at the top of the script).
 
 ## Recent Changes (May 7 2026 — Tracker: Water Today gains onAdd/onDelete)
 - **scripts/createTestGrid.js**: `Tracker: Water Today` now matches the Tasks tracker's coverage. `triggerTypes` adds `"onAdd"` and `"onDelete"`; `triggerObjects` gain matching `subjectType:"module", subjectRole:"container", targetId:""` rows; the inner OR gate adds `$trigger.type IS OccurrenceCreateOp` and `... IS OccurrenceDeleteOp` rules. Without this, dragging a pre-completed water item into a schedule slot fired `OccurrenceCreateOp` but the Water tracker's existing trigger types (onChange/onFilterChange/onLoad) didn't include OccurrenceCreateOp, so it never re-aggregated until you edited a field. Tasks tracker already had this surface — Water was the lone gap.

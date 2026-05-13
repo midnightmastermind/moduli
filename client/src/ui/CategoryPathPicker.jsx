@@ -38,11 +38,11 @@ const SHAPES = {
   occurrence: {
     keys: (ctx) => [
       { value: "id",          title: "id",          sub: "string",   description: "Unique occurrence ID",                           hasChildren: false },
-      { value: "targetId",    title: "targetId",    sub: "string",   description: "Module template ID",                              hasChildren: false },
+      { value: "moduleId",    title: "moduleId",    sub: "string",   description: "Module this occurrence renders",                  hasChildren: false },
       { value: "parentId",    title: "parentId",    sub: "string",   description: "Parent occurrence ID",                            hasChildren: false },
       { value: "_ancestors",  title: "_ancestors",  sub: "string[]", description: "Ancestor chain (closest first)",                  hasChildren: false },
       { value: "label",       title: "label",       sub: "string",   description: "Module label (resolved from template)",           hasChildren: false },
-      { value: "templateId",  title: "templateId",  sub: "string",   description: "Same as targetId — module template",              hasChildren: false },
+      { value: "templateId",  title: "templateId",  sub: "string",   description: "Same as moduleId — module template",              hasChildren: false },
       { value: "fields",      title: "fields",      sub: "object",   description: "Field values map keyed by field ID",              hasChildren: true,  childShape: "fieldsMap" },
       { value: "meta",        title: "meta",        sub: "object",   description: "Module/occurrence meta",                          hasChildren: false },
       { value: "filterOverride",   title: "filterOverride",   sub: "object", description: "Per-occurrence filter override",                                       hasChildren: false },
@@ -188,7 +188,7 @@ function segmentDisplay(seg, ctx) {
   }
   if (ctx?.occurrencesById?.[seg]) {
     const occ = ctx.occurrencesById[seg];
-    const m = occ.targetId && ctx.modulesById?.[occ.targetId];
+    const m = occ.moduleId && ctx.modulesById?.[occ.moduleId];
     return m?.label || m?.name || seg;
   }
   return seg;

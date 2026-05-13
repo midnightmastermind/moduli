@@ -14,9 +14,10 @@
 // system — no native drag = nothing to intercept.
 //
 // HOOKS:
-// - useDraggable() - makes an element draggable
-// - useDroppable() - makes an element a drop target
-// - useDragDrop()  - both (for sortable items)
+// - useDroppable() - makes an element a drop target only
+// - useDragDrop()  - makes an element draggable + drop target. Pass empty
+//                    `accepts` to make it a pure drag source (drops on it
+//                    pass through to the parent target).
 //
 // DROP ZONE MATRIX:
 // ┌─────────────────┬────────────────────────────────────────┐
@@ -85,11 +86,11 @@ export const DragType = {
 
 // What each drop zone accepts
 export const DropAccepts = {
-  GRID_CELL: [DragType.PANEL, DragType.MODULE, DragType.ARTIFACT, DragType.FOLDER, DragType.FILE, DragType.EXTERNAL],
+  GRID_CELL: [DragType.PANEL, DragType.MODULE, DragType.INSTANCE, DragType.ARTIFACT, DragType.FOLDER, DragType.FILE, DragType.EXTERNAL],
   PANEL_CONTENT: [DragType.PAGE, DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.FOLDER, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
   PAGE_CONTENT: [DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.FOLDER, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
   CONTAINER_LIST: [DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
-  INSTANCE: [DragType.INSTANCE, DragType.ARTIFACT, DragType.FILE, DragType.TEXT, DragType.URL],
+  INSTANCE: [DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.FILE, DragType.TEXT, DragType.URL],
 };
 
 // ============================================================
@@ -139,6 +140,36 @@ export function getWindowId() {
 // ============================================================
 // PAYLOAD HELPERS
 // ============================================================
+// ============================================================
+// SHARED: drag-preview ghost render
+// ============================================================
+// Single source of truth for the see-through card ghost that follows the
+// cursor on drag. Used by useDragDrop so every
+// module's preview reads identically — solid surface, border, shadow,
+// regardless of the source element's own background.
+function attachDragPreview(el, location, nativeSetDragImage) {
+  const rect = el.getBoundingClientRect();
+  const cursorX = location.initial.input.clientX;
+  const cursorY = location.initial.input.clientY;
+  const offsetX = Math.round(cursorX - rect.left);
+  const offsetY = Math.round(cursorY - rect.top);
+  setCustomNativeDragPreview({
+    nativeSetDragImage,
+    getOffset: () => ({ x: offsetX, y: offsetY }),
+    render: ({ container }) => {
+      const clone = el.cloneNode(true);
+      clone.style.opacity = '1';
+      clone.style.transform = 'none';
+      clone.style.background = 'var(--surface-overlay)';
+      clone.style.border = '1px solid var(--input-border)';
+      clone.style.borderRadius = '8px';
+      clone.style.boxShadow = '0 8px 24px rgba(0,0,0,0.5)';
+      clone.style.padding = '4px 8px';
+      container.appendChild(clone);
+    },
+  });
+}
+
 export function createPayload(type, id, data, context = {}) {
   return {
     type,
@@ -300,241 +331,6 @@ function _findDropTarget(clientX, clientY, dragType, sourceEl) {
   return null;
 }
 
-// ============================================================
-// useDraggable HOOK
-// ============================================================
-export function useDraggable({
-  type,
-  id,
-  data = {},
-  context = {},
-  disabled = false,
-  nativeEnabled = true,
-  dragHandleRef = null, // optional ref — restricts drag start to that element
-}) {
-  const ref = useRef(null);
-  const dragCtx = useDragContext();
-  const [isDragging, setIsDragging] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || disabled) return;
-
-    const payload = createPayload(type, id, data, context);
-    const handleEl = dragHandleRef?.current;
-
-    // ─── MOBILE: Touch-based drag (no native DnD) ───
-    if (_isMobile()) {
-      const triggerEl = handleEl || el;
-      // Prevent browser gestures on drag handle (sampled at touchstart)
-      const prevTouchAction = triggerEl.style.touchAction;
-      triggerEl.style.touchAction = 'none';
-
-      let clone = null;
-      let dragging = false;
-      let startX, startY, offsetX, offsetY;
-      let curTarget = null;
-      let cachedRect = null;
-      let touchStartTime = 0;
-      let lastHitTestTime = 0;
-      let lastHitX = 0, lastHitY = 0;
-
-      const onStart = (e) => {
-        if (e.touches.length !== 1) return;
-        // NO e.preventDefault() — triggerEl CSS touch-action:none handles OS gesture suppression
-        // This lets the browser fire native click/pointer events for taps
-        const t = e.touches[0];
-        startX = t.clientX;
-        startY = t.clientY;
-        cachedRect = el.getBoundingClientRect(); // Cache rect NOW while layout is fresh
-        touchStartTime = performance.now();
-        dragging = false;
-      };
-
-      const onMove = (e) => {
-        if (e.touches.length !== 1) return;
-        const t = e.touches[0];
-
-        if (!dragging) {
-          // A2: Hold delay — don't start drag until finger held long enough
-          if (performance.now() - touchStartTime < _TOUCH_HOLD_MS) return;
-          if (Math.sqrt((t.clientX - startX) ** 2 + (t.clientY - startY) ** 2) < _TOUCH_THRESHOLD) return;
-          // Threshold crossed — NOW claim the gesture
-          e.preventDefault();
-          dragging = true;
-          document.documentElement.style.touchAction = 'none';
-          document.documentElement.style.overscrollBehavior = 'none';
-          setIsDragging(true);
-
-          // A1: Haptic feedback on drag start
-          if (navigator.vibrate) navigator.vibrate(15);
-
-          offsetX = 40;
-          offsetY = 14;
-          clone = _createDragPill(data?.label || data?.name || type, type);
-          clone.style.transform = `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`;
-          document.body.appendChild(clone);
-          lastHitX = t.clientX; lastHitY = t.clientY;
-          lastHitTestTime = performance.now();
-          dragCtx.handleDragStart(payload, startX, startY);
-          return;
-        }
-
-        e.preventDefault(); // Active drag — prevent scroll
-        // Pill follows finger at 60fps (cheap DOM update)
-        if (clone) {
-          clone.style.transform = `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`;
-        }
-
-        // A3+A4: Throttle hit-testing + cache when pointer barely moved
-        const now = performance.now();
-        const dx = t.clientX - lastHitX, dy = t.clientY - lastHitY;
-        if (now - lastHitTestTime < _HIT_TEST_INTERVAL || (dx * dx + dy * dy < _HIT_CACHE_DIST * _HIT_CACHE_DIST)) {
-          // Still update DragProvider position (for auto-scroll etc)
-          dragCtx.handleDragMove(t.clientX, t.clientY);
-          return;
-        }
-        lastHitTestTime = now;
-        lastHitX = t.clientX; lastHitY = t.clientY;
-
-        // Hit-test drop targets
-        const target = _findDropTarget(t.clientX, t.clientY, payload.type, el);
-
-        if (target?.el !== curTarget?.el) {
-          curTarget?.stateRef?.current?.setIsOver?.(false);
-          curTarget?.stateRef?.current?.setClosestEdge?.(null);
-          curTarget = target;
-          target?.stateRef?.current?.setIsOver?.(true);
-        }
-        if (curTarget?.allowedEdges) {
-          const edge = _computeClosestEdge(curTarget.el, t.clientX, t.clientY, curTarget.allowedEdges);
-          curTarget.stateRef?.current?.setClosestEdge?.(edge);
-        }
-
-        dragCtx.handleDragMove(t.clientX, t.clientY);
-        if (curTarget) {
-          dragCtx.handleDragOver?.({
-            type: curTarget.type, id: curTarget.id,
-            context: curTarget.context,
-            clientX: t.clientX, clientY: t.clientY,
-          });
-        }
-      };
-
-      const onEnd = (e) => {
-        if (!dragging) {
-          // Tap — browser fires native click since we never preventDefault'd
-          return;
-        }
-        const t = e.changedTouches[0];
-        if (clone) { clone.remove(); clone = null; }
-
-        if (curTarget) {
-          // A1: Haptic double-tap on successful drop
-          if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
-          const edge = curTarget.allowedEdges
-            ? _computeClosestEdge(curTarget.el, t.clientX, t.clientY, curTarget.allowedEdges)
-            : null;
-          curTarget.stateRef?.current?.setIsOver?.(false);
-          curTarget.stateRef?.current?.setClosestEdge?.(null);
-          dragCtx.handleDrop({
-            type: curTarget.type, id: curTarget.id,
-            context: { ...curTarget.context, instanceId: curTarget.id, closestEdge: edge },
-            clientX: t.clientX, clientY: t.clientY,
-            source: payload,
-          });
-        }
-
-        curTarget = null;
-        dragging = false;
-        setIsDragging(false);
-        document.documentElement.style.touchAction = '';
-        document.documentElement.style.overscrollBehavior = '';
-        setTimeout(() => dragCtx.handleDragEnd(), 0);
-      };
-
-      triggerEl.addEventListener('touchstart', onStart, { passive: false });
-      triggerEl.addEventListener('touchmove', onMove, { passive: false });
-      triggerEl.addEventListener('touchend', onEnd);
-      triggerEl.addEventListener('touchcancel', onEnd);
-
-      return () => {
-        triggerEl.style.touchAction = prevTouchAction;
-        triggerEl.removeEventListener('touchstart', onStart);
-        triggerEl.removeEventListener('touchmove', onMove);
-        triggerEl.removeEventListener('touchend', onEnd);
-        triggerEl.removeEventListener('touchcancel', onEnd);
-        if (clone) { clone.remove(); }
-      };
-    }
-
-    // ─── DESKTOP: Pragmatic DnD (HTML5 Drag and Drop) ───
-    const cleanup = draggable({
-      element: el,
-      ...(handleEl ? { dragHandle: handleEl } : {}),
-      getInitialData: () => payload,
-      getInitialDataForExternal: () => {
-        const externalData = {
-          [NATIVE_DND_MIME]: serializePayload(payload),
-        };
-        // Only include text/plain on desktop — Android treats it as shareable content
-        // and triggers split-screen/popup window gestures
-        if (!_isMobile()) {
-          externalData['text/plain'] = data.label || data.name || id;
-        }
-        return externalData;
-      },
-      onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
-        if (nativeEnabled) {
-          const rect = el.getBoundingClientRect();
-          const cursorX = location.initial.input.clientX;
-          const cursorY = location.initial.input.clientY;
-          const offsetX = Math.round(cursorX - rect.left);
-          const offsetY = Math.round(cursorY - rect.top);
-          setCustomNativeDragPreview({
-            nativeSetDragImage,
-            getOffset: () => ({ x: offsetX, y: offsetY }),
-            render: ({ container }) => {
-              const clone = el.cloneNode(true);
-              clone.style.opacity = '1';
-              clone.style.transform = 'none';
-              container.appendChild(clone);
-            },
-          });
-        }
-      },
-      onDragStart: ({ location }) => {
-        setIsDragging(true);
-        const clientX = location.current.input.clientX;
-        const clientY = location.current.input.clientY;
-        dragCtx.handleDragStart(payload, clientX, clientY);
-      },
-      onDrag: ({ location }) => {
-        const clientX = location.current.input.clientX;
-        const clientY = location.current.input.clientY;
-        dragCtx.handleDragMove(clientX, clientY);
-      },
-      onDrop: () => {
-        setIsDragging(false);
-        setTimeout(() => {
-          dragCtx.handleDragEnd();
-        }, 0);
-      },
-    });
-
-    return () => { cleanup(); };
-  }, [type, id, JSON.stringify(data), JSON.stringify(context), disabled, nativeEnabled, dragCtx, dragHandleRef]);
-
-  return {
-    ref,
-    isDragging,
-    dragProps: {
-      "data-draggable": "true",
-      "data-drag-type": type,
-      "data-drag-id": id,
-    },
-  };
-}
 
 // ============================================================
 // useDroppable HOOK
@@ -562,8 +358,11 @@ export function useDroppable({
     _registerDrop(el, { type, id, context, accepts, allowedEdges: null, stateRef });
 
     const canAccept = (source) => {
+      // Empty accepts list = reject all drops. Lets pure drag sources
+      // (panels, pages, canvas cards) register useDragDrop without
+      // unintentionally swallowing drops meant for their parent target.
+      if (accepts.length === 0) return false;
       const dragType = source?.data?.type;
-      if (accepts.length === 0) return true;
       return accepts.includes(dragType);
     };
 
@@ -602,6 +401,7 @@ export function useDroppable({
           setIsOver(false);
           const clientX = location.current.input.clientX;
           const clientY = location.current.input.clientY;
+          const targetRect = el?.getBoundingClientRect?.();
 
           dragCtx.handleDrop({
             type,
@@ -609,6 +409,7 @@ export function useDroppable({
             context,
             clientX,
             clientY,
+            targetRect,
             source: source.data,
             dataTransfer: nativeEvent?.dataTransfer,
           });
@@ -708,8 +509,11 @@ export function useDragDrop({
     const handleEl = dragHandleRef?.current;
 
     const canAccept = (source) => {
+      // Empty accepts list = reject all drops. Lets pure drag sources
+      // (panels, pages, canvas cards) register useDragDrop without
+      // unintentionally swallowing drops meant for their parent target.
+      if (accepts.length === 0) return false;
       const dragType = source?.data?.type;
-      if (accepts.length === 0) return true;
       return accepts.includes(dragType);
     };
 
@@ -960,23 +764,7 @@ export function useDragDrop({
         return externalData;
       },
       onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
-        if (nativeEnabled) {
-          const rect = el.getBoundingClientRect();
-          const cursorX = location.initial.input.clientX;
-          const cursorY = location.initial.input.clientY;
-          const offsetX = Math.round(cursorX - rect.left);
-          const offsetY = Math.round(cursorY - rect.top);
-          setCustomNativeDragPreview({
-            nativeSetDragImage,
-            getOffset: () => ({ x: offsetX, y: offsetY }),
-            render: ({ container }) => {
-              const clone = el.cloneNode(true);
-              clone.style.opacity = '1';
-              clone.style.transform = 'none';
-              container.appendChild(clone);
-            },
-          });
-        }
+        if (nativeEnabled) attachDragPreview(el, location, nativeSetDragImage);
       },
       onDragStart: ({ location }) => {
         setIsDragging(true);

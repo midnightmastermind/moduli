@@ -14,7 +14,6 @@
 // =========================================
 
 import { ActionTypes } from "./actions";
-import { aliasOccurrence } from "../helpers/dragHitTesting";
 
 // Helper: split a flat modules array into role-based derived arrays
 function deriveRoleArrays(modules = []) {
@@ -70,9 +69,6 @@ export function masterReducer(state, action) {
                     );
                 }
             }
-            // Populate moduleId on every occurrence so the drag layer can read it
-            // without falling back to targetId everywhere.
-            mergedOccs = mergedOccs.map(aliasOccurrence);
 
             return {
                 ...state,
@@ -279,26 +275,23 @@ export function masterReducer(state, action) {
 
             // Handle _appendOcc / _removeOcc hints for optimistic parent updates
             const { _appendOcc, _removeOcc, ...occData } = occurrence;
-            // Ensure both moduleId and targetId are populated (drag/drop layer
-            // reads moduleId; legacy code reads targetId).
-            const aliased = aliasOccurrence(occData);
 
-            const exists = (state.occurrences || []).some((o) => o.id === aliased.id);
+            const exists = (state.occurrences || []).some((o) => o.id === occData.id);
 
             let nextOccurrences;
             if (_appendOcc || _removeOcc) {
                 // Optimistic: append or remove a child occ ID from this occurrence's list
                 nextOccurrences = (state.occurrences || []).map((o) => {
-                    if (o.id !== aliased.id) return o;
+                    if (o.id !== occData.id) return o;
                     let children = [...(o.occurrences || [])];
                     if (_appendOcc && !children.includes(_appendOcc)) children.push(_appendOcc);
                     if (_removeOcc) children = children.filter(id => id !== _removeOcc);
-                    return { ...o, ...aliased, occurrences: children };
+                    return { ...o, ...occData, occurrences: children };
                 });
             } else {
                 nextOccurrences = exists
-                    ? state.occurrences.map((o) => (o.id === aliased.id ? { ...o, ...aliased } : o))
-                    : [...(state.occurrences || []), aliased];
+                    ? state.occurrences.map((o) => (o.id === occData.id ? { ...o, ...occData } : o))
+                    : [...(state.occurrences || []), occData];
             }
 
             return { ...state, occurrences: nextOccurrences };

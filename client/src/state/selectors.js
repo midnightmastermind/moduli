@@ -29,7 +29,7 @@ export function createLookupsFromState(state) {
     for (const childOccId of containerOcc.occurrences || []) {
       const childOcc = occurrencesById[childOccId];
       if (!childOcc) continue;
-      const childMod = modulesById[childOcc.targetId];
+      const childMod = modulesById[childOcc.moduleId];
       if (!childMod) continue;
       if (childMod.role === "artifact") artifactsById[childMod.id] = childMod;
       else if (childMod.role === "textblock") textblocksById[childMod.id] = childMod;
@@ -43,12 +43,12 @@ export function createLookupsFromState(state) {
   for (const panelOccId of panelOccIds) {
     const panelOcc = occurrencesById[panelOccId];
     if (!panelOcc) continue;
-    const panel = modulesById[panelOcc.targetId];
+    const panel = modulesById[panelOcc.moduleId];
     if (panel) panelsById[panel.id] = panel;
     for (const childOccId of panelOcc.occurrences || []) {
       const childOcc = occurrencesById[childOccId];
       if (!childOcc) continue;
-      const childMod = modulesById[childOcc.targetId];
+      const childMod = modulesById[childOcc.moduleId];
       if (!childMod) continue;
 
       if (childMod.role === "page") {
@@ -57,7 +57,7 @@ export function createLookupsFromState(state) {
         for (const containerOccId of childOcc.occurrences || []) {
           const containerOcc = occurrencesById[containerOccId];
           if (!containerOcc) continue;
-          const container = modulesById[containerOcc.targetId];
+          const container = modulesById[containerOcc.moduleId];
           if (container) containersById[container.id] = container;
           traverseContainerChildren(containerOcc);
         }
@@ -110,11 +110,11 @@ export function computeRoleByModuleId(grid, occurrencesById, modulesById) {
   function traverseContainerChildren(containerOcc) {
     for (const childOccId of containerOcc.occurrences || []) {
       const childOcc = occurrencesById[childOccId];
-      if (!childOcc?.targetId) continue;
-      const childMod = modulesById?.[childOcc.targetId];
-      if (childMod?.role === "artifact") map[childOcc.targetId] = "artifact";
-      else if (childMod?.role === "textblock") map[childOcc.targetId] = "textblock";
-      else map[childOcc.targetId] = "instance";
+      if (!childOcc?.moduleId) continue;
+      const childMod = modulesById?.[childOcc.moduleId];
+      if (childMod?.role === "artifact") map[childOcc.moduleId] = "artifact";
+      else if (childMod?.role === "textblock") map[childOcc.moduleId] = "textblock";
+      else map[childOcc.moduleId] = "instance";
     }
   }
 
@@ -122,24 +122,24 @@ export function computeRoleByModuleId(grid, occurrencesById, modulesById) {
   for (const panelOccId of panelOccIds) {
     const panelOcc = occurrencesById[panelOccId];
     if (!panelOcc) continue;
-    if (panelOcc.targetId) map[panelOcc.targetId] = "panel";
+    if (panelOcc.moduleId) map[panelOcc.moduleId] = "panel";
     for (const childOccId of panelOcc.occurrences || []) {
       const childOcc = occurrencesById[childOccId];
       if (!childOcc) continue;
-      const childMod = modulesById?.[childOcc.targetId];
+      const childMod = modulesById?.[childOcc.moduleId];
 
       if (childMod?.role === "page") {
         // New hierarchy: panel → page → container → instance
-        map[childOcc.targetId] = "page";
+        map[childOcc.moduleId] = "page";
         for (const containerOccId of childOcc.occurrences || []) {
           const containerOcc = occurrencesById[containerOccId];
           if (!containerOcc) continue;
-          if (containerOcc.targetId) map[containerOcc.targetId] = "container";
+          if (containerOcc.moduleId) map[containerOcc.moduleId] = "container";
           traverseContainerChildren(containerOcc);
         }
       } else {
         // Legacy hierarchy: panel → container → instance
-        if (childOcc.targetId) map[childOcc.targetId] = "container";
+        if (childOcc.moduleId) map[childOcc.moduleId] = "container";
         traverseContainerChildren(childOcc);
       }
     }
@@ -171,39 +171,16 @@ export function autofillOccurrence(occurrence, lookups) {
     else if (lookups.instancesById?.[mod.id] || mod.role === "instance") filled.instance = mod;
   };
 
-  switch (occurrence.targetType) {
-    case "module": {
-      // Unified module — look up in any role bucket
-      const mod = occurrence.targetId && (
-        lookups.panelsById[occurrence.targetId] ||
-        lookups.containersById[occurrence.targetId] ||
-        lookups.instancesById[occurrence.targetId]
-      );
-      fillFromModule(mod);
-      break;
-    }
-
-    case "panel":
-      if (occurrence.targetId && lookups.panelsById[occurrence.targetId]) {
-        filled.panel = lookups.panelsById[occurrence.targetId];
-        filled.module = lookups.panelsById[occurrence.targetId];
-      }
-      break;
-
-    case "container":
-      if (occurrence.targetId && lookups.containersById[occurrence.targetId]) {
-        filled.container = lookups.containersById[occurrence.targetId];
-        filled.module = lookups.containersById[occurrence.targetId];
-      }
-      break;
-
-    case "instance":
-      if (occurrence.targetId && lookups.instancesById[occurrence.targetId]) {
-        filled.instance = lookups.instancesById[occurrence.targetId];
-        filled.module = lookups.instancesById[occurrence.targetId];
-      }
-      break;
-  }
+  // Look up the module in any role bucket
+  const mod = occurrence.moduleId && (
+    lookups.panelsById?.[occurrence.moduleId] ||
+    lookups.pagesById?.[occurrence.moduleId] ||
+    lookups.containersById?.[occurrence.moduleId] ||
+    lookups.instancesById?.[occurrence.moduleId] ||
+    lookups.artifactsById?.[occurrence.moduleId] ||
+    lookups.textblocksById?.[occurrence.moduleId]
+  );
+  fillFromModule(mod);
 
   return filled;
 }
@@ -281,10 +258,10 @@ function isSameDayStr(a, b) {
 export function getOtherOccurrences(occurrencesById, modulesById, moduleId, excludeOccId) {
   if (!occurrencesById || !moduleId) return [];
   return Object.values(occurrencesById)
-    .filter(o => o.targetId === moduleId && o.id !== excludeOccId)
+    .filter(o => o.moduleId === moduleId && o.id !== excludeOccId)
     .map(o => {
       const parent = o.parentId ? occurrencesById[o.parentId] : null;
-      const parentMod = parent?.targetId ? modulesById?.[parent.targetId] : null;
+      const parentMod = parent?.moduleId ? modulesById?.[parent.moduleId] : null;
       return { occurrence: o, parentLabel: parentMod?.label || parent?.id || "root" };
     });
 }

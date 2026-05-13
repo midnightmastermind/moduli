@@ -30,7 +30,7 @@ export default function DocLinkSuggestion({
   const docContainers = useMemo(() => {
     return Object.values(containersById).filter((c) => {
       if (!c) return false;
-      const occ = Object.values(occurrencesById).find(o => o?.targetId === c.id);
+      const occ = Object.values(occurrencesById).find(o => o?.moduleId === c.id);
       return occ?.viewId ? viewsById[occ.viewId]?.viewType === "doc" : false;
     });
   }, [containersById, occurrencesById, viewsById]);

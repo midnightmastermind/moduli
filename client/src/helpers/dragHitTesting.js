@@ -11,7 +11,7 @@
 // DropContext that the routeDrop dispatcher can act on without
 // caring which input modality fired.
 //
-// Reads `occ.moduleId` directly. The dual-name alias (moduleId ↔ targetId)
+// Reads `occ.moduleId` directly.
 // is set up at the state-ingest boundary in bindSocketToStore.js.
 // ============================================================
 
@@ -66,25 +66,6 @@ export function buildParentMap(occurrencesById) {
     for (const childId of occ.occurrences) map[childId] = occ.id;
   }
   return map;
-}
-
-// ------------------------------------------------------------
-// aliasOccurrence
-// ------------------------------------------------------------
-// Ensures every occurrence object carries both `moduleId` and `targetId`.
-// Drag/drop code reads `moduleId`; the rest of the codebase reads
-// `targetId`. Called at every state-ingest boundary (full_state,
-// occurrence_created, occurrence_updated) and at write boundaries
-// (CommitHelpers.createOccurrence) so the two layers coexist without
-// per-call-site fallbacks.
-export function aliasOccurrence(occ) {
-  if (!occ) return occ;
-  const hasModule = occ.moduleId != null;
-  const hasTarget = occ.targetId != null;
-  if (hasModule && hasTarget) return occ;
-  if (hasModule) return { ...occ, targetId: occ.moduleId };
-  if (hasTarget) return { ...occ, moduleId: occ.targetId };
-  return occ;
 }
 
 // ------------------------------------------------------------

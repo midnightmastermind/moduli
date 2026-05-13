@@ -4,23 +4,19 @@
  * Autofills an occurrence with its target entity data
  * @param {Object} occurrence - The occurrence to autofill
  * @param {Object} uc - User cache containing all entities
- * @returns {Object} Occurrence with target entity autofilled
+ * @returns {Object} Occurrence with module entity autofilled
  */
 export function autofillOccurrence(occurrence, uc) {
   if (!occurrence || !uc) return occurrence;
 
   const filled = { ...occurrence };
 
-  // Module-based lookup (new unified model)
-  if (occurrence.targetType === "module" || occurrence.targetType === "panel" || occurrence.targetType === "container" || occurrence.targetType === "instance") {
-    const mod = occurrence.targetId && uc.modulesById?.[occurrence.targetId];
-    if (mod) {
-      filled.module = mod;
-      // Backward-compat aliases
-      if (mod.role === "panel") filled.panel = mod;
-      else if (mod.role === "container") filled.container = mod;
-      else if (mod.role === "instance") filled.instance = mod;
-    }
+  const mod = occurrence.moduleId && uc.modulesById?.[occurrence.moduleId];
+  if (mod) {
+    filled.module = mod;
+    if (mod.role === "panel") filled.panel = mod;
+    else if (mod.role === "container") filled.container = mod;
+    else if (mod.role === "instance") filled.instance = mod;
   }
 
   return filled;
@@ -28,9 +24,6 @@ export function autofillOccurrence(occurrence, uc) {
 
 /**
  * Autofills multiple occurrences
- * @param {Array} occurrences - Array of occurrences to autofill
- * @param {Object} uc - User cache containing all entities
- * @returns {Array} Array of autofilled occurrences
  */
 export function autofillOccurrences(occurrences, uc) {
   if (!Array.isArray(occurrences)) return [];
@@ -39,9 +32,6 @@ export function autofillOccurrences(occurrences, uc) {
 
 /**
  * Gets occurrences for a specific grid (raw, no autofill)
- * @param {string} gridId - The grid ID
- * @param {Object} uc - User cache
- * @returns {Array} Array of raw occurrences for the grid
  */
 export function getOccurrencesForGrid(gridId, uc) {
   return Object.values(uc.occurrencesById || {}).filter(
@@ -51,9 +41,6 @@ export function getOccurrencesForGrid(gridId, uc) {
 
 /**
  * Autofills grid with populated occurrences
- * @param {Object} grid - Grid object
- * @param {Object} uc - User cache
- * @returns {Object} Grid with occurrences array populated and autofilled
  */
 export function autofillGrid(grid, uc) {
   if (!grid || !uc) return grid;
@@ -68,9 +55,6 @@ export function autofillGrid(grid, uc) {
 
 /**
  * Autofills panel with populated occurrences
- * @param {Object} panel - Panel object
- * @param {Object} uc - User cache
- * @returns {Object} Panel with occurrences array populated and autofilled
  */
 export function autofillPanel(panel, uc) {
   if (!panel || !uc) return panel;
@@ -85,9 +69,6 @@ export function autofillPanel(panel, uc) {
 
 /**
  * Autofills container with populated occurrences
- * @param {Object} container - Container object
- * @param {Object} uc - User cache
- * @returns {Object} Container with occurrences array populated and autofilled
  */
 export function autofillContainer(container, uc) {
   if (!container || !uc) return container;
@@ -101,12 +82,11 @@ export function autofillContainer(container, uc) {
 }
 
 /**
- * Creates an occurrence wrapper for an entity
+ * Creates an occurrence wrapper for a module
  * @param {Object} params - Parameters
  * @param {string} params.id - Occurrence ID
  * @param {string} params.userId - User ID
- * @param {string} params.targetType - "panel" | "container" | "instance"
- * @param {string} params.targetId - The entity ID
+ * @param {string} params.moduleId - The module ID this occurrence renders
  * @param {string} params.gridId - Grid ID
  * @param {Object} params.placement - Optional placement (for panels)
  * @param {Object} params.fields - Optional field values
@@ -118,8 +98,7 @@ export function createOccurrenceData(params) {
   const {
     id,
     userId,
-    targetType,
-    targetId,
+    moduleId,
     gridId,
     placement,
     fields = {},
@@ -131,8 +110,7 @@ export function createOccurrenceData(params) {
   return {
     id,
     userId,
-    targetType,
-    targetId,
+    moduleId,
     gridId,
     timestamp: new Date(),
     ...(placement && { placement }),

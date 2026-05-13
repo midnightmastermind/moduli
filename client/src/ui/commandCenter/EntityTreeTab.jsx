@@ -217,7 +217,7 @@ export function EntityTreeTab() {
       for (const occId of (occIds || [])) {
         const occ = occurrencesById?.[occId];
         if (!occ) continue;
-        if (occ.targetId) ids.add(occ.targetId);
+        if (occ.moduleId) ids.add(occ.moduleId);
         collectChildren(occ.occurrences);
       }
     };
@@ -229,18 +229,18 @@ export function EntityTreeTab() {
   const buildContainer = useCallback((contOccId, sq) => {
     const contOcc = occurrencesById?.[contOccId];
     if (!contOcc) return null;
-    const cont = getEntity(contOcc.targetId);
+    const cont = getEntity(contOcc.moduleId);
     if (!cont) return null;
 
     const instances = (contOcc.occurrences || []).map(instOccId => {
       const instOcc = occurrencesById?.[instOccId];
       if (!instOcc) return null;
-      const inst = getEntity(instOcc.targetId);
+      const inst = getEntity(instOcc.moduleId);
       if (!inst) return null;
-      return { id: instOccId, label: inst.label || inst.name || instOcc.targetId?.slice(-6), entity: inst, occ: instOcc };
+      return { id: instOccId, label: inst.label || inst.name || instOcc.moduleId?.slice(-6), entity: inst, occ: instOcc };
     }).filter(Boolean);
 
-    const contLabel = cont.label || cont.name || contOcc.targetId?.slice(-6);
+    const contLabel = cont.label || cont.name || contOcc.moduleId?.slice(-6);
     if (sq && !contLabel?.toLowerCase().includes(sq) && !instances.some(i => i.label?.toLowerCase().includes(sq))) return null;
 
     return { id: contOccId, label: contLabel, entity: cont, occ: contOcc, instances };
@@ -254,13 +254,13 @@ export function EntityTreeTab() {
     return gridOccIds.map(panelOccId => {
       const panelOcc = occurrencesById?.[panelOccId];
       if (!panelOcc) return null;
-      const panel = getEntity(panelOcc.targetId);
+      const panel = getEntity(panelOcc.moduleId);
       if (!panel) return null;
 
       // Detect if panel children are pages or containers
       const childOccIds = panelOcc.occurrences || [];
       const firstChildOcc = childOccIds.length > 0 ? occurrencesById?.[childOccIds[0]] : null;
-      const firstChildEntity = firstChildOcc ? getEntity(firstChildOcc.targetId) : null;
+      const firstChildEntity = firstChildOcc ? getEntity(firstChildOcc.moduleId) : null;
       const hasPages = firstChildEntity?.role === "page";
 
       let pages = null;
@@ -271,11 +271,11 @@ export function EntityTreeTab() {
         pages = childOccIds.map(pageOccId => {
           const pageOcc = occurrencesById?.[pageOccId];
           if (!pageOcc) return null;
-          const page = getEntity(pageOcc.targetId);
+          const page = getEntity(pageOcc.moduleId);
           if (!page) return null;
 
           const pageContainers = (pageOcc.occurrences || []).map(cid => buildContainer(cid, sq)).filter(Boolean);
-          const pageLabel = page.label || page.name || pageOcc.targetId?.slice(-6);
+          const pageLabel = page.label || page.name || pageOcc.moduleId?.slice(-6);
           if (sq && !pageLabel?.toLowerCase().includes(sq) && !pageContainers.some(c => c)) return null;
 
           return { id: pageOccId, label: pageLabel, entity: page, occ: pageOcc, containers: pageContainers };
@@ -285,7 +285,7 @@ export function EntityTreeTab() {
         containers = childOccIds.map(cid => buildContainer(cid, sq)).filter(Boolean);
       }
 
-      const panelLabel = panel.label || panel.name || panelOcc.targetId?.slice(-6);
+      const panelLabel = panel.label || panel.name || panelOcc.moduleId?.slice(-6);
       const hasContent = hasPages ? pages.length > 0 : containers.length > 0;
       if (sq && !panelLabel?.toLowerCase().includes(sq) && !hasContent) return null;
 

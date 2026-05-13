@@ -1,6 +1,18 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-04-09. Check this file before re-reading source._
+_Updated: 2026-05-11. Check this file before re-reading source._
+
+## Recent Changes (May 11 2026 — Toast offset)
+- **App.jsx**: `<Toaster position="top-center" offset={4} />` (was no offset). Sonner's default top offset (~32px) pushed toasts below the toolbar; with offset 4 they land inside the toolbar band so notifications read as part of the chrome instead of floating below.
+
+## Recent Changes (May 10 2026 — Local tree styling + field wrap + date picker)
+- **modules/ManifestTree.jsx**: Local tree (page-panel sidebar) refactored to look identical to the root tree. Added `LocalFolderGroup` (chevron + folder NodePill + indented `PageTreeNode` children, mirrors `FolderNode`). Removed the right-aligned "LOCAL 📁" header, the right-aligned folder header rows, and `reverseIndent={true}` on PageTreeNode. Local entries now sit on the left edge with the same chevron/pill style as root.
+- **modules/ModuleInstance.jsx**: Instance row `.instance-content` gains `flexWrap: wrap` + `rowGap: 4`, and `.instance-fields` uses `flex: 1 1 160px`. Fields wrap to a new row underneath the label whenever the row is too narrow to keep them inline (fixes squished fields on Schedule slots / narrow panels).
+- **ui/Field.jsx**: Compact date pill — normalizes ISO timestamps to `yyyy-MM-dd` before binding to `<input type="date">` (seed values are full ISO strings, which the date input silently dropped). Wires `inputRef` to that hidden input and adds an `onClick` on the wrapping `<label>` that calls `inputRef.current.showPicker()` so the native date picker actually opens (the input is `pointer-events:none, 0×0` — label-click forwarding wasn't reliably triggering the picker).
+
+## Recent Changes (May 10 2026 — Panel Header Switcher Move)
+- **modules/ModulePanel.jsx**: Grid cell stack switcher (`panel-stack-btn-inline`) now lives inside the page panel header, inline-right of QuickAddMenu (Layers icon + count, only when `stack.length > 1`). Removed the `marginLeft: 18` spacer from the active page label so it sits flush against the drag handle (only the parent flex `gap: 6` remains).
+- **Grid.jsx**: GridCell stack button gated by `stackCount > 0 && !hasPanel` so it stops rendering when the cell has a panel (header takes over).
 
 ## Recent Changes (Apr 9 2026 — B2/B3/C2: Local Tree Nesting + Folder Breadcrumbs + Mini Block)
 - **modules/ModulePanel.jsx**: Replaced navHistory breadcrumbs with `pageBreadcrumbs` useMemo (walks `occ.parentId → foldersById`). Shows `Folder › Page` trail when page has parent folder. navHistory state + useEffect removed. (B3)

@@ -18,7 +18,7 @@ export const initialState = {
   instances: [],
   artifacts: [],
   textblocks: [],
-  occurrences: [], // { id, targetType, targetId, gridId, filterOverride, hidden, ... }
+  occurrences: [], // { id, moduleId, gridId, filterOverride, hidden, ... }
   fields: [],      // { id, name, type, mode, ... }
   operations: [],  // { id, name, blockTree, targetFieldId, triggerType, ... }
   views: [],       // { id, viewType, hasTree, manifestId, activeOccurrenceId, layout }

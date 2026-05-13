@@ -28,6 +28,17 @@ const KIND_TILE = {
 };
 const KIND_FALLBACK = { label: "Other", icon: Box, desc: "" };
 
+// Which kinds are actually placeable in each role's add-menu. Containers
+// surface a flat list of leaf-placeable instance kinds (instances + textblocks);
+// they should not show "Documents" or "Boards" (those are container/page kinds).
+// Panels surface container kinds. Pages surface panel kinds.
+const ALLOWED_KINDS_BY_ROLE = {
+  instance:  new Set(["list", "textblock", "artifact"]),
+  container: new Set(["list", "doc", "board", "canvas"]),
+  panel:     new Set(["board"]),
+  page:      new Set(["board", "doc", "canvas", "folder"]),
+};
+
 export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock }) {
   const { modulesById, roleByModuleId } = useContext(GridActionsContext);
   const [open, setOpen] = useState(false);
@@ -81,12 +92,18 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   }, [open, closeMenu]);
 
   // All matching modules for this role (no kind filter yet — used for category buckets).
+  // Skip kinds that aren't placeable in this role's context (e.g. doc-kind
+  // instances are mini-blocks created by Editor's "Make mini block" — they
+  // aren't meant to be re-placed via the container add menu).
   const matchingModules = useMemo(() => {
+    const allowedKinds = ALLOWED_KINDS_BY_ROLE[targetRole] || null;
     return Object.values(modulesById || {})
       .filter(m => !m.trashed)
       .filter(m => {
         const role = roleByModuleId?.[m.id] || m.role || "instance";
-        return role === targetRole;
+        if (role !== targetRole) return false;
+        if (allowedKinds && m.kind && !allowedKinds.has(m.kind)) return false;
+        return true;
       });
   }, [modulesById, roleByModuleId, targetRole]);
 
@@ -216,17 +233,41 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                 {onCreateNew && (
                   <button
                     onClick={() => { onCreateNew(); closeMenu(); }}
-                    style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "5px 10px", background: "none", border: "none", cursor: "pointer", color: "var(--accent-blue, #60a5fa)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
+                    style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", padding: "8px 10px", background: "none", border: "none", borderTop: "1px solid var(--border-subtle)", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "var(--input-bg)"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = "none"}
                   >
-                    <Plus size={10} /> {createLabel || `New ${targetRole}`}
+                    <span style={{ width: 24, height: 24, borderRadius: 5, background: "rgba(96,165,250,0.7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Plus size={12} color="white" />
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: "block", fontWeight: 600, color: "var(--accent-blue, #60a5fa)" }}>
+                        {createLabel || `New ${targetRole}`}
+                      </span>
+                      <span style={{ display: "block", fontSize: 9, color: "var(--text-muted)", marginTop: 1 }}>
+                        Create a new {targetRole} from scratch
+                      </span>
+                    </span>
                   </button>
                 )}
                 {onAddTextblock && (
                   <button
                     onClick={() => { onAddTextblock(); closeMenu(); }}
-                    style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "5px 10px", background: "none", border: "none", cursor: "pointer", color: "var(--accent-blue, #60a5fa)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
+                    style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", padding: "8px 10px", background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "var(--input-bg)"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = "none"}
                   >
-                    <Plus size={10} /> Textblock
+                    <span style={{ width: 24, height: 24, borderRadius: 5, background: "rgba(96,165,250,0.7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <FileQuestion size={12} color="white" />
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: "block", fontWeight: 600, color: "var(--accent-blue, #60a5fa)" }}>
+                        New Textblock
+                      </span>
+                      <span style={{ display: "block", fontSize: 9, color: "var(--text-muted)", marginTop: 1 }}>
+                        Inline rich-text snippet
+                      </span>
+                    </span>
                   </button>
                 )}
               </>

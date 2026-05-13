@@ -25,7 +25,7 @@ export function labelForId(id, { fieldsById, modulesById, occurrencesById } = {}
 
   const occ = occurrencesById?.[id];
   if (occ) {
-    const targetMod = modulesById?.[occ.targetId];
+    const targetMod = modulesById?.[occ.moduleId];
     return { label: targetMod?.label ?? "occurrence", shortId, kind: "occurrence" };
   }
 

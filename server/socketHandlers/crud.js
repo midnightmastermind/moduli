@@ -121,7 +121,7 @@ export function registerCrudHandlers(socket, {
       await Module.findOneAndDelete({ id: moduleId, userId });
 
       const moduleOccurrences = Object.values(uc.occurrencesById || {}).filter(
-        (occ) => (occ.targetType === "module" || occ.targetType === "panel" || occ.targetType === "container" || occ.targetType === "instance") && occ.targetId === moduleId
+        (occ) => occ.moduleId === moduleId
       );
       const occurrenceIds = moduleOccurrences.map(o => o.id);
       for (const occ of moduleOccurrences) {
@@ -256,12 +256,12 @@ export function registerCrudHandlers(socket, {
       uc.modulesById[modObj.id] = modObj;
 
       // 2. Find the container occurrence to get parentId and gridId
-      const containerOcc = Object.values(uc.occurrencesById || {}).find(o => o.targetId === containerId);
+      const containerOcc = Object.values(uc.occurrencesById || {}).find(o => o.moduleId === containerId);
       const occId = requestedOccId || `occ_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
       const occurrenceData = createOccurrenceData({
         id: occId, userId, gridId,
-        targetType: "module", targetId: instance.id,
+        moduleId: instance.id,
         parentId: containerOcc?.id || null,
         meta: extraMeta || {},
         fields: {},
@@ -576,7 +576,7 @@ export function registerCrudHandlers(socket, {
       const occ = {
         ...createOccurrenceData({
           id: occData.id, userId,
-          targetType: "module", targetId: moduleData.id,
+          moduleId: moduleData.id,
           gridId: occData.gridId,
           fields: occData.fields || {},
         }),
@@ -642,10 +642,10 @@ export function registerCrudHandlers(socket, {
 
       // 2. Trash the module
       const pageOcc = uc.occurrencesById[pageOccurrenceId];
-      if (pageOcc?.targetId && uc.modulesById[pageOcc.targetId]) {
-        uc.modulesById[pageOcc.targetId].trashed = true;
-        await Module.findOneAndUpdate({ id: pageOcc.targetId, userId }, { trashed: true });
-        socket.to(userRoom(userId)).emit("module_updated", { module: { id: pageOcc.targetId, trashed: true } });
+      if (pageOcc?.moduleId && uc.modulesById[pageOcc.moduleId]) {
+        uc.modulesById[pageOcc.moduleId].trashed = true;
+        await Module.findOneAndUpdate({ id: pageOcc.moduleId, userId }, { trashed: true });
+        socket.to(userRoom(userId)).emit("module_updated", { module: { id: pageOcc.moduleId, trashed: true } });
       }
 
       // 3. Recursively delete occurrence tree
@@ -748,7 +748,7 @@ export function registerCrudHandlers(socket, {
 export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
   const userRoomFn = deps.userRoom || ((uid) => `user:${uid}`);
   const createOccurrenceDataFn = deps.createOccurrenceData
-    || ((p) => ({ id: p.id, userId: p.userId, targetType: p.targetType, targetId: p.targetId, gridId: p.gridId, fields: p.fields || {}, meta: p.meta || {}, ...(p.placement && { placement: p.placement }), ...(p.linkedGroupId && { linkedGroupId: p.linkedGroupId }) }));
+    || ((p) => ({ id: p.id, userId: p.userId, moduleId: p.moduleId, gridId: p.gridId, fields: p.fields || {}, meta: p.meta || {}, ...(p.placement && { placement: p.placement }), ...(p.linkedGroupId && { linkedGroupId: p.linkedGroupId }) }));
 
   // Per-socket Promise chain: serializes create_occurrence so a pipeline that emits
   // 49 events back-to-back persists them in emit order. Without this, concurrent
@@ -833,7 +833,7 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       const occurrenceData = {
         ...createOccurrenceDataFn({
           id, userId,
-          targetType: occurrence.targetType, targetId: occurrence.targetId,
+          moduleId: occurrence.moduleId,
           gridId,
           placement: occurrence.placement, fields: occurrence.fields,
           meta: occurrence.meta, linkedGroupId: occurrence.linkedGroupId || null,

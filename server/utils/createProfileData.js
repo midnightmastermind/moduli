@@ -428,7 +428,7 @@ export async function createProfileData({ userId, gridId }) {
 
     const mod = new Module({ id: modId, userId, gridId, role: "container", kind: "artifact", label: pd.title, meta: { folderId: DOCUMENTS_FOLDER_ID } });
     await mod.save();
-    const occ = new Occurrence({ id: occId, userId, gridId, targetId: modId, targetType: "module", iteration: { mode: "persistent" }, textmap });
+    const occ = new Occurrence({ id: occId, userId, gridId, moduleId: modId, iteration: { mode: "persistent" }, textmap });
     await occ.save();
 
     allDocs.push(occId);
@@ -446,7 +446,7 @@ export async function createProfileData({ userId, gridId }) {
 
     const mod = new Module({ id: modId, userId, gridId, role: "container", kind: "artifact", label: title, meta: { folderId: DOCUMENTS_FOLDER_ID } });
     await mod.save();
-    const occ = new Occurrence({ id: occId, userId, gridId, targetId: modId, targetType: "module", iteration: { mode: "persistent" }, textmap });
+    const occ = new Occurrence({ id: occId, userId, gridId, moduleId: modId, iteration: { mode: "persistent" }, textmap });
     await occ.save();
 
     allDocs.push(occId);

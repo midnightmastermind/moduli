@@ -64,12 +64,12 @@ qInstances.forEach(m => {
 });
 
 // Also find all instances that are children of pool containers
-// Need to find occurrences whose parentId or targetId links to pool container occurrences
-const poolContainerOccs = occurrences.filter(o => poolIds.includes(o.targetId));
+// Need to find occurrences whose parentId or moduleId links to pool container occurrences
+const poolContainerOccs = occurrences.filter(o => poolIds.includes(o.moduleId));
 console.log(`\nPool container occurrences: ${poolContainerOccs.length}`);
 poolContainerOccs.forEach(o => {
-  const mod = modById[o.targetId];
-  console.log(`  Occ ${o.id} -> targetId ${o.targetId} ("${mod?.label}") childOccs: ${JSON.stringify(o.occurrences)}`);
+  const mod = modById[o.moduleId];
+  console.log(`  Occ ${o.id} -> moduleId ${o.moduleId} ("${mod?.label}") childOccs: ${JSON.stringify(o.occurrences)}`);
 });
 
 // Collect all child occ IDs from pool containers
@@ -78,8 +78,8 @@ console.log(`\nTotal child occurrences in pool containers: ${allPoolChildOccIds.
 allPoolChildOccIds.forEach(cid => {
   const occ = occById[cid];
   if (occ) {
-    const mod = modById[occ.targetId];
-    console.log(`  Occ ${cid} -> targetId ${occ.targetId} ("${mod?.label}") role=${mod?.role} dragMode=${mod?.defaultDragMode}`);
+    const mod = modById[occ.moduleId];
+    console.log(`  Occ ${cid} -> moduleId ${occ.moduleId} ("${mod?.label}") role=${mod?.role} dragMode=${mod?.defaultDragMode}`);
   } else {
     console.log(`  Occ ${cid} -> NOT FOUND IN OCCURRENCES - FAIL`);
   }
@@ -122,11 +122,11 @@ console.log('\n============================');
 console.log('CHECK 7: Phil Stone Occurrences with viewId');
 console.log('============================');
 const philStoneIds = philStoneModules.map(m => m.id);
-const philStoneOccs = occurrences.filter(o => philStoneIds.includes(o.targetId));
+const philStoneOccs = occurrences.filter(o => philStoneIds.includes(o.moduleId));
 console.log(`Found ${philStoneOccs.length} Phil Stone occurrences`);
 let philViewBugs = 0;
 philStoneOccs.forEach(o => {
-  const mod = modById[o.targetId];
+  const mod = modById[o.moduleId];
   const hasView = o.viewId !== null && o.viewId !== undefined;
   if (!hasView) philViewBugs++;
   console.log(`  Occ ${o.id} -> "${mod?.label}" viewId=${o.viewId} ${hasView ? 'PASS' : 'FAIL (viewId is null)'}`);
@@ -143,7 +143,7 @@ console.log('============================');
 let philViewMissing = 0;
 philStoneOccs.filter(o => o.viewId).forEach(o => {
   const view = viewById[o.viewId];
-  const mod = modById[o.targetId];
+  const mod = modById[o.moduleId];
   if (view) {
     const isDoc = view.viewType === 'doc';
     console.log(`  View ${o.viewId} for "${mod?.label}": viewType=${view.viewType} ${isDoc ? 'PASS' : 'FAIL (expected doc)'}`);
@@ -170,10 +170,10 @@ qaContainers.forEach(m => {
   console.log(`  ${m.id}: "${m.label}" role=${m.role} kind=${m.kind}`);
 });
 const qaIds = qaContainers.map(m => m.id);
-const qaOccs = occurrences.filter(o => qaIds.includes(o.targetId));
+const qaOccs = occurrences.filter(o => qaIds.includes(o.moduleId));
 console.log(`Found ${qaOccs.length} Q/A container occurrences`);
 qaOccs.forEach(o => {
-  const mod = modById[o.targetId];
+  const mod = modById[o.moduleId];
   const hasView = o.viewId !== null && o.viewId !== undefined;
   const fieldsEmpty = !o.fields || Object.keys(o.fields).length === 0;
   console.log(`  Occ ${o.id} -> "${mod?.label}" viewId=${o.viewId} ${hasView ? 'PASS' : 'FAIL (viewId null)'} fields=${JSON.stringify(o.fields)} ${fieldsEmpty ? 'PASS' : 'FAIL (fields not empty)'}`);
@@ -184,7 +184,7 @@ console.log('CHECK 10: View records for Q/A containers');
 console.log('============================');
 qaOccs.filter(o => o.viewId).forEach(o => {
   const view = viewById[o.viewId];
-  const mod = modById[o.targetId];
+  const mod = modById[o.moduleId];
   if (view) {
     const isDoc = view.viewType === 'doc';
     console.log(`  View ${o.viewId} for "${mod?.label}": viewType=${view.viewType} ${isDoc ? 'PASS' : 'FAIL (expected doc)'}`);
@@ -203,8 +203,8 @@ let gridOccMissing = 0;
 gridOccIds.forEach(oid => {
   const occ = occById[oid];
   if (occ) {
-    const mod = modById[occ.targetId];
-    console.log(`  ${oid} -> targetId ${occ.targetId} ("${mod?.label}") PASS`);
+    const mod = modById[occ.moduleId];
+    console.log(`  ${oid} -> moduleId ${occ.moduleId} ("${mod?.label}") PASS`);
   } else {
     gridOccMissing++;
     console.log(`  ${oid} -> NOT FOUND IN OCCURRENCES - FAIL`);
@@ -232,7 +232,7 @@ panelsWithDisplay.forEach(m => {
 const panelOccurrences = gridOccIds.map(oid => occById[oid]).filter(Boolean);
 const cellMap = {};
 panelOccurrences.forEach(o => {
-  const mod = modById[o.targetId];
+  const mod = modById[o.moduleId];
   const placement = o.placement || (mod && mod.layout && mod.layout.placement);
   if (placement) {
     const cellKey = `${placement.row},${placement.col}`;
@@ -258,6 +258,6 @@ Object.entries(cellMap).forEach(([cell, panels]) => {
 // Also check occurrence.placement directly
 console.log('\nPanel occurrence placements:');
 panelOccurrences.forEach(o => {
-  const mod = modById[o.targetId];
+  const mod = modById[o.moduleId];
   console.log(`  Occ ${o.id} ("${mod?.label}"): occ.placement=${JSON.stringify(o.placement)} mod.layout=${JSON.stringify(mod?.layout)}`);
 });

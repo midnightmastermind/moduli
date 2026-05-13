@@ -7,7 +7,79 @@
 // commit-side bag (dispatch, socket, state, occurrencesById, etc.).
 // Role-aware locals are derived once per handler via dropView() at the
 // top of each function.
-// ============================================================
+//
+// ─── Date-stamp ownership map (audit, 2026-05-11) ──────────────────────────
+// Every place a date-typed field value is written or cleared, and which
+// layer owns the transition. "Date-typed field" = a field whose
+// `field.type === "date"` AND that the active named filter lists as
+// `isNav: true` (the filter-nav arrow walks it).
+//
+// 1. Drop into a Schedule-descended container (board page or list slot)
+//    Owner: dropHandlers.computePageFilterFields
+//    When:  copy-mode + move-mode handleInstanceDrop, handleModuleDrop (CC drag)
+//    What:  resolves the destination container's parent-chain effective
+//           filter (page override → grid filter), normalizes via
+//           normalizeFilterDateValue, folds the result into the source's
+//           fields BEFORE LayoutHelpers.copyInstanceToContainer creates the
+//           occurrence — so the optimistic OccurrenceCreateOp + per-field
+//           MeasureOp loop see the destination's date.
+//
+// 2. Move into a Schedule-descended container (occurrence already exists)
+//    Owner: dropHandlers.stampPageFilterFields
+//    When:  handleOccurrenceMove same-grid move branch
+//    What:  same merge as #1, but written via CommitHelpers.updateOccurrence
+//           AND mirrored into operationsBridge.updateLocalOcc so the
+//           subsequent fireMoveTrigger MeasureOp loop sees the new date.
+//
+// 3. Move out of Schedule into a non-schedule container or page
+//    Owner: Operation "Schedule: Clear Date on Move-Out" (createTestGrid.js)
+//    Trigger: onMove (subjectType: "occurrence")
+//    What:  if the moved occurrence's _ancestors no longer include the
+//           Schedule page, UPDATE writes null to fields.<dateFieldId>.value
+//           and fields.<timeslotFieldId>.value. Copy never fires this path
+//           because copy mints a new occurrence id.
+//
+// 4. Drop into a canvas page (PageCanvas)
+//    Owner: dropHandlers.handleOccurrenceMove canvas branch
+//    Stamps: meta.x / meta.y ONLY — never touches the date field. Canvas
+//            placement is positional and intentionally orthogonal to the
+//            filter-nav cascade.
+//
+// 5. Per-day instance creation by "Schedule: Seed Daily Routine"
+//    Owner: Operation seed pipeline
+//    What:  CREATE actions write fields: { [dateFieldId]: "$schedDate" }
+//           where $schedDate resolves to (in order):
+//             a. $parentFilter.<dateFieldId>      — slot-level override wins
+//             b. $schedPage._effectiveFilter.<dateFieldId>  — page filter
+//             c. $trigger.date                    — filter-nav payload
+//             d. $today                           — ultimate fallback
+//           operationActions.CREATE validates the resolved value via
+//           isDateValue() and falls back to $today if it isn't a parseable
+//           YYYY-MM-DD prefix.
+//
+// 6. Per-todo copy by "Schedule: Build Day" todo sweep
+//    Owner: Operation Build Day pipeline
+//    What:  CREATE writes fields: { [dateFieldId]: "$schedDate" } for the
+//           Due-container copy — same isDateValue guard as #5.
+//
+// 7. "Schedule: Stamp Date & Time Slot" operation
+//    Owner: Operation pipeline (onCreate, centerHub panel)
+//    Stamps: timeslot field ONLY. The date field is intentionally NOT
+//            written here — the drop side (#1/#2) already pre-stamped it
+//            from the slot's effective filter at drop time, and rewriting
+//            via $trigger._effectiveFilter would resolve to undefined on
+//            the optimistic OccurrenceCreateOp transaction and clobber the
+//            correct value. Comment in createTestGrid.js documents this.
+//
+// 8. Auto-attach safety net (added 2026-05-11)
+//    Owner: bindSocketToStore.applyOperationEffect UPDATE_ITEM_FIELD
+//    What:  When any op writes occ.fields[fid] and the target module's
+//           fieldBindings doesn't include fid, the binding is appended
+//           (role:"input"). Same coverage in operationActions.CREATE for
+//           cfg.fields keys and operationActions.UPDATE_MODULE for
+//           cfg.attachFields. Without this the renderer silently dropped
+//           the value because the module wasn't bound to the field.
+// ───────────────────────────────────────────────────────────────────────────
 
 import * as CommitHelpers from "./CommitHelpers";
 import { setOccurrenceFieldValue } from "./CommitHelpers";
@@ -211,7 +283,8 @@ export function handlePanelDrop(dropContext, ctx) {
 // ============================================================
 export function handleContainerDrop(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, clearSession, sessionRef } = ctx;
-  const { payload, target, position, mode, modifiers, dataTransfer } = dropContext;
+  const { payload, target, position, pointer, mode, modifiers, dataTransfer } = dropContext;
+  const { x, y } = pointer || { x: 0, y: 0 };
   const { containerId, panelId, dropTarget } = dropView(dropContext, ctx);
   const drop = { dropTarget };
 
@@ -219,6 +292,113 @@ export function handleContainerDrop(dropContext, ctx) {
   if (dropTarget.dataTransfer) {
     const parsed = parseExternalDrop(dropTarget.dataTransfer);
     isCrossWindow = parsed.isCrossWindow;
+  }
+
+  // ── CANVAS PAGE drop ────────────────────────────────────────────────
+  // Containers dragged onto a canvas page land at the drop pointer with
+  // `meta.x/y` stamped. The container's module is preserved as-is —
+  // `kind` doesn't change, `role` stays "container". Whether the
+  // container came from a board, a doc embed, or another canvas, the
+  // SAME branch runs so behaviour is uniform.
+  const toPageOccId = dropTarget.context?.pageOccurrenceId;
+  const toPageOcc = toPageOccId ? occurrencesById[toPageOccId] : null;
+  const toPageMod = toPageOcc ? state?.modulesById?.[toPageOcc.moduleId] : null;
+  if (toPageOcc && toPageMod?.kind === "canvas") {
+    const occurrenceId = payload.context?.occurrenceId
+      || payload.context?.containerOccurrenceId
+      || (payload.moduleId ? Object.values(occurrencesById).find(o => o.moduleId === payload.moduleId)?.id : null);
+    if (!occurrenceId) { clearSession(); return; }
+    const movedOcc = occurrencesById[occurrenceId];
+    if (!movedOcc) { clearSession(); return; }
+
+    const rect = dropTarget.context?.targetRect
+      || document.querySelector(`[data-page-occ-id="${toPageOccId}"] .canvas-surface`)?.getBoundingClientRect?.()
+      || document.querySelector(`[data-page-occ-id="${toPageOccId}"]`)?.getBoundingClientRect?.();
+    const cx = rect ? Math.max(0, Math.round(x - rect.left)) : 20;
+    const cy = rect ? Math.max(0, Math.round(y - rect.top)) : 20;
+
+    const fromParentOccId = movedOcc.parentId
+      || Object.values(occurrencesById).find(o => Array.isArray(o.occurrences) && o.occurrences.includes(occurrenceId))?.id;
+    const fromParentOcc = fromParentOccId ? occurrencesById[fromParentOccId] : null;
+
+    // Same-canvas drop = reposition only.
+    if (fromParentOccId === toPageOccId) {
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: occurrenceId, meta: { ...(movedOcc.meta || {}), x: cx, y: cy } },
+        emit: true,
+      });
+      clearSession();
+      return;
+    }
+
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: occurrenceId, parentId: toPageOccId, meta: { ...(movedOcc.meta || {}), x: cx, y: cy } },
+      emit: true,
+    });
+    if (fromParentOcc) {
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: fromParentOcc.id, occurrences: (fromParentOcc.occurrences || []).filter(id => id !== occurrenceId) },
+        emit: true,
+      });
+    }
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: toPageOccId, occurrences: [...(toPageOcc.occurrences || []).filter(id => id !== occurrenceId), occurrenceId] },
+      emit: true,
+    });
+    if (payload.context?.sourceType === "doc-embed") {
+      embedDeleteRegistry.get(occurrenceId)?.();
+    }
+    clearSession();
+    return;
+  }
+
+  // ── CANVAS SOURCE — drag container OUT of canvas back to a board ────
+  // The default panel-to-panel branch below can't handle a canvas-page
+  // source because canvas pages aren't in `baseAllPanels`. Strip any
+  // canvas-only positional meta (x/y) so the container doesn't carry
+  // floating-card coordinates into a list panel, then re-parent it.
+  const fromCanvasPageOccId = payload.context?.containerOccurrenceId
+    || payload.context?.pageOccurrenceId
+    || payload.context?.parentOccurrenceId;
+  const fromCanvasPageOcc = fromCanvasPageOccId ? occurrencesById[fromCanvasPageOccId] : null;
+  const fromCanvasPageMod = fromCanvasPageOcc ? state?.modulesById?.[fromCanvasPageOcc.moduleId] : null;
+  const isCanvasSource = fromCanvasPageMod?.kind === "canvas" && fromCanvasPageMod?.role === "page";
+  if (isCanvasSource && panelId) {
+    const occurrenceId = payload.context?.occurrenceId
+      || (payload.moduleId ? Object.values(occurrencesById).find(o => o.moduleId === payload.moduleId && o.parentId === fromCanvasPageOcc.id)?.id : null);
+    if (!occurrenceId) { clearSession(); return; }
+    const movedOcc = occurrencesById[occurrenceId];
+    if (!movedOcc) { clearSession(); return; }
+
+    const toPanel = baseAllPanels.find(p => p.id === panelId);
+    const toPanelOcc = toPanel?._occurrence ? occurrencesById[toPanel._occurrence.id] : null;
+    const toPageDropId = dropTarget.context?.pageOccurrenceId;
+    const toOrderOcc = toPageDropId ? (occurrencesById[toPageDropId] || toPanelOcc) : toPanelOcc;
+    if (!toOrderOcc) { clearSession(); return; }
+
+    // Strip canvas-only x/y from meta.
+    const { x: _x, y: _y, ...metaWithoutPos } = movedOcc.meta || {};
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: occurrenceId, parentId: toOrderOcc.id, meta: metaWithoutPos },
+      emit: true,
+    });
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: fromCanvasPageOcc.id, occurrences: (fromCanvasPageOcc.occurrences || []).filter(id => id !== occurrenceId) },
+      emit: true,
+    });
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: toOrderOcc.id, occurrences: [...(toOrderOcc.occurrences || []).filter(id => id !== occurrenceId), occurrenceId] },
+      emit: true,
+    });
+    clearSession();
+    return;
   }
 
   if (isCrossWindow) {
@@ -364,47 +544,182 @@ export function handleContainerDrop(dropContext, ctx) {
 // `toCOcc.occurrences[]`. Reads `dropTarget.context.insertAt` (set by the
 // drop zone) first; otherwise honours the closestEdge of the hovered
 // instance, with the same-container forward-shift adjustment.
-function _resolveToIndex({ dropTarget, instanceId, toCOcc, occurrencesById, fromCOcc, draggedInstanceId }) {
+function _resolveToIndex({ dropTarget, instanceId, toCOcc, occurrencesById, fromCOcc, draggedInstanceId, pointerY }) {
   if (dropTarget.context?.insertAt !== undefined) return dropTarget.context.insertAt;
-  if (!instanceId || !toCOcc) return null;
-  const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(instanceId, toCOcc.occurrences || [], occurrencesById);
-  if (hoveredIndex === -1) return null;
-  const edge = dropTarget.context?.closestEdge;
-  let toIndex = (edge === "bottom" || edge === "right") ? hoveredIndex + 1 : hoveredIndex;
-  if (fromCOcc && fromCOcc.id === toCOcc.id && draggedInstanceId) {
-    const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
-    if (fromIndex !== -1 && fromIndex < hoveredIndex) toIndex = Math.max(0, toIndex - 1);
+  if (instanceId && toCOcc) {
+    const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(instanceId, toCOcc.occurrences || [], occurrencesById);
+    if (hoveredIndex !== -1) {
+      const edge = dropTarget.context?.closestEdge;
+      let toIndex = (edge === "bottom" || edge === "right") ? hoveredIndex + 1 : hoveredIndex;
+      if (fromCOcc && fromCOcc.id === toCOcc.id && draggedInstanceId) {
+        const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
+        if (fromIndex !== -1 && fromIndex < hoveredIndex) toIndex = Math.max(0, toIndex - 1);
+      }
+      return toIndex;
+    }
   }
-  return toIndex;
+  // No specific instance under the cursor — fall back to nearest-by-Y so the
+  // drop lands at the pointer position, not appended to the end. Common when
+  // dropping a textblock into the gap between cards or onto the container's
+  // empty area while siblings exist.
+  if (toCOcc && typeof pointerY === "number") {
+    return resolveNearestIndex(toCOcc, occurrencesById, pointerY);
+  }
+  return null;
 }
 
-// Drop a doc-embed instance (TipTap moduleEmbed node) onto a target
-// container. The occurrence already exists; we just splice it into
-// the destination's children list and (in move mode) ask the embed
-// registry to remove the source node. Routed here from routeDrop so
-// handleOccurrenceMove can stay focused on in-grid moves/copies.
+// Drop a doc-embed instance (TipTap moduleEmbed node, or instanceTextblock
+// node) onto a target. The occurrence already exists; we MOVE it (or copy
+// it) to the destination — never mint a fresh one. In move mode we also ask
+// the embed registry to remove the source TipTap node from the parent doc.
+// Routed here from routeDrop so handleOccurrenceMove can stay focused on
+// in-grid moves/copies.
+//
+// Supports three destinations:
+//   1. List container — splice into container.occurrences[]
+//   2. Canvas page    — set parentId to page, stamp meta.x/y from pointer
+//   3. Grid cell      — create new panel+container, place occurrence there
+//
+// For copy mode (sessionRef.current.mode === "copy") a NEW occurrence id is
+// minted with the same fields/textmap, and the source TipTap node stays put.
 export function handleDocEmbedDrop(dropContext, ctx) {
-  const { dispatch, socket, occurrencesById, baseContainers, clearSession, sessionRef } = ctx;
-  const { payload } = dropContext;
+  const { dispatch, socket, state, occurrencesById, baseContainers, baseAllPanels, clearSession, sessionRef } = ctx;
+  const { payload, pointer } = dropContext;
+  const { x, y } = pointer || { x: 0, y: 0 };
   const { containerId, containerOccurrenceId, instanceId, dropTarget } = dropView(dropContext, ctx);
 
+  const occurrenceId = payload.context?.occurrenceId;
+  if (!occurrenceId) { clearSession(); return; }
+  const movedOcc = occurrencesById[occurrenceId];
+  if (!movedOcc) { clearSession(); return; }
+
+  const isCopy = sessionRef.current.mode === "copy";
+  const gridId = state?.gridId || state?.grid?._id;
+
+  // Helper: clone the occurrence (used for copy mode).
+  const cloneOccurrence = (extra = {}) => {
+    const newOccId = makeUUID();
+    CommitHelpers.createOccurrence({
+      dispatch, socket,
+      occurrence: {
+        id: newOccId,
+        userId: state?.userId,
+        gridId,
+        moduleId: movedOcc.moduleId,
+        fields: { ...(movedOcc.fields || {}) },
+        textmap: movedOcc.textmap || null,
+        ...extra,
+      },
+      emit: true,
+    });
+    return newOccId;
+  };
+
+  // ── 1. CANVAS PAGE drop ──────────────────────────────────────────────
+  const toPageOccId = dropTarget.context?.pageOccurrenceId;
+  const toPageOcc = toPageOccId ? occurrencesById[toPageOccId] : null;
+  const toPageMod = toPageOcc ? state?.modulesById?.[toPageOcc.moduleId] : null;
+  if (toPageOcc && toPageMod?.kind === "canvas") {
+    const rect = dropTarget.context?.targetRect
+      || document.querySelector(`[data-page-occ-id="${toPageOccId}"] .canvas-surface`)?.getBoundingClientRect?.()
+      || document.querySelector(`[data-page-occ-id="${toPageOccId}"]`)?.getBoundingClientRect?.();
+    const cx = rect ? Math.max(0, Math.round(x - rect.left)) : 20;
+    const cy = rect ? Math.max(0, Math.round(y - rect.top)) : 20;
+
+    if (isCopy) {
+      const newOccId = cloneOccurrence({ parentId: toPageOccId, meta: { ...(movedOcc.meta || {}), x: cx, y: cy } });
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: toPageOccId, occurrences: [...(toPageOcc.occurrences || []), newOccId] },
+        emit: true,
+      });
+    } else {
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: occurrenceId, parentId: toPageOccId, meta: { ...(movedOcc.meta || {}), x: cx, y: cy } },
+        emit: true,
+      });
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: toPageOccId, occurrences: [...(toPageOcc.occurrences || []).filter(id => id !== occurrenceId), occurrenceId] },
+        emit: true,
+      });
+      embedDeleteRegistry.get(occurrenceId)?.();
+    }
+    clearSession();
+    return;
+  }
+
+  // ── 2. GRID CELL drop ────────────────────────────────────────────────
+  if (dropTarget.type === DROP_TARGET_KIND.GRID_CELL && dropTarget.context?.row !== undefined) {
+    const cell = { row: dropTarget.context.row, col: dropTarget.context.col };
+    const grid = state?.grid;
+    const userId = state?.userId;
+    if (cell && grid && userId && gridId) {
+      const label = state?.modulesById?.[movedOcc.moduleId]?.label || "Textblock";
+      const newPanel = { id: makeUUID(), label, role: "panel", kind: "list" };
+      const { occurrence: panelOcc } = LayoutHelpers.createPanelInGrid({
+        dispatch, socket, grid, panel: newPanel,
+        placement: { row: cell.row, col: cell.col, width: 1, height: 1 }, userId, emit: true,
+      });
+      const newContainer = { id: makeUUID(), label, role: "container", kind: "list" };
+      const { occurrence: containerOcc } = LayoutHelpers.createContainerInPanel({
+        dispatch, socket, gridId, panel: { ...newPanel, _occurrence: panelOcc },
+        container: newContainer, userId, emit: true,
+      });
+
+      if (isCopy) {
+        const newOccId = cloneOccurrence({ parentId: containerOcc.id });
+        CommitHelpers.updateOccurrence({
+          dispatch, socket,
+          occurrence: { id: containerOcc.id, occurrences: [...(containerOcc.occurrences || []), newOccId] },
+          emit: true,
+        });
+      } else {
+        CommitHelpers.updateOccurrence({
+          dispatch, socket,
+          occurrence: { id: occurrenceId, parentId: containerOcc.id },
+          emit: true,
+        });
+        CommitHelpers.updateOccurrence({
+          dispatch, socket,
+          occurrence: { id: containerOcc.id, occurrences: [...(containerOcc.occurrences || []), occurrenceId] },
+          emit: true,
+        });
+        embedDeleteRegistry.get(occurrenceId)?.();
+      }
+    }
+    clearSession();
+    return;
+  }
+
+  // ── 3. LIST CONTAINER drop ───────────────────────────────────────────
   const toC = baseContainers.find(c => c.id === containerId);
   const toCOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
     || (toC ? Object.values(occurrencesById).find(o => o.moduleId === toC.id) : null);
   if (!toC || !toCOcc) { clearSession(); return; }
 
-  const occurrenceId = payload.context?.occurrenceId;
-  if (!occurrenceId) { clearSession(); return; }
+  const toIndex = _resolveToIndex({ dropTarget, instanceId, toCOcc, occurrencesById, pointerY: y });
 
-  const toIndex = _resolveToIndex({ dropTarget, instanceId, toCOcc, occurrencesById });
-  const newOccurrences = [...(toCOcc.occurrences || [])];
-  if (toIndex !== null) newOccurrences.splice(toIndex, 0, occurrenceId);
-  else newOccurrences.push(occurrenceId);
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: toCOcc.id, occurrences: newOccurrences }, emit: true });
-
-  if (sessionRef.current.mode !== "copy") {
+  if (isCopy) {
+    const newOccId = cloneOccurrence({ parentId: toCOcc.id });
+    const newOccurrences = [...(toCOcc.occurrences || [])];
+    if (toIndex !== null) newOccurrences.splice(toIndex, 0, newOccId);
+    else newOccurrences.push(newOccId);
+    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: toCOcc.id, occurrences: newOccurrences }, emit: true });
+  } else {
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: occurrenceId, parentId: toCOcc.id },
+      emit: true,
+    });
+    const newOccurrences = [...(toCOcc.occurrences || []).filter(id => id !== occurrenceId)];
+    if (toIndex !== null) newOccurrences.splice(toIndex, 0, occurrenceId);
+    else newOccurrences.push(occurrenceId);
+    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: toCOcc.id, occurrences: newOccurrences }, emit: true });
     embedDeleteRegistry.get(occurrenceId)?.();
   }
+  clearSession();
 }
 
 export function handleOccurrenceMove(dropContext, ctx) {
@@ -416,6 +731,269 @@ export function handleOccurrenceMove(dropContext, ctx) {
   if (dropTarget.dataTransfer) {
     const parsed = parseExternalDrop(dropTarget.dataTransfer);
     if (parsed.isCrossWindow) return; // Let cross-window handler deal with it
+  }
+
+  // GRID CELL drop — drilldown: create a new panel + container in the empty
+  // cell and copy the instance there. Mirrors the leaf-role branch in
+  // handleModuleDrop (line ~1261) so in-grid drags of textblocks/instances
+  // can be placed anywhere on the grid, not just into existing containers.
+  if (dropTarget.type === DROP_TARGET_KIND.GRID_CELL && dropTarget.context?.row !== undefined) {
+    const cell = { row: dropTarget.context.row, col: dropTarget.context.col };
+    const grid = state?.grid;
+    const userId = state?.userId;
+    const gridId = state?.gridId || state?.grid?._id;
+    const sourceModule = (state?.modules || []).find(m => m.id === payload.moduleId);
+    if (cell && grid && userId && sourceModule) {
+      const newPanel = { id: makeUUID(), label: sourceModule.label || "Panel", role: "panel", kind: "list" };
+      const { occurrence: panelOcc } = LayoutHelpers.createPanelInGrid({
+        dispatch, socket, grid, panel: newPanel,
+        placement: { row: cell.row, col: cell.col, width: 1, height: 1 }, userId, emit: true,
+      });
+      const newContainer = { id: makeUUID(), label: sourceModule.label || "Container", role: "container", kind: "list" };
+      const { occurrence: containerOcc } = LayoutHelpers.createContainerInPanel({
+        dispatch, socket, gridId, panel: { ...newPanel, _occurrence: panelOcc },
+        container: newContainer, userId, emit: true,
+      });
+      LayoutHelpers.copyInstanceToContainer({
+        dispatch, socket, gridId, sourceInstanceId: sourceModule.id,
+        toContainer: { ...newContainer, _occurrence: containerOcc },
+        userId, iterationMode: "persistent", emit: true,
+      });
+    }
+    clearSession?.();
+    return;
+  }
+
+  // Helper: fire OccurrenceMoveOp + per-field MeasureOp so user-defined `onMove`
+  // operations (e.g. "Schedule: Clear Date on Move-Out") run after the move.
+  // Mirrors the post-move trigger burst in the regular container-move branch
+  // so canvas moves participate in the same operation pipeline.
+  const fireMoveTrigger = ({ occurrenceId, instanceId, fromContainerId, toContainerId, fromPanelId, toPanelId }) => {
+    operationsBridge.fireOperations?.("OccurrenceMoveOp", {
+      type: "OccurrenceMoveOp",
+      occurrenceId,
+      instanceId,
+      fromContainerId,
+      toContainerId,
+      fromPanelId,
+      toPanelId,
+    });
+    const movedOcc = occurrencesById[occurrenceId];
+    for (const fieldId of Object.keys(movedOcc?.fields || {})) {
+      const fv = movedOcc.fields[fieldId];
+      operationsBridge.fireOperations?.("MeasureOp", {
+        type: "MeasureOp",
+        occurrenceId,
+        instanceId,
+        fieldId,
+        value: fv && typeof fv === "object" && "value" in fv ? fv.value : fv,
+      });
+    }
+  };
+
+  // CANVAS PAGE drop — move/copy a leaf occurrence into the page with meta.x/y stamp.
+  // The page itself is the parent (no container in between).
+  const toPageOccId = dropTarget.context?.pageOccurrenceId;
+  const toPageOcc = toPageOccId ? occurrencesById[toPageOccId] : null;
+  const toPageMod = toPageOcc ? state?.modulesById?.[toPageOcc.moduleId] : null;
+  if (toPageOcc && toPageMod?.kind === "canvas") {
+    const occurrenceId = payload.context?.occurrenceId;
+    if (!occurrenceId) { clearSession(); return; }
+    const movedOcc = occurrencesById[occurrenceId];
+    if (!movedOcc) { clearSession(); return; }
+
+    const rect = dropTarget.context?.targetRect
+      || document.querySelector(`[data-page-occ-id="${toPageOccId}"] .canvas-surface`)?.getBoundingClientRect?.()
+      || document.querySelector(`[data-page-occ-id="${toPageOccId}"]`)?.getBoundingClientRect?.();
+    const cx = rect ? Math.max(0, Math.round(x - rect.left)) : 20;
+    const cy = rect ? Math.max(0, Math.round(y - rect.top)) : 20;
+
+    // Same-canvas drop = reposition only: just update meta.x/y, no parent change.
+    if (movedOcc.parentId === toPageOccId) {
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: occurrenceId, meta: { ...(movedOcc.meta || {}), x: cx, y: cy } },
+        emit: true,
+      });
+      clearSession();
+      return;
+    }
+
+    const isCopy = sessionRef.current?.mode === "copy";
+    if (isCopy) {
+      const newOccId = makeUUID();
+      CommitHelpers.createOccurrence({
+        dispatch, socket,
+        occurrence: {
+          id: newOccId,
+          userId: state?.userId,
+          gridId: state?.gridId || state?.grid?._id,
+          moduleId: movedOcc.moduleId,
+          parentId: toPageOccId,
+          fields: { ...(movedOcc.fields || {}) },
+          meta: { ...(movedOcc.meta || {}), x: cx, y: cy },
+        },
+        emit: true,
+      });
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: toPageOccId, occurrences: [...(toPageOcc.occurrences || []), newOccId] },
+        emit: true,
+      });
+    } else {
+      // Move: detach from old parent, attach to page, stamp canvas position.
+      const fromParentOccId = movedOcc.parentId;
+      const fromParentOcc = fromParentOccId ? occurrencesById[fromParentOccId] : null;
+      const newMeta = { ...(movedOcc.meta || {}), x: cx, y: cy };
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: {
+          id: occurrenceId,
+          parentId: toPageOccId,
+          meta: newMeta,
+        },
+        emit: true,
+      });
+      if (fromParentOcc) {
+        CommitHelpers.updateOccurrence({
+          dispatch, socket,
+          occurrence: {
+            id: fromParentOccId,
+            occurrences: (fromParentOcc.occurrences || []).filter(id => id !== occurrenceId),
+          },
+          emit: true,
+        });
+      }
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: {
+          id: toPageOccId,
+          occurrences: [...(toPageOcc.occurrences || []).filter(id => id !== occurrenceId), occurrenceId],
+        },
+        emit: true,
+      });
+      // Mirror the parent-occurrences update into the executor cache before
+      // firing the move trigger so user-defined onMove ops see the new ancestry.
+      if (fromParentOcc) {
+        operationsBridge.updateLocalOcc?.({
+          ...fromParentOcc,
+          occurrences: (fromParentOcc.occurrences || []).filter(id => id !== occurrenceId),
+        });
+      }
+      operationsBridge.updateLocalOcc?.({
+        ...toPageOcc,
+        occurrences: [...(toPageOcc.occurrences || []).filter(id => id !== occurrenceId), occurrenceId],
+      });
+      // Mirror the FULL post-update state (including new meta) into the executor
+      // cache. If we leave old meta here, downstream onMove ops that read the
+      // occurrence and dispatch a derived update will overwrite our fresh
+      // meta.x/y in Redux with stale values — card lands at default 20,20.
+      operationsBridge.updateLocalOcc?.({
+        ...movedOcc,
+        parentId: toPageOccId,
+        meta: newMeta,
+      });
+      fireMoveTrigger({
+        occurrenceId,
+        instanceId: movedOcc.moduleId,
+        fromContainerId: fromParentOcc?.moduleId || null,
+        toContainerId: toPageOcc.moduleId,
+        fromPanelId: null,
+        toPanelId: null,
+      });
+    }
+    clearSession();
+    return;
+  }
+
+  // CANVAS PAGE source — drag from canvas onto a regular container/panel/cell.
+  // The page is the source parent (not a container), so the standard fromC lookup
+  // returns undefined. Handle move/copy out manually.
+  const fromCanvasPageOccId = payload.context?.containerOccurrenceId
+    || payload.context?.parentOccurrenceId;
+  const fromCanvasPageOcc = fromCanvasPageOccId ? occurrencesById[fromCanvasPageOccId] : null;
+  const fromCanvasPageMod = fromCanvasPageOcc ? state?.modulesById?.[fromCanvasPageOcc.moduleId] : null;
+  const isCanvasSource = fromCanvasPageMod?.kind === "canvas" && fromCanvasPageMod?.role === "page";
+  if (isCanvasSource) {
+    const occurrenceId = payload.context?.occurrenceId;
+    const movedOcc = occurrenceId ? occurrencesById[occurrenceId] : null;
+    if (!movedOcc) { clearSession(); return; }
+
+    const toCInner = baseContainers.find(c => c.id === containerId);
+    const toCInnerOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
+      || (toCInner ? Object.values(occurrencesById).find(o => o.moduleId === toCInner.id) : null);
+    if (!toCInner || !toCInnerOcc) { clearSession(); return; }
+    if (toCInner.kind === "doc") { clearSession(); return; } // editor handles doc drops itself
+
+    const isCopy = sessionRef.current?.mode === "copy";
+    if (isCopy) {
+      LayoutHelpers.copyInstanceToContainer({
+        dispatch, socket,
+        gridId: state?.gridId || state?.grid?._id,
+        sourceInstanceId: payload.moduleId,
+        toContainer: { ...toCInner, _occurrence: toCInnerOcc },
+        userId: state?.userId, emit: true,
+        sourceOccurrence: movedOcc,
+      });
+    } else {
+      // Strip canvas-only positional meta (x/y) so it doesn't carry into a list container.
+      const { x: _x, y: _y, ...metaWithoutPos } = movedOcc.meta || {};
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: occurrenceId, parentId: toCInnerOcc.id, meta: metaWithoutPos },
+        emit: true,
+      });
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: {
+          id: fromCanvasPageOcc.id,
+          occurrences: (fromCanvasPageOcc.occurrences || []).filter(id => id !== occurrenceId),
+        },
+        emit: true,
+      });
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: {
+          id: toCInnerOcc.id,
+          occurrences: [...(toCInnerOcc.occurrences || []).filter(id => id !== occurrenceId), occurrenceId],
+        },
+        emit: true,
+      });
+      operationsBridge.updateLocalOcc?.({
+        ...fromCanvasPageOcc,
+        occurrences: (fromCanvasPageOcc.occurrences || []).filter(id => id !== occurrenceId),
+      });
+      operationsBridge.updateLocalOcc?.({
+        ...toCInnerOcc,
+        occurrences: [...(toCInnerOcc.occurrences || []).filter(id => id !== occurrenceId), occurrenceId],
+      });
+      operationsBridge.updateLocalOcc?.({
+        ...movedOcc,
+        parentId: toCInnerOcc.id,
+        meta: metaWithoutPos,
+      });
+      // Stamp the destination's effective page filter (date, etc.) onto the
+      // moved occurrence so trackers' SAME_DAY predicates match. Canvas
+      // sources don't carry a date by default — without this stamp the note
+      // lands in the slot with `fields[dateFieldId]` unset, and the goal
+      // aggregations never count it. Mirrors the same call the container-to-
+      // container move branch makes below.
+      stampPageFilterFields({
+        dispatch, socket, state, occurrencesById,
+        occurrence: occurrencesById[occurrenceId],
+        parentContainerOcc: toCInnerOcc,
+      });
+      fireMoveTrigger({
+        occurrenceId,
+        instanceId: movedOcc.moduleId,
+        fromContainerId: fromCanvasPageOcc.moduleId,
+        toContainerId: toCInner.id,
+        fromPanelId: null,
+        toPanelId: null,
+      });
+    }
+    clearSession();
+    return;
   }
 
   const fromC = baseContainers.find(c => c.id === payload.context?.containerId);
@@ -855,6 +1433,42 @@ export function handleModuleDrop(dropContext, ctx) {
 
   // LEAF roles (instance | artifact | textblock): create persistent occurrence in target container/panel
   const isLeafRole = !role || role === "instance" || role === "artifact" || role === "textblock";
+
+  // CANVAS PAGE drop — page itself is the parent (no container). Stamp meta.x/y from drop pointer.
+  if (isLeafRole) {
+    const pageOccId = dropTarget.context?.pageOccurrenceId;
+    const pageOcc = pageOccId ? occurrencesById[pageOccId] : null;
+    const pageMod = pageOcc ? state?.modulesById?.[pageOcc.moduleId] : null;
+    if (pageOcc && pageMod?.kind === "canvas" && gridId) {
+      const rect = dropTarget.context?.targetRect
+        || document.querySelector(`[data-page-occ-id="${pageOccId}"] .canvas-surface`)?.getBoundingClientRect?.()
+        || document.querySelector(`[data-page-occ-id="${pageOccId}"]`)?.getBoundingClientRect?.();
+      const cx = rect ? Math.max(0, Math.round(x - rect.left)) : 20;
+      const cy = rect ? Math.max(0, Math.round(y - rect.top)) : 20;
+
+      const newOccId = makeUUID();
+      CommitHelpers.createOccurrence({
+        dispatch, socket,
+        occurrence: {
+          id: newOccId,
+          userId: state?.userId,
+          gridId,
+          moduleId: payload.moduleId,
+          parentId: pageOccId,
+          fields: {},
+          meta: { x: cx, y: cy },
+        },
+        emit: true,
+      });
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: pageOccId, occurrences: [...(pageOcc.occurrences || []), newOccId] },
+        emit: true,
+      });
+      return;
+    }
+  }
+
   if (isLeafRole) {
     let targetContainer = null;
     if (containerId) {
@@ -1118,30 +1732,36 @@ function resolveNearestIndex(containerOcc, occurrencesById, y) {
   const occurrenceIds = containerOcc?.occurrences || [];
   if (occurrenceIds.length === 0) return null;
 
+  // Walk every child occurrence — textblocks and artifacts don't carry the
+  // legacy `targetType === "instance"` flag, but they're still rendered via
+  // ModuleInstance and tagged with `data-occurrence-id` / `data-instance-id`.
+  // Prefer the occurrence-id query so we hit the exact card even when many
+  // siblings share a module (schedule slots).
   let nearestIndex = 0;
   let nearestDistance = Infinity;
+  const rectFor = (occ) =>
+    document.querySelector(`[data-occurrence-id="${occ.id}"]`)?.getBoundingClientRect?.()
+    || (occ.moduleId
+      ? document.querySelector(`[data-instance-id="${occ.moduleId}"]`)?.getBoundingClientRect?.()
+      : null);
 
   occurrenceIds.forEach((occId, index) => {
     const occ = occurrencesById[occId];
-    if (occ && occ.targetType === 'instance') {
-      const el = document.querySelector(`[data-instance-id="${occ.moduleId}"]`);
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        const centerY = rect.top + rect.height / 2;
-        const distance = Math.abs(y - centerY);
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearestIndex = index;
-        }
-      }
+    if (!occ) return;
+    const rect = rectFor(occ);
+    if (!rect) return;
+    const centerY = rect.top + rect.height / 2;
+    const distance = Math.abs(y - centerY);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
     }
   });
 
   const nearestOcc = occurrencesById[occurrenceIds[nearestIndex]];
   if (nearestOcc) {
-    const nearestEl = document.querySelector(`[data-instance-id="${nearestOcc.moduleId}"]`);
-    if (nearestEl) {
-      const rect = nearestEl.getBoundingClientRect();
+    const rect = rectFor(nearestOcc);
+    if (rect) {
       const centerY = rect.top + rect.height / 2;
       return y < centerY ? nearestIndex : nearestIndex + 1;
     }

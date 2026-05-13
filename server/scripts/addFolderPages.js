@@ -55,7 +55,7 @@ async function main() {
   // Build set of folderIds that already have folder-page occurrences
   const foldersWithPages = new Set();
   for (const occ of existingFolderPages) {
-    const mod = existingFolderPageModules.find(m => m.id === occ.targetId);
+    const mod = existingFolderPageModules.find(m => m.id === occ.moduleId);
     if (mod) foldersWithPages.add(occ.parentId);
   }
 
@@ -83,8 +83,8 @@ async function main() {
       id: occId,
       userId,
       gridId,
-      targetId: modId,
-      targetType: "module",
+      moduleId: modId,
+      
       parentId: folder.id,
       sortOrder: -1, // before other content
       iteration: { mode: "persistent" },

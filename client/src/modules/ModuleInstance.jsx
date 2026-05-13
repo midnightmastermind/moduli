@@ -53,6 +53,9 @@ function InstanceInner({
   embedRadialItems = null,
   embedOnDelete = null,
   renderBody = null,
+  // Canvas-friendly handle layout: handle floats absolutely in the
+  // top-left of the card instead of consuming a flex slot inline.
+  floatHandle = false,
 }) {
   const { state } = useContext(GridDataContext);
   const { fieldsById, addInstanceToContainer, occurrencesById, linkedGroupIndex, instancesById, operationsById } = useContext(GridActionsContext);
@@ -234,22 +237,29 @@ function InstanceInner({
       {...(!overlay ? dragAttributes : {})}
       {...(!overlay ? dragListeners : {})}
     >
-      {/* Content: [radial + label] on top, fields below */}
+      {/* Content: [radial + label] inline with fields; fields wrap to a new row below the label when the row is too narrow.
+          When `floatHandle` is on (canvas-style cards), the handle wrapper instead lives as an absolute overlay at the top-left
+          of the card and the renderBody fills the full row. */}
       <div
         className="instance-content"
         style={{
           flex: 1,
           display: "flex",
           flexDirection: "row",
+          flexWrap: "wrap",
           justifyContent: "space-between",
           gap: 2,
+          rowGap: 4,
           minWidth: 0,
-          paddingLeft: 2,
+          paddingLeft: floatHandle ? 22 : 2,
           paddingRight: 8,
         }}
       >
-        {/* RadialMenu handle + label — grouped in same flex row */}
-        <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 }}>
+        {/* RadialMenu handle + label — grouped in same flex row, OR absolute top-left when floatHandle */}
+        <div style={floatHandle
+          ? { position: "absolute", top: 4, left: 2, zIndex: 10, display: "flex", flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 }
+          : { display: "flex", flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 }
+        }>
           <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
             <PopoverAnchor asChild>
               <div
@@ -359,7 +369,7 @@ function InstanceInner({
           <div
             className="instance-fields"
             style={{
-              flex: 1,
+              flex: "1 1 160px",
               minWidth: 0,
               display: "flex",
               flexWrap: "wrap",
@@ -452,6 +462,7 @@ function ModuleInstance({
   embedOnDelete = null,
   embedSourceType = null,
   renderBody = null,
+  floatHandle = false,
 }) {
   const dragCtx = useDragContext();
   const { isContainerDrag } = dragCtx;
@@ -543,6 +554,7 @@ function ModuleInstance({
         embedRadialItems={embedRadialItems}
         embedOnDelete={embedOnDelete}
         renderBody={renderBody}
+        floatHandle={floatHandle}
       />
       {occurrence && showDoc && (() => {
         const bg = container?.ownStyle?.bg || null;

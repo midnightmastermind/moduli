@@ -16,7 +16,7 @@ const occById = Object.fromEntries(occs.map(o => [o.id, o]));
 const modById = Object.fromEntries(mods.map(m => [m.id, m]));
 
 const drinkWater = occs.find(o => {
-  const m = modById[o.targetId];
+  const m = modById[o.moduleId];
   return m?.label === "Drink Water" && o.fields?.HDT0kEI6?.value === true;
 });
 
@@ -37,7 +37,7 @@ while (cur && depth++ < 10) {
     console.log(`  ↑ ${cur} — NOT IN DB (orphan parent)`);
     break;
   }
-  const mod = modById[occ.targetId];
+  const mod = modById[occ.moduleId];
   console.log(`  ↑ ${occ.id} [${mod?.role}] "${mod?.label}" (parentId=${occ.parentId || "—"})`);
   cur = occ.parentId;
 }
@@ -47,18 +47,18 @@ console.log(`\n=== All 7:00am-related occurrences ===`);
 for (const o of occs) {
   const slotF = Object.values(o.fields || {}).find(v => v?.value === "7:00am");
   if (slotF) {
-    const m = modById[o.targetId];
+    const m = modById[o.moduleId];
     console.log(`  ${o.id} [${m?.role}] "${m?.label}" parent=${o.parentId} fields=${JSON.stringify(o.fields).slice(0, 150)}`);
   }
 }
 
 // Show what schedule page's occurrences[] currently says
 const schedMod = mods.find(m => m.label === "Schedule");
-const schedOcc = occs.find(o => o.targetId === schedMod.id);
+const schedOcc = occs.find(o => o.moduleId === schedMod.id);
 console.log(`\n=== Schedule page's occurrences[] (${schedOcc.occurrences?.length || 0}) ===`);
 for (const id of schedOcc.occurrences || []) {
   const o = occById[id];
-  const m = o ? modById[o.targetId] : null;
+  const m = o ? modById[o.moduleId] : null;
   console.log(`  ${id} ${o ? `"${m?.label}"` : "MISSING"}`);
 }
 

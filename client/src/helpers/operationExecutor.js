@@ -718,7 +718,7 @@ function applyEffectsToLiveOccs(liveOccs, effects) {
         if (!inst?.id) break;
         liveOccs[inst.id] = {
           id: inst.id,
-          targetId: inst.templateId,
+          moduleId: inst.templateId,
           parentId: inst.parentId ?? null,
           fields: inst.fields || {},
           textmap: inst.textmap ?? null,
@@ -840,7 +840,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   const allTemplates = state?.modules ?? [];
   const templateById = Object.fromEntries(allTemplates.map(t => [t.id, t]));
   const allItems = Object.values(occurrencesById).map(occ => {
-    const tpl = occ.targetId ? templateById[occ.targetId] : null;
+    const tpl = occ.moduleId ? templateById[occ.moduleId] : null;
     return {
       ...occ,
       label: occ.label ?? tpl?.label ?? tpl?.name ?? null,
@@ -848,7 +848,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       role: occ.role ?? tpl?.role ?? null,
       kind: occ.kind ?? tpl?.kind ?? null,
       meta: { ...(tpl?.meta || {}), ...(occ.meta || {}) },
-      templateId: occ.targetId ?? null,
+      templateId: occ.moduleId ?? null,
       _ancestors: ancestorsFor(occ.id),
       _effectiveFilter: getEffectiveFilterForOccurrence(occ, { grid: state?.grid, occurrencesById }),
     };
@@ -937,7 +937,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       }
       enriched.occurrence = {
         id: occ.id,
-        targetId: occ.targetId,
+        moduleId: occ.moduleId,
         parentId: occ.parentId,
         fields,
       };
@@ -1019,7 +1019,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
         }
         const fieldValues = {
           id: occ.id,
-          targetId: occ.targetId,
+          moduleId: occ.moduleId,
           parentId: occ.parentId,
           fields,
           _ancestors: [],  // will be populated below
@@ -1092,7 +1092,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       $vars[varKey] = target?._effectiveFilter || {};
     } else {
       // instance / container — aggregate field values across occurrences targeting this entity
-      const occs = Object.values(occurrencesById).filter(o => o.targetId === entityId);
+      const occs = Object.values(occurrencesById).filter(o => o.moduleId === entityId);
       const fieldValues = {};
       for (const occ of occs) {
         for (const [fid, fdata] of Object.entries(occ.fields || {})) {
@@ -1315,16 +1315,16 @@ function gatherLoopItems(step, context, $vars) {
   // ---- OCCURRENCES: all occurrences with flexible filters ----
   if (over === "occurrences") {
     let occsAll = Object.values(occurrencesById);
-    if (step.targetId) {
-      const resolvedTargetId = resolveExpr(step.targetId, $vars) || step.targetId;
-      occsAll = occsAll.filter(o => o.targetId === resolvedTargetId);
+    if (step.moduleId) {
+      const resolvedModuleId = resolveExpr(step.moduleId, $vars) || step.moduleId;
+      occsAll = occsAll.filter(o => o.moduleId === resolvedModuleId);
     }
     if (step.parentId) {
       const resolvedParentId = resolveExpr(step.parentId, $vars) || step.parentId;
       occsAll = occsAll.filter(o => o.parentId === resolvedParentId);
     }
     return occsAll.map(occ => {
-      const item = { occurrenceId: occ.id, targetId: occ.targetId, parentId: occ.parentId,
+      const item = { occurrenceId: occ.id, moduleId: occ.moduleId, parentId: occ.parentId,
         iterationValue: occ.iteration?.timeValue || occ.iteration?.value || null };
       for (const [fid, fdata] of Object.entries(occ.fields || {})) {
         item[fid] = fdata?.value !== undefined ? fdata.value : fdata;
@@ -1339,7 +1339,7 @@ function gatherLoopItems(step, context, $vars) {
   if (over === "occurrence_history") {
     const resolvedModuleId = resolveExpr(moduleId, $vars) || moduleId;
     if (!resolvedModuleId) return [];
-    occs = occs.filter(o => o.targetId === resolvedModuleId);
+    occs = occs.filter(o => o.moduleId === resolvedModuleId);
     return occs
       .sort((a, b) => {
         const aTime = new Date(a.iteration?.timeValue || a.iteration?.value || 0).getTime();
@@ -1348,7 +1348,7 @@ function gatherLoopItems(step, context, $vars) {
       })
       .map(occ => ({
         occurrenceId: occ.id,
-        targetId: occ.targetId,
+        moduleId: occ.moduleId,
         iterationValue: occ.iteration?.timeValue || occ.iteration?.value || null,
         iterationCategory: occ.iteration?.categoryValue || null,
         ...Object.fromEntries(
@@ -1363,7 +1363,7 @@ function gatherLoopItems(step, context, $vars) {
     // Find occurrence(s) of this container module and collect their child IDs
     const scopeOccIds = new Set();
     for (const occ of Object.values(occurrencesById)) {
-      if (occ.targetId === resolvedId && Array.isArray(occ.occurrences)) {
+      if (occ.moduleId === resolvedId && Array.isArray(occ.occurrences)) {
         for (const childId of occ.occurrences) scopeOccIds.add(childId);
       }
     }
@@ -1374,10 +1374,10 @@ function gatherLoopItems(step, context, $vars) {
   if (over === "container_items") {
     const modulesById = Object.fromEntries((state?.modules || []).map(m => [m.id, m]));
     return occs.map(occ => {
-      const inst = modulesById[occ.targetId];
+      const inst = modulesById[occ.moduleId];
       const item = {
         occurrenceId: occ.id,
-        instanceId: occ.targetId,
+        instanceId: occ.moduleId,
         label: inst?.label ?? "",
         kind: inst?.kind ?? null,
         iterationValue: occ.iteration?.timeValue || occ.iteration?.value || null,
@@ -1475,7 +1475,7 @@ function gatherLoopItems(step, context, $vars) {
     const item = {
       id: occ.id,
       occurrenceId: occ.id,
-      targetId: occ.targetId,
+      moduleId: occ.moduleId,
       parentId: occ.parentId,
       value: fv?.value !== undefined ? fv.value : (fv ?? null),  // back-compat flat accessor
       flow: fv?.flow ?? null,

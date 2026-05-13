@@ -381,10 +381,10 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
 
     const existingOcc = await Occurrence.findOne({ id: occurrenceId });
     const occDoc = existingOcc
-      ? { ...existingOcc.toObject(), targetType: "module", targetId: moduleId }
+      ? { ...existingOcc.toObject(), moduleId }
       : {
           id: occurrenceId, userId, gridId: gridId || null,
-          targetType: "module", targetId: moduleId,
+          moduleId,
           parentId: parentFolderId || null,
           textmap: kind === "markdown" ? { type: "doc", content: [] } : null,
         };

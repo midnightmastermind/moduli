@@ -54,7 +54,7 @@ export default function PagePreviewApp({ occurrenceId }) {
   }, [parentState?.occurrences]);
 
   const occurrence = occurrencesById[occurrenceId];
-  const module = occurrence?.targetId ? modulesById[occurrence.targetId] : null;
+  const module = occurrence?.moduleId ? modulesById[occurrence.moduleId] : null;
 
   const roleByModuleId = useMemo(
     () => computeRoleByModuleId(parentState?.grid, occurrencesById, modulesById),

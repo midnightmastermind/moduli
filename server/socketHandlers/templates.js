@@ -54,7 +54,7 @@ export function registerTemplateHandlers(socket, {
         const occId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const occ = createOccurrenceData({
           id: occId, userId,
-          targetType: "module", targetId: item.instanceId,
+          moduleId: item.instanceId,
           gridId,
           fields: { ...dateFields, ...(item.fieldDefaults || {}) },
           meta: dateISO ? { date: dateISO } : {},
@@ -65,7 +65,7 @@ export function registerTemplateHandlers(socket, {
         createdOccurrences.push(occ);
       }
 
-      const containerOcc = Object.values(uc.occurrencesById).find(o => o.targetId === containerId);
+      const containerOcc = Object.values(uc.occurrencesById).find(o => o.moduleId === containerId);
       if (containerOcc) {
         const newOccIds = createdOccurrences.map(o => o.id);
         containerOcc.occurrences = [...(containerOcc.occurrences || []), ...newOccIds];

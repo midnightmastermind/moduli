@@ -9,7 +9,7 @@ const user = await User.findOne({ email: "josh@jpoms.com" });
 const userId = user._id.toString();
 
 const schedMod = await Module.findOne({ userId, label: "Schedule" }).lean();
-const schedOcc = await Occurrence.findOne({ userId, targetId: schedMod.id }).lean();
+const schedOcc = await Occurrence.findOne({ userId, moduleId: schedMod.id }).lean();
 console.log(`Schedule occ: ${schedOcc.id}`);
 console.log(`Schedule.occurrences[].length = ${(schedOcc.occurrences || []).length}`);
 
@@ -25,7 +25,7 @@ console.log(`  ↳ orphans (parentId set but not in list): ${orphans.length}`);
 if (orphans.length) {
   console.log("\nFirst 5 orphans:");
   for (const o of orphans.slice(0, 5)) {
-    const m = await Module.findOne({ id: o.targetId }).lean();
+    const m = await Module.findOne({ id: o.moduleId }).lean();
     console.log(`  ${o.id} [${m?.role}] "${m?.label}" updated=${o.updatedAt}`);
   }
 }

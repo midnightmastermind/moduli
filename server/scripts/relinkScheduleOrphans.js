@@ -32,7 +32,7 @@ async function main() {
   if (!dateFieldId) throw new Error("No Date field");
 
   const schedMod = await Module.findOne({ gridId, label: "Schedule" });
-  const schedOcc = await Occurrence.findOne({ gridId, targetId: schedMod.id });
+  const schedOcc = await Occurrence.findOne({ gridId, moduleId: schedMod.id });
   if (!schedOcc) throw new Error("No Schedule page occurrence");
 
   console.log(`User: ${TARGET_EMAIL}`);
@@ -52,7 +52,7 @@ async function main() {
   const linkedSet = new Set(schedOcc.occurrences || []);
   const allChildren = await Occurrence.find({
     gridId, parentId: schedOcc.id,
-    targetId: { $in: Array.from(childModuleIds) },
+    moduleId: { $in: Array.from(childModuleIds) },
   }).lean();
   const orphans = allChildren.filter(o => !linkedSet.has(o.id));
 
@@ -71,7 +71,7 @@ async function main() {
   const orderKey = (o) => {
     const dv = o.fields?.[dateFieldId];
     const date = dv?.value ? String(dv.value).slice(0, 10) : "9999-99-99";
-    const mod = moduleById.get(o.targetId);
+    const mod = moduleById.get(o.moduleId);
     if (!mod) return `${date}|99|99|due`;
     const h = String(mod.meta?.slotHour ?? 0).padStart(2, "0");
     const m = String(mod.meta?.slotMinute ?? 0).padStart(2, "0");

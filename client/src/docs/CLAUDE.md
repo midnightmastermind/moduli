@@ -2,6 +2,10 @@
 
 _Updated: 2026-04-12. Check this file before re-reading source._
 
+## Recent Changes (May 11 2026 — InstanceTextblockNode drag-out)
+- **pills/InstanceTextblockNode.jsx**: Wired Pragmatic DnD `draggable({ element: wrapper, dragHandle: handleDiv, getInitialData: () => ({ type: "module", sourceType: "doc", role: "textblock", id: instanceId, occurrenceId, data: instance || …fallback }) })`. Mirrors the InstancePillNode pattern (Apr 6) — pill drags out, copies to target container/grid cell. Drag init is scoped to the `.module-drag-handle` pill so clicks inside the inner DocContent editor still go to text-editing instead of starting a drag. Removed the `draggable={false}` attribute on the outer wrapper that was blocking native drag entirely.
+- **index.css (`.textblock-card`)**: Updated to match `.instance-textblock-block` — same `rgba(134,239,172,0.04)` background, 6px radius, identical inner ProseMirror padding. A textblock now looks the same whether it was minted by typing in a doc (renders via InstanceTextblockNode) or by clicking + Textblock in the QuickAddMenu (renders via TextblockCard inside ModuleInstance). Visual parity, same data shape, same drag-out behavior.
+
 ## Recent Changes (Apr 15 2026 — Drag-Out from Doc Embeds)
 - **ModuleEmbedNode.jsx**: Imports `embedDeleteRegistry`. Registers `deleteNode` keyed by `occurrenceId` on mount (useEffect with cleanup). Passes `embedSourceType="doc-embed"` to both `ModuleInstance` and `Container` children — tells DragProvider the drag source is a TipTap embed node.
 - **helpers/embedRegistry.js**: (existing) Simple `Map<occurrenceId, deleteNode>` — DragProvider calls `embedDeleteRegistry.get(occurrenceId)?.()` to remove the embed node on move.

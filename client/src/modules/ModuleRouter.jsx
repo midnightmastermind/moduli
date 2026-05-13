@@ -20,7 +20,7 @@ export default function ModuleRouter({ occurrence, embedded = false, dispatch, s
   if (!occurrence) return null;
 
   const resolvedView = occurrence?.viewId ? viewsById?.[occurrence.viewId] : null;
-  const module = occurrence?.targetId ? modulesById?.[occurrence.targetId] : null;
+  const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
 
   // For artifact panels: the active occurrence is set on the view
   const activeOccurrence = resolvedView?.activeOccurrenceId

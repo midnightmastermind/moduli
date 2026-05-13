@@ -520,10 +520,52 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       const templateList = Array.isArray($vars.$allTemplates) ? $vars.$allTemplates : [];
       const existingTemplate = templateList.find(t => t && !t.trashed && (t.label === name || t.name === name));
 
+      // Attach fields: every fieldId addressed by cfg.fields is auto-bound to
+      // the module, plus anything in cfg.attachFields (explicit attach without
+      // a value). Newly-minted templates get them in fieldBindings up front;
+      // pre-existing templates get them merged via UPDATE_MODULE so date-
+      // stamping ops can guarantee the field renders without the user
+      // manually binding it first.
+      const fieldsMapIds = cfg.fields && typeof cfg.fields === "object"
+        ? Object.keys(cfg.fields).filter(Boolean)
+        : [];
+      const attachFieldIds = Array.from(new Set([
+        ...(Array.isArray(cfg.attachFields) ? cfg.attachFields.filter(Boolean) : []),
+        ...fieldsMapIds,
+      ]));
+      const hiddenMap = (cfg.fieldHidden && typeof cfg.fieldHidden === "object")
+        ? cfg.fieldHidden
+        : {};
+      const buildBindings = (existing = []) => {
+        const out = [...existing];
+        for (const fid of attachFieldIds) {
+          const idx = out.findIndex(b => b?.fieldId === fid);
+          const explicit = Object.prototype.hasOwnProperty.call(hiddenMap, fid);
+          const hidden = !!hiddenMap[fid];
+          if (idx === -1) {
+            out.push({ fieldId: fid, role: "input", order: out.length, ...(hidden ? { hidden: true } : {}) });
+          } else if (explicit && (!!out[idx].hidden) !== hidden) {
+            out[idx] = { ...out[idx], hidden: hidden ? true : undefined };
+          }
+        }
+        return out;
+      };
+
       let templateRecord = null;
       let templateId;
       if (existingTemplate) {
         templateId = existingTemplate.id;
+        if (attachFieldIds.length) {
+          const nextBindings = buildBindings(existingTemplate.fieldBindings || []);
+          if (nextBindings.length !== (existingTemplate.fieldBindings || []).length) {
+            updates.push({
+              _effect: "UPDATE_MODULE",
+              moduleId: templateId,
+              patch: { fieldBindings: nextBindings },
+            });
+            existingTemplate.fieldBindings = nextBindings;
+          }
+        }
       } else {
         templateId = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
         templateRecord = {
@@ -533,6 +575,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           role: cfg.role || "container",
           kind: cfg.kind || "doc",
           ...(resolvedMeta ? { meta: resolvedMeta } : {}),
+          ...(attachFieldIds.length ? { fieldBindings: buildBindings() } : {}),
         };
         // Optimistic publish so subsequent FIND in same pipeline sees it
         if (Array.isArray($vars.$allTemplates)) {
@@ -621,8 +664,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
       const instance = {
         id: instanceId,
-        targetType: "module",
-        targetId: templateId,
+        moduleId: templateId,
         parentId,
         fields,
         textmap,
@@ -663,8 +705,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       if (context.occurrencesById && typeof context.occurrencesById === "object") {
         context.occurrencesById[instanceId] = {
           id: instanceId,
-          targetType: "module",
-          targetId: templateId,
+          moduleId: templateId,
           parentId,
           fields,
           textmap,
@@ -839,6 +880,34 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       let patch = cfg.patch;
       if (!patch && cfg.patchJson) {
         try { patch = JSON.parse(cfg.patchJson); } catch { patch = null; }
+      }
+      // attachFields = [fieldId, ...] — merged into the module's fieldBindings
+      // so the renderer shows the field after this op runs. cfg.fieldHidden
+      // toggles per-binding visibility on the merged result.
+      const attachIds = Array.isArray(cfg.attachFields) ? cfg.attachFields.filter(Boolean) : [];
+      const hiddenMap = (cfg.fieldHidden && typeof cfg.fieldHidden === "object") ? cfg.fieldHidden : {};
+      if (modId && (attachIds.length || Object.keys(hiddenMap).length)) {
+        const mod = state?.modulesById?.[modId];
+        const existing = mod?.fieldBindings || patch?.fieldBindings || [];
+        let changed = false;
+        const next = existing.map(b => {
+          const hidden = !!hiddenMap[b?.fieldId];
+          if (b && b.hidden !== hidden) {
+            changed = true;
+            return { ...b, hidden: hidden ? true : undefined };
+          }
+          return b;
+        });
+        for (const fid of attachIds) {
+          if (!next.some(b => b?.fieldId === fid)) {
+            const hidden = !!hiddenMap[fid];
+            next.push({ fieldId: fid, role: "input", order: next.length, ...(hidden ? { hidden: true } : {}) });
+            changed = true;
+          }
+        }
+        if (changed) {
+          patch = { ...(patch || {}), fieldBindings: next };
+        }
       }
       if (modId && patch) updates.push({ _effect: "UPDATE_MODULE", moduleId: modId, patch });
       break;
@@ -1089,7 +1158,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
     // ---- REMOVE_FROM_POOL: delete an occurrence from a pool container ----
     // cfg: { poolId, moduleIdExpr? }
-    // Finds the specific pool occurrence (targetId === moduleId) within the pool container.
+    // Finds the specific pool occurrence whose moduleId matches within the pool container.
     // Only removes that one canonical pool occurrence — not schedule copies.
     case "REMOVE_FROM_POOL": {
       const moduleId = resolveExpr(cfg.moduleIdExpr || "$trigger.instanceId", $vars);
@@ -1147,7 +1216,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       if (!containerId) break;
 
       // Find the pool container's occurrence to get ordered child IDs
-      const containerOcc = Object.values(occurrencesById).find(o => o.targetId === containerId);
+      const containerOcc = Object.values(occurrencesById).find(o => o.moduleId === containerId);
       if (!containerOcc?.occurrences?.length) break;
 
       const childOccIds = containerOcc.occurrences;
@@ -1160,7 +1229,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         const fv = pickedOcc.fields?.[cfg.fieldId];
         $vars[varName] = fv?.value !== undefined ? fv.value : (fv ?? "");
       } else {
-        const mod = (context.state?.modulesById || {})[pickedOcc.targetId];
+        const mod = (context.state?.modulesById || {})[pickedOcc.moduleId];
         $vars[varName] = mod?.label ?? "";
       }
       break;

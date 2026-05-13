@@ -1878,15 +1878,28 @@ div:hover > .page-tree-close-btn:hover { opacity: 1; color: var(--text-primary) 
 }
 
 /* ============================================================ */
-/* TextblockCard — inline rich-text in a container row          */
+/* TextblockCard — container-child textblock. Matches the visual */
+/* of the inline `instance-textblock-block` (the one auto-created */
+/* by typing in a doc) so a textblock looks identical whether it */
+/* was minted via the QuickAddMenu "+ Textblock" button or by    */
+/* typing in a doc page.                                          */
 /* ============================================================ */
 .textblock-card {
   width: 100%;
-  padding: 4px 6px;
-  background: var(--input-bg);
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
+  margin: 3px 0;
+  background: rgba(134, 239, 172, 0.04);
+  border-radius: 6px;
+  position: relative;
   font-size: 13px;
   line-height: 1.45;
 }
-.textblock-card .ProseMirror { min-height: 24px; outline: none; }
+.textblock-card .doc-editor-wrapper {
+  min-height: 0;
+  padding: 0 !important;
+}
+.textblock-card .doc-editor-wrapper .ProseMirror,
+.textblock-card .ProseMirror {
+  min-height: 24px;
+  outline: none;
+  padding: 4px 8px 4px 8px;
+}

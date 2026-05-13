@@ -8,18 +8,8 @@ const OccurrenceSchema = new mongoose.Schema(
 
     userId: { type: String, required: true, index: true },
 
-    // Redundant with module.role; kept for back-compat with existing data
-    // and indexes. Defaults to "module" so writes don't need to set it.
-    targetType: {
-      type: String,
-      default: "module",
-      enum: ["module"],
-      index: true
-    },
-    // Reference to the Module record this placement renders. Exposed as
-    // both `targetId` (DB field, legacy name) and `moduleId` (virtual,
-    // used by drag/drop and any new code).
-    targetId: { type: String, required: true, index: true },
+    // Reference to the Module record this placement renders.
+    moduleId: { type: String, required: true, index: true },
 
     // Grid this occurrence belongs to
     gridId: { type: String, required: true, index: true },
@@ -31,7 +21,6 @@ const OccurrenceSchema = new mongoose.Schema(
     filterOverride: { type: mongoose.Schema.Types.Mixed, default: null },
 
     // Hidden flag — set by HIDE_OCCURRENCE operation effect
-    // Checked during container render to skip this occurrence
     hidden: { type: Boolean, default: false },
 
     // Locked flag — when true, doc editor is read-only
@@ -40,7 +29,7 @@ const OccurrenceSchema = new mongoose.Schema(
     // Timestamp for this occurrence
     timestamp: { type: Date, default: Date.now, index: true },
 
-    // Panel placement (only used when targetType = "panel")
+    // Panel placement (only used when the module is role: "panel")
     placement: {
       row: { type: Number },
       col: { type: Number },
@@ -49,24 +38,18 @@ const OccurrenceSchema = new mongoose.Schema(
     },
 
     // Optional snapshot of field values (for UI convenience)
-    // Actual field values can also be computed from transactions in Phase 3
     fields: { type: mongoose.Schema.Types.Mixed, default: {} },
 
     // View reference — viewId → View model record (SEPARATE model, NOT embedded)
-    // View drives rendering: viewType, hasTree, manifestId, activeOccurrenceId, layout
-    // Module has NO viewId. View always lives on the occurrence.
     viewId: { type: String, default: null, index: true },
 
-    // TipTap JSON content (replaces docContent). Synced bidirectionally with artifacts/ files.
-    // For .md files: textmap ↔ markdown with @:(id) markers on disk.
+    // TipTap JSON content. Synced bidirectionally with artifacts/ files.
     textmap: { type: mongoose.Schema.Types.Mixed, default: null },
 
-    // Parent occurrence ID (tree structure — replaces module.occurrences ordering)
+    // Parent occurrence ID (tree structure)
     parentId: { type: String, default: null, index: true },
 
-    // Ordered child occurrence IDs (moves FROM module.occurrences to here)
-    // For markdown artifacts: order implicit in TipTap doc structure (this array unused)
-    // For list/board: this array defines child ordering
+    // Ordered child occurrence IDs
     occurrences: { type: [String], default: [] },
 
     // Copylink: linked occurrence ID — when set, field edits propagate to all
@@ -88,36 +71,15 @@ const OccurrenceSchema = new mongoose.Schema(
   }
 );
 
-// Compound indexes for common queries
-OccurrenceSchema.index({ gridId: 1, targetType: 1 });
 OccurrenceSchema.index({ gridId: 1, timestamp: -1 });
-OccurrenceSchema.index({ targetId: 1, gridId: 1 });
+OccurrenceSchema.index({ moduleId: 1, gridId: 1 });
 
-// Virtual alias: moduleId ↔ targetId. The drag/drop pipeline reads/writes
-// `moduleId`; everywhere else still uses `targetId`. With `toJSON: { virtuals: true }`
-// below, Occurrences serialized to clients carry both fields.
-OccurrenceSchema.virtual("moduleId")
-  .get(function () { return this.targetId; })
-  .set(function (v) { this.targetId = v; });
-
-// Defensive pre-validate hook: if a caller constructs `new Occurrence({ moduleId })`
-// where the Mongoose constructor route bypasses the virtual setter, copy the
-// raw payload value over to targetId before required-field validation runs.
-// Sync style (no `next`) — Mongoose treats hooks without a return value as
-// synchronous middleware.
-OccurrenceSchema.pre("validate", function () {
-  if (!this.targetId && this._doc?.moduleId) this.targetId = this._doc.moduleId;
-});
-
-// Hide Mongo internals in API responses
 OccurrenceSchema.set("toJSON", {
-  virtuals: true,
   versionKey: false,
   transform: (_, ret) => {
     ret._id = ret._id?.toString?.() ?? ret._id;
     return ret;
   },
 });
-OccurrenceSchema.set("toObject", { virtuals: true });
 
 export default mongoose.model("Occurrence", OccurrenceSchema);

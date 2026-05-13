@@ -456,7 +456,7 @@ export default function App() {
       if (!panel) return;
 
       // Find the panel occurrence so createContainerInPanel can update ordering
-      const panelOcc = Object.values(occurrencesById || {}).find(o => o.targetId === panelId);
+      const panelOcc = Object.values(occurrencesById || {}).find(o => o.moduleId === panelId);
 
       // Use the occurrence-based helper which creates module + occurrence + adds to panel
       LayoutHelpers.createContainerInPanel({
@@ -486,7 +486,7 @@ export default function App() {
       if (!container) return;
 
       // Find the container occurrence so createInstanceInContainer can update ordering
-      const containerOcc = Object.values(occurrencesById || {}).find(o => o.targetId === containerId);
+      const containerOcc = Object.values(occurrencesById || {}).find(o => o.moduleId === containerId);
 
       // Use the occurrence-based helper which creates module + occurrence + adds to container
       LayoutHelpers.createInstanceInContainer({
@@ -740,8 +740,8 @@ export default function App() {
           )}
         </div>
 
-        {/* Toast notifications */}
-        <Toaster position="bottom-right" />
+        {/* Toast notifications — anchored inside the top toolbar area, centered. */}
+        <Toaster position="top-center" offset={4} />
       </GridDataContext.Provider>
       </GridLiveContext.Provider>
     </GridActionsContext.Provider>

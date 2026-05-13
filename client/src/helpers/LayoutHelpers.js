@@ -59,7 +59,7 @@ export function getContainerItems(container, occurrencesLookup, leafModulesLooku
     .map(occId => {
       const occ = getItemById(occId, occurrencesLookup);
       if (!occ) return null;
-      return getItemById(occ.targetId, leafModulesLookup);
+      return getItemById(occ.moduleId, leafModulesLookup);
     })
     .filter(Boolean);
 }
@@ -76,7 +76,7 @@ export function getContainerItemsWithOccurrences(container, occurrencesLookup, l
     .map(occId => {
       const occ = getItemById(occId, occurrencesLookup);
       if (!occ) return null;
-      const instance = getItemById(occ.targetId, leafModulesLookup);
+      const instance = getItemById(occ.moduleId, leafModulesLookup);
       if (!instance) return null;
       return { instance, occurrence: occ };
     })
@@ -101,7 +101,7 @@ export function getPanelContainers(panel, occurrencesLookup, containersLookup, p
     .map(occId => {
       const occ = getItemById(occId, occurrencesLookup);
       if (!occ) return null;
-      return getItemById(occ.targetId, containersLookup);
+      return getItemById(occ.moduleId, containersLookup);
     })
     .filter(Boolean);
 }
@@ -117,7 +117,7 @@ export function findOccurrenceIdByTarget(targetId, parentOccurrences, occurrence
   if (!targetId || !Array.isArray(parentOccurrences) || !occurrencesLookup) return null;
   for (const occId of parentOccurrences) {
     const occ = occurrencesLookup[occId];
-    if (occ && occ.targetId === targetId) {
+    if (occ && occ.moduleId === targetId) {
       return occId;
     }
   }
@@ -135,7 +135,7 @@ export function getTargetIndexInOccurrences(targetId, parentOccurrences, occurre
   if (!targetId || !Array.isArray(parentOccurrences) || !occurrencesLookup) return -1;
   for (let i = 0; i < parentOccurrences.length; i++) {
     const occ = occurrencesLookup[parentOccurrences[i]];
-    if (occ && occ.targetId === targetId) {
+    if (occ && occ.moduleId === targetId) {
       return i;
     }
   }
@@ -212,8 +212,7 @@ export function createPanelInGrid({
   const occurrence = {
     id: occurrenceId,
     userId,
-    targetType: "module",
-    targetId: panel.id,
+    moduleId: panel.id,
     gridId,
     iteration: { key: "time", value: new Date(), timeValue: new Date(), timeFilter: "daily", mode: "persistent" },
     timestamp: new Date(),
@@ -256,8 +255,7 @@ export function createContainerInPanel({
   const occurrence = {
     id: occurrenceId,
     userId,
-    targetType: "module",
-    targetId: container.id,
+    moduleId: container.id,
     gridId,
     iteration: { key: "time", value: new Date(), timeValue: new Date(), timeFilter: "daily", mode: "persistent" },
     timestamp: new Date(),
@@ -306,8 +304,7 @@ export function createInstanceInContainer({
   const occurrence = {
     id: occurrenceId,
     userId,
-    targetType: "module",
-    targetId: instance.id,
+    moduleId: instance.id,
     gridId,
     iteration: { key: "time", value: new Date(), timeValue: new Date(), timeFilter: "daily", mode: iterationMode },
     timestamp: new Date(),
@@ -342,7 +339,7 @@ export function getPanelPages(panelOccurrence, occurrencesLookup, modulesLookup)
     .map(occId => {
       const occ = getItemById(occId, occurrencesLookup);
       if (!occ) return null;
-      const mod = getItemById(occ.targetId, modulesLookup);
+      const mod = getItemById(occ.moduleId, modulesLookup);
       if (!mod || mod.role !== "page") return null;
       return { page: mod, occurrence: occ };
     })
@@ -362,7 +359,7 @@ export function getPageChildrenModules(pageOccurrence, occurrencesLookup, module
     .map(occId => {
       const occ = getItemById(occId, occurrencesLookup);
       if (!occ) return null;
-      return getItemById(occ.targetId, modulesLookup);
+      return getItemById(occ.moduleId, modulesLookup);
     })
     .filter(Boolean);
 }
@@ -389,8 +386,7 @@ export function createPageInPanel({
   const occurrence = {
     id: occurrenceId,
     userId,
-    targetType: "module",
-    targetId: page.id,
+    moduleId: page.id,
     gridId,
     timestamp: new Date(),
     fields: {},
@@ -472,8 +468,7 @@ export function copylinkPanel({ dispatch, socket, grid, panel, userId, emit = tr
   const occurrence = {
     id: occurrenceId,
     userId,
-    targetType: "panel",
-    targetId: panel.id,
+    moduleId: panel.id,
     gridId,
     iteration: { key: "time", value: new Date(), timeValue: new Date(), timeFilter: "daily", mode: "persistent" },
     timestamp: new Date(),
@@ -672,8 +667,7 @@ export function copyInstanceToContainer({
   const occurrence = {
     id: occurrenceId,
     userId,
-    targetType: "module",
-    targetId: sourceInstanceId,
+    moduleId: sourceInstanceId,
     gridId,
     iteration: {
       key: "time",
@@ -745,8 +739,7 @@ export function copylinkInstanceToContainer({
   const occurrence = {
     id: occurrenceId,
     userId,
-    targetType: "instance",
-    targetId: sourceInstanceId,
+    moduleId: sourceInstanceId,
     gridId,
     iteration: {
       key: "time",
@@ -817,8 +810,7 @@ export function copyContainerToPanel({
   const occurrence = {
     id: occurrenceId,
     userId,
-    targetType: "container",
-    targetId: sourceContainerId, // Same container, new occurrence
+    moduleId: sourceContainerId, // Same container, new occurrence
     gridId,
     iteration: {
       key: "time",
@@ -875,7 +867,7 @@ export function findContainerOccurrence(containerModuleId, parentOccurrence, occ
   if (!parentOccurrence?.occurrences || !containerModuleId) return null;
   for (const childOccId of parentOccurrence.occurrences) {
     const occ = occurrencesById[childOccId];
-    if (occ?.targetId === containerModuleId) return occ;
+    if (occ?.moduleId === containerModuleId) return occ;
   }
   return null;
 }

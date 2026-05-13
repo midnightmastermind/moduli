@@ -1,7 +1,7 @@
 // helpers/CommitHelpers.js
 import { operationsBridge } from "../state/bindSocketToStore";
 import { safeEmit } from "./offlineQueue";
-import { aliasOccurrence, buildParentMap } from "./dragHitTesting";
+import { buildParentMap } from "./dragHitTesting";
 import {
   createGridAction,
   updateGridAction,
@@ -109,15 +109,13 @@ export function createInstanceInContainer({
 // ===== OCCURRENCE =====
 export function createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null, containerLabel = "", panelLabel = "" }) {
   if (!occurrence?.id) return;
-  // Normalize at the write boundary so callers can pass moduleId or targetId.
-  occurrence = aliasOccurrence(occurrence);
   operationsBridge.updateLocalOcc?.(occurrence);
   dispatch?.(createOccurrenceAction(occurrence));
   if (shouldEmit(emit)) safeEmit(socket, "create_occurrence", { occurrence });
   operationsBridge.fireOperations?.("OccurrenceCreateOp", {
     type: "OccurrenceCreateOp",
     occurrenceId: occurrence.id,
-    instanceId: occurrence.targetId,
+    instanceId: occurrence.moduleId,
     containerId: occurrence.parentId,
     gridId: occurrence.gridId,
     ...(panelId ? { panelId } : {}),
@@ -135,7 +133,7 @@ export function createOccurrence({ dispatch, socket, occurrence, emit = true, pa
       operationsBridge.fireOperations?.("MeasureOp", {
         type: "MeasureOp",
         occurrenceId: occurrence.id,
-        instanceId: occurrence.targetId,
+        instanceId: occurrence.moduleId,
         fieldId,
         value: fv && typeof fv === "object" && "value" in fv ? fv.value : fv,
       });
@@ -231,7 +229,7 @@ function _ancestorChain(occId, occurrencesById, modulesById) {
   while (cur && !seen.has(cur.id) && depth++ < 20) {
     seen.add(cur.id);
     ids.push(cur.id);
-    const label = modulesById?.[cur.targetId]?.label;
+    const label = modulesById?.[cur.moduleId]?.label;
     if (label) labels.push(label);
     const nextId = parentByChildId[cur.id] ?? cur.parentId;
     cur = nextId ? occurrencesById[nextId] : null;
@@ -310,14 +308,14 @@ export function deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, e
   operationsBridge.fireOperations?.("OccurrenceDeleteOp", {
     type: "OccurrenceDeleteOp",
     occurrenceId,
-    instanceId: occurrence?.targetId,
+    instanceId: occurrence?.moduleId,
     containerId: occurrence?.parentId,
   }, deleteOpts);
   // Defer MeasureOp until after React renders so _cachedBaseOccsById is rebuilt without this
   // occurrence — otherwise the aggregation still counts it and produces the same result
   if (occurrence?.fields) {
     const savedFields = occurrence.fields;
-    const savedTargetId = occurrence.targetId;
+    const savedTargetId = occurrence.moduleId;
     requestAnimationFrame(() => {
       for (const fieldId of Object.keys(savedFields)) {
         operationsBridge.fireOperations?.("MeasureOp", {
@@ -354,13 +352,13 @@ export function removeOccurrence({ dispatch, socket, occurrenceId, occurrence, p
   operationsBridge.fireOperations?.("OccurrenceDeleteOp", {
     type: "OccurrenceDeleteOp",
     occurrenceId,
-    instanceId: occurrence?.targetId,
+    instanceId: occurrence?.moduleId,
     containerId: occurrence?.parentId,
   }, removeOpts);
   // Defer MeasureOp until after React renders so _cachedBaseOccsById no longer has this occurrence
   if (occurrence?.fields) {
     const savedFields = occurrence.fields;
-    const savedTargetId = occurrence.targetId;
+    const savedTargetId = occurrence.moduleId;
     requestAnimationFrame(() => {
       for (const fieldId of Object.keys(savedFields)) {
         operationsBridge.fireOperations?.("MeasureOp", {
@@ -584,7 +582,7 @@ export function setOccurrenceFieldValue({ dispatch, socket, occurrences, occurre
   operationsBridge.fireOperations?.("MeasureOp", {
     type: "MeasureOp",
     occurrenceId,
-    instanceId: occ.targetId,
+    instanceId: occ.moduleId,
     fieldId,
     value,
   });
@@ -629,8 +627,7 @@ export function createTextblockInContainer({
     id: occurrenceId,
     userId,
     gridId,
-    targetId: moduleId,
-    targetType: "module",
+    moduleId,
     parentId: containerOccurrence.id,
     textmap: { type: "doc", content: [] },
   };

@@ -2,12 +2,13 @@
 // ============================================================
 // Tiptap Extension: Custom backspace + arrow key behavior for pills and modules
 //
-// Inline pills (fieldPill, instancePill, docLink, exprPill):
-//   Backspace converts them to their text representation.
+// Inline pills:
+//   - fieldPill / docLink / exprPill: Backspace converts them to text.
+//   - instancePill: regular Backspace STOPS at the pill (cursor parks
+//     before it, no delete). Shift+Backspace deletes the pill entirely.
 //
 // Block modules (moduleEmbed, instanceTextblock):
 //   Backspace NEVER deletes them — always moves cursor before the node.
-//   Applies whether the current block is empty or has content.
 //   Use the radial menu to remove modules.
 //
 // Arrow keys into/out of instanceTextblock sub-editors:
@@ -111,8 +112,10 @@ export const PillBackspace = Extension.create({
             return true;
           }
           case "instancePill": {
-            const label = nodeBefore.attrs.instanceLabel || "";
-            editor.chain().deleteRange({ from, to: pos }).insertContentAt(from, label).run();
+            // Regular Backspace stops at the instance pill — park cursor
+            // before it without deleting or converting. Shift+Backspace
+            // (handled separately below) deletes the pill entirely.
+            editor.commands.setTextSelection(from);
             return true;
           }
           case "docLink": {
@@ -128,6 +131,22 @@ export const PillBackspace = Extension.create({
           default:
             return false;
         }
+      },
+
+      // ── Shift+Backspace — delete an instancePill (or other inline pills) ──
+      "Shift-Backspace": ({ editor }) => {
+        const { state } = editor;
+        const { selection } = state;
+        if (!selection.empty) return false;
+        const pos = selection.$anchor.pos;
+        if (pos < 1) return false;
+        const nodeBefore = state.doc.resolve(pos).nodeBefore;
+        if (!nodeBefore) return false;
+        const inlinePills = new Set(["instancePill", "fieldPill", "docLink", "exprPill"]);
+        if (!inlinePills.has(nodeBefore.type.name)) return false;
+        const from = pos - nodeBefore.nodeSize;
+        editor.chain().deleteRange({ from, to: pos }).run();
+        return true;
       },
 
       // ── ArrowLeft — enter textblock at its end ────────────────────────────

@@ -14,14 +14,14 @@ const userId = user._id.toString();
 const schedMod = await Module.findOne({ userId, label: "Schedule" }).lean();
 console.log("Schedule module:", schedMod?.id, schedMod?.role, schedMod?.label);
 
-const schedOcc = await Occurrence.findOne({ userId, targetId: schedMod?.id }).lean();
+const schedOcc = await Occurrence.findOne({ userId, moduleId: schedMod?.id }).lean();
 console.log("Schedule occurrence:", schedOcc?.id, "children:", schedOcc?.occurrences?.length);
 
 // Walk the tree under Schedule and dump every occurrence + its field values
 async function walk(occId, depth = 0, prefix = "") {
   const occ = await Occurrence.findOne({ id: occId }).lean();
   if (!occ) return;
-  const mod = await Module.findOne({ id: occ.targetId }).lean();
+  const mod = await Module.findOne({ id: occ.moduleId }).lean();
   const fieldStrs = [];
   for (const [fid, fv] of Object.entries(occ.fields || {})) {
     const v = fv?.value !== undefined ? fv.value : fv;
@@ -42,7 +42,7 @@ if (schedOcc) {
 
 // Also dump the goal "Task Progress" occurrence
 const goalMod = await Module.findOne({ userId, label: "Task Progress" }).lean();
-const goalOcc = goalMod ? await Occurrence.findOne({ userId, targetId: goalMod.id }).lean() : null;
+const goalOcc = goalMod ? await Occurrence.findOne({ userId, moduleId: goalMod.id }).lean() : null;
 console.log("\n=== Task Progress goal ===");
 console.log("Module:", goalMod?.id);
 console.log("Occurrence:", goalOcc?.id, "filterOverride:", JSON.stringify(goalOcc?.filterOverride));
@@ -52,7 +52,7 @@ console.log("Fields:", JSON.stringify(goalOcc?.fields));
 const recentOccs = await Occurrence.find({ userId }).sort({ updatedAt: -1 }).limit(5).lean();
 console.log("\n=== 5 most recently updated occurrences ===");
 for (const o of recentOccs) {
-  const m = await Module.findOne({ id: o.targetId }).lean();
+  const m = await Module.findOne({ id: o.moduleId }).lean();
   const fStrs = Object.entries(o.fields || {}).map(([k, v]) => `${k}=${JSON.stringify(v?.value !== undefined ? v.value : v)}`);
   console.log(`  ${o.id} updated=${o.updatedAt} [${m?.role || "?"}] "${m?.label || "?"}" parentId=${o.parentId || "—"}`);
   console.log(`    fields: {${fStrs.join(", ")}}`);

@@ -1,6 +1,19 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-05-06. Check this file before re-reading source._
+_Updated: 2026-05-11. Check this file before re-reading source._
+
+## Recent Changes (May 11 2026 — QuickAddMenu kind filter + tile-style "New X" buttons)
+- **QuickAddMenu.jsx**: Added `ALLOWED_KINDS_BY_ROLE` — when adding to a container (`targetRole="instance"`) the picker filters out anything that isn't `list / textblock / artifact`. Was: doc-kind instance modules (mini-blocks minted by Editor's "Make mini block") showed up as a "Documents" tile under the container's add menu, which the user could not actually drop in a list container.
+- **QuickAddMenu.jsx**: The "New ${role}" + "New Textblock" buttons (shown in category-tile mode) are now rendered as the same 24×24 icon-block + title + sub tile layout as the category rows, with an accent-blue icon background instead of role color. The bottom of the category view is now visually consistent — no more flat blue text rows mixed with rich tiles.
+
+## Recent Changes (May 11 2026 — Instance popover crash + ContainerKindSelector vocab)
+- **InstanceForm.jsx**: Added `Plus` to the lucide-react import. `SiblingLinksSection`'s "Link sibling" button (line ~429) renders `<Plus />` outside the `showPicker` conditional — so opening the instance settings popover at all blew up with "type is invalid: expected a string but got undefined". The crash made the Fields tab inaccessible; now the popover renders cleanly. No tab-level reshuffle needed.
+- **ContainerKindSelector.jsx**: Replaced the legacy `list / doc / log / smart` kind set with the canonical `list / doc / board / canvas` set so the add-container surface matches the QuickAddMenu category vocabulary (Lists / Documents / Boards / Artifacts / Textblocks). `log` and `smart` were unused dead options. Icon for Canvas is `PenTool`; Board is `LayoutGrid` (was the old smart icon).
+
+## Recent Changes (May 10 2026 — Compact date pill: picker actually opens)
+- **Field.jsx (compact `type === "date"`)**: Two fixes for "Due field isn't being set":
+  1. Stored seed values are full ISO timestamps (`2026-05-12T15:34:56.789Z`); `<input type="date">` silently rejects anything that isn't `yyyy-MM-dd`, so the picker opened with no current value. Added a `toInputDate(v)` normalizer (uses local-tz `getFullYear/Month/Date`) that runs every render before passing `value` to the hidden input. Display layer (`formatted`) now also uses this normalized form.
+  2. The hidden input is `position:absolute; opacity:0; width:0; height:0; pointer-events:none` (so it doesn't visually appear) — label-click forwarding wasn't reliably triggering Chrome/Firefox's date picker on a 0×0 invisible input. Wired `inputRef` to the input and added `onClick={openPicker}` on the wrapping `<label>` that calls `inputRef.current.showPicker()` (with try/catch in case it's already open). Reuses the existing `inputRef` declared at the top of the Field component (only used by click-to-edit number/text/duration branches, which never overlap with date type).
 
 ## Recent Changes (May 6 2026 — FIND candidate rows show ancestor breadcrumb)
 - **commandCenter/OperationLogPanel.jsx (`FindCandidates` candidate row)**: When the executor attaches `c.ancestorLabels` (root → leaf), the candidate row now renders the chain joined with ` › ` between the candidate's `NameRef` and the score badge. Without this, multiple occurrences of the same template (e.g. several "Drink Water" instances seeded across schedule slots) all read identically — only short ID disambiguated them. The path lets the user tell "Drink Water in Daily Toolkit" from "Drink Water in Center Hub › Schedule › 6:00am" at a glance and confirm whether seeded items are actually in the iteration pool.

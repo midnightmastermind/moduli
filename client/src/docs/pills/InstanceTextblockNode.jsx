@@ -1,18 +1,97 @@
 // docs/pills/InstanceTextblockNode.jsx
 // NodeView for the instanceTextblock TipTap node.
 // Renders a DocContent sub-editor with a RadialMenu handle in the top-left.
-import React, { useContext, useCallback } from "react";
+import React, { useContext, useCallback, useEffect, useRef } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
+import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { GridActionsContext } from "../../GridActionsContext";
 import DocContent from "../../modules/DocContent.jsx";
 import RadialMenu from "../../ui/RadialMenu.jsx";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
+import { embedDeleteRegistry } from "../../helpers/embedRegistry.js";
 
 export default function InstanceTextblockNode({ node, editor, getPos, deleteNode }) {
-  const { occurrencesById, dispatch, socket } = useContext(GridActionsContext) || {};
+  const { occurrencesById, modulesById, dispatch, socket } = useContext(GridActionsContext) || {};
 
   const { instanceId, occurrenceId } = node.attrs;
   const occurrence = occurrencesById?.[occurrenceId] || null;
+  const instance = modulesById?.[instanceId] || null;
+  const wrapperRef = useRef(null);
+  const handleRef = useRef(null);
+
+  // Per-occurrence drag mode (move / copy / copylink). Mirrors ModuleInstance —
+  // defaults to occurrence.dragMode → instance.defaultDragMode → "move". Stored
+  // on the occurrence so the RadialMenu toggle persists.
+  const entityDragMode = occurrence?.dragMode ?? instance?.defaultDragMode ?? "move";
+  const toggleEntityDragMode = useCallback(() => {
+    if (!occurrenceId || !dispatch || !socket) return;
+    const nextMode = entityDragMode === "move" ? "copy" : "move";
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: occurrenceId, dragMode: nextMode },
+      emit: true,
+    });
+  }, [occurrenceId, entityDragMode, dispatch, socket]);
+
+  // Register deleteNode with embedDeleteRegistry so handleDocEmbedDrop can
+  // remove this TipTap node from the parent doc on a move-mode drop. Same
+  // pattern as ModuleEmbedNode (Apr 15). Without it, dropping the textblock
+  // into a container would create a duplicate and leave the source in the doc.
+  useEffect(() => {
+    if (!occurrenceId) return;
+    embedDeleteRegistry.set(occurrenceId, deleteNode);
+    return () => { embedDeleteRegistry.delete(occurrenceId); };
+  }, [occurrenceId, deleteNode]);
+
+  // Pragmatic DnD — drag the textblock OUT of the doc to a container/grid cell.
+  // Scoped to the .module-drag-handle pill so clicks inside the inner DocContent
+  // editor keep going to the editor (text-selection, cursor placement) instead
+  // of starting a drag.
+  //
+  // `sourceType: "doc-embed"` routes through `handleDocEmbedDrop`, which moves
+  // the EXISTING occurrence into the destination (preserving its textmap and
+  // fields) and calls `embedDeleteRegistry.get(occurrenceId)?.()` to remove
+  // the source TipTap node. Using `"doc"` instead would route through
+  // `handleModuleDrop`, which copies the module template (no textmap) into a
+  // fresh occurrence — the "empty duplicate" bug.
+  //
+  // `context.occurrenceId` is required so the drop handler can locate the
+  // moving occurrence (it reads `payload.context?.occurrenceId`).
+  // Latest occurrence/instance refs — `getInitialData` reads these fresh at
+  // drag-start time, so we don't need to re-attach pragmatic on every textmap
+  // keystroke (which would happen if `occurrence` were in the deps array).
+  const latestRef = useRef({ occurrence, instance, entityDragMode });
+  latestRef.current = { occurrence, instance, entityDragMode };
+
+  useEffect(() => {
+    const el = wrapperRef.current;
+    const handleEl = handleRef.current;
+    if (!el || !handleEl) return;
+    const cleanup = draggable({
+      element: el,
+      dragHandle: handleEl,
+      getInitialData: () => {
+        const { occurrence: o, instance: i, entityDragMode: m } = latestRef.current;
+        return {
+          type: "module",
+          sourceType: "doc-embed",
+          // role:"textblock" lets Editor.jsx's drop handler route into the
+          // textblock branch (inserts an `instanceTextblock` TipTap node)
+          // instead of falling through to the generic `moduleEmbed` path —
+          // which renders an empty ModuleInstance row at the destination.
+          role: "textblock",
+          kind: "doc",
+          id: instanceId,
+          data: i || { id: instanceId, role: "textblock", kind: "doc", label: "", defaultDragMode: m },
+          occurrence: o,
+          defaultDragMode: m,
+          occurrenceId,
+          context: { occurrenceId, sourceType: "doc-embed" },
+        };
+      },
+    });
+    return cleanup;
+  }, [instanceId, occurrenceId]);
 
   // Plain Enter at end of content → move parent editor cursor into the next block.
   // pos + nodeSize is the gap after the textblock (between nodes). We need to step
@@ -24,31 +103,55 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
     const afterPos = pos + nodeSize;
     const docSize = editor.state.doc.content.size;
 
+    // Index-based lookup is more reliable than `nodeAt(afterPos)` for the
+    // gap right after an atom node — nodeAt can hand back the wrong node
+    // (or null) at atom boundaries. Walk top-level children and pick the
+    // one immediately following this textblock.
+    let nextChild = null;
+    let nextChildStart = null;
     if (afterPos < docSize) {
-      // Check the next node type — instanceTextblock is atom:true, so
-      // setTextSelection into it creates NodeSelection (whole-element selection) instead
-      // of a text cursor. Must focus its inner editor directly.
-      const nextNode = editor.state.doc.nodeAt(afterPos);
-      if (nextNode?.type.name === "instanceTextblock") {
-        const innerPM = editor.view.nodeDOM(afterPos)?.querySelector?.(".ProseMirror");
-        if (innerPM) {
-          innerPM.focus();
-          const range = document.createRange();
-          range.selectNodeContents(innerPM);
-          range.collapse(true); // collapse to start
-          const sel = window.getSelection();
-          sel?.removeAllRanges();
-          sel?.addRange(range);
-          return;
+      let runningOffset = 0;
+      editor.state.doc.forEach((child) => {
+        if (nextChild) return;
+        if (runningOffset === afterPos) {
+          nextChild = child;
+          nextChildStart = runningOffset;
         }
-        // innerPM not ready — fall through to setTextSelection fallback
+        runningOffset += child.nodeSize;
+      });
+    }
+
+    if (nextChild?.type.name === "instanceTextblock") {
+      // The next sibling is another textblock — focus ITS inner editor at
+      // the start so the user keeps typing in the next textblock instead
+      // of leaving the textblock chain entirely.
+      const innerPM = editor.view.nodeDOM(nextChildStart)?.querySelector?.(".ProseMirror");
+      if (innerPM) {
+        innerPM.focus();
+        const range = document.createRange();
+        range.selectNodeContents(innerPM);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+        return;
       }
-      // Regular node (or innerPM fallback) — step inside it.
-      editor.chain().setTextSelection(afterPos + 1).focus().run();
+      // innerPM not yet mounted — fall through to outer-cursor placement
+    }
+
+    // `textblockExit` meta tells the outer editor's onUpdate that this is
+    // a deliberate exit gesture — it should slam the recentAutoCreateRef
+    // merge window shut so the next keystroke spawns a fresh textblock
+    // instead of getting folded into the one we just left.
+    if (nextChild) {
+      editor.chain()
+        .command(({ tr }) => { tr.setMeta("textblockExit", true); return true; })
+        .setTextSelection(afterPos + 1)
+        .focus()
+        .run();
     } else {
-      // End of doc — insert a new paragraph and move cursor into it.
-      editor
-        .chain()
+      editor.chain()
+        .command(({ tr }) => { tr.setMeta("textblockExit", true); return true; })
         .insertContentAt(afterPos, { type: "paragraph" })
         .setTextSelection(afterPos + 1)
         .focus()
@@ -122,10 +225,10 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   return (
     <NodeViewWrapper as="div" contentEditable={false}>
       <div
+        ref={wrapperRef}
         className="instance-textblock-block"
         data-instance-id={instanceId}
         data-occurrence-id={occurrenceId}
-        draggable={false}
         style={{
           margin: "3px 0",
           background: "rgba(134,239,172,0.04)",
@@ -136,9 +239,12 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* RadialMenu handle — always visible, top-left */}
+        {/* RadialMenu handle — always visible, top-left.
+            Doubles as the Pragmatic DnD drag handle (see useEffect above). */}
         <div
+          ref={handleRef}
           className="module-drag-handle"
+          data-dnd-handle="true"
           style={{
             position: "absolute",
             top: 4,
@@ -149,21 +255,27 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
           <RadialMenu
             size="sm"
             forceDirection="down"
+            dragMode={entityDragMode}
+            onToggleDragMode={toggleEntityDragMode}
             onDelete={handleDeleteBlock}
           />
         </div>
 
         {occurrence ? (
-          <div style={{ marginTop: 10 }}>
-            <DocContent
-              occurrence={occurrence}
-              dispatch={dispatch}
-              socket={socket}
-              hideToolbar={true}
-              onExitBlock={handleExitBlock}
-              onDeleteBlock={handleNavigateBack}
-            />
-          </div>
+          // Inner DocContent sits flush at the top of the card. The
+          // floating RadialMenu handle is absolute-positioned at top:4 /
+          // left:2 and the wrapper's paddingLeft:22 already reserves the
+          // horizontal column for it, so the text doesn't overlap the
+          // handle and we don't need a top spacer that pushes content
+          // down the box.
+          <DocContent
+            occurrence={occurrence}
+            dispatch={dispatch}
+            socket={socket}
+            hideToolbar={true}
+            onExitBlock={handleExitBlock}
+            onDeleteBlock={handleNavigateBack}
+          />
         ) : (
           <span style={{ opacity: 0.25, fontSize: 11, padding: "4px 8px", display: "block" }}>—</span>
         )}

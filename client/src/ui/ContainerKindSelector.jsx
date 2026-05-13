@@ -6,36 +6,39 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { List, FileText, Clock, LayoutGrid } from "lucide-react";
+import { List, FileText, LayoutGrid, PenTool } from "lucide-react";
 
+// Canonical kind set used everywhere the user picks a new container/page kind.
+// Mirrors the category tiles QuickAddMenu shows for existing modules, so add-
+// new and add-existing surfaces have the same vocabulary.
 const CONTAINER_KINDS = [
   {
     kind: "list",
     label: "List",
-    description: "Sortable list of items",
+    description: "Drag-sortable items",
     icon: List,
     color: "bg-blue-600 hover:bg-blue-500",
   },
   {
     kind: "doc",
     label: "Document",
-    description: "Rich text with field pills",
+    description: "Rich text with embedded pills",
     icon: FileText,
     color: "bg-purple-600 hover:bg-purple-500",
   },
   {
-    kind: "log",
-    label: "Log",
-    description: "Time-ordered entries",
-    icon: Clock,
-    color: "bg-amber-600 hover:bg-amber-500",
+    kind: "board",
+    label: "Board",
+    description: "Kanban-style columns",
+    icon: LayoutGrid,
+    color: "bg-emerald-600 hover:bg-emerald-500",
   },
   {
-    kind: "smart",
-    label: "Smart",
-    description: "Auto-filtered view",
-    icon: LayoutGrid,
-    color: "bg-teal-600 hover:bg-teal-500",
+    kind: "canvas",
+    label: "Canvas",
+    description: "Free-form spatial layout",
+    icon: PenTool,
+    color: "bg-pink-600 hover:bg-pink-500",
   },
 ];
 

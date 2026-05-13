@@ -8,6 +8,7 @@ import { GridActionsContext } from "../GridActionsContext.js";
 import Container from "../modules/ModuleContainer.jsx";
 import ModuleInstance from "../modules/ModuleInstance.jsx";
 import ArtifactContent from "../modules/ArtifactContent.jsx";
+import TextblockCard from "../modules/TextblockCard.jsx";
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box } from "lucide-react";
 import { embedDeleteRegistry } from "../helpers/embedRegistry.js";
 
@@ -30,7 +31,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   const align = node.attrs.align || "full";
   const width = node.attrs.width || null;
   const occurrence = occurrencesById?.[occurrenceId];
-  const mod = occurrence?.targetId ? modulesById?.[occurrence.targetId] : null;
+  const mod = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const occView = occurrence?.viewId ? viewsById?.[occurrence.viewId] : null;
 
   // Register deleteNode so DragProvider can remove this embed on drag-out (move mode)
@@ -110,7 +111,13 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   return (
     <NodeViewWrapper contentEditable={false} data-occ-id={occurrenceId}>
       <div style={{ position: "relative", ...alignStyle(align, width) }}>
-        {mod?.role === "instance" ? (
+        {mod?.role === "textblock" ? (
+          // Defensive: textblocks should appear as their own card even when
+          // wrapped in a moduleEmbed node (e.g. from older data where a
+          // textblock was inserted via the generic embed path). Without this
+          // fall-through they'd render via the Container fallback below.
+          <TextblockCard occurrence={occurrence} />
+        ) : mod?.role === "instance" ? (
           <ModuleInstance
             module={mod}
             occurrence={occurrence}

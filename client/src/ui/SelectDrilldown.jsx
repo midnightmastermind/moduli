@@ -35,7 +35,7 @@ export function buildPathConfig({ sources = [], fields = [], inLoop = false, fie
 
   const mergedFieldsById = fieldsById || Object.fromEntries(fields.map(f => [f.id, f]));
 
-  const occShape = { id: null, targetId: null, parentId: null, _ancestors: null, fields: fieldsShape, meta: {}, label: null, templateId: null };
+  const occShape = { id: null, moduleId: null, parentId: null, _ancestors: null, fields: fieldsShape, meta: {}, label: null, templateId: null };
 
   // Built-in shapes only include scalars and $grid. Collection vars
   // ($allItems, $allTemplates, $parentFilter) are no longer auto-exposed —

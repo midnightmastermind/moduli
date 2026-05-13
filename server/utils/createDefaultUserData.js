@@ -2321,13 +2321,12 @@ export async function createDefaultUserData(userId) {
     return d;
   }
 
-  async function createOccurrence({ targetType, targetId, meta = {}, placement = null, linkedGroupId = null, fields = {}, date = null, viewId = null, filterOverride = null }) {
+  async function createOccurrence({ moduleId, meta = {}, placement = null, linkedGroupId = null, fields = {}, date = null, viewId = null, filterOverride = null }) {
     const occId = uid();
     const occ = new Occurrence({
       id: occId,
       userId,
-      targetType,
-      targetId,
+      moduleId,
       gridId,
       timestamp: new Date(),
       fields: date
@@ -2388,8 +2387,8 @@ export async function createDefaultUserData(userId) {
       if (inst.meta?.defaultCarbs)       defaultFields[fields.carbs.id] = fv(inst.meta.defaultCarbs, "replace");
       if (inst.meta?.defaultFats)        defaultFields[fields.fats.id] = fv(inst.meta.defaultFats, "replace");
       const occId = await createOccurrence({
-        targetType: "module",
-        targetId: inst.id,
+        
+        moduleId: inst.id,
         meta: { containerId: toolkitContainers[containerKey].id },
         fields: defaultFields,
         date: today.toISOString(),
@@ -2405,8 +2404,8 @@ export async function createDefaultUserData(userId) {
     for (const instKey of Object.keys(moviePoolInstances)) {
       const inst = moviePoolInstances[instKey];
       const occId = await createOccurrence({
-        targetType: "module",
-        targetId: inst.id,
+        
+        moduleId: inst.id,
         meta: { containerId: toolkitContainers.moviePool.id },
       });
       movieOccIds.push(occId);
@@ -2419,7 +2418,7 @@ export async function createDefaultUserData(userId) {
     const occIds = [];
     for (const instKey of Object.keys(tvShowPoolInstances)) {
       const inst = tvShowPoolInstances[instKey];
-      const occId = await createOccurrence({ targetType: "module", targetId: inst.id, meta: { containerId: toolkitContainers.tvShowPool.id } });
+      const occId = await createOccurrence({ moduleId: inst.id, meta: { containerId: toolkitContainers.tvShowPool.id } });
       occIds.push(occId);
     }
     containerInstOccs[toolkitContainers.tvShowPool.id] = occIds;
@@ -2430,7 +2429,7 @@ export async function createDefaultUserData(userId) {
     const occIds = [];
     for (const instKey of Object.keys(booksPoolInstances)) {
       const inst = booksPoolInstances[instKey];
-      const occId = await createOccurrence({ targetType: "module", targetId: inst.id, meta: { containerId: toolkitContainers.booksPool.id } });
+      const occId = await createOccurrence({ moduleId: inst.id, meta: { containerId: toolkitContainers.booksPool.id } });
       occIds.push(occId);
     }
     containerInstOccs[toolkitContainers.booksPool.id] = occIds;
@@ -2441,7 +2440,7 @@ export async function createDefaultUserData(userId) {
     const occIds = [];
     for (const instKey of Object.keys(musicPoolInstances)) {
       const inst = musicPoolInstances[instKey];
-      const occId = await createOccurrence({ targetType: "module", targetId: inst.id, meta: { containerId: toolkitContainers.musicPool.id } });
+      const occId = await createOccurrence({ moduleId: inst.id, meta: { containerId: toolkitContainers.musicPool.id } });
       occIds.push(occId);
     }
     containerInstOccs[toolkitContainers.musicPool.id] = occIds;
@@ -2452,7 +2451,7 @@ export async function createDefaultUserData(userId) {
     const occIds = [];
     for (const instKey of Object.keys(podcastsPoolInstances)) {
       const inst = podcastsPoolInstances[instKey];
-      const occId = await createOccurrence({ targetType: "module", targetId: inst.id, meta: { containerId: toolkitContainers.podcastsPool.id } });
+      const occId = await createOccurrence({ moduleId: inst.id, meta: { containerId: toolkitContainers.podcastsPool.id } });
       occIds.push(occId);
     }
     containerInstOccs[toolkitContainers.podcastsPool.id] = occIds;
@@ -2463,7 +2462,7 @@ export async function createDefaultUserData(userId) {
     const occIds = [];
     for (const instKey of Object.keys(gamesPoolInstances)) {
       const inst = gamesPoolInstances[instKey];
-      const occId = await createOccurrence({ targetType: "module", targetId: inst.id, meta: { containerId: toolkitContainers.gamesPool.id } });
+      const occId = await createOccurrence({ moduleId: inst.id, meta: { containerId: toolkitContainers.gamesPool.id } });
       occIds.push(occId);
     }
     containerInstOccs[toolkitContainers.gamesPool.id] = occIds;
@@ -2474,7 +2473,7 @@ export async function createDefaultUserData(userId) {
     const occIds = [];
     for (const instKey of Object.keys(activitiesPoolInstances)) {
       const inst = activitiesPoolInstances[instKey];
-      const occId = await createOccurrence({ targetType: "module", targetId: inst.id, meta: { containerId: toolkitContainers.activitiesPool.id } });
+      const occId = await createOccurrence({ moduleId: inst.id, meta: { containerId: toolkitContainers.activitiesPool.id } });
       occIds.push(occId);
     }
     containerInstOccs[toolkitContainers.activitiesPool.id] = occIds;
@@ -2485,7 +2484,7 @@ export async function createDefaultUserData(userId) {
     const occIds = [];
     for (const instKey of Object.keys(roomsPoolInstances)) {
       const inst = roomsPoolInstances[instKey];
-      const occId = await createOccurrence({ targetType: "module", targetId: inst.id, meta: { containerId: toolkitContainers.roomsPool.id } });
+      const occId = await createOccurrence({ moduleId: inst.id, meta: { containerId: toolkitContainers.roomsPool.id } });
       occIds.push(occId);
     }
     containerInstOccs[toolkitContainers.roomsPool.id] = occIds;
@@ -2496,7 +2495,7 @@ export async function createDefaultUserData(userId) {
     const occIds = [];
     for (const instKey of Object.keys(cbtPoolInstances)) {
       const inst = cbtPoolInstances[instKey];
-      const occId = await createOccurrence({ targetType: "module", targetId: inst.id, meta: { containerId: toolkitContainers.cbtPool.id } });
+      const occId = await createOccurrence({ moduleId: inst.id, meta: { containerId: toolkitContainers.cbtPool.id } });
       occIds.push(occId);
     }
     containerInstOccs[toolkitContainers.cbtPool.id] = occIds;
@@ -2507,7 +2506,7 @@ export async function createDefaultUserData(userId) {
     const occIds = [];
     for (const instKey of Object.keys(bookmarksPoolInstances)) {
       const inst = bookmarksPoolInstances[instKey];
-      const occId = await createOccurrence({ targetType: "module", targetId: inst.id, meta: { containerId: toolkitContainers.bookmarksPool.id } });
+      const occId = await createOccurrence({ moduleId: inst.id, meta: { containerId: toolkitContainers.bookmarksPool.id } });
       occIds.push(occId);
     }
     containerInstOccs[toolkitContainers.bookmarksPool.id] = occIds;
@@ -2522,7 +2521,7 @@ export async function createDefaultUserData(userId) {
     const occIds = [];
     for (const instKey of Object.keys(poolInstances)) {
       const inst = poolInstances[instKey];
-      const occId = await createOccurrence({ targetType: "module", targetId: inst.id, meta: { containerId: poolContainer.id } });
+      const occId = await createOccurrence({ moduleId: inst.id, meta: { containerId: poolContainer.id } });
       occIds.push(occId);
     }
     containerInstOccs[poolContainer.id] = occIds;
@@ -2533,7 +2532,7 @@ export async function createDefaultUserData(userId) {
     const occIds = [];
     for (const instKey of Object.keys(enrichmentInstances)) {
       const inst = enrichmentInstances[instKey];
-      const occId = await createOccurrence({ targetType: "module", targetId: inst.id, meta: { containerId: toolkitContainers.enrichment.id } });
+      const occId = await createOccurrence({ moduleId: inst.id, meta: { containerId: toolkitContainers.enrichment.id } });
       occIds.push(occId);
     }
     containerInstOccs[toolkitContainers.enrichment.id] = occIds;
@@ -2572,8 +2571,8 @@ export async function createDefaultUserData(userId) {
       const inst = todoInstances[instKey] || planningInstances[instKey];
       const dueDatePreFill = planningDueDates[instKey] ? { [fields.dueDate.id]: fv(planningDueDates[instKey].toISOString(), "replace") } : {};
       const occId = await createOccurrence({
-        targetType: "module",
-        targetId: inst.id,
+        
+        moduleId: inst.id,
         meta: { containerId: todoContainers[containerKey].id },
         fields: dueDatePreFill,
         date: today.toISOString(),
@@ -2604,8 +2603,8 @@ export async function createDefaultUserData(userId) {
       const inst = allInstances[instKey];
       if (!inst) { console.warn(`goalMapping: unknown instKey "${instKey}"`); continue; }
       const occId = await createOccurrence({
-        targetType: "module",
-        targetId: inst.id,
+        
+        moduleId: inst.id,
         meta: { containerId: goalContainers[containerKey].id },
         date: today.toISOString(),
       });
@@ -2627,8 +2626,8 @@ export async function createDefaultUserData(userId) {
     const occIds = [];
     for (const instKey of instanceKeys) {
       const occId = await createOccurrence({
-        targetType: "module",
-        targetId: accountInstances[instKey].id,
+        
+        moduleId: accountInstances[instKey].id,
         meta: { containerId: accountContainers[containerKey].id },
       });
       occIds.push(occId);
@@ -2641,8 +2640,8 @@ export async function createDefaultUserData(userId) {
   for (const containerKey of Object.keys(toolkitContainers)) {
     const tc = toolkitContainers[containerKey];
     const occId = await createOccurrence({
-      targetType: "module",
-      targetId: tc.id,
+      
+      moduleId: tc.id,
       meta: { panelId: panels.dailyToolkit.id },
       viewId: tc._viewId || null,
     });
@@ -2696,7 +2695,7 @@ export async function createDefaultUserData(userId) {
       ],
     };
     await Occurrence.findOneAndUpdate(
-      { targetId: toolkitContainers.macroRef.id, gridId },
+      { moduleId: toolkitContainers.macroRef.id, gridId },
       { $set: { textmap: macroTableTextmap, locked: true } }
     );
   }
@@ -2705,8 +2704,8 @@ export async function createDefaultUserData(userId) {
   const todoPanelOccIds = [];
   for (const containerKey of Object.keys(todoContainers)) {
     const occId = await createOccurrence({
-      targetType: "module",
-      targetId: todoContainers[containerKey].id,
+      
+      moduleId: todoContainers[containerKey].id,
       meta: { panelId: panels.todoList.id },
     });
     todoPanelOccIds.push(occId);
@@ -2717,8 +2716,8 @@ export async function createDefaultUserData(userId) {
   for (const slot of timeSlots) {
     const key = `slot_${slot.hour}_${slot.minute}`;
     const occId = await createOccurrence({
-      targetType: "module",
-      targetId: scheduleContainers[key].id,
+      
+      moduleId: scheduleContainers[key].id,
       meta: { panelId: panels.centerHub.id },
       date: today.toISOString(),
       fields: {
@@ -2777,8 +2776,8 @@ export async function createDefaultUserData(userId) {
 
   // Also pre-fill today's mood check-in and water tracking
   const moodTodayOccId = await createOccurrence({
-    targetType: "module",
-    targetId: toolkitInstances.moodCheck.id,
+    
+    moduleId: toolkitInstances.moodCheck.id,
     meta: { containerId: toolkitContainers.emotional.id },
     date: today.toISOString(),
     fields: {
@@ -2796,8 +2795,8 @@ export async function createDefaultUserData(userId) {
     scheduleLinkedGroups[instKey] = linkedGroupId;
     const preFilledFields = todayPreFills[instKey] || {};
     const occId = await createOccurrence({
-      targetType: "module",
-      targetId: toolkitInstances[instKey].id,
+      
+      moduleId: toolkitInstances[instKey].id,
       meta: { containerId: scheduleContainers[slotKey].id },
       date: today.toISOString(),
       linkedGroupId,
@@ -2815,8 +2814,8 @@ export async function createDefaultUserData(userId) {
   const goalPanelOccIds = [];
   for (const containerKey of Object.keys(goalContainers)) {
     const occId = await createOccurrence({
-      targetType: "module",
-      targetId: goalContainers[containerKey].id,
+      
+      moduleId: goalContainers[containerKey].id,
       meta: { panelId: panels.dailyGoals.id },
     });
     goalPanelOccIds.push(occId);
@@ -2825,8 +2824,8 @@ export async function createDefaultUserData(userId) {
   const accountPanelOccIds = [];
   for (const containerKey of Object.keys(accountContainers)) {
     const occId = await createOccurrence({
-      targetType: "module",
-      targetId: accountContainers[containerKey].id,
+      
+      moduleId: accountContainers[containerKey].id,
       meta: { panelId: panels.accounts.id },
     });
     accountPanelOccIds.push(occId);
@@ -2865,7 +2864,7 @@ export async function createDefaultUserData(userId) {
     const modId = uid(); const occId = uid();
     _dpTbMods.push({ id: modId, userId, gridId, role: "instance", kind: "doc", label: "" });
     _dpTbOccs.push({
-      id: occId, userId, gridId, targetId: modId, targetType: "module",
+      id: occId, userId, gridId, moduleId: modId,
       parentId: parentOccId || dayPageDocOccId, iteration: { mode: "persistent" },
       textmap: { type: "doc", content: paragraphContent },
       fields: {},
@@ -2915,7 +2914,7 @@ export async function createDefaultUserData(userId) {
   const dpPhysicalListTBMod = uid();
   _dpTbMods.push({ id: dpPhysicalListTBMod, userId, gridId, role: "instance", kind: "doc", label: "Physical" });
   _dpTbOccs.push({
-    id: dpListTBOccIds.physical, userId, gridId, targetId: dpPhysicalListTBMod, targetType: "module",
+    id: dpListTBOccIds.physical, userId, gridId, moduleId: dpPhysicalListTBMod,
     parentId: dpSectionOccIds.dailyLog, iteration: { mode: "persistent" }, fields: {},
     textmap: { type: "doc", content: [
       { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Physical" }] },
@@ -2928,7 +2927,7 @@ export async function createDefaultUserData(userId) {
   const dpMindSoulListTBMod = uid();
   _dpTbMods.push({ id: dpMindSoulListTBMod, userId, gridId, role: "instance", kind: "doc", label: "Mind & Soul" });
   _dpTbOccs.push({
-    id: dpListTBOccIds.mindSoul, userId, gridId, targetId: dpMindSoulListTBMod, targetType: "module",
+    id: dpListTBOccIds.mindSoul, userId, gridId, moduleId: dpMindSoulListTBMod,
     parentId: dpSectionOccIds.dailyLog, iteration: { mode: "persistent" }, fields: {},
     textmap: { type: "doc", content: [
       { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Mind & Soul" }] },
@@ -2941,7 +2940,7 @@ export async function createDefaultUserData(userId) {
   const dpNutritionListTBMod = uid();
   _dpTbMods.push({ id: dpNutritionListTBMod, userId, gridId, role: "instance", kind: "doc", label: "Nutrition" });
   _dpTbOccs.push({
-    id: dpListTBOccIds.nutrition, userId, gridId, targetId: dpNutritionListTBMod, targetType: "module",
+    id: dpListTBOccIds.nutrition, userId, gridId, moduleId: dpNutritionListTBMod,
     parentId: dpSectionOccIds.dailyLog, iteration: { mode: "persistent" }, fields: {},
     textmap: { type: "doc", content: [
       { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Nutrition" }] },
@@ -3055,7 +3054,7 @@ export async function createDefaultUserData(userId) {
   // Parent docs in Literature folder: Stan + Gospel
   await new Module({ id: stanParentModId, userId, gridId, role: "page", kind: "doc", label: "Stan \u2014 Eminem", ownStyle: { bg: "#0d7a4a" }, styleMode: "own" }).save();
   await new Occurrence({
-    id: stanParentOccId, userId, gridId, targetId: stanParentModId, targetType: "module",
+    id: stanParentOccId, userId, gridId, moduleId: stanParentModId,
     parentId: docsFolderIdForManifest, sortOrder: 0, iteration: { mode: "persistent" },
     occurrences: stanSectionOccIds,
     textmap: makeParentDocTextmap("Stan \u2014 Eminem", stanSectionOccIds),
@@ -3064,7 +3063,7 @@ export async function createDefaultUserData(userId) {
   const gospelEmbedOccIds = gospelSectionData.flatMap(d => d.whyOccId ? [d.mainOccId, d.whyOccId] : [d.mainOccId]);
   await new Module({ id: gospelParentModId, userId, gridId, role: "page", kind: "doc", label: "Gospel of Thomas", ownStyle: { bg: "#5c1fa0" }, styleMode: "own" }).save();
   await new Occurrence({
-    id: gospelParentOccId, userId, gridId, targetId: gospelParentModId, targetType: "module",
+    id: gospelParentOccId, userId, gridId, moduleId: gospelParentModId,
     parentId: docsFolderIdForManifest, sortOrder: 1, iteration: { mode: "persistent" },
     occurrences: gospelEmbedOccIds,
     textmap: makeParentDocTextmap("Gospel of Thomas", gospelEmbedOccIds),
@@ -3073,7 +3072,7 @@ export async function createDefaultUserData(userId) {
   // Philosopher's Stone — ONE parent doc for ALL notes sections (morenotes + philosopherstone)
   await new Module({ id: philParentModId, userId, gridId, role: "page", kind: "doc", label: "Philosopher\u2019s Stone", ownStyle: { bg: "#9a7000" }, styleMode: "own" }).save();
   await new Occurrence({
-    id: philParentOccId, userId, gridId, targetId: philParentModId, targetType: "module",
+    id: philParentOccId, userId, gridId, moduleId: philParentModId,
     parentId: notesFolderIdForManifest, sortOrder: 0, iteration: { mode: "persistent" },
     occurrences: [...notesSectionOccIds, ...philSectionOccIds],
     textmap: makeParentDocTextmap("Philosopher\u2019s Stone", [...notesSectionOccIds, ...philSectionOccIds]),
@@ -3085,7 +3084,7 @@ export async function createDefaultUserData(userId) {
     const sectionOccIds = flatNotesSectionOccIds[fi];
     await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: def.label, ownStyle: { bg: def.bg }, styleMode: "own" }).save();
     await new Occurrence({
-      id: occId, userId, gridId, targetId: modId, targetType: "module",
+      id: occId, userId, gridId, moduleId: modId,
       parentId: notesFolderIdForManifest, sortOrder: 1 + fi, iteration: { mode: "persistent" },
       occurrences: sectionOccIds,
       textmap: makeParentDocTextmap(def.label, sectionOccIds),
@@ -3101,7 +3100,7 @@ export async function createDefaultUserData(userId) {
 
     // Seed the question text into the header-attached field value
     await new Occurrence({
-      id: contOccId, userId, targetType: "module", targetId: container.id, gridId,
+      id: contOccId, userId, moduleId: container.id, gridId,
       viewId: container._viewId || null,
       parentId: dayPageDocOccId,
       iteration: { mode: "persistent" },
@@ -3126,7 +3125,7 @@ export async function createDefaultUserData(userId) {
   for (const def of dpSectionDefs) {
     const container = notebookDocContainers[`dp${def.key.charAt(0).toUpperCase()}${def.key.slice(1)}`];
     await new Occurrence({
-      id: def.occId, userId, targetType: "module", targetId: container.id, gridId,
+      id: def.occId, userId, moduleId: container.id, gridId,
       viewId: container._viewId || null,
       parentId: dayPageDocOccId,
       iteration: { mode: "persistent" },
@@ -3155,7 +3154,7 @@ export async function createDefaultUserData(userId) {
     };
     const contOccId = uid();
     await new Occurrence({
-      id: contOccId, userId, targetType: "module", targetId: notebookDocContainers.weeklyReview.id, gridId,
+      id: contOccId, userId, moduleId: notebookDocContainers.weeklyReview.id, gridId,
       viewId: notebookDocContainers.weeklyReview._viewId || null,
       parentId: dayPageDocOccId,
       iteration: { mode: "persistent" },
@@ -3184,7 +3183,7 @@ export async function createDefaultUserData(userId) {
       _textblockModules.push({ id: modId, userId, gridId, role: "instance", kind: "doc", label: "" });
       _textblockOccurrences.push({
         id: occId, userId, gridId,
-        targetId: modId, targetType: "module",
+        moduleId: modId,
         parentId: parentOccId,
         iteration: { mode: "persistent" },
         textmap: { type: "doc", content },
@@ -3202,7 +3201,7 @@ export async function createDefaultUserData(userId) {
     const rawContent = makeDocContent(section.lines).content;
     const wrappedContent = wrapTextInBlocks(rawContent, makeTextblockCreator(contOccId));
     await new Occurrence({
-      id: contOccId, userId, targetType: "module", targetId: container.id, gridId,
+      id: contOccId, userId, moduleId: container.id, gridId,
       viewId: container._viewId || null,
       parentId: stanParentOccId,
       sortOrder: i,
@@ -3231,7 +3230,7 @@ export async function createDefaultUserData(userId) {
         const rawInstNodes = makeDocContent(inst.lines || []).content;
         const wrappedInstNodes = wrapTextInBlocks(rawInstNodes, makeTextblockCreator(instOccId));
         await new Occurrence({
-          id: instOccId, userId, targetType: "module", targetId: inst.id, gridId,
+          id: instOccId, userId, moduleId: inst.id, gridId,
           parentId: contOccId,
           sortOrder: j,
           iteration: { mode: "persistent" },
@@ -3252,7 +3251,7 @@ export async function createDefaultUserData(userId) {
     }
 
     await new Occurrence({
-      id: contOccId, userId, targetType: "module", targetId: container.id, gridId,
+      id: contOccId, userId, moduleId: container.id, gridId,
       viewId: container._viewId || null,
       parentId: philParentOccId,
       sortOrder: i,
@@ -3280,7 +3279,7 @@ export async function createDefaultUserData(userId) {
         const rawInstNodes = makeDocContent(inst.lines || []).content;
         const wrappedInstNodes = wrapTextInBlocks(rawInstNodes, makeTextblockCreator(instOccId));
         await new Occurrence({
-          id: instOccId, userId, targetType: "module", targetId: inst.id, gridId,
+          id: instOccId, userId, moduleId: inst.id, gridId,
           parentId: contOccId,
           sortOrder: j,
           iteration: { mode: "persistent" },
@@ -3300,7 +3299,7 @@ export async function createDefaultUserData(userId) {
     }
 
     await new Occurrence({
-      id: contOccId, userId, targetType: "module", targetId: container.id, gridId,
+      id: contOccId, userId, moduleId: container.id, gridId,
       viewId: container._viewId || null,
       parentId: philParentOccId,
       sortOrder: notesSectionOccIds.length + i,
@@ -3331,7 +3330,7 @@ export async function createDefaultUserData(userId) {
           const rawInstNodes = makeDocContent(inst.lines || []).content;
           const wrappedInstNodes = wrapTextInBlocks(rawInstNodes, makeTextblockCreator(instOccId));
           await new Occurrence({
-            id: instOccId, userId, targetType: "module", targetId: inst.id, gridId,
+            id: instOccId, userId, moduleId: inst.id, gridId,
             parentId: contOccId, sortOrder: j, iteration: { mode: "persistent" },
             fields: {}, textmap: { type: "doc", content: wrappedInstNodes },
             meta: { containerId: container.id },
@@ -3349,7 +3348,7 @@ export async function createDefaultUserData(userId) {
       }
 
       await new Occurrence({
-        id: contOccId, userId, targetType: "module", targetId: container.id, gridId,
+        id: contOccId, userId, moduleId: container.id, gridId,
         viewId: container._viewId || null,
         parentId: parentOccId, sortOrder: i, iteration: { mode: "persistent" },
         fields: {}, textmap: bodyContent,
@@ -3366,7 +3365,7 @@ export async function createDefaultUserData(userId) {
   const compRelWrapped = wrapTextInBlocks(compRelRawNodes, makeTextblockCreator(compRelOccId));
   await new Module({ id: compRelModId, userId, gridId, role: "page", kind: "doc", label: "Comparative Religion", ownStyle: { bg: "#3a58d0" }, styleMode: "own" }).save();
   await new Occurrence({
-    id: compRelOccId, userId, gridId, targetId: compRelModId, targetType: "module",
+    id: compRelOccId, userId, gridId, moduleId: compRelModId,
     parentId: notesFolderIdForManifest, sortOrder: 5, iteration: { mode: "persistent" },
     textmap: { type: "doc", content: compRelWrapped },
   }).save();
@@ -3402,7 +3401,7 @@ export async function createDefaultUserData(userId) {
   };
   await new Module({ id: sampleGridModId, userId, gridId, role: "page", kind: "doc", label: "Sample Grid", ownStyle: { bg: "#2a5050" }, styleMode: "own" }).save();
   await new Occurrence({
-    id: sampleGridOccId, userId, gridId, targetId: sampleGridModId, targetType: "module",
+    id: sampleGridOccId, userId, gridId, moduleId: sampleGridModId,
     parentId: notesFolderIdForManifest, sortOrder: 8, iteration: { mode: "persistent" },
     textmap: sampleGridTextmap,
   }).save();
@@ -3413,7 +3412,7 @@ export async function createDefaultUserData(userId) {
   const gospelTextWrapped = wrapTextInBlocks(gospelTextRawNodes, makeTextblockCreator(gospelTextOccId));
   await new Module({ id: gospelTextModId, userId, gridId, role: "page", kind: "doc", label: "Gospel of Thomas (Text)", ownStyle: { bg: "#189070" }, styleMode: "own" }).save();
   await new Occurrence({
-    id: gospelTextOccId, userId, gridId, targetId: gospelTextModId, targetType: "module",
+    id: gospelTextOccId, userId, gridId, moduleId: gospelTextModId,
     parentId: notesFolderIdForManifest, sortOrder: 6, iteration: { mode: "persistent" },
     textmap: { type: "doc", content: gospelTextWrapped },
   }).save();
@@ -3429,7 +3428,7 @@ export async function createDefaultUserData(userId) {
     for (const inst of (gd.section.instances || [])) {
       const instOccId = uid();
       await new Occurrence({
-        id: instOccId, userId, targetType: "module", targetId: inst.id, gridId,
+        id: instOccId, userId, moduleId: inst.id, gridId,
         iteration: { mode: "persistent" },
         fields: {}, textmap: makeDocContent(inst.lines || []),
         meta: { containerId: container.id },
@@ -3453,7 +3452,7 @@ export async function createDefaultUserData(userId) {
 
     // Main section container
     await new Occurrence({
-      id: gd.mainOccId, userId, targetType: "module", targetId: container.id, gridId,
+      id: gd.mainOccId, userId, moduleId: container.id, gridId,
       viewId: container._viewId || null,
       parentId: gospelParentOccId,
       sortOrder: gospelEmbedSortOrder++,
@@ -3473,7 +3472,7 @@ export async function createDefaultUserData(userId) {
           .filter(n => n.type !== "paragraph" || n.content?.some(c => c.text?.trim()));
         const whyWrapped = wrapTextInBlocks(whyRawNodes, makeTextblockCreator(gd.whyOccId));
         await new Occurrence({
-          id: gd.whyOccId, userId, targetType: "module", targetId: whyContainer.id, gridId,
+          id: gd.whyOccId, userId, moduleId: whyContainer.id, gridId,
           viewId: whyContainer._viewId || null,
           parentId: gospelParentOccId,
           sortOrder: gospelEmbedSortOrder++,
@@ -3541,7 +3540,7 @@ export async function createDefaultUserData(userId) {
     await new Module({ id: fpModId, userId, gridId, role: "page", kind: "folder", label: fpDef.name }).save();
     await new Occurrence({
       id: uid(), userId, gridId,
-      targetId: fpModId, targetType: "module",
+      moduleId: fpModId,
       parentId: fpDef.folderId,
       sortOrder: -1, // before other content
       iteration: { mode: "persistent" },
@@ -3569,7 +3568,7 @@ export async function createDefaultUserData(userId) {
   };
   await new Occurrence({
     id: welcomeOccId, userId, gridId,
-    targetId: welcomeModuleId, targetType: "module",
+    moduleId: welcomeModuleId,
     parentId: rootFolderId, sortOrder: 3,
     iteration: { mode: "persistent" },
     textmap: welcomeTextmap,
@@ -3616,7 +3615,7 @@ export async function createDefaultUserData(userId) {
   };
   await new Occurrence({
     id: dayPageTemplateOccId, userId, gridId,
-    targetId: dayPageTemplateModuleId, targetType: "module",
+    moduleId: dayPageTemplateModuleId,
     parentId: filesDayPagesFolderId,
     sortOrder: 999,
     iteration: { mode: "persistent" },
@@ -3629,7 +3628,7 @@ export async function createDefaultUserData(userId) {
   const dayPageLabel = yesterdayDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   await new Occurrence({
     id: dayPageDocOccId, userId, gridId,
-    targetId: dayPageTemplateModuleId, targetType: "module",
+    moduleId: dayPageTemplateModuleId,
     parentId: filesDayPagesFolderId,
     sortOrder: 0,
     iteration: { mode: "specific", timeValue: yesterdayDate.toISOString(), timeFilter: "daily" },
@@ -3695,7 +3694,7 @@ export async function createDefaultUserData(userId) {
           id: uid(), type: "action",
           config: {
             type: "FIND_OCCURRENCE",
-            targetIdExpr: `literal:${dayPageTemplateModuleId}`,
+            moduleIdExpr: `literal:${dayPageTemplateModuleId}`,
             dateFieldId: fields.dayDate.id,
             dateExpr: "$activeDate",
             resultVar: "$dayPage",
@@ -4122,8 +4121,8 @@ export async function createDefaultUserData(userId) {
 
     // Physical activity (workout + steps)
     await createOccurrence({
-      targetType: "module",
-      targetId: toolkitInstances.morningWorkout.id,
+      
+      moduleId: toolkitInstances.morningWorkout.id,
       meta: { containerId: scheduleContainers["slot_7_0"].id, historicalSeed: true },
       date: date.toISOString(),
       fields: {
@@ -4136,8 +4135,8 @@ export async function createDefaultUserData(userId) {
 
     // Evening run (steps tracking)
     await createOccurrence({
-      targetType: "module",
-      targetId: toolkitInstances.eveningRun.id,
+      
+      moduleId: toolkitInstances.eveningRun.id,
       meta: { containerId: scheduleContainers["slot_18_30"].id, historicalSeed: true },
       date: date.toISOString(),
       fields: {
@@ -4150,8 +4149,8 @@ export async function createDefaultUserData(userId) {
 
     // Water intake
     await createOccurrence({
-      targetType: "module",
-      targetId: toolkitInstances.drinkWater.id,
+      
+      moduleId: toolkitInstances.drinkWater.id,
       meta: { containerId: scheduleContainers["slot_17_0"].id, historicalSeed: true },
       date: date.toISOString(),
       fields: {
@@ -4164,8 +4163,8 @@ export async function createDefaultUserData(userId) {
     // Reading
     if (day.pages > 0) {
       await createOccurrence({
-        targetType: "module",
-        targetId: toolkitInstances.reading.id,
+        
+        moduleId: toolkitInstances.reading.id,
         meta: { containerId: scheduleContainers["slot_9_0"].id, historicalSeed: true },
         date: date.toISOString(),
         fields: {
@@ -4180,8 +4179,8 @@ export async function createDefaultUserData(userId) {
     // Financial: expense
     if (day.spent > 0) {
       await createOccurrence({
-        targetType: "module",
-        targetId: toolkitInstances.trackExpense.id,
+        
+        moduleId: toolkitInstances.trackExpense.id,
         meta: { containerId: toolkitContainers.financial.id, historicalSeed: true },
         date: date.toISOString(),
         fields: {
@@ -4194,8 +4193,8 @@ export async function createDefaultUserData(userId) {
     // Financial: income (only on days with income)
     if (day.income > 0) {
       await createOccurrence({
-        targetType: "module",
-        targetId: toolkitInstances.logIncome.id,
+        
+        moduleId: toolkitInstances.logIncome.id,
         meta: { containerId: toolkitContainers.financial.id, historicalSeed: true },
         date: date.toISOString(),
         fields: {
@@ -4222,8 +4221,8 @@ export async function createDefaultUserData(userId) {
   const gridOccs = [];
   for (const { key, row, col, width, height, viewId: panelViewId, filterOverride: panelFilterOverride } of panelPlacements) {
     const occId = await createOccurrence({
-      targetType: "module",
-      targetId: panels[key].id,
+      
+      moduleId: panels[key].id,
       meta: {},
       placement: { row, col, width, height },
       viewId: panelViewId || null,
@@ -4247,7 +4246,7 @@ export async function createDefaultUserData(userId) {
   for (const [containerModuleId, instOccIds] of Object.entries(containerInstOccs)) {
     if (instOccIds.length > 0) {
       await Occurrence.findOneAndUpdate(
-        { targetId: containerModuleId, gridId },
+        { moduleId: containerModuleId, gridId },
         { $set: { occurrences: instOccIds } }
       );
     }
@@ -4269,7 +4268,7 @@ export async function createDefaultUserData(userId) {
     const pageOccId = uid();
     await new Occurrence({
       id: pageOccId, userId, gridId,
-      targetId: pageModId, targetType: "module",
+      moduleId: pageModId,
       parentId: folderId,
       sortOrder: pi,
       occurrences: containerOccIds,
@@ -4277,7 +4276,7 @@ export async function createDefaultUserData(userId) {
       fields: {}, meta: {},
     }).save();
     await Occurrence.findOneAndUpdate(
-      { targetId: panels[panelKey].id, gridId },
+      { moduleId: panels[panelKey].id, gridId },
       { $set: { occurrences: [pageOccId] } }
     );
   }
@@ -4345,10 +4344,10 @@ export async function createDefaultUserData(userId) {
     for (const card of pageDef.cards) {
       const cardMod = new Module({ id: uid(), userId, gridId, role: "instance", kind: "list", label: card.label, fieldBindings: [] });
       await cardMod.save();
-      const cardOccId = await createOccurrence({ targetType: "module", targetId: cardMod.id, meta: { x: card.x, y: card.y, containerId: pageMod.id } });
+      const cardOccId = await createOccurrence({ moduleId: cardMod.id, meta: { x: card.x, y: card.y, containerId: pageMod.id } });
       cardOccIds.push(cardOccId);
     }
-    await new Occurrence({ id: pageOccId, userId, targetType: "module", targetId: pageMod.id, gridId, parentId: freepadRootFolderId, sortOrder: pi, occurrences: cardOccIds, iteration: { mode: "persistent" }, fields: {}, meta: {} }).save();
+    await new Occurrence({ id: pageOccId, userId, moduleId: pageMod.id, gridId, parentId: freepadRootFolderId, sortOrder: pi, occurrences: cardOccIds, iteration: { mode: "persistent" }, fields: {}, meta: {} }).save();
     if (pi === 0) freepadFirstPageOccId = pageOccId;
   }
 
@@ -4369,7 +4368,7 @@ export async function createDefaultUserData(userId) {
   // Schedule page occurrence (uses pre-generated ID so centerHubView can reference it)
   await new Occurrence({
     id: schedPageOccId, userId, gridId,
-    targetId: schedPageMod.id, targetType: "module",
+    moduleId: schedPageMod.id,
     parentId: trackingFolderId,
     sortOrder: 0,
     occurrences: scheduleOccIds,
@@ -4382,7 +4381,7 @@ export async function createDefaultUserData(userId) {
   const journalPageOccId = uid();
   await new Occurrence({
     id: journalPageOccId, userId, gridId,
-    targetId: journalPageMod.id, targetType: "module",
+    moduleId: journalPageMod.id,
     parentId: null,
     viewId: dayPageViewId,
     sortOrder: -3, // before template (999) and yesterday's page (0)
@@ -4395,7 +4394,7 @@ export async function createDefaultUserData(userId) {
   const freepadPageOccId = uid();
   await new Occurrence({
     id: freepadPageOccId, userId, gridId,
-    targetId: freepadPageMod.id, targetType: "module",
+    moduleId: freepadPageMod.id,
     parentId: drawingFolderId,
     sortOrder: 0,
     viewId: freepadViewId,
@@ -4412,7 +4411,7 @@ export async function createDefaultUserData(userId) {
   // journalPageOccId has viewId→dayPageView (hasTree:true) — the operation updates activeOccurrenceId
   // in that view to navigate to today's day page content. dayPageDocOccId stays in the Day Pages folder.
   await Occurrence.findOneAndUpdate(
-    { targetId: panels.centerHub.id, gridId },
+    { moduleId: panels.centerHub.id, gridId },
     { $set: { occurrences: [schedPageOccId, journalPageOccId, freepadPageOccId] } }
   );
 

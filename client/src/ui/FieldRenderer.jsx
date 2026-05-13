@@ -46,10 +46,10 @@ function FieldRenderer({
     if (field?.type !== "select" || field?.meta?.sourceType !== "pool") return field;
     const poolIds = field.meta.poolContainerIds || (field.meta.poolContainerId ? [field.meta.poolContainerId] : []);
     if (!poolIds.length) return field;
-    // Build targetId → occurrence map once for O(1) lookups (avoids O(n) scan per pool)
+    // Build moduleId → occurrence map once for O(1) lookups (avoids O(n) scan per pool)
     const byTargetId = Object.create(null);
     for (const occ of Object.values(occurrencesById)) {
-      if (occ.targetId) byTargetId[occ.targetId] = occ;
+      if (occ.moduleId) byTargetId[occ.moduleId] = occ;
     }
     const poolOptions = [];
     const seenModIds = new Set();
@@ -58,7 +58,7 @@ function FieldRenderer({
       const childOccIds = poolOcc?.occurrences || [];
       for (const occId of childOccIds) {
         const occ = occurrencesById[occId];
-        const mod = modulesById[occ?.targetId];
+        const mod = modulesById[occ?.moduleId];
         if (mod && !seenModIds.has(mod.id)) {
           seenModIds.add(mod.id);
           poolOptions.push({ value: mod.id, label: mod.label || mod.name || "Untitled" });
@@ -152,7 +152,7 @@ function FieldRenderer({
       dispatch, socket,
       occurrence: fullUpdatedOcc,
       emit: true,
-      triggerField: { fieldId: field.id, value: newValue, instanceId: occurrence.targetId },
+      triggerField: { fieldId: field.id, value: newValue, instanceId: occurrence.moduleId },
     });
   }, [occurrence, field?.id, currentFlow, field?.meta?.flow, inputEnabled, dispatch, socket]);
 

@@ -31,7 +31,7 @@ import {
   getPageChildrenModules,
 } from "../helpers/LayoutHelpers";
 import {
-  useDraggable,
+  useDragDrop,
   useDroppable,
   DragType,
   DropAccepts,
@@ -64,7 +64,7 @@ function Page({
   const { state } = useContext(GridDataContext);
   const { isMobile, fullStateLoaded } = useContext(GridLiveContext);
 
-  const pageModule = occurrence?.targetId ? modulesById[occurrence.targetId] : null;
+  const pageModule = occurrence?.moduleId ? modulesById[occurrence.moduleId] : null;
   const pageView = occurrence?.viewId ? viewsById[occurrence.viewId] : null;
   const scrollAnchor = pageView?.scrollAnchor || panelView?.scrollAnchor;
   const kind = pageModule?.kind || "board";
@@ -85,8 +85,9 @@ function Page({
   const treeActiveOccView = treeActiveOcc?.viewId ? viewsById[treeActiveOcc.viewId] : null;
   const handleRef = useRef(null);
 
-  // Drag handle for the page
-  const { ref: dragRef, isDragging } = useDraggable({
+  // Drag handle for the page (no accepts → not a drop target itself; drops
+  // pass through to the page-content useDroppable below).
+  const { ref: dragRef, isDragging } = useDragDrop({
     type: DragType.PAGE,
     id: pageModule?.id,
     data: { module: pageModule, occurrence },
@@ -151,7 +152,7 @@ function Page({
     for (const sf of childFolders) {
       const sfChildren = childrenByParentId[sf.id] || [];
       const folderPageOcc = sfChildren.find(occ => {
-        const mod = modulesById[occ.targetId];
+        const mod = modulesById[occ.moduleId];
         return mod?.kind === "folder" && mod?.role === "page";
       });
       if (folderPageOcc && !seenIds.has(folderPageOcc.id)) {
@@ -178,7 +179,7 @@ function Page({
       let hasAnyOcc = false;
       for (const occId of childOccIds) {
         const occ = occurrencesById[occId];
-        if (!occ || occ.targetId !== container.id) continue;
+        if (!occ || occ.moduleId !== container.id) continue;
         hasAnyOcc = true;
         if (isOccurrenceVisible(occ, pageEffectiveFilters, pageActiveFilterConditions)) {
           matchedOcc = occ;
@@ -238,8 +239,7 @@ function Page({
       id: occId,
       userId: pageModule?.userId,
       gridId: pageModule?.gridId,
-      targetId: containerModule.id,
-      targetType: "module",
+      moduleId: containerModule.id,
       fields: {},
     };
     CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
@@ -271,7 +271,15 @@ function Page({
       </div>
     );
   } else if (kind === "canvas") {
-    content = <PageCanvas pageModule={pageModule} occurrence={occurrence} panelId={panelId} addInstanceToContainer={addInstanceToContainer} dispatch={dispatch} socket={socket} />;
+    content = (
+      <PageCanvas
+        pageModule={pageModule}
+        occurrence={occurrence}
+        panelId={panelId}
+        dispatch={dispatch}
+        socket={socket}
+      />
+    );
   } else if (kind === "doc") {
     content = <PageDoc occurrence={occurrence} dispatch={dispatch} socket={socket} scrollAnchor={scrollAnchor} />;
   } else if (kind === "display") {
@@ -372,7 +380,7 @@ function Page({
                     const mod = { id, role: "container", kind: "list", label: `List ${containersList.length + 1}` };
                     CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
                     const occId = crypto.randomUUID();
-                    const occ = { id: occId, userId: state.userId, gridId: state.grid._id, targetId: id, targetType: "module", fields: {} };
+                    const occ = { id: occId, userId: state.userId, gridId: state.grid._id, moduleId: id, fields: {} };
                     CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
                     const updatedOccs = [...(occurrence.occurrences || []), occId];
                     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });

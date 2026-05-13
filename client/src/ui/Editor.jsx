@@ -48,6 +48,83 @@ import { GridActionsContext } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box } from "lucide-react";
 
+// Atomic same-doc move for a TipTap embed node (instanceTextblock,
+// moduleEmbed). Scans the editor's doc for a node whose attrs match
+// `match`; if found, performs `delete(from, to)` + `insert(adjustedPos,
+// sameNode)` in ONE transaction. Same node object → same NodeView attrs
+// → React reuses the component, no flicker, no recreation. Returns true
+// when handled. When the source isn't in this doc (cross-doc / from CC)
+// the function returns false and the caller falls back to the
+// registry-delete + new-node-insert path.
+// Concatenate two inline-content arrays (the `.content` of paragraph nodes).
+// Adjacent text nodes that share their mark set are coalesced into a single
+// text run — otherwise each merged keystroke would remain a separate text
+// node, which still renders fine but bloats the textmap and breaks cursor
+// arithmetic in the sub-editor.
+function concatInline(a, b) {
+  const result = a.slice();
+  for (const node of b) {
+    const tail = result[result.length - 1];
+    const sameMarks = JSON.stringify(tail?.marks || []) === JSON.stringify(node?.marks || []);
+    if (tail?.type === "text" && node?.type === "text" && sameMarks) {
+      result[result.length - 1] = { ...tail, text: (tail.text || "") + (node.text || "") };
+    } else {
+      result.push(node);
+    }
+  }
+  return result;
+}
+
+function tryMoveEmbedNodeInDoc(editor, nodeTypeName, match, insertPos) {
+  if (!editor || insertPos == null) return false;
+  let sourcePos = null;
+  let sourceNode = null;
+  let sourceIndex = -1;
+  let runningIndex = 0;
+  editor.state.doc.forEach((child, offset) => {
+    if (sourceNode) return;
+    if (child.type.name === nodeTypeName
+        && Object.entries(match).every(([k, v]) => child.attrs?.[k] === v)) {
+      sourcePos = offset;
+      sourceNode = child;
+      sourceIndex = runningIndex;
+    }
+    runningIndex += 1;
+  });
+  if (sourcePos == null) return false;
+
+  const sourceEnd = sourcePos + sourceNode.nodeSize;
+  // Drop INSIDE the source range is a no-op (the cursor never actually left
+  // the source). Boundary drops, though, are the "drop on adjacent sibling"
+  // case the snap math resolves to — those should snap PAST the sibling so
+  // the move actually happens.
+  if (insertPos > sourcePos && insertPos < sourceEnd) return true;
+  if (insertPos === sourcePos || insertPos === sourceEnd) {
+    const childCount = editor.state.doc.childCount;
+    if (insertPos === sourceEnd && sourceIndex + 1 < childCount) {
+      const nextSibling = editor.state.doc.child(sourceIndex + 1);
+      insertPos = sourceEnd + nextSibling.nodeSize;
+    } else if (insertPos === sourcePos && sourceIndex > 0) {
+      const prevSibling = editor.state.doc.child(sourceIndex - 1);
+      insertPos = sourcePos - prevSibling.nodeSize;
+    } else {
+      // Source is at the doc edge with no neighbour to swap past — genuine no-op.
+      return true;
+    }
+  }
+
+  // Delete shifts every position past sourcePos by -nodeSize; adjust the
+  // insert target so it lands where the user dropped.
+  const adjusted = insertPos > sourcePos ? insertPos - sourceNode.nodeSize : insertPos;
+
+  const tr = editor.state.tr;
+  tr.setMeta("skipAutoCreate", true);
+  tr.delete(sourcePos, sourceEnd);
+  tr.insert(adjusted, sourceNode);
+  editor.view.dispatch(tr);
+  return true;
+}
+
 const Editor = forwardRef(function Editor({
   content = null,
   onChange,
@@ -64,6 +141,7 @@ const Editor = forwardRef(function Editor({
   onExitBlock = null,
   onDeleteBlock = null,
   onAutoCreateTextblock = null,
+  recentAutoCreateRef = null,
 }, ref) {
   const { fieldsById, instancesById, occurrencesById, modulesById } = useContext(GridActionsContext) || {};
 
@@ -255,15 +333,113 @@ const Editor = forwardRef(function Editor({
       const json = editor.getJSON();
       onChange?.(json);
       persistContent(json, false);
+      // A deliberate textblock-exit tr always closes the merge window. The
+      // exit handler tagged the chain with `textblockExit`; without this
+      // shutdown, the user's first post-exit keystroke would still meet
+      // the `recent.occId` gate and get folded back into the textblock
+      // they just left.
+      if (transaction.getMeta("textblockExit") && recentAutoCreateRef?.current) {
+        recentAutoCreateRef.current = { occId: null, expireAt: 0 };
+      }
       // Auto-create textblock: first character typed on a previously empty paragraph
       if (onAutoCreateTextblock && transaction.docChanged && !transaction.getMeta("skipAutoCreate")) {
         let handled = false;
+        // ── Pre-pass: merge paragraphs that LAND DURING THE FOCUS-RACE
+        // WINDOW right after a just-auto-created textblock. Window is gated
+        // by `recentAutoCreateRef.current.occId` — set when auto-create runs,
+        // cleared the moment focus lands in the sub-editor (or rAF retries
+        // cap out). Outside the window any paragraph after a textblock is
+        // deliberate (Enter-exit-then-type, editing an old doc) and must
+        // not be absorbed, otherwise the user can't insert gaps between
+        // textblocks.
+        {
+          const recent = recentAutoCreateRef?.current;
+          const recentOccId = recent?.occId && Date.now() < (recent.expireAt || 0)
+            ? recent.occId
+            : null;
+          const merges = [];
+          if (recentOccId) {
+            let prev = null;
+            let offset = 0;
+            editor.state.doc.forEach((node) => {
+              if (prev?.type.name === "instanceTextblock"
+                  && prev.attrs?.occurrenceId === recentOccId
+                  && node.type.name === "paragraph" && node.textContent.length > 0) {
+                // Skip if the paragraph contains a hardBreak — those are
+                // inserted by deliberate Shift+Enter gestures and should
+                // remain as a sibling paragraph below the textblock, not
+                // get folded into it.
+                let hasHardBreak = false;
+                node.forEach((child) => {
+                  if (child.type.name === "hardBreak") hasHardBreak = true;
+                });
+                if (!hasHardBreak) {
+                  merges.push({
+                    offset, nodeSize: node.nodeSize,
+                    occId: prev.attrs.occurrenceId,
+                    nodeJson: node.toJSON(),
+                  });
+                }
+              }
+              prev = node;
+              offset += node.nodeSize;
+            });
+          }
+          if (merges.length > 0) {
+            const tr = editor.state.tr;
+            tr.setMeta("skipAutoCreate", true);
+            for (let i = merges.length - 1; i >= 0; i--) {
+              const { offset: off, nodeSize, occId, nodeJson } = merges[i];
+              const targetOcc = occurrencesById?.[occId];
+              if (targetOcc) {
+                const tm = targetOcc.textmap || { type: "doc", content: [] };
+                const existing = tm.content || [];
+                const last = existing[existing.length - 1];
+                // When the textmap's last node and the captured node are
+                // both paragraphs, fold the captured inline content into the
+                // last paragraph (concatenating adjacent text runs that
+                // share marks). Otherwise the user sees each merged char
+                // on its own line inside the textblock — every captured
+                // outer paragraph would render as a fresh inner paragraph.
+                let mergedContent;
+                if (last?.type === "paragraph" && nodeJson?.type === "paragraph") {
+                  mergedContent = [
+                    ...existing.slice(0, -1),
+                    { ...last, content: concatInline(last.content || [], nodeJson.content || []) },
+                  ];
+                } else {
+                  mergedContent = [...existing, nodeJson];
+                }
+                CommitHelpers.updateOccurrence({
+                  dispatch, socket,
+                  occurrence: { ...targetOcc, textmap: { type: "doc", content: mergedContent } },
+                });
+                tr.delete(off, off + nodeSize);
+              }
+            }
+            // Cancel any pending auto-create timer — the merged paragraph
+            // would otherwise fire a stale onAutoCreateTextblock against a
+            // now-deleted position.
+            if (autoCreateTimerRef.current) {
+              clearTimeout(autoCreateTimerRef.current);
+              autoCreateTimerRef.current = null;
+            }
+            // Bump the merge window so continuous fast typing keeps the
+            // funnel open. The window snaps shut on the first pause >
+            // 200 ms, which is what makes "exit, then resume typing" spawn
+            // a fresh textblock instead of feeding the previous one.
+            if (recentAutoCreateRef?.current) {
+              recentAutoCreateRef.current.expireAt = Date.now() + 200;
+            }
+            editor.view.dispatch(tr);
+            handled = true;
+          }
+        }
         const { from } = editor.state.selection;
         const $pos = editor.state.doc.resolve(from);
-        if ($pos.depth === 1) {
+        if (!handled && $pos.depth === 1) {
           const node = $pos.parent;
           if (node.type.name === "paragraph" && node.textContent.length === 1) {
-            // First char typed: schedule creation on next rAF to capture any batched keystrokes
             if (autoCreateTimerRef.current) clearTimeout(autoCreateTimerRef.current);
             const capturedStart = $pos.before(1);
             autoCreateTimerRef.current = setTimeout(() => {
@@ -277,7 +453,6 @@ const Editor = forwardRef(function Editor({
             }, 0);
             handled = true;
           } else if (node.type.name === "paragraph" && node.textContent.length > 1 && autoCreateTimerRef.current) {
-            // Still typing — timer already running, will re-read text when it fires
             handled = true;
           }
         }
@@ -353,9 +528,14 @@ const Editor = forwardRef(function Editor({
           return false;
         },
         keydown: (_view, event) => {
-          // Shift+Enter fires before TipTap's HardBreak extension.
+          // Shift+Enter inside a textblock sub-editor:
+          //   - empty sub-editor → collapse the textblock back to a paragraph
+          //   - cursor on the last position of the doc → exit (handleExitBlock
+          //     navigates into the next sibling textblock if one exists)
+          //   - anywhere else → fall through to TipTap's default (paragraph
+          //     break / hardBreak), so the user can keep adding lines INSIDE
+          //     the textblock without leaving it prematurely
           if (event.key === "Enter" && event.shiftKey) {
-            // Empty sub-editor: replace textblock with empty paragraph (intermediate step)
             if (onDeleteBlockRef.current) {
               const docIsEmpty = _view.state.doc.textContent.length === 0;
               if (docIsEmpty) {
@@ -364,11 +544,21 @@ const Editor = forwardRef(function Editor({
                 return true;
               }
             }
-            // Non-empty sub-editor: exit to next block (original behavior)
             if (onExitBlockRef.current) {
-              event.preventDefault();
-              onExitBlockRef.current();
-              return true;
+              const { $to, empty: selEmpty } = _view.state.selection;
+              // Treat "on the last line" as: cursor sits in the last
+              // top-level child of the sub-editor's doc. PM text positions
+              // max out at `content.size - 1` (just inside the last block's
+              // close), so a `>= size` check would never fire. Comparing
+              // the cursor's top-level index against `doc.childCount - 1`
+              // is the structural version: anywhere in the last paragraph
+              // → exit on Shift+Enter; earlier paragraphs → default break.
+              const atLastBlock = selEmpty && $to.index(0) === _view.state.doc.childCount - 1;
+              if (atLastBlock) {
+                event.preventDefault();
+                onExitBlockRef.current();
+                return true;
+              }
             }
             return false;
           }
@@ -550,7 +740,7 @@ const Editor = forwardRef(function Editor({
             dispatch, socket,
             occurrence: {
               id: occId, userId, gridId,
-              targetId: modId, targetType: "module",
+              moduleId: modId,
               parentId: occurrence?.id,
               iteration: { mode: "persistent" },
               textmap: initialTextmap,
@@ -704,24 +894,51 @@ const Editor = forwardRef(function Editor({
     const blockStart = $pos.before(1); // position of the gap before the top-level block
     const blockEnd = $pos.after(1);   // position of the gap after the top-level block
 
-    // Use the DOM rect to decide: upper half → insert before, lower half → insert after
-    const domNode = editor.view.nodeDOM(blockStart);
-    if (domNode) {
-      const rect = domNode.getBoundingClientRect();
+    // Left-edge heuristic: when the cursor sits to the LEFT of the block's
+    // text column (e.g. in the leading margin of a paragraph), force "before"
+    // insertion. The vertical-midline math below otherwise flips to "after"
+    // whenever the cursor is in the bottom half of a line, even though a
+    // left-margin hover intuitively reads as "insert above this line".
+    const blockDom = editor.view.nodeDOM(blockStart);
+    if (blockDom && blockDom.getBoundingClientRect) {
+      const blockRect = blockDom.getBoundingClientRect();
+      // 10px slack so hovers right against the text edge still count.
+      if (clientX < blockRect.left + 10) return blockStart;
+    }
+
+    // Compare against the LINE rect (caret rect at the resolved position),
+    // not the full paragraph rect. Paragraph-rect bias was sending hovers on
+    // the first line of a multi-line block to "after" because the cursor sat
+    // above the paragraph's midpoint only when near the very top.
+    try {
+      const lineCoords = editor.view.coordsAtPos(rawPos);
+      if (lineCoords && Number.isFinite(lineCoords.top) && Number.isFinite(lineCoords.bottom)) {
+        // If posAtCoords resolved a position on a DIFFERENT line than the
+        // cursor's actual y (the empty area to the left of a line can spill
+        // upward into the previous line's range), compare cursor-y to the
+        // line's bounds rather than its midpoint — otherwise the midline
+        // math compares against the wrong line.
+        if (clientY < lineCoords.top) return blockStart;
+        if (clientY > lineCoords.bottom) return blockEnd;
+        const lineMid = (lineCoords.top + lineCoords.bottom) / 2;
+        return clientY < lineMid ? blockStart : blockEnd;
+      }
+    } catch (_) { /* fall through */ }
+
+    if (blockDom) {
+      const rect = blockDom.getBoundingClientRect();
       const mid = (rect.top + rect.bottom) / 2;
       return clientY < mid ? blockStart : blockEnd;
     }
-    return blockEnd; // safe fallback: insert after
+    return blockEnd;
   }, [editor]);
 
   const insertAtPos = useCallback((pos, nodeContent) => {
-    if (!editor) return;
-    // Cancel any pending auto-create — drops should not trigger mini textblock creation
+    if (!editor) return false;
     if (autoCreateTimerRef.current) {
       clearTimeout(autoCreateTimerRef.current);
       autoCreateTimerRef.current = null;
     }
-    // Block nodes (moduleEmbed) don't need a trailing space — it creates an empty textblock
     const nodeDef = editor.schema.nodes[nodeContent.type];
     const isBlock = nodeDef?.spec?.group?.includes("block");
     if (pos != null) {
@@ -729,14 +946,13 @@ const Editor = forwardRef(function Editor({
         .command(({ tr }) => { tr.setMeta("skipAutoCreate", true); return true; })
         .insertContentAt(pos, nodeContent);
       if (!isBlock) chain.insertContentAt(pos + 1, " ");
-      chain.run();
-    } else {
-      const chain = editor.chain().focus()
-        .command(({ tr }) => { tr.setMeta("skipAutoCreate", true); return true; })
-        .insertContent(nodeContent);
-      if (!isBlock) chain.insertContent(" ");
-      chain.run();
+      return chain.run();
     }
+    const chain = editor.chain().focus()
+      .command(({ tr }) => { tr.setMeta("skipAutoCreate", true); return true; })
+      .insertContent(nodeContent);
+    if (!isBlock) chain.insertContent(" ");
+    return chain.run();
   }, [editor]);
 
   useEffect(() => {
@@ -750,7 +966,17 @@ const Editor = forwardRef(function Editor({
       element: el,
       getData: () => ({ type: "doc-editor" }),
       canDrop: ({ source }) => {
-        const type = source.data?.type;
+        const sd = source.data || {};
+        const type = sd.type;
+        // Self-drop guard: when the dragged item's source occurrence IS this
+        // editor's wrapping occurrence, reject the drop target. Without this,
+        // dragging a textblock OUT of its own sub-editor still lights up the
+        // sub-editor's drop highlight (because canDrop returned true) — and
+        // any drop landing inside the source's own range would have been a
+        // silent no-op anyway via tryMoveEmbedNodeInDoc's self-guard. Hiding
+        // the indicator is the visible half of that contract.
+        const sourceOccId = sd.context?.occurrenceId || sd.occurrenceId;
+        if (sourceOccId && occurrence?.id && sourceOccId === occurrence.id) return false;
         return type === "instance" || type === "field" || type === "container" || type === "artifact" || type === "module";
       },
       onDragEnter: () => setIsDropTarget(true),
@@ -777,12 +1003,25 @@ const Editor = forwardRef(function Editor({
         const isBlockDrop = type !== "field";
         const insertPos = resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
 
-        if (type === "instance") {
+        // A textblock dragged from a list container (TextblockCard wrapped by
+        // ModuleInstance) ships with `type: "instance"` because the drag
+        // happens through ModuleInstance.useDragDrop. Without this reroute it
+        // would hit the type==="instance" branch below, insert a moduleEmbed,
+        // and ModuleEmbedNode's render fallback would draw a textblock module
+        // as `<Container>` — the "becomes a container with text" bug. Force
+        // the type into the module branch so `sourceRoleStr === "textblock"`
+        // hits and an `instanceTextblock` node is inserted instead.
+        const sourceRole = sd.role || data?.role || sd.data?.role;
+        const effectiveType = (type === "instance" && sourceRole === "textblock")
+          ? "module"
+          : type;
+
+        if (effectiveType === "instance") {
           // Instance drops → insert as embed directly; convert to pill via radial menu on the node
           const occsById = occurrencesByIdRef.current || {};
           let occurrenceId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
           if (!occurrenceId && id) {
-            const existing = Object.values(occsById).find(o => o.targetId === id);
+            const existing = Object.values(occsById).find(o => o.moduleId === id);
             if (existing) occurrenceId = existing.id;
           }
           if (!occurrenceId) return;
@@ -797,8 +1036,7 @@ const Editor = forwardRef(function Editor({
               dispatch: dispatchRef.current, socket: socketRef.current,
               occurrence: {
                 id: newOccId,
-                targetId: sourceOcc?.targetId || id,
-                targetType: "module",
+                moduleId: sourceOcc?.moduleId || id,
                 gridId: sourceOcc?.gridId,
                 occurrences: [],
                 fields: sourceOcc?.fields || {},
@@ -809,10 +1047,21 @@ const Editor = forwardRef(function Editor({
             });
             insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: newOccId } });
           } else {
-            // Move: detach from parent container (don't delete the occurrence itself)
-            // Can't rely on sourceOcc.parentId — it's not updated when moveInstanceBetweenContainers runs.
-            // Scan container occurrences[] arrays instead (authoritative ordering source).
-            if (sourceOcc) {
+            // Move: same-doc rearrange = atomic node move (no delete +
+            // recreate). If the source isn't in this editor, fall back to
+            // the cross-doc path: registry-delete source TipTap node /
+            // detach from container, then insert a new moduleEmbed node.
+            if (insertPos == null) return;
+            const moved = tryMoveEmbedNodeInDoc(editor, "moduleEmbed", { occurrenceId }, insertPos);
+            if (moved) return;
+            // Insert destination FIRST. Only detach source on confirmed commit
+            // so a silent failure (invalid pos, stale editor) can't orphan the
+            // occurrence.
+            const inserted = insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
+            if (!inserted) return;
+            if (context?.sourceType === "doc-embed") {
+              embedDeleteRegistry.get(occurrenceId)?.();
+            } else if (sourceOcc) {
               const parentOcc = Object.values(occsById).find(
                 occ => Array.isArray(occ.occurrences) && occ.occurrences.includes(occurrenceId)
               );
@@ -827,19 +1076,92 @@ const Editor = forwardRef(function Editor({
                 });
               }
             }
-            insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
           }
           return;
         }
-        if (type === "container" || type === "artifact" || type === "module") {
+        if (effectiveType === "container" || effectiveType === "artifact" || effectiveType === "module") {
           // occurrenceId can be in context (DragProvider items), in data, or at root level (doc pills, tree items)
           let occurrenceId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
           // CC drops have no occurrenceId — find an existing occurrence of this module
           if (!occurrenceId && id) {
-            const existing = Object.values(occurrencesByIdRef.current || {}).find(o => o.targetId === id);
+            const existing = Object.values(occurrencesByIdRef.current || {}).find(o => o.moduleId === id);
             if (existing) occurrenceId = existing.id;
           }
           if (!occurrenceId) return;
+
+          // ── TEXTBLOCK BRANCH ─────────────────────────────────────────
+          // Source is a textblock. The same `instanceTextblock` node should
+          // *move* — we do not delete + recreate. The TipTap node and its
+          // occurrence are the same entity regardless of position.
+          //
+          // Same-doc rearrange:    atomic single-transaction move (delete +
+          //                        insert in one tr, position-adjusted).
+          // Cross-doc / from CC:   delete source node via the registry,
+          //                        insert a node referencing the same
+          //                        occurrenceId in the new doc.
+          // Copy mode:             clone the occurrence (textmap + fields),
+          //                        insert a node pointing at the new occ;
+          //                        leave the source untouched.
+          const sourceRoleStr = sd.role || data?.role;
+          if (sourceRoleStr === "textblock") {
+            if (insertPos == null) return;
+            const occsById = occurrencesByIdRef.current || {};
+            const dragModeTb = data?.defaultDragMode ?? data?.occurrence?.dragMode ?? "move";
+
+            // Same-doc rearrange = atomic move via shared helper. Falls
+            // through (returns false) when the source lives in a different
+            // doc, which the cross-doc branch below handles.
+            if (dragModeTb !== "copy") {
+              const moved = tryMoveEmbedNodeInDoc(editor, "instanceTextblock", { occurrenceId }, insertPos);
+              if (moved) return;
+            }
+
+            if (dragModeTb === "copy") {
+              const sourceOccTb = occsById[occurrenceId];
+              const newOccId = crypto.randomUUID();
+              CommitHelpers.createOccurrence({
+                dispatch: dispatchRef.current, socket: socketRef.current,
+                occurrence: {
+                  id: newOccId,
+                  moduleId: sourceOccTb?.moduleId || id,
+                  gridId: sourceOccTb?.gridId,
+                  fields: sourceOccTb?.fields || {},
+                  textmap: sourceOccTb?.textmap || null,
+                  dragMode: sourceOccTb?.dragMode ?? null,
+                },
+                emit: true,
+              });
+              insertAtPos(insertPos, {
+                type: "instanceTextblock",
+                attrs: { instanceId: id, occurrenceId: newOccId },
+              });
+              return;
+            }
+
+            // Cross-doc move: insert destination first, only detach source on
+            // confirmed commit so a silent failure can't orphan the occurrence.
+            const insertedTb = insertAtPos(insertPos, {
+              type: "instanceTextblock",
+              attrs: { instanceId: id, occurrenceId },
+            });
+            if (!insertedTb) return;
+            if (context?.sourceType === "doc-embed") {
+              embedDeleteRegistry.get(occurrenceId)?.();
+            } else {
+              const parentOcc = Object.values(occsById).find(
+                occ => Array.isArray(occ.occurrences) && occ.occurrences.includes(occurrenceId)
+              );
+              if (parentOcc) {
+                CommitHelpers.updateOccurrence({
+                  dispatch: dispatchRef.current, socket: socketRef.current,
+                  occurrence: { id: parentOcc.id, occurrences: (parentOcc.occurrences || []).filter(eid => eid !== occurrenceId) },
+                  emit: true,
+                });
+              }
+            }
+            return;
+          }
+          // ─────────────────────────────────────────────────────────────
 
           const dragMode = data?.defaultDragMode ?? data?.occurrence?.dragMode ?? "move";
           if (dragMode === "copy") {
@@ -860,8 +1182,7 @@ const Editor = forwardRef(function Editor({
                 dispatch: dispatchRef.current, socket: socketRef.current,
                 occurrence: {
                   id: copyId,
-                  targetId: occ.targetId,
-                  targetType: occ.targetType || "module",
+                  moduleId: occ.moduleId,
                   gridId: occ.gridId,
                   occurrences: childIds,
                   fields: occ.fields || {},
@@ -880,12 +1201,17 @@ const Editor = forwardRef(function Editor({
             return;
           }
 
-          // Move mode: detach from source
+          // Move mode: same-doc rearrange = atomic node move via the
+          // shared helper. If the source isn't in this doc, fall back to
+          // the cross-target removal paths below.
+          if (insertPos == null) return;
+          if (tryMoveEmbedNodeInDoc(editor, "moduleEmbed", { occurrenceId }, insertPos)) return;
+          // Insert destination FIRST so a silent failure can't orphan the source.
+          const insertedC = insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
+          if (!insertedC) return;
           if (context?.sourceType === "doc-embed") {
-            // Container moved within doc — remove old embed node
             embedDeleteRegistry.get(occurrenceId)?.();
           } else if (context?.pageOccurrenceId) {
-            // Container lives in a page occurrence (page-based board panel) — remove from page
             const pageOcc = occurrencesByIdRef.current?.[context.pageOccurrenceId];
             if (pageOcc) {
               CommitHelpers.updateOccurrence({
@@ -895,8 +1221,7 @@ const Editor = forwardRef(function Editor({
               });
             }
           } else if (context?.panelId) {
-            // Container lives directly in panel occurrence — remove from panel
-            const panelOcc = Object.values(occurrencesByIdRef.current || {}).find(o => o.targetId === context.panelId);
+            const panelOcc = Object.values(occurrencesByIdRef.current || {}).find(o => o.moduleId === context.panelId);
             if (panelOcc) {
               CommitHelpers.updateOccurrence({
                 dispatch: dispatchRef.current, socket: socketRef.current,
@@ -905,8 +1230,6 @@ const Editor = forwardRef(function Editor({
               });
             }
           }
-
-          insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
           return;
         }
         if (type === "field") {
@@ -923,7 +1246,7 @@ const Editor = forwardRef(function Editor({
       el.removeEventListener("dragover", onDragOver);
       cleanup();
     };
-  }, [resolveInsertPos, insertAtPos]);
+  }, [resolveInsertPos, insertAtPos, occurrence?.id]);
 
   // ── native file/text drops ────────────────────────────────────
   const handleFileDrop = useCallback(async (e) => {  // still async for file uploads
@@ -1035,7 +1358,7 @@ const Editor = forwardRef(function Editor({
     if (items.length > 0 && instancesById) {
       const listItems = items.map(itemId => {
         const occ = occurrencesById?.[itemId];
-        const inst = instancesById[occ?.targetId || itemId];
+        const inst = instancesById[occ?.moduleId || itemId];
         if (!inst) return null;
         return { type: "listItem", content: [{ type: "paragraph", content: [{ type: "instancePill", attrs: { instanceId: inst.id, instanceLabel: inst.label || inst.id, occurrenceId: occ?.id || null, containerId: container.id, showIcon: true } }] }] };
       }).filter(Boolean);
@@ -1060,11 +1383,11 @@ const Editor = forwardRef(function Editor({
   const filteredEmbedContainers = useMemo(() => {
     const occs = occurrencesById ? Object.values(occurrencesById) : [];
     return occs.filter(occ => {
-      const mod = modulesById?.[occ.targetId];
+      const mod = modulesById?.[occ.moduleId];
       return mod?.role === "container" && mod?.label;
     }).filter(occ => {
       if (!embedQuery) return true;
-      const mod = modulesById?.[occ.targetId];
+      const mod = modulesById?.[occ.moduleId];
       return mod?.label?.toLowerCase().includes(embedQuery.toLowerCase());
     }).slice(0, 12);
   }, [occurrencesById, modulesById, embedQuery]);
@@ -1219,7 +1542,7 @@ const Editor = forwardRef(function Editor({
             <div style={{ padding: "4px 10px", fontSize: 10, color: "var(--text-faint)" }}>No containers found</div>
           )}
           {filteredEmbedContainers.map(occ => {
-            const mod = modulesById?.[occ.targetId];
+            const mod = modulesById?.[occ.moduleId];
             return (
               <div
                 key={occ.id}

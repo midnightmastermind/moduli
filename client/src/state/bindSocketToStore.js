@@ -21,7 +21,6 @@ import {
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
-import { aliasOccurrence } from "../helpers/dragHitTesting";
 
 /**
  * Module-level bridge so CommitHelpers can fire operations immediately
@@ -96,9 +95,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     for (const o of payload.occurrences || []) {
       const id = o.id || o._id?.toString?.();
       if (id) {
-        const aliased = aliasOccurrence({ ...o, id });
-        occurrencesById[id] = aliased;
-        localOccsById[id] = aliased;
+        const occ = { ...o, id };
+        occurrencesById[id] = occ;
+        localOccsById[id] = occ;
       }
     }
     const hydratedState = { ...stateRef.current, ...payload, occurrencesById, operations, fields: payload.fields || [] };
@@ -188,7 +187,6 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // ======================================================
   function onOccurrenceCreated({ occurrence } = {}) {
     if (!occurrence?.id) return;
-    occurrence = aliasOccurrence(occurrence);
 
     // Keep local cache current before React re-renders stateRef
     localOccsById[occurrence.id] = occurrence;
@@ -204,17 +202,17 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const _occById = { ...Object.fromEntries((_stateNow.occurrences||[]).map(o=>[o.id,o])), ...localOccsById };
     const _modsArr = _stateNow.modules || [];
     const _containerOcc = occurrence.parentId ? _occById[occurrence.parentId] : null;
-    const _containerMod = _containerOcc ? _modsArr.find(m => m.id === _containerOcc.targetId) : null;
+    const _containerMod = _containerOcc ? _modsArr.find(m => m.id === _containerOcc.moduleId) : null;
     const _revMap = buildReverseMap(Object.values(_occById));
     const _gridOccSet = new Set(_stateNow.grid?.occurrences || []);
     const _panelOcc = findGridPanelOcc(_containerOcc, _revMap, _occById, _gridOccSet);
-    const _panelMod = _panelOcc ? _modsArr.find(m => m.id === _panelOcc.targetId) : null;
+    const _panelMod = _panelOcc ? _modsArr.find(m => m.id === _panelOcc.moduleId) : null;
     fireOperations("OccurrenceCreateOp", {
       type: "OccurrenceCreateOp",
       occurrenceId: occurrence.id,
-      instanceId: occurrence.targetId,
+      instanceId: occurrence.moduleId,
       containerId: occurrence.parentId,
-      panelId: _panelOcc?.targetId || occurrence.panelId,
+      panelId: _panelOcc?.moduleId || occurrence.panelId,
       containerLabel: _containerMod?.label || "",
       panelLabel: _panelMod?.label || "",
     });
@@ -222,7 +220,6 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
   function onOccurrenceUpdated({ occurrence } = {}) {
     if (!occurrence?.id) return;
-    occurrence = aliasOccurrence(occurrence);
 
     const prevOcc = localOccsById[occurrence.id];
 
@@ -244,7 +241,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         fireOperations("MeasureOp", {
           type: "MeasureOp",
           occurrenceId: occurrence.id,
-          instanceId: occurrence.targetId,
+          instanceId: occurrence.moduleId,
           fieldId,
           value: occurrence.fields[fieldId]?.value,
         });
@@ -289,7 +286,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         fireOperations("MeasureOp", {
           type: "MeasureOp",
           occurrenceId,
-          instanceId: removedOcc.targetId,
+          instanceId: removedOcc.moduleId,
           fieldId,
         }, { occurrencesOverride: override });
       }
@@ -513,6 +510,31 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // Overlays localOccsById on the frozen pass-state so writes can find items
         // that were CREATEd earlier in the same pipeline tick.
         const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+
+        // Auto-attach the field to the target module's fieldBindings if missing.
+        // Required so date-stamping ops (Schedule: Stamp Date & Time Slot, etc.)
+        // produce a value the renderer can show — without a binding the field
+        // pill never appears even though occ.fields[fieldId] is set.
+        if (effect.subKind !== "flow" && effect.fieldId) {
+          const occ = occOverlay[effect.itemId];
+          const mod = occ ? state.modulesById?.[occ.moduleId] : null;
+          if (mod) {
+            const bindings = mod.fieldBindings || [];
+            const alreadyBound = bindings.some(b => b?.fieldId === effect.fieldId);
+            if (!alreadyBound) {
+              const nextBindings = [
+                ...bindings,
+                { fieldId: effect.fieldId, role: "input", order: bindings.length },
+              ];
+              updateModule({
+                dispatch: socketDispatch, socket,
+                module: { id: mod.id, fieldBindings: nextBindings },
+                emit: true,
+              });
+            }
+          }
+        }
+
         if (effect.subKind === "flow") {
           const occ = occOverlay[effect.itemId];
           if (!occ) break;
@@ -642,8 +664,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         const newOcc = {
           id: inst.id,
           userId,
-          targetType: "module",
-          targetId: inst.templateId,
+          moduleId: inst.templateId,
           gridId,
           parentId: inst.parentId || null,
           viewId: inst.viewId || null,
@@ -763,17 +784,17 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       }
 
       case "REMOVE_FROM_POOL": {
-        // Find the canonical pool occurrence: targetId === moduleId, inside the pool container's occurrences list
+        // Find the canonical pool occurrence inside the pool container's occurrences list
         const { moduleId, poolId } = effect;
         const poolContainerOcc = Object.values(localOccsById).find(
-          o => o.targetId === poolId
+          o => o.moduleId === poolId
         ) || Object.values(state.occurrencesById || {}).find(
-          o => o.targetId === poolId
+          o => o.moduleId === poolId
         );
         const childOccIds = poolContainerOcc?.occurrences || [];
         const poolOcc = childOccIds
           .map(id => localOccsById[id] || state.occurrencesById?.[id])
-          .find(o => o && o.targetId === moduleId);
+          .find(o => o && o.moduleId === moduleId);
         if (poolOcc) {
           deleteOccurrence({ dispatch: socketDispatch, socket, occurrenceId: poolOcc.id });
         }
@@ -901,8 +922,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       const fieldName = field?.name || "Field";
       const prev = op?.measure?.previousValue;
       const next = op?.measure?.value;
-      const desc = prev != null ? `${prev} → ${next}` : String(next ?? "");
-      toast(fieldName, { description: desc, duration: 2500 });
+      // Skip the toast when nothing actually changed — the executor still
+      // fires MeasureOp on every write (used by trigger plumbing) so we'd
+      // otherwise show "Field: 1 → 1" noise on idempotent writes.
+      const sameValue = String(prev ?? "") === String(next ?? "");
+      if (!sameValue) {
+        const desc = prev != null ? `${prev} → ${next}` : String(next ?? "");
+        toast(fieldName, { description: desc, duration: 2500 });
+      }
     } else if (transaction.type === "OccurrenceListOp" && ops.length > 0) {
       const op = ops[0];
       const instanceId = op?.occurrence_list?.instanceId;

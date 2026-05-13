@@ -28,7 +28,7 @@ import {
   unsplitPanel,
 } from "../helpers/LayoutHelpers";
 import {
-  useDraggable,
+  useDragDrop,
   useDroppable,
   useDragContext,
   DragType,
@@ -46,6 +46,7 @@ import {
   ChevronRight,
   Folder,
   FileText,
+  Layers,
 } from "lucide-react";
 
 import Container from "./ModuleContainer.jsx";
@@ -175,7 +176,7 @@ function CanvasTreePanelContent({ resolvedView, activeOcc, dispatch, socket, pan
   const { state: ctxState } = useContext(GridDataContext);
   const [treeCollapsed, setTreeCollapsed] = useState(true);
 
-  const canvasContainerId = activeOcc ? modulesById?.[activeOcc.targetId]?.id : null;
+  const canvasContainerId = activeOcc ? modulesById?.[activeOcc.moduleId]?.id : null;
   const { ref: listDropRef } = useDroppable({
     type: "container-list",
     id: `container-list:${canvasContainerId || "canvas"}`,
@@ -184,12 +185,12 @@ function CanvasTreePanelContent({ resolvedView, activeOcc, dispatch, socket, pan
     disabled: !canvasContainerId,
   });
 
-  const canvasModule = activeOcc ? modulesById?.[activeOcc.targetId] : null;
+  const canvasModule = activeOcc ? modulesById?.[activeOcc.moduleId] : null;
   const canvasItems = useMemo(() => {
     if (!activeOcc || !occurrencesById) return [];
     return (activeOcc.occurrences || []).map(occId => {
       const occ = occurrencesById[occId];
-      const inst = occ ? modulesById?.[occ.targetId] : null;
+      const inst = occ ? modulesById?.[occ.moduleId] : null;
       return occ && inst ? { instance: inst, occurrence: occ } : null;
     }).filter(Boolean);
   }, [activeOcc, occurrencesById, modulesById]);
@@ -333,7 +334,7 @@ function Panel({
 
   // Occurrence for this panel
   const panelOccurrence = useMemo(() => {
-    return Object.values(occurrencesById).find(occ => occ.targetId === module.id);
+    return Object.values(occurrencesById).find(occ => occ.moduleId === module.id);
   }, [occurrencesById, module.id]);
 
   const commitOccurrenceUpdate = useCallback((updates) => {
@@ -363,8 +364,7 @@ function Panel({
       id: occId,
       userId: module.userId,
       gridId: module.gridId,
-      targetId: pageModule.id,
-      targetType: "module",
+      moduleId: pageModule.id,
       parentId: globalFolderId,
       iteration: { mode: "persistent" },
       fields: {},
@@ -412,7 +412,7 @@ function Panel({
 
   const splitPartnerOccurrenceId = useMemo(() => {
     if (!splitPartnerPanel) return null;
-    return Object.values(occurrencesById).find(occ => occ.targetId === splitPartnerPanel.id)?.id || null;
+    return Object.values(occurrencesById).find(occ => occ.moduleId === splitPartnerPanel.id)?.id || null;
   }, [splitPartnerPanel, occurrencesById]);
 
   const isSplit = !!splitPartnerPanel;
@@ -489,7 +489,7 @@ function Panel({
 
   const panelHandleRef = useRef(null);
 
-  const { ref: dragRef, isDragging } = useDraggable({
+  const { ref: dragRef, isDragging } = useDragDrop({
     type: DragType.PANEL,
     id: module.id,
     data: panelWithChildren,
@@ -517,7 +517,7 @@ function Panel({
     for (const occId of panelChildOccIds) {
       const occ = occurrencesById[occId];
       if (!occ) continue;
-      const mod = modulesById[occ.targetId];
+      const mod = modulesById[occ.moduleId];
       if (!mod) continue;
       if (mod.role === "page") {
         pages.push({ page: mod, occurrence: occ });
@@ -592,7 +592,7 @@ function Panel({
     if (fromList) return fromList;
     if (activeId) {
       const occ = occurrencesById[activeId];
-      const mod = occ ? modulesById[occ.targetId] : null;
+      const mod = occ ? modulesById[occ.moduleId] : null;
       if (occ && mod && mod.role === "page") return { occurrence: occ, page: mod };
     }
     return pagesList[0] || null;
@@ -755,7 +755,7 @@ function Panel({
 
               {/* Active page name — flex-grows to fill space between handle and actions */}
               <span style={{
-                flex: 1, minWidth: 0, marginLeft: 18,
+                flex: 1, minWidth: 0,
                 fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)",
                 letterSpacing: "0.03em", overflow: "hidden", textOverflow: "ellipsis",
                 whiteSpace: "nowrap", userSelect: "none",
@@ -763,7 +763,7 @@ function Panel({
                 {activePageLabel}
               </span>
 
-              {/* QuickAdd */}
+              {/* QuickAdd + grid cell switcher */}
               <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 5, alignItems: "center" }}>
                 <QuickAddMenu
                   targetRole="page"
@@ -775,7 +775,7 @@ function Panel({
                     CommitHelpers.createPage({
                       dispatch, socket,
                       module: { id: modId, userId: module.userId, gridId: module.gridId, role: "page", kind: "board", label: `Page ${(panelOccurrence.occurrences || []).length + 1}` },
-                      occurrence: { id: occId, userId: module.userId, gridId: module.gridId, targetId: modId, parentId: globalFolderId, iteration: { mode: "persistent" }, fields: {} },
+                      occurrence: { id: occId, userId: module.userId, gridId: module.gridId, moduleId: modId, parentId: globalFolderId, iteration: { mode: "persistent" }, fields: {} },
                       panelOccurrenceId: panelOccurrence.id,
                       ...(!resolvedViewId && {
                         panelViewData: { id: crypto.randomUUID(), userId: module.userId, gridId: module.gridId, viewType: "board", activeOccurrenceId: occId },
@@ -785,6 +785,20 @@ function Panel({
                   }}
                   createLabel="New page"
                 />
+                {(() => {
+                  const stack = dragCtx.getStackForPanel?.(module) || [];
+                  if (stack.length <= 1) return null;
+                  return (
+                    <button
+                      className="panel-stack-btn-inline"
+                      onClick={(e) => { e.stopPropagation(); dragCtx.cyclePanelStack?.({ panelId: module.id, dir: 1 }); }}
+                      title="Cycle panels in this cell"
+                    >
+                      <Layers size={9} />
+                      <span style={{ fontSize: 9, fontWeight: 600 }}>{stack.length}</span>
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           );

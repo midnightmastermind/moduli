@@ -1197,11 +1197,16 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
 
     case "UPDATE_MODULE":
       return (
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
-          {fl("module:")}
-          <ExprOrPath value={cfg.moduleId || "$trigger.moduleId"} onChange={v => setCfg({ moduleId: v })} placeholder="$item.id or moduleId" sources={sources} fields={fields} />
-          {fl("patch (JSON):")}
-          <input value={cfg.patchJson || "{}"} onChange={e => setCfg({ patchJson: e.target.value })} style={{ ...inputSt, width: 200, fontFamily: "monospace" }} placeholder='{"label": "$item.label"}' />
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={rowStyle}>
+            {fl("module:")}
+            <ExprOrPath value={cfg.moduleId || "$trigger.moduleId"} onChange={v => setCfg({ moduleId: v })} placeholder="$item.id or moduleId" sources={sources} fields={fields} />
+          </div>
+          <div style={rowStyle}>
+            {fl("patch (JSON):")}
+            <input value={cfg.patchJson || "{}"} onChange={e => setCfg({ patchJson: e.target.value })} style={{ ...inputSt, width: 200, fontFamily: "monospace" }} placeholder='{"label": "$item.label"}' />
+          </div>
+          <AttachFieldsPicker cfg={cfg} setCfg={setCfg} fields={fields} />
         </div>
       );
 
@@ -1431,9 +1436,104 @@ function FieldPicker({ value, onChange, fields, placeholder = "Pick field..." })
   );
 }
 
+// Shared CategoryPathPicker config that surfaces the grid's fields as
+// one-click leaves, optionally hiding a set of already-bound ids.
+function buildAttachFieldPickerConfig({ fields, excludeIds, placeholder = "Attach a field" }) {
+  return {
+    placeholder,
+    categories: [{
+      id: "fields",
+      label: "Attach fields",
+      description: "Picked fields are bound to the module. Toggle the eye to hide them on the rendered instance.",
+      icon: undefined,
+      color: "rgba(168,85,247,0.7)",
+      resolveItems: () => (fields || [])
+        .filter(f => !excludeIds.has(f.id))
+        .map(f => ({
+          value: f.id,
+          title: f.name || "(unnamed field)",
+          sub: f.type || "field",
+          description: f.meta?.description || `${f.type || "field"} field`,
+          hasChildren: false,
+        })),
+    }],
+  };
+}
+
+// Render a per-binding hidden toggle. Reads/writes cfg.fieldHidden
+// ({ [fieldId]: true }), which operationActions.js layers on top of the
+// auto-attach when minting fieldBindings.
+function FieldVisibilityToggle({ cfg, setCfg, fieldId }) {
+  const hiddenMap = cfg.fieldHidden || {};
+  const isHidden = !!hiddenMap[fieldId];
+  const toggle = () => {
+    const next = { ...hiddenMap };
+    if (isHidden) delete next[fieldId];
+    else next[fieldId] = true;
+    setCfg({ fieldHidden: Object.keys(next).length ? next : undefined });
+  };
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={isHidden ? "Hidden on instance — click to show" : "Visible on instance — click to hide"}
+      style={{ border: "none", background: "none", color: isHidden ? "var(--text-faint)" : "var(--text-muted)", cursor: "pointer", padding: 2, fontSize: 11 }}
+    >
+      {isHidden ? "🚫" : "👁"}
+    </button>
+  );
+}
+
+// Attach-only picker (no value column). Writes to cfg.attachFields as an
+// array of fieldIds. Pairs with FieldVisibilityToggle so authors can hide a
+// purely-bound field even when it's set elsewhere.
+function AttachFieldsPicker({ cfg, setCfg, fields }) {
+  const list = Array.isArray(cfg.attachFields) ? cfg.attachFields.filter(Boolean) : [];
+  const fieldsById = useMemo(() => Object.fromEntries((fields || []).map(f => [f.id, f])), [fields]);
+  const handlePick = (picked) => {
+    if (!picked) return;
+    const fid = picked.split(".").pop();
+    if (!fid || list.includes(fid)) return;
+    setCfg({ attachFields: [...list, fid] });
+  };
+  const removeId = (fid) => {
+    const next = list.filter(x => x !== fid);
+    setCfg({ attachFields: next.length ? next : undefined });
+  };
+  const config = buildAttachFieldPickerConfig({ fields, excludeIds: new Set(list) });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingLeft: 8 }}>
+      <div style={{ fontSize: 10, color: "var(--text-muted)" }}>attach fields:</div>
+      <CategoryPathPicker
+        value=""
+        onChange={handlePick}
+        ctx={{ fields, sources: [], localVars: [] }}
+        config={config}
+      />
+      {list.map(fid => {
+        const f = fieldsById[fid];
+        return (
+          <div key={fid} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 10, color: "var(--text-primary)" }}>{f?.name || fid}</span>
+            <span style={{ fontSize: 9, color: "var(--text-faint)" }}>{f?.type || ""}</span>
+            <FieldVisibilityToggle cfg={cfg} setCfg={setCfg} fieldId={fid} />
+            <button style={{ border: "none", background: "none", color: "var(--text-faint)", cursor: "pointer", padding: 2 }} onClick={() => removeId(fid)} title="remove">✕</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Renders cfg.fields as a list of (fieldId → expression) rows, used by the
 // CREATE config UI. cfg.fields is shaped `{ [fieldId]: expr }` — an object,
 // not an array — because that's what operationActions expects.
+//
+// Any field listed here is also auto-attached to the target module's
+// fieldBindings at runtime (operationActions.js), so this section is both
+// "attach fields" and "assign values" in one — picking a field adds the row
+// and the user fills in the value inline. The eye toggle controls per-binding
+// hidden state via cfg.fieldHidden.
 function FieldsMapEditor({ cfg, setCfg, fields, exprProps }) {
   const entries = Object.entries(cfg.fields || {});
   const setEntry = (oldFid, newFid, expr) => {
@@ -1450,10 +1550,23 @@ function FieldsMapEditor({ cfg, setCfg, fields, exprProps }) {
     if (!replaced && newFid) next[newFid] = expr;
     setCfg({ fields: Object.keys(next).length ? next : undefined });
   };
-  const addRow = () => setCfg({ fields: { ...(cfg.fields || {}), "": "" } });
+  const boundIds = new Set(entries.map(([fid]) => fid).filter(Boolean));
+  const attachPickerConfig = buildAttachFieldPickerConfig({ fields, excludeIds: boundIds });
+  const handlePickField = (picked) => {
+    if (!picked) return;
+    const fid = picked.split(".").pop();
+    if (!fid || boundIds.has(fid)) return;
+    setCfg({ fields: { ...(cfg.fields || {}), [fid]: "" } });
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingLeft: 8 }}>
-      <div style={{ fontSize: 10, color: "var(--text-muted)" }}>fields:</div>
+      <div style={{ fontSize: 10, color: "var(--text-muted)" }}>attach fields &amp; assign values:</div>
+      <CategoryPathPicker
+        value=""
+        onChange={handlePickField}
+        ctx={{ fields, sources: [], localVars: [] }}
+        config={attachPickerConfig}
+      />
       {entries.map(([fid, expr], i) => (
         <div key={`${fid}_${i}`} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <FieldPicker value={fid} onChange={v => setEntry(fid, v, expr)} fields={fields} placeholder="(field)" />
@@ -1465,10 +1578,10 @@ function FieldsMapEditor({ cfg, setCfg, fields, exprProps }) {
             width={180}
             {...exprProps}
           />
+          {fid && <FieldVisibilityToggle cfg={cfg} setCfg={setCfg} fieldId={fid} />}
           <button style={{ border: "none", background: "none", color: "var(--text-faint)", cursor: "pointer", padding: 2 }} onClick={() => setEntry(fid, "", "")} title="remove">✕</button>
         </div>
       ))}
-      <button onClick={addRow} style={{ alignSelf: "flex-start", fontSize: 10, color: "var(--text-muted)", border: "1px dashed var(--border-default)", background: "transparent", padding: "2px 6px", borderRadius: 3, cursor: "pointer" }}>+ field</button>
     </div>
   );
 }

@@ -60,7 +60,7 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
   const fieldValues = useMemo(() => {
     if (!instance?.fieldBindings?.length || !occurrencesById || !fieldsById) return [];
     const instanceOccs = Object.values(occurrencesById).filter(
-      occ => occ.targetType === "instance" && occ.targetId === instanceId && occ.fields
+      occ => occ.moduleId === instanceId && occ.fields
     );
     if (instanceOccs.length === 0) return [];
     const merged = {};

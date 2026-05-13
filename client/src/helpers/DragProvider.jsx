@@ -270,7 +270,7 @@ export function DragProvider({
   // can share the same data-container-id / data-instance-id (the module ID).
   // We also collect the per-occurrence IDs (data-occ-id on containers,
   // data-occurrence-id on instances) so callers can target the SPECIFIC node
-  // under the cursor instead of `Object.values(...).find(o => o.targetId === ...)`
+  // under the cursor instead of `Object.values(...).find(o => o.moduleId === ...)`
   // which silently picks the wrong day.
   const getHoveredIds = useCallback((x, y) => {
     const elements = document.elementsFromPoint(x, y);
@@ -638,7 +638,7 @@ export function DragProvider({
         // Resolve container occurrences. Schedule slots have one occurrence per
         // day sharing the same module id, so prefer the per-occurrence ids
         // exposed via DOM attributes / payload context. Falling back to a
-        // targetId-based find() picks the first day's slot — which is rarely
+        // moduleId-based find() picks the first day's slot — which is rarely
         // the visible one.
         const fromCOccId = s.payload.context?.containerOccurrenceId
           || s.payload.context?.containerOccId
@@ -722,7 +722,7 @@ export function DragProvider({
         const hoveredContainerId = containerId; // Already resolved by getHoveredIds above
         let toIndex = null;
 
-        // Find panel occurrences via draftOccurrences (panel occ = occ with targetId === panel.id)
+        // Find panel occurrences via draftOccurrences (panel occ = occ with moduleId === panel.id)
         const fromPanelOcc = fromPanel?._occurrence ? (s.draftOccurrences?.[fromPanel._occurrence.id] || null) : null;
         const toPanelOcc = toPanel?._occurrence ? (s.draftOccurrences?.[toPanel._occurrence.id] || null) : null;
 
@@ -857,6 +857,11 @@ export function DragProvider({
       const childCount = (pageOcc?.occurrences || []).length;
       const insertAt = pageRect && y < pageRect.top + pageRect.height / 2 ? 0 : childCount;
       dt.context = { ...dt.context, occurrenceId: pageOccId, insertAt };
+    }
+    // Stash the actual drop target's rect on context so handlers don't have
+    // to guess via querySelector (used by canvas drop to compute meta.x/y).
+    if (dt.targetRect && !dt.context?.targetRect) {
+      dt.context = { ...dt.context, targetRect: dt.targetRect };
     }
 
     const rawEvent = buildRawDropEvent({

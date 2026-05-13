@@ -20,6 +20,7 @@
 //   [1,0] Todo List      — General (6 todos)
 //   [0,1] Center Hub ×2  — Schedule (slots created on-demand) | Notes
 //   [0,2] Daily Goals    — Physical (Water + Tasks total displays)
+//   [1,2] Canvas Test    — free-form canvas page seeded with two draggable notes
 //
 // Schedule slots and the preset routine (Drink Water / Take Medication / Go to Gym)
 // are created automatically by the "Schedule: Auto-Build for Active Date" operation
@@ -107,6 +108,7 @@ export async function createTestGrid(userId, options = {}) {
   const goalsPanelId   = uid();
   const todoPanelId    = uid();
   const centerHubId    = uid();
+  const canvasPanelId  = uid();
 
   const physicalContId     = uid();
   const physicalGoalContId = uid();
@@ -126,6 +128,8 @@ export async function createTestGrid(userId, options = {}) {
   const todoBillsModId      = uid();
   const todoReadModId       = uid();
   const todoEmailModId      = uid();
+  const canvasNoteAModId    = uid();
+  const canvasNoteBModId    = uid();
 
   const centerHubViewId = uid();
   const manifestId      = uid();
@@ -276,6 +280,26 @@ export async function createTestGrid(userId, options = {}) {
       defaultDragMode: "move",
       fieldBindings: [{ fieldId: completedFieldId, role: "input", order: 0 }],
     },
+    // Canvas test instances — used to verify drag-to and drag-from canvas.
+    {
+      id: canvasNoteAModId, userId, gridId, role: "instance", kind: "list", label: "Canvas Note A",
+      defaultDragMode: "move",
+      // dateFieldId is hidden but bound so the schedule's drop-stamp logic
+      // can populate it when the note is dragged into a slot — required for
+      // Tracker: Tasks Completed Today's `date SAME_DAY $goalDate` predicate.
+      fieldBindings: [
+        { fieldId: completedFieldId, role: "input", order: 0 },
+        { fieldId: dateFieldId,      role: "input", order: 1, hidden: true },
+      ],
+    },
+    {
+      id: canvasNoteBModId, userId, gridId, role: "instance", kind: "list", label: "Canvas Note B",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: completedFieldId, role: "input", order: 0 },
+        { fieldId: dateFieldId,      role: "input", order: 1, hidden: true },
+      ],
+    },
   ]);
 
   // ── STEP 4: Container modules ───────────────────────────────────────────────
@@ -313,6 +337,7 @@ export async function createTestGrid(userId, options = {}) {
     { id: goalsPanelId,   userId, gridId, role: "panel", kind: "board", label: "Panel D", defaultDragMode: "move", layout: panelLayout("Panel D") },
     { id: todoPanelId,    userId, gridId, role: "panel", kind: "board", label: "Panel B", defaultDragMode: "move", layout: { ...panelLayout("Panel B"), gapPx: 8 } },
     { id: centerHubId,    userId, gridId, role: "panel", kind: "board", label: "Panel C", defaultDragMode: "move", layout: panelLayout("Panel C") },
+    { id: canvasPanelId,  userId, gridId, role: "panel", kind: "board", label: "Panel E", defaultDragMode: "move", layout: panelLayout("Panel E") },
   ]);
 
   // ── STEP 6: Instance + container occurrences ────────────────────────────────
@@ -475,6 +500,41 @@ export async function createTestGrid(userId, options = {}) {
   await new Module({ id: notesPageModId, userId, gridId, role: "page", kind: "doc", label: "Notes" }).save();
   await mkOcc({ id: notesPageOccId, moduleId: notesPageModId, parentId: notesFolderId, sortOrder: 0, iteration: { mode: "persistent" }, textmap: { type: "doc", content: [{ type: "paragraph" }] }, fields: {} });
 
+  // Canvas test page — placed in [1,2] (bottom-right). Two seed instances pinned
+  // at meta.x/y so drag-FROM-canvas can be exercised; the empty space on the
+  // dot-grid is the drop zone for drag-TO-canvas (from CC, pool, other panels).
+  const canvasPageModId = uid(); const canvasPageOccId = uid();
+  await new Module({ id: canvasPageModId, userId, gridId, role: "page", kind: "canvas", label: "Canvas Test" }).save();
+
+  const canvasNoteAOccId = await mkOcc({
+    moduleId: canvasNoteAModId,
+    parentId: canvasPageOccId,
+    fields: {},
+    meta: { x: 60, y: 60 },
+  });
+  const canvasNoteBOccId = await mkOcc({
+    moduleId: canvasNoteBModId,
+    parentId: canvasPageOccId,
+    fields: {},
+    meta: { x: 240, y: 140 },
+  });
+
+  await mkOcc({
+    id: canvasPageOccId,
+    moduleId: canvasPageModId,
+    parentId: rootFolderId,
+    sortOrder: 4,
+    iteration: { mode: "persistent" },
+    occurrences: [canvasNoteAOccId, canvasNoteBOccId],
+    fields: {},
+    // Canvas Test is a scratchpad — explicit `{}` override blocks the grid's
+    // daily date filter from cascading down, matching the Physical (Daily
+    // Toolkit) + General (Todo List) container behaviour. Without this, the
+    // canvas inherits the date filter and the notes vanish on any non-today
+    // navigation.
+    filterOverride: {},
+  });
+
   await new View({ id: centerHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: schedPageOccId }).save();
 
   // ── STEP 9: Panel occurrences (grid placements) ─────────────────────────────
@@ -484,6 +544,7 @@ export async function createTestGrid(userId, options = {}) {
     { key: "todo",     panelId: todoPanelId,    row: 1, col: 0, width: 1, height: 1, viewId: null            },
     { key: "hub",      panelId: centerHubId,    row: 0, col: 1, width: 1, height: 2, viewId: centerHubViewId },
     { key: "goals",    panelId: goalsPanelId,   row: 0, col: 2, width: 1, height: 1, viewId: null            },
+    { key: "canvas",   panelId: canvasPanelId,  row: 1, col: 2, width: 1, height: 1, viewId: null            },
   ];
 
   const gridOccIds = [];
@@ -502,6 +563,7 @@ export async function createTestGrid(userId, options = {}) {
   await Occurrence.findOneAndUpdate({ id: panelOccIds.todo },    { $set: { occurrences: [todoPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.hub },     { $set: { occurrences: [schedPageOccId, notesPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.goals },   { $set: { occurrences: [goalsPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.canvas },  { $set: { occurrences: [canvasPageOccId] } });
 
   // ── STEP 11: Finalize grid ──────────────────────────────────────────────────
   await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds } });
@@ -832,6 +894,7 @@ export async function createTestGrid(userId, options = {}) {
                     meta: { scheduleDueContainer: true },
                     parent: "$schedPageId",
                     fields: { [timeslotFieldId]: "literal:Due" },
+                    fieldHidden: { [timeslotFieldId]: true },
                     insertAtIndex: 0,
                     itemIdVar: "$dueId",
                 }},
@@ -878,6 +941,7 @@ export async function createTestGrid(userId, options = {}) {
                         meta: { scheduleSlot: true, slotLabel: "$slot.label" },
                         parent: "$schedPageId",
                         fields: { [timeslotFieldId]: "$slot.label" },
+                        fieldHidden: { [timeslotFieldId]: true },
                     }},
                   ],
                   else: [],
@@ -940,7 +1004,16 @@ export async function createTestGrid(userId, options = {}) {
                           role: "instance",
                           kind: "list",
                           parent: "$dueId",
-                          fields: { [dateFieldId]: "$schedDate" },
+                          // Stamp both: dateFieldId for the schedule's date
+                          // cascade, dueFieldId so the visible "Due" field on
+                          // the swept copy renders the actual date (instead
+                          // of the empty field-name fallback). The original
+                          // todo's dueDate matched $schedDate to be swept.
+                          fields: {
+                            [dateFieldId]: "$schedDate",
+                            [dueFieldId]:  "$schedDate",
+                          },
+                          fieldHidden: { [dateFieldId]: true },
                         },
                       }],
                       else: [],
@@ -1112,6 +1185,13 @@ export async function createTestGrid(userId, options = {}) {
                         [waterFieldId]:    "$preset.water",
                         [completedFieldId]: "$preset.completed",
                       },
+                      // Date + Time Slot are stamping metadata, not user-
+                      // facing inputs. Mark them hidden so the template's
+                      // fieldBindings render only Completed + Water.
+                      fieldHidden: {
+                        [dateFieldId]: true,
+                        [timeslotFieldId]: true,
+                      },
                     },
                   }],
                   else: [],
@@ -1256,6 +1336,7 @@ async function main() {
     console.log("  [1,0] Todo List      — General (6 items)");
     console.log("  [0,1] Center Hub ×2  — Schedule (slots created on-demand) | Notes");
     console.log("  [0,2] Daily Goals    — Physical → Water + Tasks totals");
+    console.log("  [1,2] Canvas Test    — free-form canvas page (Canvas Note A, B pinned)");
     console.log("=".repeat(50));
   } catch (err) {
     console.error("❌ Failed:", err);
