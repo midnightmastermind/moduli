@@ -792,6 +792,7 @@ function Panel({
                     });
                   }}
                   createLabel="New page"
+                  hostOccurrence={panelOccurrence}
                 />
                 {(() => {
                   const stack = dragCtx.getStackForPanel?.(module) || [];

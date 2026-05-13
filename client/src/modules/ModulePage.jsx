@@ -393,6 +393,7 @@ function Page({
                     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });
                   }}
                   createLabel="New container"
+                  hostOccurrence={occurrence}
                 />
               </div>
             )}

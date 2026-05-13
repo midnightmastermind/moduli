@@ -781,6 +781,7 @@ function Container({
                     containerOccurrence,
                   });
                 }}
+                hostOccurrence={containerOccurrence}
               />
             </div>
 

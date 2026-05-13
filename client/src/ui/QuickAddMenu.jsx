@@ -8,6 +8,8 @@ import { useState, useMemo, useContext, useRef, useEffect, useCallback } from "r
 import { createPortal } from "react-dom";
 import { Plus, ChevronLeft, List, FileText, LayoutGrid, Image as ImageIcon, Box, FileQuestion } from "lucide-react";
 import { GridActionsContext } from "../GridActionsContext";
+import { templatesByKind } from "../helpers/templateHelpers";
+import { commitApplyTemplate } from "../helpers/CommitHelpers";
 
 const ROLE_COLORS = {
   panel: "rgba(59,130,246,0.7)",
@@ -39,8 +41,8 @@ const ALLOWED_KINDS_BY_ROLE = {
   page:      new Set(["board", "doc", "canvas", "folder"]),
 };
 
-export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock }) {
-  const { modulesById, roleByModuleId } = useContext(GridActionsContext);
+export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null }) {
+  const { modulesById, roleByModuleId, socket, state } = useContext(GridActionsContext);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [pickedKind, setPickedKind] = useState(null); // null = showing categories
@@ -121,6 +123,19 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
       count: mods.length,
     }));
   }, [matchingModules]);
+
+  const gridId = state?.grid?._id || state?.gridId;
+  const allowedKinds = ALLOWED_KINDS_BY_ROLE[targetRole];
+  const templateRows = useMemo(() => {
+    if (!hostOccurrence || !gridId || !allowedKinds) return [];
+    const rows = [];
+    for (const k of allowedKinds) {
+      for (const tpl of templatesByKind(state, gridId, k)) {
+        rows.push(tpl);
+      }
+    }
+    return rows;
+  }, [state, gridId, allowedKinds, hostOccurrence]);
 
   // Modules filtered by picked kind + search.
   const filteredModules = useMemo(() => {
@@ -313,6 +328,37 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                   </button>
                 ))}
               </>
+            )}
+            {templateRows.length > 0 && (
+              <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "6px 8px" }}>
+                <div style={{ fontSize: 9, color: "var(--text-faint)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Templates
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {templateRows.map(tpl => (
+                    <button
+                      key={tpl.id}
+                      onClick={() => {
+                        commitApplyTemplate(socket, {
+                          templateOccurrenceId: tpl.id,
+                          targetOccurrenceId: hostOccurrence.id,
+                          mode: "append",
+                        });
+                        closeMenu();
+                      }}
+                      style={{
+                        fontSize: 11, padding: "3px 8px", borderRadius: 4,
+                        border: "1px solid var(--border-default)",
+                        background: "transparent", color: "var(--text-primary)", cursor: "pointer",
+                        fontFamily: "var(--font-mono)",
+                      }}
+                      title={`Apply template: ${tpl.meta?.templateName}`}
+                    >
+                      📋 {tpl.meta?.templateName || "(unnamed)"}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </div>,
