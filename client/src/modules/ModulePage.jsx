@@ -10,6 +10,9 @@ import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { X, Trash2, Copy, FileText, Layout, Paintbrush, Monitor, Folder, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import LocalFilterNav from "../ui/LocalFilterNav";
+import HeaderChevron from "../ui/HeaderChevron";
+import HeaderDropdown from "../ui/HeaderDropdown";
+import FiltersSection from "../ui/FiltersSection";
 import NodePill from "./NodePill.jsx";
 import PreviewNode from "./PreviewNode.jsx";
 
@@ -78,6 +81,9 @@ function Page({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editLabel, setEditLabel] = useState("");
+  const [dropdownAnchor, setDropdownAnchor] = useState(null);
+  const openDropdown = useCallback((e) => setDropdownAnchor(e.currentTarget.getBoundingClientRect()), []);
+  const closeDropdown = useCallback(() => setDropdownAnchor(null), []);
 
   // Tree view: resolve active occurrence from page view
   const treeActiveOccId = isTreeView ? pageView?.activeOccurrenceId : null;
@@ -415,6 +421,7 @@ function Page({
 
             {/* Filter nav + close */}
             <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center", marginLeft: 4 }}>
+              <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} />
               <LocalFilterNav occurrence={occurrence} compact={true} />
               {onClose && (
                 <button
@@ -440,6 +447,12 @@ function Page({
       <div style={{ flex: 1, minHeight: 0, overflow: isTreeView ? "hidden" : "auto", WebkitOverflowScrolling: isTreeView ? undefined : "touch", position: "relative", display: "flex", flexDirection: "column", }}>
         {content}
       </div>
+
+      {dropdownAnchor && (
+        <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
+          <FiltersSection occurrence={occurrence} />
+        </HeaderDropdown>
+      )}
     </div>
   );
 }

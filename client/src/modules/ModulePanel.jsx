@@ -53,6 +53,9 @@ import Container from "./ModuleContainer.jsx";
 import Page from "./ModulePage.jsx";
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
+import HeaderChevron from "../ui/HeaderChevron";
+import HeaderDropdown from "../ui/HeaderDropdown";
+import FiltersSection from "../ui/FiltersSection";
 
 // ============================================================
 // LAYOUT HELPERS
@@ -277,6 +280,9 @@ function Panel({
   const [rootTreeOpen, setRootTreeOpen] = useState(false);
   const [localTreeOpen, setLocalTreeOpen] = useState(false);
   const [pendingDrilldown, setPendingDrilldown] = useState(null);
+  const [dropdownAnchor, setDropdownAnchor] = useState(null);
+  const openDropdown = useCallback((e) => setDropdownAnchor(e.currentTarget.getBoundingClientRect()), []);
+  const closeDropdown = useCallback(() => setDropdownAnchor(null), []);
   // Navigation breadcrumb history — array of occIds in visit order
   const prevActiveOccRef = useRef(null);
   const panelDragMode = module?.defaultDragMode || "move";
@@ -763,8 +769,9 @@ function Panel({
                 {activePageLabel}
               </span>
 
-              {/* QuickAdd + grid cell switcher */}
+              {/* QuickAdd + header dropdown + grid cell switcher */}
               <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 5, alignItems: "center" }}>
+                <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} />
                 <QuickAddMenu
                   targetRole="page"
                   onSelect={handleQuickAddPage}
@@ -1081,6 +1088,12 @@ function Panel({
         gridId={state.grid?._id || state.gridId}
         moduleId={module.id}
       />
+
+      {dropdownAnchor && (
+        <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
+          <FiltersSection occurrence={panelOccurrence} />
+        </HeaderDropdown>
+      )}
     </div>
   );
 }
