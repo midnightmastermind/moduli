@@ -29,6 +29,9 @@ import { resolveContainerStyle, styleToCSS } from "../helpers/StyleHelpers";
 import { hexToRgba, lightenHex } from "../helpers/colorHelpers.js";
 import { getEffectiveFilterForOccurrence, isOccurrenceVisible } from "../state/selectors";
 import LocalFilterNav from "../ui/LocalFilterNav";
+import HeaderChevron from "../ui/HeaderChevron";
+import HeaderDropdown from "../ui/HeaderDropdown";
+import FiltersSection from "../ui/FiltersSection";
 
 import {
   ChevronRight,
@@ -154,6 +157,11 @@ function Container({
   const setShowEmbeddedIterNav = useCallback(v => uiDispatch({ showEmbeddedIterNav: v }), []);
   const setFilterPopupPos = useCallback(v => uiDispatch({ filterPopupPos: v }), []);
   const setTemplatePopupPos = useCallback(v => uiDispatch({ templatePopupPos: v }), []);
+  const [dropdownAnchor, setDropdownAnchor] = useState(null);
+  const openDropdown = useCallback((e) => {
+    setDropdownAnchor(e.currentTarget.getBoundingClientRect());
+  }, []);
+  const closeDropdown = useCallback(() => setDropdownAnchor(null), []);
   const containerHandleRef = useRef(null);
   const focusedItem = focusedStack[focusedStack.length - 1] || null;
 
@@ -775,7 +783,8 @@ function Container({
               />
             </div>
 
-            <div className="ml-auto mr-1" style={{ flexShrink: 0 }} onPointerDown={(e) => e.stopPropagation()}>
+            <div className="ml-auto mr-1" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4 }} onPointerDown={(e) => e.stopPropagation()}>
+              <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} />
               <LocalFilterNav occurrence={containerOccurrence} compact={true} />
             </div>
           </>
@@ -1121,6 +1130,12 @@ function Container({
         gridId={ctxState?.grid?._id || ctxState?.gridId}
         moduleId={module.id}
       />
+
+      {dropdownAnchor && (
+        <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
+          <FiltersSection occurrence={containerOccurrence} />
+        </HeaderDropdown>
+      )}
     </div>
   );
 }
