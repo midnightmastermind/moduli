@@ -828,7 +828,6 @@ function Panel({
                   socket={socket}
                   drilldownTarget={pendingDrilldown}
                   onDrilldownComplete={() => setPendingDrilldown(null)}
-                  onClose={() => closePage(activePageEntry.occurrence.id)}
                 />
               ) : (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12, height: "100%" }}>
