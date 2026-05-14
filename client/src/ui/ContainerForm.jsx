@@ -28,9 +28,6 @@ export default function ContainerForm({
   onDragModeChange,  // (mode) => void
   occurrence,        // The occurrence for this container (for persistence settings)
   onOccurrenceUpdate, // (updates) => void
-  onSaveAsTemplate,  // () => void — save current items as a template
-  onFillFromTemplate, // (templateId) => void — fill from a saved template
-  templates,         // Array of available templates
 }) {
   const iter = iteration || { mode: "inherit", timeFilter: "daily" };
   const { occurrencesById, modulesById, fieldsById } = useContext(GridActionsContext);
@@ -61,10 +58,9 @@ export default function ContainerForm({
 
       {/* Tabs */}
       <Tabs defaultValue="settings">
-        <TabsList className="grid grid-cols-3 mx-2 mt-1.5 h-7">
+        <TabsList className="grid grid-cols-2 mx-2 mt-1.5 h-7">
           <TabsTrigger value="settings" className="text-[10px]">Settings</TabsTrigger>
           <TabsTrigger value="style" className="text-[10px]">Style</TabsTrigger>
-          <TabsTrigger value="templates" className="text-[10px]">Templates</TabsTrigger>
         </TabsList>
 
         {/* SETTINGS TAB */}
@@ -253,61 +249,6 @@ export default function ContainerForm({
           />
         </TabsContent>
 
-        {/* TEMPLATES TAB */}
-        <TabsContent value="templates" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1">
-          <div className="py-2">
-            <h4 className="text-xs font-semibold text-foregroundScale-2 mb-2">Templates</h4>
-            <div className="flex flex-col gap-1.5">
-              {onSaveAsTemplate && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-xs w-full"
-                  onClick={onSaveAsTemplate}
-                >
-                  Save Current Items as Template
-                </Button>
-              )}
-              {(templates || []).length > 0 && (
-                <div className="space-y-1">
-                  {templates.map(t => (
-                    <Button
-                      key={t.id}
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs w-full justify-start"
-                      onClick={() => onFillFromTemplate?.(t.id)}
-                    >
-                      Fill from: {t.name}
-                    </Button>
-                  ))}
-                </div>
-              )}
-              {!(templates || []).length && (
-                <p className="text-[10px] text-muted-foreground">No templates saved yet.</p>
-              )}
-              {(templates || []).length > 0 && (
-                <div className="mt-2">
-                  <label className="text-[10px] text-foregroundScale-2 block mb-1">
-                    Default Template (auto-fill on day change)
-                  </label>
-                  <select
-                    className="w-full text-xs bg-background border border-border rounded px-2 py-1 text-foreground"
-                    value={container?.defaultTemplateId || ""}
-                    onChange={(e) => onContainerUpdate?.({ defaultTemplateId: e.target.value || null })}
-                  >
-                    <option value="">— None —</option>
-                    {(templates || []).map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          </div>
-        </TabsContent>
       </Tabs>
 
       {/* Sticky Delete Footer */}

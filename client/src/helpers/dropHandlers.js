@@ -1406,20 +1406,6 @@ export function handleCrossWindowDrop(dropContext, ctx) {
 }
 
 // ============================================================
-// TEMPLATE FROM CC → CONTAINER
-// ============================================================
-export function handleTemplateDrop(dropContext, ctx) {
-  const { socket, state } = ctx;
-  const { payload } = dropContext;
-  const { containerId } = dropView(dropContext, ctx);
-
-  if (!containerId) return;
-  const gridId = state?.gridId || state?.grid?._id;
-  const currentIterationValue = state?.grid?.currentIterationValue;
-  CommitHelpers.fillFromTemplate({ socket, gridId, templateId: payload.moduleId, containerId, iterationValue: currentIterationValue });
-}
-
-// ============================================================
 // MODULE FROM CC/POOL/DOC/TREE → CONTAINER/PANEL/GRID
 // ============================================================
 export function handleModuleDrop(dropContext, ctx) {
@@ -1848,7 +1834,6 @@ export function routeDrop(dropContext, ctx) {
     return handleModuleDrop(dropContext, ctx);
   }
 
-  if (payload.payloadType === "template") return handleTemplateDrop(dropContext, ctx);
   if (payload.payloadType === "artifact") return handleArtifactDrop(dropContext, ctx);
   if (payload.payloadType === "folder") return handleFolderDrop(dropContext, ctx);
 

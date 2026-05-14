@@ -41,7 +41,6 @@ import {
   Link2,
   Unlink,
   Trash2,
-  BookMarked,
   ArrowLeft,
   X,
 } from "lucide-react";
@@ -49,7 +48,7 @@ import {
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import { DocEditorShell } from "./DocContent.jsx";
 import ContainerPool from "./containers/ContainerPool.jsx";
-import { FilterOverridePopup, TemplatePickerPopup } from "./containerPopups.jsx";
+import { FilterOverridePopup } from "./containerPopups.jsx";
 import ModuleInstance from "./ModuleInstance.jsx";
 import ArtifactCard from "./ArtifactCard.jsx";
 import TextblockCard from "./TextblockCard.jsx";
@@ -142,11 +141,11 @@ function Container({
     settingsOpen: false, historyOpen: false, ctxMenu: null,
     focusedStack: [], historyExpanded: false, isBodyCollapsed: false,
     showHeader: true,
-    showEmbeddedIterNav: false, filterPopupPos: null, templatePopupPos: null,
+    showEmbeddedIterNav: false, filterPopupPos: null,
   });
   const { settingsOpen, historyOpen, ctxMenu, focusedStack, historyExpanded,
     isBodyCollapsed, showHeader,
-    showEmbeddedIterNav, filterPopupPos, templatePopupPos } = ui;
+    showEmbeddedIterNav, filterPopupPos } = ui;
   // Setter wrappers — same API as useState setters, delegates to single reducer
   const setSettingsOpen = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ settingsOpen: v(s.settingsOpen) }) : { settingsOpen: v }), []);
   const setHistoryOpen = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ historyOpen: v(s.historyOpen) }) : { historyOpen: v }), []);
@@ -157,7 +156,6 @@ function Container({
   const setShowHeader = useCallback(v => uiDispatch({ showHeader: v }), []);
   const setShowEmbeddedIterNav = useCallback(v => uiDispatch({ showEmbeddedIterNav: v }), []);
   const setFilterPopupPos = useCallback(v => uiDispatch({ filterPopupPos: v }), []);
-  const setTemplatePopupPos = useCallback(v => uiDispatch({ templatePopupPos: v }), []);
   const [dropdownAnchor, setDropdownAnchor] = useState(null);
   const openDropdown = useCallback((e) => {
     setDropdownAnchor(e.currentTarget.getBoundingClientRect());
@@ -325,28 +323,6 @@ function Container({
   }, [module, dispatch, socket]);
 
   const ctxGrid = ctxState?.grid;
-  const gridTemplates = useMemo(() => ctxGrid?.templates || [], [ctxGrid?.templates]);
-
-  const handleSaveAsTemplate = useCallback(() => {
-    const gridId = ctxGrid?._id;
-    if (!gridId) return;
-    // Occurrence owns all ordering — no module.occurrences fallback
-    const orderedIds = containerOccurrence?.occurrences || [];
-    const items = orderedIds.map(occId => {
-      const occ = occurrencesById[occId];
-      if (!occ) return null;
-      return { instanceId: occ.moduleId, fieldDefaults: occ.fields || {}, ...(occ.linkedGroupId ? { linkedGroupId: occ.linkedGroupId } : {}) };
-    }).filter(Boolean);
-    const templateName = window.prompt("Template name:", module.label || "Template");
-    if (!templateName) return;
-    CommitHelpers.saveTemplate({ socket, gridId, template: { id: crypto.randomUUID(), name: templateName, items, createdAt: new Date() } });
-  }, [module, occurrencesById, ctxGrid, socket]);
-
-  const handleFillFromTemplate = useCallback((templateId) => {
-    const gridId = ctxGrid?._id;
-    if (!gridId) return;
-    CommitHelpers.fillFromTemplate({ socket, gridId, templateId, containerId: module.id });
-  }, [ctxGrid, module.id, socket]);
 
   const containerAllowedEdges = ALL_EDGES;
 
@@ -558,9 +534,6 @@ function Container({
               onDragModeChange={commitDragMode}
               occurrence={containerOccurrence}
               onOccurrenceUpdate={commitOccurrenceUpdate}
-              onSaveAsTemplate={handleSaveAsTemplate}
-              onFillFromTemplate={handleFillFromTemplate}
-              templates={gridTemplates}
             />
           </PopoverContent>
         </Popover>
@@ -593,7 +566,6 @@ function Container({
                 icon: Unlink,
                 onClick: () => CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...containerOccurrence, linkedGroupId: null }, emit: true }),
               },
-              { label: "Save as Template", icon: BookMarked, onClick: handleSaveAsTemplate },
               { separator: true },
               { label: "Remove from grid", icon: Trash2, danger: true, onClick: removeMe },
             ].filter(Boolean),
@@ -643,9 +615,6 @@ function Container({
                     onDragModeChange={commitDragMode}
                     occurrence={containerOccurrence}
                     onOccurrenceUpdate={commitOccurrenceUpdate}
-                    onSaveAsTemplate={handleSaveAsTemplate}
-                    onFillFromTemplate={handleFillFromTemplate}
-                    templates={gridTemplates}
                   />
                 </PopoverContent>
               </Popover>
@@ -713,7 +682,6 @@ function Container({
                     onToggleHeader={() => setShowHeader(false)}
                     showHeader={showHeader}
                     onFilter={(e) => setFilterPopupPos({ x: e?.clientX ?? 100, y: e?.clientY ?? 100 })}
-                    onTemplate={gridTemplates.length > 0 ? (e) => setTemplatePopupPos({ x: e?.clientX ?? 100, y: e?.clientY ?? 100 }) : null}
                     onHistory={() => setHistoryOpen(true)}
                     onDelete={embedOnDelete ?? removeMe}
                     extraItems={embedRadialItems}
@@ -736,9 +704,6 @@ function Container({
                   onDragModeChange={commitDragMode}
                   occurrence={containerOccurrence}
                   onOccurrenceUpdate={commitOccurrenceUpdate}
-                  onSaveAsTemplate={handleSaveAsTemplate}
-                  onFillFromTemplate={handleFillFromTemplate}
-                  templates={gridTemplates}
                 />
               </PopoverContent>
             </Popover>
@@ -1107,20 +1072,6 @@ function Container({
           onSet={(override) => {
             commitOccurrenceUpdate({ filterOverride: override });
             setFilterPopupPos(null);
-          }}
-        />,
-        document.body
-      )}
-
-      {/* Template quick-picker popup */}
-      {templatePopupPos && createPortal(
-        <TemplatePickerPopup
-          pos={templatePopupPos}
-          templates={gridTemplates}
-          onClose={() => setTemplatePopupPos(null)}
-          onSelect={(templateId) => {
-            handleFillFromTemplate(templateId);
-            setTemplatePopupPos(null);
           }}
         />,
         document.body
