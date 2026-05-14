@@ -1,6 +1,11 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-04-25. Check this file before re-reading source._
+_Updated: 2026-05-13. Check this file before re-reading source._
+
+## Recent Changes (May 13 2026 — Templates v2 effect routing)
+- **bindSocketToStore.js** — stale `case "APPLY_TEMPLATE":` block removed (was emitting old `fill_from_template`). The new APPLY_TEMPLATE pipeline step (in operationActions.js) emits per-clone `CREATE_ITEM` + `UPDATE_OCCURRENCE` effects which the existing handlers already process. No new event listeners needed — `module_created`/`occurrence_created`/`occurrence_updated`/`module_deleted`/`occurrence_deleted` already cover all template clone broadcasts from the server's clone_subtree_as_template / apply_template / save_over_template handlers.
+- **Occurrence schema field `filterNavConfig`** — keyed by filter id, value `{ visible, style?, options?, step? }`. Default `{}` on new occurrences. Drives per-occurrence FilterNavWidget rendering inside LocalFilterNav.
+- **Occurrence `meta.appliedFromTemplateId`** — set by the apply_template server handler (and by the APPLY_TEMPLATE pipeline action via CREATE_ITEM's instance.meta passthrough). Lets TemplatesSection show "Save over <templateName>".
 
 ## Recent Changes (Apr 26 2026 — LINK_OCCURRENCE_TO_PARENT effect)
 - **bindSocketToStore.js**: Added `case "LINK_OCCURRENCE_TO_PARENT"` in `applyOperationEffect`. Optimistic local update: if the parent's `occurrences[]` doesn't already include the child id, dispatches `updateOccurrenceAction({ id: parentId, occurrences: [...prev, childId] })` and patches `localOccsById[parentId]`. Then emits `link_occurrence_to_parent` to the server (atomic `$push` with `$ne` guard there). Effect is fully idempotent — re-runs on the same parent/child pair are no-ops. Added `updateOccurrenceAction` to the existing `actions` import.

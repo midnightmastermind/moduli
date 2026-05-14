@@ -1,6 +1,18 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-05-11. Check this file before re-reading source._
+_Updated: 2026-05-13. Check this file before re-reading source._
+
+## Recent Changes (May 13 2026 — HeaderDropdown + Templates v2)
+- **HeaderChevron.jsx (NEW)** — tiny `ChevronDown` button mounted in module headers. Opens HeaderDropdown.
+- **HeaderDropdown.jsx (NEW)** — overlay shell, portal-rendered with `position: fixed` (no reflow), ESC + outside-click close. Hosts FiltersSection + TemplatesSection.
+- **FiltersSection.jsx (NEW)** — inside HeaderDropdown. Per-filter Active toggle (writes `filterOverride[fieldId] = null` to mute), Show-nav switch + style picker (writes `occurrence.filterNavConfig[filterId] = { visible, style?, options?, step? }`), inline FilterNavWidget when visible.
+- **TemplatesSection.jsx (NEW)** — inside HeaderDropdown. Kind-matched template radio list + Apply, "Save as new template" input + Save, "Save over <name>" button (only when `occurrence.meta.appliedFromTemplateId` is set).
+- **FilterNavWidgets.jsx (NEW)** — type-dispatched (arrows/pills/input/custom). Default export `FilterNavWidget` plus helpers `defaultStyleForFilter`/`derivedOptionsForFilter`. Used by FiltersSection's inline preview AND by LocalFilterNav.
+- **LocalFilterNav.jsx (REWRITE)** — now reads `occurrence.filterNavConfig` and renders one FilterNavWidget per visible filter. Old `isNav` condition reading + Lock/Unlock affordance fully removed.
+- **FilterButton.jsx + LocalFilterButton.jsx — DELETED.** All filter access lives in HeaderDropdown's chevron.
+- **QuickAddMenu.jsx** — accepts `hostOccurrence` prop, surfaces template tiles for allowed child kinds; click → `commitApplyTemplate(socket, { templateOccurrenceId: tpl.id, targetOccurrenceId: hostOccurrence.id, mode: "append" })`.
+- **commandCenter/TemplatesTab.jsx (NEW + replaces old stub)** — two-pane: left = templates manifest tree, right = Apply To… picker (flat select keyed off template kind→target role mapping) + Apply button.
+- **CommandCenter.jsx** — registers `templates` tab between `operations` and `appearance`.
 
 ## Recent Changes (May 11 2026 — QuickAddMenu kind filter + tile-style "New X" buttons)
 - **QuickAddMenu.jsx**: Added `ALLOWED_KINDS_BY_ROLE` — when adding to a container (`targetRole="instance"`) the picker filters out anything that isn't `list / textblock / artifact`. Was: doc-kind instance modules (mini-blocks minted by Editor's "Make mini block") showed up as a "Documents" tile under the container's add menu, which the user could not actually drop in a list container.

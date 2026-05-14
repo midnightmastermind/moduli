@@ -1,6 +1,12 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: May 11 2026. This folder implements occurrence-based view routing._
+_Updated: 2026-05-13. This folder implements occurrence-based view routing._
+
+## Recent Changes (May 13 2026 — HeaderDropdown chevron mounted on Panel/Page/Container)
+- **ModuleContainer.jsx / ModulePage.jsx / ModulePanel.jsx** — each header now mounts a `<HeaderChevron>` (alongside QuickAddMenu / LocalFilterNav). Chevron opens `<HeaderDropdown>` rendered at the JSX bottom containing `<FiltersSection occurrence={...} />` + `<TemplatesSection occurrence={...} />`. Each file holds its own `dropdownAnchor` `useState` + `openDropdown`/`closeDropdown` callbacks. Occurrence variable per file: `containerOccurrence`, `occurrence`, `panelOccurrence`.
+- **ModuleContainer.jsx** — also passes `hostOccurrence={containerOccurrence}` to QuickAddMenu so template tiles can apply directly under it. Same pattern in ModulePage (`hostOccurrence={occurrence}`) and ModulePanel (`hostOccurrence={panelOccurrence}`).
+- **ModuleContainer.jsx legacy template plumbing — DELETED.** `gridTemplates` useMemo, `handleSaveAsTemplate`, `handleFillFromTemplate`, `templatePopupPos`, the radial "Save as Template" item, and all `onSaveAsTemplate`/`onFillFromTemplate`/`templates` prop wiring are gone. Save/Apply flows live in TemplatesSection.
+- **containerPopups.jsx** — `TemplatePickerPopup` export removed.
 
 ## Recent Changes (May 11 2026 — Canvas toolbar: line tool + undo/redo + hide)
 - **CanvasContent.jsx**: Added `line` tool (Minus icon) alongside pen/rect/circle/eraser. `renderStrokes` + `onPointerMove` (live preview) + `onPointerUp` (commit) each have a `line` branch that draws a single segment from `currentPath[0]` to the drop point.

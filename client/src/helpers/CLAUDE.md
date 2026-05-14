@@ -1,6 +1,12 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-05-11. Check this file before re-reading source._
+_Updated: 2026-05-13. Check this file before re-reading source._
+
+## Recent Changes (May 13 2026 — Templates v2 client helpers + APPLY_TEMPLATE pipeline action)
+- **CommitHelpers.js** — three new helpers: `commitCloneSubtreeAsTemplate(socket, { sourceOccurrenceId, name, parentFolderId })`, `commitApplyTemplate(socket, { templateOccurrenceId, targetOccurrenceId, mode })`, `commitSaveOverTemplate(socket, { sourceOccurrenceId, templateOccurrenceId })`. All three emit via `safeEmit`. Old `saveTemplate` / `fillFromTemplate` removed.
+- **templateHelpers.js (NEW)** — pure traversal: `templatesManifestFor(state, gridId)`, `rootFolderForTemplates(state, gridId)`, `templateOccurrencesInFolder(state, folderId)`, `templateKindOf(state, occ)`, `templatesByKind(state, gridId, kindOrRole)`. Used by TemplatesSection / TemplatesTab / QuickAddMenu.
+- **operationActions.js** — new `case "APPLY_TEMPLATE"` in `executeActionItem`. Walks template subtree depth-first from `state.modulesById` + `occurrencesById`, mints fresh ids, pushes one `CREATE_ITEM` effect per cloned node + a follow-up `UPDATE_OCCURRENCE` to wire the children list. Mode `replace` clears target's existing children first. Binds `cfg.resultVar` to the array of new occurrence ids (depth-first, leaves first, root last). Optimistic publish into `$vars.$allOccurrences`/`$allItems` so same-pipeline FINDs see the clones.
+- **dropHandlers.js** — `handleTemplateDrop` removed; the old payloadType:"template" routing branch deleted. Template drag-out from QuickAddMenu / TemplatesSection / TemplatesTab calls `commitApplyTemplate` directly.
 
 ## Recent Changes (May 11 2026 — Canvas-to-container date stamp; QuickAddMenu kind filter)
 - **dropHandlers.js (`handleOccurrenceMove` canvas-source MOVE branch)**: After moving a canvas-source leaf into a regular container, the helper now calls `stampPageFilterFields(...)` against the destination container occurrence — same call the regular container-to-container move branch already makes. Before, dragging a Canvas Note into a Schedule slot left the moved occurrence with no `fields[dateFieldId]` value, so `Tracker: Tasks Completed Today` (whose predicate gates on `SAME_DAY $goalDate`) ignored it on completion. The stamp runs BEFORE `fireMoveTrigger`, so the post-move MeasureOp burst sees the freshly-stamped date.
