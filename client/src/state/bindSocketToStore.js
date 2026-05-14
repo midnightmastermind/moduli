@@ -653,7 +653,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
             name: effect.template.name || effect.template.label,
             userId,
             gridId,
-            fieldBindings: [],
+            fieldBindings: Array.isArray(effect.template.fieldBindings) ? effect.template.fieldBindings : [],
             ...(effect.template.meta && { meta: effect.template.meta }),
           };
           socketDispatch(createModuleAction(newModule));
@@ -669,7 +669,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           parentId: inst.parentId || null,
           viewId: inst.viewId || null,
           fields: inst.fields || {},
-          meta: { createdByOperation: true },
+          meta: { createdByOperation: true, ...(inst.meta || {}) },
           textmap: inst.textmap || null,
           occurrences: [],
         };

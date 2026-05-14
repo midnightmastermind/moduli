@@ -1086,6 +1086,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             role: srcMod.role,
             kind: srcMod.kind,
             meta: newModuleMeta,
+            fieldBindings: Array.isArray(srcMod.fieldBindings) ? srcMod.fieldBindings : [],
           },
           instance: {
             id: cloneOccId,
@@ -1094,6 +1095,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             fields: { ...(srcOcc.fields || {}) },
             textmap: srcOcc.textmap || null,
             viewId: srcOcc.viewId || null,
+            meta: newOccMeta,
           },
         });
 
