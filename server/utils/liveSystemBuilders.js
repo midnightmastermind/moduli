@@ -853,7 +853,14 @@ export function makeTrackerOp({
         accumulator: [{ type: "SET_VAR", name: accVar, expr: `$item.fields.${sourceFieldId}.value` }],
       }));
     } else if (agg === "net") {
-      // Two loops: income added, spent subtracted (negated expr).
+      // Two loops: income added into $acc, spent accumulated into $spentAcc,
+      // then $spentAcc negated and added to $acc. Mirrors makeNetBalanceOp in
+      // the legacy createDefaultUserData.js builders.
+      // Cannot negate via "-$item.fields.X.value" — resolveExpr only resolves
+      // $-prefixed strings; the leading "-" makes it a literal string →
+      // Number("-$item…") = NaN → || 0, so the subtraction never happens.
+      const spentAccVar = "$spentAcc";
+      steps.push({ id: uid(), type: "action", config: { type: "INIT_VAR", name: spentAccVar, value: 0 } });
       steps.push(buildLoopFor("netIncome", {
         srcField: incomeFieldId,
         includeCompletion: false,
@@ -864,8 +871,11 @@ export function makeTrackerOp({
         srcField: spentFieldId,
         includeCompletion: false,
         includePresence: true,
-        accumulator: [{ type: "ADD_TO_VAR", name: accVar, expr: `-$item.fields.${spentFieldId}.value` }],
+        accumulator: [{ type: "ADD_TO_VAR", name: spentAccVar, expr: `$item.fields.${spentFieldId}.value` }],
       }));
+      // Negate spent accumulator then add to income accumulator.
+      steps.push({ id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: spentAccVar, expr: -1 } });
+      steps.push({ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: accVar, expr: spentAccVar } });
     } else if (agg === "completionRate") {
       // $done = completed count, $tot = total count, $acc = round($done/$tot*100).
       steps.push({ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$done", value: 0 } });
@@ -880,7 +890,7 @@ export function makeTrackerOp({
         includePresence: false,
         accumulator: [{ type: "INCREMENT_VAR", name: "$tot", by: 1 }],
       }));
-      steps.push({ id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$done", by: 100 } });
+      steps.push({ id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$done", expr: 100 } });
       steps.push({ id: uid(), type: "action", config: { type: "DIV_VAR", name: "$done", by: "$tot" } });
       steps.push({ id: uid(), type: "action", config: { type: "SET_VAR", name: accVar, expr: "$done" } });
     }

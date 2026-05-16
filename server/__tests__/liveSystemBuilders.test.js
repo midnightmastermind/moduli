@@ -116,4 +116,75 @@ describe("makeTrackerOp", () => {
     const s = JSON.stringify(op.pipeline);
     expect(s).toContain("S1"); expect(s).toContain("S2"); expect(s).toContain("S3");
   });
+
+  it("net: two loops (income + spent), negates via MULTIPLY_VAR expr:-1, references both INC and SPN, no broken literal", () => {
+    const op = makeTrackerOp({
+      ...base,
+      name: "Tracker: Net",
+      goalLabel: "Bank",
+      goalFieldId: "NB",
+      incomeFieldId: "INC",
+      spentFieldId: "SPN",
+      agg: "net",
+      timeFilter: "all",
+    });
+    const s = JSON.stringify(op.pipeline);
+    // Both field IDs referenced in loop bodies.
+    expect(s).toContain("INC");
+    expect(s).toContain("SPN");
+    // Must have a MULTIPLY_VAR step with expr:-1 (negate spent accumulator).
+    const steps = JSON.parse(s).steps;
+    function flatSteps(stepsArr) {
+      const out = [];
+      for (const step of stepsArr) {
+        out.push(step);
+        if (step.body)     out.push(...flatSteps(step.body));
+        if (step.then)     out.push(...flatSteps(step.then));
+        if (step.else)     out.push(...flatSteps(step.else));
+      }
+      return out;
+    }
+    const allSteps = flatSteps(steps);
+    const mulNeg = allSteps.filter(s => s.type === "action" && s.config?.type === "MULTIPLY_VAR" && s.config?.expr === -1);
+    expect(mulNeg.length).toBeGreaterThanOrEqual(1);
+    // Must NOT contain the broken negation literal approach.
+    expect(s).not.toContain('"-$item');
+    // MULTIPLY_VAR must use expr key, not by key, for the negate step.
+    expect(mulNeg[0].config).not.toHaveProperty("by");
+    expect(mulNeg[0].config).toHaveProperty("expr", -1);
+  });
+
+  it("completionRate: MULTIPLY_VAR uses expr:100 (not by:100), DIV_VAR uses by:\"$tot\"", () => {
+    const op = makeTrackerOp({
+      ...base,
+      name: "Tracker: Rate",
+      goalLabel: "Done%",
+      goalFieldId: "CR",
+      agg: "completionRate",
+      timeFilter: "daily",
+    });
+    const s = JSON.stringify(op.pipeline);
+    // Must contain MULTIPLY_VAR step with expr:100.
+    const steps = JSON.parse(s).steps;
+    function flatSteps(stepsArr) {
+      const out = [];
+      for (const step of stepsArr) {
+        out.push(step);
+        if (step.body)     out.push(...flatSteps(step.body));
+        if (step.then)     out.push(...flatSteps(step.then));
+        if (step.else)     out.push(...flatSteps(step.else));
+      }
+      return out;
+    }
+    const allSteps = flatSteps(steps);
+    const mulHundred = allSteps.filter(s => s.type === "action" && s.config?.type === "MULTIPLY_VAR" && s.config?.expr === 100);
+    expect(mulHundred.length).toBeGreaterThanOrEqual(1);
+    // Must NOT have MULTIPLY_VAR with by:100 (the broken pattern).
+    const mulHundredByKey = allSteps.filter(s => s.type === "action" && s.config?.type === "MULTIPLY_VAR" && s.config?.by === 100);
+    expect(mulHundredByKey).toHaveLength(0);
+    // DIV_VAR must use by:"$tot" (executor reads cfg.by for DIV_VAR).
+    const divSteps = allSteps.filter(s => s.type === "action" && s.config?.type === "DIV_VAR");
+    expect(divSteps.length).toBeGreaterThanOrEqual(1);
+    expect(divSteps[0].config).toHaveProperty("by", "$tot");
+  });
 });
