@@ -1,6 +1,6 @@
 // server/__tests__/liveSystemBuilders.test.js
 import { describe, it, expect } from "vitest";
-import { buildGridDoc, buildScheduleFilters } from "../utils/liveSystemBuilders.js";
+import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate } from "../utils/liveSystemBuilders.js";
 
 describe("buildGridDoc", () => {
   it("creates a Daily namedFilter on dateFieldId with empty activeFilterValues", () => {
@@ -20,5 +20,25 @@ describe("buildScheduleFilters", () => {
     expect(f[1]).toMatchObject({ id: "t", fieldId: "TS", style: "select", options: ["6:00am"] });
     expect(f[0].condition.rules).toHaveLength(2);
     expect(f[0].condition.rules[1]).toMatchObject({ comparator: "IS_EMPTY" });
+  });
+});
+
+describe("buildDailyRoutineTemplate", () => {
+  it("emits one slot template occ per timeSlot with identitySignature and routine children", async () => {
+    const occs = [];
+    const mkOcc = async (d) => { const id = d.id || `o${occs.length}`; occs.push({ ...d, id }); return id; };
+    const saved = [];
+    const ModuleStub = function (o) { Object.assign(this, o); this.save = async () => { saved.push(o); }; };
+    const rootOccId = await buildDailyRoutineTemplate({
+      userId: "u", gridId: "g", timeSlots: [{ hour: 6, minute: 0, label: "6:00am" }, { hour: 7, minute: 0, label: "7:00am" }],
+      timeslotFieldId: "TS",
+      routineBySlot: { "6:00am": [{ sourceModId: "SRC", label: "Drink Water" }] },
+      tplManifestRootFolderId: "tplRoot", mkOcc, Module: ModuleStub,
+      findModule: async () => ({ fieldBindings: [{ fieldId: "c", role: "input", order: 0 }] }),
+    });
+    const slotOccs = occs.filter(o => o.identitySignature?.startsWith("slot:"));
+    expect(slotOccs).toHaveLength(2);
+    const root = occs.find(o => o.id === rootOccId);
+    expect(root.meta).toMatchObject({ templateName: "Daily Routine", templateModule: true });
   });
 });
