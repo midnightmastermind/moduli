@@ -1,6 +1,6 @@
 // server/__tests__/liveSystemBuilders.test.js
 import { describe, it, expect } from "vitest";
-import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeStampDateTimeSlotOp } from "../utils/liveSystemBuilders.js";
+import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeDayPageBuildOp, makeStampDateTimeSlotOp, makeClearDateOnMoveOutOp } from "../utils/liveSystemBuilders.js";
 
 describe("buildGridDoc", () => {
   it("creates a Daily namedFilter on dateFieldId with empty activeFilterValues", () => {
@@ -50,11 +50,28 @@ describe("schedule ops", () => {
     expect(op.triggerObjects.every(t => t.priority === 1)).toBe(true);
     expect(JSON.stringify(op.pipeline)).toContain("DF");
     expect(JSON.stringify(op.pipeline)).toContain("DUE");
+    expect(JSON.stringify(op.pipeline)).toContain("TS");
   });
   it("Stamp op writes the timeslot field on onCreate under the hub panel", () => {
     const op = makeStampDateTimeSlotOp({ userId: "u", gridId: "g", timeslotFieldId: "TS", hubPanelModuleId: "HUB" });
     expect(op.triggerObjects[0]).toMatchObject({ eventType: "onCreate", targetId: "HUB" });
     expect(JSON.stringify(op.pipeline)).toContain("TS");
+  });
+  it("Day Page: Build is named correctly, priority-1, embeds the folder + hub params", () => {
+    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC" });
+    expect(op.name).toBe("Day Page: Build");
+    expect(op.triggerObjects.every(t => t.priority === 1)).toBe(true);
+    const s = JSON.stringify(op.pipeline);
+    expect(s).toContain("DPF");
+    expect(s).toContain("HUBOCC");
+  });
+  it("Clear Date on Move-Out is onMove and clears date + timeslot fields", () => {
+    const op = makeClearDateOnMoveOutOp({ userId: "u", gridId: "g", dateFieldId: "DF", timeslotFieldId: "TS" });
+    expect(op.name).toBe("Schedule: Clear Date on Move-Out");
+    expect(op.triggerTypes).toEqual(["onMove"]);
+    const s = JSON.stringify(op.pipeline);
+    expect(s).toContain("DF");
+    expect(s).toContain("TS");
   });
 });
 
