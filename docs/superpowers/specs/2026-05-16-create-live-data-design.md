@@ -45,7 +45,11 @@ prefers to control persistence; operation builders return an `Operation`-shaped
 plain object (caller does `new Operation(obj).save()`), matching the existing
 `operationBuilders.js` convention.
 
-`createTestGrid.js` is refactored to call these builders **with identical
+**Before any edit to `createTestGrid.js`, copy it to
+`server/scripts/createTestGrid.backup.js`** (untracked working backup) so the
+known-good fixture can be restored instantly if the refactor regresses.
+
+`createTestGrid.js` is then refactored to call these builders **with identical
 output** (same shapes, same IDs semantics, same comments preserved where they
 encode hard-won bug context). The 572-client + server test suites are the
 regression gate — see §9.
@@ -222,6 +226,8 @@ journal-style Day Page (replaced by the createTestGrid Day Page template).
 
 ## 9. Verification plan
 
+0. `cp server/scripts/createTestGrid.js server/scripts/createTestGrid.backup.js`
+   (working backup; restore on any regression).
 1. `npm --prefix ./server run test` + `npm test` green **before** refactor
    (baseline).
 2. Refactor createTestGrid.js onto shared builders → both suites still green;
