@@ -1,7 +1,6 @@
 // server/utils/liveSystemBuilders.js
 // New-system seed builders shared by createTestGrid.js + createLiveData.js.
 // Each builder is pure (no DB writes) and returns plain data the caller persists.
-import { uid } from "./operationBuilders.js";
 
 // Mirrors createTestGrid STEP 1. Returns a plain object the caller passes to `new Grid(obj)`.
 export function buildGridDoc({ userId, gridName, manifestId, dateFieldId }) {

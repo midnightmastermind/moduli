@@ -18,5 +18,7 @@ describe("buildScheduleFilters", () => {
     expect(f).toHaveLength(2);
     expect(f[0]).toMatchObject({ id: "s", fieldId: "DF", active: true });
     expect(f[1]).toMatchObject({ id: "t", fieldId: "TS", style: "select", options: ["6:00am"] });
+    expect(f[0].condition.rules).toHaveLength(2);
+    expect(f[0].condition.rules[1]).toMatchObject({ comparator: "IS_EMPTY" });
   });
 });
