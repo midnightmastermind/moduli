@@ -709,6 +709,324 @@ export function makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPa
   };
 }
 
+// ── Generalized goal tracker ─────────────────────────────────────────────────
+// makeTrackerOp is the conversion engine for the live grid's goals/accounts.
+// It generalizes the two hand-built createTestGrid trackers
+// ("Tracker: Water Today" sum + "Tracker: Tasks Completed Today" count) into
+// ONE factory. Every legacy makeLoop* aggregation re-expresses as one call.
+//
+// Pipeline shape (faithful to the source trackers, step-for-step):
+//   1. INIT_VAR $acc = 0
+//   2. FIND $allPages   label IS <scopeLabel>  → $scopePageId   (HAS_ANCESTOR scope)
+//   3. FIND $allInstances label IS <goalLabel> → $goalId/$goalItem (UPDATE target)
+//   4. $goalDate chain ($goalItem._effectiveFilter.<dateFieldId> → $trigger.date
+//      → $today) — emitted ONLY when timeFilter !== "all"
+//   5. trigger/date-gate `if` (OR block copied from the source trackers; the
+//      per-event SAME_DAY sub-rules are dropped for timeFilter:"all" so bulk
+//      events still run)
+//   6. then: loop $allItems → inner `if` rule list (completion gate / date gate
+//      / HAS_ANCESTOR scope / flow) → accumulator action(s)
+//   7. UPDATE $goalItem.fields.<goalFieldId>.value = $acc
+//
+// Params:
+//   { userId, gridId, name, goalLabel, goalFieldId, dateFieldId,
+//     completedFieldId, sourceFieldId, sourceFieldIds, incomeFieldId,
+//     spentFieldId, agg, flow="any", timeFilter="daily", scopeLabel="Schedule",
+//     description }
+//
+// agg ∈ sum | multiSum | count | countTrue | last | net | completionRate.
+// Pure: returns the plain object literal passed to `new Operation(obj)`.
+export function makeTrackerOp({
+  userId, gridId, name,
+  goalLabel, goalFieldId, dateFieldId, completedFieldId,
+  sourceFieldId, sourceFieldIds, incomeFieldId, spentFieldId,
+  agg, flow = "any", timeFilter = "daily", scopeLabel = "Schedule",
+  description,
+}) {
+  const dateGated = timeFilter !== "all";
+  const accVar = "$acc";
+
+  // ── Inner loop predicate rule list (assembled IN ORDER) ──
+  // Faithful to the source trackers: Water sums where the source field is
+  // present AND completed IS true AND date SAME_DAY $goalDate AND HAS_ANCESTOR
+  // scope page; Tasks counts where completed IS true AND date SAME_DAY
+  // $goalDate AND HAS_ANCESTOR scope page.
+  function buildLoopRules({ srcField, includeCompletion, includePresence, flowField }) {
+    const rules = [];
+    // Presence: only meaningful for value-bearing aggregations on a real
+    // source field (Water guards `IS_NOT_EMPTY` on the water field so empty
+    // routine slots don't zero the sum).
+    if (includePresence && srcField) {
+      rules.push({ id: uid(), left: `$item.fields.${srcField}.value`, comparator: "IS_NOT_EMPTY", right: "" });
+    }
+    // Completion gate — Water + Tasks both require completed IS true.
+    if (includeCompletion && completedFieldId) {
+      rules.push({ id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS", right: true });
+    }
+    // Date gate — daily: SAME_DAY $goalDate; weekly: SAME_WEEK $goalDate
+    // (SAME_WEEK is a real ISO Mon-Sun comparator — operationActions.js
+    // case "SAME_WEEK", lines 260-273); all: omitted.
+    if (timeFilter === "daily") {
+      rules.push({ id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" });
+    } else if (timeFilter === "weekly") {
+      rules.push({ id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "SAME_WEEK", right: "$goalDate" });
+    }
+    // Scope — only items under the scope page count.
+    rules.push({ id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$scopePageId" });
+    // Flow direction filter (in/out aggregations like income vs expense).
+    if (flowField && flow === "in") {
+      rules.push({ id: uid(), left: `$item.fields.${flowField}.flow`, comparator: "IS", right: "in" });
+    } else if (flowField && flow === "out") {
+      rules.push({ id: uid(), left: `$item.fields.${flowField}.flow`, comparator: "IS", right: "out" });
+    }
+    return rules;
+  }
+
+  // ── Accumulator body for a single loop, given the agg ──
+  // sum/count/countTrue include the completion gate (matches Water + Tasks).
+  // last/multiSum do not gate on completion (semantically a raw read / a
+  // multi-field roll-up).
+  function buildLoopFor(kind, opts = {}) {
+    const {
+      srcField,
+      accumulator,            // array of action configs run in the inner `if` then
+      includeCompletion,
+      includePresence,
+      flowField,
+    } = opts;
+    return {
+      id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
+      body: [{
+        id: uid(), type: "if",
+        condition: {
+          operator: "AND",
+          rules: buildLoopRules({ srcField, includeCompletion, includePresence, flowField }),
+        },
+        then: accumulator.map((cfg) => ({ id: uid(), type: "action", config: cfg })),
+        else: [],
+      }],
+    };
+  }
+
+  // The body run inside the trigger/date-gate `then` — one or more loops plus
+  // the final UPDATE. completionRate/net need extra scratch vars + a second
+  // loop; the simple aggregations are a single loop.
+  function buildAggregationBody() {
+    const steps = [];
+    if (agg === "sum") {
+      steps.push(buildLoopFor("sum", {
+        srcField: sourceFieldId,
+        includeCompletion: true,   // Water: sum where completed IS true
+        includePresence: true,
+        flowField: sourceFieldId,
+        accumulator: [{ type: "ADD_TO_VAR", name: accVar, expr: `$item.fields.${sourceFieldId}.value` }],
+      }));
+    } else if (agg === "multiSum") {
+      // One ADD_TO_VAR per source field; no completion gate (raw roll-up).
+      steps.push(buildLoopFor("multiSum", {
+        includeCompletion: false,
+        includePresence: false,
+        accumulator: (sourceFieldIds || []).map((fid) => ({
+          type: "ADD_TO_VAR", name: accVar, expr: `$item.fields.${fid}.value`,
+        })),
+      }));
+    } else if (agg === "count") {
+      // Plain count — no completion gate (count of items in scope/date).
+      steps.push(buildLoopFor("count", {
+        includeCompletion: false,
+        includePresence: false,
+        accumulator: [{ type: "INCREMENT_VAR", name: accVar, by: 1 }],
+      }));
+    } else if (agg === "countTrue") {
+      // Tasks: count(+1) where completed IS true.
+      steps.push(buildLoopFor("countTrue", {
+        includeCompletion: true,
+        includePresence: false,
+        accumulator: [{ type: "INCREMENT_VAR", name: accVar, by: 1 }],
+      }));
+    } else if (agg === "last") {
+      // Raw read of the most-recent matching item's value (loop overwrites).
+      steps.push(buildLoopFor("last", {
+        srcField: sourceFieldId,
+        includeCompletion: false,
+        includePresence: true,
+        accumulator: [{ type: "SET_VAR", name: accVar, expr: `$item.fields.${sourceFieldId}.value` }],
+      }));
+    } else if (agg === "net") {
+      // Two loops: income added, spent subtracted (negated expr).
+      steps.push(buildLoopFor("netIncome", {
+        srcField: incomeFieldId,
+        includeCompletion: false,
+        includePresence: true,
+        accumulator: [{ type: "ADD_TO_VAR", name: accVar, expr: `$item.fields.${incomeFieldId}.value` }],
+      }));
+      steps.push(buildLoopFor("netSpent", {
+        srcField: spentFieldId,
+        includeCompletion: false,
+        includePresence: true,
+        accumulator: [{ type: "ADD_TO_VAR", name: accVar, expr: `-$item.fields.${spentFieldId}.value` }],
+      }));
+    } else if (agg === "completionRate") {
+      // $done = completed count, $tot = total count, $acc = round($done/$tot*100).
+      steps.push({ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$done", value: 0 } });
+      steps.push({ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tot", value: 0 } });
+      steps.push(buildLoopFor("crDone", {
+        includeCompletion: true,
+        includePresence: false,
+        accumulator: [{ type: "INCREMENT_VAR", name: "$done", by: 1 }],
+      }));
+      steps.push(buildLoopFor("crTot", {
+        includeCompletion: false,
+        includePresence: false,
+        accumulator: [{ type: "INCREMENT_VAR", name: "$tot", by: 1 }],
+      }));
+      steps.push({ id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$done", by: 100 } });
+      steps.push({ id: uid(), type: "action", config: { type: "DIV_VAR", name: "$done", by: "$tot" } });
+      steps.push({ id: uid(), type: "action", config: { type: "SET_VAR", name: accVar, expr: "$done" } });
+    }
+    // Final: write the aggregated value to the goal record itself.
+    steps.push({ id: uid(), type: "action", config: {
+      type: "UPDATE",
+      path: `$goalItem.fields.${goalFieldId}.value`,
+      value: accVar,
+    }});
+    return steps;
+  }
+
+  // ── Trigger/date-gate OR block — copied from the source trackers ──
+  // Bulk events (onLoad / NavigationOp) always run. Item-bearing events only
+  // run when the trigger item's date matches the goal date — UNLESS the
+  // tracker is timeFilter:"all", in which case the per-event SAME_DAY
+  // sub-rules are dropped so a value change on any-dated record still
+  // re-aggregates (lifetime totals have no date window).
+  function eventRule(triggerType, extraRules = []) {
+    const rules = [{ id: uid(), left: "$trigger.type", comparator: "IS", right: triggerType }];
+    for (const r of extraRules) rules.push(r);
+    if (dateGated) {
+      rules.push({ id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" });
+    }
+    return { id: uid(), operator: "AND", rules };
+  }
+
+  // onChange field targets: completedFieldId always, plus the source field(s)
+  // when the agg reads a value (sum/last/multiSum/net/completionRate-not).
+  const measureFieldIds = [];
+  if (completedFieldId) measureFieldIds.push(completedFieldId);
+  if (agg === "multiSum") {
+    for (const fid of sourceFieldIds || []) measureFieldIds.push(fid);
+  } else if (agg === "net") {
+    if (incomeFieldId) measureFieldIds.push(incomeFieldId);
+    if (spentFieldId) measureFieldIds.push(spentFieldId);
+  } else if (agg === "sum" || agg === "last") {
+    if (sourceFieldId) measureFieldIds.push(sourceFieldId);
+  }
+  const uniqMeasureFieldIds = [...new Set(measureFieldIds)];
+
+  const measureRule = {
+    id: uid(), operator: "AND",
+    rules: [
+      { id: uid(), left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
+      uniqMeasureFieldIds.length === 1
+        ? { id: uid(), left: "$trigger.fieldId", comparator: "IS", right: uniqMeasureFieldIds[0] }
+        : {
+            id: uid(), operator: "OR",
+            rules: uniqMeasureFieldIds.map((fid) => ({ id: uid(), left: "$trigger.fieldId", comparator: "IS", right: fid })),
+          },
+      ...(dateGated
+        ? [{ id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" }]
+        : []),
+    ],
+  };
+
+  const triggerGateRules = [
+    // Bulk events: always run. No trigger item to date-gate on.
+    { id: uid(), left: "$trigger.type", comparator: "IS", right: "onLoad" },
+    { id: uid(), left: "$trigger.type", comparator: "IS", right: "NavigationOp" },
+    eventRule("OccurrenceCreateOp"),
+    eventRule("OccurrenceDeleteOp"),
+    measureRule,
+  ];
+
+  // ── $goalDate chain (only when date-gated) ──
+  const goalDateSteps = dateGated ? [
+    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}` } },
+    {
+      id: uid(), type: "if",
+      condition: { operator: "AND", rules: [{ id: uid(), left: "$goalDate", comparator: "IS_EMPTY", right: "" }] },
+      then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalDate", expr: "$trigger.date" } }],
+      else: [],
+    },
+    {
+      id: uid(), type: "if",
+      condition: { operator: "AND", rules: [{ id: uid(), left: "$goalDate", comparator: "IS_EMPTY", right: "" }] },
+      then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalDate", expr: "$today" } }],
+      else: [],
+    },
+  ] : [];
+
+  // onChange trigger objects — one per measured field.
+  const onChangeTriggers = uniqMeasureFieldIds.map((fid) => (
+    { eventType: "onChange", subjectType: "field", targetId: fid, priority: 3 }
+  ));
+
+  return {
+    id: uid(), userId, gridId, name,
+    description: description || `${agg} aggregation into "${goalLabel}" scoped under the "${scopeLabel}" page${dateGated ? ` for the ${timeFilter} window the goal page is showing` : " (lifetime)"}.`,
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    // Per-trigger priority 3: runs AFTER seed (priority 2) on the same Daily
+    // Goals filter change so newly-seeded occurrences are present in the live
+    // overlay when this aggregates. onAdd/onDelete catch drag-into-scope and
+    // item removal.
+    triggerObjects: [
+      ...onChangeTriggers,
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    enabled: true,
+    pipeline: {
+      steps: [
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: accVar, value: 0 } },
+
+        // The scope page is where the data lives — used for the HAS_ANCESTOR
+        // scope so we only aggregate entries written into it.
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            over: "$allPages",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "label", comparator: "IS", right: scopeLabel },
+            ]},
+            itemIdVar: "$scopePageId",
+        }},
+
+        // Locate the goal display item — the UPDATE target. $goalDate is
+        // driven off its OWN _effectiveFilter (instance → goal container →
+        // goal page → grid), NOT $parentFilter (which is anchored on the
+        // trigger occurrence and would resolve to the wrong day).
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            over: "$allInstances",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "label", comparator: "IS", right: goalLabel },
+            ]},
+            itemIdVar: "$goalId",
+            itemVar: "$goalItem",
+        }},
+
+        ...goalDateSteps,
+
+        {
+          id: uid(), type: "if",
+          condition: { operator: "OR", rules: triggerGateRules },
+          then: buildAggregationBody(),
+          else: [],
+        },
+      ],
+    },
+  };
+}
+
 export function makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId }) {
   return {
     id: uid(), userId, gridId, name: "Schedule: Clear Date on Move-Out",

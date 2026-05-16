@@ -1,6 +1,6 @@
 // server/__tests__/liveSystemBuilders.test.js
 import { describe, it, expect } from "vitest";
-import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeDayPageBuildOp, makeStampDateTimeSlotOp, makeClearDateOnMoveOutOp } from "../utils/liveSystemBuilders.js";
+import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeDayPageBuildOp, makeStampDateTimeSlotOp, makeClearDateOnMoveOutOp, makeTrackerOp } from "../utils/liveSystemBuilders.js";
 
 describe("buildGridDoc", () => {
   it("creates a Daily namedFilter on dateFieldId with empty activeFilterValues", () => {
@@ -87,5 +87,33 @@ describe("buildDayPageTemplate", () => {
     expect(root.meta).toMatchObject({ templateName: "Day Page", templateModule: true });
     const child = occs.find(o => o.id !== rootOccId);
     expect(JSON.stringify(child.textmap)).toContain("Day Page - {Date}");
+  });
+});
+
+describe("makeTrackerOp", () => {
+  const base = { userId: "u", gridId: "g", dateFieldId: "DF", completedFieldId: "CF" };
+  it("sum: scopes to Schedule, finds goal by label, ADD_TO_VARs the source field, UPDATEs goal field", () => {
+    const op = makeTrackerOp({ ...base, name: "Tracker: Water Today", goalLabel: "Physical Wellness", goalFieldId: "TW", sourceFieldId: "WF", agg: "sum", timeFilter: "daily" });
+    const s = JSON.stringify(op.pipeline);
+    expect(op.name).toBe("Tracker: Water Today");
+    expect(s).toContain("\"right\":\"Physical Wellness\"");
+    expect(s).toContain("ADD_TO_VAR");
+    expect(s).toContain("$goalItem.fields.TW.value");
+    expect(s).toContain("$goalItem._effectiveFilter.DF");
+  });
+  it("countTrue: increments by 1 on completed items, no source field needed", () => {
+    const op = makeTrackerOp({ ...base, name: "Tracker: Done", goalLabel: "Task Progress", goalFieldId: "TC", agg: "countTrue", timeFilter: "daily" });
+    expect(JSON.stringify(op.pipeline)).toContain("INCREMENT_VAR");
+  });
+  it("all timeFilter: omits the $goalDate SAME_DAY gate", () => {
+    const op = makeTrackerOp({ ...base, name: "Tracker: Lifetime", goalLabel: "Bank", goalFieldId: "B", sourceFieldId: "AMT", agg: "sum", timeFilter: "all", scopeLabel: "Accounts" });
+    const s = JSON.stringify(op.pipeline);
+    expect(s).toContain("\"right\":\"Accounts\"");
+    expect(s).not.toContain("SAME_DAY");
+  });
+  it("multiSum: sums each of sourceFieldIds", () => {
+    const op = makeTrackerOp({ ...base, name: "Tracker: Reps", goalLabel: "Fitness", goalFieldId: "TR", sourceFieldIds: ["S1", "S2", "S3"], agg: "multiSum", timeFilter: "daily" });
+    const s = JSON.stringify(op.pipeline);
+    expect(s).toContain("S1"); expect(s).toContain("S2"); expect(s).toContain("S3");
   });
 });
