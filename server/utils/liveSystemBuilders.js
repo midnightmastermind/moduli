@@ -1,6 +1,8 @@
 // server/utils/liveSystemBuilders.js
 // New-system seed builders shared by createTestGrid.js + createLiveData.js.
-// Each builder is pure (no DB writes) and returns plain data the caller persists.
+// buildGridDoc + buildScheduleFilters are pure (return plain objects, no DB writes).
+// buildTemplatesManifest / buildDailyRoutineTemplate / buildDayPageTemplate accept
+// injected Mongoose constructors + mkOcc and perform DB writes via those injections.
 
 import { uid } from "./operationBuilders.js";
 
@@ -71,9 +73,8 @@ export async function buildTemplatesManifest({ userId, gridId, Folder, Manifest 
 // ── "Daily Routine" template — the FULL schedule subtree ─────────────────
 // Root: container "Daily Routine" (page-kind so it visually mirrors the
 //   schedule page when previewed)
-// Children: 48 slot containers (cloned shape — same as live slot containers)
-// Within slot containers: the routine instances pre-placed (Drink Water in
-//   6:00am + 7:00am slots, Take Medication in 8:00am, Go to Gym in 9:00am)
+// Children: one slot container per entry in timeSlots (same shape as live slot containers).
+// Within each slot: any routine instances from routineBySlot[slot.label].
 // Build Day applies this via APPLY_TEMPLATE with unwrapRoot:true so the
 // 48 slot containers land directly under the schedule page (no wrapper).
 //

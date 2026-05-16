@@ -27,8 +27,7 @@ describe("buildDailyRoutineTemplate", () => {
   it("emits one slot template occ per timeSlot with identitySignature and routine children", async () => {
     const occs = [];
     const mkOcc = async (d) => { const id = d.id || `o${occs.length}`; occs.push({ ...d, id }); return id; };
-    const saved = [];
-    const ModuleStub = function (o) { Object.assign(this, o); this.save = async () => { saved.push(o); }; };
+    const ModuleStub = function (o) { Object.assign(this, o); this.save = async () => {}; };
     const rootOccId = await buildDailyRoutineTemplate({
       userId: "u", gridId: "g", timeSlots: [{ hour: 6, minute: 0, label: "6:00am" }, { hour: 7, minute: 0, label: "7:00am" }],
       timeslotFieldId: "TS",
@@ -40,5 +39,20 @@ describe("buildDailyRoutineTemplate", () => {
     expect(slotOccs).toHaveLength(2);
     const root = occs.find(o => o.id === rootOccId);
     expect(root.meta).toMatchObject({ templateName: "Daily Routine", templateModule: true });
+  });
+});
+
+describe("buildDayPageTemplate", () => {
+  it("creates a doc-page root referencing a textblock child with the {Date} token", async () => {
+    const occs = [];
+    const mkOcc = async (d) => { const id = d.id || `o${occs.length}`; occs.push({ ...d, id }); return id; };
+    const ModuleStub = function (o) { Object.assign(this, o); this.save = async () => {}; };
+    const rootOccId = await buildDayPageTemplate({
+      userId: "u", gridId: "g", tplManifestRootFolderId: "tplRoot", mkOcc, Module: ModuleStub,
+    });
+    const root = occs.find(o => o.id === rootOccId);
+    expect(root.meta).toMatchObject({ templateName: "Day Page", templateModule: true });
+    const child = occs.find(o => o.id !== rootOccId);
+    expect(JSON.stringify(child.textmap)).toContain("Day Page - {Date}");
   });
 });
