@@ -9,7 +9,6 @@ import ContextMenu from "../ui/ContextMenu";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Trash2, Copy, FileText, Layout, Paintbrush, Monitor, Folder, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
-import LocalFilterNav from "../ui/LocalFilterNav";
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
@@ -40,7 +39,7 @@ import {
   DragType,
   DropAccepts,
 } from "../helpers/dragSystem";
-import { getEffectiveFilterForOccurrence, isOccurrenceVisible } from "../state/selectors";
+import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getLocalFilterConditions } from "../state/selectors";
 
 // Kind icon mapping
 const KIND_ICONS = {
@@ -84,6 +83,9 @@ function Page({
   const [dropdownAnchor, setDropdownAnchor] = useState(null);
   const openDropdown = useCallback((e) => setDropdownAnchor(e.currentTarget.getBoundingClientRect()), []);
   const closeDropdown = useCallback(() => setDropdownAnchor(null), []);
+  const [templatesAnchor, setTemplatesAnchor] = useState(null);
+  const openTemplates = useCallback((e) => setTemplatesAnchor(e?.currentTarget?.getBoundingClientRect?.() || null), []);
+  const closeTemplates = useCallback(() => setTemplatesAnchor(null), []);
 
   // Tree view: resolve active occurrence from page view
   const treeActiveOccId = isTreeView ? pageView?.activeOccurrenceId : null;
@@ -128,10 +130,17 @@ function Page({
     [occurrence, state?.grid, occurrencesById]
   );
 
-  const pageActiveFilterConditions = useMemo(
-    () => pageActiveNamedFilter?.conditions || null,
-    [pageActiveNamedFilter]
-  );
+  // Combine grid's active named-filter conditions with the page's own
+  // `filters[]` entries. The Time Slot select on the schedule page is defined
+  // as a local filter on `occurrence.filters[]` with `condition: null` — its
+  // synthesized IS condition is what makes filterOverride[timeslotFieldId]
+  // actually drive child visibility.
+  const pageActiveFilterConditions = useMemo(() => {
+    const gridConds = pageActiveNamedFilter?.conditions || [];
+    const localConds = getLocalFilterConditions(occurrence);
+    if (!gridConds.length && !localConds.length) return null;
+    return [...gridConds, ...localConds];
+  }, [pageActiveNamedFilter, occurrence]);
 
   // Child occurrences for folder pages.
   // Includes: (1) page/doc occurrences with parentId = this folder
@@ -369,6 +378,7 @@ function Page({
         >
           <RadialMenu
             onSettings={() => setSettingsOpen(true)}
+            onTemplate={openTemplates}
             size="sm"
             forceDirection="down"
           />
@@ -420,10 +430,9 @@ function Page({
               </span>
             )}
 
-            {/* Filter nav + close */}
+            {/* Filter dropdown trigger */}
             <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center", marginLeft: 4 }}>
-              <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} />
-              <LocalFilterNav occurrence={occurrence} compact={true} />
+              <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={occurrence} />
             </div>
           </div>
         )}
@@ -437,6 +446,10 @@ function Page({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={occurrence} />
+        </HeaderDropdown>
+      )}
+      {templatesAnchor && (
+        <HeaderDropdown anchorRect={templatesAnchor} onClose={closeTemplates}>
           <TemplatesSection occurrence={occurrence} />
         </HeaderDropdown>
       )}

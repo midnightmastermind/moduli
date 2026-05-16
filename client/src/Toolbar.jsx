@@ -16,6 +16,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { PlusSquare, Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
+import ToolbarFilterDropdown from "./ui/ToolbarFilterDropdown";
 
 export default function Toolbar({
   gridId,
@@ -105,7 +106,6 @@ const gridOptions = useMemo(
       style={{
         zIndex: 998,
         backgroundColor: "var(--body-bg)",
-        borderBottom: "2px solid var(--border-default)",
         padding: "2px 8px",
       }}
       onTouchStart={(e) => {
@@ -177,7 +177,8 @@ const gridOptions = useMemo(
         {/* ── Spacer ── */}
         <div className="flex-1" />
 
-        {/* ── Center: Global date nav ── */}
+        {/* ── Center: Filter dropdown + Global date nav ── */}
+        <ToolbarFilterDropdown />
         {primaryDate && (
           <div className="flex items-center" style={{ gap: 0 }}>
             <button

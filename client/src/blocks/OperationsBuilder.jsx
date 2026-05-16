@@ -16,7 +16,7 @@ import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-
 import { GripVertical } from "lucide-react";
 import { arrayMove } from "../helpers/LayoutHelpers";
 import CategoryPathPicker from "../ui/CategoryPathPicker";
-import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig } from "../ui/categoryRegistry";
+import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig, TEMPLATE_PICKER_CONFIG } from "../ui/categoryRegistry";
 import ConditionGroup from "./ConditionGroup";
 
 /**
@@ -317,6 +317,7 @@ const SYSTEM_ACTION_TYPES = [
   { value: "NAVIGATE_DAY_PAGE", label: "Navigate day page", hint: "Find/create day page + update panel view. cfg: moduleId, viewId" },
   { value: "UPDATE_VIEW", label: "Update view", hint: "Set activeOccurrenceId or other view fields. cfg: viewId, activeOccurrenceId" },
   { value: "APPLY_TEMPLATE", label: "Apply template", hint: "Fill container from template. cfg: containerId, templateId" },
+  { value: "COPY_OCCURRENCE", label: "Copy occurrence", hint: "Deep-clone an occurrence subtree under a target. cfg: sourceOccurrenceVar, targetOccurrenceVar, includeChildren, resultVar" },
   { value: "CREATE_FOLDER", label: "Create folder", hint: "Find/create folder by name. Sets $lastCreatedFolderId" },
   { value: "RESET_RECURRING_TASK", label: "Reset recurring task", hint: "Reset completion + advance dueDate by recurrenceDays" },
   { value: "DISPLAY_LOCAL_FIELDS", label: "Display on node", hint: "Show computed values on the operation node card. cfg: fields: [{label, expr}]" },
@@ -1299,17 +1300,127 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
       );
 
     case "APPLY_TEMPLATE": {
-      const templates = (typeof window !== "undefined" && window.__moduli_state__?.grid?.templates) || [];
+      const mode = cfg.mode || "append";
+      // Templates are identified by occurrence.meta.templateName (set by
+      // clone_subtree_as_template + apply_template handlers + the migration
+      // script). TEMPLATE_PICKER_CONFIG (categoryRegistry.js) surfaces them
+      // through the same CategoryPathPicker the rest of the editor uses, so
+      // authors get the familiar two-pane drill instead of a bare ExprInput
+      // and hand-copied IDs.
+      const templatePickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars };
       return (
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
-          {fl("container:")}
-          <ExprInput value={cfg.containerId || ""} onChange={v => setCfg({ containerId: v })} placeholder="$lastCreatedOccurrenceId or containerId" width={160} />
-          {fl("template:")}
-          <select value={cfg.templateId || ""} onChange={e => setCfg({ templateId: e.target.value })} style={selectSt}>
-            <option value="">Pick template or enter $var...</option>
-            {templates.map(t => <option key={t.id} value={t.id}>{t.name || t.id}</option>)}
-          </select>
-          <ExprInput value={cfg.templateId || ""} onChange={v => setCfg({ templateId: v })} placeholder="$var.id or templateId" width={120} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+            {fl("template:")}
+            <CategoryPathPicker
+              value={cfg.templateRef || ""}
+              onChange={v => setCfg({ templateRef: v })}
+              config={TEMPLATE_PICKER_CONFIG}
+              ctx={templatePickerCtx}
+            />
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+            {fl("target:")}
+            <ExprInput
+              value={cfg.targetOccurrenceVar || ""}
+              onChange={v => setCfg({ targetOccurrenceVar: v })}
+              placeholder="$schedPageId or target occurrence id"
+              width={220}
+            />
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+            {fl("mode:")}
+            <select value={mode} onChange={e => setCfg({ mode: e.target.value })} style={selectSt}>
+              <option value="append">Append (always clone fresh)</option>
+              <option value="replace">Replace target&apos;s children</option>
+              <option value="merge">Merge (match by identitySignature, add what&apos;s missing)</option>
+            </select>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, color: "var(--text-muted)" }}>
+              <input
+                type="checkbox"
+                checked={!!cfg.unwrapRoot}
+                onChange={e => setCfg({ unwrapRoot: e.target.checked })}
+              />
+              Unwrap root (clone template&apos;s children directly into target)
+            </label>
+          </div>
+          {mode === "merge" && (
+            <div style={{ fontSize: 10, color: "var(--text-faint)", paddingLeft: 12, lineHeight: 1.5 }}>
+              Merge matches each template node against the target&apos;s children by their <code>identitySignature</code>.
+              Template nodes with a signature get matched + skipped (recursing into their template children).
+              Nodes without a signature always clone fresh.
+            </div>
+          )}
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+            {fl("save new occs as:")}
+            <ExprInput
+              value={cfg.resultVar || ""}
+              onChange={v => setCfg({ resultVar: v })}
+              placeholder="$newOccs (array of full occurrence stubs — usable in LOOP)"
+              width={220}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    case "COPY_OCCURRENCE": {
+      // Deep-clones an occurrence subtree under a target parent. Uses the
+      // same record picker as the rest of the editor — sourceOccurrenceVar
+      // and targetOccurrenceVar accept any $var that resolves to an
+      // occurrence id (so authors pair this with a FIND that bound the
+      // source, plus a Source or FIND for the target).
+      const copyPickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars };
+      const includeChildren = cfg.includeChildren !== false;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+            {fl("source:")}
+            <CategoryPathPicker
+              value={cfg.sourceOccurrenceVar || ""}
+              onChange={v => setCfg({ sourceOccurrenceVar: v })}
+              ctx={copyPickerCtx}
+            />
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+            {fl("target:")}
+            <CategoryPathPicker
+              value={cfg.targetOccurrenceVar || ""}
+              onChange={v => setCfg({ targetOccurrenceVar: v })}
+              ctx={copyPickerCtx}
+            />
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, color: "var(--text-muted)" }}>
+              <input
+                type="checkbox"
+                checked={includeChildren}
+                onChange={e => setCfg({ includeChildren: e.target.checked })}
+              />
+              Include children (deep copy)
+            </label>
+            <span style={{ fontSize: 10, color: "var(--text-faint)" }}>
+              {includeChildren ? "Clones the full subtree" : "Clones just the source node"}
+            </span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+            {fl("save new occs as:")}
+            <ExprInput
+              value={cfg.resultVar || ""}
+              onChange={v => setCfg({ resultVar: v })}
+              placeholder="$newOccs (array of clone stubs)"
+              width={220}
+            />
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+            {fl("save root id as:")}
+            <ExprInput
+              value={cfg.resultIdVar || ""}
+              onChange={v => setCfg({ resultIdVar: v })}
+              placeholder="$newRootId (id of the cloned root occurrence)"
+              width={220}
+            />
+          </div>
         </div>
       );
     }

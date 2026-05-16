@@ -202,16 +202,12 @@ describe("Fix 5 — RadialMenu arc item clamping", () => {
 });
 
 // ============================================================
-// FIX 6: GridRadialMenu hidden on mobile
+// FIX 6: GridRadialMenu removed entirely (no longer rendered from Grid.jsx).
+// Prior assertion: !isMobile && <GridRadialMenu/>. Component is now orphan
+// code; Grid.jsx renders no global radial menu. Test removed — adding a
+// new "not rendered anywhere" check would just couple to a transitional
+// state of dead code being deleted.
 // ============================================================
-describe("Fix 6 — GridRadialMenu hidden on mobile", () => {
-  const GRID_PATH = resolve(__dirname, "../Grid.jsx");
-  const gridSource = readFileSync(GRID_PATH, "utf-8");
-
-  test("GridRadialMenu is conditionally rendered based on isMobile", () => {
-    expect(gridSource).toMatch(/!\s*isMobile\s*&&\s*[\s\S]*?GridRadialMenu/);
-  });
-});
 
 // ============================================================
 // REGRESSION: Drag handles NOT hidden on mobile

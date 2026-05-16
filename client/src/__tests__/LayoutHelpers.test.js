@@ -98,13 +98,13 @@ describe("getPanelContainers", () => {
     "c2": { id: "c2", label: "Evening" },
   };
   const occurrences = {
-    "occ-c1": { id: "occ-c1", targetType: "module", targetId: "c1" },
-    "occ-c2": { id: "occ-c2", targetType: "module", targetId: "c2" },
+    "occ-c1": { id: "occ-c1", moduleId: "c1" },
+    "occ-c2": { id: "occ-c2", moduleId: "c2" },
   };
 
   test("returns containers for panel occurrences", () => {
     const panel = { id: "p1" };
-    const panelOcc = { id: "panel-occ", targetId: "p1", occurrences: ["occ-c1", "occ-c2"] };
+    const panelOcc = { id: "panel-occ", moduleId: "p1", occurrences: ["occ-c1", "occ-c2"] };
     const result = getPanelContainers(panel, occurrences, containers, panelOcc);
     expect(result).toHaveLength(2);
     expect(result[0].label).toBe("Morning");
@@ -113,14 +113,14 @@ describe("getPanelContainers", () => {
 
   test("skips missing occurrences", () => {
     const panel = { id: "p1" };
-    const panelOcc = { id: "panel-occ", targetId: "p1", occurrences: ["occ-c1", "missing-occ"] };
+    const panelOcc = { id: "panel-occ", moduleId: "p1", occurrences: ["occ-c1", "missing-occ"] };
     const result = getPanelContainers(panel, occurrences, containers, panelOcc);
     expect(result).toHaveLength(1);
   });
 
   test("empty panel occurrences → empty array", () => {
     const panel = { id: "p1" };
-    const panelOcc = { id: "panel-occ", targetId: "p1", occurrences: [] };
+    const panelOcc = { id: "panel-occ", moduleId: "p1", occurrences: [] };
     const result = getPanelContainers(panel, occurrences, containers, panelOcc);
     expect(result).toHaveLength(0);
   });
@@ -142,35 +142,35 @@ describe("getContainerItems", () => {
     "i2": { id: "i2", label: "Meditate" },
   };
   const occurrences = {
-    "occ-i1": { id: "occ-i1", targetId: "i1", iteration: { mode: "persistent" } },
-    "occ-i2": { id: "occ-i2", targetId: "i2", iteration: { mode: "specific", timeValue: TODAY } },
-    "occ-i2-yesterday": { id: "occ-i2-yesterday", targetId: "i2", iteration: { mode: "specific", timeValue: YESTERDAY } },
+    "occ-i1": { id: "occ-i1", moduleId: "i1", iteration: { mode: "persistent" } },
+    "occ-i2": { id: "occ-i2", moduleId: "i2", iteration: { mode: "specific", timeValue: TODAY } },
+    "occ-i2-yesterday": { id: "occ-i2-yesterday", moduleId: "i2", iteration: { mode: "specific", timeValue: YESTERDAY } },
   };
 
   test("returns all instances when no iteration filter", () => {
     const container = { id: "c1" };
-    const containerOcc = { id: "c1-occ", targetId: "c1", occurrences: ["occ-i1", "occ-i2"] };
+    const containerOcc = { id: "c1-occ", moduleId: "c1", occurrences: ["occ-i1", "occ-i2"] };
     const result = getContainerItems(container, occurrences, instances, null, containerOcc);
     expect(result).toHaveLength(2);
   });
 
   test("returns all occurrences (filter visibility handled at render level)", () => {
     const container = { id: "c1" };
-    const containerOcc = { id: "c1-occ", targetId: "c1", occurrences: ["occ-i1", "occ-i2-yesterday"] };
+    const containerOcc = { id: "c1-occ", moduleId: "c1", occurrences: ["occ-i1", "occ-i2-yesterday"] };
     const result = getContainerItems(container, occurrences, instances, TODAY, containerOcc);
     expect(result).toHaveLength(2); // no filtering here — isOccurrenceVisible handles it
   });
 
   test("currentFilterValue param accepted without affecting output", () => {
     const container = { id: "c1" };
-    const containerOcc = { id: "c1-occ", targetId: "c1", occurrences: ["occ-i1", "occ-i2"] };
+    const containerOcc = { id: "c1-occ", moduleId: "c1", occurrences: ["occ-i1", "occ-i2"] };
     const result = getContainerItems(container, occurrences, instances, TODAY, containerOcc);
     expect(result).toHaveLength(2);
   });
 
   test("empty container → empty array", () => {
     const container = { id: "c1" };
-    const containerOcc = { id: "c1-occ", targetId: "c1", occurrences: [] };
+    const containerOcc = { id: "c1-occ", moduleId: "c1", occurrences: [] };
     const result = getContainerItems(container, occurrences, instances, TODAY, containerOcc);
     expect(result).toHaveLength(0);
   });
@@ -180,12 +180,12 @@ describe("getContainerItems", () => {
 describe("getContainerItemsWithOccurrences", () => {
   const instances = { "i1": { id: "i1", label: "Task" } };
   const occurrences = {
-    "occ1": { id: "occ1", targetId: "i1", fields: { f1: { value: 5, flow: "in" } } },
+    "occ1": { id: "occ1", moduleId: "i1", fields: { f1: { value: 5, flow: "in" } } },
   };
 
   test("returns { instance, occurrence } pairs", () => {
     const container = { id: "c1" };
-    const containerOcc = { id: "c1-occ", targetId: "c1", occurrences: ["occ1"] };
+    const containerOcc = { id: "c1-occ", moduleId: "c1", occurrences: ["occ1"] };
     const result = getContainerItemsWithOccurrences(container, occurrences, instances, null, containerOcc);
     expect(result).toHaveLength(1);
     expect(result[0].instance.label).toBe("Task");
@@ -194,7 +194,7 @@ describe("getContainerItemsWithOccurrences", () => {
 
   test("skips when instance not found", () => {
     const container = { id: "c1" };
-    const containerOcc = { id: "c1-occ", targetId: "c1", occurrences: ["occ1"] };
+    const containerOcc = { id: "c1-occ", moduleId: "c1", occurrences: ["occ1"] };
     const result = getContainerItemsWithOccurrences(container, occurrences, {}, null, containerOcc);
     expect(result).toHaveLength(0);
   });
@@ -203,8 +203,8 @@ describe("getContainerItemsWithOccurrences", () => {
 // ─── findOccurrenceIdByTarget ─────────────────────────────────────────────────
 describe("findOccurrenceIdByTarget", () => {
   const occurrences = {
-    "occ1": { id: "occ1", targetId: "i1" },
-    "occ2": { id: "occ2", targetId: "i2" },
+    "occ1": { id: "occ1", moduleId: "i1" },
+    "occ2": { id: "occ2", moduleId: "i2" },
   };
   const parentOccurrences = ["occ1", "occ2"];
 
@@ -225,9 +225,9 @@ describe("findOccurrenceIdByTarget", () => {
 // ─── getTargetIndexInOccurrences ──────────────────────────────────────────────
 describe("getTargetIndexInOccurrences", () => {
   const occurrences = {
-    "occ1": { id: "occ1", targetId: "i1" },
-    "occ2": { id: "occ2", targetId: "i2" },
-    "occ3": { id: "occ3", targetId: "i3" },
+    "occ1": { id: "occ1", moduleId: "i1" },
+    "occ2": { id: "occ2", moduleId: "i2" },
+    "occ3": { id: "occ3", moduleId: "i3" },
   };
   const parentOccurrences = ["occ1", "occ2", "occ3"];
 

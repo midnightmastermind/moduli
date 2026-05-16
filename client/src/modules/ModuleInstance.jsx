@@ -313,47 +313,9 @@ function InstanceInner({
               }}
             >
             {label}
-            {occurrence?.linkedGroupId && (
-              <Popover open={linksPopoverOpen} onOpenChange={setLinksPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setLinksPopoverOpen(prev => !prev); }}
-                    className="inline-flex items-center ml-1 flex-shrink-0"
-                    title={`Linked (${linkedSiblings.length} sibling${linkedSiblings.length !== 1 ? 's' : ''})`}
-                  >
-                    <Link2 className="w-3 h-3 text-blue-400 opacity-60 hover:opacity-100 transition-opacity" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" side="bottom" className="w-auto min-w-[160px] max-w-[240px] p-2">
-                  <div className="text-xs font-medium text-muted-foreground mb-1.5">
-                    Linked Occurrences ({linkedSiblings.length})
-                  </div>
-                  {linkedSiblings.length === 0 ? (
-                    <div className="text-xs text-muted-foreground/60 italic">No other linked copies</div>
-                  ) : (
-                    <ul className="space-y-1">
-                      {linkedSiblings.map(sib => {
-                        const sibInstance = instancesById?.[sib.targetId];
-                        const sibLabel = sibInstance?.label || sib.targetId || "Unknown";
-                        const sibParentId = sib.parentId;
-                        return (
-                          <li key={sib.id} className="text-xs text-foreground/80 flex items-center gap-1.5 py-0.5 px-1 rounded hover:bg-muted/50">
-                            <Link2 className="w-2.5 h-2.5 text-blue-400 flex-shrink-0" />
-                            <span className="truncate">{sibLabel}</span>
-                            {sibParentId && (
-                              <span className="text-muted-foreground/50 text-[10px] ml-auto flex-shrink-0">
-                                {sibParentId.slice(0, 6)}...
-                              </span>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </PopoverContent>
-              </Popover>
-            )}
+            {/* Inline link icon next to label removed — the linked-copy badge
+                at the end of the row (`.linked-copy-badge`) is the single
+                authoritative indicator that an occurrence is copy-linked. */}
           </div>
           )}
         </div>{/* end label+radial wrapper */}

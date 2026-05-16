@@ -25,6 +25,18 @@ const OccurrenceSchema = new mongoose.Schema(
     // nav widgets (arrows / pills / input / custom). Default {} = no nav shown.
     filterNavConfig: { type: mongoose.Schema.Types.Mixed, default: {} },
 
+    // Per-occurrence local filter list edited via FilterEditor (HeaderDropdown cog).
+    // Each entry: { id, fieldId, active, showNav, timeUnit, defaultNavValue, condition, allowBlank }.
+    // Distinct from filterOverride (a keyed value map) and filterNavConfig (per-filter widget config) —
+    // this carries the per-occurrence filter rule rows with optional condition groups.
+    filters: { type: [mongoose.Schema.Types.Mixed], default: [] },
+
+    // Template merge identity. When set on a template-side occurrence, APPLY_TEMPLATE
+    // in mode:"merge" treats any sibling under the apply target with the same
+    // identitySignature as "the same node" — skips cloning, recurses into its
+    // template children. Empty/null = always create a fresh clone on each apply.
+    identitySignature: { type: String, default: null, index: true },
+
     // Hidden flag — set by HIDE_OCCURRENCE operation effect
     hidden: { type: Boolean, default: false },
 

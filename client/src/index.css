@@ -1595,10 +1595,21 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
     margin-right: 14px !important;
   }
 
-  /* Instance fields stack below label on mobile */
+  /* Instance fields stack below label on mobile.
+     The inline styles assume a ROW: .instance-content has
+     justify-content:space-between and .instance-fields has flex:1 1 160px.
+     Flipping to a column turns that 160px into a tall flex-basis that GROWS
+     and space-between shoves label/fields to opposite ends → giant empty
+     cards. Pin justify-content to the start and stop the fields block from
+     growing vertically so the card collapses to its natural height. */
   .instance-content {
     flex-direction: column !important;
     align-items: stretch !important;
+    justify-content: flex-start !important;
+  }
+  .instance-fields {
+    flex: 0 0 auto !important;
+    justify-content: flex-start !important;
   }
 
   /* Disable hover effects on mobile — prevent sticky :hover on touch */
@@ -1691,12 +1702,27 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    16. PREVIEW NODES & DRILLDOWN
    ============================================================================= */
 
-/* Local tree page close button — show on row hover */
-.page-tree-close-btn { opacity: 0; transition: opacity 0.1s; }
-div:hover > div > .page-tree-close-btn,
-div:hover > .page-tree-close-btn { opacity: 0.6; }
-div:hover > div > .page-tree-close-btn:hover,
-div:hover > .page-tree-close-btn:hover { opacity: 1; color: var(--text-primary) !important; background: rgba(255,255,255,0.06) !important; }
+/* Manifest tree row — X close slot rendered INSIDE NodePill (left of the
+   GripVertical drag handle). Collapses to zero width when not hovered so it
+   doesn't push the icon/label off-centre on idle rows. */
+.manifest-row-x-slot {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  margin-right: 0;
+  transition: opacity 0.1s, width 0.1s, margin-right 0.1s;
+  pointer-events: none;
+}
+.manifest-row:hover .manifest-row-x-slot {
+  opacity: 0.6;
+  width: 11px;
+  margin-right: 2px;
+  pointer-events: auto;
+}
+.manifest-row-x-slot:hover {
+  opacity: 1 !important;
+  color: var(--text-primary) !important;
+}
 
 .preview-node-grid {
   display: grid;
@@ -1902,4 +1928,97 @@ div:hover > .page-tree-close-btn:hover { opacity: 1; color: var(--text-primary) 
   min-height: 24px;
   outline: none;
   padding: 4px 8px 4px 8px;
+}
+
+/* ============================================================
+   17. CANVAS TOOLBAR & SURFACE
+   ============================================================ */
+.canvas-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--surface-overlay);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.canvas-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+/* Mobile dropdown panel — opens beneath the collapsed toolbar bar.
+   Items are grouped per row so the layout reads as a stacked toolbox
+   instead of a long horizontal strip. */
+.canvas-toolbar-dropdown {
+  position: absolute;
+  top: 36px;
+  right: 6px;
+  z-index: 30;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  max-width: 220px;
+}
+.canvas-toolbar-dropdown-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+/* Slim scrollbars on the canvas surface — the scrollbar is necessary
+   for pan but should be unobtrusive. */
+.canvas-surface { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent; }
+.canvas-surface::-webkit-scrollbar { width: 8px; height: 8px; }
+.canvas-surface::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+.canvas-surface::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+.canvas-surface::-webkit-scrollbar-track { background: transparent; }
+
+/* Edge autoscroll bars — light up on dragover within the EDGE zone (60px from
+   each edge). Visual affordance for "drop here / hover to pan". The bar is
+   absolutely positioned over the parent flex column so it sits ABOVE the
+   surface, doesn't scroll, and doesn't intercept pointer events. */
+.canvas-edge-bar {
+  position: absolute;
+  z-index: 25;
+  pointer-events: none;
+  background: linear-gradient(var(--bar-dir, to bottom), rgba(99,102,241,0.55), rgba(99,102,241,0));
+  box-shadow: inset 0 0 18px rgba(129,140,248,0.45);
+  animation: canvas-edge-pulse 1.2s ease-in-out infinite alternate;
+}
+.canvas-edge-top    { top: 0;    left: 0;  right: 0;  height: 60px; --bar-dir: to bottom; }
+.canvas-edge-bottom { bottom: 0; left: 0;  right: 0;  height: 60px; --bar-dir: to top; }
+.canvas-edge-left   { top: 0;    bottom: 0; left: 0;  width: 60px;  --bar-dir: to right; }
+.canvas-edge-right  { top: 0;    bottom: 0; right: 0; width: 60px;  --bar-dir: to left; }
+/* "Blocked" — scroll has hit the world boundary; can't pan further. */
+.canvas-edge-bar.canvas-edge-blocked {
+  background: linear-gradient(var(--bar-dir, to bottom), rgba(248,113,113,0.7), rgba(248,113,113,0));
+  box-shadow: inset 0 0 22px rgba(248,113,113,0.6);
+  animation: none;
+  opacity: 0.9;
+}
+
+/* Minimap — bottom-left overview of the canvas world. Only rendered during
+   pan or drag-over (see CanvasContent JSX). Click anywhere on the SVG to
+   recentre the viewport on that world point. */
+.canvas-minimap {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 28;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+  border: 1px solid var(--border-subtle);
+  background: rgba(11,18,38,0.92);
+}
+@keyframes canvas-edge-pulse {
+  from { opacity: 0.55; }
+  to   { opacity: 0.9; }
 }

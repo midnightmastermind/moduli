@@ -300,6 +300,38 @@ describe("CREATE action", () => {
     expect(updates).toEqual([]);
   });
 
+  // ── fieldBindings hidden-flag handling ────────────────────────────────────
+  it("CREATE matched to an existing template by label leaves its bindings alone when fieldHidden is omitted", () => {
+    const existing = {
+      id: "tpl_existing", label: "Drink Water", role: "instance", kind: "list",
+      fieldBindings: [{ fieldId: "f_date", role: "input", order: 0, hidden: true }],
+    };
+    const $vars = { $allTemplates: [existing], $allItems: [], $today: "2026-05-11" };
+    const fieldsById = { f_date: { id: "f_date", type: "date" } };
+    const updates = executeActionItem("CREATE", {
+      name: "Drink Water", role: "instance", kind: "list",
+      fields: { f_date: "$today" },
+    }, $vars, { state: {}, fieldsById, occurrencesById: {}, operationsById: {} });
+
+    expect(updates.find(u => u._effect === "UPDATE_MODULE")).toBeUndefined();
+    expect(existing.fieldBindings[0].hidden).toBe(true);
+  });
+
+  it("CREATE with fieldHidden:{fid:true} stamps a new binding as hidden on a freshly-minted template", () => {
+    const $vars = { $allTemplates: [], $allItems: [], $today: "2026-05-11" };
+    const fieldsById = { f_date: { id: "f_date", type: "date" } };
+    const updates = executeActionItem("CREATE", {
+      name: "Slot", role: "container", kind: "list",
+      fields: { f_date: "$today" },
+      fieldHidden: { f_date: true },
+    }, $vars, { state: {}, fieldsById, occurrencesById: {}, operationsById: {} });
+
+    const newTpl = updates[0].template;
+    expect(newTpl.fieldBindings).toEqual([
+      { fieldId: "f_date", role: "input", order: 0, hidden: true },
+    ]);
+  });
+
   // Regression: cross-recursion dedup. When an op CREATEs an instance and
   // then RUN_OPERATIONs into a child op, the child's parentByChildId rebuild
   // must see the new linkage so HAS_ANCESTOR predicates match the just-
@@ -516,7 +548,7 @@ describe("APPLY_TEMPLATE", () => {
       [targetId]: { id: targetId, moduleId: targetModId, targetId: targetModId, occurrences: [] },
     };
     const $vars = { $allOccurrences: [], $allItems: [], $tgt: targetId, $tpl: tplOccId };
-    const ctx = makeContext({ state, occurrencesById });
+    const ctx = makeContext({ state, occurrencesById, modulesById: state.modulesById });
 
     const updates = executeActionItem(
       "APPLY_TEMPLATE",
@@ -574,5 +606,508 @@ describe("APPLY_TEMPLATE", () => {
     const clearEffect = updates.find(u => u._effect === "UPDATE_OCCURRENCE" && u.occurrence?.id === "tgt");
     expect(clearEffect).toBeTruthy();
     expect(clearEffect.occurrence.occurrences).toEqual([]);
+  });
+
+  // ── mode:"merge" with identitySignature ─────────────────────────────────────
+  it("mode merge skips cloning a slot when a sibling carries the same identitySignature", () => {
+    // Template root has a slot child carrying identitySignature "slot:6:00am"
+    // and a routine instance inside it. Target page already has a slot with
+    // the same signature. Merge mode reuses that slot and recurses into its
+    // template children; the inner instance (no signature) clones fresh under
+    // the matched slot.
+    const state = {
+      modulesById: {
+        tplRootMod: { id: "tplRootMod", role: "page",      kind: "board", label: "Daily Routine" },
+        tplSlotMod: { id: "tplSlotMod", role: "container", kind: "list",  label: "6:00am" },
+        tplInstMod: { id: "tplInstMod", role: "instance",  kind: "list",  label: "Drink Water" },
+        pageMod:    { id: "pageMod",    role: "page",      kind: "board", label: "Schedule" },
+      },
+    };
+    const occurrencesById = {
+      // Template subtree
+      tplRoot: { id: "tplRoot", moduleId: "tplRootMod", occurrences: ["tplSlot"] },
+      tplSlot: { id: "tplSlot", moduleId: "tplSlotMod", parentId: "tplRoot", occurrences: ["tplInst"], identitySignature: "slot:6:00am" },
+      tplInst: { id: "tplInst", moduleId: "tplInstMod", parentId: "tplSlot", occurrences: [] },
+      // Live page with an EXISTING slot
+      page:        { id: "page", moduleId: "pageMod", occurrences: ["existingSlot"] },
+      existingSlot:{ id: "existingSlot", moduleId: "tplSlotMod", parentId: "page", occurrences: [], identitySignature: "slot:6:00am" },
+    };
+    const $vars = {
+      $allOccurrences: Object.values(occurrencesById),
+      $allItems:       Object.values(occurrencesById),
+      $allContainers: [occurrencesById.tplSlot, occurrencesById.existingSlot],
+      $allInstances:  [occurrencesById.tplInst],
+      $allPages:      [occurrencesById.tplRoot, occurrencesById.page],
+      $tpl: "tplRoot",
+      $tgt: "page",
+    };
+    const ctx = makeContext({ state, occurrencesById, modulesById: state.modulesById });
+
+    const updates = executeActionItem(
+      "APPLY_TEMPLATE",
+      { templateRef: "$tpl", targetOccurrenceVar: "$tgt", mode: "merge", unwrapRoot: true },
+      $vars, ctx, {}
+    );
+
+    const creates = updates.filter(u => u._effect === "CREATE_ITEM");
+    // Slot was matched by identitySignature → no clone for it.
+    // Routine instance under it has no signature → cloned fresh under existingSlot.
+    expect(creates).toHaveLength(1);
+    expect(creates[0].template.role).toBe("instance");
+    expect(creates[0].instance.parentId).toBe("existingSlot");
+  });
+
+  it("mode merge clones a slot when no sibling carries the matching signature", () => {
+    const state = {
+      modulesById: {
+        tplRootMod: { id: "tplRootMod", role: "page",      kind: "board", label: "Daily Routine" },
+        tplSlotMod: { id: "tplSlotMod", role: "container", kind: "list",  label: "7:00am" },
+        pageMod:    { id: "pageMod",    role: "page",      kind: "board", label: "Schedule" },
+      },
+    };
+    const occurrencesById = {
+      tplRoot: { id: "tplRoot", moduleId: "tplRootMod", occurrences: ["tplSlot"] },
+      tplSlot: { id: "tplSlot", moduleId: "tplSlotMod", parentId: "tplRoot", occurrences: [], identitySignature: "slot:7:00am" },
+      page:    { id: "page",    moduleId: "pageMod",    occurrences: [] }, // no existing slots
+    };
+    const $vars = {
+      $allOccurrences: Object.values(occurrencesById),
+      $allItems:       Object.values(occurrencesById),
+      $allContainers:  [occurrencesById.tplSlot],
+      $allPages:       [occurrencesById.tplRoot, occurrencesById.page],
+      $tpl: "tplRoot",
+      $tgt: "page",
+    };
+    const ctx = makeContext({ state, occurrencesById, modulesById: state.modulesById });
+
+    const updates = executeActionItem(
+      "APPLY_TEMPLATE",
+      { templateRef: "$tpl", targetOccurrenceVar: "$tgt", mode: "merge", unwrapRoot: true },
+      $vars, ctx, {}
+    );
+
+    const slotCreate = updates.find(u => u._effect === "CREATE_ITEM" && u.template.label === "7:00am");
+    expect(slotCreate).toBeTruthy();
+    expect(slotCreate.instance.parentId).toBe("page");
+    expect(slotCreate.instance.identitySignature).toBe("slot:7:00am");
+  });
+
+  it("unwrapRoot:true skips the template root node and clones its children into target", () => {
+    const state = {
+      modulesById: {
+        rootMod:  { id: "rootMod",  role: "page",     kind: "board", label: "Root" },
+        childMod: { id: "childMod", role: "instance", kind: "list",  label: "Child" },
+        pageMod:  { id: "pageMod",  role: "page",     kind: "board", label: "Target" },
+      },
+    };
+    const occurrencesById = {
+      tplRoot:  { id: "tplRoot",  moduleId: "rootMod",  occurrences: ["tplChild"] },
+      tplChild: { id: "tplChild", moduleId: "childMod", parentId: "tplRoot", occurrences: [] },
+      page:     { id: "page",     moduleId: "pageMod",  occurrences: [] },
+    };
+    const $vars = { $allOccurrences: Object.values(occurrencesById), $allItems: Object.values(occurrencesById), $tpl: "tplRoot", $tgt: "page" };
+    const ctx = makeContext({ state, occurrencesById, modulesById: state.modulesById });
+
+    const updates = executeActionItem(
+      "APPLY_TEMPLATE",
+      { templateRef: "$tpl", targetOccurrenceVar: "$tgt", mode: "append", unwrapRoot: true },
+      $vars, ctx, {}
+    );
+
+    const creates = updates.filter(u => u._effect === "CREATE_ITEM");
+    // Root page node is skipped — only the child is cloned, directly into target.
+    expect(creates).toHaveLength(1);
+    expect(creates[0].template.label).toBe("Child");
+    expect(creates[0].instance.parentId).toBe("page");
+  });
+
+  // ── Optimistic publish into role-filtered slices ───────────────────────────
+  it("appends new instance-role stubs into $allInstances", () => {
+    const state = {
+      modulesById: {
+        tplMod: { id: "tplMod", role: "instance", kind: "list", label: "Task" },
+        pageMod: { id: "pageMod", role: "page" },
+      },
+    };
+    const occurrencesById = {
+      tpl: { id: "tpl", moduleId: "tplMod", occurrences: [] },
+      page: { id: "page", moduleId: "pageMod", occurrences: [] },
+    };
+    const $vars = {
+      $allOccurrences: [], $allItems: [], $allInstances: [], $allContainers: [], $allPages: [], $allPanels: [],
+      $tpl: "tpl", $tgt: "page",
+    };
+    const ctx = makeContext({ state, occurrencesById, modulesById: state.modulesById });
+
+    executeActionItem(
+      "APPLY_TEMPLATE",
+      { templateRef: "$tpl", targetOccurrenceVar: "$tgt", mode: "append" },
+      $vars, ctx, {}
+    );
+
+    expect($vars.$allInstances).toHaveLength(1);
+    expect($vars.$allInstances[0].role).toBe("instance");
+    // Other slices stay empty for an instance-only clone
+    expect($vars.$allContainers).toHaveLength(0);
+    expect($vars.$allPages).toHaveLength(0);
+    expect($vars.$allPanels).toHaveLength(0);
+    // And $allOccurrences / $allItems also got the stub
+    expect($vars.$allOccurrences).toHaveLength(1);
+    expect($vars.$allItems).toHaveLength(1);
+  });
+
+  it("defaultFields stamps instance-role clones' fields without a separate UPDATE pass", () => {
+    const state = {
+      modulesById: {
+        tplRootMod: { id: "tplRootMod", role: "page",      kind: "board", label: "Daily Routine" },
+        tplSlotMod: { id: "tplSlotMod", role: "container", kind: "list",  label: "6:00am" },
+        tplInstMod: { id: "tplInstMod", role: "instance",  kind: "list",  label: "Drink Water" },
+        pageMod:    { id: "pageMod",    role: "page",      kind: "board", label: "Schedule" },
+      },
+    };
+    const occurrencesById = {
+      tplRoot: { id: "tplRoot", moduleId: "tplRootMod", occurrences: ["tplSlot"] },
+      tplSlot: { id: "tplSlot", moduleId: "tplSlotMod", parentId: "tplRoot", occurrences: ["tplInst"] },
+      tplInst: { id: "tplInst", moduleId: "tplInstMod", parentId: "tplSlot", occurrences: [], fields: { f_slot: { value: "6:00am", flow: "in" } } },
+      page:    { id: "page",    moduleId: "pageMod",    occurrences: [] },
+    };
+    const $vars = {
+      $allOccurrences: Object.values(occurrencesById),
+      $allItems: Object.values(occurrencesById),
+      $tpl: "tplRoot", $tgt: "page",
+      $schedDate: "2026-05-16",
+    };
+    const ctx = makeContext({ state, occurrencesById, modulesById: state.modulesById });
+
+    const updates = executeActionItem(
+      "APPLY_TEMPLATE",
+      {
+        templateRef: "$tpl", targetOccurrenceVar: "$tgt",
+        mode: "append", unwrapRoot: true,
+        defaultFields: { f_date: "$schedDate", f_due: "$schedDate" },
+      },
+      $vars, ctx, {}
+    );
+
+    const creates = updates.filter(u => u._effect === "CREATE_ITEM");
+    // Two creates: slot (container) + drink water (instance).
+    const slotCreate = creates.find(c => c.template.role === "container");
+    const instCreate = creates.find(c => c.template.role === "instance");
+    expect(slotCreate).toBeTruthy();
+    expect(instCreate).toBeTruthy();
+
+    // Instance clone has the date baked in alongside its template's existing fields.
+    expect(instCreate.instance.fields.f_slot).toEqual({ value: "6:00am", flow: "in" });
+    expect(instCreate.instance.fields.f_date).toEqual({ value: "2026-05-16", flow: "in" });
+    expect(instCreate.instance.fields.f_due).toEqual({ value: "2026-05-16", flow: "in" });
+
+    // Slot clone (container role) does NOT get defaultFields merged in.
+    expect(slotCreate.instance.fields.f_date).toBeUndefined();
+    expect(slotCreate.instance.fields.f_due).toBeUndefined();
+  });
+
+  it("appends new container-role stubs into $allContainers, not $allInstances", () => {
+    const state = {
+      modulesById: {
+        tplMod: { id: "tplMod", role: "container", kind: "list", label: "Group" },
+        pageMod: { id: "pageMod", role: "page" },
+      },
+    };
+    const occurrencesById = {
+      tpl: { id: "tpl", moduleId: "tplMod", occurrences: [] },
+      page: { id: "page", moduleId: "pageMod", occurrences: [] },
+    };
+    const $vars = {
+      $allOccurrences: [], $allItems: [], $allInstances: [], $allContainers: [], $allPages: [], $allPanels: [],
+      $tpl: "tpl", $tgt: "page",
+    };
+    const ctx = makeContext({ state, occurrencesById, modulesById: state.modulesById });
+
+    executeActionItem(
+      "APPLY_TEMPLATE",
+      { templateRef: "$tpl", targetOccurrenceVar: "$tgt", mode: "append" },
+      $vars, ctx, {}
+    );
+
+    expect($vars.$allContainers).toHaveLength(1);
+    expect($vars.$allContainers[0].role).toBe("container");
+    expect($vars.$allInstances).toHaveLength(0);
+  });
+});
+
+// ============================================================
+// COPY_LINK verb
+// ============================================================
+// Mints a new occurrence sharing module + linkedGroupId with a source.
+// Server's update_occurrence handler propagates writes across the group;
+// these tests just cover the executor-level invariants.
+describe("COPY_LINK action", () => {
+  const makeSourceCtx = (sourceOverrides = {}) => {
+    const source = {
+      id: "todo1",
+      moduleId: "mod_buyMilk",
+      parentId: "todoCont1",
+      fields: { f_due: { value: "2026-05-16", flow: "in" } },
+      label: "Buy milk",
+      role: "instance",
+      linkedGroupId: null,
+      ...sourceOverrides,
+    };
+    const occurrencesById = {
+      [source.id]: source,
+      todoCont1: { id: "todoCont1", occurrences: [source.id] },
+      due1: { id: "due1", occurrences: [] },
+    };
+    const $vars = {
+      $allTemplates: [{ id: "mod_buyMilk", label: "Buy milk", role: "instance" }],
+      $allItems: [{ ...source, templateId: source.moduleId }],
+      $allOccurrences: [{ ...source, templateId: source.moduleId }],
+      $allInstances: [],
+      $allContainers: [],
+      $today: "2026-05-15",
+      $todo: source,
+      $dueId: "due1",
+    };
+    return {
+      $vars,
+      ctx: { state: {}, fieldsById: { f_date: { id: "f_date", type: "date" }, f_due: { id: "f_due", type: "date" } }, occurrencesById, operationsById: {} },
+      source,
+    };
+  };
+
+  it("mints a new linkedGroupId on the source AND emits UPDATE_OCCURRENCE for it", () => {
+    const { $vars, ctx, source } = makeSourceCtx();
+    expect(source.linkedGroupId).toBe(null);
+
+    const updates = executeActionItem("COPY_LINK", {
+      sourceId: "$todo.id",
+      parent: "$dueId",
+      linkedGroupVar: "$lg",
+    }, $vars, ctx);
+
+    // Two effects: the new copy + the source's linkedGroupId patch.
+    const createEffect = updates.find(u => u._effect === "CREATE_ITEM");
+    const sourceUpdate = updates.find(u => u._effect === "UPDATE_OCCURRENCE");
+    expect(createEffect).toBeDefined();
+    expect(sourceUpdate).toBeDefined();
+    expect(sourceUpdate.occurrence.id).toBe("todo1");
+    expect(sourceUpdate.occurrence.linkedGroupId).toBe(createEffect.instance.linkedGroupId);
+    expect($vars.$lg).toBe(createEffect.instance.linkedGroupId);
+
+    // Source overlay also reflects the minted id so a second COPY_LINK
+    // against the same source in the same pipeline reuses it.
+    expect(ctx.occurrencesById.todo1.linkedGroupId).toBe(createEffect.instance.linkedGroupId);
+  });
+
+  it("reuses an existing linkedGroupId and emits NO source UPDATE_OCCURRENCE", () => {
+    const { $vars, ctx } = makeSourceCtx({ linkedGroupId: "lg_preexisting" });
+
+    const updates = executeActionItem("COPY_LINK", {
+      sourceId: "$todo.id",
+      parent: "$dueId",
+    }, $vars, ctx);
+
+    const createEffect = updates.find(u => u._effect === "CREATE_ITEM");
+    expect(createEffect.instance.linkedGroupId).toBe("lg_preexisting");
+    expect(updates.find(u => u._effect === "UPDATE_OCCURRENCE")).toBeUndefined();
+  });
+
+  it("uses source.moduleId on the new copy (no new template minted)", () => {
+    const { $vars, ctx } = makeSourceCtx();
+    const beforeTplCount = $vars.$allTemplates.length;
+
+    const updates = executeActionItem("COPY_LINK", {
+      sourceId: "$todo.id",
+      parent: "$dueId",
+    }, $vars, ctx);
+
+    const createEffect = updates.find(u => u._effect === "CREATE_ITEM");
+    expect(createEffect.template).toBe(null);
+    expect(createEffect.instance.templateId).toBe("mod_buyMilk");
+    // No new template added to the in-pipeline overlay.
+    expect($vars.$allTemplates).toHaveLength(beforeTplCount);
+  });
+
+  it("seeds copy fields from source by default, then layers cfg.fields on top", () => {
+    const { $vars, ctx } = makeSourceCtx();
+
+    const updates = executeActionItem("COPY_LINK", {
+      sourceId: "$todo.id",
+      parent: "$dueId",
+      fields: { f_date: "$today" },
+    }, $vars, ctx);
+
+    const fields = updates.find(u => u._effect === "CREATE_ITEM").instance.fields;
+    // Source's f_due carried through (copyFields default true).
+    expect(fields.f_due).toEqual({ value: "2026-05-16", flow: "in" });
+    // cfg.fields stamps f_date on top.
+    expect(fields.f_date).toEqual({ value: "2026-05-15", flow: "in" });
+  });
+
+  it("copyFields:false skips the source-fields seed", () => {
+    const { $vars, ctx } = makeSourceCtx();
+
+    const updates = executeActionItem("COPY_LINK", {
+      sourceId: "$todo.id",
+      parent: "$dueId",
+      copyFields: false,
+      fields: { f_date: "$today" },
+    }, $vars, ctx);
+
+    const fields = updates.find(u => u._effect === "CREATE_ITEM").instance.fields;
+    expect(fields.f_due).toBeUndefined();
+    expect(fields.f_date).toEqual({ value: "2026-05-15", flow: "in" });
+  });
+
+  it("appends new copy to parent.occurrences in the overlay (HAS_ANCESTOR dedup)", () => {
+    const { $vars, ctx } = makeSourceCtx();
+
+    const updates = executeActionItem("COPY_LINK", {
+      sourceId: "$todo.id",
+      parent: "$dueId",
+    }, $vars, ctx);
+
+    const newId = updates.find(u => u._effect === "CREATE_ITEM").instance.id;
+    expect(ctx.occurrencesById.due1.occurrences).toContain(newId);
+    // Optimistic publish into role-filtered slices (source role is "instance").
+    expect($vars.$allInstances.find(i => i.id === newId)).toBeDefined();
+  });
+
+  it("returns no updates when sourceId resolves to nothing", () => {
+    const { $vars, ctx } = makeSourceCtx();
+    const updates = executeActionItem("COPY_LINK", {
+      sourceId: "$nonexistent",
+      parent: "$dueId",
+    }, $vars, ctx);
+    expect(updates).toEqual([]);
+  });
+
+  // ─── Recursive COPY_LINK: pairwise child link ───────────────────────────────
+  // When the source has children, each child also gets COPY_LINKed pairwise.
+  // The new copy's occurrences[] contains clones of the source's children, and
+  // each (sourceChild, copyChild) pair shares its own linkedGroupId so the
+  // server propagates writes within each pair independently.
+  it("recursively links a 2-level subtree pairwise (root + one child)", () => {
+    const childOcc = {
+      id: "todoChild1",
+      moduleId: "mod_subtask",
+      parentId: "todo1",
+      fields: { f_done: { value: false, flow: "in" } },
+      label: "Subtask",
+      role: "instance",
+      linkedGroupId: null,
+    };
+    const root = {
+      id: "todo1",
+      moduleId: "mod_buyMilk",
+      parentId: "todoCont1",
+      fields: { f_due: { value: "2026-05-16", flow: "in" } },
+      label: "Buy milk",
+      role: "instance",
+      linkedGroupId: null,
+      occurrences: ["todoChild1"],
+    };
+    const occurrencesById = {
+      [root.id]: root,
+      [childOcc.id]: childOcc,
+      todoCont1: { id: "todoCont1", occurrences: [root.id] },
+      due1: { id: "due1", occurrences: [] },
+    };
+    const $vars = {
+      $allTemplates: [
+        { id: "mod_buyMilk", label: "Buy milk", role: "instance" },
+        { id: "mod_subtask", label: "Subtask",  role: "instance" },
+      ],
+      $allItems: [
+        { ...root, templateId: root.moduleId },
+        { ...childOcc, templateId: childOcc.moduleId },
+      ],
+      $allOccurrences: [
+        { ...root, templateId: root.moduleId },
+        { ...childOcc, templateId: childOcc.moduleId },
+      ],
+      $allInstances: [],
+      $allContainers: [],
+      $todo: root,
+      $dueId: "due1",
+    };
+    const ctx = { state: {}, fieldsById: {}, occurrencesById, operationsById: {} };
+
+    const updates = executeActionItem("COPY_LINK", {
+      sourceId: "$todo.id",
+      parent: "$dueId",
+    }, $vars, ctx);
+
+    // Two CREATE_ITEMs (root + child) + two UPDATE_OCCURRENCEs (link patches
+    // on source root + source child).
+    const creates = updates.filter(u => u._effect === "CREATE_ITEM");
+    const sourceUpdates = updates.filter(u => u._effect === "UPDATE_OCCURRENCE");
+    expect(creates).toHaveLength(2);
+    expect(sourceUpdates).toHaveLength(2);
+
+    // Root copy: parent = dueId, templateId = source's module, occurrences[]
+    // contains the child copy's id.
+    const rootCreate = creates.find(c => c.instance.parentId === "due1");
+    expect(rootCreate).toBeDefined();
+    expect(rootCreate.instance.templateId).toBe("mod_buyMilk");
+    expect(rootCreate.instance.occurrences).toHaveLength(1);
+
+    // Child copy: parent = root copy's id, templateId = source child's module.
+    const childCopyId = rootCreate.instance.occurrences[0];
+    const childCreate = creates.find(c => c.instance.id === childCopyId);
+    expect(childCreate).toBeDefined();
+    expect(childCreate.instance.parentId).toBe(rootCreate.instance.id);
+    expect(childCreate.instance.templateId).toBe("mod_subtask");
+
+    // Pairwise linking — root pair shares one linkedGroupId, child pair shares
+    // a DIFFERENT one. Independent server fan-outs per pair.
+    expect(rootCreate.instance.linkedGroupId).toBeTruthy();
+    expect(childCreate.instance.linkedGroupId).toBeTruthy();
+    expect(rootCreate.instance.linkedGroupId).not.toBe(childCreate.instance.linkedGroupId);
+
+    // The two source UPDATE_OCCURRENCEs persist the new link ids onto each
+    // source occurrence.
+    const srcRootUpdate = sourceUpdates.find(u => u.occurrence.id === "todo1");
+    const srcChildUpdate = sourceUpdates.find(u => u.occurrence.id === "todoChild1");
+    expect(srcRootUpdate.occurrence.linkedGroupId).toBe(rootCreate.instance.linkedGroupId);
+    expect(srcChildUpdate.occurrence.linkedGroupId).toBe(childCreate.instance.linkedGroupId);
+  });
+
+  it("cfg.fields applies to the ROOT clone only (children keep their own fields)", () => {
+    const childOcc = {
+      id: "ch1", moduleId: "mod_sub", parentId: "p1",
+      fields: { f_other: { value: 42, flow: "in" } },
+      role: "instance", linkedGroupId: null,
+    };
+    const root = {
+      id: "p1", moduleId: "mod_root", parentId: null,
+      fields: { f_due: { value: "2026-05-16", flow: "in" } },
+      role: "instance", linkedGroupId: null,
+      occurrences: ["ch1"],
+    };
+    const occurrencesById = { p1: root, ch1: childOcc, dest: { id: "dest", occurrences: [] } };
+    const $vars = {
+      $allTemplates: [{ id: "mod_root", role: "instance" }, { id: "mod_sub", role: "instance" }],
+      $allItems: [], $allOccurrences: [], $allInstances: [],
+      $today: "2026-05-15",
+      $src: root, $destId: "dest",
+    };
+    const ctx = { state: {}, fieldsById: { f_date: { id: "f_date", type: "date" } }, occurrencesById, operationsById: {} };
+
+    const updates = executeActionItem("COPY_LINK", {
+      sourceId: "$src.id",
+      parent: "$destId",
+      fields: { f_date: "$today" },
+    }, $vars, ctx);
+
+    const creates = updates.filter(u => u._effect === "CREATE_ITEM");
+    const rootCreate = creates.find(c => c.instance.parentId === "dest");
+    const childCreate = creates.find(c => c.instance.id !== rootCreate.instance.id);
+    // Root has the stamped f_date.
+    expect(rootCreate.instance.fields.f_date).toEqual({ value: "2026-05-15", flow: "in" });
+    expect(rootCreate.instance.fields.f_due).toEqual({ value: "2026-05-16", flow: "in" });
+    // Child does NOT get the f_date stamp — keeps its own f_other.
+    expect(childCreate.instance.fields.f_date).toBeUndefined();
+    expect(childCreate.instance.fields.f_other).toEqual({ value: 42, flow: "in" });
   });
 });

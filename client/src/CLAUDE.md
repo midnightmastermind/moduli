@@ -2,6 +2,9 @@
 
 _Updated: 2026-05-11. Check this file before re-reading source._
 
+## Recent Changes (May 15 2026 — Mobile instance cards no longer giant)
+- **index.css** `@media (max-width:600px)`: added `.instance-content { justify-content: flex-start !important }` and `.instance-fields { flex: 0 0 auto !important; justify-content: flex-start !important }`. Root cause: ModuleInstance inline styles assume a ROW — `.instance-content` has `justify-content:space-between`, `.instance-fields` has `flex:1 1 160px`. The existing mobile rule flips `.instance-content` to `flex-direction:column`, which turned the `160px` into a tall, *growing* flex-basis and made `space-between` push label/fields to opposite ends → ~250px empty cards. Pinning justify-content to start + stopping the fields block from growing collapses cards to natural height. (Verified against screenshots.)
+
 ## Recent Changes (May 11 2026 — Toast offset)
 - **App.jsx**: `<Toaster position="top-center" offset={4} />` (was no offset). Sonner's default top offset (~32px) pushed toasts below the toolbar; with offset 4 they land inside the toolbar band so notifications read as part of the chrome instead of floating below.
 

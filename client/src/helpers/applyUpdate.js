@@ -39,7 +39,7 @@ const VAR_NAME_RE = /^\$[a-zA-Z_][a-zA-Z0-9_]*$/;
 // `COMPUTE_TEXTMAP_FROM_TEMPLATE` case: deep clone, walk every node, and
 // replace `[token]` strings inside `text` nodes. Inlined here on purpose so
 // applyUpdate stays self-contained.
-function substituteTextmapTokens(textmap, tokens) {
+export function substituteTextmapTokens(textmap, tokens) {
   if (textmap == null) return textmap;
   const cloned = JSON.parse(JSON.stringify(textmap));
   const tokenEntries = Object.entries(tokens || {});

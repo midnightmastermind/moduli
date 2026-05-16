@@ -311,11 +311,16 @@ export function handleContainerDrop(dropContext, ctx) {
     const movedOcc = occurrencesById[occurrenceId];
     if (!movedOcc) { clearSession(); return; }
 
+    const surfaceEl = document.querySelector(`[data-page-occ-id="${toPageOccId}"] .canvas-surface`);
     const rect = dropTarget.context?.targetRect
-      || document.querySelector(`[data-page-occ-id="${toPageOccId}"] .canvas-surface`)?.getBoundingClientRect?.()
+      || surfaceEl?.getBoundingClientRect?.()
       || document.querySelector(`[data-page-occ-id="${toPageOccId}"]`)?.getBoundingClientRect?.();
-    const cx = rect ? Math.max(0, Math.round(x - rect.left)) : 20;
-    const cy = rect ? Math.max(0, Math.round(y - rect.top)) : 20;
+    // Surface is the viewport over a much larger world — add scroll offset so
+    // dropped cards land at the cursor's WORLD coords, not viewport coords.
+    const scrollX = surfaceEl?.scrollLeft ?? 0;
+    const scrollY = surfaceEl?.scrollTop ?? 0;
+    const cx = rect ? Math.max(0, Math.round(x - rect.left + scrollX)) : 20;
+    const cy = rect ? Math.max(0, Math.round(y - rect.top + scrollY)) : 20;
 
     const fromParentOccId = movedOcc.parentId
       || Object.values(occurrencesById).find(o => Array.isArray(o.occurrences) && o.occurrences.includes(occurrenceId))?.id;
@@ -620,11 +625,14 @@ export function handleDocEmbedDrop(dropContext, ctx) {
   const toPageOcc = toPageOccId ? occurrencesById[toPageOccId] : null;
   const toPageMod = toPageOcc ? state?.modulesById?.[toPageOcc.moduleId] : null;
   if (toPageOcc && toPageMod?.kind === "canvas") {
+    const surfaceEl = document.querySelector(`[data-page-occ-id="${toPageOccId}"] .canvas-surface`);
     const rect = dropTarget.context?.targetRect
-      || document.querySelector(`[data-page-occ-id="${toPageOccId}"] .canvas-surface`)?.getBoundingClientRect?.()
+      || surfaceEl?.getBoundingClientRect?.()
       || document.querySelector(`[data-page-occ-id="${toPageOccId}"]`)?.getBoundingClientRect?.();
-    const cx = rect ? Math.max(0, Math.round(x - rect.left)) : 20;
-    const cy = rect ? Math.max(0, Math.round(y - rect.top)) : 20;
+    const scrollX = surfaceEl?.scrollLeft ?? 0;
+    const scrollY = surfaceEl?.scrollTop ?? 0;
+    const cx = rect ? Math.max(0, Math.round(x - rect.left + scrollX)) : 20;
+    const cy = rect ? Math.max(0, Math.round(y - rect.top + scrollY)) : 20;
 
     if (isCopy) {
       const newOccId = cloneOccurrence({ parentId: toPageOccId, meta: { ...(movedOcc.meta || {}), x: cx, y: cy } });
@@ -802,11 +810,14 @@ export function handleOccurrenceMove(dropContext, ctx) {
     const movedOcc = occurrencesById[occurrenceId];
     if (!movedOcc) { clearSession(); return; }
 
+    const surfaceEl = document.querySelector(`[data-page-occ-id="${toPageOccId}"] .canvas-surface`);
     const rect = dropTarget.context?.targetRect
-      || document.querySelector(`[data-page-occ-id="${toPageOccId}"] .canvas-surface`)?.getBoundingClientRect?.()
+      || surfaceEl?.getBoundingClientRect?.()
       || document.querySelector(`[data-page-occ-id="${toPageOccId}"]`)?.getBoundingClientRect?.();
-    const cx = rect ? Math.max(0, Math.round(x - rect.left)) : 20;
-    const cy = rect ? Math.max(0, Math.round(y - rect.top)) : 20;
+    const scrollX = surfaceEl?.scrollLeft ?? 0;
+    const scrollY = surfaceEl?.scrollTop ?? 0;
+    const cx = rect ? Math.max(0, Math.round(x - rect.left + scrollX)) : 20;
+    const cy = rect ? Math.max(0, Math.round(y - rect.top + scrollY)) : 20;
 
     // Same-canvas drop = reposition only: just update meta.x/y, no parent change.
     if (movedOcc.parentId === toPageOccId) {
@@ -1426,11 +1437,14 @@ export function handleModuleDrop(dropContext, ctx) {
     const pageOcc = pageOccId ? occurrencesById[pageOccId] : null;
     const pageMod = pageOcc ? state?.modulesById?.[pageOcc.moduleId] : null;
     if (pageOcc && pageMod?.kind === "canvas" && gridId) {
+      const surfaceEl = document.querySelector(`[data-page-occ-id="${pageOccId}"] .canvas-surface`);
       const rect = dropTarget.context?.targetRect
-        || document.querySelector(`[data-page-occ-id="${pageOccId}"] .canvas-surface`)?.getBoundingClientRect?.()
+        || surfaceEl?.getBoundingClientRect?.()
         || document.querySelector(`[data-page-occ-id="${pageOccId}"]`)?.getBoundingClientRect?.();
-      const cx = rect ? Math.max(0, Math.round(x - rect.left)) : 20;
-      const cy = rect ? Math.max(0, Math.round(y - rect.top)) : 20;
+      const scrollX = surfaceEl?.scrollLeft ?? 0;
+      const scrollY = surfaceEl?.scrollTop ?? 0;
+      const cx = rect ? Math.max(0, Math.round(x - rect.left + scrollX)) : 20;
+      const cy = rect ? Math.max(0, Math.round(y - rect.top + scrollY)) : 20;
 
       const newOccId = makeUUID();
       CommitHelpers.createOccurrence({

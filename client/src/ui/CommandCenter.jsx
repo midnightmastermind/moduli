@@ -10,7 +10,6 @@ import {
   Settings2,
   Workflow,
   Link2,
-  List,
   Keyboard,
   File,
   LayoutGrid,
@@ -22,7 +21,6 @@ import { FieldsTab } from "./commandCenter/FieldsTab";
 import { OperationsTab } from "./commandCenter/OperationsTab";
 import { ConnectionsTab } from "./commandCenter/ConnectionsTab";
 import { FilesTab } from "./commandCenter/FilesTab";
-import { ListsTab } from "./commandCenter/ListsTab";
 import { ShortcutsTab } from "./commandCenter/ShortcutsTab";
 import { UserSettingsTab } from "./commandCenter/UserSettingsTab";
 import { GridSettingsTab } from "./commandCenter/GridSettingsTab";
@@ -40,7 +38,6 @@ const TABS = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "files", label: "Files", icon: File },
   { id: "connections", label: "Connections", icon: Link2 },
-  { id: "lists", label: "Lists", icon: List },
   { id: "settings", label: "User Settings", icon: User },
   { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
 ];
@@ -110,7 +107,6 @@ export default function CommandCenter({ open, onOpenChange, isMobile }) {
         {activeTab === "templates"  && <TemplatesTab />}
         {activeTab === "grid"        && <GridSettingsTab />}
         {activeTab === "appearance"  && <AppearanceTab />}
-        {activeTab === "lists"       && <ListsTab />}
         {activeTab === "shortcuts"   && <ShortcutsTab />}
         {activeTab === "settings"    && <UserSettingsTab />}
         {activeTab === "connections" && <ConnectionsTab />}

@@ -7,7 +7,7 @@
 
 import { ActionTypes } from "./actions";
 import { runMatchingOperations, executeOperation } from "../helpers/operationExecutor";
-import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, updateOccurrenceAction, initFilterNavAction, setFilterNavAction } from "./actions";
+import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, updateOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast } from "sonner";
 import {
   setOccurrenceFieldValue,
@@ -26,7 +26,7 @@ import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers"
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null };
+export const operationsBridge = { fireOperations: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLinkedOccs: null };
 
 export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) {
   // Wrap dispatch to tag all socket-originated actions
@@ -80,6 +80,39 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }
     dispatch(initFilterNavAction(navMap));
 
+    // Bootstrap grid.activeFilterValues for nav-driven conditions on the
+    // active named filter. The seed leaves activeFilterValues:{} so the
+    // value resolves to local-tz today on every load (the comment-blessed
+    // pattern — pre-seeded literals would bake in the seed day). filterNavState
+    // (above) drives what the nav WIDGET displays; activeFilterValues drives
+    // what the filter CASCADE reads. Without this, on a fresh load the widget
+    // shows "today" but isOccurrenceVisible's rightVal is undefined → the date
+    // condition skips → all dates show, regardless of what the widget claims.
+    // Only fills missing fieldIds — never overwrites an explicit user-set
+    // value (so toolbar navs persist across reloads as expected).
+    const grid = payload.grid;
+    if (grid?.namedFilters?.length) {
+      const activeFilter = grid.namedFilters.find(f => f.id === grid.activeFilterId);
+      const navConditions = (activeFilter?.conditions || []).filter(c => c?.isNav && c?.fieldId);
+      if (navConditions.length) {
+        const existing = grid.activeFilterValues || {};
+        const patch = { ...existing };
+        let changed = false;
+        for (const c of navConditions) {
+          if (existing[c.fieldId] == null || existing[c.fieldId] === "") {
+            patch[c.fieldId] = localDay(now);
+            changed = true;
+          }
+        }
+        if (changed) {
+          dispatch(updateGridAction({ gridId: grid._id || payload.gridId, grid: { activeFilterValues: patch } }));
+          // Persist to server so a subsequent load (or another tab) sees the
+          // bootstrapped value rather than re-bootstrapping each time.
+          safeEmit(socket, "update_grid", { gridId: grid._id || payload.gridId, patch: { activeFilterValues: patch } });
+        }
+      }
+    }
+
     // Fire onLoad/onNavigation operations after hydration (via microtask so state is updated first)
     const operations = payload.operations || [];
     const fieldsById = {};
@@ -105,7 +138,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // Defer operation execution until after the first paint so the grid renders immediately.
     // requestAnimationFrame fires before next paint, the nested rAF fires AFTER paint.
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById }, { onError: (name, err) => toast.error(`Operation "${name}" failed`, { description: err?.message, duration: 4000 }) });
+      // Overlay localOccsById on top of the payload snapshot. Between full_state
+      // dispatch and this deferred callback, React's filterNavState useEffect
+      // may already have fired a NavigationOp synchronously — that pipeline
+      // pass mutates localOccsById with its optimistic CREATE_ITEM stubs.
+      // Without this overlay, the onLoad fire below reads stale occurrences
+      // and re-creates the same items the NavigationOp pass already created.
+      const overlay = Object.assign({}, occurrencesById, localOccsById);
+      const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById }, { onError: (name, err) => toast.error(`Operation "${name}" failed`, { description: err?.message, duration: 4000 }) });
       const displayUpdates = allUpdates.filter(u => !u._effect);
       const effects = allUpdates.filter(u => u._effect);
       if (displayUpdates.length > 0) {
@@ -355,6 +395,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         if (!v || typeof v !== "string") return false;
         const d = new Date(v);
         return !isNaN(d);
+      });
+      console.log("[BUILD-DAY] onGridUpdated firing NavigationOp (grid-level, no ancestors)", {
+        gridId,
+        activeFilterValues: patch.activeFilterValues,
+        filterDate,
       });
       fireOperations("NavigationOp", { type: "NavigationOp", activeFilterValues: patch.activeFilterValues, date: filterDate || null });
     }
@@ -661,6 +706,19 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         }
 
         // Mint instance
+        // role/kind/label are stamped directly on the occurrence so the
+        // executor's $allInstances / $allContainers / $allPages filters
+        // (operationExecutor.js:842-909, which read `occ.role ?? tpl?.role`)
+        // include this occurrence on the next fireOperations call WITHOUT
+        // needing state.modules to be up-to-date. Within a synchronous
+        // cascade (e.g. updateOccurrenceFilterOverride firing one
+        // NavigationOp per inheriting descendant of a page), stateRef.current
+        // is the pre-cascade snapshot — newly-minted clone modules aren't
+        // visible until React re-renders. Without these stamps, fires
+        // #2..#N see the new occurrences with role=null, exclude them from
+        // $allInstances, and the idempotency FIND in `Schedule: Build Day`
+        // (server/scripts/createTestGrid.js:1217-1234) silently misses
+        // them — APPLY_TEMPLATE re-runs and stacks duplicates.
         const newOcc = {
           id: inst.id,
           userId,
@@ -671,7 +729,20 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           fields: inst.fields || {},
           meta: { createdByOperation: true, ...(inst.meta || {}) },
           textmap: inst.textmap || null,
-          occurrences: [],
+          role: effect.template?.role || null,
+          kind: effect.template?.kind || null,
+          label: effect.template?.label || effect.template?.name || null,
+          // Honor occurrences[] if the caller passed one (APPLY_TEMPLATE
+          // sends nested children's ids so the parent is created WITH the
+          // child list rather than patched via a separate UPDATE_OCCURRENCE
+          // — which races against the createQueue and can get overwritten.
+          occurrences: Array.isArray(inst.occurrences) ? inst.occurrences : [],
+          identitySignature: inst.identitySignature || null,
+          // COPY_LINK: when present, the server's update_occurrence handler
+          // (server/socketHandlers/occurrences.js:91) propagates field/textmap
+          // writes bidirectionally across all occurrences sharing this id.
+          // Default null = independent occurrence.
+          linkedGroupId: inst.linkedGroupId || null,
         };
         socketDispatch(createOccurrenceAction(newOcc));
         localOccsById[newOcc.id] = newOcc;
@@ -818,12 +889,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   let _cachedFieldsById = null, _lastFields = null;
   let _cachedOperationsById = null, _lastOperations = null;
   let _cachedBaseOccsById = null, _lastOccurrences = null;
+  let _cachedModulesById = null, _lastModules = null;
 
   function fireOperations(transactionType, transaction, { occurrencesOverride } = {}) {
     const state = stateRef.current || {};
     const operations = state.operations || [];
     const fields = state.fields || [];
     const occurrences = state.occurrences || [];
+    const modules = state.modules || [];
 
 
     // Rebuild fieldsById only when fields array changes
@@ -847,13 +920,21 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       }
       _lastOccurrences = occurrences;
     }
+    // Rebuild modulesById only when modules array changes
+    if (modules !== _lastModules) {
+      _cachedModulesById = {};
+      for (const m of modules) {
+        if (m?.id) _cachedModulesById[m.id] = m;
+      }
+      _lastModules = modules;
+    }
     // Overlay localOccsById on top of cached base (localOccsById is always fresh).
     // occurrencesOverride wins over both — used by delete handlers to keep a
     // just-removed occurrence visible to the executor for this one call so
     // $trigger.occurrence enrichment still works.
     const occurrencesById = Object.assign({}, _cachedBaseOccsById, localOccsById, occurrencesOverride || null);
 
-    const allUpdates = runMatchingOperations(operations, transactionType, transaction, { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById }, { onError: (name, err) => toast.error(`Operation "${name}" failed`, { description: err?.message, duration: 4000 }) });
+    const allUpdates = runMatchingOperations(operations, transactionType, transaction, { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById, modulesById: _cachedModulesById }, { onError: (name, err) => toast.error(`Operation "${name}" failed`, { description: err?.message, duration: 4000 }) });
 
     // Separate display updates (computedValues) from real CRUD effects
     const displayUpdates = allUpdates.filter(u => !u._effect);
@@ -886,6 +967,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   operationsBridge.updateLocalOcc = (occ) => { if (occ?.id) localOccsById[occ.id] = occ; };
   operationsBridge.removeLocalOcc = (occurrenceId) => { delete localOccsById[occurrenceId]; };
   operationsBridge.getLocalOcc = (occurrenceId) => localOccsById[occurrenceId] || null;
+  operationsBridge.getLinkedOccs = (linkedGroupId, excludeId) => {
+    if (!linkedGroupId) return [];
+    const out = [];
+    for (const o of Object.values(localOccsById)) {
+      if (o?.linkedGroupId === linkedGroupId && o.id !== excludeId) out.push(o);
+    }
+    return out;
+  };
 
   // On transaction_created: fire operations + toast notification
   function onTransactionCreated({ transaction } = {}) {
@@ -964,6 +1053,28 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   socket.on("server_error", onServerError);
 
   // ======================================================
+  // TEMPLATE LIFECYCLE — server emits these on completion of clone/apply/save-over.
+  // Surface as toasts so the user gets confirmation that the bulk-clone burst
+  // actually persisted (per server CLAUDE.md the burst is racy without the
+  // deferred bulk_clone_subtree handler, so explicit confirmation matters).
+  // The cloned modules/occurrences themselves arrive via the normal
+  // module_created/occurrence_created stream, so no state hydration here.
+  // ======================================================
+  function onTemplateCreated({ name } = {}) {
+    toast.success(name ? `Saved template "${name}"` : "Template saved", { duration: 2500 });
+  }
+  function onTemplateApplied({ newOccurrenceIds } = {}) {
+    const n = Array.isArray(newOccurrenceIds) ? newOccurrenceIds.length : 0;
+    toast.success(n ? `Applied template (${n} item${n === 1 ? "" : "s"})` : "Template applied", { duration: 2500 });
+  }
+  function onTemplateSavedOver({ name } = {}) {
+    toast.success(name ? `Updated template "${name}"` : "Template updated", { duration: 2500 });
+  }
+  socket.on("template_created", onTemplateCreated);
+  socket.on("template_applied", onTemplateApplied);
+  socket.on("template_saved_over", onTemplateSavedOver);
+
+  // ======================================================
   // SCHEDULE INTERVAL — fires "ScheduleOp" every minute
   // ======================================================
   const scheduleInterval = setInterval(() => {
@@ -996,6 +1107,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     operationsBridge.fireOperations = null;
     operationsBridge.updateLocalOcc = null;
     operationsBridge.removeLocalOcc = null;
+    operationsBridge.getLocalOcc = null;
+    operationsBridge.getLinkedOccs = null;
     clearInterval(scheduleInterval);
     if (bc) { bc.close(); bc = null; }
     socket.off("full_state", onFullState);
@@ -1026,6 +1139,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     socket.off("server_error", onServerError);
     socket.off("transaction_created", onTransactionCreated);
     socket.off("trigger_operation", onTriggerOperation);
+    socket.off("template_created", onTemplateCreated);
+    socket.off("template_applied", onTemplateApplied);
+    socket.off("template_saved_over", onTemplateSavedOver);
 
     for (const { name, onCreated, onUpdated, onDeleted } of genericHandlers) {
       socket.off(`${name}_created`, onCreated);

@@ -6,7 +6,7 @@
 //   dispatch, socket — for CommitHelpers
 //   onClose — close callback
 
-import React, { useState, useContext, useCallback } from "react";
+import React, { useState, useContext, useCallback, useEffect, useRef } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
 import { GridActionsContext } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
@@ -16,9 +16,28 @@ const NAV_DEFAULTS = ["today", "startOfWeek", "startOfMonth"];
 
 function uid() { return crypto.randomUUID(); }
 
-export default function FilterEditor({ occurrence, dispatch, socket, onClose }) {
+export default function FilterEditor({ occurrence, dispatch, socket, onClose, focusFieldId = null }) {
   const { fieldsById } = useContext(GridActionsContext);
   const [filters, setFilters] = useState(() => occurrence?.filters || []);
+  const rowRefs = useRef({});
+
+  // If FiltersSection opened the editor on a specific row (cog button per row),
+  // seed an empty row for that fieldId when missing and scroll it into view on mount.
+  useEffect(() => {
+    if (!focusFieldId) return;
+    setFilters(prev => {
+      if (prev.some(f => f.fieldId === focusFieldId)) return prev;
+      return [...prev, {
+        id: uid(), fieldId: focusFieldId, active: true, showNav: true,
+        timeUnit: "day", defaultNavValue: "today", condition: null,
+      }];
+    });
+    const t = requestAnimationFrame(() => {
+      const el = rowRefs.current[focusFieldId];
+      if (el?.scrollIntoView) el.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(t);
+  }, [focusFieldId]);
 
   const save = useCallback(() => {
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, filters }, emit: true });
@@ -70,8 +89,10 @@ export default function FilterEditor({ occurrence, dispatch, socket, onClose }) 
         {filters.map((f, idx) => (
           <div
             key={f.id}
+            ref={el => { if (f.fieldId) rowRefs.current[f.fieldId] = el; }}
             style={{
-              border: "1px solid var(--border-default)", borderRadius: 6, padding: "10px 12px",
+              border: f.fieldId === focusFieldId ? "1px solid var(--accent-blue)" : "1px solid var(--border-default)",
+              borderRadius: 6, padding: "10px 12px",
               display: "flex", flexDirection: "column", gap: 8, background: "var(--input-bg)",
             }}
           >
@@ -101,33 +122,64 @@ export default function FilterEditor({ occurrence, dispatch, socket, onClose }) 
               </button>
             </div>
 
-            {/* Row 2: timeUnit + defaultNavValue (only shown when showNav) */}
-            {f.showNav && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 10, color: "var(--text-faint)" }}>unit:</span>
-                <select
-                  value={f.timeUnit || "day"}
-                  onChange={e => update(idx, { timeUnit: e.target.value })}
-                  style={{ fontSize: 11, background: "var(--input-bg)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 4, padding: "1px 4px" }}
-                >
-                  {TIME_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-                <span style={{ fontSize: 10, color: "var(--text-faint)" }}>default:</span>
-                <select
-                  value={f.defaultNavValue || "today"}
-                  onChange={e => update(idx, { defaultNavValue: e.target.value })}
-                  style={{ fontSize: 11, background: "var(--input-bg)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 4, padding: "1px 4px" }}
-                >
-                  {NAV_DEFAULTS.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-            )}
+            {/* Row 2: nav options — only date fields show unit/default. Selects show options list. */}
+            {f.showNav && (() => {
+              const selectedField = fieldsById?.[f.fieldId];
+              const ftype = selectedField?.type;
+              if (ftype === "date") {
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 10, color: "var(--text-faint)" }}>unit:</span>
+                    <select
+                      value={f.timeUnit || "day"}
+                      onChange={e => update(idx, { timeUnit: e.target.value })}
+                      style={{ fontSize: 11, background: "var(--input-bg)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 4, padding: "1px 4px" }}
+                    >
+                      {TIME_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                    <span style={{ fontSize: 10, color: "var(--text-faint)" }}>default:</span>
+                    <select
+                      value={f.defaultNavValue || "today"}
+                      onChange={e => update(idx, { defaultNavValue: e.target.value })}
+                      style={{ fontSize: 11, background: "var(--input-bg)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 4, padding: "1px 4px" }}
+                    >
+                      {NAV_DEFAULTS.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                );
+              }
+              if (ftype === "select" || ftype === "boolean") {
+                return (
+                  <div style={{ fontSize: 10, color: "var(--text-faint)" }}>
+                    {ftype === "boolean" ? "nav: true / false toggle" : "nav: pick from field options"}
+                  </div>
+                );
+              }
+              if (ftype === "number" || ftype === "text") {
+                return (
+                  <div style={{ fontSize: 10, color: "var(--text-faint)" }}>
+                    nav: free {ftype} input
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
-            {/* Row 3: condition summary */}
-            <div style={{ fontSize: 10, color: "var(--text-faint)" }}>
-              {f.condition
-                ? `condition: ${f.condition.operator || "OR"} (${(f.condition.rules || []).length} rule${(f.condition.rules||[]).length !== 1 ? "s" : ""})`
-                : "no condition — always show"}
+            {/* Row 3: allow-blank toggle + condition summary */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, color: "var(--text-faint)" }}>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={!!f.allowBlank}
+                  onChange={e => update(idx, { allowBlank: e.target.checked })}
+                />
+                allow blank
+              </label>
+              <span>
+                {f.condition
+                  ? `condition: ${f.condition.operator || "OR"} (${(f.condition.rules || []).length} rule${(f.condition.rules||[]).length !== 1 ? "s" : ""})`
+                  : "no condition — always show"}
+              </span>
             </div>
           </div>
         ))}

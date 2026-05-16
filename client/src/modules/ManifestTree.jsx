@@ -76,7 +76,9 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
   const hasChildren = childOccs.length > 0;
   const mod = modulesById?.[occ.moduleId];
   const contMod = mod; // alias for anchor branch
-  const label = mod?.label || occ.id;
+  // Don't leak the raw occurrence UUID as a label — render "Untitled" when
+  // the module has no label set and the textmap has no heading to fall back on.
+  const label = mod?.label || "Untitled";
   const heading = getDocHeading(occ.textmap);
   const displayLabel = heading || label;
   const isActive = occ.id === activeOccurrenceId;
@@ -131,7 +133,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
   // Anchor chip — clicking scrolls parent doc to this container
   if (isAnchor) {
     return (
-      <div>
+      <div style={{ marginLeft: depth * 14 }}>
         <div style={{ paddingRight: 2, display: "flex", alignItems: "center", gap: 2 }}>
           {hasChildren ? (
             <span onClick={toggleOpen} style={{ fontSize: 8, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, width: 10, textAlign: "center", userSelect: "none", padding: "4px 2px" }}>
@@ -166,7 +168,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
 
   // File row — NodePill, draggable + drop target for reorder
   return (
-    <div ref={rowRef} style={{ paddingRight: 2, position: "relative" }}>
+    <div ref={rowRef} style={{ paddingRight: 2, position: "relative", marginLeft: depth * 14 }}>
       {dropEdge === "top" && <div style={{ position: "absolute", top: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1 }} />}
       {dropEdge === "bottom" && <div style={{ position: "absolute", bottom: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1 }} />}
       <div style={{ display: "flex", alignItems: "center" }}
@@ -351,38 +353,38 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     onSelect(occId);
   }, [state, socket, dispatch, folder.id, allChildOccs, onSelect]);
 
-  // Folder click handler — open folder page if available, and toggle
+  // Folder pill click — open folder as a page (mint a folder-page occurrence
+  // on demand if one doesn't exist yet). Falls back to onSelect when
+  // onOpenPage is missing (e.g. the artifact/FILES tree panel which doesn't
+  // pin pages — it just swaps the active occurrence in its own view).
   const handleFolderClick = useCallback(() => {
     if (isRenaming) return;
-    // Try to open folder as a page via onOpenPage
-    if (onOpenPage) {
-      // Look for a page occurrence whose parentId matches this folder
-      const folderPageOcc = allChildOccs.find(occ => {
-        const mod = modulesById?.[occ.moduleId];
-        return mod?.kind === "folder" && mod?.role === "page";
-      });
-      if (folderPageOcc) {
-        onOpenPage(folderPageOcc.id);
-      } else if (dispatch && socket && state?.userId && state?.grid?._id) {
-        // Auto-create folder-page module + occurrence for folders that don't have one
-        const modId = crypto.randomUUID();
-        const occId = crypto.randomUUID();
-        CommitHelpers.createModule({ dispatch, socket, module: { id: modId, userId: state.userId, gridId: state.grid._id, role: "page", kind: "folder", label: folder.name }, emit: true });
-        CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId: state.userId, gridId: state.grid._id, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: -1, iteration: { mode: "persistent" }, fields: {}, meta: {} }, emit: true });
-        // Navigate to it after a tick so it's in the store
-        setTimeout(() => onOpenPage(occId), 50);
-      }
+    const navigate = onOpenPage || onSelect;
+    if (!navigate) return;
+    const existing = allChildOccs.find(occ => {
+      const mod = modulesById?.[occ.moduleId];
+      return mod?.kind === "folder" && mod?.role === "page";
+    });
+    if (existing) {
+      navigate(existing.id);
+      return;
     }
-    // Also toggle expand/collapse
-    if (hasChildren) setOpen(v => !v);
-  }, [isRenaming, onOpenPage, allChildOccs, modulesById, hasChildren, dispatch, socket, state, folder.id, folder.name]);
+    const userId = state?.userId;
+    const gridId = state?.grid?._id || state?.gridId;
+    if (!dispatch || !socket || !userId || !gridId) return;
+    const modId = crypto.randomUUID();
+    const occId = crypto.randomUUID();
+    CommitHelpers.createModule({ dispatch, socket, module: { id: modId, userId, gridId, role: "page", kind: "folder", label: folder.name }, emit: true });
+    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: -1, iteration: { mode: "persistent" }, fields: {}, meta: {} }, emit: true });
+    navigate(occId);
+  }, [isRenaming, onOpenPage, onSelect, allChildOccs, modulesById, dispatch, socket, state, folder.id, folder.name]);
 
   return (
-    <div ref={folderRef} style={{ paddingRight: 2 }}>
-      {/* Folder pill — uses NodePill for consistent sizing.
-          Indent comes from NodePill's depth-based paddingLeft so all rows
-          share the same right edge. */}
-      <div style={{ display: "flex", alignItems: "center" }}
+    <div ref={folderRef} style={{ paddingRight: 2, marginLeft: depth * 14 }}>
+      {/* Folder pill — depth indent applied on this outer wrapper (not
+          NodePill's padding), so the pill itself starts further right with
+          each level instead of just shifting its content. */}
+      <div style={{ display: "flex", alignItems: "center" }} className="manifest-row"
         onDoubleClick={(e) => { e.stopPropagation(); setRenameValue(folder.name); setIsRenaming(true); }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
       >
@@ -415,6 +417,20 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
               type: "folder", folderId: folder.id, folderName: folder.name, childOccurrenceIds: childOccIds,
             }}
             style={{ flex: 1 }}
+            leadingSlot={
+              <span
+                onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete folder "${folder.name}"? Children are reparented to the parent folder.`)) handleDelete(); }}
+                onPointerDown={(e) => e.stopPropagation()}
+                title="Delete folder"
+                className="manifest-row-x-slot"
+                style={{
+                  flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "var(--text-muted)", borderRadius: 3, cursor: "pointer",
+                }}
+              >
+                <X size={9} />
+              </span>
+            }
           >
             <span
               onClick={(e) => { e.stopPropagation(); handleNewDoc(e); }}
@@ -450,6 +466,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
               childrenByParentId={childrenByParentId} onSelect={onSelect} onScrollTo={onScrollTo}
               activeOccurrenceId={activeOccurrenceId}
               folderPageOccId={folderPageOcc?.id}
+              siblingOccs={pageOccs}
               depth={depth + 1} />
           ))}
           {artifactOccs.map(occ => (
@@ -468,10 +485,58 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
 const PAGE_KIND_GLYPH = { canvas: "∿", doc: "≋", display: "□", board: "≡" };
 
 // ─── PageTreeNode — pill style page entry + container anchor chips (draggable) ──
-function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId, folderPageOccId, reverseIndent = false, depth = 0 }) {
+function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId, folderPageOccId, reverseIndent = false, depth = 0, siblingOccs = null }) {
+  const { dispatch, socket } = useContext(GridActionsContext);
   const pageOcc = occurrencesById?.[pageOccId];
   const pageMod = pageOcc ? modulesById?.[pageOcc.moduleId] : null;
   const [open, setOpen] = useState(false);
+  const [dropEdge, setDropEdge] = useState(null);
+  const dropEdgeRef = useRef(null);
+  const rowRef = useRef(null);
+
+  // Sibling-reorder drop target — accepts other page rows from the same tree
+  // and rewrites sortOrder so they slot above/below this row. Only enabled
+  // when the caller hands us a `siblingOccs` list (root tree mode).
+  useEffect(() => {
+    if (!rowRef.current || !siblingOccs || !dispatch || !socket || !pageOcc) return;
+    return dropTargetForElements({
+      element: rowRef.current,
+      canDrop: ({ source }) => source.data?.type === "module" && source.data?.sourceType === "tree-page" && source.data?.occurrenceId && source.data.occurrenceId !== pageOccId,
+      onDragEnter: ({ location }) => {
+        const rect = rowRef.current.getBoundingClientRect();
+        const edge = location.current.input.clientY < rect.top + rect.height / 2 ? "top" : "bottom";
+        setDropEdge(edge); dropEdgeRef.current = edge;
+      },
+      onDrag: ({ location }) => {
+        const rect = rowRef.current.getBoundingClientRect();
+        const edge = location.current.input.clientY < rect.top + rect.height / 2 ? "top" : "bottom";
+        if (dropEdgeRef.current !== edge) { setDropEdge(edge); dropEdgeRef.current = edge; }
+      },
+      onDragLeave: () => { setDropEdge(null); dropEdgeRef.current = null; },
+      onDrop: ({ source }) => {
+        const edge = dropEdgeRef.current;
+        setDropEdge(null); dropEdgeRef.current = null;
+        const occurrenceId = source.data?.occurrenceId;
+        if (!occurrenceId) return;
+        const myOrder = pageOcc.sortOrder ?? 0;
+        const sorted = siblingOccs.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        const myIdx = sorted.findIndex(s => s.id === pageOccId);
+        let newOrder;
+        if (edge === "top") {
+          const prev = myIdx > 0 ? sorted[myIdx - 1] : null;
+          newOrder = prev ? ((prev.sortOrder ?? 0) + myOrder) / 2 : myOrder - 1;
+        } else {
+          const next = myIdx < sorted.length - 1 ? sorted[myIdx + 1] : null;
+          newOrder = next ? (myOrder + (next.sortOrder ?? 0)) / 2 : myOrder + 1;
+        }
+        CommitHelpers.updateOccurrence({
+          dispatch, socket,
+          occurrence: { id: occurrenceId, parentId: pageOcc.parentId, sortOrder: newOrder },
+          emit: true,
+        });
+      },
+    });
+  }, [pageOccId, pageOcc, siblingOccs, dispatch, socket]);
 
   if (!pageOcc || !pageMod || pageMod.role !== "page") return null;
 
@@ -503,13 +568,33 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
     </span>
   );
 
+  // X close button — rendered INSIDE the pill via `leadingSlot`, so it sits
+  // immediately to the left of the drag handle (GripVertical) on the node
+  // itself. Hover-revealed via .manifest-row-x-slot CSS.
+  const closeSlot = onClosePage ? (
+    <span
+      onClick={(e) => { e.stopPropagation(); onClosePage(pageOccId); }}
+      onPointerDown={(e) => e.stopPropagation()}
+      title="Close page"
+      className="manifest-row-x-slot"
+      style={{
+        flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+        color: "var(--text-muted)", borderRadius: 3, cursor: "pointer",
+      }}
+    >
+      <X size={9} />
+    </span>
+  ) : null;
   return (
-    <div style={{ paddingRight: 2 }}>
-      <div style={{ display: "flex", alignItems: "center", flexDirection: "row", gap: 1 }}>
+    <div ref={rowRef} style={{ paddingRight: 2, position: "relative", marginLeft: depth * 14 }}>
+      {dropEdge === "top"    && <div style={{ position: "absolute", top: 0,    left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
+      {dropEdge === "bottom" && <div style={{ position: "absolute", bottom: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
+      <div style={{ display: "flex", alignItems: "center", flexDirection: "row", gap: 1 }} className="manifest-row">
         {!reverseIndent && chevron}
         <NodePill
           occurrence={pageOcc}
           module={pageMod}
+          leadingSlot={closeSlot}
           onClick={() => {
             // Folder-first: open folder page, auto-drilldown to target (shows only that card's thumbnail)
             if (folderPageOccId && !isActive) {
@@ -527,20 +612,6 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
           reverseIndent={reverseIndent}
           style={{ flex: 1 }}
         />
-        {onClosePage && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onClosePage(pageOccId); }}
-            title="Close page"
-            style={{
-              flexShrink: 0, background: "none", border: "none", cursor: "pointer",
-              padding: "1px 3px", display: "flex", alignItems: "center",
-              color: "var(--text-muted)", borderRadius: 3,
-            }}
-            className="page-tree-close-btn"
-          >
-            <X size={9} />
-          </button>
-        )}
         {reverseIndent && chevron}
       </div>
       {/* Children — visible when expanded */}
@@ -567,11 +638,41 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
 
 // ─── LocalFolderGroup — folder header + pinned pages, mirrors FolderNode style ──
 function LocalFolderGroup({ folder, pageOccIds, occurrencesById, modulesById, childrenByParentId, view, onOpenPage, onClosePage, onSelect, onScrollTo }) {
+  const { dispatch, socket, state } = useContext(GridActionsContext);
   const [open, setOpen] = useState(true);
   const hasChildren = pageOccIds.length > 0;
+
+  // Find an existing folder-page occurrence under this folder, or mint one on
+  // demand. Mirrors FolderNode.handleFolderClick so the local tree behaves the
+  // same as the root tree. Calls onOpenPage SYNCHRONOUSLY after dispatch — the
+  // optimistic createOccurrence dispatch lands the new occ in the store before
+  // openPage runs, so a setTimeout grace window is unnecessary (and was masking
+  // the case where openPage's `currentView` closure was stale by 50ms).
+  const openFolderAsPage = useCallback(() => {
+    const navigate = onOpenPage || onSelect;
+    if (!navigate) return;
+    const allChildren = childrenByParentId?.[folder.id] || [];
+    const folderPageOcc = allChildren.find(occ => {
+      const mod = modulesById?.[occ.moduleId];
+      return mod?.kind === "folder" && mod?.role === "page";
+    });
+    if (folderPageOcc) {
+      navigate(folderPageOcc.id);
+      return;
+    }
+    const userId = state?.userId;
+    const gridId = state?.grid?._id || state?.gridId;
+    if (!dispatch || !socket || !userId || !gridId) return;
+    const modId = crypto.randomUUID();
+    const occId = crypto.randomUUID();
+    CommitHelpers.createModule({ dispatch, socket, module: { id: modId, userId, gridId, role: "page", kind: "folder", label: folder.name }, emit: true });
+    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: -1, iteration: { mode: "persistent" }, fields: {}, meta: {} }, emit: true });
+    navigate(occId);
+  }, [onOpenPage, onSelect, childrenByParentId, folder.id, folder.name, modulesById, dispatch, socket, state]);
+
   return (
     <div style={{ marginLeft: 0, paddingRight: 2 }}>
-      <div style={{ display: "flex", alignItems: "center" }}>
+      <div style={{ display: "flex", alignItems: "center" }} className="manifest-row">
         <span
           style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: hasChildren ? "pointer" : "default", opacity: hasChildren ? 1 : 0, pointerEvents: hasChildren ? "auto" : "none" }}
           onClick={(e) => { if (hasChildren) { e.stopPropagation(); setOpen(v => !v); } }}
@@ -580,8 +681,24 @@ function LocalFolderGroup({ folder, pageOccIds, occurrencesById, modulesById, ch
         </span>
         <NodePill
           module={{ kind: "folder", label: folder.name }}
-          onClick={() => { if (hasChildren) setOpen(v => !v); }}
+          onClick={openFolderAsPage}
           style={{ flex: 1 }}
+          leadingSlot={
+            onClosePage ? (
+              <span
+                onClick={(e) => { e.stopPropagation(); pageOccIds.forEach(id => onClosePage(id)); }}
+                onPointerDown={(e) => e.stopPropagation()}
+                title="Close all pages in folder"
+                className="manifest-row-x-slot"
+                style={{
+                  flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "var(--text-muted)", borderRadius: 3, cursor: "pointer",
+                }}
+              >
+                <X size={9} />
+              </span>
+            ) : null
+          }
         />
       </div>
       {open && hasChildren && (

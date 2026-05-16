@@ -254,16 +254,16 @@ describe("executePipeline", () => {
   });
 
   test("source resolves field values from occurrences into $var", () => {
-    const occs = [
-      { id: "o1", targetId: "inst1", fields: { score: { value: 88, flow: "in" } }, iteration: {} },
-    ];
+    // Source binds to an occurrence id (entityType:"instance" was removed —
+    // entityType:"occurrence" is the canonical occurrence-binding form).
+    const occ = { id: "o1", moduleId: "inst1", fields: { score: { value: 88, flow: "in" } }, iteration: {} };
     const op = makeOp({
       pipeline: pipeWithSources(
-        [{ id: "src1", variableName: "habit", entityType: "instance", entityId: "inst1" }],
+        [{ id: "src1", variableName: "habit", entityType: "occurrence", entityId: "o1" }],
         s("UPDATE", { path: "$display.f1.t", value: "$habit.score" }),
       ),
     });
-    const ctx = { state: {}, fieldsById: {}, occurrencesById: { o1: occs[0] } };
+    const ctx = { state: {}, fieldsById: {}, occurrencesById: { o1: occ } };
     const result = executePipeline(op, ctx);
     expect(result[0].value).toBe(88);
   });
@@ -681,6 +681,55 @@ describe("shouldTrigger — triggerTypes[] array", () => {
     expect(shouldTrigger(op, "MeasureOp")).toBe(false);
     expect(shouldTrigger(op, "OccurrenceListOp")).toBe(false);
     expect(shouldTrigger(op, null)).toBe(false);
+  });
+});
+
+// ─── grid-subject onFilterChange = global filter only (regression) ─────────────
+// Repro of the 2026-05-15 bug: changing the Physical container's local filter
+// fired a NavigationOp carrying sourceOccurrenceId + _ancestorIds, and
+// Schedule: Build Day's { onFilterChange, subjectType:"grid", targetId:"" }
+// trigger matched it (because !targetId short-circuited to true) → Build Day
+// seeded the Schedule for the Daily Goals date. A grid-subject filter trigger
+// must match the GLOBAL (toolbar) change only.
+describe("grid-subject onFilterChange matches global filter changes only", () => {
+  const gridFilterOp = makeOp({
+    enabled: true,
+    triggerTypes: ["onFilterChange"],
+    triggerObjects: [{ eventType: "onFilterChange", subjectType: "grid", targetId: "" }],
+  });
+
+  test("does NOT match a local occurrence filter change (carries sourceOccurrenceId/_ancestorIds)", () => {
+    const localNav = {
+      type: "NavigationOp",
+      sourceOccurrenceId: "physCont1",
+      occurrenceId: "physCont1",
+      _ancestorIds: ["physCont1", "goalsPage1"],
+      _ancestorLabels: ["Physical", "Daily Goals"],
+      date: "2026-05-16",
+    };
+    expect(computeTriggerMatch(gridFilterOp, "NavigationOp", localNav)).toBe(false);
+  });
+
+  test("DOES match a global/toolbar filter change (no source, no ancestors)", () => {
+    const gridNav = { type: "NavigationOp", activeFilterValues: { d: "2026-05-16" }, date: "2026-05-16" };
+    const m = computeTriggerMatch(gridFilterOp, "NavigationOp", gridNav);
+    expect(m && m.matched).toBe(true);
+  });
+
+  test("a filterNav + ancestorLabel trigger still matches the local change in scope", () => {
+    const localScopedOp = makeOp({
+      enabled: true,
+      triggerTypes: ["onFilterChange"],
+      triggerObjects: [{ eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals" }],
+    });
+    const localNav = {
+      type: "NavigationOp",
+      sourceOccurrenceId: "physCont1",
+      _ancestorIds: ["physCont1", "goalsPage1"],
+      _ancestorLabels: ["Physical", "Daily Goals"],
+    };
+    const m = computeTriggerMatch(localScopedOp, "NavigationOp", localNav);
+    expect(m && m.matched).toBe(true);
   });
 });
 
@@ -1376,7 +1425,7 @@ describe("resolveExpr — bug fixes", () => {
     const today = new Date();
     const occ = {
       id: "occ1",
-      targetId: "inst1",
+      moduleId: "inst1",
       fields: { done: { value: true, flow: "in" } },
       iteration: { value: today.toISOString() },
     };
@@ -1439,9 +1488,9 @@ describe("resolveExpr — bug fixes", () => {
   test("LOOP sum accumulates values from today's occurrences", () => {
     const today = new Date();
     const occs = {
-      o1: { id: "o1", targetId: "inst1", fields: { duration: { value: 30, flow: "in" } }, iteration: { value: today.toISOString() } },
-      o2: { id: "o2", targetId: "inst1", fields: { duration: { value: 25, flow: "in" } }, iteration: { value: today.toISOString() } },
-      o3: { id: "o3", targetId: "inst2", fields: { duration: { value: 99, flow: "in" } }, iteration: { value: new Date("2020-01-01").toISOString() } }, // old — excluded
+      o1: { id: "o1", moduleId: "inst1", fields: { duration: { value: 30, flow: "in" } }, iteration: { value: today.toISOString() } },
+      o2: { id: "o2", moduleId: "inst1", fields: { duration: { value: 25, flow: "in" } }, iteration: { value: today.toISOString() } },
+      o3: { id: "o3", moduleId: "inst2", fields: { duration: { value: 99, flow: "in" } }, iteration: { value: new Date("2020-01-01").toISOString() } }, // old — excluded
     };
     const op = makeOp({
       triggerType: "onFilterChange",
@@ -1502,7 +1551,7 @@ describe("Real-world example data operations (workout, nutrition, goals)", () =>
 
   function todayOcc(id, instId, fields) {
     return {
-      id, targetId: instId,
+      id, moduleId: instId,
       fields,
       iteration: { value: TODAY.toISOString(), timeFilter: "daily" },
     };
@@ -1899,7 +1948,7 @@ describe("executePipeline — $trigger.occurrence auto-injection", () => {
   test("triggers with occurrenceId expose enriched $trigger.occurrence", () => {
     const occ = {
       id: "occ-water",
-      targetId: "inst1",
+      moduleId: "inst1",
       parentId: "page-april-17",
       fields: { water: { value: 32, flow: "in" }, completed: { value: true, flow: null } },
     };
@@ -1914,26 +1963,26 @@ describe("executePipeline — $trigger.occurrence auto-injection", () => {
     expect(result[0].value).toBe(32);
   });
 
-  test("$trigger.occurrence.id and parentId are populated", () => {
-    const occ = { id: "occ1", targetId: "inst1", parentId: "page-april-17", fields: {} };
+  test("$trigger.occurrence.id, parentId, and moduleId are populated", () => {
+    const occ = { id: "occ1", moduleId: "inst1", parentId: "page-april-17", fields: {} };
     const op = makeOp({
       pipeline: pipe(
         s("UPDATE", { path: "$display.f_parent.t", value: "$trigger.occurrence.parentId" }),
         s("UPDATE", { path: "$display.f_id.t", value: "$trigger.occurrence.id" }),
-        s("UPDATE", { path: "$display.f_target.t", value: "$trigger.occurrence.targetId" }),
+        s("UPDATE", { path: "$display.f_module.t", value: "$trigger.occurrence.moduleId" }),
       ),
     });
     const ctx = { state: {}, fieldsById: {}, occurrencesById: { occ1: occ } };
     const result = executePipeline(op, ctx, { occurrenceId: "occ1" });
     expect(result.find(r => r.fieldId === "f_parent").value).toBe("page-april-17");
     expect(result.find(r => r.fieldId === "f_id").value).toBe("occ1");
-    expect(result.find(r => r.fieldId === "f_target").value).toBe("inst1");
+    expect(result.find(r => r.fieldId === "f_module").value).toBe("inst1");
   });
 
   test("fields map keeps {value, flow} shape — flow accessible separately", () => {
     const occ = {
       id: "occ1",
-      targetId: "inst1",
+      moduleId: "inst1",
       fields: { amount: { value: 50, flow: "out" } },
     };
     const op = makeOp({
@@ -1973,7 +2022,7 @@ describe("executePipeline — $trigger.occurrence auto-injection", () => {
   });
 
   test("preserves the original transaction fields alongside the enrichment", () => {
-    const occ = { id: "occ1", targetId: "inst1", fields: { water: { value: 16, flow: "in" } } };
+    const occ = { id: "occ1", moduleId: "inst1", fields: { water: { value: 16, flow: "in" } } };
     const op = makeOp({
       pipeline: pipe(
         s("UPDATE", { path: "$display.field.t", value: "$trigger.fieldId" }),
@@ -2147,6 +2196,23 @@ describe("onFilterChange ancestor scoping", () => {
     expect(shouldTrigger(op, "NavigationOp")).toBe(true);
     expect(shouldTrigger(op, "NavigationOp", { _ancestorLabels: ["Anything"] })).toBe(true);
   });
+
+  test("op with both grid-level and ancestor-scoped triggers fires on toolbar (grid-level) nav", () => {
+    // The toolbar's date arrows write grid.activeFilterValues; bindSocketToStore
+    // fires a NavigationOp with no _ancestorIds / _ancestorLabels. An op that
+    // wants to fire on both toolbar nav and local page nav needs a grid-level
+    // trigger alongside any ancestor-scoped triggers — otherwise the grid-level
+    // fire is rejected by matchAncestorScope.
+    const op = makeOp({
+      triggerTypes: ["onFilterChange"],
+      triggerObjects: [
+        { eventType: "onFilterChange", subjectType: "grid" },
+        { eventType: "onFilterChange", subjectType: "filterNav", ancestorLabel: "Schedule" },
+      ],
+    });
+    expect(shouldTrigger(op, "NavigationOp", { activeFilterValues: { date: "2026-05-16" } })).toBe(true);
+    expect(shouldTrigger(op, "NavigationOp", { _ancestorLabels: ["Schedule"] })).toBe(true);
+  });
 });
 
 describe("effectiveFilterFor", () => {
@@ -2207,18 +2273,18 @@ describe("seed-style dedup FIND through executePipeline", () => {
     const schedPageMod  = { id: "mod_sched", role: "page",     kind: "board", label: "Schedule" };
 
     // Occurrences (no enrichment — executePipeline derives templateId/_ancestors).
-    const schedPageOcc = { id: "occ_sched", targetId: "mod_sched", parentId: null, fields: {}, occurrences: ["occ_slot"] };
-    const slotOcc      = { id: "occ_slot",  targetId: "mod_slot",  parentId: "occ_sched", fields: {}, occurrences: ["occ_dw_seeded"] };
+    const schedPageOcc = { id: "occ_sched", moduleId: "mod_sched", parentId: null, fields: {}, occurrences: ["occ_slot"] };
+    const slotOcc      = { id: "occ_slot",  moduleId: "mod_slot",  parentId: "occ_sched", fields: {}, occurrences: ["occ_dw_seeded"] };
     // The previously-seeded "Drink Water" copy at 6:00am for 2026-05-05.
     const seededOcc    = {
-      id: "occ_dw_seeded", targetId: "mod_dw", parentId: "occ_slot",
+      id: "occ_dw_seeded", moduleId: "mod_dw", parentId: "occ_slot",
       fields: {
         f_date:     { value: "2026-05-05", flow: "in" },
         f_timeslot: { value: "6:00am",     flow: "in" },
       },
     };
     // Original Drink Water in the toolkit — same template, no timeslot/date — must not match.
-    const origOcc = { id: "occ_dw_orig", targetId: "mod_dw", parentId: null, fields: {} };
+    const origOcc = { id: "occ_dw_orig", moduleId: "mod_dw", parentId: null, fields: {} };
 
     const occurrencesById = {
       occ_sched: schedPageOcc, occ_slot: slotOcc, occ_dw_seeded: seededOcc, occ_dw_orig: origOcc,
@@ -2270,13 +2336,13 @@ describe("seed-style dedup FIND through executePipeline", () => {
     const drinkWaterMod = { id: "mod_dw", role: "instance", kind: "list", label: "Drink Water" };
     const slotMod       = { id: "mod_slot", role: "container", kind: "list", label: "6:00am" };
     const seededOcc = {
-      id: "occ_dw_seeded", targetId: "mod_dw", parentId: "occ_slot",
+      id: "occ_dw_seeded", moduleId: "mod_dw", parentId: "occ_slot",
       fields: {
         f_date:     { value: "2026-05-05", flow: "in" },
         f_timeslot: { value: "6:00am",     flow: "in" },
       },
     };
-    const slotOcc = { id: "occ_slot", targetId: "mod_slot", parentId: null, fields: {}, occurrences: ["occ_dw_seeded"] };
+    const slotOcc = { id: "occ_slot", moduleId: "mod_slot", parentId: null, fields: {}, occurrences: ["occ_dw_seeded"] };
     const ctx = {
       state: { modules: [drinkWaterMod, slotMod] },
       fieldsById: { f_date: { id: "f_date", type: "date" }, f_timeslot: { id: "f_timeslot", type: "select" } },
@@ -2315,7 +2381,7 @@ describe("seed-style dedup FIND through executePipeline", () => {
 describe("FIND action log entries carry boundVars", () => {
   test("matched record's id/object lands on the action's boundVars", () => {
     const mod = { id: "mod_a", role: "instance", kind: "list", label: "A" };
-    const occA = { id: "occ_a", targetId: "mod_a", parentId: null, fields: {} };
+    const occA = { id: "occ_a", moduleId: "mod_a", parentId: null, fields: {} };
     const ctx = {
       state: { modules: [mod] },
       fieldsById: {},
@@ -2346,10 +2412,10 @@ describe("FIND action log entries carry boundVars", () => {
     const slotMod = { id: "mod_slot", role: "container", label: "6:00am",
                       meta: { scheduleSlot: true, slotLabel: "6:00am" } };
     const dwMod = { id: "mod_dw", role: "instance", label: "Drink Water" };
-    const schedPageOcc = { id: "occ_sched", targetId: "mod_sched", parentId: null, fields: {}, occurrences: ["occ_slot"] };
-    const slotOcc = { id: "occ_slot", targetId: "mod_slot", parentId: "occ_sched", fields: {}, occurrences: ["occ_seeded"] };
+    const schedPageOcc = { id: "occ_sched", moduleId: "mod_sched", parentId: null, fields: {}, occurrences: ["occ_slot"] };
+    const slotOcc = { id: "occ_slot", moduleId: "mod_slot", parentId: "occ_sched", fields: {}, occurrences: ["occ_seeded"] };
     const seededOcc = {
-      id: "occ_seeded", targetId: "mod_dw", parentId: "occ_slot",
+      id: "occ_seeded", moduleId: "mod_dw", parentId: "occ_slot",
       fields: {
         f_date:     { value: "2026-05-06", flow: "in" },
         f_timeslot: { value: "6:00am",     flow: "in" },
@@ -2403,7 +2469,7 @@ describe("FIND action log entries carry boundVars", () => {
 
   test("falls back to id-only itemIdVar by looking up the enriched record in $allItems", () => {
     const dwMod = { id: "mod_dw", role: "instance", label: "Drink Water" };
-    const dwOcc = { id: "occ_dw", targetId: "mod_dw", parentId: null, fields: {} };
+    const dwOcc = { id: "occ_dw", moduleId: "mod_dw", parentId: null, fields: {} };
     const ctx = {
       state: { modules: [dwMod] },
       fieldsById: {},
@@ -2429,11 +2495,11 @@ describe("FIND action log entries carry boundVars", () => {
     // 3 records — 1 matches all 2 rules, 1 matches the first rule only, 1 matches neither.
     const tplDw = { id: "mod_dw", role: "instance", label: "Drink Water" };
     const tplGym = { id: "mod_gym", role: "instance", label: "Go to Gym" };
-    const occA = { id: "occ_match", targetId: "mod_dw", parentId: null,
+    const occA = { id: "occ_match", moduleId: "mod_dw", parentId: null,
                    fields: { f_slot: { value: "9:00am" } } };
-    const occB = { id: "occ_close", targetId: "mod_dw", parentId: null,
+    const occB = { id: "occ_close", moduleId: "mod_dw", parentId: null,
                    fields: { f_slot: { value: "8:00am" } } };
-    const occC = { id: "occ_far", targetId: "mod_gym", parentId: null,
+    const occC = { id: "occ_far", moduleId: "mod_gym", parentId: null,
                    fields: { f_slot: { value: "8:00am" } } };
     const ctx = {
       state: { modules: [tplDw, tplGym] },
@@ -2484,8 +2550,8 @@ describe("FIND action log entries carry boundVars", () => {
   test("$allPages filters role:'page' (was incorrectly filtering role:'panel')", () => {
     const pageMod = { id: "mod_sched", role: "page", label: "Schedule" };
     const panelMod = { id: "mod_centerHub", role: "panel", label: "Panel C" };
-    const pageOcc = { id: "occ_sched", targetId: "mod_sched", parentId: null, fields: {} };
-    const panelOcc = { id: "occ_centerHub", targetId: "mod_centerHub", parentId: null, fields: {} };
+    const pageOcc = { id: "occ_sched", moduleId: "mod_sched", parentId: null, fields: {} };
+    const panelOcc = { id: "occ_centerHub", moduleId: "mod_centerHub", parentId: null, fields: {} };
     const ctx = {
       state: { modules: [pageMod, panelMod] },
       fieldsById: {},
@@ -2518,7 +2584,7 @@ describe("FIND action log entries carry boundVars", () => {
 
   test("FIND with no match still captures candidate evals so user sees why it failed", () => {
     const tpl = { id: "mod_x", role: "instance", label: "X" };
-    const occ = { id: "occ_x", targetId: "mod_x", parentId: null, fields: {} };
+    const occ = { id: "occ_x", moduleId: "mod_x", parentId: null, fields: {} };
     const ctx = {
       state: { modules: [tpl] },
       fieldsById: {},
@@ -2572,5 +2638,150 @@ describe("FIND action log entries carry boundVars", () => {
     expect(findEntry.boundVars.$missId).toBeNull();
     // No matched record → bare path stays as literal (resolveExpr fallback).
     expect(findEntry.resolvedPredicate.rules[0]._leftValue).toBe("label");
+  });
+});
+
+// ─── Build-Day-style per-date idempotency ────────────────────────────────────
+// Models the "Schedule: Build Day" pipeline shape: FIND a template, FIND any
+// instance already stamped with $schedDate under the schedule page, IF none
+// exists → APPLY_TEMPLATE + stamp date on each cloned instance. Re-running
+// with the previously-cloned instance in state is a no-op.
+describe("Build-Day-style per-date idempotency", () => {
+  const dateFieldId = "f_date";
+
+  function makeBuildDayOp(activeDate) {
+    return makeOp({
+      pipeline: pipe(
+        // 1. Find the schedule page so we have its id.
+        s("FIND", {
+          over: "$allPages",
+          predicate: andCond({ left: "label", comparator: "IS", right: "Schedule" }),
+          itemIdVar: "$schedPageId",
+        }),
+        // 2. Find the template root by templateName.
+        s("FIND", {
+          over: "$allOccurrences",
+          predicate: andCond({ left: "meta.templateName", comparator: "IS", right: "Daily Routine" }),
+          itemIdVar: "$tplId",
+        }),
+        // 3. Bind the active date that subsequent steps compare against.
+        s("INIT_VAR", { name: "$schedDate", expr: `literal:${activeDate}` }),
+        // 4. Per-date dedup: does any instance under the schedule page
+        //    already carry the active date?
+        s("FIND", {
+          over: "$allInstances",
+          predicate: andCond(
+            { left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+            { left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+          ),
+          itemIdVar: "$existingId",
+        }),
+        // 5. Gate APPLY_TEMPLATE on (template found) AND (no existing).
+        ifS(
+          andCond(
+            { left: "$tplId",      comparator: "IS_NOT_EMPTY", right: "" },
+            { left: "$existingId", comparator: "IS_EMPTY",     right: "" },
+          ),
+          [
+            s("APPLY_TEMPLATE", {
+              templateRef: "$tplId",
+              targetOccurrenceVar: "$schedPageId",
+              mode: "merge",
+              unwrapRoot: true,
+              resultVar: "$newOccs",
+            }),
+            { id: "loop1", type: "loop", overExpr: "$newOccs", as: "$newOcc",
+              body: [
+                ifS(
+                  andCond({ left: "$newOcc.role", comparator: "IS", right: "instance" }),
+                  [s("UPDATE", { path: `$newOcc.fields.${dateFieldId}.value`, value: "$schedDate" })],
+                  [],
+                ),
+              ],
+            },
+          ],
+          [],
+        ),
+      ),
+    });
+  }
+
+  // Shared template + page subtree. Slot has identitySignature so re-applies
+  // merge into the existing slot. Routine instance has no signature → would
+  // clone fresh, but the per-date guard short-circuits before that.
+  function makeFixture({ withSeededInstance }) {
+    const state = {
+      modules: [
+        { id: "modSched", role: "page",      kind: "board", label: "Schedule" },
+        { id: "modRoot",  role: "page",      kind: "board", label: "Daily Routine" },
+        { id: "modSlot",  role: "container", kind: "list",  label: "6:00am" },
+        { id: "modDW",    role: "instance",  kind: "list",  label: "Drink Water" },
+      ],
+    };
+    const sched   = { id: "occSched", moduleId: "modSched", occurrences: ["existingSlot"] };
+    const slotLive= { id: "existingSlot", moduleId: "modSlot", parentId: "occSched", occurrences: [], identitySignature: "slot:6:00am" };
+    const tplRoot = { id: "tplRoot", moduleId: "modRoot", parentId: null, occurrences: ["tplSlot"], meta: { templateName: "Daily Routine" } };
+    const tplSlot = { id: "tplSlot", moduleId: "modSlot", parentId: "tplRoot", occurrences: ["tplDW"], identitySignature: "slot:6:00am" };
+    const tplDW   = { id: "tplDW",   moduleId: "modDW",   parentId: "tplSlot", occurrences: [] };
+
+    const occurrencesById = { occSched: sched, existingSlot: slotLive, tplRoot, tplSlot, tplDW };
+
+    if (withSeededInstance) {
+      // Simulate a previously-cloned instance under the existing slot, stamped with active date.
+      const seeded = {
+        id: "occSeededDW", moduleId: "modDW", parentId: "existingSlot",
+        fields: { [dateFieldId]: { value: "2026-05-15", flow: "in" } },
+      };
+      occurrencesById.occSeededDW = seeded;
+      slotLive.occurrences = ["occSeededDW"];
+    }
+    const modulesById = Object.fromEntries(state.modules.map(m => [m.id, m]));
+    return {
+      state,
+      fieldsById: { [dateFieldId]: { id: dateFieldId, type: "date" } },
+      occurrencesById,
+      operationsById: {},
+      modulesById,
+    };
+  }
+
+  test("first run clones the routine instance into the existing slot and stamps the active date", () => {
+    const ctx = makeFixture({ withSeededInstance: false });
+    const updates = executePipeline(makeBuildDayOp("2026-05-15"), ctx);
+
+    const creates = updates.filter(u => u._effect === "CREATE_ITEM");
+    expect(creates).toHaveLength(1);
+    expect(creates[0].template.label).toBe("Drink Water");
+    expect(creates[0].instance.parentId).toBe("existingSlot");
+
+    const dateStamp = updates.find(u => u._effect === "UPDATE_ITEM_FIELD" && u.fieldId === dateFieldId);
+    expect(dateStamp).toBeTruthy();
+    expect(dateStamp.value).toBe("2026-05-15");
+  });
+
+  test("second run on the same day with the seeded instance present emits no CREATE_ITEM", () => {
+    const ctx = makeFixture({ withSeededInstance: true });
+    const updates = executePipeline(makeBuildDayOp("2026-05-15"), ctx);
+
+    expect(updates.find(u => u._effect === "CREATE_ITEM")).toBeUndefined();
+    expect(updates.find(u => u._effect === "UPDATE_ITEM_FIELD" && u.fieldId === dateFieldId)).toBeUndefined();
+  });
+
+  test("switching to a different day clones a fresh routine instance stamped with the new date", () => {
+    // State: prior day's instance already exists under the live slot, stamped
+    // with 2026-05-15. User navigates to 2026-05-16. The dedup FIND must
+    // restrict its match to instances dated 2026-05-16, so it finds nothing,
+    // and APPLY_TEMPLATE merge clones a new instance under the same slot.
+    const ctx = makeFixture({ withSeededInstance: true });
+    const updates = executePipeline(makeBuildDayOp("2026-05-16"), ctx);
+
+    const creates = updates.filter(u => u._effect === "CREATE_ITEM");
+    expect(creates).toHaveLength(1);
+    expect(creates[0].template.label).toBe("Drink Water");
+    expect(creates[0].instance.parentId).toBe("existingSlot");
+
+    const dateStamp = updates.find(u => u._effect === "UPDATE_ITEM_FIELD" && u.fieldId === dateFieldId);
+    expect(dateStamp).toBeTruthy();
+    expect(dateStamp.value).toBe("2026-05-16");
   });
 });

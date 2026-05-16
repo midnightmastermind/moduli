@@ -88,11 +88,11 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
 
     // Mark this occurrence as the active focus-race target. The merge
     // pre-pass uses `occId` to fold continuation keystrokes into the right
-    // textblock; `expireAt` is a SLIDING bound that the merge bumps after
-    // every successful absorption (Editor.jsx). A short initial window
-    // (300 ms) means a pause closes it quickly so post-exit typing spawns
-    // a fresh textblock — fast continuous typing keeps re-arming it.
-    recentAutoCreateRef.current = { occId, expireAt: Date.now() + 300 };
+    // textblock; `expireAt` is a SLIDING bound that Editor.jsx onUpdate
+    // bumps on every keystroke during the focus race. Initial window is
+    // 1500 ms to cover slow saves + slow first-mount of the sub-editor;
+    // the merge AND any onUpdate during the race keep re-arming it.
+    recentAutoCreateRef.current = { occId, expireAt: Date.now() + 1500 };
 
     // Focus the sub-editor at END of content as soon as it appears in the DOM.
     // Retry generously (~1s) because the inner ProseMirror is mounted by

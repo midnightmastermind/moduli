@@ -53,7 +53,6 @@ import Container from "./ModuleContainer.jsx";
 import Page from "./ModulePage.jsx";
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
-import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
 import TemplatesSection from "../ui/TemplatesSection";
@@ -284,6 +283,9 @@ function Panel({
   const [dropdownAnchor, setDropdownAnchor] = useState(null);
   const openDropdown = useCallback((e) => setDropdownAnchor(e.currentTarget.getBoundingClientRect()), []);
   const closeDropdown = useCallback(() => setDropdownAnchor(null), []);
+  const [templatesAnchor, setTemplatesAnchor] = useState(null);
+  const openTemplates = useCallback((e) => setTemplatesAnchor(e?.currentTarget?.getBoundingClientRect?.() || null), []);
+  const closeTemplates = useCallback(() => setTemplatesAnchor(null), []);
   // Navigation breadcrumb history — array of occIds in visit order
   const prevActiveOccRef = useRef(null);
   const panelDragMode = module?.defaultDragMode || "move";
@@ -729,6 +731,7 @@ function Panel({
                       onToggleHeader={() => setShowHeader(false)}
                       showHeader={showHeader}
                       onHistory={() => setHistoryOpen(true)}
+                      onTemplate={openTemplates}
                       onDelete={handleRemovePanel}
                     />
                   </div>
@@ -770,9 +773,18 @@ function Panel({
                 {activePageLabel}
               </span>
 
-              {/* QuickAdd + header dropdown + grid cell switcher */}
+              {/* QuickAdd + header dropdown + grid cell switcher.
+                  HeaderChevron intentionally suppressed on panels — panel-level
+                  filter UI is hidden so users configure filters on pages /
+                  containers / instances only. The underlying filterOverride
+                  cascade still flows through panels unchanged (a panel with
+                  filterOverride:null is invisible to descendants' walk via
+                  getEffectiveFilterForOccurrence), and a panel's deactivated
+                  filters[].active:false entries are skipped by
+                  getLocalFilterConditions and don't cascade — descendants can
+                  still inherit grid + higher-ancestor filters past a panel
+                  with all its local filters off ("skip generations"). */}
               <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 5, alignItems: "center" }}>
-                <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} />
                 <QuickAddMenu
                   targetRole="page"
                   onSelect={handleQuickAddPage}
@@ -1093,6 +1105,10 @@ function Panel({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={panelOccurrence} />
+        </HeaderDropdown>
+      )}
+      {templatesAnchor && (
+        <HeaderDropdown anchorRect={templatesAnchor} onClose={closeTemplates}>
           <TemplatesSection occurrence={panelOccurrence} />
         </HeaderDropdown>
       )}

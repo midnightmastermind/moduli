@@ -22,7 +22,8 @@ import {
 function makeMocks() {
   return {
     dispatch: vi.fn(),
-    socket: { emit: vi.fn() },
+    // connected:true so safeEmit forwards through to socket.emit instead of queuing
+    socket: { emit: vi.fn(), connected: true },
   };
 }
 

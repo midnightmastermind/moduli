@@ -1,16 +1,31 @@
 // modules/CanvasContent.jsx
 // CanvasDrawSection — draw toolbar + HTML5 canvas overlay + floating cards.
-// Extracted from containerHelpers.jsx.
+// Canvas is a large pannable WORLD (CANVAS_WORLD_SIZE px square). Surface
+// scrolls; world contains the drawing canvas + floating cards. Grab/Hand
+// tool pans by dragging the surface; edges autoscroll during drag-and-drop
+// (after a short delay so dragging cards OUT doesn't pre-pan). Snap-to-
+// center recentres the viewport on the card bounding-box centroid (or world
+// center if empty).
+//
+// Mobile (≤600px): the horizontal toolbar collapses into a single dropdown
+// button (replaces the desktop hide button). Items render grouped vertically
+// inside the dropdown panel.
 
-import React, { useRef, useState, useCallback, useEffect } from "react";
-import { MousePointer2, Pencil, Square, Circle, Minus, Eraser, Trash2, Undo2, Redo2, ChevronUp } from "lucide-react";
+import React, { useRef, useState, useCallback, useEffect, useLayoutEffect } from "react";
+import { MousePointer2, Hand, Pencil, Square, Circle, Minus, Eraser, Undo2, Redo2, ChevronUp, ChevronDown, Crosshair } from "lucide-react";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { useMobileDetect } from "../hooks/useMobileDetect";
+
+// World size — large enough to feel expansive but small enough that canvas
+// rendering and scroll math stay snappy.
+const CANVAS_WORLD_SIZE = 4000;
 
 // ============================================================
 // CANVAS DRAW SECTION — draw toolbar + HTML5 canvas overlay + floating cards
 // ============================================================
 const DRAW_TOOLS = [
   { id: "select",  icon: MousePointer2, title: "Select / move cards" },
+  { id: "grab",    icon: Hand,          title: "Grab to pan" },
   { id: "pen",     icon: Pencil,        title: "Freehand pen" },
   { id: "line",    icon: Minus,         title: "Straight line" },
   { id: "rect",    icon: Square,        title: "Rectangle" },
@@ -64,6 +79,7 @@ export const CanvasContent = React.memo(function CanvasContent({
   onDoubleClickBackground, ctxState, containerId, panelId, renderCard,
   showToolbar = false,
 }) {
+  const { isMobile } = useMobileDetect();
   const [drawTool, setDrawTool] = useState("select");
   const [drawColor, setDrawColor] = useState("#e2e8f0");
   const [drawSize, setDrawSize] = useState(2);
@@ -74,11 +90,121 @@ export const CanvasContent = React.memo(function CanvasContent({
   // parent-passed showToolbar so this is opt-in.
   const [toolbarOpen, setToolbarOpen] = useState(showToolbar);
   useEffect(() => { setToolbarOpen(showToolbar); }, [showToolbar]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Viewport position + dimensions tracked for the minimap. Updates on scroll
+  // and resize so the minimap reflects the current pan + visible window.
+  const [viewportPos, setViewportPos] = useState({ x: 0, y: 0, w: 0, h: 0 });
+
   const canvasRef = useRef(null);
+  const surfaceRef = useRef(null);
   const isDrawing = useRef(false);
   const currentPath = useRef([]);
   const strokesRef = useRef(strokes);
   strokesRef.current = strokes;
+
+  // Combined ref for surface so the parent's drop ref and our local ref both
+  // attach to the same node.
+  const setSurfaceRef = useCallback((el) => {
+    surfaceRef.current = el;
+    if (typeof listDropRef === "function") listDropRef(el);
+    else if (listDropRef) listDropRef.current = el;
+  }, [listDropRef]);
+
+  // Resolve the viewport center target — bounding-box centroid of existing
+  // cards if any, else world center. Used by snap-to-center AND initial
+  // restore so "center" means the same thing in both places.
+  const computeCenterTarget = useCallback(() => {
+    const items = itemsWithOccurrences || [];
+    const pts = items
+      .map(({ occurrence: o }) => o?.meta)
+      .filter(m => typeof m?.x === "number" && typeof m?.y === "number");
+    if (pts.length === 0) return { x: CANVAS_WORLD_SIZE / 2, y: CANVAS_WORLD_SIZE / 2 };
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const m of pts) {
+      if (m.x < minX) minX = m.x;
+      if (m.x > maxX) maxX = m.x;
+      if (m.y < minY) minY = m.y;
+      if (m.y > maxY) maxY = m.y;
+    }
+    // Add a generous offset so the card's BODY (not just its top-left anchor)
+    // appears centered — cards are typically 200-300px wide.
+    return { x: (minX + maxX) / 2 + 120, y: (minY + maxY) / 2 + 60 };
+  }, [itemsWithOccurrences]);
+
+  const snapToCenter = useCallback((behavior = "smooth") => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const { x, y } = computeCenterTarget();
+    surface.scrollTo({
+      left: Math.max(0, x - surface.clientWidth / 2),
+      top: Math.max(0, y - surface.clientHeight / 2),
+      behavior,
+    });
+  }, [computeCenterTarget]);
+
+  // Initial mount + occurrence switch — restore saved viewport position from
+  // occurrence.meta.viewportX/Y if present, else center on cards (or world
+  // center if no cards). Uses a ResizeObserver to retry once `clientWidth`
+  // becomes nonzero — surface dimensions are 0 on first paint while the
+  // parent flex layout measures, and a one-shot effect would miss that.
+  const readyForSaveRef = useRef(false);
+  useLayoutEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    let didRestore = false;
+    readyForSaveRef.current = false;
+    const tryRestore = () => {
+      if (didRestore) return;
+      const s = surfaceRef.current;
+      if (!s || !s.clientWidth || !s.clientHeight) return;
+      didRestore = true;
+      const savedX = containerOccurrence?.meta?.viewportX;
+      const savedY = containerOccurrence?.meta?.viewportY;
+      if (typeof savedX === "number" && typeof savedY === "number") {
+        s.scrollLeft = savedX;
+        s.scrollTop = savedY;
+      } else {
+        const { x, y } = computeCenterTarget();
+        s.scrollLeft = Math.max(0, x - s.clientWidth / 2);
+        s.scrollTop = Math.max(0, y - s.clientHeight / 2);
+      }
+      requestAnimationFrame(() => { readyForSaveRef.current = true; });
+    };
+    tryRestore();
+    const obs = new ResizeObserver(() => tryRestore());
+    obs.observe(surface);
+    return () => obs.disconnect();
+  }, [containerOccurrence?.id, computeCenterTarget]);
+
+  // Persist viewport position on scroll (debounced) so navigating away +
+  // back restores the same pan position. Skips saves until the initial
+  // restore has settled (see readyForSaveRef above).
+  const saveTimerRef = useRef(null);
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface || !containerOccurrence?.id) return;
+    const onScroll = () => {
+      if (!readyForSaveRef.current) return;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        const s = surfaceRef.current;
+        if (!s) return;
+        CommitHelpers.updateOccurrence({
+          dispatch, socket,
+          occurrence: {
+            ...containerOccurrence,
+            meta: { ...(containerOccurrence.meta || {}), viewportX: s.scrollLeft, viewportY: s.scrollTop },
+          },
+          emit: true,
+        });
+      }, 600);
+    };
+    surface.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      surface.removeEventListener("scroll", onScroll);
+      if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    };
+  }, [containerOccurrence, dispatch, socket]);
 
   // Sync strokes when occurrence changes externally
   useEffect(() => {
@@ -86,21 +212,14 @@ export const CanvasContent = React.memo(function CanvasContent({
     setRedoStack([]);
   }, [containerOccurrence?.id]);
 
-  // Size canvas to match CSS size
+  // Size the drawing canvas to the world size once on mount.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const obs = new ResizeObserver(() => {
-      const { clientWidth: w, clientHeight: h } = canvas;
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        renderStrokes(ctx, strokesRef.current);
-      }
-    });
-    obs.observe(canvas);
-    return () => obs.disconnect();
+    if (canvas.width !== CANVAS_WORLD_SIZE) canvas.width = CANVAS_WORLD_SIZE;
+    if (canvas.height !== CANVAS_WORLD_SIZE) canvas.height = CANVAS_WORLD_SIZE;
+    const ctx = canvas.getContext("2d");
+    renderStrokes(ctx, strokesRef.current);
   }, []);
 
   // Re-render strokes on change
@@ -143,9 +262,61 @@ export const CanvasContent = React.memo(function CanvasContent({
     });
   }, [saveStrokes]);
 
-  const onPointerDown = useCallback((e) => {
-    if (drawTool === "select") return;
-    // Don't draw if clicking the grip handle of a CanvasCard
+  // Grab / pan navigation — pointer drag on the surface moves scroll position.
+  const panStateRef = useRef(null);
+  const onSurfacePointerDown = useCallback((e) => {
+    if (drawTool !== "grab") return;
+    if (e.target?.closest?.("[data-dnd-handle], .module-drag-handle, button, input, textarea, [contenteditable]")) return;
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    panStateRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startScrollLeft: surface.scrollLeft,
+      startScrollTop: surface.scrollTop,
+      pointerId: e.pointerId,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }, [drawTool]);
+
+  const onSurfacePointerMove = useCallback((e) => {
+    const state = panStateRef.current;
+    if (!state) return;
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const dx = e.clientX - state.startX;
+    const dy = e.clientY - state.startY;
+    surface.scrollLeft = state.startScrollLeft - dx;
+    surface.scrollTop = state.startScrollTop - dy;
+    // Pan direction → edge bars on the side the world is being pulled toward.
+    // Cursor moving right pans the content right (scroll decreases), so the
+    // LEFT edge becomes visible — light up that edge. Red if pinned at 0.
+    const active = {
+      left:   dx > 8,
+      right:  dx < -8,
+      top:    dy > 8,
+      bottom: dy < -8,
+    };
+    const next = classifyEdges(active);
+    setEdgeHover(prev => {
+      if (prev.top === next.top && prev.bottom === next.bottom && prev.left === next.left && prev.right === next.right) return prev;
+      return next;
+    });
+  }, [classifyEdges]);
+
+  const onSurfacePointerUp = useCallback((e) => {
+    const state = panStateRef.current;
+    if (!state) return;
+    try { e.currentTarget.releasePointerCapture(state.pointerId); } catch (err) {}
+    panStateRef.current = null;
+    setEdgeHover({ top: 0, bottom: 0, left: 0, right: 0 });
+  }, []);
+
+  // Drawing pointer events — only when a draw tool is active. Run on the world
+  // div (not the surface) so coordinates map to world space directly.
+  const onWorldPointerDown = useCallback((e) => {
+    if (drawTool === "select" || drawTool === "grab") return;
     if (e.target?.closest?.("[data-dnd-handle]")) return;
     e.stopPropagation();
     isDrawing.current = true;
@@ -153,7 +324,7 @@ export const CanvasContent = React.memo(function CanvasContent({
     e.currentTarget.setPointerCapture(e.pointerId);
   }, [drawTool, getPos]);
 
-  const onPointerMove = useCallback((e) => {
+  const onWorldPointerMove = useCallback((e) => {
     if (!isDrawing.current) return;
     const pos = getPos(e);
     const canvas = canvasRef.current;
@@ -190,7 +361,7 @@ export const CanvasContent = React.memo(function CanvasContent({
     ctx.globalCompositeOperation = "source-over";
   }, [drawTool, drawColor, drawSize, getPos]);
 
-  const onPointerUp = useCallback((e) => {
+  const onWorldPointerUp = useCallback((e) => {
     if (!isDrawing.current) return;
     isDrawing.current = false;
     e.currentTarget.releasePointerCapture(e.pointerId);
@@ -214,68 +385,260 @@ export const CanvasContent = React.memo(function CanvasContent({
     }
   }, [drawTool, drawColor, drawSize, getPos, saveStrokes]);
 
-  const toolbarStyle = {
-    display: "flex", alignItems: "center", gap: 4,
-    padding: "4px 8px",
-    background: "var(--surface-overlay)",
-    borderBottom: "1px solid var(--border-subtle)",
-    flexShrink: 0,
-  };
+  // ─── Edge autoscroll during drag-and-drop ─────────────────────────────────
+  // dragover fires continuously while an item is being dragged over the
+  // surface. When the pointer is within EDGE px of an edge we kick off a
+  // ~400ms delay timer before starting the autoscroll interval — this stops
+  // the canvas from pre-navigating when the user is just dragging a card OUT
+  // toward the edge. The matching edge bar lights up immediately on hover (no
+  // delay) so the user can see the affordance even before autoscroll engages.
+  const dxRef = useRef(0);
+  const dyRef = useRef(0);
+  const autoscrollTimerRef = useRef(null);
+  const autoscrollIntervalRef = useRef(null);
+  // Edge state per direction: 0 = off, 1 = blue (active / panning toward),
+  // 2 = red (scroll hit the world boundary, can't go further).
+  const [edgeHover, setEdgeHover] = useState({ top: 0, bottom: 0, left: 0, right: 0 });
+
+  // Boundary-aware edge classification: given a "this direction is active"
+  // flag per edge, paint red if the surface is already pinned at that side
+  // of the world (max scroll reached), otherwise blue. Returns an object
+  // with the same shape as edgeHover state.
+  const classifyEdges = useCallback((active) => {
+    const surface = surfaceRef.current;
+    if (!surface) return { top: 0, bottom: 0, left: 0, right: 0 };
+    const maxX = Math.max(0, surface.scrollWidth - surface.clientWidth);
+    const maxY = Math.max(0, surface.scrollHeight - surface.clientHeight);
+    return {
+      left:   active.left   ? (surface.scrollLeft <= 0    ? 2 : 1) : 0,
+      right:  active.right  ? (surface.scrollLeft >= maxX ? 2 : 1) : 0,
+      top:    active.top    ? (surface.scrollTop  <= 0    ? 2 : 1) : 0,
+      bottom: active.bottom ? (surface.scrollTop  >= maxY ? 2 : 1) : 0,
+    };
+  }, []);
+
+  const stopAutoscroll = useCallback(() => {
+    if (autoscrollTimerRef.current) { clearTimeout(autoscrollTimerRef.current); autoscrollTimerRef.current = null; }
+    if (autoscrollIntervalRef.current) { clearInterval(autoscrollIntervalRef.current); autoscrollIntervalRef.current = null; }
+    dxRef.current = 0; dyRef.current = 0;
+    setEdgeHover({ top: 0, bottom: 0, left: 0, right: 0 });
+  }, []);
+
+  const onSurfaceDragOver = useCallback((e) => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const rect = surface.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const EDGE = 60;
+    const SPEED = 10;
+    let dx = 0, dy = 0;
+    const left = x >= 0 && x < EDGE;
+    const right = x > rect.width - EDGE && x <= rect.width;
+    const top = y >= 0 && y < EDGE;
+    const bottom = y > rect.height - EDGE && y <= rect.height;
+    if (left) dx = -SPEED;
+    else if (right) dx = SPEED;
+    if (top) dy = -SPEED;
+    else if (bottom) dy = SPEED;
+
+    dxRef.current = dx;
+    dyRef.current = dy;
+
+    // Update edge bars immediately for visual feedback (no delay) — only the
+    // autoscroll itself has the 400ms grace. Classifier paints red if the
+    // surface is already pinned at the world boundary in that direction.
+    const next = classifyEdges({ top, bottom, left, right });
+    setEdgeHover(prev => {
+      if (prev.top === next.top && prev.bottom === next.bottom && prev.left === next.left && prev.right === next.right) return prev;
+      return next;
+    });
+
+    if (dx === 0 && dy === 0) {
+      if (autoscrollTimerRef.current) { clearTimeout(autoscrollTimerRef.current); autoscrollTimerRef.current = null; }
+      if (autoscrollIntervalRef.current) { clearInterval(autoscrollIntervalRef.current); autoscrollIntervalRef.current = null; }
+      return;
+    }
+    if (autoscrollIntervalRef.current || autoscrollTimerRef.current) return;
+    autoscrollTimerRef.current = setTimeout(() => {
+      autoscrollTimerRef.current = null;
+      autoscrollIntervalRef.current = setInterval(() => {
+        const s = surfaceRef.current;
+        if (!s) return;
+        s.scrollLeft += dxRef.current;
+        s.scrollTop += dyRef.current;
+      }, 16);
+    }, 400);
+  }, [classifyEdges]);
+
+  const onSurfaceDragLeave = useCallback((e) => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    if (!surface.contains(e.relatedTarget)) stopAutoscroll();
+  }, [stopAutoscroll]);
+
+  // Cleanup on unmount
+  useEffect(() => () => stopAutoscroll(), [stopAutoscroll]);
+
+  // Track viewport scroll + size for the minimap. Single subscription that
+  // refreshes both on scroll and on surface resize.
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const update = () => {
+      setViewportPos({
+        x: surface.scrollLeft,
+        y: surface.scrollTop,
+        w: surface.clientWidth,
+        h: surface.clientHeight,
+      });
+    };
+    update();
+    surface.addEventListener("scroll", update, { passive: true });
+    const obs = new ResizeObserver(update);
+    obs.observe(surface);
+    return () => { surface.removeEventListener("scroll", update); obs.disconnect(); };
+  }, []);
 
   const effectiveContainerId = containerId || module?.id;
   const canUndo = strokes.length > 0;
   const canRedo = redoStack.length > 0;
 
+  // Per-tool cursor for the surface — grab/grabbing for pan, otherwise based
+  // on draw tool.
+  const surfaceCursor = drawTool === "grab"
+    ? (panStateRef.current ? "grabbing" : "grab")
+    : drawTool === "select" ? "default"
+    : drawTool === "eraser" ? "cell"
+    : "crosshair";
+
+  // ─── Minimap ─────────────────────────────────────────────────────────────
+  // Visible when the grab tool is active OR an edge bar is showing (drag-
+  // hover or pan). Click on the minimap recentres the viewport on that
+  // world-coord point.
+  const MINIMAP_SIZE = 120;
+  const minimapScale = MINIMAP_SIZE / CANVAS_WORLD_SIZE;
+  const showMinimap =
+    drawTool === "grab" ||
+    edgeHover.top || edgeHover.bottom || edgeHover.left || edgeHover.right;
+  const handleMinimapClick = useCallback((e) => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const worldX = px / minimapScale;
+    const worldY = py / minimapScale;
+    surface.scrollTo({
+      left: Math.max(0, worldX - surface.clientWidth / 2),
+      top: Math.max(0, worldY - surface.clientHeight / 2),
+      behavior: "smooth",
+    });
+  }, [minimapScale]);
+
+  // ─── Toolbar content — shared between desktop bar + mobile dropdown ──────
+  const toolButtons = (
+    <div className="canvas-toolbar-group">
+      {DRAW_TOOLS.map(t => (
+        <button key={t.id} title={t.title} onClick={() => { setDrawTool(t.id); setMobileMenuOpen(false); }}
+          style={{ background: drawTool === t.id ? "rgba(99,102,241,0.25)" : "none", border: drawTool === t.id ? "1px solid rgba(99,102,241,0.5)" : "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: "pointer", color: drawTool === t.id ? "#818cf8" : "var(--text-muted)", display: "flex", alignItems: "center" }}>
+          <t.icon style={{ width: 13, height: 13 }} />
+        </button>
+      ))}
+    </div>
+  );
+  const colorSwatches = (
+    <div className="canvas-toolbar-group">
+      {DRAW_COLORS.map(c => (
+        <button key={c} onClick={() => { setDrawColor(c); if (drawTool === "select" || drawTool === "grab") setDrawTool("pen"); }}
+          title={c}
+          style={{ width: 14, height: 14, borderRadius: "50%", background: c, border: drawColor === c ? "2px solid #818cf8" : "1px solid rgba(255,255,255,0.15)", cursor: "pointer", padding: 0, flexShrink: 0 }} />
+      ))}
+    </div>
+  );
+  const sizeButtons = (
+    <div className="canvas-toolbar-group">
+      {DRAW_SIZES.map(sz => (
+        <button key={sz} onClick={() => setDrawSize(sz)}
+          title={`${sz}px`}
+          style={{ background: drawSize === sz ? "rgba(99,102,241,0.2)" : "none", border: drawSize === sz ? "1px solid rgba(99,102,241,0.4)" : "1px solid transparent", borderRadius: 4, padding: "2px 5px", cursor: "pointer", color: "var(--text-muted)", fontSize: 9, fontFamily: "var(--font-mono)" }}>
+          {sz}
+        </button>
+      ))}
+    </div>
+  );
+  const historyButtons = (
+    <div className="canvas-toolbar-group">
+      <button onClick={undo} disabled={!canUndo} title="Undo (last stroke)"
+        style={{ background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: canUndo ? "pointer" : "not-allowed", color: canUndo ? "var(--text-muted)" : "var(--text-faint)", display: "flex", alignItems: "center", opacity: canUndo ? 1 : 0.4 }}>
+        <Undo2 style={{ width: 12, height: 12 }} />
+      </button>
+      <button onClick={redo} disabled={!canRedo} title="Redo"
+        style={{ background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: canRedo ? "pointer" : "not-allowed", color: canRedo ? "var(--text-muted)" : "var(--text-faint)", display: "flex", alignItems: "center", opacity: canRedo ? 1 : 0.4 }}>
+        <Redo2 style={{ width: 12, height: 12 }} />
+      </button>
+    </div>
+  );
+  const centerButton = (
+    <div className="canvas-toolbar-group">
+      <button onClick={() => { snapToCenter(); setMobileMenuOpen(false); }} title="Snap view to center"
+        style={{ background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center" }}>
+        <Crosshair style={{ width: 12, height: 12 }} />
+      </button>
+    </div>
+  );
+
+  const sep = <div style={{ width: 1, height: 18, background: "var(--border-subtle)", margin: "0 2px" }} />;
+
   return (
     <div
       data-container-id={effectiveContainerId}
-      style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}
+      style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, position: "relative" }}
     >
-      {/* Draw toolbar — hidden by default; opt-in via showToolbar prop */}
-      {showToolbar && toolbarOpen && <div style={toolbarStyle} onPointerDown={e => e.stopPropagation()}>
-        {DRAW_TOOLS.map(t => (
-          <button key={t.id} title={t.title} onClick={() => setDrawTool(t.id)}
-            style={{ background: drawTool === t.id ? "rgba(99,102,241,0.25)" : "none", border: drawTool === t.id ? "1px solid rgba(99,102,241,0.5)" : "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: "pointer", color: drawTool === t.id ? "#818cf8" : "var(--text-muted)", display: "flex", alignItems: "center" }}>
-            <t.icon style={{ width: 13, height: 13 }} />
+      {/* Toolbar — desktop horizontal bar, hidden when collapsed */}
+      {showToolbar && toolbarOpen && !isMobile && (
+        <div className="canvas-toolbar canvas-toolbar-desktop" onPointerDown={e => e.stopPropagation()}>
+          {toolButtons}
+          {sep}
+          {colorSwatches}
+          {sep}
+          {sizeButtons}
+          {sep}
+          {historyButtons}
+          {sep}
+          {centerButton}
+          <button onClick={() => setToolbarOpen(false)} title="Hide toolbar"
+            style={{ marginLeft: "auto", background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: "pointer", color: "var(--text-faint)", display: "flex", alignItems: "center" }}>
+            <ChevronUp style={{ width: 12, height: 12 }} />
           </button>
-        ))}
-        <div style={{ width: 1, height: 18, background: "var(--border-subtle)", margin: "0 2px" }} />
-        {/* Color swatches */}
-        {DRAW_COLORS.map(c => (
-          <button key={c} onClick={() => { setDrawColor(c); if (drawTool === "select") setDrawTool("pen"); }}
-            title={c}
-            style={{ width: 14, height: 14, borderRadius: "50%", background: c, border: drawColor === c ? "2px solid #818cf8" : "1px solid rgba(255,255,255,0.15)", cursor: "pointer", padding: 0, flexShrink: 0 }} />
-        ))}
-        <div style={{ width: 1, height: 18, background: "var(--border-subtle)", margin: "0 2px" }} />
-        {/* Size selector */}
-        {DRAW_SIZES.map(sz => (
-          <button key={sz} onClick={() => setDrawSize(sz)}
-            title={`${sz}px`}
-            style={{ background: drawSize === sz ? "rgba(99,102,241,0.2)" : "none", border: drawSize === sz ? "1px solid rgba(99,102,241,0.4)" : "1px solid transparent", borderRadius: 4, padding: "2px 5px", cursor: "pointer", color: "var(--text-muted)", fontSize: 9, fontFamily: "var(--font-mono)" }}>
-            {sz}
-          </button>
-        ))}
-        <div style={{ width: 1, height: 18, background: "var(--border-subtle)", margin: "0 2px" }} />
-        {/* Undo / Redo */}
-        <button onClick={undo} disabled={!canUndo} title="Undo (last stroke)"
-          style={{ background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: canUndo ? "pointer" : "not-allowed", color: canUndo ? "var(--text-muted)" : "var(--text-faint)", display: "flex", alignItems: "center", opacity: canUndo ? 1 : 0.4 }}>
-          <Undo2 style={{ width: 12, height: 12 }} />
-        </button>
-        <button onClick={redo} disabled={!canRedo} title="Redo"
-          style={{ background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: canRedo ? "pointer" : "not-allowed", color: canRedo ? "var(--text-muted)" : "var(--text-faint)", display: "flex", alignItems: "center", opacity: canRedo ? 1 : 0.4 }}>
-          <Redo2 style={{ width: 12, height: 12 }} />
-        </button>
-        <div style={{ width: 1, height: 18, background: "var(--border-subtle)", margin: "0 2px" }} />
-        <button onClick={() => saveStrokes([])} title="Clear drawing"
-          style={{ background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: "pointer", color: "var(--text-faint)", display: "flex", alignItems: "center" }}>
-          <Trash2 style={{ width: 12, height: 12 }} />
-        </button>
-        {/* Hide the toolbar — collapses to a small show-pill at the top of the canvas. */}
-        <button onClick={() => setToolbarOpen(false)} title="Hide toolbar"
-          style={{ marginLeft: "auto", background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: "pointer", color: "var(--text-faint)", display: "flex", alignItems: "center" }}>
-          <ChevronUp style={{ width: 12, height: 12 }} />
-        </button>
-      </div>}
+        </div>
+      )}
+
+      {/* Toolbar — mobile collapsed dropdown button + popout panel */}
+      {showToolbar && toolbarOpen && isMobile && (
+        <>
+          <div className="canvas-toolbar canvas-toolbar-mobile" onPointerDown={e => e.stopPropagation()}>
+            {/* Only the snap-to-center button is always-visible on mobile;
+                everything else lives in the dropdown so we keep the top edge
+                tidy on small screens. */}
+            {centerButton}
+            <button onClick={() => setMobileMenuOpen(v => !v)} title="Toolbar"
+              style={{ marginLeft: "auto", background: mobileMenuOpen ? "rgba(99,102,241,0.18)" : "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 6px", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontFamily: "var(--font-mono)" }}>
+              <Pencil style={{ width: 11, height: 11 }} />
+              <ChevronDown style={{ width: 11, height: 11, transform: mobileMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+            </button>
+          </div>
+          {mobileMenuOpen && (
+            <div className="canvas-toolbar-dropdown" onPointerDown={e => e.stopPropagation()}>
+              <div className="canvas-toolbar-dropdown-row">{toolButtons}</div>
+              <div className="canvas-toolbar-dropdown-row">{colorSwatches}</div>
+              <div className="canvas-toolbar-dropdown-row">{sizeButtons}</div>
+              <div className="canvas-toolbar-dropdown-row">{historyButtons}</div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Collapsed-toolbar affordance — small pencil pill to re-open. */}
       {showToolbar && !toolbarOpen && (
@@ -288,45 +651,114 @@ export const CanvasContent = React.memo(function CanvasContent({
         </div>
       )}
 
-      {/* Canvas area — pointer events here for drawing; canvas element always pointer-events:none so drops work */}
+      {/* Minimap — bottom-left overview of the world. Only visible during pan
+          (grab tool) or drag-over. Click anywhere in the minimap to recentre
+          the viewport on that world point. */}
+      {showMinimap && (
+        <div className="canvas-minimap" onPointerDown={(e) => e.stopPropagation()}>
+          <svg
+            width={MINIMAP_SIZE}
+            height={MINIMAP_SIZE}
+            onClick={handleMinimapClick}
+            style={{ display: "block", cursor: "crosshair" }}
+          >
+            <rect x={0} y={0} width={MINIMAP_SIZE} height={MINIMAP_SIZE} fill="rgba(11,18,38,0.92)" stroke="rgba(255,255,255,0.18)" strokeWidth={1} />
+            {/* Card dots */}
+            {(itemsWithOccurrences || []).map(({ occurrence: o }) => {
+              const mx = o?.meta?.x;
+              const my = o?.meta?.y;
+              if (typeof mx !== "number" || typeof my !== "number") return null;
+              const cx = mx * minimapScale;
+              const cy = my * minimapScale;
+              if (cx < 0 || cy < 0 || cx > MINIMAP_SIZE || cy > MINIMAP_SIZE) return null;
+              return <circle key={o.id} cx={cx} cy={cy} r={1.8} fill="rgba(134,239,172,0.85)" />;
+            })}
+            {/* Current viewport rectangle */}
+            <rect
+              x={viewportPos.x * minimapScale}
+              y={viewportPos.y * minimapScale}
+              width={Math.max(2, viewportPos.w * minimapScale)}
+              height={Math.max(2, viewportPos.h * minimapScale)}
+              fill="rgba(129,140,248,0.12)"
+              stroke="rgba(129,140,248,0.85)"
+              strokeWidth={1.2}
+            />
+          </svg>
+        </div>
+      )}
+      {/* Edge bars — sticky to the surface viewport (not the world). Light up
+          on dragover edge zones AND while grab-panning in that direction.
+          State value 1 = blue (can scroll further); 2 = red (pinned at world
+          boundary, can't pan that way). */}
+      {(edgeHover.top || edgeHover.bottom || edgeHover.left || edgeHover.right) && (
+        <>
+          {edgeHover.top    ? <div className={`canvas-edge-bar canvas-edge-top    ${edgeHover.top    === 2 ? "canvas-edge-blocked" : ""}`} /> : null}
+          {edgeHover.bottom ? <div className={`canvas-edge-bar canvas-edge-bottom ${edgeHover.bottom === 2 ? "canvas-edge-blocked" : ""}`} /> : null}
+          {edgeHover.left   ? <div className={`canvas-edge-bar canvas-edge-left   ${edgeHover.left   === 2 ? "canvas-edge-blocked" : ""}`} /> : null}
+          {edgeHover.right  ? <div className={`canvas-edge-bar canvas-edge-right  ${edgeHover.right  === 2 ? "canvas-edge-blocked" : ""}`} /> : null}
+        </>
+      )}
+      {/* Surface — viewport that scrolls over the world. Receives drop events
+          (listDropRef), pan pointer events, and drag-edge autoscroll. */}
       <div
-        ref={listDropRef}
+        ref={setSurfaceRef}
         className="canvas-surface"
-        style={{ flex: 1, position: "relative", overflow: "hidden", background: "var(--surface-overlay)", minHeight: 200,
-          backgroundImage: "radial-gradient(circle, var(--border-subtle) 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-          cursor: drawTool === "select" ? "default" : drawTool === "eraser" ? "cell" : "crosshair",
-          touchAction: drawTool === "select" ? "auto" : "none",
+        style={{ flex: 1, position: "relative", overflow: "auto", background: "var(--surface-overlay)", minHeight: 200,
+          cursor: surfaceCursor,
+          touchAction: drawTool === "select" || drawTool === "grab" ? "auto" : "none",
         }}
-        onDoubleClick={(e) => { if (drawTool === "select") onDoubleClickBackground?.(e); }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
+        onPointerDown={onSurfacePointerDown}
+        onPointerMove={onSurfacePointerMove}
+        onPointerUp={onSurfacePointerUp}
+        onPointerCancel={onSurfacePointerUp}
+        onDragOver={onSurfaceDragOver}
+        onDragLeave={onSurfaceDragLeave}
+        onDrop={stopAutoscroll}
       >
-        {/* Drawing canvas overlay — always pointer-events:none so drag-and-drop events reach this div */}
-        <canvas
-          ref={canvasRef}
+        {/* World — fixed huge size; pan moves scroll of the surface */}
+        <div
+          className="canvas-world"
           style={{
-            position: "absolute", inset: 0, width: "100%", height: "100%",
-            pointerEvents: "none",
-            zIndex: drawTool === "select" ? 0 : 10,
+            position: "relative",
+            width: CANVAS_WORLD_SIZE,
+            height: CANVAS_WORLD_SIZE,
+            backgroundImage: "radial-gradient(circle, var(--border-subtle) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
           }}
-        />
-        {/* Floating module cards (instances or embedded containers) */}
-        {itemsWithOccurrences.map(({ module: mod, occurrence: occ }) =>
-          renderCard && renderCard({
-            module: mod,
-            occurrence: occ,
-            style: { zIndex: drawTool === "select" ? 1 : 5, pointerEvents: drawTool === "select" ? "all" : "none" },
-            containerId,
-            panelId,
-          })
-        )}
-        {itemsWithOccurrences.length === 0 && drawTool === "select" && (
-          <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 11, color: "var(--text-faint)", fontFamily: "var(--font-mono)", pointerEvents: "none", textAlign: "center", lineHeight: 1.6 }}>
-            Double-click to add cards<br />or pick a draw tool above
-          </div>
-        )}
+          onDoubleClick={(e) => { if (drawTool === "select") onDoubleClickBackground?.(e); }}
+          onPointerDown={onWorldPointerDown}
+          onPointerMove={onWorldPointerMove}
+          onPointerUp={onWorldPointerUp}
+        >
+          {/* Drawing canvas overlay — sized to world; pointer-events disabled
+              so drag-and-drop events reach the world / cards. */}
+          <canvas
+            ref={canvasRef}
+            style={{
+              position: "absolute", inset: 0, width: CANVAS_WORLD_SIZE, height: CANVAS_WORLD_SIZE,
+              pointerEvents: "none",
+              zIndex: drawTool === "select" || drawTool === "grab" ? 0 : 10,
+            }}
+          />
+          {/* Floating module cards (instances or embedded containers) */}
+          {itemsWithOccurrences.map(({ module: mod, occurrence: occ }) =>
+            renderCard && renderCard({
+              module: mod,
+              occurrence: occ,
+              style: {
+                zIndex: drawTool === "select" || drawTool === "grab" ? 1 : 5,
+                pointerEvents: drawTool === "select" || drawTool === "grab" ? "all" : "none",
+              },
+              containerId,
+              panelId,
+            })
+          )}
+          {itemsWithOccurrences.length === 0 && drawTool === "select" && (
+            <div style={{ position: "absolute", top: CANVAS_WORLD_SIZE / 2, left: CANVAS_WORLD_SIZE / 2, transform: "translate(-50%,-50%)", fontSize: 11, color: "var(--text-faint)", fontFamily: "var(--font-mono)", pointerEvents: "none", textAlign: "center", lineHeight: 1.6 }}>
+              Double-click to add cards<br />or pick a draw tool above
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

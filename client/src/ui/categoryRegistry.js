@@ -251,3 +251,61 @@ export function buildRecordKeyPickerConfig(over, { placeholder } = {}) {
     recordShape: recordShapeForCollection(over),
   };
 }
+
+// TEMPLATE_PICKER_CONFIG drives a CategoryPathPicker that lists every saved
+// template (occurrence carrying meta.templateName) under one category. Used
+// by the APPLY_TEMPLATE action editor so authors can pick a template by name
+// instead of hand-typing its occurrence id. Picking a row commits the
+// template occurrence id as the chosen value. Falls back to a $-prefixed
+// Sources row when sources include `allTemplates` so authors can still bind
+// a template via a Source if they prefer.
+export const TEMPLATE_PICKER_CONFIG = {
+  placeholder: "Pick template",
+  categories: [
+    {
+      id: "templates",
+      label: "Saved templates",
+      description: "Pick one of the named templates in the Templates manifest",
+      icon: Sparkles,
+      color: "rgba(139,92,246,0.7)",
+      resolveItems: (ctx) => {
+        const occById = ctx?.occurrencesById || {};
+        const modById = ctx?.modulesById || {};
+        return Object.values(occById)
+          .filter(o => o?.meta?.templateName)
+          .map(o => {
+            const mod = modById[o.moduleId || o.targetId];
+            const kind = mod?.role || mod?.kind || "";
+            return {
+              value: o.id,
+              title: o.meta.templateName,
+              sub: kind || "template",
+              description: kind
+                ? `Template (${kind}) — apply to a matching ${kind} occurrence`
+                : "Saved template",
+              hasChildren: false,
+            };
+          })
+          .sort((a, b) => a.title.localeCompare(b.title));
+      },
+    },
+    {
+      id: "sources",
+      label: "Sources",
+      description: "Variables bound from a Source row that resolves to a template",
+      icon: Database,
+      color: "rgba(59,130,246,0.7)",
+      resolveItems: (ctx) => (ctx?.sources || [])
+        .filter(s => s.entityType === "allTemplates" || s.entityType === "occurrence")
+        .map(s => ({
+          value: `$${s.variableName}`,
+          title: `$${s.variableName}`,
+          sub: s.entityType,
+          description: s.entityType === "allTemplates"
+            ? "All template modules (pick one via path drill)"
+            : "Bound occurrence — must be a template",
+          hasChildren: false,
+        })),
+    },
+  ],
+};

@@ -51,8 +51,12 @@ export default function App() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // Track previous filterNavState to detect date changes for NavigationOp
+  // Track previous filterNavState to detect date changes for NavigationOp.
+  // filterNavInitializedRef stays false until the first non-empty hydration so
+  // the initial {} → populated transition (which happens on every load) doesn't
+  // fire a spurious NavigationOp on top of the onLoad pass.
   const prevFilterNavRef = useRef({});
+  const filterNavInitializedRef = useRef(false);
 
   // Expose state to window for E2E test data verification
   if (typeof window !== "undefined") window.__moduli_state__ = state;
@@ -293,14 +297,33 @@ export default function App() {
     const prev = prevFilterNavRef.current;
     const curr = state.filterNavState || {};
 
+    // First hydration of filterNavState — sync the ref and skip the fire.
+    // The matching onLoad pass already runs ops once on full_state arrival;
+    // firing NavigationOp here too would run every onFilterChange-triggered op
+    // a second time on every reload (and create duplicate sweep targets).
+    if (!filterNavInitializedRef.current) {
+      if (Object.keys(curr).length > 0) filterNavInitializedRef.current = true;
+      prevFilterNavRef.current = curr;
+      console.log("[BUILD-DAY] filterNavState useEffect (init skip)", { curr });
+      return;
+    }
+
     const changed = Object.entries(curr).filter(([id, val]) => {
       if (!val || typeof val !== "string") return false;
       if (isNaN(Date.parse(val))) return false;
       return val !== prev[id];
     });
 
+    console.log("[BUILD-DAY] filterNavState useEffect", {
+      prev,
+      curr,
+      changedKeys: changed.map(([id]) => id),
+      changedValues: changed.map(([id, v]) => ({ id, v })),
+    });
+
     if (changed.length > 0) {
       const date = changed[0][1];
+      console.log("[BUILD-DAY] filterNavState firing NavigationOp", { date, activeFilterValues: curr });
       operationsBridge.fireOperations?.("NavigationOp", {
         type: "NavigationOp",
         activeFilterValues: curr,
@@ -740,8 +763,9 @@ export default function App() {
           )}
         </div>
 
-        {/* Toast notifications — anchored inside the top toolbar area, centered. */}
-        <Toaster position="top-center" offset={4} />
+        {/* Toast notifications — slim (≤24px tall) and tucked into the toolbar
+            band so they never spill down over the grid. */}
+        <Toaster position="top-center" offset={3} />
       </GridDataContext.Provider>
       </GridLiveContext.Provider>
     </GridActionsContext.Provider>

@@ -37,10 +37,13 @@ const logSubscribers = new Map();        // Map<opId, Set<fn>>
 // values. Closer ancestors win over distant ones; grid.activeFilterValues acts
 // as the floor. Public so callers outside the executor (tests, panels) can
 // share the same resolution.
-export function effectiveFilterFor(occurrenceId, { occurrencesById = {}, gridFilters = null } = {}) {
+export function effectiveFilterFor(occurrenceId, { occurrencesById = {}, gridFilters = null, parentByChildId = null } = {}) {
   const occ = occurrencesById[occurrenceId];
   if (!occ) return {};
   const merged = { ...(gridFilters || {}) };
+  // Parent linkage is authoritative via parent.occurrences[], not `parentId`
+  // (see selectors.getParentOccurrence). One shared reverse-map builder.
+  const pbc = parentByChildId || buildParentMap(occurrencesById);
   const seen = new Set();
   let cur = occ;
   let depth = 0;
@@ -48,7 +51,8 @@ export function effectiveFilterFor(occurrenceId, { occurrencesById = {}, gridFil
   while (cur && !seen.has(cur.id) && depth++ < 20) {
     seen.add(cur.id);
     chain.push(cur);
-    cur = cur.parentId ? occurrencesById[cur.parentId] : null;
+    const nextId = pbc[cur.id] ?? cur.parentId;
+    cur = nextId ? occurrencesById[nextId] : null;
   }
   for (let i = chain.length - 1; i >= 0; i--) {
     const override = chain[i].filterOverride;
@@ -363,6 +367,23 @@ function matchAncestorScope(to, eventType, transaction) {
  */
 function matchSubjectFilter(to, eventType, transaction) {
   const { subjectType, subjectRole, targetId } = to || {};
+
+  // A "grid" subject on a filter/navigation trigger means the GLOBAL
+  // (toolbar / grid.activeFilterValues) filter ONLY. A local occurrence
+  // filterOverride change fires a NavigationOp carrying sourceOccurrenceId +
+  // _ancestorIds (CommitHelpers.updateOccurrenceFilterOverride); a true
+  // grid/toolbar change (App.jsx / bindSocketToStore onGridUpdated) carries
+  // neither. Checked BEFORE the `!targetId` shortcut below, because these
+  // triggers use targetId:"" and would otherwise match every filter change —
+  // that's why changing the Physical container's date wrongly fired
+  // Schedule: Build Day (its grid-subject onFilterChange trigger). Local
+  // changes are handled exclusively by subjectType:"filterNav" triggers,
+  // scoped further by matchAncestorScope's ancestorLabel.
+  if (subjectType === "grid" && (eventType === "onFilterChange" || eventType === "onNavigation")) {
+    return !transaction?.sourceOccurrenceId
+      && !(Array.isArray(transaction?._ancestorIds) && transaction._ancestorIds.length > 0);
+  }
+
   if (!targetId) return true;
 
   if (subjectType === "field") return transaction?.fieldId === targetId;
@@ -652,10 +673,47 @@ export function runMatchingOperations(operations, transactionType, transaction, 
   // triggers can carry different priorities for each, and the matching one wins.
   // Tiebreaker: sortOrder. Ops that don't match are filtered out before sort.
   const matched = [];
+  const buildDayOp = operations.find(o => o?.name === "Schedule: Build Day");
+  if (transactionType === "NavigationOp" || transactionType == null) {
+    console.log("[BUILD-DAY] runMatchingOperations called", {
+      transactionType,
+      transaction,
+      buildDayPresent: !!buildDayOp,
+      buildDayTriggerObjects: buildDayOp?.triggerObjects,
+      buildDayTriggerTypes: buildDayOp?.triggerTypes,
+      operationCount: operations.length,
+    });
+  }
   for (const op of operations) {
     const m = computeTriggerMatch(op, transactionType, transaction);
+    if (!m && op?.name === "Schedule: Build Day") {
+      console.log("[BUILD-DAY] op did NOT match", {
+        transactionType,
+        transaction,
+        triggerTypes: op.triggerTypes,
+        triggerObjects: op.triggerObjects,
+      });
+    }
     if (!m) continue;
     matched.push({ op, match: m });
+  }
+  // [FILTER-DIAG] TEMP — remove after diagnosing the goal/schedule filter bug.
+  // On a NavigationOp (a filter change) show which ops matched and what
+  // ancestor scope the NavigationOp carried. Tells us if Build Day is firing
+  // when it shouldn't (it should NOT match a Physical-container filter change).
+  if (transactionType === "NavigationOp") {
+    console.log("[FILTER-DIAG] NavigationOp →", {
+      sourceOccurrenceId: transaction?.sourceOccurrenceId ?? transaction?.occurrenceId,
+      fieldId: transaction?.fieldId,
+      date: transaction?.date,
+      _ancestorLabels: transaction?._ancestorLabels,
+      _ancestorIds: transaction?._ancestorIds,
+      matchedOps: matched.map(x => ({
+        name: x.op.name,
+        viaAncestorLabel: x.match.triggerObject?.ancestorLabel ?? null,
+        eventType: x.match.triggerObject?.eventType ?? null,
+      })),
+    });
   }
   matched.sort((a, b) => {
     const pa = a.match.triggerObject?.priority ?? 5;
@@ -683,6 +741,14 @@ export function runMatchingOperations(operations, transactionType, transaction, 
       trigger: transaction ? { ...transaction } : null,
       matchedTriggerObject: match.triggerObject,
     });
+    const _isBuildDay = op?.name === "Schedule: Build Day";
+    if (_isBuildDay) {
+      console.log("[BUILD-DAY] op matched, about to run pipeline", {
+        transactionType,
+        matchedTriggerObject: match.triggerObject,
+        trigger: transaction,
+      });
+    }
     try {
       let results;
       if (op.pipeline) {
@@ -693,6 +759,43 @@ export function runMatchingOperations(operations, transactionType, transaction, 
       applyEffectsToLiveOccs(liveOccs, results);
       updates.push(...results);
       logger.add("end", { updates: results, durationMs: Date.now() - startedAt });
+      if (_isBuildDay) {
+        const creates = results.filter(r => r._effect === "CREATE_ITEM");
+        const fieldUpdates = results.filter(r => r._effect === "UPDATE_ITEM_FIELD");
+        console.log("[BUILD-DAY] pipeline complete", {
+          totalEffects: results.length,
+          createItems: creates.length,
+          fieldUpdates: fieldUpdates.length,
+          durationMs: Date.now() - startedAt,
+        });
+        // Find the relevant action-log entries for $schedDate, $existingRoutineId, APPLY_TEMPLATE
+        const relevantEntries = logger.entries.filter(e =>
+          e.kind === "action" &&
+          (e.config?.name === "$schedDate" ||
+           e.config?.itemIdVar === "$existingRoutineId" ||
+           e.config?.itemIdVar === "$dailyRoutineTplId" ||
+           e.config?.itemIdVar === "$schedPageId" ||
+           e.actionType === "APPLY_TEMPLATE")
+        );
+        for (const entry of relevantEntries) {
+          console.log("[BUILD-DAY] step", {
+            actionType: entry.actionType,
+            config: entry.config,
+            boundVars: entry.boundVars,
+            resolvedConfig: entry.resolvedConfig,
+            resultCount: entry.resultCount,
+          });
+        }
+        // Also log the trigger snapshot — useful for verifying $parentFilter inputs
+        const startEntry = logger.entries.find(e => e.kind === "start");
+        if (startEntry) {
+          console.log("[BUILD-DAY] trigger snapshot", {
+            transactionType: startEntry.transactionType,
+            trigger: startEntry.trigger,
+            matchedTriggerObject: startEntry.matchedTriggerObject,
+          });
+        }
+      }
     } catch (err) {
       console.warn(`[operationExecutor] error in operation "${op.name}":`, err);
       logger.add("error", { message: String(err?.message || err), stack: err?.stack });
@@ -850,7 +953,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       meta: { ...(tpl?.meta || {}), ...(occ.meta || {}) },
       templateId: occ.moduleId ?? null,
       _ancestors: ancestorsFor(occ.id),
-      _effectiveFilter: getEffectiveFilterForOccurrence(occ, { grid: state?.grid, occurrencesById }),
+      _effectiveFilter: getEffectiveFilterForOccurrence(occ, { grid: state?.grid, occurrencesById, parentByChildId }),
     };
   });
 
@@ -879,7 +982,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     ...(() => {
       const targetOccId = operation.targetOccurrenceId;
       const targetOcc = targetOccId ? occurrencesById[targetOccId] : null;
-      const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById });
+      const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById, parentByChildId });
       const dateVal = Object.values(efv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
       const dayKey = dateVal ? dateVal.slice(0, 10) : null;
       const d = dateVal ? new Date(dateVal + "T00:00:00") : _nowDate;

@@ -48,6 +48,7 @@ export default function NodePill({
   reverseIndent = false,
   style: extraStyle,
   children,
+  leadingSlot,
 }) {
   const ref = useRef(null);
   const Icon = getIcon(module);
@@ -63,11 +64,11 @@ export default function NodePill({
   }, [dragData]);
 
   const isEntity = variant === "entity";
-  // Indent INSIDE the pill so the right edge stays at the container's right
-  // edge regardless of depth — every pill ends up the same width with content
-  // shifted to suggest hierarchy. Outer wrappers should NOT marginLeft.
+  // Depth indentation lives OUTSIDE the pill (the row wrapper applies
+  // marginLeft based on depth). Pill keeps a constant base padding so the
+  // content sits tight against the left edge of the pill body.
   const basePaddingLeft = isEntity ? 6 : 4;
-  const indentedPaddingLeft = basePaddingLeft + depth * 12;
+  const indentedPaddingLeft = basePaddingLeft;
 
   return (
     <div
@@ -95,6 +96,7 @@ export default function NodePill({
         ...extraStyle,
       }}
     >
+      {leadingSlot}
       {isEntity && (
         <GripVertical size={10} style={{ opacity: 0.35, flexShrink: 0 }} />
       )}

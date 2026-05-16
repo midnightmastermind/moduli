@@ -23,7 +23,7 @@
 // ============================================================
 
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
-import { applyUpdate } from "./applyUpdate";
+import { applyUpdate, substituteTextmapTokens } from "./applyUpdate";
 import { toast } from "sonner";
 
 // ============================================================
@@ -399,7 +399,7 @@ export function evalGroupAgainstRecord(group, record, $vars) {
  * to avoid circular imports for the RUN_OPERATION case.
  */
 export function executeActionItem(type, cfg, $vars, context, transaction) {
-  const { state, fieldsById = {}, occurrencesById = {}, operationsById = {} } = context;
+  const { state, fieldsById = {}, occurrencesById = {}, operationsById = {}, modulesById = {} } = context;
   const updates = [];
 
   switch (type) {
@@ -761,6 +761,304 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
+    // ---- COPY_LINK: mint a new occurrence sharing module + linkedGroupId ----
+    // cfg: { sourceId, parent?, insertAtIndex?, fields?, copyFields? (default
+    //        true), linkedGroupVar?, itemIdVar?, itemVar? }
+    //
+    // Distinct from CREATE (mints a fresh template + independent occurrence)
+    // and from a deep copy (would mint a new module). The copy and the source
+    // share both `moduleId` and `linkedGroupId`. The server's update_occurrence
+    // handler (server/socketHandlers/occurrences.js:91-124) propagates field +
+    // textmap writes bidirectionally across all occurrences sharing a
+    // linkedGroupId, so completing one marks the source AND every other copy.
+    //
+    // If the source has no linkedGroupId yet, we mint one and emit an
+    // UPDATE_OCCURRENCE for the source so the next field write on either
+    // side triggers the linked-group fan-out at occurrences.js:92.
+    //
+    // RECURSION (added 2026-05-15): when the source has children, each child
+    // is recursively COPY_LINKed too — pairwise, so source.occurrences[i] is
+    // linked to copy.occurrences[i] via its own per-child linkedGroupId.
+    // Server propagates fields/textmap across each pair independently. This
+    // means structural copies of a doc/container subtree stay in sync at every
+    // level (mark a sub-textblock done in one copy → ticks in all copies).
+    // cfg.fields applies ONLY to the root clone; recursing into children with
+    // the same stamp would overwrite their own per-child field values. Same
+    // for cfg.itemIdVar / cfg.itemVar / cfg.linkedGroupVar / cfg.parent /
+    // cfg.insertAtIndex — root only.
+    case "COPY_LINK": {
+      const sourceId = resolveExpr(cfg.sourceId, $vars);
+      if (!sourceId) break;
+
+      // Migration mode: when cfg.targetId points at an existing occurrence,
+      // we just LINK the two via shared linkedGroupId — no new occurrence is
+      // created. Used when an un-linked sibling exists from before COPY_LINK
+      // was rolled out (or a pre-COPY_LINK seed run); subsequent Build Day
+      // sweeps detect it via the existing-copy FIND and call back here with
+      // targetId set to retroactively join them. Server's update_occurrence
+      // linked-group fan-out (occurrences.js:91) then propagates writes
+      // bidirectionally as if the copy had been COPY_LINKed from the start.
+      // Shallow only — children of the target aren't pairwise-walked here
+      // (use a fresh COPY_LINK to get recursive linking on freshly-cloned
+      // subtrees). Acceptable for the canonical migration case (leaf todo
+      // already swept into Due as a leaf copy).
+      const migrationTargetId = resolveExpr(cfg.targetId, $vars);
+      if (migrationTargetId) {
+        const findOcc = (id) =>
+          (context.occurrencesById && context.occurrencesById[id])
+          || (Array.isArray($vars.$allItems) && $vars.$allItems.find(o => o?.id === id))
+          || (Array.isArray($vars.$allOccurrences) && $vars.$allOccurrences.find(o => o?.id === id))
+          || null;
+        const src = findOcc(sourceId);
+        const tgt = findOcc(migrationTargetId);
+        if (!src || !tgt) break;
+
+        let linkedGroupId = src.linkedGroupId || tgt.linkedGroupId || null;
+        const sourceNeedsUpdate = !src.linkedGroupId || src.linkedGroupId !== linkedGroupId;
+        const targetNeedsUpdate = !tgt.linkedGroupId || tgt.linkedGroupId !== linkedGroupId;
+        if (!linkedGroupId) {
+          // Deterministic — same derivation as the fresh-clone path so a
+          // migration link and a fresh COPY_LINK of the same source converge
+          // on one group id (see the long note in the fresh path below).
+          linkedGroupId = `lg-${src.id}`;
+        }
+
+        // Mirror onto in-pipeline overlay so subsequent steps + later sweeps
+        // in the same pipeline see the freshly-linked state.
+        if (context.occurrencesById?.[sourceId]) {
+          context.occurrencesById[sourceId] = { ...context.occurrencesById[sourceId], linkedGroupId };
+        }
+        if (context.occurrencesById?.[migrationTargetId]) {
+          context.occurrencesById[migrationTargetId] = { ...context.occurrencesById[migrationTargetId], linkedGroupId };
+        }
+        if (Array.isArray($vars.$allItems)) {
+          $vars.$allItems = $vars.$allItems.map(o =>
+            o && (o.id === sourceId || o.id === migrationTargetId) ? { ...o, linkedGroupId } : o
+          );
+        }
+        if (Array.isArray($vars.$allOccurrences)) {
+          $vars.$allOccurrences = $vars.$allOccurrences.map(o =>
+            o && (o.id === sourceId || o.id === migrationTargetId) ? { ...o, linkedGroupId } : o
+          );
+        }
+
+        if (sourceNeedsUpdate) {
+          updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { id: sourceId, linkedGroupId } });
+        }
+        if (targetNeedsUpdate) {
+          updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { id: migrationTargetId, linkedGroupId } });
+        }
+
+        if (cfg.linkedGroupVar) $vars[cfg.linkedGroupVar] = linkedGroupId;
+        if (cfg.itemIdVar) $vars[cfg.itemIdVar] = migrationTargetId;
+        break;
+      }
+
+      // Date-typed value validation, identical to CREATE (B20 fix).
+      const isDateValue = (v) => {
+        if (v == null) return false;
+        if (v instanceof Date) return !isNaN(v.getTime());
+        if (typeof v !== "string") return false;
+        if (!/^\d{4}-\d{2}-\d{2}/.test(v)) return false;
+        return !isNaN(new Date(v).getTime());
+      };
+
+      // Source can be in either context.occurrencesById (live overlay,
+      // includes same-pipeline CREATEs) or $vars.$allItems (executor's
+      // enriched snapshot built once at executePipeline start). Prefer the
+      // overlay since it sees in-flight mutations.
+      const findSource = (id) =>
+        (context.occurrencesById && context.occurrencesById[id])
+        || (Array.isArray($vars.$allItems) && $vars.$allItems.find(o => o?.id === id))
+        || (Array.isArray($vars.$allOccurrences) && $vars.$allOccurrences.find(o => o?.id === id))
+        || null;
+
+      // Recursive helper. Mints a new link-id per source occurrence (reuses
+      // existing where present), recurses into children, and emits the
+      // CREATE_ITEM with the children's ids inlined so the parent is
+      // created with its `occurrences[]` set in one shot (avoids the
+      // bindSocketToStore parent.occurrences[] race — same pattern as
+      // APPLY_TEMPLATE clone). seen + depth cap protect against any cycle
+      // a malformed source subtree could introduce.
+      const seen = new Set();
+      const linkOne = (src, targetParentId, isRoot, depth) => {
+        if (!src || seen.has(src.id) || depth > 24) return null;
+        seen.add(src.id);
+        const srcMod = src.moduleId || src.templateId;
+        if (!srcMod) return null;
+
+        // Reuse or mint linkedGroupId for THIS source occurrence. mintedNewLink
+        // gates the source UPDATE_OCCURRENCE patch (no-op when re-linking).
+        // The minted id is DETERMINISTIC (`lg-<sourceOccId>`), not random:
+        // Build Day fires several times per load (onLoad + the filter-bootstrap
+        // onFilterChange), and across separate op runs in one batch the
+        // source's freshly-minted link isn't always visible in the frozen
+        // snapshot. A random id would diverge — source ends up in one group,
+        // the swept copy (or a duplicate copy) in another — and the server's
+        // linkedGroupId fan-out never matches, so completing one never ticks
+        // the other. Deriving the id from the stable source occ id makes every
+        // COPY_LINK of the same source converge on one group, idempotently.
+        let linkedGroupId = src.linkedGroupId || null;
+        let mintedNewLink = false;
+        if (!linkedGroupId) {
+          linkedGroupId = `lg-${src.id}`;
+          mintedNewLink = true;
+          if (context.occurrencesById && context.occurrencesById[src.id]) {
+            context.occurrencesById[src.id] = { ...context.occurrencesById[src.id], linkedGroupId };
+          }
+          if (Array.isArray($vars.$allItems)) {
+            $vars.$allItems = $vars.$allItems.map(o => (o && o.id === src.id ? { ...o, linkedGroupId } : o));
+          }
+          if (Array.isArray($vars.$allOccurrences)) {
+            $vars.$allOccurrences = $vars.$allOccurrences.map(o => (o && o.id === src.id ? { ...o, linkedGroupId } : o));
+          }
+        }
+
+        // Initial fields: optional copy from source. cfg.fields applies to
+        // ROOT only (recursing it into children would clobber per-child
+        // values — typical caller intent is "stamp date on the root copy").
+        const fields = cfg.copyFields !== false ? { ...(src.fields || {}) } : {};
+        if (isRoot && cfg.fields && typeof cfg.fields === "object") {
+          for (const [fid, expr] of Object.entries(cfg.fields)) {
+            const v = resolveExpr(expr, $vars);
+            if (v == null) continue;
+            const ftype = fieldsById?.[fid]?.type;
+            if (ftype === "date" && !isDateValue(v)) {
+              const fallback = resolveExpr("$today", $vars);
+              if (fallback) fields[fid] = { value: fallback, flow: "in" };
+              continue;
+            }
+            fields[fid] = { value: v, flow: "in" };
+          }
+        }
+
+        const newId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+        // Recurse into children FIRST so we can inline their ids into our
+        // CREATE_ITEM emit. Each child's own linkedGroupId pairs that child
+        // with src.occurrences[i] independently.
+        const childIds = [];
+        for (const childOccId of (src.occurrences || [])) {
+          const childSrc = findSource(childOccId);
+          if (!childSrc) continue;
+          const childResult = linkOne(childSrc, newId, false, depth + 1);
+          if (childResult?.newId) childIds.push(childResult.newId);
+        }
+
+        // _ancestors walk — chain logic identical to CREATE.
+        const newAncestors = [];
+        if (targetParentId && context.occurrencesById) {
+          const ancSeen = new Set();
+          let cur = targetParentId;
+          let walkDepth = 0;
+          while (cur && !ancSeen.has(cur) && walkDepth++ < 12) {
+            ancSeen.add(cur);
+            newAncestors.push(cur);
+            const parentOcc = context.occurrencesById[cur];
+            let next = null;
+            if (context._parentByChildId) next = context._parentByChildId[cur];
+            if (!next && parentOcc) next = parentOcc.parentId || null;
+            cur = next;
+          }
+        }
+
+        const tpl = Array.isArray($vars.$allTemplates)
+          ? $vars.$allTemplates.find(t => t && t.id === srcMod)
+          : null;
+        const role = tpl?.role || src.role || "instance";
+        const label = src.label ?? tpl?.label ?? tpl?.name ?? null;
+
+        const stub = {
+          id: newId,
+          moduleId: srcMod,
+          parentId: targetParentId,
+          fields,
+          linkedGroupId,
+          role,
+          label,
+          meta: { createdByOperation: true, copyLinkSource: src.id },
+          _ancestors: newAncestors,
+          occurrences: childIds,
+        };
+
+        // Optimistic publish so subsequent same-pipeline FINDs see the clone.
+        if (Array.isArray($vars.$allItems)) $vars.$allItems = [...$vars.$allItems, stub];
+        if (Array.isArray($vars.$allOccurrences)) $vars.$allOccurrences = [...$vars.$allOccurrences, stub];
+        if (role === "instance" && Array.isArray($vars.$allInstances)) $vars.$allInstances = [...$vars.$allInstances, stub];
+        else if (role === "container" && Array.isArray($vars.$allContainers)) $vars.$allContainers = [...$vars.$allContainers, stub];
+        else if (role === "page" && Array.isArray($vars.$allPages)) $vars.$allPages = [...$vars.$allPages, stub];
+        else if (role === "panel" && Array.isArray($vars.$allPanels)) $vars.$allPanels = [...$vars.$allPanels, stub];
+
+        if (context.occurrencesById && typeof context.occurrencesById === "object") {
+          context.occurrencesById[newId] = {
+            id: newId,
+            moduleId: srcMod,
+            parentId: targetParentId,
+            fields,
+            linkedGroupId,
+            meta: { createdByOperation: true, copyLinkSource: src.id },
+            occurrences: childIds,
+          };
+          if (targetParentId && context.occurrencesById[targetParentId]) {
+            const parent = context.occurrencesById[targetParentId];
+            if (!(parent.occurrences || []).includes(newId)) {
+              context.occurrencesById[targetParentId] = {
+                ...parent,
+                occurrences: [...(parent.occurrences || []), newId],
+              };
+            }
+          }
+          if (context._parentByChildId && targetParentId) {
+            context._parentByChildId[newId] = targetParentId;
+          }
+        }
+
+        // CREATE_ITEM with template:null (reusing source's module) +
+        // linkedGroupId on the instance. occurrences[] inlined so the parent
+        // is created with its child list — bindSocketToStore.CREATE_ITEM
+        // honors `inst.occurrences` (May 13 templates v2 wiring).
+        updates.push({
+          _effect: "CREATE_ITEM",
+          template: null,
+          instance: {
+            id: newId,
+            templateId: srcMod,
+            parentId: targetParentId,
+            fields,
+            linkedGroupId,
+            occurrences: childIds,
+            ...(isRoot && typeof cfg.insertAtIndex === "number" ? { insertAtIndex: cfg.insertAtIndex } : {}),
+          },
+        });
+
+        // If we minted a new linkedGroupId on this source, persist it onto
+        // the SOURCE so the server's update_occurrence handler reads it on
+        // the next write and fans out to every occurrence in the group.
+        if (mintedNewLink) {
+          updates.push({
+            _effect: "UPDATE_OCCURRENCE",
+            occurrence: { id: src.id, linkedGroupId },
+          });
+        }
+
+        return { newId, linkedGroupId };
+      };
+
+      const root = findSource(sourceId);
+      if (!root || !(root.moduleId || root.templateId)) break;
+      const rootParentId = resolveExpr(cfg.parent, $vars) ?? null;
+      const result = linkOne(root, rootParentId, true, 0);
+      if (!result) break;
+
+      if (cfg.itemIdVar) $vars[cfg.itemIdVar] = result.newId;
+      if (cfg.itemVar) {
+        $vars[cfg.itemVar] = (context.occurrencesById && context.occurrencesById[result.newId]) || null;
+      }
+      if (cfg.linkedGroupVar) $vars[cfg.linkedGroupVar] = result.linkedGroupId;
+
+      break;
+    }
+
     // ---- UPDATE: route writes by path through applyUpdate ----
     // cfg: { path, value }
     // path supports `${$varName}` interpolation so authors can address per-item
@@ -875,6 +1173,30 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
+    // ---- ADD_CHILD: append childId to a parent occurrence's occurrences[] ----
+    // cfg: { parentId, childId } (both exprs). Pure occurrences[] append — does
+    // NOT touch the child's parentId, so the child can live in a folder (tree)
+    // AND be listed by a panel occurrence as an inactive tab (the Notes-page
+    // pattern). Idempotent: skips when already present. Reuses the existing
+    // UPDATE_OCCURRENCE effect; optimistically patches the in-pipeline overlay.
+    case "ADD_CHILD": {
+      const parentId = resolveExpr(cfg.parentId, $vars);
+      const childId = resolveExpr(cfg.childId, $vars);
+      if (!parentId || !childId) break;
+      const parentOcc =
+        (context.occurrencesById && context.occurrencesById[parentId])
+        || (Array.isArray($vars.$allOccurrences) && $vars.$allOccurrences.find(o => o?.id === parentId))
+        || null;
+      const existing = Array.isArray(parentOcc?.occurrences) ? parentOcc.occurrences : [];
+      if (existing.includes(childId)) break;
+      const next = [...existing, childId];
+      if (context.occurrencesById && context.occurrencesById[parentId]) {
+        context.occurrencesById[parentId] = { ...context.occurrencesById[parentId], occurrences: next };
+      }
+      updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { id: parentId, occurrences: next } });
+      break;
+    }
+
     case "UPDATE_MODULE": {
       const modId = resolveExpr(cfg.moduleId || cfg.moduleIdExpr || "$trigger.moduleId", $vars);
       let patch = cfg.patch;
@@ -887,7 +1209,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       const attachIds = Array.isArray(cfg.attachFields) ? cfg.attachFields.filter(Boolean) : [];
       const hiddenMap = (cfg.fieldHidden && typeof cfg.fieldHidden === "object") ? cfg.fieldHidden : {};
       if (modId && (attachIds.length || Object.keys(hiddenMap).length)) {
-        const mod = state?.modulesById?.[modId];
+        const mod = modulesById[modId];
         const existing = mod?.fieldBindings || patch?.fieldBindings || [];
         let changed = false;
         const next = existing.map(b => {
@@ -1036,7 +1358,21 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
     // ============================================================
     // APPLY_TEMPLATE — clone a template subtree into a target occurrence
-    // cfg: { templateRef, targetOccurrenceVar, mode?: "append"|"replace", resultVar? }
+    // cfg: { templateRef, targetOccurrenceVar, mode?: "append"|"replace"|"merge",
+    //        unwrapRoot?, defaultFields?, replacements?, rootParent?, rootLabel?,
+    //        resultVar? }
+    //   replacements: { "{token}": expr } — find-and-replace over every cloned
+    //     occurrence's textmap text nodes (e.g. { "{Date}": "$dayDate" }).
+    //     Embedded child refs (instanceTextblock/moduleEmbed occurrenceId +
+    //     instanceId) are auto-remapped to the clones, so a doc page template
+    //     whose textblock child holds the H1 renders correctly after apply.
+    //   rootParent: expr → parent id for the cloned ROOT (folder id ok). When
+    //     set, mints a standalone new subtree (no clone-into-target); used to
+    //     create one fresh page per apply. rootLabel: expr → override the root
+    //     clone's module label. rootIdVar: bind the cloned root occurrence id
+    //     to a $var (so the caller can pin it onto a panel, etc.). All optional
+    //     — omit for the classic clone-into-target / unwrapRoot behavior
+    //     (Daily Routine etc.).
     // ============================================================
     case "APPLY_TEMPLATE": {
       const templateRef = resolveExpr(cfg.templateRef, $vars);
@@ -1044,26 +1380,165 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       const targetOccurrenceId = (typeof targetRaw === "object" && targetRaw !== null)
         ? (targetRaw.id || null)
         : (typeof targetRaw === "string" ? targetRaw : null);
-      const mode = cfg.mode === "replace" ? "replace" : "append";
+      // mode:
+      //   "append" (default) — clone everything fresh (creates duplicates if applied twice)
+      //   "replace"          — clear target's children first, then clone everything
+      //   "merge"            — for each template node, if a sibling of the clone target
+      //                        already carries the same identitySignature, skip cloning
+      //                        that node and recurse into its template children with
+      //                        target = matched node. Nodes with no identitySignature
+      //                        always clone fresh. Use case: re-apply on day nav so
+      //                        existing slots stay put but missing routine instances
+      //                        get added.
+      const mode = ["replace", "merge", "append"].includes(cfg.mode) ? cfg.mode : "append";
+      // unwrapRoot:true — clone the template root's CHILDREN into target,
+      // skipping the root node itself.
+      const unwrapRoot = !!cfg.unwrapRoot;
 
-      if (!templateRef || !targetOccurrenceId) break;
+      // defaultFields:{[fid]:expr} — merged into each cloned instance's `fields`
+      // map at CREATE_ITEM time, only when role==="instance" (slot containers
+      // have no date binding). Avoids a follow-up LOOP+UPDATE_ITEM_FIELD pass
+      // whose socket emits race the create's createQueue: if update_occurrence
+      // wins the upsert order, the create's $set clobbers the date stamp.
+      const resolvedDefaultFields = (() => {
+        const out = {};
+        const raw = cfg.defaultFields;
+        if (!raw || typeof raw !== "object") return out;
+        for (const [k, v] of Object.entries(raw)) {
+          const resolved = resolveExpr(v, $vars);
+          if (resolved == null || resolved === "") continue;
+          out[k] = { value: resolved, flow: "in" };
+        }
+        return out;
+      })();
+
+      // replacements:{ "[token]": expr } — find-and-replace pass over every
+      // cloned occurrence's textmap. Each value expr is resolved once here;
+      // the cloned textmap's text nodes get `[token]` → resolved string
+      // substituted via substituteTextmapTokens (shared with applyUpdate's
+      // COMPUTE_TEXTMAP path so there's one token-substitution impl). Use
+      // case: a "Day Page" template whose textblock child carries the H1
+      // "Day Page - {Date}" — applying it stamps the active date in.
+      const resolvedReplacements = (() => {
+        const out = {};
+        const raw = cfg.replacements;
+        if (!raw || typeof raw !== "object") return out;
+        for (const [token, expr] of Object.entries(raw)) {
+          const v = resolveExpr(expr, $vars);
+          if (v == null) continue;
+          out[token] = String(v);
+        }
+        return out;
+      })();
+      const hasReplacements = Object.keys(resolvedReplacements).length > 0;
+      const applyReplacements = (tm) =>
+        hasReplacements && tm ? substituteTextmapTokens(tm, resolvedReplacements) : (tm || null);
+
+      // Embedded-reference remap. A doc page renders its child textblocks via
+      // `instanceTextblock` (and moduleEmbed / instancePill) nodes inside its
+      // OWN textmap, keyed by the child's occurrenceId (+ instanceId = child
+      // module id). When we clone the page its children get fresh ids, so the
+      // cloned page's textmap must be rewritten to point at the clones — else
+      // it still references the template's textblock (renders the original or
+      // nothing). occRemap/modRemap are filled as each node is cloned (depth-
+      // first: children before their parent's textmap is built).
+      const occRemap = new Map(); // srcOccId  → cloneOccId
+      const modRemap = new Map(); // srcModId  → cloneModId
+      const remapEmbeddedRefs = (tm) => {
+        if (tm == null || (occRemap.size === 0 && modRemap.size === 0)) return tm;
+        const walk = (node) => {
+          if (!node || typeof node !== "object") return;
+          if (node.attrs && typeof node.attrs === "object") {
+            const a = node.attrs;
+            if (a.occurrenceId && occRemap.has(a.occurrenceId)) a.occurrenceId = occRemap.get(a.occurrenceId);
+            if (a.instanceId && modRemap.has(a.instanceId)) a.instanceId = modRemap.get(a.instanceId);
+          }
+          if (Array.isArray(node.content)) node.content.forEach(walk);
+        };
+        walk(tm);
+        return tm;
+      };
+      // Combined: token replace THEN ref remap. substituteTextmapTokens already
+      // deep-clones; when there are no replacements but we still need a remap,
+      // clone here so we never mutate the shared template textmap in-place.
+      const cloneTextmap = (tm) => {
+        if (tm == null) return null;
+        let out = applyReplacements(tm);
+        if (out === tm) out = JSON.parse(JSON.stringify(tm));
+        return remapEmbeddedRefs(out);
+      };
+
+      // rootParent (optional): when set, the cloned ROOT is parented directly
+      // here (a folder id is fine — pages parent to folders via parentId) and
+      // no clone-into-an-existing-target is required. Used to mint a brand-new
+      // top-level page from a template (e.g. one Day Page per date in the Day
+      // Pages folder) rather than merging children into an existing page.
+      // rootLabel (optional): overrides the root clone's module label so the
+      // new page can be named per-apply (e.g. "Day Page - 2026-05-15").
+      // Both default to undefined → every existing caller (Daily Routine etc.)
+      // is byte-for-byte unchanged.
+      const rootParentId = cfg.rootParent != null ? resolveExpr(cfg.rootParent, $vars) : null;
+      const rootLabelOverride = cfg.rootLabel != null ? resolveExpr(cfg.rootLabel, $vars) : null;
+
+      if (!templateRef) break;
       const target = occurrencesById[targetOccurrenceId];
-      if (!target) break;
+      // target is required UNLESS rootParent is supplied (standalone clone).
+      if (!rootParentId && (!targetOccurrenceId || !target)) break;
 
       // Walk the template subtree from occurrencesById, mint new ids, push CREATE_ITEM
       // per node so bindSocketToStore.CREATE_ITEM does the local dispatch + socket emit.
       const newId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       const newOccIds = [];
+      const newOccStubs = []; // depth-first: leaves first, roots last. Each entry has .id so UPDATE can bind.
 
       function clone(srcOccId, parentId, isRoot) {
         const srcOcc = occurrencesById[srcOccId];
         if (!srcOcc) return null;
         const srcModId = srcOcc.moduleId || srcOcc.targetId;
-        const srcMod = srcModId ? state?.modulesById?.[srcModId] : null;
+        const srcMod = srcModId ? modulesById[srcModId] : null;
         if (!srcMod) return null;
+
+        // MERGE: if a child of parentId already shares this template node's
+        // identitySignature, skip cloning and recurse into the template's
+        // children with target = matched node. identitySignature is null/empty
+        // by default → no match → always clones fresh.
+        if (mode === "merge" && srcOcc.identitySignature) {
+          const sig = srcOcc.identitySignature;
+          const parentOcc = occurrencesById[parentId] || $vars.$allOccurrences?.find(o => o.id === parentId);
+          const siblingIds = parentOcc?.occurrences || [];
+          const matched = siblingIds
+            .map(id => occurrencesById[id] || $vars.$allOccurrences?.find(o => o.id === id))
+            .find(o => o && o.identitySignature === sig);
+          if (matched) {
+            // Track child IDs we add this pass so downstream same-pipeline FINDs
+            // walking matched.occurrences[] see them. Without this, recursive
+            // clones into a matched node are invisible to FINDs that ran later
+            // in the same pipeline (the optimistic stub was never patched).
+            const addedChildIds = [];
+            for (const childOccId of (srcOcc.occurrences || [])) {
+              const childCloneId = clone(childOccId, matched.id, false);
+              if (childCloneId && !siblingIds.includes(childCloneId)) {
+                addedChildIds.push(childCloneId);
+              }
+            }
+            if (addedChildIds.length && Array.isArray($vars.$allOccurrences)) {
+              const patchedMatched = {
+                ...matched,
+                occurrences: [...(matched.occurrences || []), ...addedChildIds],
+              };
+              $vars.$allOccurrences = $vars.$allOccurrences.map(o => o.id === matched.id ? patchedMatched : o);
+              if (Array.isArray($vars.$allItems)) {
+                $vars.$allItems = $vars.$allItems.map(o => o.id === matched.id ? patchedMatched : o);
+              }
+            }
+            return matched.id;
+          }
+        }
 
         const cloneModId = newId();
         const cloneOccId = newId();
+        occRemap.set(srcOccId, cloneOccId);
+        if (srcModId) modRemap.set(srcModId, cloneModId);
 
         const childIds = [];
         for (const childOccId of (srcOcc.occurrences || [])) {
@@ -1081,8 +1556,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           _effect: "CREATE_ITEM",
           template: {
             id: cloneModId,
-            name: srcMod.label || srcMod.name,
-            label: srcMod.label || srcMod.name,
+            name: (isRoot && rootLabelOverride) ? rootLabelOverride : (srcMod.label || srcMod.name),
+            label: (isRoot && rootLabelOverride) ? rootLabelOverride : (srcMod.label || srcMod.name),
             role: srcMod.role,
             kind: srcMod.kind,
             meta: newModuleMeta,
@@ -1092,41 +1567,58 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             id: cloneOccId,
             templateId: cloneModId,
             parentId,
-            fields: { ...(srcOcc.fields || {}) },
-            textmap: srcOcc.textmap || null,
+            // Merge defaultFields onto instance-role clones only — slot/page
+            // clones don't carry the date binding so the extra key would be
+            // dead weight (and CREATE_ITEM's auto-attach would inflate their
+            // fieldBindings with an unrelated id).
+            fields: srcMod.role === "instance"
+              ? { ...(srcOcc.fields || {}), ...resolvedDefaultFields }
+              : { ...(srcOcc.fields || {}) },
+            textmap: cloneTextmap(srcOcc.textmap),
             viewId: srcOcc.viewId || null,
             meta: newOccMeta,
+            identitySignature: srcOcc.identitySignature || null,
+            // Children IDs included directly so the new occurrence is
+            // created WITH its child list (CREATE_ITEM handler now honors
+            // inst.occurrences). Avoids the race where a separate
+            // UPDATE_OCCURRENCE patches occurrences[] outside the server's
+            // createQueue and gets clobbered.
+            occurrences: childIds,
           },
         });
 
-        // Pre-link the children into our local subtree by emitting a follow-up
-        // UPDATE_OCCURRENCE for the new occurrence with its children list (CREATE_ITEM
-        // alone doesn't carry children — the handler creates the occurrence with empty
-        // occurrences[] and only appends to its parent).
-        if (childIds.length) {
-          updates.push({
-            _effect: "UPDATE_OCCURRENCE",
-            occurrence: { id: cloneOccId, occurrences: childIds },
-          });
-        }
-
         newOccIds.push(cloneOccId);
+        const stub = {
+          id: cloneOccId,
+          moduleId: cloneModId,
+          targetId: cloneModId,
+          parentId,
+          fields: srcMod.role === "instance"
+            ? { ...(srcOcc.fields || {}), ...resolvedDefaultFields }
+            : { ...(srcOcc.fields || {}) },
+          occurrences: childIds,
+          meta: newOccMeta,
+          identitySignature: srcOcc.identitySignature || null,
+          role: srcMod.role,
+        };
+        newOccStubs.push(stub);
 
-        // Optimistic publish so subsequent FIND/LOOP in same pipeline sees it
+        // Optimistic publish so subsequent FIND/LOOP in same pipeline sees it.
+        // Mirror into role-filtered slices too — otherwise a follow-up FIND with
+        // `over: "$allInstances"` (etc.) is blind to in-pipeline clones.
         if (Array.isArray($vars.$allOccurrences)) {
-          const stub = {
-            id: cloneOccId,
-            moduleId: cloneModId,
-            targetId: cloneModId,
-            parentId,
-            fields: { ...(srcOcc.fields || {}) },
-            occurrences: childIds,
-            meta: newOccMeta,
-            role: srcMod.role,
-          };
           $vars.$allOccurrences = [...$vars.$allOccurrences, stub];
           if (Array.isArray($vars.$allItems)) {
             $vars.$allItems = [...$vars.$allItems, stub];
+          }
+          if (stub.role === "container" && Array.isArray($vars.$allContainers)) {
+            $vars.$allContainers = [...$vars.$allContainers, stub];
+          } else if (stub.role === "page" && Array.isArray($vars.$allPages)) {
+            $vars.$allPages = [...$vars.$allPages, stub];
+          } else if (stub.role === "panel" && Array.isArray($vars.$allPanels)) {
+            $vars.$allPanels = [...$vars.$allPanels, stub];
+          } else if (stub.role === "instance" && Array.isArray($vars.$allInstances)) {
+            $vars.$allInstances = [...$vars.$allInstances, stub];
           }
         }
 
@@ -1134,20 +1626,166 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       }
 
       // Mode "replace" first clears the target's children
-      if (mode === "replace" && (target.occurrences || []).length) {
+      if (mode === "replace" && target && (target.occurrences || []).length) {
         updates.push({
           _effect: "UPDATE_OCCURRENCE",
           occurrence: { id: target.id, occurrences: [] },
         });
       }
 
-      const rootCloneId = clone(templateRef, target.id, true);
+      let rootCloneId = null;
+      if (rootParentId) {
+        // Standalone clone: the whole template (root included) becomes a new
+        // subtree parented to rootParentId. unwrapRoot is ignored here — the
+        // root IS the thing we want (e.g. the Day Page doc page itself).
+        rootCloneId = clone(templateRef, rootParentId, true);
+        if (!rootCloneId) break;
+      } else if (unwrapRoot) {
+        // Clone only the template root's CHILDREN into target (skip root node).
+        const templateRoot = occurrencesById[templateRef];
+        if (templateRoot) {
+          for (const childOccId of (templateRoot.occurrences || [])) {
+            clone(childOccId, target.id, false);
+          }
+        }
+      } else {
+        rootCloneId = clone(templateRef, target.id, true);
+        if (!rootCloneId) break;
+      }
+
+      // CREATE_ITEM auto-appends each new occurrence to its parent.
+
+      // resultVar holds full stubs (each has .id) so downstream LOOP+UPDATE
+      // can bind to the records via `as: "$newOcc"` and `path: "$newOcc.fields..."`
+      if (cfg.resultVar) $vars[cfg.resultVar] = newOccStubs;
+      if (cfg.resultIdsVar) $vars[cfg.resultIdsVar] = newOccIds;
+      // rootIdVar — the cloned ROOT occurrence id (null for unwrapRoot, which
+      // has no single root). Lets the caller wire the new page somewhere, e.g.
+      // LINK_OCCURRENCE_TO_PARENT it onto a panel as an inactive tab.
+      if (cfg.rootIdVar && rootCloneId) $vars[cfg.rootIdVar] = rootCloneId;
+      break;
+    }
+
+    // ============================================================
+    // COPY_OCCURRENCE — clone an arbitrary occurrence subtree into a target
+    // cfg: {
+    //   sourceOccurrenceVar,  // expr → source occurrence id (the thing to copy)
+    //   targetOccurrenceVar,  // expr → target parent occurrence id (where to place clones)
+    //   includeChildren?:bool (default true)  // shallow copy when false
+    //   resultVar?, resultIdsVar?             // bind clone stubs / ids
+    // }
+    // Differs from APPLY_TEMPLATE in that:
+    //   - source need not be a template (no meta.templateName requirement)
+    //   - cloned modules don't get templateModule:false stamped (no template metadata)
+    //   - cloned root occurrence doesn't get appliedFromTemplateId stamped
+    //   - no merge mode (always fresh clones)
+    // Shares the CREATE_ITEM effect machinery, so the optimistic local
+    // dispatch + per-node socket emit path is identical.
+    // ============================================================
+    case "COPY_OCCURRENCE": {
+      const sourceRaw = resolveExpr(cfg.sourceOccurrenceVar, $vars);
+      const sourceOccurrenceId = (typeof sourceRaw === "object" && sourceRaw !== null)
+        ? (sourceRaw.id || null)
+        : (typeof sourceRaw === "string" ? sourceRaw : null);
+      const targetRaw = resolveExpr(cfg.targetOccurrenceVar, $vars);
+      const targetOccurrenceId = (typeof targetRaw === "object" && targetRaw !== null)
+        ? (targetRaw.id || null)
+        : (typeof targetRaw === "string" ? targetRaw : null);
+      const includeChildren = cfg.includeChildren !== false; // default true
+
+      if (!sourceOccurrenceId || !targetOccurrenceId) break;
+      const source = occurrencesById[sourceOccurrenceId];
+      const target = occurrencesById[targetOccurrenceId];
+      if (!source || !target) break;
+
+      const newId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const newOccIds = [];
+      const newOccStubs = [];
+
+      function clone(srcOccId, parentId) {
+        const srcOcc = occurrencesById[srcOccId];
+        if (!srcOcc) return null;
+        const srcModId = srcOcc.moduleId || srcOcc.targetId;
+        const srcMod = srcModId ? modulesById[srcModId] : null;
+        if (!srcMod) return null;
+
+        const cloneModId = newId();
+        const cloneOccId = newId();
+
+        const childIds = [];
+        if (includeChildren) {
+          for (const childOccId of (srcOcc.occurrences || [])) {
+            const childCloneId = clone(childOccId, cloneOccId);
+            if (childCloneId) childIds.push(childCloneId);
+          }
+        }
+
+        updates.push({
+          _effect: "CREATE_ITEM",
+          template: {
+            id: cloneModId,
+            name: srcMod.label || srcMod.name,
+            label: srcMod.label || srcMod.name,
+            role: srcMod.role,
+            kind: srcMod.kind,
+            meta: { ...(srcMod.meta || {}) },
+            fieldBindings: Array.isArray(srcMod.fieldBindings) ? srcMod.fieldBindings : [],
+          },
+          instance: {
+            id: cloneOccId,
+            templateId: cloneModId,
+            parentId,
+            fields: { ...(srcOcc.fields || {}) },
+            textmap: srcOcc.textmap || null,
+            viewId: srcOcc.viewId || null,
+            meta: { ...(srcOcc.meta || {}) },
+            identitySignature: srcOcc.identitySignature || null,
+            occurrences: childIds,
+          },
+        });
+
+        newOccIds.push(cloneOccId);
+        const stub = {
+          id: cloneOccId,
+          moduleId: cloneModId,
+          targetId: cloneModId,
+          parentId,
+          fields: { ...(srcOcc.fields || {}) },
+          occurrences: childIds,
+          meta: { ...(srcOcc.meta || {}) },
+          identitySignature: srcOcc.identitySignature || null,
+          role: srcMod.role,
+        };
+        newOccStubs.push(stub);
+
+        if (Array.isArray($vars.$allOccurrences)) {
+          $vars.$allOccurrences = [...$vars.$allOccurrences, stub];
+          if (Array.isArray($vars.$allItems)) {
+            $vars.$allItems = [...$vars.$allItems, stub];
+          }
+          if (stub.role === "container" && Array.isArray($vars.$allContainers)) {
+            $vars.$allContainers = [...$vars.$allContainers, stub];
+          } else if (stub.role === "page" && Array.isArray($vars.$allPages)) {
+            $vars.$allPages = [...$vars.$allPages, stub];
+          } else if (stub.role === "panel" && Array.isArray($vars.$allPanels)) {
+            $vars.$allPanels = [...$vars.$allPanels, stub];
+          } else if (stub.role === "instance" && Array.isArray($vars.$allInstances)) {
+            $vars.$allInstances = [...$vars.$allInstances, stub];
+          }
+        }
+
+        return cloneOccId;
+      }
+
+      const rootCloneId = clone(sourceOccurrenceId, target.id);
       if (!rootCloneId) break;
 
-      // CREATE_ITEM auto-appends each new occurrence to its parent. Root clone's parent
-      // is the target — let the handler do the append automatically (it already does).
-
-      if (cfg.resultVar) $vars[cfg.resultVar] = newOccIds;
+      if (cfg.resultVar) $vars[cfg.resultVar] = newOccStubs;
+      if (cfg.resultIdsVar) $vars[cfg.resultIdsVar] = newOccIds;
+      // Convenience scalar — same shape as APPLY_TEMPLATE returns nothing of
+      // the kind, but a single-source copy almost always wants the new root
+      // id available downstream without indexing the stubs array.
+      if (cfg.resultIdVar) $vars[cfg.resultIdVar] = rootCloneId;
       break;
     }
 
@@ -1334,7 +1972,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         const fv = pickedOcc.fields?.[cfg.fieldId];
         $vars[varName] = fv?.value !== undefined ? fv.value : (fv ?? "");
       } else {
-        const mod = (context.state?.modulesById || {})[pickedOcc.moduleId];
+        const mod = modulesById[pickedOcc.moduleId];
         $vars[varName] = mod?.label ?? "";
       }
       break;

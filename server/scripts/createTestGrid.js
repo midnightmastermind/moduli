@@ -37,10 +37,13 @@
 //   • UPDATE writes to a real DB record via a `$<var>.fields.<fid>.value` path
 //     anchored on a FOUND occurrence (e.g. `$goalItem.fields.<fid>.value`).
 //     Use JS `null` (not `"literal:null"`) to clear a field.
-//   • Date filtering for goals: prefer `$parentFilter.<dateFieldId>` (walks
-//     trigger ancestors merging filterOverride), fall back to
-//     `$goalItem._effectiveFilter.<dateFieldId>`, then `$trigger.date`,
-//     then `$today`.
+//   • Date filtering for goals: drive the date off the goal item's own
+//     `$goalItem._effectiveFilter.<dateFieldId>` (resolves the full
+//     instance → container → page → grid chain via the occurrences[] reverse
+//     map), then fall back to `$trigger.date`, then `$today`. Do NOT use
+//     `$parentFilter` for goals — it is anchored on the trigger occurrence,
+//     so a MeasureOp from a Schedule task resolves to Schedule's date, not
+//     the goal's effective filter.
 // ============================================================
 
 import mongoose from "mongoose";
@@ -135,9 +138,20 @@ export async function createTestGrid(userId, options = {}) {
   const manifestId      = uid();
   const rootFolderId    = uid();
   const notesFolderId   = uid();
+  const dayPagesFolderId = uid();
+  const tasksFolderId    = uid();
+  const trackersFolderId = uid();
+  const interfacesFolderId = uid();
 
   // ── STEP 1: Grid ────────────────────────────────────────────────────────────
   const schedFilterId = uid();
+  const timeslotFilterId = uid();
+
+  // Time slots are needed BOTH for the schedule subtree (~line 309) and for
+  // the per-occurrence timeslot filter's pre-baked option list. Hoist so
+  // both call sites use the same source.
+  const timeSlots = generateTimeSlots();
+  const timeslotLabels = timeSlots.map(s => s.label);
 
   const grid = new Grid({
     userId, name: gridName, rows: 2, cols: 3,
@@ -150,7 +164,10 @@ export async function createTestGrid(userId, options = {}) {
       timeUnit: "day",
     }],
     activeFilterId: "filter_daily",
-    activeFilterValues: { [dateFieldId]: todayLocalISO },
+    // Leave empty — client init resolves to local-tz today on every load.
+    // Seeding a literal date "bakes in" the seed day and shows yesterday after
+    // midnight passes.
+    activeFilterValues: {},
   });
   await grid.save();
   const gridId = grid._id.toString();
@@ -303,7 +320,8 @@ export async function createTestGrid(userId, options = {}) {
   ]);
 
   // ── STEP 4: Container modules ───────────────────────────────────────────────
-  const timeSlots = generateTimeSlots();
+  // timeSlots is hoisted near the grid namedFilters so the timeslot filter
+  // can bake its label list at filter-definition time. Reuse it here.
   const schedContainers = {};
   for (const slot of timeSlots) {
     const key = `slot_${slot.hour}_${slot.minute}`;
@@ -458,7 +476,13 @@ export async function createTestGrid(userId, options = {}) {
   // ── STEP 7: Manifest + folders ──────────────────────────────────────────────
   await new Manifest({ id: manifestId, userId, gridId, manifestType: "user", rootFolderId }).save();
   await new Folder({ id: rootFolderId, userId, gridId, name: "Root", parentId: null, folderType: "normal", sortOrder: 0, isExpanded: true }).save();
-  await new Folder({ id: notesFolderId, userId, gridId, parentId: rootFolderId, name: "Notes", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
+  // Root tree organization: Tasks / Trackers / Interfaces / Notes / Day Pages.
+  await new Folder({ id: tasksFolderId,     userId, gridId, parentId: rootFolderId, name: "Tasks",      folderType: "normal", sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: trackersFolderId,  userId, gridId, parentId: rootFolderId, name: "Trackers",   folderType: "normal", sortOrder: 1, isExpanded: true }).save();
+  await new Folder({ id: interfacesFolderId,userId, gridId, parentId: rootFolderId, name: "Interfaces", folderType: "normal", sortOrder: 2, isExpanded: true }).save();
+  await new Folder({ id: notesFolderId, userId, gridId, parentId: rootFolderId, name: "Notes", folderType: "normal", sortOrder: 3, isExpanded: true }).save();
+  // Day Pages folder — the "Day Page: Build" op drops one doc page per date here.
+  await new Folder({ id: dayPagesFolderId, userId, gridId, parentId: rootFolderId, name: "Day Pages", folderType: "day-pages", sortOrder: 4, isExpanded: true }).save();
 
   // ── STEP 7b: Templates manifest ─────────────────────────────────────────────
   // The templates manifest holds the "Daily Routine" template subtree. The
@@ -483,110 +507,227 @@ export async function createTestGrid(userId, options = {}) {
     rootFolderId: tplManifestRootFolderId,
   }).save();
 
-  // Seed the "Daily Routine" template container + 4 child instances.
-  // These mirror the presets that Seed Daily Routine used to create at runtime —
-  // now Build Day will APPLY_TEMPLATE this subtree instead.
-  const tplRoutineContModId = uid();
+  // ── "Daily Routine" template — the FULL schedule subtree ─────────────────
+  // Root: container "Daily Routine" (page-kind so it visually mirrors the
+  //   schedule page when previewed)
+  // Children: 48 slot containers (cloned shape — same as live slot containers)
+  // Within slot containers: the routine instances pre-placed (Drink Water in
+  //   6:00am + 7:00am slots, Take Medication in 8:00am, Go to Gym in 9:00am)
+  // Build Day applies this via APPLY_TEMPLATE with unwrapRoot:true so the
+  // 48 slot containers land directly under the schedule page (no wrapper).
+  const tplRoutineRootModId = uid();
   await new Module({
-    id: tplRoutineContModId, userId, gridId,
-    role: "container", kind: "list", label: "Daily Routine",
+    id: tplRoutineRootModId, userId, gridId,
+    role: "page", kind: "board", label: "Daily Routine",
     meta: { templateModule: true },
   }).save();
 
-  // Template instances — clone the source module's fieldBindings so
-  // APPLY_TEMPLATE inherits the correct field shape (Completed, Water, Date, etc.)
-  // Each template instance is a NEW module but replicates the source's bindings.
-  const tplRoutineContOccId = uid();
+  const tplRoutineRootOccId = uid();
 
-  const tplPresets = [
-    { sourceModId: drinkWaterModId,     label: "Drink Water",     slotLabel: "6:00am", completed: true, water: 10 },
-    { sourceModId: drinkWaterModId,     label: "Drink Water",     slotLabel: "7:00am" },
-    { sourceModId: takeMedicationModId, label: "Take Medication",  slotLabel: "8:00am" },
-    { sourceModId: goToGymModId,        label: "Go to Gym",        slotLabel: "9:00am" },
-  ];
+  // Per-slot routine items: which routine instances live in which slot label
+  const routineBySlot = {
+    "6:00am": [{ sourceModId: drinkWaterModId,     label: "Drink Water",     completed: true, water: 10 }],
+    "7:00am": [{ sourceModId: drinkWaterModId,     label: "Drink Water" }],
+    "8:00am": [{ sourceModId: takeMedicationModId, label: "Take Medication" }],
+    "9:00am": [{ sourceModId: goToGymModId,        label: "Go to Gym" }],
+  };
 
-  const tplChildOccIds = [];
-  for (const p of tplPresets) {
-    const tplInstModId = uid();
-    const tplInstOccId = uid();
-
-    // Look up the source module's fieldBindings to clone them
-    const srcMod = await Module.findOne({ id: p.sourceModId, gridId }).lean();
+  // Build one slot container per timeslot, with nested routine instances
+  const tplSlotOccIds = [];
+  for (const slot of timeSlots) {
+    const tplSlotModId = uid();
+    const tplSlotOccId = uid();
     await new Module({
-      id: tplInstModId, userId, gridId,
-      role: "instance", kind: "list", label: p.label,
-      defaultDragMode: "copy",
-      fieldBindings: srcMod?.fieldBindings || [],
-      meta: { templateModule: true },
+      id: tplSlotModId, userId, gridId,
+      role: "container", kind: "list",
+      label: slot.label,
+      meta: {
+        templateModule: true,
+        scheduleSlot: true,
+        slotHour: slot.hour,
+        slotMinute: slot.minute,
+        slotLabel: slot.label,
+      },
     }).save();
 
-    const initialFields = {
-      [timeslotFieldId]: { value: p.slotLabel, flow: "in" },
-    };
-    if (p.completed) initialFields[completedFieldId] = { value: true, flow: "in" };
-    if (p.water != null) initialFields[waterFieldId] = { value: p.water, flow: "in" };
+    // Mint routine instances for this slot (if any)
+    const routineInsts = routineBySlot[slot.label] || [];
+    const slotChildOccIds = [];
+    for (const r of routineInsts) {
+      const tplInstModId = uid();
+      const tplInstOccId = uid();
+      const srcMod = await Module.findOne({ id: r.sourceModId, gridId }).lean();
+      await new Module({
+        id: tplInstModId, userId, gridId,
+        role: "instance", kind: "list", label: r.label,
+        defaultDragMode: "copy",
+        fieldBindings: srcMod?.fieldBindings || [],
+        meta: { templateModule: true },
+      }).save();
+      const initialFields = {
+        [timeslotFieldId]: { value: slot.label, flow: "in" },
+      };
+      if (r.completed) initialFields[completedFieldId] = { value: true, flow: "in" };
+      if (r.water != null) initialFields[waterFieldId] = { value: r.water, flow: "in" };
+      await mkOcc({
+        id: tplInstOccId,
+        moduleId: tplInstModId,
+        targetId: tplInstModId, targetType: "module",
+        parentId: tplSlotOccId,
+        fields: initialFields,
+        occurrences: [],
+      });
+      slotChildOccIds.push(tplInstOccId);
+    }
 
     await mkOcc({
-      id: tplInstOccId,
-      moduleId: tplInstModId,
-      targetId: tplInstModId, targetType: "module",
-      parentId: tplRoutineContOccId,
-      fields: initialFields,
-      occurrences: [],
+      id: tplSlotOccId,
+      moduleId: tplSlotModId,
+      targetId: tplSlotModId, targetType: "module",
+      parentId: tplRoutineRootOccId,
+      fields: { [timeslotFieldId]: { value: slot.label, flow: "in" } },
+      occurrences: slotChildOccIds,
+      meta: { scheduleSlot: true, slotLabel: slot.label },
+      identitySignature: `slot:${slot.label}`,
     });
-    tplChildOccIds.push(tplInstOccId);
+    tplSlotOccIds.push(tplSlotOccId);
   }
 
-  // Template root container occurrence — parentId points at the templates
-  // manifest root folder so it lives under the templates tree.
+  // Template root occurrence — parented to templates manifest root folder
   await mkOcc({
-    id: tplRoutineContOccId,
-    moduleId: tplRoutineContModId,
-    targetId: tplRoutineContModId, targetType: "module",
+    id: tplRoutineRootOccId,
+    moduleId: tplRoutineRootModId,
+    targetId: tplRoutineRootModId, targetType: "module",
     parentId: tplManifestRootFolderId,
-    occurrences: tplChildOccIds,
+    occurrences: tplSlotOccIds,
     meta: { templateName: "Daily Routine", templateModule: true },
   });
 
+  // ── "Day Page" template — a doc page with one textblock child ────────────
+  // Root: doc page "Day Page". Its OWN textmap is a single `instanceTextblock`
+  // node pointing at the child textblock (this is exactly how a doc page hosts
+  // a textblock — same shape DocContent.handleAutoCreateTextblock produces when
+  // you type into a doc). Child: a role:"textblock" occurrence whose textmap is
+  // the H1 carrying the literal token "{Date}".
+  //
+  // "Day Page: Build" APPLY_TEMPLATE's this with rootParent = Day Pages folder
+  // (mints a fresh standalone page per date), rootLabel = "Day Page - <date>",
+  // and replacements { "{Date}": "$dayDate" }. APPLY_TEMPLATE deep-clones the
+  // subtree, runs the find-and-replace on the cloned textblock's textmap, and
+  // remaps the root page's instanceTextblock occurrenceId/instanceId to the
+  // cloned child — so the new doc page renders its own dated textblock.
+  const tplDayPageRootModId = uid();
+  await new Module({
+    id: tplDayPageRootModId, userId, gridId,
+    role: "page", kind: "doc", label: "Day Page",
+    meta: { templateModule: true },
+  }).save();
+
+  const tplDayPageTextblockModId = uid();
+  await new Module({
+    id: tplDayPageTextblockModId, userId, gridId,
+    role: "textblock", kind: "doc", label: "Day Page heading",
+    meta: { templateModule: true },
+  }).save();
+
+  const tplDayPageRootOccId = uid();
+  const tplDayPageTextblockOccId = uid();
+  await mkOcc({
+    id: tplDayPageTextblockOccId,
+    moduleId: tplDayPageTextblockModId,
+    targetId: tplDayPageTextblockModId, targetType: "module",
+    parentId: tplDayPageRootOccId,
+    textmap: {
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Day Page - {Date}" }] },
+      ],
+    },
+    occurrences: [],
+  });
+  await mkOcc({
+    id: tplDayPageRootOccId,
+    moduleId: tplDayPageRootModId,
+    targetId: tplDayPageRootModId, targetType: "module",
+    parentId: tplManifestRootFolderId,
+    occurrences: [tplDayPageTextblockOccId],
+    // The doc page's OWN content: an instanceTextblock node hosting the child.
+    textmap: {
+      type: "doc",
+      content: [
+        { type: "instanceTextblock", attrs: { instanceId: tplDayPageTextblockModId, occurrenceId: tplDayPageTextblockOccId } },
+      ],
+    },
+    meta: { templateName: "Day Page", templateModule: true },
+  });
+
   // ── STEP 8: Page modules + page occurrences ─────────────────────────────────
+  // Date-filter scope rule (per user): only Schedule + Daily Goals pages
+  // (and the toolbar/grid filter) are allowed to actively filter by date.
+  // Every other page declares BOTH:
+  //   1. `filterOverride: {}` — clears any inherited grid date so the page's
+  //      own children aren't hidden by date.
+  //   2. `filterNavConfig: { filter_daily: { visible: false } }` — explicitly
+  //      hides the date nav widget that LocalFilterNav would otherwise render
+  //      by default (any active grid filter with `isNav: true` conditions
+  //      shows nav everywhere unless explicitly hidden per-occurrence).
+  // Without (2), the user could nav-arrow these pages and silently re-add
+  // dateFieldId back into filterOverride, undoing (1).
   const toolkitPageModId = uid(); const toolkitPageOccId = uid();
   await new Module({ id: toolkitPageModId, userId, gridId, role: "page", kind: "board", label: "Daily Toolkit" }).save();
-  await mkOcc({ id: toolkitPageOccId, moduleId: toolkitPageModId, parentId: rootFolderId, sortOrder: 0, occurrences: [physContOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
+  await mkOcc({ id: toolkitPageOccId, moduleId: toolkitPageModId, parentId: tasksFolderId, sortOrder: 0, occurrences: [physContOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } } });
 
   const goalsPageModId = uid(); const goalsPageOccId = uid();
   await new Module({ id: goalsPageModId, userId, gridId, role: "page", kind: "board", label: "Daily Goals" }).save();
-  await mkOcc({ id: goalsPageOccId, moduleId: goalsPageModId, parentId: rootFolderId, sortOrder: 1, occurrences: [physGoalContOccId], iteration: { mode: "persistent" }, fields: {} });
+  await mkOcc({ id: goalsPageOccId, moduleId: goalsPageModId, parentId: trackersFolderId, sortOrder: 0, occurrences: [physGoalContOccId], iteration: { mode: "persistent" }, fields: {} });
 
   const todoPageModId = uid(); const todoPageOccId = uid();
   await new Module({ id: todoPageModId, userId, gridId, role: "page", kind: "board", label: "Todo List" }).save();
-  await mkOcc({ id: todoPageOccId, moduleId: todoPageModId, parentId: rootFolderId, sortOrder: 2, occurrences: [todoContOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
+  await mkOcc({ id: todoPageOccId, moduleId: todoPageModId, parentId: tasksFolderId, sortOrder: 1, occurrences: [todoContOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } } });
 
   const schedPageModId = uid(); const schedPageOccId = uid();
   await new Module({ id: schedPageModId, userId, gridId, role: "page", kind: "board", label: "Schedule" }).save();
   await mkOcc({
     id: schedPageOccId, moduleId: schedPageModId,
-    parentId: rootFolderId, sortOrder: 3, occurrences: scheduleOccIds,
+    parentId: interfacesFolderId, sortOrder: 0, occurrences: scheduleOccIds,
     iteration: { mode: "persistent" }, fields: {},
-    filters: [{
-      id: schedFilterId,
-      fieldId: dateFieldId,
-      active: true,
-      showNav: true,
-      timeUnit: "day",
-      defaultNavValue: "today",
-      condition: {
-        operator: "OR",
-        rules: [
-          { left: "$field.value", comparator: "DATE_EQUALS", right: "$nav" },
-          { left: "$field.value", comparator: "IS_EMPTY" },
-        ],
+    filters: [
+      // Date filter — existed before, kept as-is.
+      {
+        id: schedFilterId,
+        fieldId: dateFieldId,
+        active: true,
+        showNav: true,
+        timeUnit: "day",
+        defaultNavValue: "today",
+        condition: {
+          operator: "OR",
+          rules: [
+            { left: "$field.value", comparator: "DATE_EQUALS", right: "$nav" },
+            { left: "$field.value", comparator: "IS_EMPTY" },
+          ],
+        },
       },
-    }],
+      // Time Slot filter — local to the schedule page only. Renders as a
+      // <select> dropdown over the 48 slot labels. Picking a slot writes
+      // filterOverride[timeslotFieldId] which `isOccurrenceVisible` matches
+      // against each slot container's stored `fields.timeslot.value`. The
+      // "— any —" option clears the override and restores all slots.
+      {
+        id: timeslotFilterId,
+        fieldId: timeslotFieldId,
+        active: true,
+        showNav: true,
+        style: "select",
+        options: timeslotLabels,
+        condition: null, // no extra rule — comparator is exact match via filterOverride
+      },
+    ],
   });
 
   const notesPageModId = uid(); const notesPageOccId = uid();
   await new Module({ id: notesPageModId, userId, gridId, role: "page", kind: "doc", label: "Notes" }).save();
-  await mkOcc({ id: notesPageOccId, moduleId: notesPageModId, parentId: notesFolderId, sortOrder: 0, iteration: { mode: "persistent" }, textmap: { type: "doc", content: [{ type: "paragraph" }] }, fields: {} });
+  await mkOcc({ id: notesPageOccId, moduleId: notesPageModId, parentId: notesFolderId, sortOrder: 0, iteration: { mode: "persistent" }, textmap: { type: "doc", content: [{ type: "paragraph" }] }, fields: {}, filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } } });
 
   // Canvas test page — placed in [1,2] (bottom-right). Two seed instances pinned
   // at meta.x/y so drag-FROM-canvas can be exercised; the empty space on the
@@ -610,8 +751,8 @@ export async function createTestGrid(userId, options = {}) {
   await mkOcc({
     id: canvasPageOccId,
     moduleId: canvasPageModId,
-    parentId: rootFolderId,
-    sortOrder: 4,
+    parentId: interfacesFolderId,
+    sortOrder: 1,
     iteration: { mode: "persistent" },
     occurrences: [canvasNoteAOccId, canvasNoteBOccId],
     fields: {},
@@ -619,8 +760,10 @@ export async function createTestGrid(userId, options = {}) {
     // daily date filter from cascading down, matching the Physical (Daily
     // Toolkit) + General (Todo List) container behaviour. Without this, the
     // canvas inherits the date filter and the notes vanish on any non-today
-    // navigation.
+    // navigation. filterNavConfig also hides the date nav widget so the user
+    // can't accidentally re-add a date override via nav arrows.
     filterOverride: {},
+    filterNavConfig: { filter_daily: { visible: false } },
   });
 
   await new View({ id: centerHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: schedPageOccId }).save();
@@ -693,8 +836,8 @@ export async function createTestGrid(userId, options = {}) {
         }},
 
         // Locate the goal display item — this is the UPDATE target (carries the
-        // totalWater field binding). Its ancestor chain (the Daily Goals page)
-        // is what we honour via $parentFilter.
+        // totalWater field binding). $goalDate is driven off its own
+        // _effectiveFilter (instance → Physical container → Daily Goals page).
         { id: uid(), type: "action", config: {
             type: "FIND",
             over: "$allInstances",
@@ -704,20 +847,19 @@ export async function createTestGrid(userId, options = {}) {
             itemIdVar: "$goalId",
             itemVar: "$goalItem",
         }},
-        // $goalDate must come from the GOAL ITEM's effective filter — the
-        // date the Daily Goals page is showing — NOT from $parentFilter.
-        // $parentFilter walks the *trigger's* ancestor chain, so on a
-        // MeasureOp from the Schedule page (e.g. logging water) it resolves
-        // to the schedule's filter, which is the wrong source for a goal
-        // aggregation that should honour the Daily Goals page's filter.
-        // Order: goalItem._effectiveFilter → $parentFilter → trigger.date → today.
+        // $goalDate = the goal item's OWN effective filter. $goalItem is the
+        // "Physical Wellness" display instance; its ancestor chain is
+        //   instance → Physical goal container → Daily Goals page → grid.
+        // getEffectiveFilterForOccurrence now walks that chain via the
+        // occurrences[]-derived reverse map (not parentId, which is unset on
+        // containers/pages), so a date filter set at ANY level — the Physical
+        // container OR the Daily Goals page — is picked up here. We do NOT use
+        // $parentFilter: it is anchored on the TRIGGER occurrence, so a
+        // MeasureOp from logging water on a Schedule task would resolve to
+        // Schedule's date (e.g. tomorrow) and write tomorrow's aggregate into
+        // the goal the user is viewing for today.
+        // Order: $goalItem._effectiveFilter → $trigger.date → today.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}` } },
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$goalDate", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalDate", expr: `$parentFilter.${dateFieldId}` } }],
-          else: [],
-        },
         {
           id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$goalDate", comparator: "IS_EMPTY", right: "" }] },
@@ -740,10 +882,26 @@ export async function createTestGrid(userId, options = {}) {
           condition: {
             operator: "OR",
             rules: [
+              // Bulk events: always run. No trigger item to date-gate on.
               { id: uid(), left: "$trigger.type", comparator: "IS", right: "onLoad" },
               { id: uid(), left: "$trigger.type", comparator: "IS", right: "NavigationOp" },
-              { id: uid(), left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
-              { id: uid(), left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
+              // Item-bearing events: only run when the trigger item's date matches
+              // the goal date. Otherwise we'd recompute today's water sum every
+              // time a tomorrow-dated water entry changes — wasted churn.
+              {
+                id: uid(), operator: "AND",
+                rules: [
+                  { id: uid(), left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
+                  { id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                ],
+              },
+              {
+                id: uid(), operator: "AND",
+                rules: [
+                  { id: uid(), left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
+                  { id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                ],
+              },
               {
                 id: uid(), operator: "AND",
                 rules: [
@@ -755,6 +913,7 @@ export async function createTestGrid(userId, options = {}) {
                       { id: uid(), left: "$trigger.fieldId", comparator: "IS", right: completedFieldId },
                     ],
                   },
+                  { id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
                 ],
               },
             ],
@@ -829,20 +988,19 @@ export async function createTestGrid(userId, options = {}) {
             itemIdVar: "$goalId",
             itemVar: "$goalItem",
         }},
-        // $goalDate must come from the GOAL ITEM's effective filter — the
-        // date the Daily Goals page is showing — NOT from $parentFilter.
-        // $parentFilter walks the *trigger's* ancestor chain, so on a
-        // MeasureOp from the Schedule page (e.g. checking off a task) it
-        // resolves to the schedule's filter, which is the wrong source for
-        // a goal aggregation that should honour the Daily Goals page's filter.
-        // Order: goalItem._effectiveFilter → $parentFilter → trigger.date → today.
+        // $goalDate = the goal item's OWN effective filter. $goalItem is the
+        // "Task Progress" display instance; its ancestor chain is
+        //   instance → Physical goal container → Daily Goals page → grid.
+        // getEffectiveFilterForOccurrence now walks that chain via the
+        // occurrences[]-derived reverse map (not parentId, which is unset on
+        // containers/pages), so a date filter set at ANY level — the Physical
+        // container OR the Daily Goals page — is picked up here. We do NOT use
+        // $parentFilter: it is anchored on the TRIGGER occurrence, so a
+        // MeasureOp from checking off a Schedule task would resolve to
+        // Schedule's date (e.g. tomorrow) and write tomorrow's aggregate into
+        // the goal the user is viewing for today.
+        // Order: $goalItem._effectiveFilter → $trigger.date → today.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}` } },
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$goalDate", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalDate", expr: `$parentFilter.${dateFieldId}` } }],
-          else: [],
-        },
         {
           id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$goalDate", comparator: "IS_EMPTY", right: "" }] },
@@ -864,15 +1022,34 @@ export async function createTestGrid(userId, options = {}) {
           condition: {
             operator: "OR",
             rules: [
+              // Bulk events: always run. No trigger item to date-gate on.
               { id: uid(), left: "$trigger.type", comparator: "IS", right: "onLoad" },
               { id: uid(), left: "$trigger.type", comparator: "IS", right: "NavigationOp" },
-              { id: uid(), left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
-              { id: uid(), left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
+              // Item-bearing events: only run when the trigger item's date matches
+              // the goal date. Without this gate, completing a tomorrow-dated task
+              // while viewing today re-aggregates today's count and re-writes the
+              // same value back to the goal record — wasted churn that the user
+              // perceives as "today's goal updating from a tomorrow action".
+              {
+                id: uid(), operator: "AND",
+                rules: [
+                  { id: uid(), left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
+                  { id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                ],
+              },
+              {
+                id: uid(), operator: "AND",
+                rules: [
+                  { id: uid(), left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
+                  { id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                ],
+              },
               {
                 id: uid(), operator: "AND",
                 rules: [
                   { id: uid(), left: "$trigger.type",    comparator: "IS", right: "MeasureOp" },
                   { id: uid(), left: "$trigger.fieldId", comparator: "IS", right: completedFieldId },
+                  { id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
                 ],
               },
             ],
@@ -918,11 +1095,28 @@ export async function createTestGrid(userId, options = {}) {
     id: uid(), userId, gridId, name: "Schedule: Build Day",
     description: "Ensure Due + 48 timeslot containers exist, seed Daily Routine via APPLY_TEMPLATE, and sweep matching todos into Due.",
     // priority 1 so the shell (slots) + routine seeding finish before goal
-    // aggregations (priority 3) read the data. onFilterChange on both Schedule
-    // and Daily Goals ensures a date change re-seeds before trackers aggregate.
+    // aggregations (priority 3) read the data. Four onFilterChange triggers:
+    //   - grid: toolbar date arrows write grid.activeFilterValues — fires a
+    //     NavigationOp with no ancestor data; matchSubjectFilter (May 15 fix)
+    //     restricts grid-subject triggers to true global changes ONLY, so this
+    //     no longer matches local container-only filter changes.
+    //   - filterNav ancestorLabel "Schedule": LocalFilterNav writes
+    //     filterOverride on the Schedule page occurrence — fire carries
+    //     _ancestorLabels routes via ancestor scope.
+    //   - filterNav ancestorLabel "Daily Goals": Goals/Physical/sub-container
+    //     filter changes fire NavigationOps with "Daily Goals" in their
+    //     ancestor chain. Build Day uses $trigger.date (the goals filter's
+    //     new value) — not $schedPage._effectiveFilter — so the seed lands
+    //     on the goals' day even when Schedule is filtered to a different
+    //     date. Without this trigger, navigating Goals to an unvisited day
+    //     showed 0s indefinitely (no underlying tasks existed for that day).
+    //     Schedule isn't visually polluted because the new instances are
+    //     dated to goals' day and Schedule's filter cascade hides anything
+    //     not matching its own current filter.
     triggerTypes: ["onLoad", "onFilterChange"],
     triggerObjects: [
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 1 },
+      { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 1 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule",    priority: 1 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 1 },
     ],
@@ -944,24 +1138,28 @@ export async function createTestGrid(userId, options = {}) {
             itemVar: "$schedPage",
         }},
 
-        // $schedDate fallback chain:
-        //   1. $parentFilter.<dateFieldId> — trigger-aware: onFilterChange from Daily
-        //      Goals resolves to the goal page's date; from Schedule resolves to
-        //      Schedule's override. Matches the old Seed Daily Routine resolution.
-        //   2. Schedule page's effective filter (onLoad fallback)
-        //   3. $trigger.date (set on NavigationOp by LocalFilterNav)
-        //   4. $today
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$parentFilter.${dateFieldId}` } },
+        // $schedDate resolution — $trigger.date wins. Build Day's triggers
+        // are all explicit user-action sources that carry the intended date:
+        //   - Schedule LocalFilterNav → $trigger.date = Schedule's new override
+        //   - Daily Goals LocalFilterNav (also Physical/sub-container) →
+        //     $trigger.date = goals' new override (the user clarified: when
+        //     fired from goals, USE the goals filter date, even though
+        //     $schedPage._effectiveFilter would resolve to Schedule's own
+        //     filter — possibly a different day).
+        //   - Toolbar grid filter change → $trigger.date = toolbar value
+        // Only onLoad has no $trigger.date; we fall through to the page's
+        // effective filter (Schedule's current view) for that case.
+        // $parentFilter (the trigger occurrence's own ancestor-merged filter)
+        // is intentionally NOT used — it'd anchor on the trigger source and
+        // pull in irrelevant filter overrides further down the chain.
+        //   1. $trigger.date
+        //   2. $schedPage._effectiveFilter.<dateFieldId> (onLoad fallback)
+        //   3. $today (cold-start last resort)
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$trigger.date" } },
         {
           id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
           then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } }],
-          else: [],
-        },
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$trigger.date" } }],
           else: [],
         },
         {
@@ -1006,51 +1204,62 @@ export async function createTestGrid(userId, options = {}) {
               else: [],
             },
 
-            // Build the 48 timeslot containers ONCE — not per day. The slot
-            // array itself never changes between days, so we don't need a
-            // per-day occurrence per slot. Each loop iteration FINDs by
-            // meta.slotLabel (no date scope); if any slot for that label
-            // already exists we skip the CREATE entirely. The page-level
-            // date filter cascades down through the slots to the per-day
-            // instances they hold — that's where date filtering happens,
-            // not on the slots themselves.
+            // Apply the "Daily Routine" template in MERGE mode. The template
+            // captures the full schedule subtree (48 slot containers with
+            // routine instances pre-placed). Merge semantics:
+            //   - Existing slot (matched by identitySignature "slot:<label>")
+            //     → skip cloning the slot, recurse into its template children.
+            //   - Routine instance templates carry NO identitySignature, so
+            //     merge falls through to a fresh clone on every apply.
+            // To keep per-date routine instances idempotent across reloads /
+            // filter changes, gate the whole apply on a FIND for any existing
+            // instance under $schedPage already stamped with $schedDate. If
+            // one exists, the date has been seeded — skip.
             { id: uid(), type: "action", config: {
-                type: "INIT_VAR", name: "$slots",
-                arrayOf: timeSlots.map(s => ({
-                  templateId: schedContainers[`slot_${s.hour}_${s.minute}`].id,
-                  label: s.label,
-                })),
+                type: "FIND",
+                over: "$allOccurrences",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "meta.templateName", comparator: "IS", right: "Daily Routine" },
+                ]},
+                itemIdVar: "$dailyRoutineTplId",
+            }},
+            { id: uid(), type: "action", config: {
+                type: "FIND",
+                over: "$allInstances",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "_ancestors",                  comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY",     right: "$schedDate" },
+                ]},
+                itemIdVar: "$existingRoutineId",
             }},
             {
-              id: uid(), type: "loop", overExpr: "$slots", as: "$slot",
-              body: [
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$dailyRoutineTplId", comparator: "IS_NOT_EMPTY", right: "" },
+                { id: uid(), left: "$existingRoutineId", comparator: "IS_EMPTY",     right: "" },
+              ]},
+              then: [
+                // defaultFields stamps the date/due directly into each cloned
+                // routine instance's `fields` map at CREATE_ITEM time. The
+                // previous LOOP+UPDATE pattern emitted a separate
+                // update_occurrence per clone, which raced the create on the
+                // server (update can upsert before create drains the queue,
+                // then create's $set clobbers the date). Baking the date in
+                // makes it a single socket emit per clone.
                 { id: uid(), type: "action", config: {
-                    type: "FIND",
-                    over: "$allContainers",
-                    predicate: { operator: "AND", rules: [
-                      { id: uid(), left: "meta.scheduleSlot", comparator: "IS", right: true },
-                      { id: uid(), left: "meta.slotLabel",    comparator: "IS", right: "$slot.label" },
-                    ]},
-                    itemIdVar: "$slotItemId",
+                    type: "APPLY_TEMPLATE",
+                    templateRef: "$dailyRoutineTplId",
+                    targetOccurrenceVar: "$schedPageId",
+                    mode: "merge",
+                    unwrapRoot: true,
+                    resultVar: "$newScheduleOccs",
+                    defaultFields: {
+                      [dateFieldId]: "$schedDate",
+                      [dueFieldId]:  "$schedDate",
+                    },
                 }},
-                {
-                  id: uid(), type: "if",
-                  condition: { operator: "AND", rules: [{ id: uid(), left: "$slotItemId", comparator: "IS_EMPTY", right: "" }] },
-                  then: [
-                    { id: uid(), type: "action", config: {
-                        type: "CREATE",
-                        name: "$slot.label",
-                        role: "container",
-                        kind: "list",
-                        meta: { scheduleSlot: true, slotLabel: "$slot.label" },
-                        parent: "$schedPageId",
-                        fields: { [timeslotFieldId]: "$slot.label" },
-                        fieldHidden: { [timeslotFieldId]: true },
-                    }},
-                  ],
-                  else: [],
-                },
               ],
+              else: [],
             },
 
             // Sweep todos whose due-date matches the active date into Due.
@@ -1103,24 +1312,44 @@ export async function createTestGrid(userId, options = {}) {
                       condition: { operator: "AND", rules: [{ id: uid(), left: "$existingCopyId", comparator: "IS_EMPTY", right: "" }] },
                       then: [{
                         id: uid(), type: "action", config: {
-                          type: "CREATE",
-                          name: "$todoLabel",
-                          role: "instance",
-                          kind: "list",
+                          // COPY_LINK (not CREATE): the swept Due copy shares
+                          // a linkedGroupId with the source todo, so marking
+                          // either complete propagates via the server's
+                          // update_occurrence linked-group fan-out
+                          // (server/socketHandlers/occurrences.js:91-124).
+                          // Reuses source.moduleId, so no template mint and
+                          // the source's existing fieldBindings (incl. the
+                          // already-hidden date binding) carry through —
+                          // hence no fieldHidden here, unlike a fresh CREATE.
+                          type: "COPY_LINK",
+                          sourceId: "$item.id",
                           parent: "$dueId",
-                          // Stamp both: dateFieldId for the schedule's date
-                          // cascade, dueFieldId so the visible "Due" field on
-                          // the swept copy renders the actual date (instead
-                          // of the empty field-name fallback). The original
-                          // todo's dueDate matched $schedDate to be swept.
+                          // Stamp both date fields so the schedule cascade
+                          // matches AND the visible "Due" field renders the
+                          // active date. copyFields default true seeds the
+                          // copy's other fields from the source so the visual
+                          // states match before the first propagated write.
                           fields: {
                             [dateFieldId]: "$schedDate",
                             [dueFieldId]:  "$schedDate",
                           },
-                          fieldHidden: { [dateFieldId]: true },
                         },
                       }],
-                      else: [],
+                      // A copy already exists for this date. If it predates
+                      // COPY_LINK (or was a plain CREATE), it shares NO
+                      // linkedGroupId with the source todo — so marking either
+                      // complete does nothing to the other. Call COPY_LINK in
+                      // migration mode (sourceId + targetId, no new occurrence)
+                      // to retroactively join them via a shared linkedGroupId.
+                      // Idempotent: once linked, the IS check inside COPY_LINK
+                      // no-ops (no UPDATE emitted when both already match).
+                      else: [{
+                        id: uid(), type: "action", config: {
+                          type: "COPY_LINK",
+                          sourceId: "$item.id",
+                          targetId: "$existingCopyId",
+                        },
+                      }],
                     },
                   ],
                   else: [],
@@ -1129,73 +1358,132 @@ export async function createTestGrid(userId, options = {}) {
               else: [],
             },
 
-            // ── Daily Routine seeding via APPLY_TEMPLATE ──────────────────────
-            // Replaces "Schedule: Seed Daily Routine" (deleted). The template
-            // subtree was seeded in STEP 7b above.
-            //
-            // Step 1: Find the Daily Routine template occurrence by templateName.
+            // Tail: re-aggregate the goal trackers so any newly-seeded routine
+            // OR newly-swept Due copy immediately ticks goal totals — without
+            // this, Schedule nav created tasks but Goals stayed at its old
+            // count until the user re-triggered the trackers (filter nav).
+            // Trackers' onFilterChange is ancestor-scoped to "Daily Goals", so
+            // a Schedule-page filter change does NOT naturally re-fire them.
+            // The in-batch `liveOccs` overlay (operationExecutor.runMatching
+            // Operations) means trackers see this op's CREATE_ITEM effects.
+            // When Build Day was itself called by a Goals nav, the trackers
+            // also fire naturally at priority 3 — these tail invocations are
+            // a redundant-but-idempotent recompute (aggregations are pure).
+            { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: "Tracker: Water Today" } },
+            { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: "Tracker: Tasks Completed Today" } },
+          ],
+          else: [],
+        },
+      ],
+    },
+  }).save();
+
+
+  // ── Day Page: Build ──────────────────────────────────────────────────────
+  // Same trigger surface + $date resolution chain as "Schedule: Build Day".
+  // Per active date: ensure a doc page "Day Page - <date>" exists in the Day
+  // Pages folder. If missing, APPLY_TEMPLATE the "Day Page" template as a fresh
+  // standalone page (rootParent = Day Pages folder, rootLabel = the dated
+  // name) with replacements { "{Date}": "$dayDate" } so the cloned textblock
+  // H1 reads "Day Page - <date>". Idempotent: the existence FIND is by the
+  // deterministic page label.
+  await new Operation({
+    id: uid(), userId, gridId, name: "Day Page: Build",
+    description: "Create one doc Day Page per active date in the Day Pages folder, applying the Day Page template with the date stamped into the textblock heading.",
+    triggerTypes: ["onLoad", "onFilterChange"],
+    triggerObjects: [
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 1 },
+      { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 1 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule",    priority: 1 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 1 },
+    ],
+    enabled: true,
+    pipeline: {
+      steps: [
+        // Resolve the date exactly like Build Day: $trigger.date wins (every
+        // trigger here is an explicit user action carrying the intended
+        // date), then the Schedule page's effective filter for the onLoad
+        // case, then $today as a cold-start last resort.
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            over: "$allPages",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "label", comparator: "IS", right: "Schedule" },
+            ]},
+            itemIdVar: "$schedPageId",
+            itemVar: "$schedPage",
+        }},
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$trigger.date" } },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } }],
+          else: [],
+        },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$today" } }],
+          else: [],
+        },
+
+        // Deterministic page name — also the idempotency key.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayPageName", expr: "Day Page - ${$dayDate}" } },
+
+        // Already built for this date?
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            over: "$allPages",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "label", comparator: "IS", right: "$dayPageName" },
+            ]},
+            itemIdVar: "$existingDayPageId",
+        }},
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$existingDayPageId", comparator: "IS_EMPTY", right: "" }] },
+          then: [
+            // Locate the Day Page template root (templates manifest).
             { id: uid(), type: "action", config: {
                 type: "FIND",
                 over: "$allOccurrences",
                 predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "meta.templateName", comparator: "IS", right: "Daily Routine" },
+                  { id: uid(), left: "meta.templateName", comparator: "IS", right: "Day Page" },
                 ]},
-                itemIdVar: "$dailyRoutineTplId",
+                itemIdVar: "$dayPageTplId",
             }},
-
-            // Step 2: Idempotency check — find any routine instance already
-            // under $schedPage stamped with $schedDate. If one exists, skip.
-            // (Container-role occurrences from the template won't have a date
-            // field, so we iterate $allInstances to only match leaf instances.)
-            { id: uid(), type: "action", config: {
-                type: "FIND",
-                over: "$allInstances",
-                predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "_ancestors",                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                  { id: uid(), left: `fields.${dateFieldId}.value`,      comparator: "SAME_DAY",     right: "$schedDate" },
-                ]},
-                itemIdVar: "$existingRoutineId",
-            }},
-
-            // Step 3: If template found AND no routine instances exist for this
-            // date, apply the template then stamp dateFieldId + dueFieldId on
-            // each cloned instance.
             {
               id: uid(), type: "if",
-              condition: { operator: "AND", rules: [
-                { id: uid(), left: "$dailyRoutineTplId", comparator: "IS_NOT_EMPTY", right: "" },
-                { id: uid(), left: "$existingRoutineId", comparator: "IS_EMPTY",     right: "" },
-              ]},
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$dayPageTplId", comparator: "IS_NOT_EMPTY", right: "" }] },
               then: [
-                // APPLY_TEMPLATE clones the subtree into $schedPage (append mode).
-                // resultVar gets an array of ALL cloned occurrence ids (container
-                // root + leaf instances). We loop over them and stamp date fields
-                // on any leaf instance — the container clone carries no date field.
+                // Fresh doc page in the Day Pages folder. parent is the
+                // folder id (pages parent to folders via parentId — same as
+                // the seeded Notes/Schedule pages).
+                // Mint a fresh doc page (root + its textblock child) straight
+                // into the Day Pages folder. rootParent makes APPLY_TEMPLATE
+                // create a standalone new page (no pre-CREATE, no merge into an
+                // existing target); rootLabel names it per date; replacements
+                // stamps the date into the cloned textblock's H1. The page's
+                // own instanceTextblock ref is auto-remapped to the clone.
                 { id: uid(), type: "action", config: {
                     type: "APPLY_TEMPLATE",
-                    templateRef: "$dailyRoutineTplId",
-                    targetOccurrenceVar: "$schedPageId",
-                    mode: "append",
-                    resultVar: "$newRoutineOccs",
+                    templateRef: "$dayPageTplId",
+                    rootParent: dayPagesFolderId,
+                    rootLabel: "$dayPageName",
+                    replacements: { "{Date}": "$dayDate" },
+                    rootIdVar: "$newDayPageId",
                 }},
-                // Loop over every cloned occurrence and stamp date + due on
-                // instances. Container occurrences in the set don't have a
-                // dateFieldId binding so the UPDATE is a no-op for them.
-                {
-                  id: uid(), type: "loop", overExpr: "$newRoutineOccs", as: "$newOccId",
-                  body: [
-                    { id: uid(), type: "action", config: {
-                        type: "UPDATE",
-                        path: `$newOccId.fields.${dateFieldId}.value`,
-                        value: "$schedDate",
-                    }},
-                    { id: uid(), type: "action", config: {
-                        type: "UPDATE",
-                        path: `$newOccId.fields.${dueFieldId}.value`,
-                        value: "$schedDate",
-                    }},
-                  ],
-                },
+                // Pin the new day page into the Center Hub panel as an
+                // inactive tab — same as how the Notes page is "opened"
+                // alongside Schedule. parentId stays the Day Pages folder
+                // (tree); this only appends to the panel occ's occurrences[].
+                // The hub View's activeOccurrenceId remains Schedule, so the
+                // tab is present but not shown until the user clicks it.
+                { id: uid(), type: "action", config: {
+                    type: "ADD_CHILD",
+                    parentId: panelOccIds.hub,
+                    childId: "$newDayPageId",
+                }},
               ],
               else: [],
             },

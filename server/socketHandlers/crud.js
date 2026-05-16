@@ -842,6 +842,25 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
         ...(occurrence.textmap != null && { textmap: occurrence.textmap }),
         ...(occurrence.viewId != null && { viewId: occurrence.viewId }),
         ...(Array.isArray(occurrence.occurrences) && { occurrences: occurrence.occurrences }),
+        // identitySignature drives APPLY_TEMPLATE mode:"merge" idempotency.
+        // Without forwarding it here the field is silently dropped on insert and
+        // every date-nav re-clones the entire schedule subtree.
+        ...(occurrence.identitySignature != null && { identitySignature: occurrence.identitySignature }),
+        // filterNavConfig is the per-filter nav widget config keyed by filter id.
+        // Same persistence gap as identitySignature — drop it here and HeaderDropdown
+        // toggles never survive reload.
+        ...(occurrence.filterNavConfig != null && { filterNavConfig: occurrence.filterNavConfig }),
+        // filterOverride is set explicitly elsewhere but include it here for the
+        // create path (a CREATE_ITEM clone may carry an inherited override).
+        ...(occurrence.filterOverride !== undefined && { filterOverride: occurrence.filterOverride }),
+        // filters is the per-occurrence FilterEditor list (conditional filters).
+        ...(Array.isArray(occurrence.filters) && { filters: occurrence.filters }),
+        // hidden/locked/sortOrder/dragMode are also schema fields that flow through
+        // create — include them so CREATE_ITEM clones don't drop them.
+        ...(typeof occurrence.hidden === "boolean" && { hidden: occurrence.hidden }),
+        ...(typeof occurrence.locked === "boolean" && { locked: occurrence.locked }),
+        ...(typeof occurrence.sortOrder === "number" && { sortOrder: occurrence.sortOrder }),
+        ...(occurrence.dragMode != null && { dragMode: occurrence.dragMode }),
       };
       uc.occurrencesById[id] = occurrenceData;
       try {

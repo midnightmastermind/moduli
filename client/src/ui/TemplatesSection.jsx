@@ -15,21 +15,25 @@ import {
 
 export default function TemplatesSection({ occurrence }) {
   const ctx = useContext(GridActionsContext);
-  const { socket, state, modulesById } = ctx;
+  const { socket, state, modulesById, occurrencesById, manifestsById, foldersById } = ctx;
   const gridId = state?.grid?._id || state?.gridId;
+  const lookups = useMemo(
+    () => ({ manifestsById, foldersById, occurrencesById, modulesById }),
+    [manifestsById, foldersById, occurrencesById, modulesById]
+  );
 
   const myModule = modulesById?.[occurrence?.moduleId || occurrence?.targetId];
   const myKind = myModule?.role || myModule?.kind || null;
 
   const templates = useMemo(
-    () => (myKind ? templatesByKind(state, gridId, myKind) : []),
-    [state, gridId, myKind]
+    () => (myKind ? templatesByKind(lookups, gridId, myKind) : []),
+    [lookups, gridId, myKind]
   );
 
-  const root = rootFolderForTemplates(state, gridId);
+  const root = rootFolderForTemplates(lookups, gridId);
   const appliedFrom = occurrence?.meta?.appliedFromTemplateId;
   const appliedFromName = appliedFrom
-    ? state?.occurrencesById?.[appliedFrom]?.meta?.templateName
+    ? occurrencesById?.[appliedFrom]?.meta?.templateName
     : null;
 
   const [selectedId, setSelectedId] = useState(null);

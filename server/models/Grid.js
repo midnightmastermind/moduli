@@ -39,6 +39,10 @@ const GridSchema = new mongoose.Schema({
   // { [fieldId]: value | value[] }
   activeFilterValues: { type: mongoose.Schema.Types.Mixed, default: {} },
 
+  // IDs of namedFilters currently surfaced as nav widgets in the toolbar.
+  // Written by ToolbarFilterDropdown's eye-toggles. Order preserved.
+  toolbarNavFilters: { type: [String], default: [] },
+
   // Global field registry
   fieldIds: { type: [String], default: [] },
 

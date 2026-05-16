@@ -19,17 +19,22 @@ export function Toaster({ ...props }) {
       toastOptions={{
         duration: 3000,
         classNames: {
+          // Slim toast — height clamped to ~26px so it tucks inside the
+          // toolbar band and never spills down over the grid. Title +
+          // description render inline on a single line (description gets a
+          // dimmer color so the change being narrated is still readable).
           toast: `
             group toast
             !bg-slate-900/95 !backdrop-blur-sm
             !border !border-slate-700/50
-            !rounded-lg !shadow-xl !shadow-black/20
-            !py-2.5 !px-4 !min-h-0
-            !text-sm !font-medium
-            !flex !items-center !gap-3
+            !rounded-md !shadow-md !shadow-black/30
+            !py-0.5 !px-2 !min-h-0 !h-6
+            !text-xs !font-medium
+            !flex !items-center !gap-2
+            !max-w-[80vw]
           `,
-          title: "!text-slate-100 !text-sm !font-medium !leading-tight",
-          description: "!text-slate-400 !text-xs !mt-0.5 !leading-snug",
+          title: "!text-slate-100 !text-xs !font-medium !leading-none !truncate",
+          description: "!text-slate-400 !text-[10px] !leading-none !mt-0 !truncate",
           actionButton: `
             !bg-slate-700 !text-slate-100 !text-xs !font-medium
             !px-2.5 !py-1 !rounded-md

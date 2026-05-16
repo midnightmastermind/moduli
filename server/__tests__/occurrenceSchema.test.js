@@ -18,8 +18,7 @@ function makeValid(overrides = {}) {
   return new Occurrence({
     id: "occ-1",
     userId: "user-1",
-    targetType: "module",
-    targetId: "mod-1",
+    moduleId: "mod-1",
     gridId: "grid-1",
     ...overrides,
   });
@@ -32,24 +31,11 @@ describe("Occurrence schema validation", () => {
     expect(err).toBeUndefined();
   });
 
-  it("targetType enum enforced — module is valid", () => {
-    const occ = makeValid({ targetType: "module" });
-    const err = occ.validateSync();
-    expect(err).toBeUndefined();
-  });
-
-  it("targetType enum enforced — invalid value fails", () => {
-    const occ = makeValid({ targetType: "panel" });
+  it("moduleId is required — missing moduleId fails", () => {
+    const occ = makeValid({ moduleId: undefined });
     const err = occ.validateSync();
     expect(err).toBeDefined();
-    expect(err.errors["targetType"]).toBeDefined();
-  });
-
-  it("targetType enum enforced — 'doc' is no longer valid", () => {
-    const occ = makeValid({ targetType: "doc" });
-    const err = occ.validateSync();
-    expect(err).toBeDefined();
-    expect(err.errors["targetType"]).toBeDefined();
+    expect(err.errors["moduleId"]).toBeDefined();
   });
 
   it("filterOverride defaults to null", () => {

@@ -328,7 +328,18 @@ const Editor = forwardRef(function Editor({
       if (locallyModifiedTimerRef.current) clearTimeout(locallyModifiedTimerRef.current);
       locallyModifiedTimerRef.current = setTimeout(() => {
         locallyModifiedRef.current = false;
-      }, 1500);
+      }, 3000);
+
+      // Slide the auto-create merge window forward on every keystroke during
+      // the focus race. Without this, slow saves + fast typing can let the
+      // initial 1500ms window expire before the sub-editor takes focus, and
+      // subsequent typed chars land as plain paragraphs in the outer doc.
+      if (recentAutoCreateRef?.current?.occId) {
+        recentAutoCreateRef.current.expireAt = Math.max(
+          recentAutoCreateRef.current.expireAt || 0,
+          Date.now() + 1500
+        );
+      }
 
       const json = editor.getJSON();
       onChange?.(json);

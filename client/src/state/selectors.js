@@ -1,6 +1,26 @@
 // state/selectors.js
 // Selectors for working with occurrences and entities in the state
 import { evalRule, evalGroup } from "../helpers/operationActions";
+import { buildParentMap } from "../helpers/dragHitTesting";
+
+/**
+ * The single authoritative "who is this occurrence's parent" answer.
+ *
+ * Parent linkage is authoritative via `parent.occurrences[]` — `parentId` is
+ * only reliably set on leaf instances in seeded data; containers and pages
+ * track children via `occurrences[]` and frequently have NO `parentId`. Every
+ * ancestor walk in the app (effective filters, ancestor scoping, NavigationOp
+ * cascade) MUST resolve the parent through this helper so they all agree.
+ *
+ * Pass a prebuilt `parentByChildId` (from helpers/dragHitTesting.buildParentMap)
+ * when walking many occurrences to avoid rebuilding the map per call.
+ */
+export function getParentOccurrence(occ, { occurrencesById, parentByChildId } = {}) {
+  if (!occ || !occurrencesById) return null;
+  const pbc = parentByChildId || buildParentMap(occurrencesById);
+  const parentId = pbc[occ.id] ?? occ.parentId;
+  return parentId ? (occurrencesById[parentId] || null) : null;
+}
 
 /**
  * Creates lookup maps from state arrays.
@@ -272,25 +292,80 @@ export function getOtherOccurrences(occurrencesById, modulesById, moduleId, excl
  *   null/undefined override = inherit parent
  *   {}                      = clear all (show everything)
  *   { fieldId: value }      = merge/override specific fields
+ *
+ * Null-mute scoping rule (per-leaf):
+ *   A `filterOverride[fieldId] = null` cascades to descendants ONLY when that
+ *   ancestor also declares the same fieldId in its local `filters[]` (so the
+ *   mute is acting on the ancestor's OWN filter — meaning "I declared this
+ *   filter, and I'm turning it off for me + everyone below").
+ *   When the ancestor doesn't own the filter (it's inherited from grid or a
+ *   higher ancestor), the null only applies to that ancestor's own visibility
+ *   — descendants continue inheriting the filter from above as if the
+ *   intermediate mute didn't exist.
+ *   The leaf (the occurrence we're computing for) always applies its own
+ *   nulls — that's the user "muting this filter on this occurrence".
  */
-export function getEffectiveFilterForOccurrence(occ, { grid, occurrencesById }) {
+function _ownsLocalFilter(occ, fieldId) {
+  if (!occ || !Array.isArray(occ.filters)) return false;
+  return occ.filters.some(f => f?.fieldId === fieldId);
+}
+
+export function getEffectiveFilterForOccurrence(occ, { grid, occurrencesById, parentByChildId } = {}) {
   if (!occ) return grid?.activeFilterValues || {};
+  // Parent linkage is authoritative via parent.occurrences[] (see
+  // getParentOccurrence). Use the one shared reverse-map builder; callers
+  // walking many occurrences pass a prebuilt map to avoid O(N²).
+  const pbc = parentByChildId || buildParentMap(occurrencesById || {});
   const chain = [];
   let cur = occ;
   const guard = new Set();
   while (cur && !guard.has(cur.id)) {
     guard.add(cur.id);
     chain.push(cur);
-    cur = cur.parentId ? (occurrencesById?.[cur.parentId] || null) : null;
+    const nextId = pbc[cur.id] ?? cur.parentId;
+    cur = nextId ? (occurrencesById?.[nextId] || null) : null;
   }
   let effective = { ...(grid?.activeFilterValues || {}) };
+  // Walk root → leaf so leaf wins. chain[0] is the leaf (occ itself).
   for (let i = chain.length - 1; i >= 0; i--) {
-    const override = chain[i].filterOverride;
+    const cur = chain[i];
+    const isLeaf = i === 0;
+    const override = cur.filterOverride;
     if (override == null) continue;
     if (Object.keys(override).length === 0) { effective = {}; continue; }
-    effective = { ...effective, ...override };
+    for (const [k, v] of Object.entries(override)) {
+      if (v === null) {
+        // Null = mute. Cascades only when the muting occurrence owns the
+        // local filter for that fieldId, OR when it's the leaf's own mute.
+        if (isLeaf || _ownsLocalFilter(cur, k)) {
+          delete effective[k];
+        }
+        // else: ancestor muting an inherited filter — local-only, descendants
+        // ignore it.
+      } else {
+        effective[k] = v;
+      }
+    }
   }
   return effective;
+}
+
+// Returns synthesized IS-comparator conditions for an occurrence's local
+// `filters[]` entries that opt into cascade-driven matching (active && fieldId
+// && condition == null). The Time Slot select on the schedule page is the
+// canonical example — its `condition: null` means "match strictly against
+// whatever filterOverride writes for this fieldId". Entries with an explicit
+// condition (e.g. the legacy schedFilterId OR-block) are NOT synthesized here;
+// they're either evaluated through their own rule tree elsewhere or are dead
+// code that the active grid filter already covers.
+export function getLocalFilterConditions(occ) {
+  const out = [];
+  for (const f of (occ?.filters || [])) {
+    if (!f?.active || !f.fieldId) continue;
+    if (f.condition != null) continue;
+    out.push({ fieldId: f.fieldId, comparator: f.comparator || "IS" });
+  }
+  return out;
 }
 
 export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditions = null) {
@@ -319,6 +394,11 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
       const rightVal = cond.value !== undefined && cond.value !== null && cond.value !== ""
         ? cond.value
         : effectiveFilters?.[fieldId];
+      // No filter target resolved — treat as "no filter set" and skip rather than
+      // fail. This is what makes the Time Slot dropdown's "— any —" reset restore
+      // all slots: clearing writes filterOverride[fieldId] = null, the cascade
+      // deletes the key, rightVal lands as undefined, and we should pass.
+      if (rightVal == null) continue;
       const comparator = String(cond.comparator || "IS").toUpperCase();
       const ok = evalRule({ left: leftVal, comparator, right: rightVal }, {});
       if (!ok) return false;

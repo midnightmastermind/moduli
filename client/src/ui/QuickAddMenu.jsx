@@ -42,7 +42,11 @@ const ALLOWED_KINDS_BY_ROLE = {
 };
 
 export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null }) {
-  const { modulesById, roleByModuleId, socket, state } = useContext(GridActionsContext);
+  const { modulesById, roleByModuleId, socket, state, occurrencesById, manifestsById, foldersById } = useContext(GridActionsContext);
+  const lookups = useMemo(
+    () => ({ manifestsById, foldersById, occurrencesById, modulesById }),
+    [manifestsById, foldersById, occurrencesById, modulesById]
+  );
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [pickedKind, setPickedKind] = useState(null); // null = showing categories
@@ -130,12 +134,12 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     if (!hostOccurrence || !gridId || !allowedKinds) return [];
     const rows = [];
     for (const k of allowedKinds) {
-      for (const tpl of templatesByKind(state, gridId, k)) {
+      for (const tpl of templatesByKind(lookups, gridId, k)) {
         rows.push(tpl);
       }
     }
     return rows;
-  }, [state, gridId, allowedKinds, hostOccurrence]);
+  }, [lookups, gridId, allowedKinds, hostOccurrence]);
 
   // Modules filtered by picked kind + search.
   const filteredModules = useMemo(() => {

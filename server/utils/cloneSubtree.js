@@ -1,8 +1,13 @@
 // server/utils/cloneSubtree.js
+import { randomUUID } from "node:crypto";
 import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
 
-const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+// Match client-side id minting (operationActions.js APPLY_TEMPLATE) so the
+// two clone paths produce comparably collision-resistant IDs. The old
+// `${Date.now()}-${Math.random()...}` form had real (small) collision risk
+// under burst load when many subtrees clone in the same millisecond.
+const newId = () => randomUUID();
 
 /**
  * Clone a subtree rooted at `rootOccurrenceId`. For each node:

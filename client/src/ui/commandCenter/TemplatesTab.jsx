@@ -4,24 +4,21 @@ import { GridActionsContext } from "../../GridActionsContext";
 import { rootFolderForTemplates, templateKindOf } from "../../helpers/templateHelpers";
 import { commitApplyTemplate } from "../../helpers/CommitHelpers";
 
-function walkTemplates(state, folderId, depth, acc) {
-  Object.values(state?.occurrencesById || {})
+function walkTemplates(lookups, folderId, depth, acc) {
+  Object.values(lookups?.occurrencesById || {})
     .filter(o => o.parentId === folderId && o.meta?.templateName)
     .forEach(o => acc.push({ kind: "tpl", occ: o, depth }));
-  Object.values(state?.foldersById || {})
+  Object.values(lookups?.foldersById || {})
     .filter(f => f.parentId === folderId)
     .forEach(f => {
       acc.push({ kind: "folder", folder: f, depth });
-      walkTemplates(state, f.id, depth + 1, acc);
+      walkTemplates(lookups, f.id, depth + 1, acc);
     });
 }
 
-function targetCandidates(state, gridId, kindOrRole) {
+function targetCandidates(lookups, gridId, kindOrRole) {
   // Flat list of every occurrence in this grid (excluding templates manifest)
   // whose underlying module's role/kind makes it a valid apply target.
-  // For templates of role "container", targets are page-role occurrences.
-  // For templates of role "page",      targets are panel-role occurrences.
-  // For templates of role "instance",  targets are container-role occurrences.
   const targetRoleByTemplateRole = {
     container: "page",
     page: "panel",
@@ -31,36 +28,39 @@ function targetCandidates(state, gridId, kindOrRole) {
   };
   const targetRole = targetRoleByTemplateRole[kindOrRole];
   if (!targetRole) return [];
-  const root = rootFolderForTemplates(state, gridId);
+  const root = rootFolderForTemplates(lookups, gridId);
   const templatesRootId = root?.id;
-  return Object.values(state?.occurrencesById || {})
+  return Object.values(lookups?.occurrencesById || {})
     .filter(o => {
       // Exclude anything inside the templates manifest
       if (templatesRootId) {
-        // Walk up parents — if any ancestor is the templates root folder, skip
         let cur = o;
         while (cur) {
           if (cur.parentId === templatesRootId) return false;
-          cur = cur.parentId ? state.occurrencesById[cur.parentId] : null;
+          cur = cur.parentId ? lookups.occurrencesById[cur.parentId] : null;
         }
       }
       const modId = o.moduleId || o.targetId;
-      const mod = state?.modulesById?.[modId];
+      const mod = lookups?.modulesById?.[modId];
       const role = mod?.role;
       return role === targetRole;
     });
 }
 
-function labelFor(state, occ) {
+function labelFor(modulesById, occ) {
   const modId = occ.moduleId || occ.targetId;
-  return state?.modulesById?.[modId]?.label || "(unnamed)";
+  return modulesById?.[modId]?.label || "(unnamed)";
 }
 
 export default function TemplatesTab() {
   const ctx = useContext(GridActionsContext);
-  const { socket, state } = ctx;
+  const { socket, state, modulesById, occurrencesById, manifestsById, foldersById } = ctx;
   const gridId = state?.grid?._id || state?.gridId;
-  const root = rootFolderForTemplates(state, gridId);
+  const lookups = useMemo(
+    () => ({ manifestsById, foldersById, occurrencesById, modulesById }),
+    [manifestsById, foldersById, occurrencesById, modulesById]
+  );
+  const root = rootFolderForTemplates(lookups, gridId);
 
   const [selectedId, setSelectedId] = useState(null);
   const [pickedTargetId, setPickedTargetId] = useState("");
@@ -68,15 +68,15 @@ export default function TemplatesTab() {
   const rows = useMemo(() => {
     if (!root) return [];
     const acc = [];
-    walkTemplates(state, root.id, 0, acc);
+    walkTemplates(lookups, root.id, 0, acc);
     return acc;
-  }, [state, root?.id]);
+  }, [lookups, root?.id]);
 
-  const selected = selectedId ? state?.occurrencesById?.[selectedId] : null;
-  const selectedKind = selected ? templateKindOf(state, selected) : null;
+  const selected = selectedId ? occurrencesById?.[selectedId] : null;
+  const selectedKind = selected ? templateKindOf(lookups, selected) : null;
   const candidates = useMemo(
-    () => (selectedKind ? targetCandidates(state, gridId, selectedKind) : []),
-    [state, gridId, selectedKind]
+    () => (selectedKind ? targetCandidates(lookups, gridId, selectedKind) : []),
+    [lookups, gridId, selectedKind]
   );
 
   const apply = () => {
@@ -158,7 +158,7 @@ export default function TemplatesTab() {
             >
               <option value="">— pick a target —</option>
               {candidates.map(c => (
-                <option key={c.id} value={c.id}>{labelFor(state, c)}</option>
+                <option key={c.id} value={c.id}>{labelFor(modulesById, c)}</option>
               ))}
             </select>
             <div style={{ marginTop: 10 }}>

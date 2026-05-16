@@ -1,6 +1,32 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-05-13. Check this file before re-reading source._
+_Updated: 2026-05-14. Check this file before re-reading source._
+
+## Recent Changes (May 15 2026 — Cascade-aware nav widget rendering + HeaderChevron filter-state color)
+- **LocalFilterNav.jsx + FiltersSection.jsx (`navItems`)**: Both now consult the occurrence's own `getEffectiveFilterForOccurrence` and skip rendering a nav widget when the field isn't in it (cascade cleared by own override or any ancestor). Solves the "deactivated container still shows the date nav" complaint — non-Schedule/Goals pages and their containers now render zero nav widgets.
+- **FiltersSection.jsx (per-row Nav switch)**: `navOn = navOnRaw && effectivelyActive` — the Nav switch reflects effective state, not just the persisted `filterNavConfig.visible` flag. A deactivated filter shows Nav=OFF here even before any explicit hide is written.
+- **HeaderChevron.jsx**: Now accepts `occurrence` prop and computes filter state internally (`active` / `deactivated` / `none`). The `Filter` icon is `fill`+`stroke` colored:
+  - `active` (any contributing fieldId in `ownEffectiveFilter`) → muted green `rgba(80, 150, 100, 0.85)`
+  - `deactivated` (filters declared but all cleared at this level) → muted red `rgba(170, 90, 90, 0.85)`
+  - `none` (no filters touch this occurrence) → default outline (no fill)
+  Uses muted swatches per user request — readable signal without bright shouting. Wired through ModuleContainer (`occurrence={containerOccurrence}`), ModulePanel (`occurrence={panelOccurrence}`), and ModulePage (`occurrence={occurrence}`).
+
+## Recent Changes (May 15 2026 — FiltersSection: cascade-aware Active toggle + auto-hide nav on deactivate)
+- **FiltersSection.jsx**: Active toggle on each ancestor row now reads from THIS occurrence's OWN effective filter (`getEffectiveFilterForOccurrence(occurrence, ...)`) instead of just checking the local mute. Catches every "off" path uniformly: own `filterOverride: {}` (page clears all — Daily Toolkit / Todo / Notes / Canvas pages from the seed), own `filterOverride[fid] = null` (per-field mute), AND any ancestor that cleared above. Toggle behavior:
+  - **OFF → ON**: if locally muted, drop the null (cascade flows again). If page-wide cleared OR ancestor-cleared, write today (`localDayISO()`) to local override to force-re-enable on this occurrence.
+  - **ON → OFF**: mute via null AND auto-hide the nav widget (`setNavVisible(navFilterId, false)`) — per user request, deactivating a filter shouldn't leave its nav widget visible. Two switches stay semantically linked. User can re-show Nav independently after re-activating.
+  - Value column: shows `—` when the field isn't in `ownEffectiveFilter` AND no local override exists (rather than misleadingly falling back to today).
+
+## Recent Changes (May 15 2026 — FiltersSection uses shared parent resolver)
+- **FiltersSection.jsx**: `parentEffectiveFilter` and the `ancestorRows` walk no longer do their own `occurrence.parentId`-only walk (which returned the grid default for any occurrence linked via `occurrences[]` instead of `parentId` — e.g. the Physical goal container under Daily Goals → child filter row showed today instead of the page's tomorrow override). Both now use the shared `getParentOccurrence` (selectors.js) + a single `buildParentMap` (`helpers/dragHitTesting`) reverse map memoized once per `occurrencesById`. Cascade display now reflects ancestor filter overrides correctly.
+
+## Recent Changes (May 15 2026 — Lists tab removed from Command Center)
+- **CommandCenter.jsx**: Removed the "Lists" tab — `ListsTab` import, the `{ id: "lists", label: "Lists", icon: List }` TABS entry, the `{activeTab === "lists" && <ListsTab />}` render line, and the now-unused `List` lucide import. Command Center is now 9 tabs (was 10): grid / fields / operations / templates / appearance / files / connections / settings / shortcuts.
+- **commandCenter/ListsTab.jsx — DELETED.** It managed `grid.iterations[].categoryOptions` (compound-iteration category value lists); user is taking a different route and won't use it. No other file imported it (only CommandCenter.jsx). The `commandCenter/ Subfolder` table below still lists it for history — entry is stale.
+
+## Recent Changes (May 14 2026 — FilterNavWidgets: select style + FiltersSection local filter wiring)
+- **FilterNavWidgets.jsx** — added `SelectWidget` (native `<select>` with a leading "— any —" option that writes `null` to clear). Routed via `style === "select"` in the main dispatch. Used by the schedule-page Time Slot filter, which has 48 slot labels — too many for the default pills layout. Authors opt in via either `filter.style` on a local `occurrence.filters[]` entry or `occurrence.filterNavConfig[id].style`.
+- **FiltersSection.jsx** — the nav-widget loop now sources widgets from BOTH `grid.namedFilters` AND `occurrence.filters[]`. Local entries qualify when `active && showNav && fieldId`. Each local entry's `style` / `options` synthesize an inline `navConfig` so `FilterNavWidget` reads them. Dedupes by `fieldId` against grid widgets — prevents the schedule page's legacy `schedFilterId` (date) from rendering a duplicate widget next to grid `filter_daily` (also date). `handleNav` writes `filterOverride[fieldId]` via plain `updateOccurrence` (NO descendant-cascade NavigationOp burst — visibility resolves through the cascade at render time).
 
 ## Recent Changes (May 13 2026 — HeaderDropdown + Templates v2)
 - **HeaderChevron.jsx (NEW)** — tiny `ChevronDown` button mounted in module headers. Opens HeaderDropdown.

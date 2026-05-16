@@ -27,8 +27,7 @@ import {
 } from "../helpers/dragSystem";
 import { resolveContainerStyle, styleToCSS } from "../helpers/StyleHelpers";
 import { hexToRgba, lightenHex } from "../helpers/colorHelpers.js";
-import { getEffectiveFilterForOccurrence, isOccurrenceVisible } from "../state/selectors";
-import LocalFilterNav from "../ui/LocalFilterNav";
+import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getLocalFilterConditions } from "../state/selectors";
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
@@ -161,6 +160,9 @@ function Container({
     setDropdownAnchor(e.currentTarget.getBoundingClientRect());
   }, []);
   const closeDropdown = useCallback(() => setDropdownAnchor(null), []);
+  const [templatesAnchor, setTemplatesAnchor] = useState(null);
+  const openTemplates = useCallback((e) => setTemplatesAnchor(e?.currentTarget?.getBoundingClientRect?.() || null), []);
+  const closeTemplates = useCallback(() => setTemplatesAnchor(null), []);
   const containerHandleRef = useRef(null);
   const focusedItem = focusedStack[focusedStack.length - 1] || null;
 
@@ -380,14 +382,58 @@ function Container({
     [containerOccurrence, ctxState?.grid, occurrencesById]
   );
 
-  const activeFilterConditions = useMemo(
-    () => activeNamedFilter?.conditions || null,
-    [activeNamedFilter]
-  );
+  // Combine grid's active named-filter conditions with this container's own
+  // `filters[]` entries (mirrors the same combination in ModulePage.jsx — the
+  // Time Slot select on the schedule page is the driving example).
+  const activeFilterConditions = useMemo(() => {
+    const gridConds = activeNamedFilter?.conditions || [];
+    const localConds = getLocalFilterConditions(containerOccurrence);
+    if (!gridConds.length && !localConds.length) return null;
+    return [...gridConds, ...localConds];
+  }, [activeNamedFilter, containerOccurrence]);
 
   const itemsWithOccurrences = useMemo(
-    () => allItemsWithOccurrences.filter(item => isOccurrenceVisible(item.occurrence, effectiveFilters, activeFilterConditions)),
-    [allItemsWithOccurrences, effectiveFilters, activeFilterConditions]
+    () => {
+      const filtered = allItemsWithOccurrences.filter(item => isOccurrenceVisible(item.occurrence, effectiveFilters, activeFilterConditions));
+      // [VIS-DIAG] TEMP — remove after diagnosing the Schedule cross-day
+      // visibility bug. Logs once per slot container's filter pass: the
+      // slot's effective filter (what date Schedule's cascade resolved to),
+      // the active conditions, and the per-item left/right values for the
+      // date condition. Lets the user (or me, via the user's console)
+      // confirm whether the cascade actually has dateFieldId, whether the
+      // new instances have a date field, and whether the SAME_DAY check
+      // produced the wrong result. Scope: only logs containers whose
+      // module label looks like a slot (e.g. "6:00 AM") — keeps the
+      // console signal-to-noise sane.
+      const slotLabel = module?.label || "";
+      const looksLikeSlot = /\d.*[ap]m/i.test(slotLabel);
+      if (looksLikeSlot && allItemsWithOccurrences.length) {
+        const dateCond = (activeFilterConditions || []).find(c => c?.fieldId && c?.comparator);
+        const fid = dateCond?.fieldId || null;
+        const breakdown = allItemsWithOccurrences.map(({ occurrence, instance }) => {
+          const leftVal = fid ? occurrence?.fields?.[fid]?.value : null;
+          const passed = filtered.some(f => f.occurrence?.id === occurrence?.id);
+          return {
+            instLabel: instance?.label || occurrence?.label || "?",
+            occId: occurrence?.id,
+            leftVal,
+            passed,
+          };
+        });
+        console.log("[VIS-DIAG] slot filter pass", {
+          slotLabel,
+          slotOccId: containerOccurrence?.id,
+          effectiveFilters,
+          conditionFieldId: fid,
+          conditionRightVal: fid ? effectiveFilters?.[fid] : null,
+          itemCount: allItemsWithOccurrences.length,
+          shownCount: filtered.length,
+          items: breakdown,
+        });
+      }
+      return filtered;
+    },
+    [allItemsWithOccurrences, effectiveFilters, activeFilterConditions, module?.label, containerOccurrence?.id]
   );
 
   const items = useMemo(() => itemsWithOccurrences.map(item => item.instance), [itemsWithOccurrences]);
@@ -514,6 +560,7 @@ function Container({
                 onToggleHeader={() => setShowHeader(true)}
                 showHeader={false}
                 onHistory={() => setHistoryOpen(true)}
+                onTemplate={openTemplates}
                 onDelete={embedOnDelete ?? removeMe}
                 extraItems={embedRadialItems}
               />
@@ -594,6 +641,7 @@ function Container({
                       onToggleHeader={() => setShowHeader(false)}
                       showHeader={showHeader}
                       onHistory={() => setHistoryOpen(true)}
+                      onTemplate={openTemplates}
                       onDelete={embedOnDelete ?? removeMe}
                       extraItems={embedRadialItems}
                     />
@@ -683,6 +731,7 @@ function Container({
                     showHeader={showHeader}
                     onFilter={(e) => setFilterPopupPos({ x: e?.clientX ?? 100, y: e?.clientY ?? 100 })}
                     onHistory={() => setHistoryOpen(true)}
+                    onTemplate={openTemplates}
                     onDelete={embedOnDelete ?? removeMe}
                     extraItems={embedRadialItems}
                   />
@@ -751,8 +800,7 @@ function Container({
             </div>
 
             <div className="ml-auto mr-1" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4 }} onPointerDown={(e) => e.stopPropagation()}>
-              <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} />
-              <LocalFilterNav occurrence={containerOccurrence} compact={true} />
+              <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={containerOccurrence} />
             </div>
           </>
         )}
@@ -1087,6 +1135,10 @@ function Container({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={containerOccurrence} />
+        </HeaderDropdown>
+      )}
+      {templatesAnchor && (
+        <HeaderDropdown anchorRect={templatesAnchor} onClose={closeTemplates}>
           <TemplatesSection occurrence={containerOccurrence} />
         </HeaderDropdown>
       )}

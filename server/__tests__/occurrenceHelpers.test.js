@@ -11,10 +11,10 @@ import {
 describe("getOccurrencesForGrid", () => {
   const uc = {
     occurrencesById: {
-      "occ-1": { _id: "occ-1", gridId: "grid-A", targetType: "module" },
-      "occ-2": { _id: "occ-2", gridId: "grid-B", targetType: "module" },
-      "occ-3": { _id: "occ-3", gridId: "grid-A", targetType: "module" },
-      "occ-4": { _id: "occ-4", gridId: "grid-C", targetType: "module" },
+      "occ-1": { _id: "occ-1", gridId: "grid-A", moduleId: "mod-1" },
+      "occ-2": { _id: "occ-2", gridId: "grid-B", moduleId: "mod-1" },
+      "occ-3": { _id: "occ-3", gridId: "grid-A", moduleId: "mod-1" },
+      "occ-4": { _id: "occ-4", gridId: "grid-C", moduleId: "mod-1" },
     },
   };
 
@@ -73,8 +73,8 @@ describe("autofillOccurrence", () => {
     },
   };
 
-  it("fills module field for targetType module", () => {
-    const occ = { targetType: "module", targetId: "mod-panel" };
+  it("fills module field from occurrence.moduleId", () => {
+    const occ = { moduleId: "mod-panel" };
     const result = autofillOccurrence(occ, uc);
     expect(result.module).toBeDefined();
     expect(result.module.label).toBe("My Panel");
@@ -82,14 +82,14 @@ describe("autofillOccurrence", () => {
   });
 
   it("adds container alias when role is container", () => {
-    const occ = { targetType: "module", targetId: "mod-cont" };
+    const occ = { moduleId: "mod-cont" };
     const result = autofillOccurrence(occ, uc);
     expect(result.container).toBeDefined();
     expect(result.instance).toBeUndefined();
   });
 
   it("adds instance alias when role is instance", () => {
-    const occ = { targetType: "module", targetId: "mod-inst" };
+    const occ = { moduleId: "mod-inst" };
     const result = autofillOccurrence(occ, uc);
     expect(result.instance).toBeDefined();
     expect(result.container).toBeUndefined();
@@ -100,12 +100,12 @@ describe("autofillOccurrence", () => {
   });
 
   it("returns occurrence unchanged when uc is null", () => {
-    const occ = { targetType: "module", targetId: "mod-panel" };
+    const occ = { moduleId: "mod-panel" };
     expect(autofillOccurrence(occ, null)).toEqual(occ);
   });
 
-  it("leaves module undefined when targetId not in cache", () => {
-    const occ = { targetType: "module", targetId: "missing" };
+  it("leaves module undefined when moduleId not in cache", () => {
+    const occ = { moduleId: "missing" };
     const result = autofillOccurrence(occ, uc);
     expect(result.module).toBeUndefined();
   });
@@ -120,8 +120,8 @@ describe("autofillOccurrences", () => {
 
   it("maps over all occurrences", () => {
     const occs = [
-      { targetType: "module", targetId: "m1" },
-      { targetType: "module", targetId: "m2" },
+      { moduleId: "m1" },
+      { moduleId: "m2" },
     ];
     const uc = { modulesById: { m1: { role: "panel" }, m2: { role: "container" } } };
     const result = autofillOccurrences(occs, uc);
@@ -137,34 +137,33 @@ describe("createOccurrenceData", () => {
     const result = createOccurrenceData({
       id: "occ-1",
       userId: "user-1",
-      targetType: "module",
-      targetId: "mod-1",
+      moduleId: "mod-1",
       gridId: "grid-1",
     });
     expect(result.id).toBe("occ-1");
     expect(result.userId).toBe("user-1");
-    expect(result.targetType).toBe("module");
+    expect(result.moduleId).toBe("mod-1");
     expect(result.gridId).toBe("grid-1");
     expect(result.fields).toEqual({});
     expect(result.timestamp).toBeInstanceOf(Date);
   });
 
   it("defaults filterOverride to null and hidden to false", () => {
-    const result = createOccurrenceData({ id: "x", userId: "u", targetType: "module", targetId: "t", gridId: "g" });
+    const result = createOccurrenceData({ id: "x", userId: "u", moduleId: "t", gridId: "g" });
     expect(result.filterOverride).toBeNull();
     expect(result.hidden).toBe(false);
   });
 
   it("includes placement when provided", () => {
     const result = createOccurrenceData({
-      id: "x", userId: "u", targetType: "module", targetId: "t", gridId: "g",
+      id: "x", userId: "u", moduleId: "t", gridId: "g",
       placement: { row: 0, col: 1 },
     });
     expect(result.placement).toEqual({ row: 0, col: 1 });
   });
 
   it("omits placement when not provided", () => {
-    const result = createOccurrenceData({ id: "x", userId: "u", targetType: "module", targetId: "t", gridId: "g" });
+    const result = createOccurrenceData({ id: "x", userId: "u", moduleId: "t", gridId: "g" });
     expect(result.placement).toBeUndefined();
   });
 });

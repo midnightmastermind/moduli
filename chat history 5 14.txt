@@ -1,0 +1,345 @@
+Both fixed in client/src/ui/FiltersSection.jsx:
+
+  1. Date off-by-one — formatValue was doing new Date("2026-05-15").toLocaleDateString(). The ISO-only string parses as
+  UTC midnight, and toLocaleDateString then renders in local tz, which shifts back a calendar day anywhere west of UTC.
+  Now splits the digits and constructs a local-tz Date directly:
+                                                                                                                          const [y, m, d] = v.slice(0, 10).split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString();
+
+  2. Ancestor row reads null while nav widget reads today — extracted the nav widget's value-resolution chain (own →
+  inherited → todayLocal for date fields) into a resolveFilterDisplayValue helper used by both. Previously only the nav
+  widget had the today fallback; the ancestor row stopped at navValues[fieldId] ?? c.value, so an empty grid filter
+  showed — next to a widget showing today's date. Now they share the same resolver and stay in sync.                    
+  Edge cases handled:
+  - own: null (muted) is now treated as "no own value" for display purposes — falls through to the inherited value
+  rather than rendering as null. The mute state is still independently shown via the Active switch.
+  - Non-date fields still resolve as before (own → inherited → undefined).
+
+✻ Churned for 1m 41s
+
+❯ also create a filter just on the schedule page (with createTestGrid), thats a select input filter nav on timeslot       field                                                                                                                 
+● Let me look at createTestGrid.js and FilterNavWidgets.jsx to understand the existing pattern.
+
+  Searched for 2 patterns (ctrl+o to expand)
+
+❯ so i can see thats working too
+
+● Let me read the schedule slot generation and grid namedFilters block in createTestGrid.js.
+
+  Searched for 2 patterns, read 2 files (ctrl+o to expand)
+
+● 48 timeslots would be unwieldy as pills. Let me add a real select dropdown style to FilterNavWidget, then wire it up
+  in createTestGrid.js.
+
+● Update(src/ui/FilterNavWidgets.jsx)
+  ⎿  Added 25 lines
+      57    );
+      58  }
+      59
+      60 +// Real <select> dropdown — used when there are too many options for the pills
+      61 +// layout (e.g. the 48 schedule timeslots) or when the author wants a compact
+      62 +// chrome. Includes an empty option that clears the filter so the user can
+      63 +// fall back to "all".
+      64 +function SelectWidget({ filter, value, options, dispatch, onNav }) {
+      65 +  const write = makeWriter(filter, onNav, dispatch);
+      66 +  return (
+      67 +    <select
+      68 +      value={value ?? ""}
+      69 +      onChange={(e) => write(e.target.value || null)}
+      70 +      style={{
+      71 +        padding: "2px 6px", fontSize: 11,
+      72 +        background: "transparent", color: "inherit",
+      73 +        border: "1px solid var(--panel-border, #374151)", borderRadius: 4,
+      74 +        minWidth: 96, maxWidth: 200,
+      75 +      }}
+      76 +    >
+      77 +      <option value="">— any —</option>
+      78 +      {(options || []).map(opt => (
+      79 +        <option key={String(opt)} value={String(opt)}>{String(opt)}</option>
+      80 +      ))}
+      81 +    </select>
+      82 +  );
+      83 +}
+      84 +
+      85  function InputWidget({ filter, value, dispatch, onNav }) {
+      86    const [local, setLocal] = useState(value || "");
+      87    const timer = useRef(null);
+
+● Update(src/ui/FilterNavWidgets.jsx)
+  ⎿  Added 1 line
+      110    const options = navConfig?.options || derivedOptionsForFilter(filter, fieldsById);
+      111    if (style === "arrows") return <ArrowsWidget filter={filter} value={value} dispatch={dispatch} onNav
+           ={onNav} />;
+      112    if (style === "pills" || style === "custom") return <PillsWidget filter={filter} value={value} optio
+           ns={options} dispatch={dispatch} onNav={onNav} />;
+      113 +  if (style === "select") return <SelectWidget filter={filter} value={value} options={options} dispatc
+          +h={dispatch} onNav={onNav} />;
+      114    if (style === "input") return <InputWidget filter={filter} value={value} dispatch={dispatch} onNav={
+           onNav} />;
+      115    return null;
+      116  }
+
+● Now wire it up in createTestGrid.js. Need to hoist timeSlots so it's available where namedFilters + filterNavConfig
+  get built:
+
+● Update(~/moduli/server/scripts/createTestGrid.js)
+  ⎿  Added 28 lines, removed 6 lines
+      138
+      139    // ── STEP 1: Grid ────────────────────────────────────────────────────────────
+      140    const schedFilterId = uid();
+      141 +  const timeslotFilterId = uid();
+      142
+      143 +  // Time slots are needed BOTH for the schedule subtree (~line 309) and for
+      144 +  // the timeslot filter's pre-baked option list on the schedule page. Hoist
+      145 +  // so both call sites use the same source.
+      146 +  const timeSlots = generateTimeSlots();
+      147 +  const timeslotLabels = timeSlots.map(s => s.label);
+      148 +
+      149    const grid = new Grid({
+      150      userId, name: gridName, rows: 2, cols: 3,
+      151      templates: [], occurrences: [],
+      152      manifestId,
+      146 -    namedFilters: [{
+      147 -      id: "filter_daily",
+      148 -      name: "Daily",
+      149 -      conditions: [{ fieldId: dateFieldId, comparator: "SAME_DAY", isNav: true }],
+      150 -      timeUnit: "day",
+      151 -    }],
+      153 +    namedFilters: [
+      154 +      {
+      155 +        id: "filter_daily",
+      156 +        name: "Daily",
+      157 +        conditions: [{ fieldId: dateFieldId, comparator: "SAME_DAY", isNav: true }],
+      158 +        timeUnit: "day",
+      159 +      },
+      160 +      // Per-occurrence timeslot filter — defined at the grid level so the
+      161 +      // FiltersSection's nav widget can pick it up, but with no isNav on its
+      162 +      // condition (NOT a default filter for the active grid). The schedule
+      163 +      // page occurrence's filterNavConfig opts this in explicitly with
+      164 +      // style:"select" + the full 48-slot label list. Other pages don't see
+      165 +      // a nav widget for it because their filterNavConfig doesn't enable it.
+      166 +      {
+      167 +        id: timeslotFilterId,
+      168 +        name: "Time Slot",
+      169 +        primaryDateFieldId: timeslotFieldId, // misnomer field, but FilterNavWidget reads from it to d
+          +erive the field for the widget
+      170 +        conditions: [{ fieldId: timeslotFieldId, comparator: "IS" }],
+      171 +        timeUnit: "day",
+      172 +      },
+      173 +    ],
+      174      activeFilterId: "filter_daily",
+      175      // Leave empty — client init resolves to local-tz today on every load.
+      176      // Seeding a literal date "bakes in" the seed day and shows yesterday after
+
+● Now remove the duplicate const timeSlots = generateTimeSlots() at line 309 and add filterNavConfig to the schedule
+  page occurrence:
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(~/moduli/server/scripts/createTestGrid.js)
+  ⎿  Added 2 lines, removed 1 line
+      328    ]);
+      329
+      330    // ── STEP 4: Container modules ───────────────────────────────────────────────
+      331 -  const timeSlots = generateTimeSlots();
+      331 +  // timeSlots is hoisted near the grid namedFilters so the timeslot filter
+      332 +  // can bake its label list at filter-definition time. Reuse it here.
+      333    const schedContainers = {};
+      334    for (const slot of timeSlots) {
+      335      const key = `slot_${slot.hour}_${slot.minute}`;
+
+● Now add filterNavConfig to the schedule page occurrence to make the timeslot filter's nav widget visible only there:
+
+● Update(~/moduli/server/scripts/createTestGrid.js)
+  ⎿  Added 12 lines
+      624      id: schedPageOccId, moduleId: schedPageModId,
+      625      parentId: rootFolderId, sortOrder: 3, occurrences: scheduleOccIds,
+      626      iteration: { mode: "persistent" }, fields: {},
+      627 +    // The schedule page is the only place the Time Slot filter shows its nav
+      628 +    // widget (other pages don't enable it in their filterNavConfig). The
+      629 +    // baked option list is the 48 slot labels so the dropdown is functional
+      630 +    // without needing the runtime to derive options from the (text-typed)
+      631 +    // timeslot field.
+      632 +    filterNavConfig: {
+      633 +      [timeslotFilterId]: {
+      634 +        visible: true,
+      635 +        style: "select",
+      636 +        options: timeslotLabels,
+      637 +      },
+      638 +    },
+      639      filters: [{
+      640        id: schedFilterId,
+      641        fieldId: dateFieldId,
+
+● Verify the wiring + check we didn't break anything:
+
+  Searched for 2 patterns (ctrl+o to expand)
+
+● All wired up. Here's what landed:
+
+  1. New select widget style — client/src/ui/FilterNavWidgets.jsx
+  - SelectWidget: real HTML <select> with an — any — reset option that writes null to clear the filter
+  - Routed via style === "select" in the main dispatch
+
+  2. Time Slot filter on the schedule page — server/scripts/createTestGrid.js
+  - New grid namedFilter Time Slot on timeslotFieldId. It's NOT the active filter and its condition has no isNav, so it
+  doesn't surface anywhere by default.
+  - Hoisted generateTimeSlots() to filter-definition time so the 48 slot labels are available for the option list.
+  - Schedule page occurrence now has:
+  filterNavConfig: {
+    [timeslotFilterId]: { visible: true, style: "select", options: timeslotLabels }
+  }
+  - This is what makes the dropdown appear only on the schedule page.
+
+  Why this matches the design we already validated:
+  - Grid filter exists for everyone, but no widget shows unless an occurrence opts in (filterNavConfig[id].visible:
+  true)
+  - The style: "select" + explicit options override FilterNavWidget's default-style derivation, so the text-typed
+  timeslot field still gets a proper dropdown.
+  - Picking a slot writes filterOverride[timeslotFieldId] = "<label>" on the schedule page occurrence (via
+  FiltersSection's handleNav), and the existing isOccurrenceVisible chain hides every slot container whose
+  fields.timeslot.value doesn't match — clearing back to null via the — any — option restores all slots.
+
+  Re-seed when ready:
+  cd server && node --env-file=.env scripts/createTestGrid.js
+
+✻ Sautéed for 2m 50s
+
+❯ it should have been a local filter just on schedule dude                                                              
+● You're right — local filter, not grid-level. Reverting the namedFilter addition and putting it on the schedule
+  occurrence's filters[], plus wiring FiltersSection to render nav widgets for local filters.
+
+● Update(~/moduli/server/scripts/createTestGrid.js)
+  ⎿  Added 8 lines, removed 23 lines
+      141    const timeslotFilterId = uid();
+      142
+      143    // Time slots are needed BOTH for the schedule subtree (~line 309) and for
+      144 -  // the timeslot filter's pre-baked option list on the schedule page. Hoist
+      145 -  // so both call sites use the same source.
+      144 +  // the per-occurrence timeslot filter's pre-baked option list. Hoist so
+      145 +  // both call sites use the same source.
+      146    const timeSlots = generateTimeSlots();
+      147    const timeslotLabels = timeSlots.map(s => s.label);
+      148
+     ...
+      150      userId, name: gridName, rows: 2, cols: 3,
+      151      templates: [], occurrences: [],
+      152      manifestId,
+      153 -    namedFilters: [
+      154 -      {
+      155 -        id: "filter_daily",
+      156 -        name: "Daily",
+      157 -        conditions: [{ fieldId: dateFieldId, comparator: "SAME_DAY", isNav: true }],
+      158 -        timeUnit: "day",
+      159 -      },
+      160 -      // Per-occurrence timeslot filter — defined at the grid level so the
+      161 -      // FiltersSection's nav widget can pick it up, but with no isNav on its
+      162 -      // condition (NOT a default filter for the active grid). The schedule
+      163 -      // page occurrence's filterNavConfig opts this in explicitly with
+      164 -      // style:"select" + the full 48-slot label list. Other pages don't see
+      165 -      // a nav widget for it because their filterNavConfig doesn't enable it.
+      641 +        condition: null, // no extra rule — comparator is exact match via filterOverride
+      642        },
+      623 -    },
+      624 -    filters: [{
+      625 -      id: schedFilterId,
+      626 -      fieldId: dateFieldId,
+      627 -      active: true,
+      628 -      showNav: true,
+      629 -      timeUnit: "day",
+      630 -      defaultNavValue: "today",
+      631 -      condition: {
+      632 -        operator: "OR",
+      633 -        rules: [
+      634 -          { left: "$field.value", comparator: "DATE_EQUALS", right: "$nav" },
+      635 -          { left: "$field.value", comparator: "IS_EMPTY" },
+      636 -        ],
+      637 -      },
+      638 -    }],
+      643 +    ],
+      644    });
+      645
+      646    const notesPageModId = uid(); const notesPageOccId = uid();
+
+● Now extend FiltersSection to render nav widgets for occurrence.filters[] local filters (currently it only walks
+  grid.namedFilters):
+
+● Update(src/ui/FiltersSection.jsx)
+  ⎿  Added 23 lines, removed 2 lines
+      170    // Top nav widgets: any visible-nav filter gets a widget.
+      171    // Default visibility: ancestor isNav conditions are visible by default;
+      172    // filterNavConfig.visible: true forces on; visible: false forces off.
+      173 +  // Two sources contribute:
+      174 +  //   1. grid.namedFilters — inherited / grid-wide filters
+      175 +  //   2. occurrence.filters[] — per-occurrence local filters (active && showNav)
+      176    const navItems = useMemo(() => {
+      177      const items = [];
+      178 +    // (1) Grid namedFilters
+      179      for (const f of filters) {
+      180        const cfg = navConfig[f.id];
+      181        const explicitOff = cfg && cfg.visible === false;
+     ...
+      187        if (!explicitOn && !isActiveDefault) continue;
+      188        const navCondition = (f.conditions || []).find(c => c?.isNav && c.fieldId);
+      189        const fieldId = navCondition?.fieldId || f.primaryDateFieldId || null;
+      186 -      items.push({ filter: f, fieldId, cfg });
+      190 +      items.push({ filter: f, fieldId, cfg, source: "grid" });
+      191      }
+      192 +    // (2) occurrence.filters[] entries — local filters defined on this
+      193 +    // occurrence. style/options on the entry itself drive the widget; we
+      194 +    // synthesize a navConfig from those so FilterNavWidget reads them.
+      195 +    for (const f of (occurrence?.filters || [])) {
+      196 +      if (!f?.fieldId || !f.active || !f.showNav) continue;
+      197 +      const cfg = {
+      198 +        visible: true,
+      199 +        style: f.style,     // optional — falls back to defaultStyleForFilter
+      200 +        options: f.options, // optional — falls back to derivedOptionsForFilter
+      201 +      };
+      202 +      items.push({
+      203 +        filter: { ...f, primaryDateFieldId: f.fieldId, timeUnit: f.timeUnit },
+      204 +        fieldId: f.fieldId,
+      205 +        cfg,
+      206 +        source: "local",
+      207 +      });
+      208 +    }
+      209      return items;
+      189 -  }, [filters, navConfig, grid?.activeFilterId]);
+      210 +  }, [filters, navConfig, grid?.activeFilterId, occurrence?.filters]);
+      211
+      212    const rowStyle = { display: "flex", alignItems: "center", gap: 8, padding: "4px 0" };
+      213    const labelStyle = { flex: 1, fontSize: 11, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis
+           ", whiteSpace: "nowrap" };
+
+● Let me check whether the existing schedule date filter (in filters[]) was actually being applied somewhere:
+
+  Searched for 1 pattern (ctrl+o to expand)
+  ⎿  You've hit your org's monthly usage limit
+
+✻ Churned for 2m 31s
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -4,39 +4,39 @@
 // Each template root occurrence carries `meta.templateName` and is parented to a folder
 // in the templates manifest. The module behind it carries `meta.templateModule: true`.
 
-export function templatesManifestFor(state, gridId) {
-  return Object.values(state?.manifestsById || {})
+export function templatesManifestFor(lookups, gridId) {
+  return Object.values(lookups?.manifestsById || {})
     .find(m => m.gridId === gridId && m.manifestType === "templates");
 }
 
-export function rootFolderForTemplates(state, gridId) {
-  const m = templatesManifestFor(state, gridId);
-  return m ? state?.foldersById?.[m.rootFolderId] : null;
+export function rootFolderForTemplates(lookups, gridId) {
+  const m = templatesManifestFor(lookups, gridId);
+  return m ? lookups?.foldersById?.[m.rootFolderId] : null;
 }
 
-export function templateOccurrencesInFolder(state, folderId) {
-  return Object.values(state?.occurrencesById || {})
+export function templateOccurrencesInFolder(lookups, folderId) {
+  return Object.values(lookups?.occurrencesById || {})
     .filter(o => o.parentId === folderId && o.meta?.templateName);
 }
 
-export function templateKindOf(state, templateOccurrence) {
+export function templateKindOf(lookups, templateOccurrence) {
   if (!templateOccurrence) return null;
   const modId = templateOccurrence.moduleId || templateOccurrence.targetId;
-  const m = state?.modulesById?.[modId];
+  const m = lookups?.modulesById?.[modId];
   return m?.role || m?.kind || null;
 }
 
-export function templatesByKind(state, gridId, kindOrRole) {
-  const root = rootFolderForTemplates(state, gridId);
+export function templatesByKind(lookups, gridId, kindOrRole) {
+  const root = rootFolderForTemplates(lookups, gridId);
   if (!root) return [];
   const acc = [];
   (function walk(folderId) {
-    Object.values(state?.occurrencesById || {})
+    Object.values(lookups?.occurrencesById || {})
       .filter(o => o.parentId === folderId && o.meta?.templateName)
       .forEach(o => {
-        if (templateKindOf(state, o) === kindOrRole) acc.push(o);
+        if (templateKindOf(lookups, o) === kindOrRole) acc.push(o);
       });
-    Object.values(state?.foldersById || {})
+    Object.values(lookups?.foldersById || {})
       .filter(f => f.parentId === folderId)
       .forEach(f => walk(f.id));
   })(root.id);
