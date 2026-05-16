@@ -1,6 +1,6 @@
 // server/__tests__/liveSystemBuilders.test.js
 import { describe, it, expect } from "vitest";
-import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate } from "../utils/liveSystemBuilders.js";
+import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeStampDateTimeSlotOp } from "../utils/liveSystemBuilders.js";
 
 describe("buildGridDoc", () => {
   it("creates a Daily namedFilter on dateFieldId with empty activeFilterValues", () => {
@@ -39,6 +39,22 @@ describe("buildDailyRoutineTemplate", () => {
     expect(slotOccs).toHaveLength(2);
     const root = occs.find(o => o.id === rootOccId);
     expect(root.meta).toMatchObject({ templateName: "Daily Routine", templateModule: true });
+  });
+});
+
+describe("schedule ops", () => {
+  it("Build Day op is priority-1, onLoad+onFilterChange, references date/due/timeslot fields", () => {
+    const op = makeScheduleBuildDayOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS" });
+    expect(op.name).toBe("Schedule: Build Day");
+    expect(op.triggerTypes).toEqual(["onLoad", "onFilterChange"]);
+    expect(op.triggerObjects.every(t => t.priority === 1)).toBe(true);
+    expect(JSON.stringify(op.pipeline)).toContain("DF");
+    expect(JSON.stringify(op.pipeline)).toContain("DUE");
+  });
+  it("Stamp op writes the timeslot field on onCreate under the hub panel", () => {
+    const op = makeStampDateTimeSlotOp({ userId: "u", gridId: "g", timeslotFieldId: "TS", hubPanelModuleId: "HUB" });
+    expect(op.triggerObjects[0]).toMatchObject({ eventType: "onCreate", targetId: "HUB" });
+    expect(JSON.stringify(op.pipeline)).toContain("TS");
   });
 });
 
