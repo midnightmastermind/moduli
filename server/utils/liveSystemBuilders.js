@@ -743,6 +743,13 @@ export function makeTrackerOp({
   agg, flow = "any", timeFilter = "daily", scopeLabel = "Schedule",
   description,
 }) {
+  // ── Fail-fast argument guards ──
+  // Task 13 calls this ~20× with varying agg types; silent-zero goals are hard
+  // to debug without an explicit error here.
+  if (agg === "multiSum" && !(sourceFieldIds && sourceFieldIds.length)) throw new Error(`makeTrackerOp("${name}"): agg "multiSum" requires sourceFieldIds[]`);
+  if (agg === "net" && !(incomeFieldId && spentFieldId)) throw new Error(`makeTrackerOp("${name}"): agg "net" requires incomeFieldId + spentFieldId`);
+  if ((agg === "sum" || agg === "last") && !sourceFieldId) throw new Error(`makeTrackerOp("${name}"): agg "${agg}" requires sourceFieldId`);
+
   const dateGated = timeFilter !== "all";
   const accVar = "$acc";
 
@@ -786,6 +793,9 @@ export function makeTrackerOp({
   // sum/count/countTrue include the completion gate (matches Water + Tasks).
   // last/multiSum do not gate on completion (semantically a raw read / a
   // multi-field roll-up).
+  // NOTE: The first param (e.g. "sum", "netIncome") is a human-readable label
+  // for call-site self-documentation only. It is intentionally not consumed
+  // inside the function body — do not wire it into step ids.
   function buildLoopFor(kind, opts = {}) {
     const {
       srcField,
@@ -909,9 +919,19 @@ export function makeTrackerOp({
   // tracker is timeFilter:"all", in which case the per-event SAME_DAY
   // sub-rules are dropped so a value change on any-dated record still
   // re-aggregates (lifetime totals have no date window).
-  function eventRule(triggerType, extraRules = []) {
+  //
+  // KNOWN LIMITATION — weekly trigger-gate date sub-rule:
+  // For timeFilter:"weekly" the per-event trigger date sub-rule (emitted by
+  // eventRule/measureRule below) is still SAME_DAY $goalDate (the ISO
+  // week-start day), NOT SAME_WEEK. This means an item-bearing event
+  // (MeasureOp/OccurrenceCreateOp) on a same-week-but-different-day item
+  // will NOT itself retrigger the op (the SAME_DAY check fails for that day).
+  // The loop body (which uses SAME_WEEK from buildLoopRules) is correct; and
+  // onLoad/NavigationOp bulk triggers always re-run the full aggregation so
+  // the value self-heals on every nav/load. Task 13 wires one weekly op —
+  // acceptable because its bulk triggers cover it.
+  function eventRule(triggerType) {
     const rules = [{ id: uid(), left: "$trigger.type", comparator: "IS", right: triggerType }];
-    for (const r of extraRules) rules.push(r);
     if (dateGated) {
       rules.push({ id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" });
     }

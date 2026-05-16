@@ -154,6 +154,29 @@ describe("makeTrackerOp", () => {
     expect(mulNeg[0].config).toHaveProperty("expr", -1);
   });
 
+  it("last: pipeline contains SET_VAR, does NOT contain ADD_TO_VAR, references sourceFieldId", () => {
+    const op = makeTrackerOp({ ...base, name: "Tracker: Last Mood", goalLabel: "Mood", goalFieldId: "LM", sourceFieldId: "MOOD", agg: "last", timeFilter: "daily" });
+    const s = JSON.stringify(op.pipeline);
+    // last must overwrite, not accumulate — guards against copy-paste regression to ADD_TO_VAR
+    expect(s).toContain("SET_VAR");
+    expect(s).not.toContain("ADD_TO_VAR");
+    expect(s).toContain("MOOD");
+  });
+
+  it("flow:out sum — serialized pipeline contains flow comparator rule", () => {
+    const op = makeTrackerOp({ ...base, name: "Tracker: Spent", goalLabel: "Expenses", goalFieldId: "EXP", sourceFieldId: "AMT", agg: "sum", flow: "out", timeFilter: "daily" });
+    const s = JSON.stringify(op.pipeline);
+    // flow-filter rule injection is otherwise completely untested;
+    // the rule emits left:"$item.fields.AMT.flow" comparator:"IS" right:"out"
+    expect(s).toContain(".flow");
+    expect(s).toContain("\"right\":\"out\"");
+    expect(s).toContain("AMT");
+  });
+
+  it("guard: net without incomeFieldId + spentFieldId throws", () => {
+    expect(() => makeTrackerOp({ ...base, name: "X", goalLabel: "G", goalFieldId: "GF", agg: "net", timeFilter: "all" })).toThrow(/requires incomeFieldId/);
+  });
+
   it("completionRate: MULTIPLY_VAR uses expr:100 (not by:100), DIV_VAR uses by:\"$tot\"", () => {
     const op = makeTrackerOp({
       ...base,
