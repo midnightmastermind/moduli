@@ -20,7 +20,7 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
+import { dirname, resolve, join } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -44,6 +44,13 @@ import {
   buildDailyRoutineTemplate,
   buildDayPageTemplate,
 } from "../utils/liveSystemBuilders.js";
+import fs from "fs";
+import { parseSectionsWithInstances } from "../utils/mdParsers.js";
+import { makeDocContent, buildMergedDocTextmap } from "../utils/docBuilders.js";
+
+// Markdown source files live at moduli/docs/ (same resolution as createDefaultUserData)
+const __liveDataDirname = dirname(__filename);
+const ROOT_DIR_MD = join(__liveDataDirname, "../../docs/");
 
 const DEFAULT_USER_EMAIL = "josh@jpoms.com";
 const DEFAULT_GRID_NAME = "Live Grid";
@@ -2070,6 +2077,180 @@ export async function createLiveData(userId, options = {}) {
 
   await buildDayPageTemplate({ userId, gridId, tplManifestRootFolderId, mkOcc, Module });
 
+  // ── STEP 7c: Notebook docs parsed into DB textmaps ──────────────────────────
+  //
+  // One `role:"page" kind:"doc"` Module + Occurrence per top-level notebook document.
+  // All parented to notesFolderId (root tree only — no panel pinning, that's Task 12).
+  // textmap built from parsed markdown; NO filesystem writes (uploads/md untouched).
+  //
+  // FLATTEN decision: createDefaultUserData nested section containers + sub-instance
+  // occurrences via instancePill embeds. That machinery is intentionally omitted here
+  // (user's Task-3 answer: "notebook docs in the root tree only" without journal
+  // instance mechanics). Instead, all sections are merged into a single flat TipTap doc
+  // per source file using buildMergedDocTextmap. ALL textual content is preserved:
+  // section headings become H2 nodes; body lines (extraLines + instance sub-heading
+  // lines) are rendered inline via makeDocContent. Nothing is dropped.
+  //
+  // Source files + parser calls are faithful to createDefaultUserData:
+  //   morenotes.md          parseSectionsWithInstances(…, 1, 2, 8)
+  //   philosopherstone.md   parseSectionsWithInstances(…, 1, 2, 8)
+  //   gospelofthomasnotes.md parseSectionsWithInstances(…, 2, 3, 8)
+  //   uses.md               parseSectionsWithInstances(…, 2, 3, 12)
+  //   PRAGMATIC.md          parseSectionsWithInstances(…, 2, 3, 12)
+  //   aispecs.md            parseSectionsWithInstances(…, 1, 3, 12)
+  //   banglespecs.md        parseSectionsWithInstances(…, 1, 2, 12)
+  //   comparitive_religion.md  flat (readRawLines up to 120)
+  //   gospelthomas.md       flat (readRawLines up to 80)
+
+  // Helper: read raw lines from a markdown file (mirrors createDefaultUserData.readRawLines)
+  function readRawLines(filePath, maxLines = 120) {
+    try { return fs.readFileSync(filePath, "utf-8").split("\n").slice(0, maxLines); }
+    catch { return []; }
+  }
+
+  // Helper: convert parseSectionsWithInstances output into buildMergedDocTextmap sections.
+  // Each parsed section → { heading, headingLevel, lines: [...extraLines, ...instance-sub-content] }
+  // Sub-heading instances are inlined as H(headingLevel+1) + their body lines — no occurrences created.
+  function sectionsToMergeInput(parsed, sectionHeadingLevel = 2) {
+    const result = [];
+    for (const sec of parsed) {
+      // Section heading at sectionHeadingLevel
+      result.push({ heading: sec.heading, headingLevel: sectionHeadingLevel, lines: sec.extraLines || [] });
+      // Instance sub-headings at next level (inline, not separate occurrences)
+      for (const inst of (sec.instances || [])) {
+        result.push({ heading: inst.heading, headingLevel: sectionHeadingLevel + 1, lines: inst.lines || [] });
+      }
+    }
+    return result;
+  }
+
+  // Helper: build a flat TipTap doc from a sections array produced by sectionsToMergeInput.
+  // Uses buildMergedDocTextmap for heading+body merging.
+  function buildFlatDocTextmap(title, mergeInput) {
+    return buildMergedDocTextmap(title, mergeInput);
+  }
+
+  // Helper: build a TipTap doc from flat raw lines (for comparitive_religion + gospelthomas)
+  function buildFlatLinesTextmap(title, lines) {
+    const bodyNodes = makeDocContent(lines).content
+      .filter(n => n.type !== "paragraph" || (n.content && n.content.some(c => c.text && c.text.trim())));
+    return {
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: title }] },
+        ...bodyNodes,
+      ],
+    };
+  }
+
+  const notebookDocOccIds = {}; // label → occurrenceId (exposed on return for Task 12)
+
+  // ── 1. Philosopher's Stone ── morenotes.md + philosopherstone.md merged ──
+  {
+    const moreNotesSections = parseSectionsWithInstances(join(ROOT_DIR_MD, "morenotes.md"), 1, 2, 8);
+    const philSections      = parseSectionsWithInstances(join(ROOT_DIR_MD, "philosopherstone.md"), 1, 2, 8);
+    const mergeInput = [
+      ...sectionsToMergeInput(moreNotesSections, 2),
+      ...sectionsToMergeInput(philSections, 2),
+    ];
+    const textmap = buildFlatDocTextmap("Philosopher’s Stone", mergeInput);
+    const modId = uid(); const occId = uid();
+    await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Philosopher’s Stone" }).save();
+    await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 0,
+      iteration: { mode: "persistent" }, fields: {}, textmap,
+      filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } } });
+    notebookDocOccIds["Philosopher’s Stone"] = occId;
+  }
+
+  // ── 2. Gospel of Thomas (notes) ── gospelofthomasnotes.md ──
+  {
+    const sections = parseSectionsWithInstances(join(ROOT_DIR_MD, "gospelofthomasnotes.md"), 2, 3, 8);
+    const mergeInput = sectionsToMergeInput(sections, 2);
+    const textmap = buildFlatDocTextmap("Gospel of Thomas (Notes)", mergeInput);
+    const modId = uid(); const occId = uid();
+    await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Gospel of Thomas (Notes)" }).save();
+    await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 1,
+      iteration: { mode: "persistent" }, fields: {}, textmap,
+      filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } } });
+    notebookDocOccIds["Gospel of Thomas (Notes)"] = occId;
+  }
+
+  // ── 3. Uses ── uses.md (secLevel:2, instLevel:3) ──
+  {
+    const sections = parseSectionsWithInstances(join(ROOT_DIR_MD, "uses.md"), 2, 3, 12);
+    const mergeInput = sectionsToMergeInput(sections, 2);
+    const textmap = buildFlatDocTextmap("Uses", mergeInput);
+    const modId = uid(); const occId = uid();
+    await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Uses" }).save();
+    await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 2,
+      iteration: { mode: "persistent" }, fields: {}, textmap,
+      filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } } });
+    notebookDocOccIds["Uses"] = occId;
+  }
+
+  // ── 4. Pragmatic ── PRAGMATIC.md (secLevel:2, instLevel:3) ──
+  {
+    const sections = parseSectionsWithInstances(join(ROOT_DIR_MD, "PRAGMATIC.md"), 2, 3, 12);
+    const mergeInput = sectionsToMergeInput(sections, 2);
+    const textmap = buildFlatDocTextmap("Pragmatic", mergeInput);
+    const modId = uid(); const occId = uid();
+    await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Pragmatic" }).save();
+    await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 3,
+      iteration: { mode: "persistent" }, fields: {}, textmap,
+      filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } } });
+    notebookDocOccIds["Pragmatic"] = occId;
+  }
+
+  // ── 5. AI Specs ── aispecs.md (secLevel:1, instLevel:3) ──
+  {
+    const sections = parseSectionsWithInstances(join(ROOT_DIR_MD, "aispecs.md"), 1, 3, 12);
+    const mergeInput = sectionsToMergeInput(sections, 2);
+    const textmap = buildFlatDocTextmap("AI Specs", mergeInput);
+    const modId = uid(); const occId = uid();
+    await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "AI Specs" }).save();
+    await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 4,
+      iteration: { mode: "persistent" }, fields: {}, textmap,
+      filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } } });
+    notebookDocOccIds["AI Specs"] = occId;
+  }
+
+  // ── 6. Bangle Specs ── banglespecs.md (secLevel:1, instLevel:2) ──
+  {
+    const sections = parseSectionsWithInstances(join(ROOT_DIR_MD, "banglespecs.md"), 1, 2, 12);
+    const mergeInput = sectionsToMergeInput(sections, 2);
+    const textmap = buildFlatDocTextmap("Bangle Specs", mergeInput);
+    const modId = uid(); const occId = uid();
+    await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Bangle Specs" }).save();
+    await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 5,
+      iteration: { mode: "persistent" }, fields: {}, textmap,
+      filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } } });
+    notebookDocOccIds["Bangle Specs"] = occId;
+  }
+
+  // ── 7. Comparative Religion ── comparitive_religion.md (flat) ──
+  {
+    const lines = readRawLines(join(ROOT_DIR_MD, "comparitive_religion.md"), 120);
+    const textmap = buildFlatLinesTextmap("Comparative Religion", lines);
+    const modId = uid(); const occId = uid();
+    await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Comparative Religion" }).save();
+    await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 6,
+      iteration: { mode: "persistent" }, fields: {}, textmap,
+      filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } } });
+    notebookDocOccIds["Comparative Religion"] = occId;
+  }
+
+  // ── 8. Gospel of Thomas (Text) ── gospelthomas.md (flat, 80 lines) ──
+  {
+    const lines = readRawLines(join(ROOT_DIR_MD, "gospelthomas.md"), 80);
+    const textmap = buildFlatLinesTextmap("Gospel of Thomas (Text)", lines);
+    const modId = uid(); const occId = uid();
+    await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Gospel of Thomas (Text)" }).save();
+    await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 7,
+      iteration: { mode: "persistent" }, fields: {}, textmap,
+      filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } } });
+    notebookDocOccIds["Gospel of Thomas (Text)"] = occId;
+  }
+
   return {
     gridId,
     gridName,
@@ -2090,6 +2271,8 @@ export async function createLiveData(userId, options = {}) {
     dayPagesFolderId,
     // Templates manifest root folder — consumed by Tasks 12–13
     tplManifestRootFolderId,
+    // Notebook doc occurrence ids — label → occurrenceId, all in notesFolderId
+    notebookDocOccIds,
   };
 }
 
@@ -2120,18 +2303,20 @@ async function main() {
     const glContOccs     = Object.keys(result.goalContOccIds || {}).length;
     const acContOccs     = Object.keys(result.accountContOccIds || {}).length;
     const totalContOccs  = tkContOccs + tdContOccs + glContOccs + acContOccs;
+    const notebookCount  = Object.keys(result.notebookDocOccIds || {}).length;
     console.log("=".repeat(50));
-    console.log("✅ Live Grid created!");
+    console.log("Live Grid created!");
     console.log(`   Grid ID:        ${result.gridId}`);
     console.log(`   Grid Name:      ${result.gridName}`);
     console.log(`   Fields:         ${fieldCount}`);
     console.log(`   Inst modules:   ${instanceCount}`);
     console.log(`   Cont modules:   ${containerCount} (no slot containers)`);
     console.log(`   Container occs: ${totalContOccs} (${tkContOccs} toolkit, ${tdContOccs} todo, ${glContOccs} goal, ${acContOccs} account)`);
+    console.log(`   Notebook docs:  ${notebookCount} (${Object.keys(result.notebookDocOccIds || {}).join(", ")})`);
     console.log(`   Folders:        Root + 5 children (Tasks/Trackers/Interfaces/Notes/Day Pages)`);
     console.log(`   Templates:      Daily Routine (6-pick) + Day Page under Templates manifest`);
     console.log("=".repeat(50));
-    console.log("Note: pages/panels/ops added in Tasks 11–14.");
+    console.log("Note: pages/panels/ops added in Tasks 12–14.");
     console.log("=".repeat(50));
   } catch (err) {
     console.error("❌ Failed:", err);
