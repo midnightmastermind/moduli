@@ -23,6 +23,7 @@ describe("assignLinkedGroup", () => {
     const { linkedGroupId } = assignLinkedGroup(null, tag);
     expect(typeof linkedGroupId).toBe("string");
     expect(linkedGroupId.length).toBeGreaterThan(0);
+    expect(tag).not.toHaveBeenCalled();
   });
 
   it("uses a provided {id} fallback object as the group and tags it", () => {

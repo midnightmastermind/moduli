@@ -7,7 +7,8 @@
  * = wrong items rendering in wrong containers.
  */
 
-import { describe, test, expect, vi } from "vitest";
+import { describe, test, expect, vi, beforeEach } from "vitest";
+import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   buildLookup,
   getItemById,
@@ -19,6 +20,7 @@ import {
   getTargetIndexInOccurrences,
   removeId,
   ensureId,
+  copylinkInstanceToContainer,
 } from "../helpers/LayoutHelpers";
 
 // ─── Mock CommitHelpers (LayoutHelpers imports it for panel copy/split) ────────
@@ -267,5 +269,42 @@ describe("ensureId", () => {
     const result = ensureId(["a", "b"], "a");
     const count = result.filter(x => x === "a").length;
     expect(count).toBe(1);
+  });
+});
+
+// ─── copylinkInstanceToContainer — sourceOccurrenceId race regression ─────────
+describe("copylinkInstanceToContainer", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test("uses sourceOccurrenceId as linkedGroupId when sourceOccurrence is null (race fix)", () => {
+    const toContainerOcc = { id: "container-occ-1", occurrences: [] };
+    const toContainer = { id: "container-1", label: "Test", _occurrence: toContainerOcc };
+
+    const { occurrence, linkedGroupId } = copylinkInstanceToContainer({
+      dispatch: vi.fn(),
+      socket: {},
+      gridId: "grid-1",
+      sourceInstanceId: "inst-1",
+      sourceOccurrenceId: "source-occ-99",
+      sourceOccurrence: null,
+      toContainer,
+      userId: "user-1",
+    });
+
+    // The copylink occurrence must carry the sourceOccurrenceId as its linkedGroupId
+    expect(occurrence.linkedGroupId).toBe("source-occ-99");
+    expect(linkedGroupId).toBe("source-occ-99");
+
+    // The source must be tagged: updateOccurrence called with { id: sourceOccurrenceId, linkedGroupId }
+    expect(CommitHelpers.updateOccurrence).toHaveBeenCalledWith(
+      expect.objectContaining({
+        occurrence: expect.objectContaining({
+          id: "source-occ-99",
+          linkedGroupId: "source-occ-99",
+        }),
+      })
+    );
   });
 });
