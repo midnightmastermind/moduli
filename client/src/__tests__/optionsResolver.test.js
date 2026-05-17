@@ -177,3 +177,39 @@ describe("resolveOptions — find mode", () => {
     expect(resolveOptions(field, ctx).options).toEqual([]);
   });
 });
+
+describe("resolveOptions — occurrence type", () => {
+  it("resolves occurrence-type fields via find mode (regression: bug where guard rejected non-select types)", () => {
+    const field = {
+      type: "occurrence",
+      meta: {
+        optionsSource: {
+          mode: "find",
+          find: {
+            over: "$allInstances",
+            predicate: { rules: [] },
+            valuePath: "id",
+            labelPath: "label",
+          },
+        },
+      },
+    };
+    const ctx = {
+      occurrencesById: {
+        a: { id: "a", moduleId: "m", role: "instance", fields: {} },
+      },
+      modulesById: { m: { id: "m", label: "Inception", role: "instance" } },
+      fieldsById: {},
+      foldersById: {},
+    };
+    const { options, totalMatched } = resolveOptions(field, ctx);
+    expect(options).toEqual([{ value: "a", label: "Inception" }]);
+    expect(totalMatched).toBe(1);
+  });
+
+  it("manual mode works for occurrence type", () => {
+    const field = { type: "occurrence", meta: { optionsSource: { mode: "manual", values: ["x", "y"] } } };
+    const { options } = resolveOptions(field, { occurrencesById: {}, modulesById: {}, fieldsById: {}, foldersById: {} });
+    expect(options).toEqual([{ value: "x", label: "x" }, { value: "y", label: "y" }]);
+  });
+});

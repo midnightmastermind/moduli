@@ -400,7 +400,7 @@ export function evalGroupAgainstRecord(group, record, $vars) {
  * to avoid circular imports for the RUN_OPERATION case.
  */
 export function executeActionItem(type, cfg, $vars, context, transaction) {
-  const { state, fieldsById = {}, occurrencesById = {}, operationsById = {}, modulesById = {} } = context;
+  const { state, fieldsById = {}, occurrencesById = {}, operationsById = {}, modulesById = {}, foldersById = {} } = context;
   const updates = [];
 
   switch (type) {
@@ -1930,7 +1930,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // Picks options[dayOfYear % n].label and writes to targetFieldId as a display value.
     case "CYCLE_FIELD_VALUE": {
       const sourceField = fieldsById?.[cfg.sourceFieldId];
-      const options = resolveOptions(sourceField, { fieldsById, occurrencesById, modulesById }).options;
+      const options = resolveOptions(sourceField, { fieldsById, occurrencesById, modulesById, foldersById }).options;
       if (options.length === 0) break;
       let idx = 0;
       if (cfg.cycleBy === "sequential") {

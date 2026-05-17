@@ -35,7 +35,7 @@ function buildCollection(over, ctx) {
 }
 
 export function resolveOptions(field, ctx) {
-  if (field?.type !== "select") return { options: [], totalMatched: 0 };
+  if (field?.type !== "select" && field?.type !== "occurrence") return { options: [], totalMatched: 0 };
   const src = field.meta?.optionsSource;
   if (!src?.mode) return { options: [], totalMatched: 0 };
 
