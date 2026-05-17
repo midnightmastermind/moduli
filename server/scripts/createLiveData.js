@@ -204,7 +204,9 @@ export async function createLiveData(userId, options = {}) {
   // Ported from createDefaultUserData STEP 1 with these transforms applied:
   //
   // EXCLUDED (journal/QA/enrichment-exclusive — evidence in comments):
-  //   journalQuestionPool   — pool source for journalQuestion only; no toolkit/todo use
+  //   journalQuestionPool   — WIRED (Feature C): 7 reflection question instances seeded
+  //                            in the Library container with library:"question"; siblingLinks
+  //                            wired on journalQuestion/Answer; Daily Question Rotator op added.
   //   wentWellQuestion      — bound only to journalDocInstances.wentWellDocInst
   //   wentWellAnswer        — bound only to journalDocInstances.wentWellDocInst
   //   improvedQuestion      — bound only to journalDocInstances.improvedDocInst
@@ -974,9 +976,8 @@ export async function createLiveData(userId, options = {}) {
   //   roomsPoolInstances    — same
   //   cbtPoolInstances      — same
   //   bookmarksPoolInstances — same
-  //   wentWellQInstances    — journal Q&A question pool
-  //   improvedQInstances    — same
-  //   gratitudeQInstances   — same
+  //   wentWellQInstances/improvedQInstances/gratitudeQInstances — journal Q&A question
+  //     pool REPLACED by library "question" instances (7 seeded in Library container).
   //   enrichmentInstances   — pool-backed enrichment (watchItem/readItem etc. all excluded)
   //   notebookNoteInstancesFlat — notebook sub-heading instances (Task 11)
   //   workoutGoalInstance / nutritionGoalInstance — kept; added as part of goalInstances below
@@ -2368,6 +2369,25 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
   ]);
 
+  // 7 reflection question modules (library type "question")
+  // Labels are the question text — Daily Question Rotator picks one by day-of-year.
+  await Module.insertMany([
+    { id: qWentWellModId,        userId, gridId, role: "instance", kind: "list", label: "What went well today?",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: qLearnedModId,         userId, gridId, role: "instance", kind: "list", label: "What did you learn?",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: qChallengingModId,     userId, gridId, role: "instance", kind: "list", label: "What was challenging?",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: qGratefulModId,        userId, gridId, role: "instance", kind: "list", label: "What are you grateful for?",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: qDifferentlyModId,     userId, gridId, role: "instance", kind: "list", label: "What would you do differently?",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: qImproveTomorrowModId, userId, gridId, role: "instance", kind: "list", label: "What's one thing you can improve tomorrow?",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: qSurprisedModId,       userId, gridId, role: "instance", kind: "list", label: "What surprised you today?",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+  ]);
+
   // 8 movie occurrences (parentId = libraryContOccId, library field = "movie")
   const movieInceptionOccId       = await mkOcc({ moduleId: movieInceptionModId,       parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
   const movieMatrixOccId          = await mkOcc({ moduleId: movieMatrixModId,          parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
@@ -2400,6 +2420,15 @@ export async function createLiveData(userId, options = {}) {
   const courseSystemDesignOccId    = await mkOcc({ moduleId: courseSystemDesignModId,    parentId: libraryContOccId, fields: { [libraryFieldId]: fv("course") } });
   const courseIntroPhilosophyOccId = await mkOcc({ moduleId: courseIntroPhilosophyModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("course") } });
 
+  // 7 reflection question occurrences (library field = "question")
+  const qWentWellOccId        = await mkOcc({ moduleId: qWentWellModId,        parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
+  const qLearnedOccId         = await mkOcc({ moduleId: qLearnedModId,         parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
+  const qChallengingOccId     = await mkOcc({ moduleId: qChallengingModId,     parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
+  const qGratefulOccId        = await mkOcc({ moduleId: qGratefulModId,        parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
+  const qDifferentlyOccId     = await mkOcc({ moduleId: qDifferentlyModId,     parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
+  const qImproveTomorrowOccId = await mkOcc({ moduleId: qImproveTomorrowModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
+  const qSurprisedOccId       = await mkOcc({ moduleId: qSurprisedModId,       parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
+
   // Library container occurrence (libraryContOccId pre-generated at top)
   await mkOcc({
     id: libraryContOccId,
@@ -2416,6 +2445,9 @@ export async function createLiveData(userId, options = {}) {
       podcastHubermanLabOccId, podcastConvosTylerOccId,
       // courses
       courseAlgorithmsOccId, courseMLSpecOccId, courseSystemDesignOccId, courseIntroPhilosophyOccId,
+      // questions
+      qWentWellOccId, qLearnedOccId, qChallengingOccId, qGratefulOccId,
+      qDifferentlyOccId, qImproveTomorrowOccId, qSurprisedOccId,
     ],
     filterOverride: {},
   });
@@ -3440,6 +3472,100 @@ export async function createLiveData(userId, options = {}) {
     enabled: true,
   }).save();
 
+  // ── Daily Question Rotator ────────────────────────────────────────────────
+  // Picks the first reflection question from the library (stable by label sort
+  // from FIND — deterministic v1 placeholder; true day-rotation can be wired
+  // later via a MOD primitive or CYCLE_FIELD_VALUE on a dedicated select field).
+  //
+  // Pipeline:
+  //   1. FIND $schedPage (needed for HAS_ANCESTOR)
+  //   2. INIT_VAR $today
+  //   3. FIND $firstQuestion (library "question" type, first match)
+  //   4. FIND $journalingInst (Daily Journal, under Schedule, dated $today)
+  //   5. IF both found: UPDATE journalQuestion display value on $journalingInst
+  //
+  // Trigger surface: onLoad + onFilterChange (goal-scoped) + onAdd/onDelete
+  // to mirror the tracker pattern and fire on Schedule date navigation.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 3,
+    name: "Daily Question Rotator",
+    description: "Pick today's reflection question from the library and write it to the Daily Journal's journalQuestion display field.",
+    triggerTypes: ["onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Toolkit", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find the Schedule page (for HAS_ANCESTOR on journaling instance lookup)
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allPages",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Schedule" }] },
+            itemVar: "$schedPage", itemIdVar: "$schedPageId",
+          },
+        },
+        // 2. Resolve today's date from active filter
+        {
+          type: "action", action: "INIT_VAR",
+          cfg: { name: "$today", expr: `$schedPage._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+        },
+        // 3. Find the first reflection question from the library (deterministic v1 picker)
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allInstances",
+            predicate: {
+              conjunction: "AND",
+              rules: [
+                { left: `fields.${libraryFieldId}.value`, comparator: "IS", right: "question" },
+              ],
+            },
+            itemVar: "$firstQuestion", itemIdVar: "$firstQuestionId",
+          },
+        },
+        // 4. Bail if no question found in library
+        {
+          type: "if",
+          condition: { conjunction: "AND", rules: [{ left: "$firstQuestionId", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
+          else: [],
+        },
+        // 5. Find the Daily Journal instance dated to today under Schedule
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allInstances",
+            predicate: {
+              conjunction: "AND",
+              rules: [
+                { left: "label", comparator: "IS", right: "Daily Journal" },
+                { left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$today" },
+                { left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+              ],
+            },
+            itemVar: "$journalingInst", itemIdVar: "$journalingInstId",
+          },
+        },
+        // 6. Write the question label to the journalQuestion display field
+        {
+          type: "if",
+          condition: { conjunction: "AND", rules: [{ left: "$journalingInstId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            {
+              type: "action", action: "UPDATE",
+              cfg: { path: `$journalingInst.fields.${journalQuestionFieldId}.value`, value: "$firstQuestion.label" },
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+    enabled: true,
+  }).save();
+
   // ── Shared schedule + day-page operations (delegated to liveSystemBuilders) ──
   await new Operation(makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId })).save();
   await new Operation(makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar: panelOccIds.notebook })).save();
@@ -3526,7 +3652,7 @@ async function main() {
     console.log(`   Notebook docs:  ${notebookCount} (${Object.keys(result.notebookDocOccIds || {}).join(", ")})`);
     console.log(`   Folders:        Root + 5 children (Tasks/Trackers/Interfaces/Notes/Day Pages)`);
     console.log(`   Templates:      Daily Routine (6-pick) + Day Page under Templates manifest`);
-    console.log(`   Operations:     23 (19 trackers + 4 schedule/day-page)`);
+    console.log(`   Operations:     24 (19 trackers + 1 daily question rotator + 4 schedule/day-page)`);
     console.log(`   Panels:         ${Object.keys(result.panelOccIds || {}).join(", ")}`);
     console.log(`   Pages:          Daily Toolkit, Todo List, Daily Goals, Accounts, Schedule (board) + Canvas`);
     console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Schedule (${result.schedPageOccId}); tabs=[Schedule, Canvas]`);
