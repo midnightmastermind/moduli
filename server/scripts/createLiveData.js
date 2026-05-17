@@ -1437,7 +1437,7 @@ export async function createLiveData(userId, options = {}) {
 
   // ── Planning instances ───────────────────────────────────────────────────────
   const planningInstances = {
-    moduiLaunch: {
+    moduliLaunch: {
       id: uid(), label: "Moduli MVP Launch", kind: "list",
       defaultDragMode: "move",
       fieldBindings: [
@@ -1489,6 +1489,9 @@ export async function createLiveData(userId, options = {}) {
   };
 
   // ── Goal display instances ───────────────────────────────────────────────────
+  // NB: workoutGoal/nutritionGoal keys also exist in goalContainerMods (instance vs container
+  //     — different docs). fitnessAccount/productivityAccount/wellnessAccount/readingAccount
+  //     keys also exist in accountContainerMods. Same for accountInstances.bankAccount etc.
   const goalInstances = {
     physicalSummary: {
       id: uid(), label: "Physical Wellness", kind: "list",
@@ -1659,7 +1662,7 @@ export async function createLiveData(userId, options = {}) {
     const hasCat = inst.fieldBindings.some(b => b.fieldId === fields.category.id);
     if (!hasCat) {
       const maxOrder = inst.fieldBindings.reduce((m, b) => Math.max(m, b.order ?? 0), 0);
-      inst.fieldBindings.push({ fieldId: fields.category.id, hidden: true, order: maxOrder + 1 });
+      inst.fieldBindings.push({ fieldId: fields.category.id, role: "input", hidden: true, order: maxOrder + 1 });
     }
   }
 
@@ -1772,12 +1775,285 @@ export async function createLiveData(userId, options = {}) {
   }));
   await Module.insertMany(containerDocs);
 
+  // ── STEP 6: Instance + container occurrences ────────────────────────────────
+  //
+  // Pattern (mirrors createTestGrid exactly):
+  //   1. Pre-generate each container occurrence id.
+  //   2. Create child instance occurrences with parentId = container occ id.
+  //   3. Create the container occurrence with occurrences: [childIds].
+  //
+  // filterOverride rules (matching createTestGrid):
+  //   - Toolkit containers (Physical / Intellectual / …) → filterOverride: {}
+  //     (opt-out from date cascade so toolkit items are always visible)
+  //   - Todo containers (Home / Finance / Work / Personal / Plan) → filterOverride: {}
+  //     (same opt-out; matches createTestGrid's General todo convention)
+  //   - Goal containers → no filterOverride (date cascade from Goals page is intentional)
+  //   - Account containers → no filterOverride (all-time aggregation; persistent by design)
+  //
+  // Pre-filled fields (ported faithfully from createDefaultUserData):
+  //   Toolkit instance occs: muscle-group + meal-type + macro defaults from inst.meta.
+  //   Planning instance occs: due date pre-fills (moduiLaunch=+45d, doctorCheckup=+90d,
+  //     carInsurance=+12d, fileTaxes=+38d, quarterlyReview=+21d).
+  //   Toolkit moodCheck: today's mood pre-fill added as an extra occ in emotional container.
+  //   Goal / account occurrences: no pre-fills (pure display aggregations).
+
+  // Helper: field-value shape { value, flow, timestamp }
+  function fv(value, flow = "in") {
+    return { value, flow, timestamp: new Date() };
+  }
+
+  // Helper: N days from now (noon local so it's clearly "that day")
+  function daysFromNow(n) {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    d.setHours(12, 0, 0, 0);
+    return d;
+  }
+
+  // ── Pre-generate container occurrence IDs ─────────────────────────────────
+  // Toolkit containers
+  const physContOccId         = uid();
+  const intellectualContOccId = uid();
+  const emotionalContOccId    = uid();
+  const socialContOccId       = uid();
+  const spiritualContOccId    = uid();
+  const occupationalContOccId = uid();
+  const financialContOccId    = uid();
+  const environmentalContOccId = uid();
+  const workoutAllContOccId   = uid();
+  const mealBreakfastContOccId  = uid();
+  const mealLunchContOccId      = uid();
+  const mealSnackContOccId      = uid();
+  const mealDinnerContOccId     = uid();
+  const mealIngredientsContOccId = uid();
+
+  // Todo containers
+  const todoHomeContOccId     = uid();
+  const todoFinanceContOccId  = uid();
+  const todoWorkContOccId     = uid();
+  const todoPersonalContOccId = uid();
+  const todoPlanContOccId     = uid();
+
+  // Goal containers
+  const physicalGoalContOccId      = uid();
+  const intellectualGoalContOccId  = uid();
+  const emotionalGoalContOccId     = uid();
+  const socialGoalContOccId        = uid();
+  const spiritualGoalContOccId     = uid();
+  const occupationalGoalContOccId  = uid();
+  const financialGoalContOccId     = uid();
+  const environmentalGoalContOccId = uid();
+  const workoutGoalContOccId       = uid();
+  const nutritionGoalContOccId     = uid();
+  const planningGoalContOccId      = uid();
+
+  // Account containers
+  const financeAccountContOccId      = uid();
+  const fitnessAccountContOccId      = uid();
+  const learningAccountContOccId     = uid();
+  const productivityAccountContOccId = uid();
+  const wellnessAccountContOccId     = uid();
+
+  // ── Container→instance mappings (ported from createDefaultUserData) ────────
+  const toolkitMappings = {
+    physical:      { contOccId: physContOccId,         contModKey: "physical",      instKeys: ["morningWorkout", "eveningRun", "stretching", "drinkWater", "takeMeds", "sleepLog"] },
+    intellectual:  { contOccId: intellectualContOccId, contModKey: "intellectual",  instKeys: ["reading", "podcast", "watchMovie", "onlineCourse", "brainGames", "journaling"] },
+    emotional:     { contOccId: emotionalContOccId,    contModKey: "emotional",     instKeys: ["gratitude", "meditation", "breathing", "moodCheck", "selfCare"] },
+    social:        { contOccId: socialContOccId,       contModKey: "social",        instKeys: ["callFriend", "familyTime", "socialEvent", "helpSomeone"] },
+    spiritual:     { contOccId: spiritualContOccId,    contModKey: "spiritual",     instKeys: ["prayer", "natureWalk", "spiritualReading", "mindfulness"] },
+    occupational:  { contOccId: occupationalContOccId, contModKey: "occupational",  instKeys: ["deepWork", "meeting", "emailBlock", "skillDev", "networking"] },
+    financial:     { contOccId: financialContOccId,    contModKey: "financial",     instKeys: ["budgetReview", "trackExpense", "purchase", "logIncome", "investmentCheck", "savingsGoal"] },
+    environmental: { contOccId: environmentalContOccId,contModKey: "environmental", instKeys: ["cleanDesk", "declutter", "plantCare", "recycling", "ecoAction"] },
+    workoutAll:    { contOccId: workoutAllContOccId,   contModKey: "workoutAll",    instKeys: [
+      "benchPress", "inclinePress", "chestFly", "pushUps", "cableCrossover",
+      "deadlift", "pullUps", "bentRow", "latPulldown", "seatedRow",
+      "squat", "legPress", "lunges", "legCurl", "calfRaise",
+      "overheadPress", "lateralRaise", "frontRaise", "facePull", "shrugs",
+      "bicepCurl", "hammerCurl", "tricepDip", "skullCrusher", "tricepPushdown",
+      "running", "cycling", "jumpRope", "rowMachine", "burpees",
+    ] },
+    mealBreakfast:    { contOccId: mealBreakfastContOccId,   contModKey: "mealBreakfast",   instKeys: ["greekYogurtBowl", "scrambledEggs", "oatmealBerries", "avocadoToast", "smoothieBowl"] },
+    mealLunch:        { contOccId: mealLunchContOccId,       contModKey: "mealLunch",       instKeys: ["greekSaladChicken", "tunaWrap", "lentilSoup", "quinoaBowl", "hummusPita"] },
+    mealSnack:        { contOccId: mealSnackContOccId,       contModKey: "mealSnack",       instKeys: ["almonds", "olivesHummus", "cheeseCrackers", "mixedBerries", "proteinBar"] },
+    mealDinner:       { contOccId: mealDinnerContOccId,      contModKey: "mealDinner",      instKeys: ["grilledSalmon", "chickenSouvlaki", "lambKofta", "pastaMarinara", "stuffedPeppers"] },
+    mealIngredients:  { contOccId: mealIngredientsContOccId, contModKey: "mealIngredients", instKeys: ["oliveOil", "chickpeas", "lemonGarlic", "wholeGrainBread", "greekOlives"] },
+  };
+
+  // ── Create toolkit instance occurrences + container occurrences ────────────
+  const toolkitContOccIds = {}; // contModKey → containerOccId (exposed for later tasks)
+
+  for (const [key, { contOccId, contModKey, instKeys }] of Object.entries(toolkitMappings)) {
+    const childOccIds = [];
+    for (let i = 0; i < instKeys.length; i++) {
+      const instKey = instKeys[i];
+      const inst = instanceMods[instKey];
+      // Pre-fill default field values from instance meta (mirrors createDefaultUserData)
+      const defaultFields = {};
+      if (inst.meta?.defaultMuscleGroup) defaultFields[fields.muscleGroup.id] = fv(inst.meta.defaultMuscleGroup, "replace");
+      if (inst.meta?.defaultMealType)    defaultFields[fields.mealCategory.id] = fv(inst.meta.defaultMealType, "replace");
+      if (inst.meta?.defaultCal)         defaultFields[fields.calories.id]     = fv(inst.meta.defaultCal, "replace");
+      if (inst.meta?.defaultProtein)     defaultFields[fields.protein.id]      = fv(inst.meta.defaultProtein, "replace");
+      if (inst.meta?.defaultCarbs)       defaultFields[fields.carbs.id]        = fv(inst.meta.defaultCarbs, "replace");
+      if (inst.meta?.defaultFats)        defaultFields[fields.fats.id]         = fv(inst.meta.defaultFats, "replace");
+      const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: defaultFields });
+      childOccIds.push(childId);
+    }
+    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds, filterOverride: {} });
+    toolkitContOccIds[contModKey] = contOccId;
+  }
+
+  // Extra mood check-in pre-seeded in emotional container (mirrors createDefaultUserData
+  // moodTodayOccId — demonstrates mood wheel UI on first load)
+  const moodTodayOccId = await mkOcc({
+    moduleId: instanceMods.moodCheck.id,
+    parentId: emotionalContOccId,
+    sortOrder: 99, // append after the regular instances
+    fields: {
+      [fields.mood.id]:   fv("focused", "in"),
+      [fields.energy.id]: fv(4, "in"),
+    },
+  });
+  // Append to the emotional container's occurrences[]
+  await Occurrence.findOneAndUpdate({ id: emotionalContOccId }, { $push: { occurrences: moodTodayOccId } });
+
+  // ── Todo containers ────────────────────────────────────────────────────────
+  // Due date pre-fills for planning instances (matches createDefaultUserData planningDueDates)
+  const planningDueDates = {
+    moduliLaunch:    daysFromNow(45),
+    doctorCheckup:   daysFromNow(90),
+    carInsurance:    daysFromNow(12),
+    fileTaxes:       daysFromNow(38),
+    quarterlyReview: daysFromNow(21),
+  };
+
+  const todoMappings = {
+    todoHome:     { contOccId: todoHomeContOccId,     contModKey: "todoHome",     instKeys: ["buyGroceries", "cleanGarage", "fixLeakyFaucet", "returnBooks", "organizePantry"] },
+    todoFinance:  { contOccId: todoFinanceContOccId,  contModKey: "todoFinance",  instKeys: ["payBills", "cancelSub", "renewLicense", "dentistAppt", "fileInsurance"] },
+    todoWork:     { contOccId: todoWorkContOccId,     contModKey: "todoWork",     instKeys: ["orderSupplies", "backupComputer", "updatePortfolio", "prepPresentation"] },
+    todoPersonal: { contOccId: todoPersonalContOccId, contModKey: "todoPersonal", instKeys: ["callMom", "planVacation", "birthdayGift", "signUpClass"] },
+    todoPlan:     { contOccId: todoPlanContOccId,     contModKey: "todoPlan",     instKeys: ["moduliLaunch", "doctorCheckup", "carInsurance", "fileTaxes", "quarterlyReview"] },
+  };
+
+  const todoContOccIds = {};
+
+  for (const [key, { contOccId, contModKey, instKeys }] of Object.entries(todoMappings)) {
+    const childOccIds = [];
+    for (let i = 0; i < instKeys.length; i++) {
+      const instKey = instKeys[i];
+      const inst = instanceMods[instKey];
+      // Pre-fill due date for planning instances
+      const dueDatePreFill = planningDueDates[instKey]
+        ? { [fields.due.id]: fv(planningDueDates[instKey].toISOString(), "replace") }
+        : {};
+      const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: dueDatePreFill });
+      childOccIds.push(childId);
+    }
+    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds, filterOverride: {} });
+    todoContOccIds[contModKey] = contOccId;
+  }
+
+  // ── Goal containers ────────────────────────────────────────────────────────
+  // Goal containers do NOT get filterOverride: {} — date cascade from the
+  // Goals page is intentional (matches createTestGrid physGoalContOccId convention).
+  const goalMappings = {
+    physicalGoal:      { contOccId: physicalGoalContOccId,      contModKey: "physicalGoal",      instKeys: ["physicalSummary"] },
+    intellectualGoal:  { contOccId: intellectualGoalContOccId,  contModKey: "intellectualGoal",  instKeys: ["intellectualSummary"] },
+    emotionalGoal:     { contOccId: emotionalGoalContOccId,     contModKey: "emotionalGoal",     instKeys: ["emotionalSummary"] },
+    socialGoal:        { contOccId: socialGoalContOccId,        contModKey: "socialGoal",        instKeys: ["socialSummary"] },
+    spiritualGoal:     { contOccId: spiritualGoalContOccId,     contModKey: "spiritualGoal",     instKeys: ["spiritualSummary"] },
+    occupationalGoal:  { contOccId: occupationalGoalContOccId,  contModKey: "occupationalGoal",  instKeys: ["occupationalSummary"] },
+    financialGoal:     { contOccId: financialGoalContOccId,     contModKey: "financialGoal",     instKeys: ["financialSummary"] },
+    environmentalGoal: { contOccId: environmentalGoalContOccId, contModKey: "environmentalGoal", instKeys: ["environmentalSummary"] },
+    workoutGoal:       { contOccId: workoutGoalContOccId,       contModKey: "workoutGoal",       instKeys: ["workoutGoal"] },
+    nutritionGoal:     { contOccId: nutritionGoalContOccId,     contModKey: "nutritionGoal",     instKeys: ["nutritionGoal"] },
+    planningGoal:      { contOccId: planningGoalContOccId,      contModKey: "planningGoal",      instKeys: ["planningSummary"] },
+  };
+
+  const goalContOccIds = {};
+
+  for (const [key, { contOccId, contModKey, instKeys }] of Object.entries(goalMappings)) {
+    const childOccIds = [];
+    for (let i = 0; i < instKeys.length; i++) {
+      const instKey = instKeys[i];
+      const inst = instanceMods[instKey];
+      const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: {} });
+      childOccIds.push(childId);
+    }
+    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds });
+    goalContOccIds[contModKey] = contOccId;
+  }
+
+  // ── Account containers ─────────────────────────────────────────────────────
+  // Account containers are all-time aggregations — no filterOverride needed.
+  const accountMappings = {
+    financeAccount:      { contOccId: financeAccountContOccId,      contModKey: "financeAccount",      instKeys: ["bankAccount", "savingsAccount", "momsAccount"] },
+    fitnessAccount:      { contOccId: fitnessAccountContOccId,      contModKey: "fitnessAccount",      instKeys: ["fitnessAccount"] },
+    learningAccount:     { contOccId: learningAccountContOccId,     contModKey: "learningAccount",     instKeys: ["readingAccount"] },
+    productivityAccount: { contOccId: productivityAccountContOccId, contModKey: "productivityAccount", instKeys: ["productivityAccount"] },
+    wellnessAccount:     { contOccId: wellnessAccountContOccId,     contModKey: "wellnessAccount",     instKeys: ["wellnessAccount"] },
+  };
+
+  const accountContOccIds = {};
+
+  for (const [key, { contOccId, contModKey, instKeys }] of Object.entries(accountMappings)) {
+    const childOccIds = [];
+    for (let i = 0; i < instKeys.length; i++) {
+      const instKey = instKeys[i];
+      const inst = instanceMods[instKey];
+      const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: {} });
+      childOccIds.push(childId);
+    }
+    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds });
+    accountContOccIds[contModKey] = contOccId;
+  }
+
+  // ── STEP 7: Manifest + folder tree ──────────────────────────────────────────
+  //
+  // Structure (mirrors createTestGrid STEP 7):
+  //   Root (normal)
+  //   ├── Tasks      (normal, sortOrder: 0)  ← Daily Toolkit + Todo pages (Task 12)
+  //   ├── Trackers   (normal, sortOrder: 1)  ← Daily Goals + Accounts pages (Task 12)
+  //   ├── Interfaces (normal, sortOrder: 2)  ← Schedule + Canvas pages (Task 12)
+  //   ├── Notes      (normal, sortOrder: 3)  ← Notebook docs (Task 11)
+  //   └── Day Pages  (day-pages, sortOrder: 4) ← auto-created by Day Page: Build op (Task 13)
+  //
+  // Folder ids are exposed on the return value for Task 11 (notebook docs parent into Notes),
+  // Task 12 (pages parent into Tasks/Trackers/Interfaces), and Task 13 (makeDayPageBuildOp
+  // needs dayPagesFolderId).
+
+  const rootFolderId       = uid();
+  const tasksFolderId      = uid();
+  const trackersFolderId   = uid();
+  const interfacesFolderId = uid();
+  const notesFolderId      = uid();
+  const dayPagesFolderId   = uid();
+
+  await new Manifest({ id: manifestId, userId, gridId, manifestType: "user", rootFolderId }).save();
+  await new Folder({ id: rootFolderId,       userId, gridId, name: "Root",       parentId: null,       folderType: "normal",    sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: tasksFolderId,      userId, gridId, name: "Tasks",      parentId: rootFolderId, folderType: "normal",    sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: trackersFolderId,   userId, gridId, name: "Trackers",   parentId: rootFolderId, folderType: "normal",    sortOrder: 1, isExpanded: true }).save();
+  await new Folder({ id: interfacesFolderId, userId, gridId, name: "Interfaces", parentId: rootFolderId, folderType: "normal",    sortOrder: 2, isExpanded: true }).save();
+  await new Folder({ id: notesFolderId,      userId, gridId, name: "Notes",      parentId: rootFolderId, folderType: "normal",    sortOrder: 3, isExpanded: true }).save();
+  await new Folder({ id: dayPagesFolderId,   userId, gridId, name: "Day Pages",  parentId: rootFolderId, folderType: "day-pages", sortOrder: 4, isExpanded: true }).save();
+
   return {
     gridId,
     gridName,
     fields,
     instanceMods,
     containerMods,
+    // Occurrence id maps — consumed by Tasks 10–13
+    toolkitContOccIds,   // contModKey → containerOccId for toolkit containers
+    todoContOccIds,      // contModKey → containerOccId for todo containers
+    goalContOccIds,      // contModKey → containerOccId for goal containers
+    accountContOccIds,   // contModKey → containerOccId for account containers
+    // Folder ids — consumed by Tasks 11–13
+    rootFolderId,
+    tasksFolderId,
+    trackersFolderId,
+    interfacesFolderId,
+    notesFolderId,
+    dayPagesFolderId,
   };
 }
 
@@ -1800,18 +2076,25 @@ async function main() {
 
     const result = await createLiveData(userId);
 
-    const fieldCount    = Object.keys(result.fields || {}).length;
-    const instanceCount = Object.keys(result.instanceMods || {}).length;
+    const fieldCount     = Object.keys(result.fields || {}).length;
+    const instanceCount  = Object.keys(result.instanceMods || {}).length;
     const containerCount = Object.keys(result.containerMods || {}).length;
+    const tkContOccs     = Object.keys(result.toolkitContOccIds || {}).length;
+    const tdContOccs     = Object.keys(result.todoContOccIds || {}).length;
+    const glContOccs     = Object.keys(result.goalContOccIds || {}).length;
+    const acContOccs     = Object.keys(result.accountContOccIds || {}).length;
+    const totalContOccs  = tkContOccs + tdContOccs + glContOccs + acContOccs;
     console.log("=".repeat(50));
     console.log("✅ Live Grid created!");
-    console.log(`   Grid ID:    ${result.gridId}`);
-    console.log(`   Grid Name:  ${result.gridName}`);
-    console.log(`   Fields:     ${fieldCount}`);
-    console.log(`   Instances:  ${instanceCount}`);
-    console.log(`   Containers: ${containerCount} (no slot containers)`);
+    console.log(`   Grid ID:        ${result.gridId}`);
+    console.log(`   Grid Name:      ${result.gridName}`);
+    console.log(`   Fields:         ${fieldCount}`);
+    console.log(`   Inst modules:   ${instanceCount}`);
+    console.log(`   Cont modules:   ${containerCount} (no slot containers)`);
+    console.log(`   Container occs: ${totalContOccs} (${tkContOccs} toolkit, ${tdContOccs} todo, ${glContOccs} goal, ${acContOccs} account)`);
+    console.log(`   Folders:        Root + 5 children (Tasks/Trackers/Interfaces/Notes/Day Pages)`);
     console.log("=".repeat(50));
-    console.log("Note: occurrences/pages/ops added in Tasks 9–14.");
+    console.log("Note: pages/panels/ops/templates added in Tasks 10–14.");
     console.log("=".repeat(50));
   } catch (err) {
     console.error("❌ Failed:", err);
