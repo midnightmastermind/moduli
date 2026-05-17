@@ -1971,6 +1971,19 @@ export async function createLiveData(userId, options = {}) {
     mealIngredients:  { contOccId: mealIngredientsContOccId, contModKey: "mealIngredients", instKeys: ["oliveOil", "chickpeas", "lemonGarlic", "wholeGrainBread", "greekOlives"] },
   };
 
+  // Per-exercise starting weights (lbs) — a realistic intermediate-lifter
+  // state, as if the user had been progressively overloading. Bodyweight /
+  // cardio movements carry 0 weight. Keyed by workout instance key; any
+  // workout not listed falls back to a light 20 lb default.
+  const workoutStartWeights = {
+    benchPress: 135, inclinePress: 115, chestFly: 30, pushUps: 0, cableCrossover: 25,
+    deadlift: 225, pullUps: 0, bentRow: 115, latPulldown: 120, seatedRow: 130,
+    squat: 185, legPress: 270, lunges: 40, legCurl: 90, calfRaise: 150,
+    overheadPress: 85, lateralRaise: 20, frontRaise: 20, facePull: 40, shrugs: 135,
+    bicepCurl: 30, hammerCurl: 30, tricepDip: 0, skullCrusher: 50, tricepPushdown: 50,
+    running: 0, cycling: 0, jumpRope: 0, rowMachine: 0, burpees: 0,
+  };
+
   // ── Create toolkit instance occurrences + container occurrences ────────────
   const toolkitContOccIds = {}; // contModKey → containerOccId (exposed for later tasks)
 
@@ -1981,7 +1994,16 @@ export async function createLiveData(userId, options = {}) {
       const inst = instanceMods[instKey];
       // Pre-fill default field values from instance meta (mirrors createDefaultUserData)
       const defaultFields = {};
-      if (inst.meta?.defaultMuscleGroup) defaultFields[fields.muscleGroup.id] = fv(inst.meta.defaultMuscleGroup, "replace");
+      if (inst.meta?.defaultMuscleGroup) {
+        defaultFields[fields.muscleGroup.id] = fv(inst.meta.defaultMuscleGroup, "replace");
+        // Workout starting state: a descending rep pyramid (12/10/8) at the
+        // exercise's progressive-overload weight, so each exercise opens
+        // showing "where I'm at" instead of empty inputs.
+        defaultFields[fields.set1Reps.id]     = fv(12, "replace");
+        defaultFields[fields.set2Reps.id]     = fv(10, "replace");
+        defaultFields[fields.set3Reps.id]     = fv(8,  "replace");
+        defaultFields[fields.workoutWeight.id] = fv(workoutStartWeights[instKey] ?? 20, "replace");
+      }
       if (inst.meta?.defaultMealType)    defaultFields[fields.mealCategory.id] = fv(inst.meta.defaultMealType, "replace");
       if (inst.meta?.defaultCal)         defaultFields[fields.calories.id]     = fv(inst.meta.defaultCal, "replace");
       if (inst.meta?.defaultProtein)     defaultFields[fields.protein.id]      = fv(inst.meta.defaultProtein, "replace");
@@ -2718,7 +2740,7 @@ export async function createLiveData(userId, options = {}) {
   // inner LOOP over moviesWatched array (occurrence IDs) → resolve each movie
   // label → concat to $output → UPDATE display field on the goal item.
   await new Operation({
-    userId, gridId, priority: 3,
+    id: uid(), userId, gridId, priority: 3,
     name: "Tracker: Movies Watched",
     description: "Build a label list of movies watched today and update the Movies Watched goal display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
