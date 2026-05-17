@@ -373,7 +373,7 @@ function Field({
     }
 
     if (compact && type === "select") {
-      const allOpts = meta?.options || [];
+      const allOpts = meta?._resolvedOptions || [];
       const displayOpts = meta?.removeOnComplete ? allOpts.filter(o => !usedCompletedValues.includes(o.value)) : allOpts;
       const currentLabel = Array.isArray(localValue)
         ? localValue.map(v => displayOpts.find(o => o.value === v)?.label ?? v).join(", ") || "—"
@@ -606,7 +606,7 @@ function Field({
     }
 
     if (type === "select") {
-      const allOptions = meta?.options || [];
+      const allOptions = meta?._resolvedOptions || [];
       const isMulti = meta?.multiSelect === true;
       const options = meta?.removeOnComplete
         ? allOptions.filter(o => !usedCompletedValues.includes(o.value))
@@ -793,7 +793,7 @@ function Field({
         } catch { return rawDisplayValue; }
       }
       case "select": {
-        const options = meta?.options || [];
+        const options = meta?._resolvedOptions || [];
         if (Array.isArray(rawDisplayValue)) {
           return rawDisplayValue.map(v => options.find(o => o.value === v)?.label ?? v).join(", ") || "—";
         }
