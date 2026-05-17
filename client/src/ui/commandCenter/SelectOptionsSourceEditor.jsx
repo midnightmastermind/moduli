@@ -3,6 +3,7 @@ import CategoryPathPicker from "../CategoryPathPicker";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig } from "../categoryRegistry";
 import ConditionGroup from "../../blocks/ConditionGroup";
 import { GridActionsContext } from "../../GridActionsContext";
+import { resolveOptions } from "../../helpers/optionsResolver";
 
 const MODES = [
   { key: "manual", label: "Manual" },
@@ -139,7 +140,8 @@ function RangeBody({ source, onChange }) {
   );
 }
 function FindBody({ source, onChange }) {
-  const { fieldsById, modulesById, occurrencesById } = useContext(GridActionsContext);
+  const ctx = useContext(GridActionsContext);
+  const { fieldsById, modulesById, occurrencesById, foldersById } = ctx;
 
   const find = source?.find || { over: "$allInstances", predicate: { rules: [] }, valuePath: "label" };
 
@@ -149,6 +151,16 @@ function FindBody({ source, onChange }) {
 
   const fields = useMemo(() => Object.values(fieldsById), [fieldsById]);
   const leftConfig = useMemo(() => buildRecordKeyPickerConfig(find.over), [find.over]);
+
+  const preview = useMemo(() => {
+    const draftField = { type: "select", meta: { optionsSource: { mode: "find", find } } };
+    return resolveOptions(draftField, {
+      occurrencesById: occurrencesById || {},
+      modulesById: modulesById || {},
+      fieldsById: fieldsById || {},
+      foldersById: foldersById || {},
+    });
+  }, [find, occurrencesById, modulesById, fieldsById, foldersById]);
 
   const sectionLabel = { fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", marginBottom: 3 };
 
@@ -225,6 +237,25 @@ function FindBody({ source, onChange }) {
             style={{ width: 70, height: 28, fontSize: 11, fontFamily: "monospace", background: "var(--input-bg)", border: "1px solid var(--input-border)", borderRadius: 5, color: "var(--text-primary)", padding: "0 8px", outline: "none" }}
           />
         </div>
+      </div>
+
+      <div style={{ marginTop: 4 }}>
+        <div style={sectionLabel}>
+          Preview: {preview.totalMatched} match{preview.totalMatched === 1 ? "" : "es"}
+          {preview.totalMatched > preview.options.length && ` (showing first ${preview.options.length})`}
+        </div>
+        {preview.options.length === 0 ? (
+          <div style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "monospace", fontStyle: "italic" }}>
+            No matches — check the predicate.
+          </div>
+        ) : (
+          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace" }}>
+            {preview.options.slice(0, 10).map((o, i) => (
+              <li key={i}>{o.label}{o.label !== String(o.value) ? `  ·  ${o.value}` : ""}</li>
+            ))}
+            {preview.options.length > 10 && <li style={{ color: "var(--text-faint)" }}>… {preview.options.length - 10} more</li>}
+          </ul>
+        )}
       </div>
     </div>
   );
