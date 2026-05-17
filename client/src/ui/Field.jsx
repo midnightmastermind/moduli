@@ -480,6 +480,16 @@ function Field({
 
     if (compact && type === "occurrence") {
       const options = meta?._resolvedOptions || [];
+      const isMulti = meta?.multiSelect === true;
+      if (isMulti) {
+        const selectedValues = Array.isArray(localValue) ? localValue : localValue ? [localValue] : [];
+        return (
+          <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
+            onChange={vals => { handleChange(vals); onCommit?.(vals); }}
+            onAddOption={null} disabled={disabled} compact={compact}
+            showLabel={showLabel} randomize={false} />
+        );
+      }
       const currentLabel = options.find(o => o.value === localValue)?.label || localValue || "—";
       return (
         <Popover>
@@ -767,6 +777,16 @@ function Field({
 
     if (type === "occurrence") {
       const options = meta?._resolvedOptions || [];
+      const isMulti = meta?.multiSelect === true;
+      if (isMulti) {
+        const selectedValues = Array.isArray(localValue) ? localValue : localValue ? [localValue] : [];
+        return (
+          <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
+            onChange={vals => { handleChange(vals); onCommit?.(vals); }}
+            onAddOption={null} disabled={disabled} compact={compact}
+            showLabel={showLabel} randomize={false} />
+        );
+      }
       return (
         <div className="field-input field-input-occurrence" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {showLabel && <span style={inputLabelStyle}>{name}</span>}
@@ -844,6 +864,9 @@ function Field({
       case "rating": return rawDisplayValue;
       case "occurrence": {
         const options = meta?._resolvedOptions || [];
+        if (Array.isArray(rawDisplayValue)) {
+          return rawDisplayValue.map(v => options.find(o => o.value === v)?.label ?? v).join(", ") || "—";
+        }
         return options.find(o => o.value === rawDisplayValue)?.label || rawDisplayValue || "—";
       }
       default: return rawDisplayValue !== undefined && rawDisplayValue !== null ? String(rawDisplayValue) : "—";
