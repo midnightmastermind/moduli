@@ -31,27 +31,17 @@ function FieldRenderer({
   const { occurrencesById, modulesById, fieldsById, foldersById } = useContext(GridActionsContext);
   const { computedValues } = useContext(GridLiveContext);
 
-  // Resolve dynamic options for select fields via optionsResolver.
+  // Resolve dynamic options for select and occurrence fields via optionsResolver.
   const { options: resolvedOptions, totalMatched } = useMemo(() => {
-    if (field?.type !== "select") return { options: [], totalMatched: 0 };
+    if (field?.type !== "select" && field?.type !== "occurrence") return { options: [], totalMatched: 0 };
     return resolveOptions(field, { occurrencesById, modulesById, fieldsById, foldersById });
   }, [field, occurrencesById, modulesById, fieldsById, foldersById]);
 
-  // Resolve dynamic options for module-reference fields and expose _resolvedOptions for select fields.
+  // Expose resolved options under _resolvedOptions for select and occurrence fields.
   const effectiveField = useMemo(() => {
-    // Module reference field: build options from all (non-trashed) modules
-    if (field?.type === "module") {
-      let filtered = Object.values(modulesById || {}).filter(m => !m.trashed);
-      if (field.meta?.roleFilter) {
-        filtered = filtered.filter(m => m.role === field.meta.roleFilter);
-      }
-      const moduleOptions = filtered.map(m => ({ value: m.id, label: m.label || "Untitled" }));
-      return { ...field, meta: { ...field.meta, _moduleOptions: moduleOptions } };
-    }
-    // Select field: expose resolved options under _resolvedOptions
-    if (field?.type !== "select") return field;
+    if (field?.type !== "select" && field?.type !== "occurrence") return field;
     return { ...field, meta: { ...field.meta, _resolvedOptions: resolvedOptions, _totalMatched: totalMatched } };
-  }, [field, resolvedOptions, totalMatched, modulesById]);
+  }, [field, resolvedOptions, totalMatched]);
 
   // Determine field role — module.meta.disabled forces display-only
   const inputEnabled = !disabled && field.inputEnabled !== false;
@@ -139,7 +129,7 @@ function FieldRenderer({
 
   if (!field) return null;
 
-  const canRandomize = field?.type === "select" && resolvedOptions.length > 1;
+  const canRandomize = (field?.type === "select" || field?.type === "occurrence") && resolvedOptions.length > 1;
 
   // Randomize: pick a random option from any multi-option select
   function handleRandomize() {

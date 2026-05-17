@@ -1,9 +1,19 @@
 /**
  * Pure migration helper for legacy field options shapes.
  * Converts meta.options and pool sourceType to the new meta.optionsSource schema.
+ * Also converts "module" type fields to "occurrence" type with appropriate optionsSource.
  */
 
+const ROLE_TO_COLLECTION = {
+  panel: "$allPanels",
+  container: "$allContainers",
+  instance: "$allInstances",
+  page: "$allPages",
+};
+
 export function needsMigration(field) {
+  // module-type fields always need migration (to occurrence + optionsSource)
+  if (field?.type === "module") return true;
   if (field?.type !== "select") return false;
   if (field.meta?.optionsSource) return false;
   return true;
@@ -12,6 +22,23 @@ export function needsMigration(field) {
 export function migrateFieldOptionsSource(field) {
   if (!needsMigration(field)) return field;
 
+  // Module reference field → rewrite to occurrence type with optionsSource
+  if (field?.type === "module") {
+    const next = { ...field, meta: { ...field.meta }, type: "occurrence" };
+    const over = ROLE_TO_COLLECTION[field.meta?.roleFilter] || "$allOccurrences";
+    next.meta.optionsSource = {
+      mode: "find",
+      over,
+      predicate: { rules: [] },
+      valuePath: "id",
+      labelPath: "label",
+    };
+    delete next.meta.roleFilter;
+    delete next.meta.label;
+    return next;
+  }
+
+  // Select field: migrate legacy options shape
   const next = { ...field, meta: { ...field.meta } };
 
   const poolIds = Array.isArray(field.meta?.poolContainerIds)

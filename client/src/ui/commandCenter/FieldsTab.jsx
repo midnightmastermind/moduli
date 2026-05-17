@@ -55,10 +55,10 @@ export function FieldPill({ field, selected, onClick, compact = false }) {
   }, [field]);
 
   const isInput = field.inputEnabled !== false;
-  const isModule = field.type === "module";
-  const base = isModule ? "6,182,212" : isInput ? "59,130,246" : "168,85,247"; // cyan / blue / purple
-  const textColor = isModule ? "rgb(103,232,249)" : isInput ? "rgb(147,197,253)" : "rgb(216,180,254)";
-  const dotColor = isModule ? "rgb(34,211,238)" : isInput ? "rgb(96,165,250)" : "rgb(192,132,252)";
+  const isOccurrence = field.type === "occurrence";
+  const base = isOccurrence ? "6,182,212" : isInput ? "59,130,246" : "168,85,247"; // cyan / blue / purple
+  const textColor = isOccurrence ? "rgb(103,232,249)" : isInput ? "rgb(147,197,253)" : "rgb(216,180,254)";
+  const dotColor = isOccurrence ? "rgb(34,211,238)" : isInput ? "rgb(96,165,250)" : "rgb(192,132,252)";
 
   if (compact) {
     // Compact list-item style for category columns
@@ -161,7 +161,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
             onChange={(e) => setLocal((p) => ({ ...p, type: e.target.value }))}
             style={{ ...inputStyle, width: "auto", minWidth: 90 }}
           >
-            {["number", "text", "boolean", "select", "date", "rating", "duration", "module"].map((t) => (
+            {["number", "text", "boolean", "select", "date", "rating", "duration", "occurrence"].map((t) => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
@@ -263,42 +263,14 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
         </div>
       )}
 
-      {/* Select options editor */}
-      {local.type === "select" && (
+      {/* Options source editor — select and occurrence fields */}
+      {["select", "occurrence"].includes(local.type) && (
         <div>
           <span style={labelStyle}>Options source</span>
           <SelectOptionsSourceEditor
             source={local.meta?.optionsSource || { mode: "manual", values: [] }}
             onChange={(next) => setLocal(p => ({ ...p, meta: { ...(p.meta || {}), optionsSource: next } }))}
           />
-        </div>
-      )}
-
-      {/* Module field config */}
-      {local.type === "module" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div>
-            <span style={labelStyle}>Link Label</span>
-            <input
-              value={local.meta?.label || ""}
-              onChange={(e) => setMeta("label", e.target.value || undefined)}
-              placeholder="e.g. Project, Time Slot, Assigned To"
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <span style={labelStyle}>Filter by role (optional)</span>
-            <select
-              value={local.meta?.roleFilter || ""}
-              onChange={(e) => setMeta("roleFilter", e.target.value || undefined)}
-              style={{ ...inputStyle, width: "auto", minWidth: 120 }}
-            >
-              <option value="">All modules</option>
-              <option value="panel">Panels</option>
-              <option value="container">Containers</option>
-              <option value="instance">Instances</option>
-            </select>
-          </div>
         </div>
       )}
 

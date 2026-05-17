@@ -485,10 +485,9 @@ function Field({
       );
     }
 
-    if (compact && type === "module") {
-      const options = meta?._moduleOptions || [];
+    if (compact && type === "occurrence") {
+      const options = meta?._resolvedOptions || [];
       const currentLabel = options.find(o => o.value === localValue)?.label || localValue || "—";
-      const displayLabel = meta?.label ? `${meta.label}: ${currentLabel}` : currentLabel;
       return (
         <Popover>
           <PopoverTrigger asChild>
@@ -496,18 +495,18 @@ function Field({
               className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
                 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
               style={{ background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(103,232,249)" }}
-              title={`${name}: ${displayLabel}`}
+              title={`${name}: ${currentLabel}`}
             >
               <Link2 style={{ width: 10, height: 10, opacity: 0.6 }} />
               {!hideName && name && <span style={{ opacity: 0.7 }}>{name}:</span>}
-              <span>{displayLabel}</span>
+              <span>{currentLabel}</span>
               <ChevronDown style={{ width: 10, height: 10, opacity: 0.5 }} />
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-48 p-1" align="start" side="bottom">
             <div style={{ maxHeight: 200, overflowY: "auto" }}>
               {options.length === 0
-                ? <div style={{ padding: "16px 0", textAlign: "center", fontSize: 11, color: "var(--text-faint)" }}>No modules available</div>
+                ? <div style={{ padding: "16px 0", textAlign: "center", fontSize: 11, color: "var(--text-faint)" }}>No occurrences available</div>
                 : options.map(o => (
                     <button key={o.value} type="button"
                       onClick={() => { handleChange(o.value); onCommit?.(o.value); }}
@@ -773,10 +772,10 @@ function Field({
       );
     }
 
-    if (type === "module") {
-      const options = meta?._moduleOptions || [];
+    if (type === "occurrence") {
+      const options = meta?._resolvedOptions || [];
       return (
-        <div className="field-input field-input-module" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <div className="field-input field-input-occurrence" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {showLabel && <span style={inputLabelStyle}>{name}</span>}
           <select
             value={localValue ?? ""}
@@ -788,7 +787,7 @@ function Field({
               borderRadius: 5, color: "rgb(103,232,249)", padding: "0 8px", outline: "none",
             }}
           >
-            <option value="">{meta?.label ? `Select ${meta.label}...` : "Select module..."}</option>
+            <option value="">Select occurrence...</option>
             {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
@@ -850,10 +849,9 @@ function Field({
         return `${h}h ${m}m`;
       }
       case "rating": return rawDisplayValue;
-      case "module": {
-        const options = meta?._moduleOptions || [];
-        const refLabel = options.find(o => o.value === rawDisplayValue)?.label || rawDisplayValue;
-        return meta?.label && refLabel ? `${meta.label}: ${refLabel}` : (refLabel || "—");
+      case "occurrence": {
+        const options = meta?._resolvedOptions || [];
+        return options.find(o => o.value === rawDisplayValue)?.label || rawDisplayValue || "—";
       }
       default: return rawDisplayValue !== undefined && rawDisplayValue !== null ? String(rawDisplayValue) : "—";
     }
@@ -941,7 +939,7 @@ function Field({
       );
     }
 
-    if (type === "module") {
+    if (type === "occurrence") {
       return (
         <div className="field-display field-display-compact" style={{ ...pillBase,
           background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(103,232,249)",

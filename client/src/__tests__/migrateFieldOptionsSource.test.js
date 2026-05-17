@@ -72,3 +72,45 @@ describe("needsMigration", () => {
     expect(needsMigration({ type: "number", meta: {} })).toBe(false);
   });
 });
+
+describe("migrateFieldOptionsSource — module fields", () => {
+  it("rewrites module field with roleFilter:'instance' into occurrence + $allInstances", () => {
+    const field = { id: "f1", type: "module", meta: { roleFilter: "instance", label: "Project" } };
+    const out = migrateFieldOptionsSource(field);
+    expect(out.type).toBe("occurrence");
+    expect(out.meta.optionsSource).toEqual({
+      mode: "find",
+      over: "$allInstances",
+      predicate: { rules: [] },
+      valuePath: "id",
+      labelPath: "label",
+    });
+    expect(out.meta.roleFilter).toBeUndefined();
+    expect(out.meta.label).toBeUndefined();
+  });
+
+  it("rewrites module field with no roleFilter into occurrence + $allOccurrences", () => {
+    const field = { id: "f1", type: "module", meta: {} };
+    const out = migrateFieldOptionsSource(field);
+    expect(out.type).toBe("occurrence");
+    expect(out.meta.optionsSource.over).toBe("$allOccurrences");
+  });
+
+  it("maps each roleFilter to its collection", () => {
+    for (const [role, expected] of [
+      ["panel", "$allPanels"],
+      ["container", "$allContainers"],
+      ["page", "$allPages"],
+      ["instance", "$allInstances"],
+    ]) {
+      const out = migrateFieldOptionsSource({ id: "f1", type: "module", meta: { roleFilter: role } });
+      expect(out.meta.optionsSource.over).toBe(expected);
+    }
+  });
+});
+
+describe("needsMigration — module fields", () => {
+  it("returns true for module-type fields even with optionsSource", () => {
+    expect(needsMigration({ type: "module", meta: { optionsSource: { mode: "find" } } })).toBe(true);
+  });
+});
