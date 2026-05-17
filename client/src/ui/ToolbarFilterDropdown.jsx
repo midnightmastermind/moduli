@@ -94,10 +94,10 @@ export default function ToolbarFilterDropdown() {
         style={{
           background: "transparent", border: 0, padding: "2px 4px",
           cursor: "pointer", display: "inline-flex", alignItems: "center",
-          color: "var(--text-muted, #888)",
+          color: "rgba(80, 150, 100, 0.85)",
         }}
       >
-        <Filter size={13} />
+        <Filter size={13} fill="rgba(80, 150, 100, 0.85)" />
       </button>
 
       {open && anchor && createPortal(

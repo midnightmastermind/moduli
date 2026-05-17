@@ -2,8 +2,14 @@
 
 _Updated: 2026-05-17. Check this file before re-reading source._
 
+## Recent Changes (2026-05-17 — PUSH_TO_ARRAY pipeline action)
+- **`operationActions.js` (`PUSH_TO_ARRAY`)**: New action case. cfg: `{ name, value }`. When `cfg.value` is a plain object, each leaf value is resolved via `resolveExpr` (supports `$var.path` expressions). When `cfg.value` is a primitive, pushes via `resolveExpr`. Creates the array when the variable doesn't exist. Distinct from `PUSH_TO_VAR` which only pushes scalar values via `cfg.expr`. Used by the Books Read tracker to build `[{label, pages}]` rows. 6 unit tests added to `operationActions.unified.test.js`; 615/615 green.
+
 ## Recent Changes (2026-05-17 — createLeafInstanceInParent helper)
 - **`CommitHelpers.js`**: New exported function `createLeafInstanceInParent({ dispatch, socket, gridId, userId, parentOccurrence, label, initialFields })`. Creates a `role:"instance" kind:"list"` module + occurrence with optional `initialFields`, optimistically dispatches both, emits `create_module` + `create_occurrence`, then appends the new occurrence ID to `parentOccurrence.occurrences[]`. Returns `{ moduleId, occurrenceId }`. Follows `createTextblockInContainer` pattern. Used by `Field.jsx` for occurrence-field add-new.
+
+## Recent Changes (2026-05-17 — optionsResolver $this support)
+- **`optionsResolver.js`**: `resolveOptions` now accepts optional third param `ownerOccurrence` (default `null`). When provided, it is passed as `$this` inside the find-mode predicate's `$vars` so predicates like `fields.category.value IS $this.fields.type.value` resolve the owner's field value. Backward-compatible: callers that don't pass it get `{}` for `$vars` (same as before). Also supports flat find shape (`{ mode:"find", over, predicate, ... }` at top level of `optionsSource`) alongside the existing nested shape (`{ find: { over, predicate, ... } }`) via `const cfg = src.find || src`.
 
 ## Recent Changes (2026-05-17 — optionsResolver)
 - **`optionsResolver.js` (NEW)**: `resolveOptions(field, ctx) → { options: Array<{value, label}>, totalMatched: number }`. Branches on `field.meta.optionsSource.mode`: manual (literal values), range (start/end/step expansion), find (collection walk + predicate filter via `evalGroupAgainstRecord` + `valuePath`/`labelPath` extraction via `resolveRecordPath` + dedupe/sort/limit). Used by `FieldRenderer.jsx` (stamps `meta._resolvedOptions` for runtime), by `SelectOptionsSourceEditor`'s live preview, and by `FilterNavWidgets.derivedOptionsForFilter` (now accepts a `ctx` param).

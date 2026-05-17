@@ -96,10 +96,10 @@ export default function NodePill({
         ...extraStyle,
       }}
     >
-      {leadingSlot}
       {isEntity && (
         <GripVertical size={10} style={{ opacity: 0.35, flexShrink: 0 }} />
       )}
+      {leadingSlot}
       <Icon size={isEntity ? 10 : 9} style={{ color, flexShrink: 0 }} />
       <span
         style={{

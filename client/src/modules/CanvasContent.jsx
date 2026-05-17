@@ -262,6 +262,45 @@ export const CanvasContent = React.memo(function CanvasContent({
     });
   }, [saveStrokes]);
 
+  // ─── Edge autoscroll state + classifier — declared BEFORE the pointer
+  // handlers that depend on them. `onSurfacePointerMove` lists
+  // `classifyEdges` in its useCallback dep array, which is evaluated at
+  // declaration time; moving classifyEdges below the pointer handler put
+  // the dep array in the temporal dead zone and crashed the canvas panel
+  // at mount (minified: "can't access lexical declaration 'Ie' before
+  // initialization"). Edge state is shared with both the pan handlers
+  // (which paint edges during grab-pan) and the dragover autoscroll.
+  const dxRef = useRef(0);
+  const dyRef = useRef(0);
+  const autoscrollTimerRef = useRef(null);
+  const autoscrollIntervalRef = useRef(null);
+  // Edge state per direction: 0 = off, 1 = blue (active / panning toward),
+  // 2 = red (scroll hit the world boundary, can't go further).
+  const [edgeHover, setEdgeHover] = useState({ top: 0, bottom: 0, left: 0, right: 0 });
+
+  // Boundary-aware edge classification: given a "this direction is active"
+  // flag per edge, paint red if the surface is already pinned at that side
+  // of the world (max scroll reached), otherwise blue.
+  const classifyEdges = useCallback((active) => {
+    const surface = surfaceRef.current;
+    if (!surface) return { top: 0, bottom: 0, left: 0, right: 0 };
+    const maxX = Math.max(0, surface.scrollWidth - surface.clientWidth);
+    const maxY = Math.max(0, surface.scrollHeight - surface.clientHeight);
+    return {
+      left:   active.left   ? (surface.scrollLeft <= 0    ? 2 : 1) : 0,
+      right:  active.right  ? (surface.scrollLeft >= maxX ? 2 : 1) : 0,
+      top:    active.top    ? (surface.scrollTop  <= 0    ? 2 : 1) : 0,
+      bottom: active.bottom ? (surface.scrollTop  >= maxY ? 2 : 1) : 0,
+    };
+  }, []);
+
+  const stopAutoscroll = useCallback(() => {
+    if (autoscrollTimerRef.current) { clearTimeout(autoscrollTimerRef.current); autoscrollTimerRef.current = null; }
+    if (autoscrollIntervalRef.current) { clearInterval(autoscrollIntervalRef.current); autoscrollIntervalRef.current = null; }
+    dxRef.current = 0; dyRef.current = 0;
+    setEdgeHover({ top: 0, bottom: 0, left: 0, right: 0 });
+  }, []);
+
   // Grab / pan navigation — pointer drag on the surface moves scroll position.
   const panStateRef = useRef(null);
   const onSurfacePointerDown = useCallback((e) => {
@@ -385,45 +424,13 @@ export const CanvasContent = React.memo(function CanvasContent({
     }
   }, [drawTool, drawColor, drawSize, getPos, saveStrokes]);
 
-  // ─── Edge autoscroll during drag-and-drop ─────────────────────────────────
   // dragover fires continuously while an item is being dragged over the
   // surface. When the pointer is within EDGE px of an edge we kick off a
   // ~400ms delay timer before starting the autoscroll interval — this stops
   // the canvas from pre-navigating when the user is just dragging a card OUT
   // toward the edge. The matching edge bar lights up immediately on hover (no
   // delay) so the user can see the affordance even before autoscroll engages.
-  const dxRef = useRef(0);
-  const dyRef = useRef(0);
-  const autoscrollTimerRef = useRef(null);
-  const autoscrollIntervalRef = useRef(null);
-  // Edge state per direction: 0 = off, 1 = blue (active / panning toward),
-  // 2 = red (scroll hit the world boundary, can't go further).
-  const [edgeHover, setEdgeHover] = useState({ top: 0, bottom: 0, left: 0, right: 0 });
-
-  // Boundary-aware edge classification: given a "this direction is active"
-  // flag per edge, paint red if the surface is already pinned at that side
-  // of the world (max scroll reached), otherwise blue. Returns an object
-  // with the same shape as edgeHover state.
-  const classifyEdges = useCallback((active) => {
-    const surface = surfaceRef.current;
-    if (!surface) return { top: 0, bottom: 0, left: 0, right: 0 };
-    const maxX = Math.max(0, surface.scrollWidth - surface.clientWidth);
-    const maxY = Math.max(0, surface.scrollHeight - surface.clientHeight);
-    return {
-      left:   active.left   ? (surface.scrollLeft <= 0    ? 2 : 1) : 0,
-      right:  active.right  ? (surface.scrollLeft >= maxX ? 2 : 1) : 0,
-      top:    active.top    ? (surface.scrollTop  <= 0    ? 2 : 1) : 0,
-      bottom: active.bottom ? (surface.scrollTop  >= maxY ? 2 : 1) : 0,
-    };
-  }, []);
-
-  const stopAutoscroll = useCallback(() => {
-    if (autoscrollTimerRef.current) { clearTimeout(autoscrollTimerRef.current); autoscrollTimerRef.current = null; }
-    if (autoscrollIntervalRef.current) { clearInterval(autoscrollIntervalRef.current); autoscrollIntervalRef.current = null; }
-    dxRef.current = 0; dyRef.current = 0;
-    setEdgeHover({ top: 0, bottom: 0, left: 0, right: 0 });
-  }, []);
-
+  // (Edge state + classifyEdges are declared up top — see comment there.)
   const onSurfaceDragOver = useCallback((e) => {
     const surface = surfaceRef.current;
     if (!surface) return;

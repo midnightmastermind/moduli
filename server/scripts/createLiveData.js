@@ -158,6 +158,19 @@ export async function createLiveData(userId, options = {}) {
   // Library folder ID
   const libraryFolderId = uid();
 
+  // Journal Q&A field IDs — pre-generated so siblingLinks can reference them at definition time
+  const journalQuestionFieldId = uid();
+  const journalAnswerFieldId   = uid();
+
+  // 7 reflection question module IDs (library "question" type)
+  const qWentWellModId          = uid();
+  const qLearnedModId           = uid();
+  const qChallengingModId       = uid();
+  const qGratefulModId          = uid();
+  const qDifferentlyModId       = uid();
+  const qImproveTomorrowModId   = uid();
+  const qSurprisedModId         = uid();
+
   // Time slots — needed for buildScheduleFilters' timeslotLabels; later tasks
   // also use timeSlots for the schedule subtree, so hoist here to mirror
   // createTestGrid's pattern.
@@ -438,7 +451,7 @@ export async function createLiveData(userId, options = {}) {
       type: "select",
       inputEnabled: true,
       displayEnabled: false,
-      meta: { options: ["movie", "book", "tv show", "podcast", "course"], multiSelect: false },
+      meta: { options: ["movie", "book", "tv show", "podcast", "course", "question"], multiSelect: false },
     },
     moviesWatched: {
       id: moviesWatchedFieldId,
@@ -639,22 +652,25 @@ export async function createLiveData(userId, options = {}) {
     },
 
     // ── JOURNAL Q&A (kept — journalQuestion/Answer also used by toolkit journaling) ──
-    // siblingLinks not wired — journalQuestionPool excluded, no CYCLE_FIELD_VALUE op in live grid
+    // siblingLinks wired bidirectionally — Q&A relationship is explicit in schema.
+    // Daily Question Rotator op writes the picked question label to journalQuestion.
     journalQuestion: {
-      id: uid(),
+      id: journalQuestionFieldId,
       name: "Daily Question",
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
       meta: {},
+      siblingLinks: [], // patched to [journalAnswerFieldId] after fields object is built
     },
     journalAnswer: {
-      id: uid(),
+      id: journalAnswerFieldId,
       name: "Answer",
       type: "text",
       inputEnabled: true,
       displayEnabled: false,
       meta: { placeholder: "Write your answer..." },
+      siblingLinks: [], // patched to [journalQuestionFieldId] after fields object is built
     },
 
     // ── DISPLAY FIELDS (written by operations) ────────────────────────────────
@@ -925,6 +941,18 @@ export async function createLiveData(userId, options = {}) {
 
   await Field.insertMany(
     Object.values(fields).map(f => ({ ...f, userId, gridId }))
+  );
+
+  // Patch siblingLinks bidirectionally for journalQuestion ↔ journalAnswer.
+  // Can't set at definition time because each field's id is declared inline and
+  // the sibling's id isn't available yet until both are assigned.
+  await Field.findOneAndUpdate(
+    { id: journalQuestionFieldId },
+    { $set: { siblingLinks: [journalAnswerFieldId] } },
+  );
+  await Field.findOneAndUpdate(
+    { id: journalAnswerFieldId },
+    { $set: { siblingLinks: [journalQuestionFieldId] } },
   );
 
   // Register field IDs on grid

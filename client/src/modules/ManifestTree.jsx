@@ -133,7 +133,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
   // Anchor chip — clicking scrolls parent doc to this container
   if (isAnchor) {
     return (
-      <div style={{ marginLeft: depth * 14 }}>
+      <div style={{ marginLeft: depth * 8 }}>
         <div style={{ paddingRight: 2, display: "flex", alignItems: "center", gap: 2 }}>
           {hasChildren ? (
             <span onClick={toggleOpen} style={{ fontSize: 8, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, width: 10, textAlign: "center", userSelect: "none", padding: "4px 2px" }}>
@@ -168,7 +168,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
 
   // File row — NodePill, draggable + drop target for reorder
   return (
-    <div ref={rowRef} style={{ paddingRight: 2, position: "relative", marginLeft: depth * 14 }}>
+    <div ref={rowRef} style={{ paddingRight: 2, position: "relative", marginLeft: depth * 8 }}>
       {dropEdge === "top" && <div style={{ position: "absolute", top: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1 }} />}
       {dropEdge === "bottom" && <div style={{ position: "absolute", bottom: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1 }} />}
       <div style={{ display: "flex", alignItems: "center" }}
@@ -218,7 +218,10 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(folder.name);
   const [ctxMenu, setCtxMenu] = useState(null);
+  const [folderDropEdge, setFolderDropEdge] = useState(null);
+  const folderDropEdgeRef = useRef(null);
   const folderRef = useRef(null);
+  const rowRef = useRef(null);
 
   const childFolders = useMemo(() =>
     Object.values(foldersById ?? {})
@@ -259,6 +262,64 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     }),
     [allChildOccs, modulesById]
   );
+
+  // Sibling-reorder drop target — accepts other folder drags onto this
+  // row's top/bottom edge and rewrites sortOrder so the dropped folder
+  // slots above/below this one. Skipped for the manifest root folder
+  // (folder.parentId == null and there are no siblings).
+  useEffect(() => {
+    if (!rowRef.current || !dispatch || !socket || !folder.parentId) return;
+    return dropTargetForElements({
+      element: rowRef.current,
+      canDrop: ({ source }) =>
+        source.data?.type === "folder" &&
+        source.data?.folderId &&
+        source.data.folderId !== folder.id,
+      onDragEnter: ({ location }) => {
+        const rect = rowRef.current.getBoundingClientRect();
+        const edge = location.current.input.clientY < rect.top + rect.height / 2 ? "top" : "bottom";
+        setFolderDropEdge(edge);
+        folderDropEdgeRef.current = edge;
+      },
+      onDrag: ({ location }) => {
+        const rect = rowRef.current.getBoundingClientRect();
+        const edge = location.current.input.clientY < rect.top + rect.height / 2 ? "top" : "bottom";
+        if (folderDropEdgeRef.current !== edge) {
+          setFolderDropEdge(edge);
+          folderDropEdgeRef.current = edge;
+        }
+      },
+      onDragLeave: () => { setFolderDropEdge(null); folderDropEdgeRef.current = null; },
+      onDrop: ({ source }) => {
+        const edge = folderDropEdgeRef.current;
+        setFolderDropEdge(null);
+        folderDropEdgeRef.current = null;
+        const draggedId = source.data?.folderId;
+        if (!draggedId) return;
+        // Build siblings list including SELF so midpoint math has a stable
+        // anchor index for "this row". Use foldersById directly (siblings
+        // useMemo above excluded self for simpler iteration elsewhere).
+        const allSiblings = Object.values(foldersById ?? {})
+          .filter(f => f.parentId === folder.parentId)
+          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        const myIdx = allSiblings.findIndex(s => s.id === folder.id);
+        const myOrder = folder.sortOrder ?? 0;
+        let newOrder;
+        if (edge === "top") {
+          const prev = myIdx > 0 ? allSiblings[myIdx - 1] : null;
+          newOrder = prev ? ((prev.sortOrder ?? 0) + myOrder) / 2 : myOrder - 1;
+        } else {
+          const next = myIdx < allSiblings.length - 1 ? allSiblings[myIdx + 1] : null;
+          newOrder = next ? (myOrder + (next.sortOrder ?? 0)) / 2 : myOrder + 1;
+        }
+        CommitHelpers.updateFolder({
+          dispatch, socket,
+          folder: { id: draggedId, parentId: folder.parentId, sortOrder: newOrder },
+          emit: true,
+        });
+      },
+    });
+  }, [folder.id, folder.parentId, folder.sortOrder, foldersById, dispatch, socket]);
 
   // Drop target — accept artifact doc nodes dragged from tree
   useEffect(() => {
@@ -380,11 +441,13 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   }, [isRenaming, onOpenPage, onSelect, allChildOccs, modulesById, dispatch, socket, state, folder.id, folder.name]);
 
   return (
-    <div ref={folderRef} style={{ paddingRight: 2, marginLeft: depth * 14 }}>
+    <div ref={folderRef} style={{ paddingRight: 2, marginLeft: depth * 14, position: "relative" }}>
+      {folderDropEdge === "top"    && <div style={{ position: "absolute", top: 0,    left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
+      {folderDropEdge === "bottom" && <div style={{ position: "absolute", bottom: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
       {/* Folder pill — depth indent applied on this outer wrapper (not
           NodePill's padding), so the pill itself starts further right with
           each level instead of just shifting its content. */}
-      <div style={{ display: "flex", alignItems: "center" }} className="manifest-row"
+      <div ref={rowRef} style={{ display: "flex", alignItems: "center" }} className="manifest-row"
         onDoubleClick={(e) => { e.stopPropagation(); setRenameValue(folder.name); setIsRenaming(true); }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
       >
@@ -417,20 +480,6 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
               type: "folder", folderId: folder.id, folderName: folder.name, childOccurrenceIds: childOccIds,
             }}
             style={{ flex: 1 }}
-            leadingSlot={
-              <span
-                onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete folder "${folder.name}"? Children are reparented to the parent folder.`)) handleDelete(); }}
-                onPointerDown={(e) => e.stopPropagation()}
-                title="Delete folder"
-                className="manifest-row-x-slot"
-                style={{
-                  flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "var(--text-muted)", borderRadius: 3, cursor: "pointer",
-                }}
-              >
-                <X size={9} />
-              </span>
-            }
           >
             <span
               onClick={(e) => { e.stopPropagation(); handleNewDoc(e); }}
@@ -586,7 +635,7 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
     </span>
   ) : null;
   return (
-    <div ref={rowRef} style={{ paddingRight: 2, position: "relative", marginLeft: depth * 14 }}>
+    <div ref={rowRef} style={{ paddingRight: 2, position: "relative", marginLeft: depth * 8 }}>
       {dropEdge === "top"    && <div style={{ position: "absolute", top: 0,    left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
       {dropEdge === "bottom" && <div style={{ position: "absolute", bottom: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
       <div style={{ display: "flex", alignItems: "center", flexDirection: "row", gap: 1 }} className="manifest-row">
@@ -606,8 +655,12 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
           isActive={isActive}
           depth={depth}
           dragData={{
-            type: "module", sourceType: "tree-page", role: "page",
+            // type: "page" so containers (CONTAINER_LIST accepts MODULE+INSTANCE
+            // but not PAGE) reject the drop and only panels — whose pageDropRef
+            // accepts [DragType.PAGE] — light up.
+            type: "page", sourceType: "tree-page", role: "page",
             id: pageMod.id, data: pageMod, occurrenceId: pageOccId,
+            moduleId: pageMod.id,
           }}
           reverseIndent={reverseIndent}
           style={{ flex: 1 }}

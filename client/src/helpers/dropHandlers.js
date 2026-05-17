@@ -1510,6 +1510,22 @@ export function handleModuleDrop(dropContext, ctx) {
     }
   }
 
+  // PAGE role → PANEL: pin the page occurrence as a tab on the panel.
+  // Container drops are unreachable for pages because the tree-page drag
+  // now uses type "page", which CONTAINER_LIST doesn't accept.
+  if (role === "page" && panelId && gridId) {
+    const panelOccurrenceId = dropTarget.context?.panelOccurrenceId;
+    const pageOccurrenceId = payload.occurrenceId || payload?.data?.id;
+    if (panelOccurrenceId && pageOccurrenceId) {
+      CommitHelpers.pinPageToPanel({
+        dispatch, socket,
+        pageOccurrenceId,
+        panelOccurrenceId,
+        emit: true,
+      });
+    }
+  }
+
   // CONTAINER role → PANEL
   if (role === "container" && panelId && gridId) {
     const panel = baseAllPanels.find(p => p.id === panelId);

@@ -2,8 +2,17 @@
 
 _Updated: 2026-05-17. Check this file before re-reading source._
 
+## Recent Changes (2026-05-17 — Multi-dim display fields with columns)
+- **`Field.jsx`**: Array display branch added before the default number/text/date fallback. When `field.displayConfig.columns` is a non-empty array AND `rawDisplayValue` is an array, renders a CSS-grid table with column headers + rows. Each column entry: `{ path: string, header: string, width?: number }`. `path` is the key to read from each row object. Falls back transparently to scalar rendering in all other cases.
+- **`commandCenter/FieldsTab.jsx`**: New `ColumnEditor` inline component (module-scope, before FieldPill). Renders per-column rows of `[path] [header] [px-width] [↑] [↓] [✕]` inputs + "Add column" button. Wired into `FieldDetail`'s `displayEnabled === true` block as a separate "Columns (for array values)" section. Changes write to `local.displayConfig.columns` and are persisted with the normal save.
+
 ## Recent Changes (2026-05-17 — Occurrence multi-select add-new wiring)
 - **`Field.jsx`**: Added `createLeafInstanceInParent` import from CommitHelpers + `GridActionsContext` import. Inside `Field`, reads `{ dispatch, socket, gridId, userId, occurrencesById }` from context. Derives `occurrenceAddNewCfg` from `field.meta.optionsSource.addNew` (only for occurrence+multiSelect fields). New `handleOccurrenceAddNew({ label })` `useCallback` (declared AFTER `handleChange` to avoid TDZ): resolves parent occurrence from `occurrencesById[addNew.parentOccurrenceId]`, calls `createLeafInstanceInParent` with `addNew.stampFields`, then uses `Promise.resolve().then(...)` to overwrite the intermediate slug that `MultiSelectWithAdd` pushes synchronously. Both compact and non-compact occurrence multi-select paths pass `occAddNew = occurrenceAddNewCfg ? handleOccurrenceAddNew : null` to `onAddOption`.
+
+## Recent Changes (2026-05-17 — $this in find-mode option predicates)
+- **`FieldRenderer.jsx`**: `resolveOptions` call now passes `occurrence ?? null` as third arg (`ownerOccurrence`). Dep array gains `occurrence` so options re-resolve when the owner's field values change. Owner occurrence is already available as the `occurrence` prop on `FieldRenderer`.
+- **`CategoryPathPicker.jsx` (`BUILTIN_VAR_SHAPES`)**: Added `$this: "occurrence"` so the path picker drills into occurrence-shape keys when the user picks `$this` (fields, label, id, _ancestors, etc.).
+- **`categoryRegistry.js` (Built-ins category)**: Added `$this` entry — title `$this`, sub `occurrence`, description "The current instance — the row this field is bound to (available in find-mode option predicates)", `hasChildren: true`. Users can now discover `$this` in the picker's Built-ins tile.
 
 ## Recent Changes (2026-05-17 — Select options source refactor + occurrence field type)
 - **`commandCenter/SelectOptionsSourceEditor.jsx` (NEW)**: three-mode editor (Manual / Range / Find) written into `field.meta.optionsSource`. Find mode wires `CategoryPathPicker` (collection + path + value/label/sort paths), `ConditionGroup` (predicate), and a live preview via `resolveOptions`. Used by both select and occurrence field types via `FieldsTab.jsx`'s `["select", "occurrence"].includes(local.type)` conditional.
