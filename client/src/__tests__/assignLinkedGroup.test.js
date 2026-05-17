@@ -24,4 +24,11 @@ describe("assignLinkedGroup", () => {
     expect(typeof linkedGroupId).toBe("string");
     expect(linkedGroupId.length).toBeGreaterThan(0);
   });
+
+  it("uses a provided {id} fallback object as the group and tags it", () => {
+    const tag = vi.fn();
+    const { linkedGroupId } = assignLinkedGroup({ id: "occ_fallback" }, tag);
+    expect(linkedGroupId).toBe("occ_fallback");
+    expect(tag).toHaveBeenCalledWith("occ_fallback", "occ_fallback");
+  });
 });

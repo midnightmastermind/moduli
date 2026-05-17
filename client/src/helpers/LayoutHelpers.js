@@ -738,14 +738,17 @@ export function copylinkInstanceToContainer({
   const occurrenceId = uid();
   const dateValue = iterationValue || new Date();
 
-  const { linkedGroupId } = assignLinkedGroup(sourceOccurrence, (sourceId, groupId) => {
-    CommitHelpers.updateOccurrence({
-      dispatch,
-      socket,
-      occurrence: { id: sourceId, linkedGroupId: groupId },
-      emit,
-    });
-  });
+  const { linkedGroupId } = assignLinkedGroup(
+    sourceOccurrence || (sourceOccurrenceId ? { id: sourceOccurrenceId } : null),
+    (sourceId, groupId) => {
+      CommitHelpers.updateOccurrence({
+        dispatch,
+        socket,
+        occurrence: { id: sourceId, linkedGroupId: groupId },
+        emit,
+      });
+    }
+  );
 
   // Copy field values from source occurrence
   let copiedFields = {};
