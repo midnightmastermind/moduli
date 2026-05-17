@@ -14,7 +14,7 @@ import Field from "./Field";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { GridActionsContext } from "../GridActionsContext";
 import { GridLiveContext } from "../GridLiveContext";
-import { createInstanceInContainer } from "../helpers/CommitHelpers";
+import { resolveOptions } from "../helpers/optionsResolver";
 
 function FieldRenderer({
   field,
@@ -28,10 +28,16 @@ function FieldRenderer({
   compact = false,
   disabled = false,
 }) {
-  const { occurrencesById, modulesById, state: ctxState } = useContext(GridActionsContext);
+  const { occurrencesById, modulesById, fieldsById, foldersById } = useContext(GridActionsContext);
   const { computedValues } = useContext(GridLiveContext);
 
-  // Resolve dynamic options for pool-sourced selects and module-reference fields.
+  // Resolve dynamic options for select fields via optionsResolver.
+  const { options: resolvedOptions, totalMatched } = useMemo(() => {
+    if (field?.type !== "select") return { options: [], totalMatched: 0 };
+    return resolveOptions(field, { occurrencesById, modulesById, fieldsById, foldersById });
+  }, [field, occurrencesById, modulesById, fieldsById, foldersById]);
+
+  // Resolve dynamic options for module-reference fields and expose _resolvedOptions for select fields.
   const effectiveField = useMemo(() => {
     // Module reference field: build options from all (non-trashed) modules
     if (field?.type === "module") {
@@ -42,46 +48,10 @@ function FieldRenderer({
       const moduleOptions = filtered.map(m => ({ value: m.id, label: m.label || "Untitled" }));
       return { ...field, meta: { ...field.meta, _moduleOptions: moduleOptions } };
     }
-    // Pool-sourced select fields
-    if (field?.type !== "select" || field?.meta?.sourceType !== "pool") return field;
-    const poolIds = field.meta.poolContainerIds || (field.meta.poolContainerId ? [field.meta.poolContainerId] : []);
-    if (!poolIds.length) return field;
-    // Build moduleId → occurrence map once for O(1) lookups (avoids O(n) scan per pool)
-    const byTargetId = Object.create(null);
-    for (const occ of Object.values(occurrencesById)) {
-      if (occ.moduleId) byTargetId[occ.moduleId] = occ;
-    }
-    const poolOptions = [];
-    const seenModIds = new Set();
-    for (const poolContainerId of poolIds) {
-      const poolOcc = byTargetId[poolContainerId];
-      const childOccIds = poolOcc?.occurrences || [];
-      for (const occId of childOccIds) {
-        const occ = occurrencesById[occId];
-        const mod = modulesById[occ?.moduleId];
-        if (mod && !seenModIds.has(mod.id)) {
-          seenModIds.add(mod.id);
-          poolOptions.push({ value: mod.id, label: mod.label || mod.name || "Untitled" });
-        }
-      }
-    }
-    return { ...field, meta: { ...field.meta, options: poolOptions } };
-  }, [field, occurrencesById, modulesById]);
-
-  // Quick-add for pool-sourced fields: creates new instance in the first pool container
-  const handlePoolAddOption = useCallback((label) => {
-    if (!field?.meta?.poolContainerId && !field?.meta?.poolContainerIds?.length) return;
-    const poolContainerId = field.meta.poolContainerId || field.meta.poolContainerIds[0];
-    const gridId = ctxState?.grid?._id;
-    const userId = ctxState?.userId;
-    if (!gridId || !userId || !poolContainerId) return;
-    createInstanceInContainer({
-      dispatch, socket,
-      containerId: poolContainerId,
-      instance: { id: crypto.randomUUID(), role: "instance", kind: "list", label, userId, gridId, fieldBindings: [] },
-      emit: true,
-    });
-  }, [field?.meta, ctxState, dispatch, socket]);
+    // Select field: expose resolved options under _resolvedOptions
+    if (field?.type !== "select") return field;
+    return { ...field, meta: { ...field.meta, _resolvedOptions: resolvedOptions, _totalMatched: totalMatched } };
+  }, [field, resolvedOptions, totalMatched, modulesById]);
 
   // Determine field role — module.meta.disabled forces display-only
   const inputEnabled = !disabled && field.inputEnabled !== false;
@@ -169,16 +139,14 @@ function FieldRenderer({
 
   if (!field) return null;
 
-  const isPoolSourced = field?.meta?.sourceType === "pool";
-  const onAddOption = isPoolSourced ? handlePoolAddOption : undefined;
+  const canRandomize = field?.type === "select" && resolvedOptions.length > 1;
 
-  // Randomize: pick a random option from pool-sourced select
-  const handleRandomize = useCallback(() => {
-    const opts = effectiveField?.meta?.options;
-    if (!opts?.length || !inputEnabled) return;
-    const pick = opts[Math.floor(Math.random() * opts.length)];
+  // Randomize: pick a random option from any multi-option select
+  function handleRandomize() {
+    if (!resolvedOptions.length) return;
+    const pick = resolvedOptions[Math.floor(Math.random() * resolvedOptions.length)];
     if (pick) handleCommit(pick.value);
-  }, [effectiveField?.meta?.options, inputEnabled, handleCommit]);
+  }
 
   // Display-only: no onCommit
   if (displayEnabled && !inputEnabled) {
@@ -251,16 +219,15 @@ function FieldRenderer({
           flow={currentFlow}
           onCommit={handleCommit}
           onFlowChange={handleFlowChange}
-          onAddOption={onAddOption}
           compact={compact}
           hideName={hideName}
           hidePrefix={hidePrefix}
           hidePostfix={hidePostfix}
         />
-        {isPoolSourced && inputEnabled && (
+        {canRandomize && inputEnabled && (
           <button
             onClick={handleRandomize}
-            title="Random"
+            title="Pick a random option"
             style={{ background: "none", border: "none", cursor: "pointer", padding: "0 2px", color: "var(--text-faint)", fontSize: 11, flexShrink: 0, lineHeight: 1 }}
           >
             &#x1F3B2;
