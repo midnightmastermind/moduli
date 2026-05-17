@@ -2251,6 +2251,151 @@ export async function createLiveData(userId, options = {}) {
     notebookDocOccIds["Gospel of Thomas (Text)"] = occId;
   }
 
+  // ── STEP 8: Page modules + page occurrences ─────────────────────────────────
+  // Mirrors createTestGrid STEP 8. Date-filter scope rule (per user): ONLY the
+  // Schedule + Daily Goals pages (and the toolbar/grid filter) actively filter
+  // by date. Every OTHER page declares BOTH:
+  //   1. `filterOverride: {}` — clears any inherited grid date so its children
+  //      aren't hidden on non-today navigation.
+  //   2. `filterNavConfig: { filter_daily: { visible: false } }` — hides the
+  //      date nav widget LocalFilterNav would otherwise render, so the user
+  //      can't silently re-add dateFieldId back into filterOverride via arrows.
+  //
+  // Page → container-occ wiring:
+  //   Daily Toolkit (board) → all toolkit container occs
+  //   Todo List     (board) → all todo container occs
+  //   Daily Goals   (board) → all goal container occs (date cascade intentional)
+  //   Accounts      (board) → all account container occs
+  //   Schedule      (board) → EMPTY (Schedule: Build Day seeds it at runtime
+  //                            from the Daily Routine template — Task 13)
+  //   Canvas        (canvas) → empty free-form scratchpad page
+
+  const toolkitPageModId = uid(); const toolkitPageOccId = uid();
+  await new Module({ id: toolkitPageModId, userId, gridId, role: "page", kind: "board", label: "Daily Toolkit" }).save();
+  await mkOcc({
+    id: toolkitPageOccId, moduleId: toolkitPageModId,
+    parentId: tasksFolderId, sortOrder: 0,
+    occurrences: Object.values(toolkitContOccIds),
+    iteration: { mode: "persistent" }, fields: {},
+    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+  });
+
+  const todoPageModId = uid(); const todoPageOccId = uid();
+  await new Module({ id: todoPageModId, userId, gridId, role: "page", kind: "board", label: "Todo List" }).save();
+  await mkOcc({
+    id: todoPageOccId, moduleId: todoPageModId,
+    parentId: tasksFolderId, sortOrder: 1,
+    occurrences: Object.values(todoContOccIds),
+    iteration: { mode: "persistent" }, fields: {},
+    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+  });
+
+  const goalsPageModId = uid(); const goalsPageOccId = uid();
+  await new Module({ id: goalsPageModId, userId, gridId, role: "page", kind: "board", label: "Daily Goals" }).save();
+  await mkOcc({
+    id: goalsPageOccId, moduleId: goalsPageModId,
+    parentId: trackersFolderId, sortOrder: 0,
+    occurrences: Object.values(goalContOccIds),
+    iteration: { mode: "persistent" }, fields: {},
+  });
+
+  const accountsPageModId = uid(); const accountsPageOccId = uid();
+  await new Module({ id: accountsPageModId, userId, gridId, role: "page", kind: "board", label: "Accounts" }).save();
+  await mkOcc({
+    id: accountsPageOccId, moduleId: accountsPageModId,
+    parentId: trackersFolderId, sortOrder: 1,
+    occurrences: Object.values(accountContOccIds),
+    iteration: { mode: "persistent" }, fields: {},
+    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+  });
+
+  const schedPageModId = uid(); const schedPageOccId = uid();
+  await new Module({ id: schedPageModId, userId, gridId, role: "page", kind: "board", label: "Schedule" }).save();
+  await mkOcc({
+    id: schedPageOccId, moduleId: schedPageModId,
+    parentId: interfacesFolderId, sortOrder: 0,
+    occurrences: [], // EMPTY — Schedule: Build Day populates at runtime (Task 13)
+    iteration: { mode: "persistent" }, fields: {},
+    // Date filter + Time Slot filter (a <select> over the 48 slot labels).
+    filters: buildScheduleFilters({ schedFilterId, timeslotFilterId, dateFieldId, timeslotFieldId, timeslotLabels }),
+  });
+
+  const canvasPageModId = uid(); const canvasPageOccId = uid();
+  await new Module({ id: canvasPageModId, userId, gridId, role: "page", kind: "canvas", label: "Canvas" }).save();
+  await mkOcc({
+    id: canvasPageOccId, moduleId: canvasPageModId,
+    parentId: interfacesFolderId, sortOrder: 1,
+    occurrences: [], // empty scratchpad — drag-to-canvas drop zone
+    iteration: { mode: "persistent" }, fields: {},
+    // Canvas is a scratchpad — explicit `{}` override blocks the grid's daily
+    // date filter cascade so dragged-in notes don't vanish on date nav.
+    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+  });
+
+  // Notebook hub View — Schedule is the default active tab.
+  const notebookHubViewId = uid();
+  await new View({ id: notebookHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: schedPageOccId }).save();
+
+  // ── STEP 9: Panel modules + panel occurrences (grid placements) ─────────────
+  // Layout (2 rows × 3 cols per buildGridDoc):
+  //   [0,0] Daily Toolkit   [0,1 h=2] Notebook hub   [0,2] Daily Goals
+  //   [1,0] Todo List                                [1,2] Accounts
+  const panelLayout = (name) => ({ name, display: "flex", flow: "column", wrap: "nowrap", gapPx: 4, scrollY: "auto", padding: "sm" });
+
+  const toolkitPanelId  = uid();
+  const todoPanelId     = uid();
+  const notebookPanelId = uid();
+  const goalsPanelId    = uid();
+  const accountsPanelId = uid();
+
+  await Module.insertMany([
+    { id: toolkitPanelId,  userId, gridId, role: "panel", kind: "board", label: "Panel A", defaultDragMode: "copy", layout: panelLayout("Panel A") },
+    { id: todoPanelId,     userId, gridId, role: "panel", kind: "board", label: "Panel B", defaultDragMode: "move", layout: { ...panelLayout("Panel B"), gapPx: 8 } },
+    { id: notebookPanelId, userId, gridId, role: "panel", kind: "board", label: "Panel C", defaultDragMode: "move", layout: panelLayout("Panel C") },
+    { id: goalsPanelId,    userId, gridId, role: "panel", kind: "board", label: "Panel D", defaultDragMode: "move", layout: panelLayout("Panel D") },
+    { id: accountsPanelId, userId, gridId, role: "panel", kind: "board", label: "Panel E", defaultDragMode: "move", layout: panelLayout("Panel E") },
+  ]);
+
+  const panelOccIds = {};
+  const panelModuleIds = {
+    toolkit:  toolkitPanelId,
+    todo:     todoPanelId,
+    notebook: notebookPanelId,
+    goals:    goalsPanelId,
+    accounts: accountsPanelId,
+  };
+  const placements = [
+    { key: "toolkit",  panelId: toolkitPanelId,  row: 0, col: 0, width: 1, height: 1, viewId: null              },
+    { key: "todo",     panelId: todoPanelId,     row: 1, col: 0, width: 1, height: 1, viewId: null              },
+    { key: "notebook", panelId: notebookPanelId, row: 0, col: 1, width: 1, height: 2, viewId: notebookHubViewId },
+    { key: "goals",    panelId: goalsPanelId,    row: 0, col: 2, width: 1, height: 1, viewId: null              },
+    { key: "accounts", panelId: accountsPanelId, row: 1, col: 2, width: 1, height: 1, viewId: null              },
+  ];
+
+  const gridOccIds = [];
+  for (const p of placements) {
+    const occId = await mkOcc({
+      moduleId: p.panelId,
+      placement: { row: p.row, col: p.col, width: p.width, height: p.height },
+      ...(p.viewId && { viewId: p.viewId }),
+    });
+    panelOccIds[p.key] = occId;
+    gridOccIds.push(occId);
+  }
+
+  // ── STEP 10: Wire page occurrences into panel occurrences ───────────────────
+  // Notebook hub pins Schedule + Canvas. The Day Page tab is NOT pinned here —
+  // Day Page: Build adds it via ADD_CHILD at runtime (Task 13). Notebook DOC
+  // pages (Task 11) are NOT pinned — they live only under notesFolderId.
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.toolkit },  { $set: { occurrences: [toolkitPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.todo },     { $set: { occurrences: [todoPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [schedPageOccId, canvasPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.goals },    { $set: { occurrences: [goalsPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.accounts }, { $set: { occurrences: [accountsPageOccId] } });
+
+  // ── STEP 11: Finalize grid ──────────────────────────────────────────────────
+  await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds } });
+
   return {
     gridId,
     gridName,
@@ -2273,6 +2418,22 @@ export async function createLiveData(userId, options = {}) {
     tplManifestRootFolderId,
     // Notebook doc occurrence ids — label → occurrenceId, all in notesFolderId
     notebookDocOccIds,
+    // ── Pages + panels (Task 12) ────────────────────────────────────────────
+    // Panel occurrence ids keyed toolkit/todo/notebook/goals/accounts. Task 13's
+    // makeDayPageBuildOp needs panelOccIds.notebook (hub panel OCCURRENCE id for
+    // its ADD_CHILD); makeStampDateTimeSlotOp needs panelModuleIds.notebook
+    // (hub panel MODULE id).
+    panelOccIds,
+    panelModuleIds,
+    // Page occurrence ids — consumed by Task 13 ops
+    schedPageOccId,
+    canvasPageOccId,
+    toolkitPageOccId,
+    todoPageOccId,
+    goalsPageOccId,
+    accountsPageOccId,
+    // Notebook hub View id (activeOccurrenceId = schedPageOccId)
+    notebookHubViewId,
   };
 }
 
@@ -2315,8 +2476,11 @@ async function main() {
     console.log(`   Notebook docs:  ${notebookCount} (${Object.keys(result.notebookDocOccIds || {}).join(", ")})`);
     console.log(`   Folders:        Root + 5 children (Tasks/Trackers/Interfaces/Notes/Day Pages)`);
     console.log(`   Templates:      Daily Routine (6-pick) + Day Page under Templates manifest`);
+    console.log(`   Panels:         ${Object.keys(result.panelOccIds || {}).join(", ")}`);
+    console.log(`   Pages:          Daily Toolkit, Todo List, Daily Goals, Accounts, Schedule (board) + Canvas`);
+    console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Schedule (${result.schedPageOccId}); tabs=[Schedule, Canvas]`);
     console.log("=".repeat(50));
-    console.log("Note: pages/panels/ops added in Tasks 12–14.");
+    console.log("Note: ops added in Tasks 13–14.");
     console.log("=".repeat(50));
   } catch (err) {
     console.error("❌ Failed:", err);
