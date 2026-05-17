@@ -63,3 +63,117 @@ describe("resolveOptions — guards", () => {
     expect(resolveOptions({ type: "select", meta: {} }, emptyCtx).options).toEqual([]);
   });
 });
+
+describe("resolveOptions — find mode", () => {
+  const ctx = {
+    occurrencesById: {
+      occ1: { id: "occ1", moduleId: "modA", role: "instance", fields: { f1: { value: "movies" } } },
+      occ2: { id: "occ2", moduleId: "modB", role: "instance", fields: { f1: { value: "movies" } } },
+      occ3: { id: "occ3", moduleId: "modC", role: "instance", fields: { f1: { value: "books" } } },
+      occ4: { id: "occ4", moduleId: "modD", role: "container", fields: {} },
+    },
+    modulesById: {
+      modA: { id: "modA", label: "Inception", role: "instance" },
+      modB: { id: "modB", label: "Arrival", role: "instance" },
+      modC: { id: "modC", label: "Dune", role: "instance" },
+      modD: { id: "modD", label: "Movies", role: "container" },
+    },
+    fieldsById: { f1: { id: "f1", name: "medium" } },
+    foldersById: {},
+  };
+
+  it("filters $allInstances by predicate, extracts label", () => {
+    const field = { type: "select", meta: { optionsSource: {
+      mode: "find",
+      find: {
+        over: "$allInstances",
+        predicate: { rules: [{ left: "fields.f1.value", comparator: "IS", right: "movies" }] },
+        valuePath: "label",
+      },
+    } } };
+    const { options, totalMatched } = resolveOptions(field, ctx);
+    expect(options.map(o => o.value).sort()).toEqual(["Arrival", "Inception"]);
+    expect(totalMatched).toBe(2);
+  });
+
+  it("uses labelPath when set; value stays as valuePath", () => {
+    const field = { type: "select", meta: { optionsSource: {
+      mode: "find",
+      find: {
+        over: "$allInstances",
+        predicate: { rules: [{ left: "fields.f1.value", comparator: "IS", right: "movies" }] },
+        valuePath: "id",
+        labelPath: "label",
+      },
+    } } };
+    const { options } = resolveOptions(field, ctx);
+    const byId = Object.fromEntries(options.map(o => [o.value, o.label]));
+    expect(byId).toEqual({ occ1: "Inception", occ2: "Arrival" });
+  });
+
+  it("dedupes by value (last label wins)", () => {
+    const ctx2 = {
+      ...ctx,
+      occurrencesById: {
+        a: { id: "a", moduleId: "x", role: "instance", fields: {} },
+        b: { id: "b", moduleId: "y", role: "instance", fields: {} },
+      },
+      modulesById: { x: { id: "x", label: "Same" }, y: { id: "y", label: "Same" } },
+    };
+    const field = { type: "select", meta: { optionsSource: {
+      mode: "find",
+      find: { over: "$allInstances", predicate: { rules: [] }, valuePath: "label" },
+    } } };
+    const { options, totalMatched } = resolveOptions(field, ctx2);
+    expect(options).toHaveLength(1);
+    expect(totalMatched).toBe(2);
+  });
+
+  it("sorts asc by sortPath when set", () => {
+    const field = { type: "select", meta: { optionsSource: {
+      mode: "find",
+      find: {
+        over: "$allInstances",
+        predicate: { rules: [] },
+        valuePath: "label",
+        sortPath: "label",
+        sortDir: "asc",
+      },
+    } } };
+    expect(resolveOptions(field, ctx).options.map(o => o.value)).toEqual(["Arrival", "Dune", "Inception"]);
+  });
+
+  it("sorts desc when sortDir=desc", () => {
+    const field = { type: "select", meta: { optionsSource: {
+      mode: "find",
+      find: { over: "$allInstances", predicate: { rules: [] }, valuePath: "label", sortPath: "label", sortDir: "desc" },
+    } } };
+    expect(resolveOptions(field, ctx).options.map(o => o.value)).toEqual(["Inception", "Dune", "Arrival"]);
+  });
+
+  it("applies limit and reports totalMatched separately", () => {
+    const field = { type: "select", meta: { optionsSource: {
+      mode: "find",
+      find: { over: "$allInstances", predicate: { rules: [] }, valuePath: "label", sortPath: "label", sortDir: "asc", limit: 2 },
+    } } };
+    const { options, totalMatched } = resolveOptions(field, ctx);
+    expect(options.map(o => o.value)).toEqual(["Arrival", "Dune"]);
+    expect(totalMatched).toBe(3);
+  });
+
+  it("uses $allContainers when over points there", () => {
+    const field = { type: "select", meta: { optionsSource: {
+      mode: "find",
+      find: { over: "$allContainers", predicate: { rules: [] }, valuePath: "label" },
+    } } };
+    expect(resolveOptions(field, ctx).options).toEqual([{ value: "Movies", label: "Movies" }]);
+  });
+
+  it("returns empty when predicate matches nothing", () => {
+    const field = { type: "select", meta: { optionsSource: {
+      mode: "find",
+      find: { over: "$allInstances", predicate: { rules: [{ left: "label", comparator: "IS", right: "Nope" }] }, valuePath: "label" },
+    } } };
+    expect(resolveOptions(field, ctx).options).toEqual([]);
+  });
+});
