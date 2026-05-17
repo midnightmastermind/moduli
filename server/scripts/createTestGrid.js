@@ -121,7 +121,6 @@ export async function createTestGrid(userId, options = {}) {
   const libraryFieldId = uid();
   const moviesWatchedFieldId = uid();
   const moviesWatchedDisplayFieldId = uid();
-  const totalMoviesWatchedDisplayFieldId = uid();
 
   const toolkitPanelId = uid();
   const goalsPanelId   = uid();
@@ -230,9 +229,6 @@ export async function createTestGrid(userId, options = {}) {
     },
     { id: moviesWatchedDisplayFieldId, userId, gridId, name: "Movies Watched Today", type: "text",
       inputEnabled: false, displayEnabled: true, meta: {} },
-    { id: totalMoviesWatchedDisplayFieldId, userId, gridId, name: "Movies Watched (Count)", type: "number",
-      inputEnabled: false, displayEnabled: true,
-      displayConfig: { showArrows: true, arrowColor: "green", targetValue: 2, targetPeriod: "daily" }, meta: {} },
   ]);
 
   // ── STEP 3: Instance modules ────────────────────────────────────────────────
@@ -378,10 +374,10 @@ export async function createTestGrid(userId, options = {}) {
     },
     // Movies Watched goal instance
     {
-      id: moviesWatchedGoalModId, userId, gridId, role: "instance", kind: "list", label: "Movie Progress",
+      id: moviesWatchedGoalModId, userId, gridId, role: "instance", kind: "list", label: "Movies Watched",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: totalMoviesWatchedDisplayFieldId, role: "display", order: 0 },
+        { fieldId: moviesWatchedDisplayFieldId, role: "display", order: 0 },
       ],
     },
     // Library movie modules — 8 films
@@ -782,13 +778,13 @@ export async function createTestGrid(userId, options = {}) {
 
   // Tracker: Movies Watched — custom string-building pipeline (not makeTrackerOp which is numeric only).
   // Trigger surface mirrors BOTH Water Today AND Tasks Completed Today so it fires on the same events.
-  // Pipeline: FIND the "Movie Progress" goal instance → determine $goalDate → FIND the Watch Movie
+  // Pipeline: FIND the "Movies Watched" goal instance → determine $goalDate → FIND the Watch Movie
   // occurrence(s) for that date → LOOP over each occurrence's moviesWatched array → LOOP over library
-  // instances → build a comma-joined label string → UPDATE the display field + count field.
+  // instances → build a comma-joined label string → UPDATE the text display field.
   await new Operation({
     userId, gridId, priority: 3,
     name: "Tracker: Movies Watched",
-    description: "Build a label list of movies watched today and update the Movie Progress goal display.",
+    description: "Build a label list of movies watched today and update the Movies Watched goal display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",      subjectType: "field",     targetId: moviesWatchedFieldId, priority: 3 },
@@ -800,12 +796,12 @@ export async function createTestGrid(userId, options = {}) {
     pipeline: {
       sources: [],
       steps: [
-        // 1. Find the Movie Progress goal instance
+        // 1. Find the Movies Watched goal instance
         {
           type: "action", action: "FIND",
           cfg: {
             over: "$allInstances",
-            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Movie Progress" }] },
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Movies Watched" }] },
             itemVar: "$goalItem", itemIdVar: "$goalItemId",
           },
         },
@@ -821,9 +817,8 @@ export async function createTestGrid(userId, options = {}) {
           type: "action", action: "INIT_VAR",
           cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
         },
-        // 4. Init accumulators
+        // 4. Init output accumulator
         { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
-        { type: "action", action: "INIT_VAR", cfg: { name: "$count",  expr: "literal:0"  } },
         // 5. Find the Schedule page (needed for HAS_ANCESTOR)
         {
           type: "action", action: "FIND",
@@ -875,12 +870,6 @@ export async function createTestGrid(userId, options = {}) {
                           type: "action", action: "SET_VAR",
                           cfg: { name: "$output", expr: "${$output}${$movie.label}, " },
                         },
-                        {
-                          type: "action", action: "SET_VAR",
-                          cfg: { name: "$count", expr: "${$count}" }, // placeholder; real increment below
-                        },
-                        // Increment count (ADD_TO_VAR adds numerically)
-                        { type: "action", action: "ADD_TO_VAR", cfg: { name: "$count", amount: 1 } },
                       ],
                       else: [],
                     },
@@ -891,12 +880,12 @@ export async function createTestGrid(userId, options = {}) {
             },
           ],
         },
-        // 7. Strip trailing ", " from the label list
-        // (resolveExpr template strings; trim is applied server-side — keep it simple with a conditional)
-        // Write the string display field and the count field to the goal item
+        // 7. Write the joined label string to the text display field on the goal item.
+        // NOTE: $output accumulates as "Inception, The Matrix, " — no trim primitive exists yet;
+        // the trailing ", " is acceptable for v1.
         {
           type: "action", action: "UPDATE",
-          cfg: { path: `$goalItemId.fields.${totalMoviesWatchedDisplayFieldId}.value`, value: "$count" },
+          cfg: { path: `$goalItemId.fields.${moviesWatchedDisplayFieldId}.value`, value: "$output" },
         },
       ],
     },
