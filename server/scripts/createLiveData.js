@@ -2641,11 +2641,10 @@ async function main() {
     console.log(`   Notebook docs:  ${notebookCount} (${Object.keys(result.notebookDocOccIds || {}).join(", ")})`);
     console.log(`   Folders:        Root + 5 children (Tasks/Trackers/Interfaces/Notes/Day Pages)`);
     console.log(`   Templates:      Daily Routine (6-pick) + Day Page under Templates manifest`);
+    console.log(`   Operations:     22 (18 trackers + 4 schedule/day-page)`);
     console.log(`   Panels:         ${Object.keys(result.panelOccIds || {}).join(", ")}`);
     console.log(`   Pages:          Daily Toolkit, Todo List, Daily Goals, Accounts, Schedule (board) + Canvas`);
     console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Schedule (${result.schedPageOccId}); tabs=[Schedule, Canvas]`);
-    console.log("=".repeat(50));
-    console.log("Note: ops added in Tasks 13–14.");
     console.log("=".repeat(50));
   } catch (err) {
     console.error("❌ Failed:", err);
