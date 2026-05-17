@@ -97,6 +97,31 @@ export async function createLiveData(userId, options = {}) {
   const schedFilterId    = uid();
   const timeslotFilterId = uid();
 
+  // Library / Movies Watched fields (matches createTestGrid naming exactly)
+  const libraryFieldId              = uid();
+  const moviesWatchedFieldId        = uid();
+  const moviesWatchedDisplayFieldId = uid();
+
+  // Library page + container IDs (need before occurrences are created)
+  const libraryPageModId  = uid();
+  const libraryContModId  = uid();
+  // Pre-generate libraryContOccId so moviesWatchedFieldId addNew.parentOccurrenceId
+  // can be patched after occurrences are minted (mirrors createTestGrid STEP 6 pattern).
+  const libraryContOccId = uid();
+
+  // 8 movie module IDs
+  const movieInceptionModId       = uid();
+  const movieMatrixModId          = uid();
+  const movieArrivalModId         = uid();
+  const movieDuneModId            = uid();
+  const movieInterstellarModId    = uid();
+  const movieBladeRunner2049ModId = uid();
+  const moviePrestigeModId        = uid();
+  const movieTenetModId           = uid();
+
+  // Library folder ID
+  const libraryFolderId = uid();
+
   // Time slots — needed for buildScheduleFilters' timeslotLabels; later tasks
   // also use timeSlots for the schedule subtree, so hoist here to mirror
   // createTestGrid's pattern.
@@ -153,7 +178,8 @@ export async function createLiveData(userId, options = {}) {
   // POOL→TEXT conversions (type:"select" + meta.sourceType:"pool" → type:"text"):
   //   None needed after exclusions — all pool-backed selects were enrichment-exclusive
   //   and got excluded above. Remaining selects are real enum selects (mood, muscleGroup,
-  //   mealCategory, accountSelect, category, listType excluded, watchlist, readingList).
+  //   mealCategory, accountSelect, category, listType excluded, readingList).
+  //   watchlist was removed: watchMovie now uses moviesWatchedFieldId (occurrence-type, live library).
   //
   // SCHEDULE CONTROL FIELD RECONCILIATION (scaffold pre-generated ids → seed names):
   //   dateFieldId      ← fields.date ("Date", date)        [createDefaultUserData uses same id pattern]
@@ -363,29 +389,59 @@ export async function createLiveData(userId, options = {}) {
       inputEnabled: true,
       displayEnabled: false,
     },
-    watchlist: {
-      id: uid(),
-      name: "Watchlist",
+
+    // Library system — mirrors createTestGrid STEP 2 exactly.
+    // `library` tags each instance as "movie" / "book" / "tv show".
+    // `moviesWatched` is an occurrence-type field (multiSelect) whose options are
+    // dynamically resolved from $allInstances where fields.library.value IS "movie".
+    // addNew.parentOccurrenceId is patched to libraryContOccId after occurrences
+    // are minted (can't set at insertMany time — occIds not known yet).
+    library: {
+      id: libraryFieldId,
+      name: "Library",
       type: "select",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: { options: ["movie", "book", "tv show"], multiSelect: false },
+    },
+    moviesWatched: {
+      id: moviesWatchedFieldId,
+      name: "Movies Watched",
+      type: "occurrence",
       inputEnabled: true,
       displayEnabled: false,
       meta: {
         multiSelect: true,
-        quickAdd: true,
-        removeOnComplete: true,
-        randomize: true,
-        options: [
-          { value: "inception",      label: "Inception" },
-          { value: "interstellar",   label: "Interstellar" },
-          { value: "the_matrix",     label: "The Matrix" },
-          { value: "blade_runner",   label: "Blade Runner 2049" },
-          { value: "dune",           label: "Dune" },
-          { value: "the_godfather",  label: "The Godfather" },
-          { value: "parasite",       label: "Parasite" },
-          { value: "oppenheimer",    label: "Oppenheimer" },
-        ],
+        optionsSource: {
+          mode: "find",
+          over: "$allInstances",
+          predicate: {
+            conjunction: "AND",
+            rules: [
+              { left: `fields.${libraryFieldId}.value`, comparator: "IS", right: "movie" },
+            ],
+          },
+          valuePath: "id",
+          labelPath: "label",
+          addNew: {
+            parentOccurrenceId: null, // patched to libraryContOccId after occurrences are created
+            stampFields: { [libraryFieldId]: { value: "movie", flow: "in" } },
+          },
+        },
       },
     },
+    moviesWatchedDisplay: {
+      id: moviesWatchedDisplayFieldId,
+      name: "Movies Watched Today",
+      type: "text",
+      inputEnabled: false,
+      displayEnabled: true,
+      meta: {},
+    },
+
+    // readingList: legacy broken select (options stored as {value,label} objects, resolver
+    // was producing "[object Object]" labels). NOT removed here — left for a future task
+    // that ports it to the occurrence-type pattern the same way moviesWatched was done.
     readingList: {
       id: uid(),
       name: "Reading List",
@@ -895,9 +951,8 @@ export async function createLiveData(userId, options = {}) {
       id: uid(), label: "Watch Movie", kind: "list",
       defaultDragMode: "copy",
       fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.watchlist.id, role: "input", order: 1 },
-        { fieldId: fields.duration.id, role: "input", order: 2 },
+        { fieldId: moviesWatchedFieldId, role: "input", order: 0 },
+        { fieldId: dateFieldId,          role: "input", order: 1, hidden: true },
       ],
     },
     onlineCourse: {
@@ -1601,6 +1656,13 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.totalFats.id, role: "display", order: 2 },
       ],
     },
+    moviesWatchedGoal: {
+      id: uid(), label: "Movies Watched", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: moviesWatchedDisplayFieldId, role: "display", order: 0 },
+      ],
+    },
   };
 
   // ── Account aggregation instances ────────────────────────────────────────────
@@ -1748,7 +1810,7 @@ export async function createLiveData(userId, options = {}) {
     todoPlan:     { id: uid(), label: "Planning & Deadlines", meta: { todoListContainer: true } },
   };
 
-  // ── Goal containers (8 dimensions + workout + nutrition + planning) ───────────
+  // ── Goal containers (8 dimensions + workout + nutrition + planning + movies) ────
   const goalContainerMods = {
     physicalGoal:      { id: uid(), label: "Physical",      styleMode: "own", ownStyle: { bg: "#b44a1a" } },
     intellectualGoal:  { id: uid(), label: "Intellectual",  styleMode: "own", ownStyle: { bg: "#1562b0" } },
@@ -1758,9 +1820,10 @@ export async function createLiveData(userId, options = {}) {
     occupationalGoal:  { id: uid(), label: "Occupational",  styleMode: "own", ownStyle: { bg: "#0d7a52" } },
     financialGoal:     { id: uid(), label: "Financial",     styleMode: "own", ownStyle: { bg: "#1d8a30" } },
     environmentalGoal: { id: uid(), label: "Environmental", styleMode: "own", ownStyle: { bg: "#0779a0" } },
-    workoutGoal:    { id: uid(), label: "Workout" },
-    nutritionGoal:  { id: uid(), label: "Nutrition" },
-    planningGoal:   { id: uid(), label: "Planning" },
+    workoutGoal:      { id: uid(), label: "Workout" },
+    nutritionGoal:    { id: uid(), label: "Nutrition" },
+    planningGoal:     { id: uid(), label: "Planning" },
+    moviesWatchedGoal: { id: uid(), label: "Entertainment" },
   };
 
   // ── Account containers (5 lifetime-aggregation categories) ───────────────────
@@ -1772,12 +1835,20 @@ export async function createLiveData(userId, options = {}) {
     wellnessAccount:     { id: uid(), label: "Wellness" },
   };
 
+  // ── Library container module ────────────────────────────────────────────────
+  // Holds the 8 movie instances (and future books/shows). Placed in the manifest
+  // Library folder — no grid panel (grid is fully occupied 2×3).
+  const libraryContainerMods = {
+    library: { id: libraryContModId, label: "Library" },
+  };
+
   // ── Merge + persist container modules ────────────────────────────────────────
   const containerMods = {
     ...toolkitContainerMods,
     ...todoContainerMods,
     ...goalContainerMods,
     ...accountContainerMods,
+    ...libraryContainerMods,
   };
 
   const containerDocs = Object.values(containerMods).map(c => ({
@@ -1871,6 +1942,9 @@ export async function createLiveData(userId, options = {}) {
   const learningAccountContOccId     = uid();
   const productivityAccountContOccId = uid();
   const wellnessAccountContOccId     = uid();
+
+  // Movies Watched goal container
+  const moviesWatchedGoalContOccId = uid();
 
   // ── Container→instance mappings (ported from createDefaultUserData) ────────
   const toolkitMappings = {
@@ -1992,6 +2066,7 @@ export async function createLiveData(userId, options = {}) {
     workoutGoal:       { contOccId: workoutGoalContOccId,       contModKey: "workoutGoal",       instKeys: ["workoutGoal"] },
     nutritionGoal:     { contOccId: nutritionGoalContOccId,     contModKey: "nutritionGoal",     instKeys: ["nutritionGoal"] },
     planningGoal:      { contOccId: planningGoalContOccId,      contModKey: "planningGoal",      instKeys: ["planningSummary"] },
+    moviesWatchedGoal: { contOccId: moviesWatchedGoalContOccId, contModKey: "moviesWatchedGoal", instKeys: ["moviesWatchedGoal"] },
   };
 
   const goalContOccIds = {};
@@ -2032,6 +2107,61 @@ export async function createLiveData(userId, options = {}) {
     accountContOccIds[contModKey] = contOccId;
   }
 
+  // ── Library: 8 movie modules + container + page + field patch ─────────────────
+  //
+  // Mirrors createTestGrid STEP 3 (movie modules), STEP 4 (libraryContModId already
+  // added to containerDocs above), STEP 6 (library occurrences), STEP 8 (library page).
+  // All done here so libraryContOccId exists before STEP 7 folder tree references it.
+  // filterOverride:{} on both container and page — always visible, no date filter.
+
+  // 8 movie modules (role:"instance", hidden library binding)
+  await Module.insertMany([
+    { id: movieInceptionModId,       userId, gridId, role: "instance", kind: "list", label: "Inception",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: movieMatrixModId,          userId, gridId, role: "instance", kind: "list", label: "The Matrix",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: movieArrivalModId,         userId, gridId, role: "instance", kind: "list", label: "Arrival",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: movieDuneModId,            userId, gridId, role: "instance", kind: "list", label: "Dune",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: movieInterstellarModId,    userId, gridId, role: "instance", kind: "list", label: "Interstellar",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: movieBladeRunner2049ModId, userId, gridId, role: "instance", kind: "list", label: "Blade Runner 2049",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: moviePrestigeModId,        userId, gridId, role: "instance", kind: "list", label: "The Prestige",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: movieTenetModId,           userId, gridId, role: "instance", kind: "list", label: "Tenet",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+  ]);
+
+  // 8 movie occurrences (parentId = libraryContOccId, library field = "movie")
+  const movieInceptionOccId       = await mkOcc({ moduleId: movieInceptionModId,       parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
+  const movieMatrixOccId          = await mkOcc({ moduleId: movieMatrixModId,          parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
+  const movieArrivalOccId         = await mkOcc({ moduleId: movieArrivalModId,         parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
+  const movieDuneOccId            = await mkOcc({ moduleId: movieDuneModId,            parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
+  const movieInterstellarOccId    = await mkOcc({ moduleId: movieInterstellarModId,    parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
+  const movieBladeRunner2049OccId = await mkOcc({ moduleId: movieBladeRunner2049ModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
+  const moviePrestigeOccId        = await mkOcc({ moduleId: moviePrestigeModId,        parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
+  const movieTenetOccId           = await mkOcc({ moduleId: movieTenetModId,           parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
+
+  // Library container occurrence (libraryContOccId pre-generated at top)
+  await mkOcc({
+    id: libraryContOccId,
+    moduleId: libraryContModId,
+    occurrences: [
+      movieInceptionOccId, movieMatrixOccId, movieArrivalOccId, movieDuneOccId,
+      movieInterstellarOccId, movieBladeRunner2049OccId, moviePrestigeOccId, movieTenetOccId,
+    ],
+    filterOverride: {},
+  });
+
+  // Patch moviesWatched field's addNew.parentOccurrenceId now that libraryContOccId is real.
+  // Uses dot-notation $set to avoid nuking the rest of meta.optionsSource.
+  await Field.findOneAndUpdate(
+    { id: moviesWatchedFieldId },
+    { $set: { "meta.optionsSource.addNew.parentOccurrenceId": libraryContOccId } },
+  );
+
   // ── STEP 7: Manifest + folder tree ──────────────────────────────────────────
   //
   // Structure (mirrors createTestGrid STEP 7):
@@ -2040,7 +2170,8 @@ export async function createLiveData(userId, options = {}) {
   //   ├── Trackers   (normal, sortOrder: 1)  ← Daily Goals + Accounts pages (Task 12)
   //   ├── Interfaces (normal, sortOrder: 2)  ← Schedule + Canvas pages (Task 12)
   //   ├── Notes      (normal, sortOrder: 3)  ← Notebook docs (Task 11)
-  //   └── Day Pages  (day-pages, sortOrder: 4) ← auto-created by Day Page: Build op (Task 13)
+  //   ├── Day Pages  (day-pages, sortOrder: 4) ← auto-created by Day Page: Build op (Task 13)
+  //   └── Library    (normal, sortOrder: 5)  ← Library page (movies/books/shows)
   //
   // Folder ids are exposed on the return value for Task 11 (notebook docs parent into Notes),
   // Task 12 (pages parent into Tasks/Trackers/Interfaces), and Task 13 (makeDayPageBuildOp
@@ -2060,6 +2191,7 @@ export async function createLiveData(userId, options = {}) {
   await new Folder({ id: interfacesFolderId, userId, gridId, name: "Interfaces", parentId: rootFolderId, folderType: "normal",    sortOrder: 2, isExpanded: true }).save();
   await new Folder({ id: notesFolderId,      userId, gridId, name: "Notes",      parentId: rootFolderId, folderType: "normal",    sortOrder: 3, isExpanded: true }).save();
   await new Folder({ id: dayPagesFolderId,   userId, gridId, name: "Day Pages",  parentId: rootFolderId, folderType: "day-pages", sortOrder: 4, isExpanded: true }).save();
+  await new Folder({ id: libraryFolderId,    userId, gridId, name: "Library",    parentId: rootFolderId, folderType: "normal",    sortOrder: 5, isExpanded: true }).save();
 
   // ── STEP 7b: Templates manifest + Daily Routine + Day Page templates ────────
   // Separate manifest from the user manifest (createTestGrid pattern).
@@ -2344,6 +2476,22 @@ export async function createLiveData(userId, options = {}) {
     filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
   });
 
+  // Library page — pinned to manifest Library folder only; no grid panel (grid is 2×3 full).
+  // filterOverride:{} so the library is always visible regardless of the active date filter.
+  const libraryPageOccId = uid();
+  await new Module({ id: libraryPageModId, userId, gridId, role: "page", kind: "board", label: "Library" }).save();
+  await mkOcc({
+    id: libraryPageOccId,
+    moduleId: libraryPageModId,
+    parentId: libraryFolderId,
+    sortOrder: 0,
+    occurrences: [libraryContOccId],
+    iteration: { mode: "persistent" },
+    fields: {},
+    filterOverride: {},
+    filterNavConfig: { filter_daily: { visible: false } },
+  });
+
   // Notebook hub View — Schedule is the default active tab.
   const notebookHubViewId = uid();
   await new View({ id: notebookHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: schedPageOccId }).save();
@@ -2562,6 +2710,122 @@ export async function createLiveData(userId, options = {}) {
     sourceFieldId: fields.duration.id, agg: "sum", timeFilter: "weekly",
   })).save();
 
+  // ── Tracker: Movies Watched ────────────────────────────────────────────────
+  // Custom string-building pipeline (not makeTrackerOp — that's numeric only).
+  // Trigger surface mirrors Water Today + Tasks Completed Today for parity.
+  // Pipeline: FIND "Movies Watched" goal instance → resolve $goalDate → FIND
+  // Schedule page → LOOP $allInstances for Watch Movie occs dated $goalDate →
+  // inner LOOP over moviesWatched array (occurrence IDs) → resolve each movie
+  // label → concat to $output → UPDATE display field on the goal item.
+  await new Operation({
+    userId, gridId, priority: 3,
+    name: "Tracker: Movies Watched",
+    description: "Build a label list of movies watched today and update the Movies Watched goal display.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: moviesWatchedFieldId, priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find the Movies Watched goal instance
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allInstances",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Movies Watched" }] },
+            itemVar: "$goalItem", itemIdVar: "$goalItemId",
+          },
+        },
+        // 2. Bail if goal not found
+        {
+          type: "if",
+          condition: { conjunction: "AND", rules: [{ left: "$goalItemId", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
+          else: [],
+        },
+        // 3. Resolve $goalDate from the goal item's effective filter
+        {
+          type: "action", action: "INIT_VAR",
+          cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+        },
+        // 4. Init output accumulator
+        { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
+        // 5. Find the Schedule page (needed for HAS_ANCESTOR)
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allPages",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Schedule" }] },
+            itemVar: "$schedPage", itemIdVar: "$schedPageId",
+          },
+        },
+        // 6. Loop over Watch Movie occurrences dated to $goalDate and under the Schedule page
+        {
+          type: "loop",
+          overExpr: "$allInstances",
+          as: "$watchInst",
+          body: [
+            {
+              type: "if",
+              condition: {
+                conjunction: "AND",
+                rules: [
+                  { left: `$watchInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                  { left: "$watchInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  { left: "$watchInst.label", comparator: "IS", right: "Watch Movie" },
+                ],
+              },
+              then: [
+                // 6a. Inner loop: iterate the moviesWatched array (array of occurrence IDs)
+                {
+                  type: "loop",
+                  overExpr: `$watchInst.fields.${moviesWatchedFieldId}.value`,
+                  as: "$movieOccId",
+                  body: [
+                    // Resolve the movie occurrence from $allInstances
+                    {
+                      type: "action", action: "FIND",
+                      cfg: {
+                        over: "$allInstances",
+                        predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$movieOccId" }] },
+                        itemVar: "$movie", itemIdVar: "$movieId",
+                      },
+                    },
+                    // Append label to $output when found
+                    {
+                      type: "if",
+                      condition: { conjunction: "AND", rules: [{ left: "$movieId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                      then: [
+                        {
+                          type: "action", action: "SET_VAR",
+                          cfg: { name: "$output", expr: "${$output}${$movie.label}, " },
+                        },
+                      ],
+                      else: [],
+                    },
+                  ],
+                },
+              ],
+              else: [],
+            },
+          ],
+        },
+        // 7. Write the joined label string to the text display field on the goal item.
+        // NOTE: $output accumulates as "Inception, The Matrix, " — trailing ", " is acceptable for v1.
+        {
+          type: "action", action: "UPDATE",
+          cfg: { path: `$goalItemId.fields.${moviesWatchedDisplayFieldId}.value`, value: "$output" },
+        },
+      ],
+    },
+    enabled: true,
+  }).save();
+
   // ── Shared schedule + day-page operations (delegated to liveSystemBuilders) ──
   await new Operation(makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId })).save();
   await new Operation(makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar: panelOccIds.notebook })).save();
@@ -2648,7 +2912,7 @@ async function main() {
     console.log(`   Notebook docs:  ${notebookCount} (${Object.keys(result.notebookDocOccIds || {}).join(", ")})`);
     console.log(`   Folders:        Root + 5 children (Tasks/Trackers/Interfaces/Notes/Day Pages)`);
     console.log(`   Templates:      Daily Routine (6-pick) + Day Page under Templates manifest`);
-    console.log(`   Operations:     22 (18 trackers + 4 schedule/day-page)`);
+    console.log(`   Operations:     23 (19 trackers + 4 schedule/day-page)`);
     console.log(`   Panels:         ${Object.keys(result.panelOccIds || {}).join(", ")}`);
     console.log(`   Pages:          Daily Toolkit, Todo List, Daily Goals, Accounts, Schedule (board) + Canvas`);
     console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Schedule (${result.schedPageOccId}); tabs=[Schedule, Canvas]`);

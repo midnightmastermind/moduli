@@ -27,6 +27,12 @@ describe("resolveOptions — manual mode", () => {
     const field = { type: "select", meta: { optionsSource: { mode: "manual" } } };
     expect(resolveOptions(field, emptyCtx).options).toEqual([]);
   });
+
+  it("manual mode preserves {value,label} shape for object entries", () => {
+    const field = { type: "select", meta: { optionsSource: { mode: "manual", values: [{ value: "x", label: "X-ray" }, { value: "y", label: "Yankee" }] } } };
+    const { options } = resolveOptions(field, { occurrencesById: {}, modulesById: {}, fieldsById: {}, foldersById: {} });
+    expect(options).toEqual([{ value: "x", label: "X-ray" }, { value: "y", label: "Yankee" }]);
+  });
 });
 
 describe("resolveOptions — range mode", () => {

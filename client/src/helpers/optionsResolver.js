@@ -41,7 +41,12 @@ export function resolveOptions(field, ctx) {
 
   if (src.mode === "manual") {
     const values = Array.isArray(src.values) ? src.values : [];
-    const options = values.map(v => ({ value: v, label: String(v) }));
+    const options = values.map(v => {
+      if (v && typeof v === "object" && "value" in v) {
+        return { value: v.value, label: String(v.label ?? v.value) };
+      }
+      return { value: v, label: String(v) };
+    });
     return { options, totalMatched: options.length };
   }
 

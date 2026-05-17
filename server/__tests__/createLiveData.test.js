@@ -170,11 +170,11 @@ describe("createLiveData — structural assertions", () => {
   });
 
   // ── 6. Tracker op count (recommended, high-value) ────────────────────────────
-  it("at least 18 'Tracker:' operations exist for the grid", async () => {
+  it("at least 19 'Tracker:' operations exist for the grid", async () => {
     if (!connected) return;
     const { gridId } = result;
     const trackerOps = await Operation.find({ gridId, name: /^Tracker:/ });
-    expect(trackerOps.length).toBeGreaterThanOrEqual(18);
+    expect(trackerOps.length).toBeGreaterThanOrEqual(19);
   });
 
   it("the 4 named shared schedule/day-page ops exist", async () => {
