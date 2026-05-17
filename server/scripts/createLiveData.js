@@ -140,7 +140,7 @@ export async function createLiveData(userId, options = {}) {
   // SCHEDULE CONTROL FIELD RECONCILIATION (scaffold pre-generated ids → seed names):
   //   dateFieldId      ← fields.date ("Date", date)        [createDefaultUserData uses same id pattern]
   //   timeslotFieldId  ← fields.timeslot ("Time Slot", text) [createDefaultUserData uid()→ override to timeslotFieldId]
-  //   dueFieldId       ← fields.dueDate ("Due", date)      [createDefaultUserData uid()→ override to dueFieldId]
+  //   dueFieldId       ← fields.due ("Due", date)           [createDefaultUserData uid()→ override to dueFieldId]
   //   completedFieldId ← fields.completed ("Completed", boolean) [override to completedFieldId]
   //   These four ids are referenced by Tasks 13+ op-wiring (makeTrackerOp, makeScheduleBuildDayOp, etc.)
   //   and must match the scaffold's pre-generated values.
@@ -456,6 +456,7 @@ export async function createLiveData(userId, options = {}) {
     },
 
     // ── JOURNAL Q&A (kept — journalQuestion/Answer also used by toolkit journaling) ──
+    // siblingLinks not wired — journalQuestionPool excluded, no CYCLE_FIELD_VALUE op in live grid
     journalQuestion: {
       id: uid(),
       name: "Daily Question",
@@ -746,13 +747,1037 @@ export async function createLiveData(userId, options = {}) {
   // Register field IDs on grid
   await Grid.findByIdAndUpdate(grid._id, { $set: { fieldIds: Object.values(fields).map(f => f.id) } });
 
-  // ── (Future steps go here — Tasks 8–14 add modules, occurrences,
-  //    manifest + folders, templates, pages, operations, and finalize the grid)
+  // ── STEP 3: Instance modules ─────────────────────────────────────────────────
+  //
+  // Ported from createDefaultUserData STEP 2.
+  //
+  // EXCLUDED instance sets (journal/QA/enrichment/pool-library):
+  //   journalDocInstances   — wentWellDocInst/improvedDocInst/gratitudeDocInst (journal-only)
+  //   moviePoolInstances    — movie pool library (excluded; pools brought "in a new way" later)
+  //   tvShowPoolInstances   — same
+  //   booksPoolInstances    — same
+  //   musicPoolInstances    — same
+  //   podcastsPoolInstances — same
+  //   gamesPoolInstances    — same
+  //   activitiesPoolInstances — same
+  //   roomsPoolInstances    — same
+  //   cbtPoolInstances      — same
+  //   bookmarksPoolInstances — same
+  //   wentWellQInstances    — journal Q&A question pool
+  //   improvedQInstances    — same
+  //   gratitudeQInstances   — same
+  //   enrichmentInstances   — pool-backed enrichment (watchItem/readItem etc. all excluded)
+  //   notebookNoteInstancesFlat — notebook sub-heading instances (Task 11)
+  //   workoutGoalInstance / nutritionGoalInstance — kept; added as part of goalInstances below
+  //
+  // KEPT sets: toolkitInstances, workoutInstances, nutritionInstances,
+  //            todoInstances, planningInstances, goalInstances, accountInstances.
+  //
+  // FIELD MAP NOTE: createDefaultUserData uses `fields.dueDate`; createLiveData uses
+  //   `fields.due` (same field, different map key). All `dueDate` refs → `fields.due.id`.
+  //
+  // DAILY-ROUTINE CONVENTION: The 6 Daily Routine source instances must have a
+  //   hidden `dateFieldId` binding (createTestGrid convention, Task 13 op-wiring).
+  //   Labels match EXACTLY: "Drink Water", "Take Vitamins", "Morning Run",
+  //   "Scrambled Eggs + Veg", "Greek Salad + Chicken", "Read a chapter".
+  //   NOTE: "Morning Run" is its own module (not the same as "Morning Workout").
+  //   "Read a chapter" is added here as a minimal todo-style schedulable instance.
+  //
+  // CATEGORY FIELD: createDefaultUserData injects a hidden category binding on every
+  //   instance (line ~1991). Replicated here via the post-loop category injection.
+
+  // Helper — add hidden dateFieldId binding if not already present.
+  function ensureDateBinding(bindings) {
+    if (bindings.some(b => b.fieldId === dateFieldId)) return bindings;
+    const maxOrder = bindings.reduce((m, b) => Math.max(m, b.order ?? 0), 0);
+    return [...bindings, { fieldId: dateFieldId, role: "input", order: maxOrder + 1, hidden: true }];
+  }
+
+  // ── Toolkit instances (keep all from createDefaultUserData.toolkitInstances) ──
+  const toolkitInstances = {
+    // === PHYSICAL ===
+    morningWorkout: {
+      id: uid(), label: "Morning Workout", kind: "list",
+      defaultDragMode: "copy",
+      styleMode: "own",
+      ownStyle: { bg: "rgba(180,74,26,0.15)", textColor: "#e06a3a" },
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.workoutType.id, role: "input", order: 1 },
+        { fieldId: fields.duration.id, role: "input", order: 2 },
+        { fieldId: fields.calories.id, role: "input", order: 3 },
+      ],
+    },
+    eveningRun: {
+      id: uid(), label: "Evening Run", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.steps.id, role: "input", order: 2 },
+      ],
+    },
+    stretching: {
+      id: uid(), label: "Stretching", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    drinkWater: {
+      id: uid(), label: "Drink Water", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.water.id, role: "input", order: 1 },
+        { fieldId: dateFieldId, role: "input", order: 2, hidden: true }, // Daily Routine source
+      ],
+    },
+    takeMeds: {
+      id: uid(), label: "Take Vitamins", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: dateFieldId, role: "input", order: 1, hidden: true }, // Daily Routine source
+      ],
+    },
+    sleepLog: {
+      id: uid(), label: "Sleep Log", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.energy.id, role: "input", order: 2 },
+      ],
+    },
+
+    // === INTELLECTUAL ===
+    reading: {
+      id: uid(), label: "Reading", kind: "list",
+      defaultDragMode: "copy",
+      styleMode: "own", ownStyle: { bg: "rgba(21,98,176,0.15)", textColor: "#4a9fe0" },
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.readingList.id, role: "input", order: 1 },
+        { fieldId: fields.duration.id, role: "input", order: 2 },
+        { fieldId: fields.pages.id, role: "input", order: 3 },
+      ],
+    },
+    podcast: {
+      id: uid(), label: "Listen to Podcast", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.podcastTitle.id, role: "input", order: 1 },
+        { fieldId: fields.duration.id, role: "input", order: 2 },
+      ],
+    },
+    watchMovie: {
+      id: uid(), label: "Watch Movie", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.watchlist.id, role: "input", order: 1 },
+        { fieldId: fields.duration.id, role: "input", order: 2 },
+      ],
+    },
+    onlineCourse: {
+      id: uid(), label: "Online Course", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    brainGames: {
+      id: uid(), label: "Brain Games", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    journaling: {
+      id: uid(), label: "Daily Journal", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.journalQuestion.id, role: "display", order: 1 },
+        { fieldId: fields.journalAnswer.id, role: "input", order: 2 },
+        { fieldId: fields.duration.id, role: "input", order: 3 },
+      ],
+    },
+
+    // === EMOTIONAL ===
+    gratitude: {
+      id: uid(), label: "Gratitude Practice", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.mood.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+    meditation: {
+      id: uid(), label: "Meditation", kind: "list",
+      defaultDragMode: "copy",
+      styleMode: "own",
+      ownStyle: { bg: "rgba(160,33,88,0.15)", textColor: "#d94080" },
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.mood.id, role: "input", order: 2 },
+      ],
+    },
+    breathing: {
+      id: uid(), label: "Breathing Exercise", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    moodCheck: {
+      id: uid(), label: "Mood Check-in", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.mood.id, role: "input", order: 0 },
+        { fieldId: fields.energy.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+    selfCare: {
+      id: uid(), label: "Self-Care Activity", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+
+    // === SOCIAL ===
+    callFriend: {
+      id: uid(), label: "Call a Friend", kind: "list",
+      defaultDragMode: "copy",
+      styleMode: "own", ownStyle: { bg: "rgba(196,144,0,0.15)", textColor: "#e8c030" },
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+    familyTime: {
+      id: uid(), label: "Family Time", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    socialEvent: {
+      id: uid(), label: "Social Event", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+    helpSomeone: {
+      id: uid(), label: "Help Someone", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.notes.id, role: "input", order: 1 },
+      ],
+    },
+
+    // === SPIRITUAL ===
+    prayer: {
+      id: uid(), label: "Prayer/Reflection", kind: "list",
+      defaultDragMode: "copy",
+      styleMode: "own", ownStyle: { bg: "rgba(100,39,197,0.15)", textColor: "#9b6eee" },
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    natureWalk: {
+      id: uid(), label: "Nature Walk", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.steps.id, role: "input", order: 2 },
+      ],
+    },
+    spiritualReading: {
+      id: uid(), label: "Spiritual Reading", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.pages.id, role: "input", order: 2 },
+      ],
+    },
+    mindfulness: {
+      id: uid(), label: "Mindfulness", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+
+    // === OCCUPATIONAL ===
+    deepWork: {
+      id: uid(), label: "Deep Work Session", kind: "list",
+      defaultDragMode: "copy",
+      styleMode: "own", ownStyle: { bg: "rgba(13,122,82,0.15)", textColor: "#29b87e" },
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.priority.id, role: "input", order: 2 },
+        { fieldId: fields.notes.id, role: "input", order: 3 },
+      ],
+    },
+    meeting: {
+      id: uid(), label: "Meeting", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+    emailBlock: {
+      id: uid(), label: "Email Block", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    skillDev: {
+      id: uid(), label: "Skill Development", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+    networking: {
+      id: uid(), label: "Networking", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.notes.id, role: "input", order: 1 },
+      ],
+    },
+
+    // === FINANCIAL ===
+    budgetReview: {
+      id: uid(), label: "Budget Review", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    trackExpense: {
+      id: uid(), label: "Track Expense", kind: "list",
+      defaultDragMode: "copy",
+      styleMode: "own", ownStyle: { bg: "rgba(29,138,48,0.15)", textColor: "#4cba64" },
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.accountSelect.id, role: "input", order: 1 },
+        { fieldId: fields.amount.id, role: "input", order: 2 },
+        { fieldId: fields.category.id, role: "input", order: 3 },
+        { fieldId: fields.notes.id, role: "input", order: 4 },
+      ],
+    },
+    purchase: {
+      id: uid(), label: "Purchase", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.accountSelect.id, role: "input", order: 1 },
+        { fieldId: fields.amount.id, role: "input", order: 2 },
+      ],
+    },
+    logIncome: {
+      id: uid(), label: "Log Income", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.income.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+    investmentCheck: {
+      id: uid(), label: "Check Investments", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.income.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+    savingsGoal: {
+      id: uid(), label: "Savings Goal", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.amount.id, role: "input", order: 1 },
+      ],
+    },
+
+    // === ENVIRONMENTAL ===
+    cleanDesk: {
+      id: uid(), label: "Clean Desk", kind: "list",
+      defaultDragMode: "copy",
+      styleMode: "own", ownStyle: { bg: "rgba(7,121,160,0.15)", textColor: "#32b4e0" },
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    declutter: {
+      id: uid(), label: "Declutter Space", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+    plantCare: {
+      id: uid(), label: "Plant Care", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+      ],
+    },
+    recycling: {
+      id: uid(), label: "Recycling", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+      ],
+    },
+    ecoAction: {
+      id: uid(), label: "Eco-Friendly Action", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.notes.id, role: "input", order: 1 },
+      ],
+    },
+
+    // === DAILY ROUTINE SOURCE MODULES (schedulable — hidden dateFieldId binding required) ===
+    // These 6 land in the Daily Routine template; the hidden date binding enables
+    // the seed's SAME_DAY dedup-FIND and per-copy date stamp (createTestGrid convention).
+    morningRun: {
+      id: uid(), label: "Morning Run", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: dateFieldId, role: "input", order: 1, hidden: true },
+      ],
+    },
+    readAChapter: {
+      id: uid(), label: "Read a chapter", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: dateFieldId, role: "input", order: 1, hidden: true },
+      ],
+    },
+    // NOTE: scrambledEggs + greekSaladChicken are in nutritionInstances below and
+    //       also get the hidden dateFieldId ensured via ensureDateBinding().
+  };
+
+  // ── Workout instances (5 per muscle group × 6 groups = 30) ──────────────────
+  function makeWorkout(label, group) {
+    return {
+      id: uid(), label, kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.set1Reps.id, role: "input", order: 1 },
+        { fieldId: fields.set2Reps.id, role: "input", order: 2 },
+        { fieldId: fields.set3Reps.id, role: "input", order: 3 },
+        { fieldId: fields.workoutWeight.id, role: "input", order: 4 },
+        { fieldId: fields.muscleGroup.id, role: "input", order: 5 },
+      ],
+      meta: { defaultMuscleGroup: group.toLowerCase() },
+    };
+  }
+  const workoutInstances = {
+    benchPress:     makeWorkout("Bench Press",        "Chest"),
+    inclinePress:   makeWorkout("Incline Press",      "Chest"),
+    chestFly:       makeWorkout("Chest Fly",          "Chest"),
+    pushUps:        makeWorkout("Push-ups",           "Chest"),
+    cableCrossover: makeWorkout("Cable Crossover",    "Chest"),
+    deadlift:       makeWorkout("Deadlift",           "Back"),
+    pullUps:        makeWorkout("Pull-ups",           "Back"),
+    bentRow:        makeWorkout("Bent-over Row",      "Back"),
+    latPulldown:    makeWorkout("Lat Pulldown",       "Back"),
+    seatedRow:      makeWorkout("Seated Cable Row",   "Back"),
+    squat:          makeWorkout("Squat",              "Legs"),
+    legPress:       makeWorkout("Leg Press",          "Legs"),
+    lunges:         makeWorkout("Lunges",             "Legs"),
+    legCurl:        makeWorkout("Leg Curl",           "Legs"),
+    calfRaise:      makeWorkout("Calf Raise",         "Legs"),
+    overheadPress:  makeWorkout("Overhead Press",     "Shoulders"),
+    lateralRaise:   makeWorkout("Lateral Raise",      "Shoulders"),
+    frontRaise:     makeWorkout("Front Raise",        "Shoulders"),
+    facePull:       makeWorkout("Face Pull",          "Shoulders"),
+    shrugs:         makeWorkout("Shrugs",             "Shoulders"),
+    bicepCurl:      makeWorkout("Bicep Curl",         "Arms"),
+    hammerCurl:     makeWorkout("Hammer Curl",        "Arms"),
+    tricepDip:      makeWorkout("Tricep Dip",         "Arms"),
+    skullCrusher:   makeWorkout("Skull Crusher",      "Arms"),
+    tricepPushdown: makeWorkout("Tricep Pushdown",    "Arms"),
+    running:        makeWorkout("Running",            "Cardio"),
+    cycling:        makeWorkout("Cycling",            "Cardio"),
+    jumpRope:       makeWorkout("Jump Rope",          "Cardio"),
+    rowMachine:     makeWorkout("Row Machine",        "Cardio"),
+    burpees:        makeWorkout("Burpees",            "Cardio"),
+  };
+
+  // ── Nutrition instances (Mediterranean diet, 34yr lean male 5'11") ──────────
+  // Daily Routine sources: scrambledEggs + greekSaladChicken get hidden dateFieldId.
+  function makeNutrition(label, mealType, cal, prot, c, fat) {
+    return {
+      id: uid(), label, kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.mealCategory.id, role: "input", order: 1 },
+        { fieldId: fields.calories.id, role: "input", order: 2 },
+        { fieldId: fields.protein.id, role: "input", order: 3 },
+        { fieldId: fields.carbs.id, role: "input", order: 4 },
+        { fieldId: fields.fats.id, role: "input", order: 5 },
+      ],
+      meta: { defaultMealType: mealType, defaultCal: cal, defaultProtein: prot, defaultCarbs: c, defaultFats: fat },
+    };
+  }
+  const nutritionInstances = {
+    greekYogurtBowl:   makeNutrition("Greek Yogurt Bowl",         "Breakfast", 380, 28, 42, 8),
+    scrambledEggs:     makeNutrition("Scrambled Eggs + Veg",      "Breakfast", 320, 24, 18, 16),
+    oatmealBerries:    makeNutrition("Oatmeal + Berries",         "Breakfast", 350, 12, 62, 7),
+    avocadoToast:      makeNutrition("Avocado Toast",             "Breakfast", 420, 14, 38, 22),
+    smoothieBowl:      makeNutrition("Smoothie Bowl",             "Breakfast", 390, 18, 58, 10),
+    greekSaladChicken: makeNutrition("Greek Salad + Chicken",     "Lunch",     520, 48, 22, 24),
+    tunaWrap:          makeNutrition("Tuna Wrap",                 "Lunch",     460, 38, 42, 14),
+    lentilSoup:        makeNutrition("Lentil Soup",               "Lunch",     340, 20, 52, 6),
+    quinoaBowl:        makeNutrition("Quinoa Bowl",               "Lunch",     480, 22, 68, 12),
+    hummusPita:        makeNutrition("Hummus + Whole Grain Pita", "Lunch",     380, 14, 52, 14),
+    almonds:           makeNutrition("Almonds (1oz)",             "Snack",     160, 6,  6,  14),
+    olivesHummus:      makeNutrition("Olives + Hummus",           "Snack",     140, 4,  10, 10),
+    cheeseCrackers:    makeNutrition("Cheese + Crackers",         "Snack",     180, 8,  16, 9),
+    mixedBerries:      makeNutrition("Mixed Berries",             "Snack",     80,  1,  20, 0),
+    proteinBar:        makeNutrition("Protein Bar",               "Snack",     220, 20, 24, 6),
+    grilledSalmon:     makeNutrition("Grilled Salmon",            "Dinner",    520, 52, 12, 28),
+    chickenSouvlaki:   makeNutrition("Chicken Souvlaki",          "Dinner",    560, 56, 30, 22),
+    lambKofta:         makeNutrition("Lamb Kofta",                "Dinner",    580, 44, 28, 32),
+    pastaMarinara:     makeNutrition("Pasta Marinara",            "Dinner",    520, 22, 78, 12),
+    stuffedPeppers:    makeNutrition("Stuffed Peppers",           "Dinner",    440, 30, 48, 14),
+    oliveOil:          makeNutrition("Olive Oil (1 tbsp)",        "Ingredient",120, 0,  0,  14),
+    chickpeas:         makeNutrition("Chickpeas (1/2 cup)",       "Ingredient",135, 7,  22, 2),
+    lemonGarlic:       makeNutrition("Lemon + Garlic base",       "Ingredient",20,  1,  4,  0),
+    wholeGrainBread:   makeNutrition("Whole Grain Bread (2sl)",   "Ingredient",180, 8,  32, 3),
+    greekOlives:       makeNutrition("Greek Olives (10pc)",       "Ingredient",50,  0,  2,  5),
+  };
+  // Ensure Daily Routine nutrition sources have hidden dateFieldId binding
+  nutritionInstances.scrambledEggs.fieldBindings = ensureDateBinding(nutritionInstances.scrambledEggs.fieldBindings);
+  nutritionInstances.greekSaladChicken.fieldBindings = ensureDateBinding(nutritionInstances.greekSaladChicken.fieldBindings);
+
+  // ── Todo instances ───────────────────────────────────────────────────────────
+  // Note: fields.dueDate in createDefaultUserData → fields.due.id here (same field, renamed key)
+  const todoInstances = {
+    buyGroceries: {
+      id: uid(), label: "Buy groceries", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.due.id, role: "input", order: 1 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
+      ],
+    },
+    cleanGarage: {
+      id: uid(), label: "Clean out garage", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    fixLeakyFaucet: {
+      id: uid(), label: "Fix leaky faucet", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.priority.id, role: "input", order: 1 },
+      ],
+    },
+    returnBooks: {
+      id: uid(), label: "Return library books", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.due.id, role: "input", order: 1 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
+      ],
+    },
+    organizePantry: {
+      id: uid(), label: "Organize pantry", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    payBills: {
+      id: uid(), label: "Pay utility bills", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 1 },
+        { fieldId: fields.due.id, role: "input", order: 2 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 3 },
+      ],
+    },
+    cancelSub: {
+      id: uid(), label: "Cancel unused subscription", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 1 },
+      ],
+    },
+    renewLicense: {
+      id: uid(), label: "Renew driver's license", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.due.id, role: "input", order: 1 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
+      ],
+    },
+    dentistAppt: {
+      id: uid(), label: "Schedule dentist appointment", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.due.id, role: "input", order: 1 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
+      ],
+    },
+    fileInsurance: {
+      id: uid(), label: "File insurance claim", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.due.id, role: "input", order: 1 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
+      ],
+    },
+    orderSupplies: {
+      id: uid(), label: "Order office supplies", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 1 },
+      ],
+    },
+    backupComputer: {
+      id: uid(), label: "Backup computer files", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [],
+    },
+    updatePortfolio: {
+      id: uid(), label: "Update portfolio site", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    prepPresentation: {
+      id: uid(), label: "Prep client presentation", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.priority.id, role: "input", order: 1 },
+        { fieldId: fields.due.id, role: "input", order: 2 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 3 },
+      ],
+    },
+    callMom: {
+      id: uid(), label: "Call mom", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [],
+    },
+    planVacation: {
+      id: uid(), label: "Plan summer vacation", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.notes.id, role: "input", order: 1 },
+      ],
+    },
+    birthdayGift: {
+      id: uid(), label: "Buy birthday gift for Sarah", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 1 },
+        { fieldId: fields.due.id, role: "input", order: 2 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 3 },
+      ],
+    },
+    signUpClass: {
+      id: uid(), label: "Sign up for cooking class", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 1 },
+      ],
+    },
+  };
+
+  // ── Planning instances ───────────────────────────────────────────────────────
+  const planningInstances = {
+    moduiLaunch: {
+      id: uid(), label: "Moduli MVP Launch", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.priority.id, role: "input", order: 1 },
+        { fieldId: fields.due.id, role: "input", order: 2 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 3 },
+        { fieldId: fields.notes.id, role: "input", order: 4 },
+      ],
+    },
+    doctorCheckup: {
+      id: uid(), label: "Annual Doctor Checkup", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.due.id, role: "input", order: 1 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
+      ],
+    },
+    carInsurance: {
+      id: uid(), label: "Car Insurance Renewal", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.amount.id, role: "input", order: 1 },
+        { fieldId: fields.due.id, role: "input", order: 2 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 3 },
+      ],
+    },
+    fileTaxes: {
+      id: uid(), label: "File Taxes", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.due.id, role: "input", order: 1 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
+        { fieldId: fields.notes.id, role: "input", order: 3 },
+      ],
+    },
+    quarterlyReview: {
+      id: uid(), label: "Quarterly Financial Review", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.due.id, role: "input", order: 1 },
+        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
+      ],
+    },
+  };
+
+  // ── Goal display instances ───────────────────────────────────────────────────
+  const goalInstances = {
+    physicalSummary: {
+      id: uid(), label: "Physical Wellness", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
+        { fieldId: fields.totalSteps.id, role: "display", order: 1 },
+        { fieldId: fields.totalWater.id, role: "display", order: 2 },
+      ],
+    },
+    intellectualSummary: {
+      id: uid(), label: "Intellectual Growth", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
+        { fieldId: fields.totalPages.id, role: "display", order: 1 },
+        { fieldId: fields.totalDuration.id, role: "display", order: 2 },
+      ],
+    },
+    emotionalSummary: {
+      id: uid(), label: "Emotional Balance", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
+        { fieldId: fields.lastMood.id, role: "display", order: 1 },
+      ],
+    },
+    socialSummary: {
+      id: uid(), label: "Social Connection", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
+        { fieldId: fields.totalDuration.id, role: "display", order: 1 },
+      ],
+    },
+    spiritualSummary: {
+      id: uid(), label: "Spiritual Practice", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
+        { fieldId: fields.totalDuration.id, role: "display", order: 1 },
+      ],
+    },
+    occupationalSummary: {
+      id: uid(), label: "Work Progress", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
+        { fieldId: fields.totalDuration.id, role: "display", order: 1 },
+      ],
+    },
+    financialSummary: {
+      id: uid(), label: "Financial Health", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalSpent.id, role: "display", order: 0 },
+        { fieldId: fields.totalIncome.id, role: "display", order: 1 },
+      ],
+    },
+    environmentalSummary: {
+      id: uid(), label: "Environment Care", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
+      ],
+    },
+    planningSummary: {
+      id: uid(), label: "Planning Overview", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.overdueTasks.id, role: "display", order: 0 },
+        { fieldId: fields.upcomingThisWeek.id, role: "display", order: 1 },
+      ],
+    },
+    workoutGoal: {
+      id: uid(), label: "Workout Today", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalRepsToday.id, role: "display", order: 0 },
+        { fieldId: fields.totalSteps.id, role: "display", order: 1 },
+      ],
+    },
+    nutritionGoal: {
+      id: uid(), label: "Nutrition Today", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalProtein.id, role: "display", order: 0 },
+        { fieldId: fields.totalCarbs.id, role: "display", order: 1 },
+        { fieldId: fields.totalFats.id, role: "display", order: 2 },
+      ],
+    },
+  };
+
+  // ── Account aggregation instances ────────────────────────────────────────────
+  const accountInstances = {
+    bankAccount: {
+      id: uid(), label: "Checking Account", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.netBalance.id, role: "display", order: 0 },
+        { fieldId: fields.totalSpent.id, role: "display", order: 1 },
+        { fieldId: fields.totalIncome.id, role: "display", order: 2 },
+      ],
+    },
+    savingsAccount: {
+      id: uid(), label: "Savings Account", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.netBalance.id, role: "display", order: 0 },
+      ],
+    },
+    momsAccount: {
+      id: uid(), label: "Mom's Account", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.momsAccountBalance.id, role: "display", order: 0 },
+      ],
+    },
+    fitnessAccount: {
+      id: uid(), label: "Fitness Stats", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalWorkouts.id, role: "display", order: 0 },
+        { fieldId: fields.totalSteps.id, role: "display", order: 1 },
+      ],
+    },
+    readingAccount: {
+      id: uid(), label: "Reading Stats", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalReadingTime.id, role: "display", order: 0 },
+        { fieldId: fields.totalPages.id, role: "display", order: 1 },
+      ],
+    },
+    productivityAccount: {
+      id: uid(), label: "Productivity", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.completionRate.id, role: "display", order: 0 },
+        { fieldId: fields.totalDuration.id, role: "display", order: 1 },
+      ],
+    },
+    wellnessAccount: {
+      id: uid(), label: "Wellness Score", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.lastMood.id, role: "display", order: 0 },
+        { fieldId: fields.totalWater.id, role: "display", order: 1 },
+      ],
+    },
+  };
+
+  // ── Merge all kept instance sets ─────────────────────────────────────────────
+  const allInstances = {
+    ...toolkitInstances,
+    ...workoutInstances,
+    ...nutritionInstances,
+    ...todoInstances,
+    ...planningInstances,
+    ...goalInstances,
+    ...accountInstances,
+  };
+
+  // Inject hidden category field on every instance (mirrors createDefaultUserData line ~1991).
+  for (const key of Object.keys(allInstances)) {
+    const inst = allInstances[key];
+    if (!inst.fieldBindings) inst.fieldBindings = [];
+    const hasCat = inst.fieldBindings.some(b => b.fieldId === fields.category.id);
+    if (!hasCat) {
+      const maxOrder = inst.fieldBindings.reduce((m, b) => Math.max(m, b.order ?? 0), 0);
+      inst.fieldBindings.push({ fieldId: fields.category.id, hidden: true, order: maxOrder + 1 });
+    }
+  }
+
+  // Persist instance modules (parallel insertMany in batches)
+  const instanceDocs = Object.values(allInstances).map(inst => ({
+    ...inst,
+    userId,
+    gridId,
+    role: "instance",
+  }));
+  await Module.insertMany(instanceDocs);
+
+  // instanceMods map — exposed on return value so Task 9 (occurrences) can
+  // reference module ids by their semantic key (e.g. instanceMods.drinkWater.id).
+  const instanceMods = allInstances;
+
+  // ── STEP 4: Container modules (NO slot containers) ───────────────────────────
+  //
+  // Ported from createDefaultUserData STEP 3 `toolkitContainers` / `todoContainers` /
+  // `goalContainers` / `accountContainers`.
+  //
+  // EXCLUDED container sets:
+  //   scheduleContainers / slot containers / Due container — built by Daily Routine template
+  //     + Schedule: Build Day op (later tasks). NOT created at grid scope here.
+  //   notebookDocContainers — Task 11.
+  //   Pool containers (moviePool, tvShowPool, booksPool, musicPool, podcastsPool,
+  //     gamesPool, activitiesPool, roomsPool, cbtPool, bookmarksPool) — pool-only,
+  //     excluded per user directive. Brought back "in a new way" later.
+  //   wentWellQPool / improvedQPool / gratitudeQPool — journal Q&A pool-only.
+  //   enrichment container — enrichmentInstances excluded; container is enrichment-only.
+  //   macroRef — notebook doc, Task 11.
+  //
+  // KEPT containers: 8 toolkit dimensions + workoutAll + 5 meal categories,
+  //   5 todoContainers, 11 goalContainers, 5 accountContainers.
+  //
+  // meta flags: todoContainers get `meta: { todoListContainer: true }` (matches
+  //   createTestGrid convention; used by Schedule: Build Day sweep FIND predicate).
+  //   filterOverride on occurrences (Physical/General) is set at OCCURRENCE creation
+  //   in Task 9 — NOT on the module record here.
+
+  // ── Toolkit containers (dimensions + fitness + meal categories) ───────────────
+  const toolkitContainerMods = {
+    physical:      { id: uid(), label: "Physical",          styleMode: "own", ownStyle: { bg: "#b44a1a" } },
+    intellectual:  { id: uid(), label: "Intellectual",      styleMode: "own", ownStyle: { bg: "#1562b0" } },
+    emotional:     { id: uid(), label: "Emotional",         styleMode: "own", ownStyle: { bg: "#a02158" } },
+    social:        { id: uid(), label: "Social",            styleMode: "own", ownStyle: { bg: "#c49000" } },
+    spiritual:     { id: uid(), label: "Spiritual",         styleMode: "own", ownStyle: { bg: "#6427c5" } },
+    occupational:  { id: uid(), label: "Occupational",      styleMode: "own", ownStyle: { bg: "#0d7a52" } },
+    financial:     { id: uid(), label: "Financial",         styleMode: "own", ownStyle: { bg: "#1d8a30" } },
+    environmental: { id: uid(), label: "Environmental",     styleMode: "own", ownStyle: { bg: "#0779a0" } },
+    workoutAll:    { id: uid(), label: "Physical - Fitness" },
+    mealBreakfast:   { id: uid(), label: "Breakfast" },
+    mealLunch:       { id: uid(), label: "Lunch" },
+    mealSnack:       { id: uid(), label: "Snack" },
+    mealDinner:      { id: uid(), label: "Dinner" },
+    mealIngredients: { id: uid(), label: "Ingredients" },
+  };
+
+  // ── Todo containers (5 categories) ───────────────────────────────────────────
+  const todoContainerMods = {
+    todoHome:     { id: uid(), label: "Home & Errands",       meta: { todoListContainer: true } },
+    todoFinance:  { id: uid(), label: "Finance & Admin",      meta: { todoListContainer: true } },
+    todoWork:     { id: uid(), label: "Work Projects",        meta: { todoListContainer: true } },
+    todoPersonal: { id: uid(), label: "Personal / Fun",       meta: { todoListContainer: true } },
+    todoPlan:     { id: uid(), label: "Planning & Deadlines", meta: { todoListContainer: true } },
+  };
+
+  // ── Goal containers (8 dimensions + workout + nutrition + planning) ───────────
+  const goalContainerMods = {
+    physicalGoal:      { id: uid(), label: "Physical",      styleMode: "own", ownStyle: { bg: "#b44a1a" } },
+    intellectualGoal:  { id: uid(), label: "Intellectual",  styleMode: "own", ownStyle: { bg: "#1562b0" } },
+    emotionalGoal:     { id: uid(), label: "Emotional",     styleMode: "own", ownStyle: { bg: "#a02158" } },
+    socialGoal:        { id: uid(), label: "Social",        styleMode: "own", ownStyle: { bg: "#c49000" } },
+    spiritualGoal:     { id: uid(), label: "Spiritual",     styleMode: "own", ownStyle: { bg: "#6427c5" } },
+    occupationalGoal:  { id: uid(), label: "Occupational",  styleMode: "own", ownStyle: { bg: "#0d7a52" } },
+    financialGoal:     { id: uid(), label: "Financial",     styleMode: "own", ownStyle: { bg: "#1d8a30" } },
+    environmentalGoal: { id: uid(), label: "Environmental", styleMode: "own", ownStyle: { bg: "#0779a0" } },
+    workoutGoal:    { id: uid(), label: "Workout" },
+    nutritionGoal:  { id: uid(), label: "Nutrition" },
+    planningGoal:   { id: uid(), label: "Planning" },
+  };
+
+  // ── Account containers (5 lifetime-aggregation categories) ───────────────────
+  const accountContainerMods = {
+    financeAccount:      { id: uid(), label: "Finances" },
+    fitnessAccount:      { id: uid(), label: "Fitness" },
+    learningAccount:     { id: uid(), label: "Learning" },
+    productivityAccount: { id: uid(), label: "Productivity" },
+    wellnessAccount:     { id: uid(), label: "Wellness" },
+  };
+
+  // ── Merge + persist container modules ────────────────────────────────────────
+  const containerMods = {
+    ...toolkitContainerMods,
+    ...todoContainerMods,
+    ...goalContainerMods,
+    ...accountContainerMods,
+  };
+
+  const containerDocs = Object.values(containerMods).map(c => ({
+    id: c.id,
+    label: c.label,
+    userId,
+    gridId,
+    role: "container",
+    kind: "list",
+    ...(c.styleMode ? { styleMode: c.styleMode } : {}),
+    ...(c.ownStyle  ? { ownStyle: c.ownStyle }   : {}),
+    ...(c.meta      ? { meta: c.meta }            : {}),
+  }));
+  await Module.insertMany(containerDocs);
 
   return {
     gridId,
     gridName,
     fields,
+    instanceMods,
+    containerMods,
   };
 }
 
@@ -775,14 +1800,18 @@ async function main() {
 
     const result = await createLiveData(userId);
 
-    const fieldCount = Object.keys(result.fields || {}).length;
+    const fieldCount    = Object.keys(result.fields || {}).length;
+    const instanceCount = Object.keys(result.instanceMods || {}).length;
+    const containerCount = Object.keys(result.containerMods || {}).length;
     console.log("=".repeat(50));
     console.log("✅ Live Grid created!");
-    console.log(`   Grid ID:   ${result.gridId}`);
-    console.log(`   Grid Name: ${result.gridName}`);
-    console.log(`   Fields:    ${fieldCount}`);
+    console.log(`   Grid ID:    ${result.gridId}`);
+    console.log(`   Grid Name:  ${result.gridName}`);
+    console.log(`   Fields:     ${fieldCount}`);
+    console.log(`   Instances:  ${instanceCount}`);
+    console.log(`   Containers: ${containerCount} (no slot containers)`);
     console.log("=".repeat(50));
-    console.log("Note: instances/pages/ops added in Tasks 8–14.");
+    console.log("Note: occurrences/pages/ops added in Tasks 9–14.");
     console.log("=".repeat(50));
   } catch (err) {
     console.error("❌ Failed:", err);
