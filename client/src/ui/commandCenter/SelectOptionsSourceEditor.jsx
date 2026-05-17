@@ -1,4 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useContext, useMemo } from "react";
+import CategoryPathPicker from "../CategoryPathPicker";
+import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig } from "../categoryRegistry";
+import ConditionGroup from "../../blocks/ConditionGroup";
+import { GridActionsContext } from "../../GridActionsContext";
 
 const MODES = [
   { key: "manual", label: "Manual" },
@@ -134,4 +138,94 @@ function RangeBody({ source, onChange }) {
     </div>
   );
 }
-function FindBody()  { return <div style={{ fontSize: 10, color: "var(--text-faint)" }}>Find mode — coming in Task 10</div>; }
+function FindBody({ source, onChange }) {
+  const { fieldsById, modulesById, occurrencesById } = useContext(GridActionsContext);
+
+  const find = source?.find || { over: "$allInstances", predicate: { rules: [] }, valuePath: "label" };
+
+  function patch(p) {
+    onChange({ ...source, mode: "find", find: { ...find, ...p } });
+  }
+
+  const fields = useMemo(() => Object.values(fieldsById), [fieldsById]);
+  const leftConfig = useMemo(() => buildRecordKeyPickerConfig(find.over), [find.over]);
+
+  const sectionLabel = { fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", marginBottom: 3 };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div>
+        <div style={sectionLabel}>Search in</div>
+        <CategoryPathPicker
+          value={find.over}
+          config={COLLECTION_PICKER_CONFIG}
+          onChange={(over) => patch({ over })}
+        />
+      </div>
+
+      <div>
+        <div style={sectionLabel}>Where</div>
+        <ConditionGroup
+          group={find.predicate || { rules: [] }}
+          onChange={(predicate) => patch({ predicate })}
+          sources={[]}
+          fields={fields}
+          fieldsById={fieldsById}
+          modulesById={modulesById}
+          occurrencesById={occurrencesById}
+          localVars={[]}
+          leftConfig={leftConfig}
+        />
+      </div>
+
+      <div>
+        <div style={sectionLabel}>Grab value</div>
+        <CategoryPathPicker
+          value={find.valuePath}
+          config={leftConfig}
+          onChange={(valuePath) => patch({ valuePath })}
+        />
+      </div>
+
+      <div>
+        <div style={sectionLabel}>Grab label (optional — same as value when empty)</div>
+        <CategoryPathPicker
+          value={find.labelPath || ""}
+          config={leftConfig}
+          onChange={(labelPath) => patch({ labelPath: labelPath || undefined })}
+        />
+      </div>
+
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+        <div style={{ flex: 1 }}>
+          <div style={sectionLabel}>Sort by (optional)</div>
+          <CategoryPathPicker
+            value={find.sortPath || ""}
+            config={leftConfig}
+            onChange={(sortPath) => patch({ sortPath: sortPath || undefined })}
+          />
+        </div>
+        <div>
+          <div style={sectionLabel}>Dir</div>
+          <select
+            value={find.sortDir || "asc"}
+            onChange={(e) => patch({ sortDir: e.target.value })}
+            style={{ height: 28, fontSize: 11, fontFamily: "monospace", background: "var(--input-bg)", border: "1px solid var(--input-border)", borderRadius: 5, color: "var(--text-primary)", padding: "0 8px", outline: "none" }}
+          >
+            <option value="asc">↑ asc</option>
+            <option value="desc">↓ desc</option>
+          </select>
+        </div>
+        <div>
+          <div style={sectionLabel}>Limit</div>
+          <input
+            type="number"
+            value={find.limit ?? 100}
+            onChange={(e) => patch({ limit: Math.max(1, Number(e.target.value) || 100) })}
+            style={{ width: 70, height: 28, fontSize: 11, fontFamily: "monospace", background: "var(--input-bg)", border: "1px solid var(--input-border)", borderRadius: 5, color: "var(--text-primary)", padding: "0 8px", outline: "none" }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
