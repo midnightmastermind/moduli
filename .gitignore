@@ -2,3 +2,6 @@ node_modules/
 .env
 codex/
 notes_codex_annotated/
+
+# Git worktrees (superpowers isolated workspaces)
+.worktrees/
