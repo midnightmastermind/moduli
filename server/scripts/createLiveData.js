@@ -96,6 +96,7 @@ export async function createLiveData(userId, options = {}) {
   const manifestId       = uid();
   const schedFilterId    = uid();
   const timeslotFilterId = uid();
+  const goalsFilterId    = uid();
 
   // Library / Movies Watched fields (matches createTestGrid naming exactly)
   const libraryFieldId              = uid();
@@ -2171,6 +2172,16 @@ export async function createLiveData(userId, options = {}) {
       if (inst.meta?.defaultProtein)     defaultFields[fields.protein.id]      = fv(inst.meta.defaultProtein, "replace");
       if (inst.meta?.defaultCarbs)       defaultFields[fields.carbs.id]        = fv(inst.meta.defaultCarbs, "replace");
       if (inst.meta?.defaultFats)        defaultFields[fields.fats.id]         = fv(inst.meta.defaultFats, "replace");
+      // Pre-fill a sensible default amount on toolkit instances that bind fields.amount
+      // so "Spent Today" / "Net Balance" trackers show non-zero values on first run.
+      const toolkitDefaultAmounts = {
+        trackExpense: 35,  // generic tracked expense (~coffee + lunch)
+        purchase:     22,  // small purchase
+        savingsGoal:  50,  // contribution toward a savings target
+      };
+      if (toolkitDefaultAmounts[instKey] !== undefined) {
+        defaultFields[fields.amount.id] = fv(toolkitDefaultAmounts[instKey], "out");
+      }
       const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: defaultFields });
       childOccIds.push(childId);
     }
@@ -2228,6 +2239,20 @@ export async function createLiveData(userId, options = {}) {
       const dueDate = planningDueDates[instKey]
         || daysFromNow(1 + Math.floor(Math.random() * 14));
       const dueDatePreFill = { [fields.due.id]: fv(dueDate.toISOString()) };
+      // Pre-fill amount values on todo + planning instances that bind fields.amount
+      // so "Spent Today" / "Net Balance" trackers show non-zero values after the
+      // first Schedule: Build Day sweep.  Flow is "out" (expense) for all.
+      const todoDefaultAmounts = {
+        payBills:     85,   // utility bills (avg monthly)
+        cancelSub:    15,   // subscription cancellation fee / last charge
+        orderSupplies: 45,  // office supplies order
+        birthdayGift:  55,  // birthday gift for Sarah
+        signUpClass:   75,  // cooking class enrollment
+        carInsurance: 210,  // quarterly car insurance premium
+      };
+      if (todoDefaultAmounts[instKey] !== undefined) {
+        dueDatePreFill[fields.amount.id] = fv(todoDefaultAmounts[instKey], "out");
+      }
       const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: dueDatePreFill });
       childOccIds.push(childId);
     }
@@ -2751,6 +2776,20 @@ export async function createLiveData(userId, options = {}) {
     parentId: trackersFolderId, sortOrder: 0,
     occurrences: Object.values(goalContOccIds),
     iteration: { mode: "persistent" }, fields: {},
+    // Daily date filter with a visible LocalFilterNav so the user can browse
+    // goals for different dates from the Trackers page without touching the
+    // global toolbar.  Condition mirrors Schedule's filter (DATE_EQUALS OR empty)
+    // so persistent goal display items always show regardless of date.
+    filters: [
+      {
+        id: goalsFilterId, fieldId: dateFieldId, active: true, showNav: true,
+        timeUnit: "day", defaultNavValue: "today",
+        condition: { operator: "OR", rules: [
+          { left: "$field.value", comparator: "DATE_EQUALS", right: "$nav" },
+          { left: "$field.value", comparator: "IS_EMPTY" },
+        ]},
+      },
+    ],
   });
 
   const accountsPageModId = uid(); const accountsPageOccId = uid();
@@ -3022,10 +3061,13 @@ export async function createLiveData(userId, options = {}) {
 
   // ── Tracker: Movies Watched ────────────────────────────────────────────────
   // Custom string-building pipeline (not makeTrackerOp — that's numeric only).
-  // Trigger surface mirrors Water Today + Tasks Completed Today for parity.
+  // Trigger surface mirrors Water Today + Tasks Completed Today for parity,
+  // including the trigger gate IF block (same OR rules as makeTrackerOp:
+  // onLoad / NavigationOp always pass; item events pass only when the trigger
+  // item's date matches $goalDate; MeasureOp gated on moviesWatchedFieldId).
   // Pipeline: FIND "Movies Watched" goal instance → resolve $goalDate → FIND
-  // Schedule page → LOOP $allInstances for Watch Movie occs dated $goalDate →
-  // inner LOOP over moviesWatched array (occurrence IDs) → resolve each movie
+  // Schedule page → [trigger gate] → LOOP $allInstances for Watch Movie occs
+  // dated $goalDate → inner LOOP over moviesWatched array → resolve each movie
   // label → concat to $output → UPDATE display field on the goal item.
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
@@ -3058,14 +3100,12 @@ export async function createLiveData(userId, options = {}) {
           then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
           else: [],
         },
-        // 3. Resolve $goalDate from the goal item's effective filter
+        // 3. Resolve $goalDate from the goal item's effective filter (same chain as makeTrackerOp)
         {
           type: "action", action: "INIT_VAR",
           cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
         },
-        // 4. Init output accumulator
-        { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
-        // 5. Find the Schedule page (needed for HAS_ANCESTOR)
+        // 4. Find the Schedule page (needed for HAS_ANCESTOR; outside trigger gate like makeTrackerOp)
         {
           type: "action", action: "FIND",
           cfg: {
@@ -3074,62 +3114,92 @@ export async function createLiveData(userId, options = {}) {
             itemVar: "$schedPage", itemIdVar: "$schedPageId",
           },
         },
-        // 6. Loop over Watch Movie occurrences dated to $goalDate and under the Schedule page
+        // 5. Trigger gate (mirrors makeTrackerOp's triggerGateRules OR block).
+        // Bulk events (onLoad / NavigationOp) always re-aggregate.
+        // Item events (OccurrenceCreateOp / OccurrenceDeleteOp) only re-aggregate
+        // when the trigger item is dated to $goalDate (avoids spurious writes on
+        // drags to/from other days).  MeasureOp gates on moviesWatchedFieldId.
         {
-          type: "loop",
-          overExpr: "$allInstances",
-          as: "$watchInst",
-          body: [
+          type: "if",
+          condition: { operator: "OR", rules: [
+            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "onLoad" }] },
+            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "NavigationOp" }] },
+            { operator: "AND", rules: [
+              { left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+            ]},
+            { operator: "AND", rules: [
+              { left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+            ]},
+            { operator: "AND", rules: [
+              { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
+              { left: "$trigger.fieldId", comparator: "IS", right: moviesWatchedFieldId },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+            ]},
+          ]},
+          then: [
+            // 5a. Init output accumulator
+            { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
+            // 5b. Loop over Watch Movie occurrences dated to $goalDate and under the Schedule page
             {
-              type: "if",
-              condition: {
-                conjunction: "AND",
-                rules: [
-                  { left: `$watchInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
-                  { left: "$watchInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                  { left: "$watchInst.label", comparator: "IS", right: "Watch Movie" },
-                ],
-              },
-              then: [
-                // 6a. Inner loop: iterate the moviesWatched array (array of occurrence IDs)
+              type: "loop",
+              overExpr: "$allInstances",
+              as: "$watchInst",
+              body: [
                 {
-                  type: "loop",
-                  overExpr: `$watchInst.fields.${moviesWatchedFieldId}.value`,
-                  as: "$movieOccId",
-                  body: [
-                    // Resolve the movie occurrence from $allInstances
+                  type: "if",
+                  condition: {
+                    conjunction: "AND",
+                    rules: [
+                      { left: `$watchInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                      { left: "$watchInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                      { left: "$watchInst.label", comparator: "IS", right: "Watch Movie" },
+                    ],
+                  },
+                  then: [
+                    // Inner loop: iterate the moviesWatched array (array of occurrence IDs)
                     {
-                      type: "action", action: "FIND",
-                      cfg: {
-                        over: "$allInstances",
-                        predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$movieOccId" }] },
-                        itemVar: "$movie", itemIdVar: "$movieId",
-                      },
-                    },
-                    // Append label to $output when found
-                    {
-                      type: "if",
-                      condition: { conjunction: "AND", rules: [{ left: "$movieId", comparator: "IS_NOT_EMPTY", right: "" }] },
-                      then: [
+                      type: "loop",
+                      overExpr: `$watchInst.fields.${moviesWatchedFieldId}.value`,
+                      as: "$movieOccId",
+                      body: [
+                        // Resolve the movie occurrence from $allInstances
                         {
-                          type: "action", action: "SET_VAR",
-                          cfg: { name: "$output", expr: "${$output}${$movie.label}, " },
+                          type: "action", action: "FIND",
+                          cfg: {
+                            over: "$allInstances",
+                            predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$movieOccId" }] },
+                            itemVar: "$movie", itemIdVar: "$movieId",
+                          },
+                        },
+                        // Append label to $output when found
+                        {
+                          type: "if",
+                          condition: { conjunction: "AND", rules: [{ left: "$movieId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                          then: [
+                            {
+                              type: "action", action: "SET_VAR",
+                              cfg: { name: "$output", expr: "${$output}${$movie.label}, " },
+                            },
+                          ],
+                          else: [],
                         },
                       ],
-                      else: [],
                     },
                   ],
+                  else: [],
                 },
               ],
-              else: [],
+            },
+            // 5c. Write the joined label string to the text display field on the goal item.
+            // NOTE: $output accumulates as "Inception, The Matrix, " — trailing ", " is acceptable for v1.
+            {
+              type: "action", action: "UPDATE",
+              cfg: { path: `$goalItemId.fields.${moviesWatchedDisplayFieldId}.value`, value: "$output" },
             },
           ],
-        },
-        // 7. Write the joined label string to the text display field on the goal item.
-        // NOTE: $output accumulates as "Inception, The Matrix, " — trailing ", " is acceptable for v1.
-        {
-          type: "action", action: "UPDATE",
-          cfg: { path: `$goalItemId.fields.${moviesWatchedDisplayFieldId}.value`, value: "$output" },
+          else: [],
         },
       ],
     },
@@ -3138,6 +3208,7 @@ export async function createLiveData(userId, options = {}) {
 
   // ── Tracker: Books Read ────────────────────────────────────────────────────
   // Same pipeline shape as Tracker: Movies Watched but for books.
+  // Trigger gate added to match makeTrackerOp surface.
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
     name: "Tracker: Books Read",
@@ -3169,14 +3240,12 @@ export async function createLiveData(userId, options = {}) {
           then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
           else: [],
         },
-        // 3. Resolve $goalDate from the goal item's effective filter
+        // 3. Resolve $goalDate from the goal item's effective filter (same chain as makeTrackerOp)
         {
           type: "action", action: "INIT_VAR",
           cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
         },
-        // 4. Init output accumulator as an empty array (rows for the multi-dim display)
-        { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
-        // 5. Find the Schedule page (needed for HAS_ANCESTOR)
+        // 4. Find the Schedule page (needed for HAS_ANCESTOR; outside trigger gate like makeTrackerOp)
         {
           type: "action", action: "FIND",
           cfg: {
@@ -3185,67 +3254,93 @@ export async function createLiveData(userId, options = {}) {
             itemVar: "$schedPage", itemIdVar: "$schedPageId",
           },
         },
-        // 6. Loop over Reading occurrences dated to $goalDate and under the Schedule page
+        // 5. Trigger gate — mirrors makeTrackerOp's triggerGateRules OR block.
         {
-          type: "loop",
-          overExpr: "$allInstances",
-          as: "$readInst",
-          body: [
+          type: "if",
+          condition: { operator: "OR", rules: [
+            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "onLoad" }] },
+            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "NavigationOp" }] },
+            { operator: "AND", rules: [
+              { left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+            ]},
+            { operator: "AND", rules: [
+              { left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+            ]},
+            { operator: "AND", rules: [
+              { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
+              { left: "$trigger.fieldId", comparator: "IS", right: booksReadFieldId },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+            ]},
+          ]},
+          then: [
+            // 5a. Init output accumulator as an empty array (rows for the multi-dim display)
+            { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
+            // 5b. Loop over Reading occurrences dated to $goalDate and under the Schedule page
             {
-              type: "if",
-              condition: {
-                conjunction: "AND",
-                rules: [
-                  { left: `$readInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
-                  { left: "$readInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                  { left: "$readInst.label", comparator: "IS", right: "Reading" },
-                ],
-              },
-              then: [
-                // 6a. Inner loop: iterate the booksRead array (array of occurrence IDs)
+              type: "loop",
+              overExpr: "$allInstances",
+              as: "$readInst",
+              body: [
                 {
-                  type: "loop",
-                  overExpr: `$readInst.fields.${booksReadFieldId}.value`,
-                  as: "$bookOccId",
-                  body: [
-                    // Resolve the book occurrence from $allInstances
+                  type: "if",
+                  condition: {
+                    conjunction: "AND",
+                    rules: [
+                      { left: `$readInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                      { left: "$readInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                      { left: "$readInst.label", comparator: "IS", right: "Reading" },
+                    ],
+                  },
+                  then: [
+                    // Inner loop: iterate the booksRead array (array of occurrence IDs)
                     {
-                      type: "action", action: "FIND",
-                      cfg: {
-                        over: "$allInstances",
-                        predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$bookOccId" }] },
-                        itemVar: "$book", itemIdVar: "$bookId",
-                      },
-                    },
-                    // Push a row { label, pages } when found
-                    {
-                      type: "if",
-                      condition: { conjunction: "AND", rules: [{ left: "$bookId", comparator: "IS_NOT_EMPTY", right: "" }] },
-                      then: [
+                      type: "loop",
+                      overExpr: `$readInst.fields.${booksReadFieldId}.value`,
+                      as: "$bookOccId",
+                      body: [
+                        // Resolve the book occurrence from $allInstances
                         {
-                          type: "action", action: "PUSH_TO_ARRAY",
+                          type: "action", action: "FIND",
                           cfg: {
-                            name: "$rows",
-                            value: {
-                              label: "$book.label",
-                              pages: `$book.fields.${pagesFieldId}.value`,
-                            },
+                            over: "$allInstances",
+                            predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$bookOccId" }] },
+                            itemVar: "$book", itemIdVar: "$bookId",
                           },
                         },
+                        // Push a row { label, pages } when found
+                        {
+                          type: "if",
+                          condition: { conjunction: "AND", rules: [{ left: "$bookId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                          then: [
+                            {
+                              type: "action", action: "PUSH_TO_ARRAY",
+                              cfg: {
+                                name: "$rows",
+                                value: {
+                                  label: "$book.label",
+                                  pages: `$book.fields.${pagesFieldId}.value`,
+                                },
+                              },
+                            },
+                          ],
+                          else: [],
+                        },
                       ],
-                      else: [],
                     },
                   ],
+                  else: [],
                 },
               ],
-              else: [],
+            },
+            // 5c. Write the array of rows to the display field on the goal item.
+            {
+              type: "action", action: "UPDATE",
+              cfg: { path: `$goalItemId.fields.${booksReadDisplayFieldId}.value`, value: "$rows" },
             },
           ],
-        },
-        // 7. Write the array of rows to the display field on the goal item.
-        {
-          type: "action", action: "UPDATE",
-          cfg: { path: `$goalItemId.fields.${booksReadDisplayFieldId}.value`, value: "$rows" },
+          else: [],
         },
       ],
     },
@@ -3254,6 +3349,7 @@ export async function createLiveData(userId, options = {}) {
 
   // ── Tracker: Podcasts Listened ─────────────────────────────────────────────
   // Same pipeline shape as Tracker: Movies Watched but for podcasts.
+  // Trigger gate added to match makeTrackerOp surface.
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
     name: "Tracker: Podcasts Listened",
@@ -3285,14 +3381,12 @@ export async function createLiveData(userId, options = {}) {
           then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
           else: [],
         },
-        // 3. Resolve $goalDate from the goal item's effective filter
+        // 3. Resolve $goalDate from the goal item's effective filter (same chain as makeTrackerOp)
         {
           type: "action", action: "INIT_VAR",
           cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
         },
-        // 4. Init output accumulator
-        { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
-        // 5. Find the Schedule page (needed for HAS_ANCESTOR)
+        // 4. Find the Schedule page (needed for HAS_ANCESTOR; outside trigger gate like makeTrackerOp)
         {
           type: "action", action: "FIND",
           cfg: {
@@ -3301,61 +3395,87 @@ export async function createLiveData(userId, options = {}) {
             itemVar: "$schedPage", itemIdVar: "$schedPageId",
           },
         },
-        // 6. Loop over Listen to Podcast occurrences dated to $goalDate and under the Schedule page
+        // 5. Trigger gate — mirrors makeTrackerOp's triggerGateRules OR block.
         {
-          type: "loop",
-          overExpr: "$allInstances",
-          as: "$podcastInst",
-          body: [
+          type: "if",
+          condition: { operator: "OR", rules: [
+            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "onLoad" }] },
+            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "NavigationOp" }] },
+            { operator: "AND", rules: [
+              { left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+            ]},
+            { operator: "AND", rules: [
+              { left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+            ]},
+            { operator: "AND", rules: [
+              { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
+              { left: "$trigger.fieldId", comparator: "IS", right: podcastsListenedFieldId },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+            ]},
+          ]},
+          then: [
+            // 5a. Init output accumulator
+            { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
+            // 5b. Loop over Listen to Podcast occurrences dated to $goalDate and under the Schedule page
             {
-              type: "if",
-              condition: {
-                conjunction: "AND",
-                rules: [
-                  { left: `$podcastInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
-                  { left: "$podcastInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                  { left: "$podcastInst.label", comparator: "IS", right: "Listen to Podcast" },
-                ],
-              },
-              then: [
-                // 6a. Inner loop: iterate the podcastsListened array (array of occurrence IDs)
+              type: "loop",
+              overExpr: "$allInstances",
+              as: "$podcastInst",
+              body: [
                 {
-                  type: "loop",
-                  overExpr: `$podcastInst.fields.${podcastsListenedFieldId}.value`,
-                  as: "$podcastOccId",
-                  body: [
-                    // Resolve the podcast occurrence from $allInstances
+                  type: "if",
+                  condition: {
+                    conjunction: "AND",
+                    rules: [
+                      { left: `$podcastInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                      { left: "$podcastInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                      { left: "$podcastInst.label", comparator: "IS", right: "Listen to Podcast" },
+                    ],
+                  },
+                  then: [
+                    // Inner loop: iterate the podcastsListened array (array of occurrence IDs)
                     {
-                      type: "action", action: "FIND",
-                      cfg: {
-                        over: "$allInstances",
-                        predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$podcastOccId" }] },
-                        itemVar: "$podcast", itemIdVar: "$podcastId",
-                      },
-                    },
-                    // Append label to $output when found
-                    {
-                      type: "if",
-                      condition: { conjunction: "AND", rules: [{ left: "$podcastId", comparator: "IS_NOT_EMPTY", right: "" }] },
-                      then: [
+                      type: "loop",
+                      overExpr: `$podcastInst.fields.${podcastsListenedFieldId}.value`,
+                      as: "$podcastOccId",
+                      body: [
+                        // Resolve the podcast occurrence from $allInstances
                         {
-                          type: "action", action: "SET_VAR",
-                          cfg: { name: "$output", expr: "${$output}${$podcast.label}, " },
+                          type: "action", action: "FIND",
+                          cfg: {
+                            over: "$allInstances",
+                            predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$podcastOccId" }] },
+                            itemVar: "$podcast", itemIdVar: "$podcastId",
+                          },
+                        },
+                        // Append label to $output when found
+                        {
+                          type: "if",
+                          condition: { conjunction: "AND", rules: [{ left: "$podcastId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                          then: [
+                            {
+                              type: "action", action: "SET_VAR",
+                              cfg: { name: "$output", expr: "${$output}${$podcast.label}, " },
+                            },
+                          ],
+                          else: [],
                         },
                       ],
-                      else: [],
                     },
                   ],
+                  else: [],
                 },
               ],
-              else: [],
+            },
+            // 5c. Write the joined label string to the text display field on the goal item.
+            {
+              type: "action", action: "UPDATE",
+              cfg: { path: `$goalItemId.fields.${podcastsListenedDisplayFieldId}.value`, value: "$output" },
             },
           ],
-        },
-        // 7. Write the joined label string to the text display field on the goal item.
-        {
-          type: "action", action: "UPDATE",
-          cfg: { path: `$goalItemId.fields.${podcastsListenedDisplayFieldId}.value`, value: "$output" },
+          else: [],
         },
       ],
     },
@@ -3364,6 +3484,7 @@ export async function createLiveData(userId, options = {}) {
 
   // ── Tracker: Courses Taken ─────────────────────────────────────────────────
   // Same pipeline shape as Tracker: Movies Watched but for courses.
+  // Trigger gate added to match makeTrackerOp surface.
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
     name: "Tracker: Courses Taken",
@@ -3395,14 +3516,12 @@ export async function createLiveData(userId, options = {}) {
           then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
           else: [],
         },
-        // 3. Resolve $goalDate from the goal item's effective filter
+        // 3. Resolve $goalDate from the goal item's effective filter (same chain as makeTrackerOp)
         {
           type: "action", action: "INIT_VAR",
           cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
         },
-        // 4. Init output accumulator
-        { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
-        // 5. Find the Schedule page (needed for HAS_ANCESTOR)
+        // 4. Find the Schedule page (needed for HAS_ANCESTOR; outside trigger gate like makeTrackerOp)
         {
           type: "action", action: "FIND",
           cfg: {
@@ -3411,61 +3530,87 @@ export async function createLiveData(userId, options = {}) {
             itemVar: "$schedPage", itemIdVar: "$schedPageId",
           },
         },
-        // 6. Loop over Online Course occurrences dated to $goalDate and under the Schedule page
+        // 5. Trigger gate — mirrors makeTrackerOp's triggerGateRules OR block.
         {
-          type: "loop",
-          overExpr: "$allInstances",
-          as: "$courseInst",
-          body: [
+          type: "if",
+          condition: { operator: "OR", rules: [
+            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "onLoad" }] },
+            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "NavigationOp" }] },
+            { operator: "AND", rules: [
+              { left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+            ]},
+            { operator: "AND", rules: [
+              { left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+            ]},
+            { operator: "AND", rules: [
+              { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
+              { left: "$trigger.fieldId", comparator: "IS", right: coursesTakenFieldId },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+            ]},
+          ]},
+          then: [
+            // 5a. Init output accumulator
+            { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
+            // 5b. Loop over Online Course occurrences dated to $goalDate and under the Schedule page
             {
-              type: "if",
-              condition: {
-                conjunction: "AND",
-                rules: [
-                  { left: `$courseInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
-                  { left: "$courseInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                  { left: "$courseInst.label", comparator: "IS", right: "Online Course" },
-                ],
-              },
-              then: [
-                // 6a. Inner loop: iterate the coursesTaken array (array of occurrence IDs)
+              type: "loop",
+              overExpr: "$allInstances",
+              as: "$courseInst",
+              body: [
                 {
-                  type: "loop",
-                  overExpr: `$courseInst.fields.${coursesTakenFieldId}.value`,
-                  as: "$courseOccId",
-                  body: [
-                    // Resolve the course occurrence from $allInstances
+                  type: "if",
+                  condition: {
+                    conjunction: "AND",
+                    rules: [
+                      { left: `$courseInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                      { left: "$courseInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                      { left: "$courseInst.label", comparator: "IS", right: "Online Course" },
+                    ],
+                  },
+                  then: [
+                    // Inner loop: iterate the coursesTaken array (array of occurrence IDs)
                     {
-                      type: "action", action: "FIND",
-                      cfg: {
-                        over: "$allInstances",
-                        predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$courseOccId" }] },
-                        itemVar: "$course", itemIdVar: "$courseId",
-                      },
-                    },
-                    // Append label to $output when found
-                    {
-                      type: "if",
-                      condition: { conjunction: "AND", rules: [{ left: "$courseId", comparator: "IS_NOT_EMPTY", right: "" }] },
-                      then: [
+                      type: "loop",
+                      overExpr: `$courseInst.fields.${coursesTakenFieldId}.value`,
+                      as: "$courseOccId",
+                      body: [
+                        // Resolve the course occurrence from $allInstances
                         {
-                          type: "action", action: "SET_VAR",
-                          cfg: { name: "$output", expr: "${$output}${$course.label}, " },
+                          type: "action", action: "FIND",
+                          cfg: {
+                            over: "$allInstances",
+                            predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$courseOccId" }] },
+                            itemVar: "$course", itemIdVar: "$courseId",
+                          },
+                        },
+                        // Append label to $output when found
+                        {
+                          type: "if",
+                          condition: { conjunction: "AND", rules: [{ left: "$courseId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                          then: [
+                            {
+                              type: "action", action: "SET_VAR",
+                              cfg: { name: "$output", expr: "${$output}${$course.label}, " },
+                            },
+                          ],
+                          else: [],
                         },
                       ],
-                      else: [],
                     },
                   ],
+                  else: [],
                 },
               ],
-              else: [],
+            },
+            // 5c. Write the joined label string to the text display field on the goal item.
+            {
+              type: "action", action: "UPDATE",
+              cfg: { path: `$goalItemId.fields.${coursesTakenDisplayFieldId}.value`, value: "$output" },
             },
           ],
-        },
-        // 7. Write the joined label string to the text display field on the goal item.
-        {
-          type: "action", action: "UPDATE",
-          cfg: { path: `$goalItemId.fields.${coursesTakenDisplayFieldId}.value`, value: "$output" },
+          else: [],
         },
       ],
     },
