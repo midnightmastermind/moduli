@@ -102,10 +102,23 @@ export async function createLiveData(userId, options = {}) {
   const moviesWatchedFieldId        = uid();
   const moviesWatchedDisplayFieldId = uid();
 
+  // Books Read fields
+  const booksReadFieldId           = uid();
+  const booksReadDisplayFieldId    = uid();
+
+  // Podcasts Listened fields
+  const podcastsListenedFieldId           = uid();
+  const podcastsListenedDisplayFieldId    = uid();
+
+  // Courses Taken fields
+  const coursesTakenFieldId           = uid();
+  const coursesTakenDisplayFieldId    = uid();
+
   // Library page + container IDs (need before occurrences are created)
   const libraryPageModId  = uid();
   const libraryContModId  = uid();
-  // Pre-generate libraryContOccId so moviesWatchedFieldId addNew.parentOccurrenceId
+  // Pre-generate libraryContOccId so moviesWatchedFieldId / booksReadFieldId /
+  // podcastsListenedFieldId / coursesTakenFieldId addNew.parentOccurrenceId
   // can be patched after occurrences are minted (mirrors createTestGrid STEP 6 pattern).
   const libraryContOccId = uid();
 
@@ -118,6 +131,28 @@ export async function createLiveData(userId, options = {}) {
   const movieBladeRunner2049ModId = uid();
   const moviePrestigeModId        = uid();
   const movieTenetModId           = uid();
+
+  // 7 book module IDs
+  const bookAtomicHabitsModId      = uid();
+  const bookDeepWorkModId          = uid();
+  const bookSapiensModId           = uid();
+  const bookThinkingFastSlowModId  = uid();
+  const bookMeditationsModId       = uid();
+  const bookMansSearchModId        = uid();
+  const book4HourWorkweekModId     = uid();
+
+  // 5 podcast module IDs
+  const podcastTimFerrissModId     = uid();
+  const podcastLexFridmanModId     = uid();
+  const podcastHardcoreHistoryModId = uid();
+  const podcastHubermanLabModId    = uid();
+  const podcastConvosTylerModId    = uid();
+
+  // 4 course module IDs
+  const courseAlgorithmsModId      = uid();
+  const courseMLSpecModId          = uid();
+  const courseSystemDesignModId    = uid();
+  const courseIntroPhilosophyModId = uid();
 
   // Library folder ID
   const libraryFolderId = uid();
@@ -178,7 +213,7 @@ export async function createLiveData(userId, options = {}) {
   // POOL→TEXT conversions (type:"select" + meta.sourceType:"pool" → type:"text"):
   //   None needed after exclusions — all pool-backed selects were enrichment-exclusive
   //   and got excluded above. Remaining selects are real enum selects (mood, muscleGroup,
-  //   mealCategory, accountSelect, category, listType excluded, readingList).
+  //   mealCategory, accountSelect, category, listType excluded; readingList/podcastTitle/bookTitle/movieTitle removed — replaced by occurrence-type fields).
   //   watchlist was removed: watchMovie now uses moviesWatchedFieldId (occurrence-type, live library).
   //
   // SCHEDULE CONTROL FIELD RECONCILIATION (scaffold pre-generated ids → seed names):
@@ -402,7 +437,7 @@ export async function createLiveData(userId, options = {}) {
       type: "select",
       inputEnabled: true,
       displayEnabled: false,
-      meta: { options: ["movie", "book", "tv show"], multiSelect: false },
+      meta: { options: ["movie", "book", "tv show", "podcast", "course"], multiSelect: false },
     },
     moviesWatched: {
       id: moviesWatchedFieldId,
@@ -439,30 +474,112 @@ export async function createLiveData(userId, options = {}) {
       meta: {},
     },
 
-    // readingList: legacy broken select (options stored as {value,label} objects, resolver
-    // was producing "[object Object]" labels). NOT removed here — left for a future task
-    // that ports it to the occurrence-type pattern the same way moviesWatched was done.
-    readingList: {
-      id: uid(),
-      name: "Reading List",
-      type: "select",
+    // Books Read — occurrence-type field; options sourced from library instances with type "book".
+    booksRead: {
+      id: booksReadFieldId,
+      name: "Books Read",
+      type: "occurrence",
       inputEnabled: true,
       displayEnabled: false,
       meta: {
         multiSelect: true,
-        quickAdd: true,
-        removeOnComplete: true,
-        randomize: true,
-        options: [
-          { value: "atomic_habits",        label: "Atomic Habits" },
-          { value: "deep_work",            label: "Deep Work" },
-          { value: "thinking_fast_slow",   label: "Thinking, Fast and Slow" },
-          { value: "4_hour_workweek",      label: "The 4-Hour Workweek" },
-          { value: "mans_search",          label: "Man's Search for Meaning" },
-          { value: "meditations",          label: "Meditations" },
-          { value: "sapiens",              label: "Sapiens" },
-        ],
+        optionsSource: {
+          mode: "find",
+          over: "$allInstances",
+          predicate: {
+            conjunction: "AND",
+            rules: [
+              { left: `fields.${libraryFieldId}.value`, comparator: "IS", right: "book" },
+            ],
+          },
+          valuePath: "id",
+          labelPath: "label",
+          addNew: {
+            parentOccurrenceId: null, // patched to libraryContOccId after occurrences are created
+            stampFields: { [libraryFieldId]: { value: "book", flow: "in" } },
+          },
+        },
       },
+    },
+    booksReadDisplay: {
+      id: booksReadDisplayFieldId,
+      name: "Books Read Today",
+      type: "text",
+      inputEnabled: false,
+      displayEnabled: true,
+      meta: {},
+    },
+
+    // Podcasts Listened — occurrence-type field; options sourced from library instances with type "podcast".
+    podcastsListened: {
+      id: podcastsListenedFieldId,
+      name: "Podcasts Listened",
+      type: "occurrence",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: {
+        multiSelect: true,
+        optionsSource: {
+          mode: "find",
+          over: "$allInstances",
+          predicate: {
+            conjunction: "AND",
+            rules: [
+              { left: `fields.${libraryFieldId}.value`, comparator: "IS", right: "podcast" },
+            ],
+          },
+          valuePath: "id",
+          labelPath: "label",
+          addNew: {
+            parentOccurrenceId: null, // patched to libraryContOccId after occurrences are created
+            stampFields: { [libraryFieldId]: { value: "podcast", flow: "in" } },
+          },
+        },
+      },
+    },
+    podcastsListenedDisplay: {
+      id: podcastsListenedDisplayFieldId,
+      name: "Podcasts Listened Today",
+      type: "text",
+      inputEnabled: false,
+      displayEnabled: true,
+      meta: {},
+    },
+
+    // Courses Taken — occurrence-type field; options sourced from library instances with type "course".
+    coursesTaken: {
+      id: coursesTakenFieldId,
+      name: "Courses Taken",
+      type: "occurrence",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: {
+        multiSelect: true,
+        optionsSource: {
+          mode: "find",
+          over: "$allInstances",
+          predicate: {
+            conjunction: "AND",
+            rules: [
+              { left: `fields.${libraryFieldId}.value`, comparator: "IS", right: "course" },
+            ],
+          },
+          valuePath: "id",
+          labelPath: "label",
+          addNew: {
+            parentOccurrenceId: null, // patched to libraryContOccId after occurrences are created
+            stampFields: { [libraryFieldId]: { value: "course", flow: "in" } },
+          },
+        },
+      },
+    },
+    coursesTakenDisplay: {
+      id: coursesTakenDisplayFieldId,
+      name: "Courses Taken Today",
+      type: "text",
+      inputEnabled: false,
+      displayEnabled: true,
+      meta: {},
     },
     accountSelect: {
       id: uid(),
@@ -480,30 +597,6 @@ export async function createLiveData(userId, options = {}) {
     },
 
     // ── TEXT INPUT FIELDS ─────────────────────────────────────────────────────
-    movieTitle: {
-      id: uid(),
-      name: "Movie",
-      type: "text",
-      inputEnabled: true,
-      displayEnabled: false,
-      meta: { placeholder: "Movie title..." },
-    },
-    bookTitle: {
-      id: uid(),
-      name: "Book",
-      type: "text",
-      inputEnabled: true,
-      displayEnabled: false,
-      meta: { placeholder: "Book title..." },
-    },
-    podcastTitle: {
-      id: uid(),
-      name: "Podcast",
-      type: "text",
-      inputEnabled: true,
-      displayEnabled: false,
-      meta: { placeholder: "Podcast name..." },
-    },
     workoutType: {
       id: uid(),
       name: "Workout",
@@ -932,19 +1025,16 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "copy",
       styleMode: "own", ownStyle: { bg: "rgba(21,98,176,0.15)", textColor: "#4a9fe0" },
       fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.readingList.id, role: "input", order: 1 },
-        { fieldId: fields.duration.id, role: "input", order: 2 },
-        { fieldId: fields.pages.id, role: "input", order: 3 },
+        { fieldId: booksReadFieldId, role: "input", order: 0 },
+        { fieldId: dateFieldId,      role: "input", order: 1, hidden: true },
       ],
     },
     podcast: {
       id: uid(), label: "Listen to Podcast", kind: "list",
       defaultDragMode: "copy",
       fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.podcastTitle.id, role: "input", order: 1 },
-        { fieldId: fields.duration.id, role: "input", order: 2 },
+        { fieldId: podcastsListenedFieldId, role: "input", order: 0 },
+        { fieldId: dateFieldId,             role: "input", order: 1, hidden: true },
       ],
     },
     watchMovie: {
@@ -959,8 +1049,8 @@ export async function createLiveData(userId, options = {}) {
       id: uid(), label: "Online Course", kind: "list",
       defaultDragMode: "copy",
       fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: coursesTakenFieldId, role: "input", order: 0 },
+        { fieldId: dateFieldId,         role: "input", order: 1, hidden: true },
       ],
     },
     brainGames: {
@@ -1663,6 +1753,27 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: moviesWatchedDisplayFieldId, role: "display", order: 0 },
       ],
     },
+    booksReadGoal: {
+      id: uid(), label: "Books Read", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: booksReadDisplayFieldId, role: "display", order: 0 },
+      ],
+    },
+    podcastsListenedGoal: {
+      id: uid(), label: "Podcasts Listened", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: podcastsListenedDisplayFieldId, role: "display", order: 0 },
+      ],
+    },
+    coursesTakenGoal: {
+      id: uid(), label: "Courses Taken", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: coursesTakenDisplayFieldId, role: "display", order: 0 },
+      ],
+    },
   };
 
   // ── Account aggregation instances ────────────────────────────────────────────
@@ -1823,7 +1934,10 @@ export async function createLiveData(userId, options = {}) {
     workoutGoal:      { id: uid(), label: "Workout" },
     nutritionGoal:    { id: uid(), label: "Nutrition" },
     planningGoal:     { id: uid(), label: "Planning" },
-    moviesWatchedGoal: { id: uid(), label: "Entertainment" },
+    moviesWatchedGoal:    { id: uid(), label: "Entertainment" },
+    booksReadGoal:        { id: uid(), label: "Books Read" },
+    podcastsListenedGoal: { id: uid(), label: "Podcasts Listened" },
+    coursesTakenGoal:     { id: uid(), label: "Courses Taken" },
   };
 
   // ── Account containers (5 lifetime-aggregation categories) ───────────────────
@@ -1943,8 +2057,11 @@ export async function createLiveData(userId, options = {}) {
   const productivityAccountContOccId = uid();
   const wellnessAccountContOccId     = uid();
 
-  // Movies Watched goal container
-  const moviesWatchedGoalContOccId = uid();
+  // Movies Watched / Books Read / Podcasts Listened / Courses Taken goal containers
+  const moviesWatchedGoalContOccId  = uid();
+  const booksReadGoalContOccId      = uid();
+  const podcastsListenedGoalContOccId = uid();
+  const coursesTakenGoalContOccId   = uid();
 
   // ── Container→instance mappings (ported from createDefaultUserData) ────────
   const toolkitMappings = {
@@ -2088,7 +2205,10 @@ export async function createLiveData(userId, options = {}) {
     workoutGoal:       { contOccId: workoutGoalContOccId,       contModKey: "workoutGoal",       instKeys: ["workoutGoal"] },
     nutritionGoal:     { contOccId: nutritionGoalContOccId,     contModKey: "nutritionGoal",     instKeys: ["nutritionGoal"] },
     planningGoal:      { contOccId: planningGoalContOccId,      contModKey: "planningGoal",      instKeys: ["planningSummary"] },
-    moviesWatchedGoal: { contOccId: moviesWatchedGoalContOccId, contModKey: "moviesWatchedGoal", instKeys: ["moviesWatchedGoal"] },
+    moviesWatchedGoal:    { contOccId: moviesWatchedGoalContOccId,    contModKey: "moviesWatchedGoal",    instKeys: ["moviesWatchedGoal"] },
+    booksReadGoal:        { contOccId: booksReadGoalContOccId,        contModKey: "booksReadGoal",        instKeys: ["booksReadGoal"] },
+    podcastsListenedGoal: { contOccId: podcastsListenedGoalContOccId, contModKey: "podcastsListenedGoal", instKeys: ["podcastsListenedGoal"] },
+    coursesTakenGoal:     { contOccId: coursesTakenGoalContOccId,     contModKey: "coursesTakenGoal",     instKeys: ["coursesTakenGoal"] },
   };
 
   const goalContOccIds = {};
@@ -2129,7 +2249,7 @@ export async function createLiveData(userId, options = {}) {
     accountContOccIds[contModKey] = contOccId;
   }
 
-  // ── Library: 8 movie modules + container + page + field patch ─────────────────
+  // ── Library: movies + books + podcasts + courses modules + container + page + field patches ──
   //
   // Mirrors createTestGrid STEP 3 (movie modules), STEP 4 (libraryContModId already
   // added to containerDocs above), STEP 6 (library occurrences), STEP 8 (library page).
@@ -2156,6 +2276,50 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
   ]);
 
+  // 7 book modules
+  await Module.insertMany([
+    { id: bookAtomicHabitsModId,     userId, gridId, role: "instance", kind: "list", label: "Atomic Habits",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: bookDeepWorkModId,         userId, gridId, role: "instance", kind: "list", label: "Deep Work",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: bookSapiensModId,          userId, gridId, role: "instance", kind: "list", label: "Sapiens",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: bookThinkingFastSlowModId, userId, gridId, role: "instance", kind: "list", label: "Thinking, Fast and Slow",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: bookMeditationsModId,      userId, gridId, role: "instance", kind: "list", label: "Meditations",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: bookMansSearchModId,       userId, gridId, role: "instance", kind: "list", label: "Man's Search for Meaning",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: book4HourWorkweekModId,    userId, gridId, role: "instance", kind: "list", label: "The 4-Hour Workweek",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+  ]);
+
+  // 5 podcast modules
+  await Module.insertMany([
+    { id: podcastTimFerrissModId,      userId, gridId, role: "instance", kind: "list", label: "The Tim Ferriss Show",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: podcastLexFridmanModId,      userId, gridId, role: "instance", kind: "list", label: "Lex Fridman Podcast",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: podcastHardcoreHistoryModId, userId, gridId, role: "instance", kind: "list", label: "Hardcore History",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: podcastHubermanLabModId,     userId, gridId, role: "instance", kind: "list", label: "Huberman Lab",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: podcastConvosTylerModId,     userId, gridId, role: "instance", kind: "list", label: "Conversations with Tyler",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+  ]);
+
+  // 4 course modules
+  await Module.insertMany([
+    { id: courseAlgorithmsModId,      userId, gridId, role: "instance", kind: "list", label: "Algorithms (Coursera)",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: courseMLSpecModId,          userId, gridId, role: "instance", kind: "list", label: "Machine Learning Specialization",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: courseSystemDesignModId,    userId, gridId, role: "instance", kind: "list", label: "System Design Primer",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: courseIntroPhilosophyModId, userId, gridId, role: "instance", kind: "list", label: "Introduction to Philosophy",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+  ]);
+
   // 8 movie occurrences (parentId = libraryContOccId, library field = "movie")
   const movieInceptionOccId       = await mkOcc({ moduleId: movieInceptionModId,       parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
   const movieMatrixOccId          = await mkOcc({ moduleId: movieMatrixModId,          parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
@@ -2166,21 +2330,65 @@ export async function createLiveData(userId, options = {}) {
   const moviePrestigeOccId        = await mkOcc({ moduleId: moviePrestigeModId,        parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
   const movieTenetOccId           = await mkOcc({ moduleId: movieTenetModId,           parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
 
+  // 7 book occurrences (library field = "book")
+  const bookAtomicHabitsOccId     = await mkOcc({ moduleId: bookAtomicHabitsModId,     parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
+  const bookDeepWorkOccId         = await mkOcc({ moduleId: bookDeepWorkModId,         parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
+  const bookSapiensOccId          = await mkOcc({ moduleId: bookSapiensModId,          parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
+  const bookThinkingFastSlowOccId = await mkOcc({ moduleId: bookThinkingFastSlowModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
+  const bookMeditationsOccId      = await mkOcc({ moduleId: bookMeditationsModId,      parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
+  const bookMansSearchOccId       = await mkOcc({ moduleId: bookMansSearchModId,       parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
+  const book4HourWorkweekOccId    = await mkOcc({ moduleId: book4HourWorkweekModId,    parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
+
+  // 5 podcast occurrences (library field = "podcast")
+  const podcastTimFerrissOccId      = await mkOcc({ moduleId: podcastTimFerrissModId,      parentId: libraryContOccId, fields: { [libraryFieldId]: fv("podcast") } });
+  const podcastLexFridmanOccId      = await mkOcc({ moduleId: podcastLexFridmanModId,      parentId: libraryContOccId, fields: { [libraryFieldId]: fv("podcast") } });
+  const podcastHardcoreHistoryOccId = await mkOcc({ moduleId: podcastHardcoreHistoryModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("podcast") } });
+  const podcastHubermanLabOccId     = await mkOcc({ moduleId: podcastHubermanLabModId,     parentId: libraryContOccId, fields: { [libraryFieldId]: fv("podcast") } });
+  const podcastConvosTylerOccId     = await mkOcc({ moduleId: podcastConvosTylerModId,     parentId: libraryContOccId, fields: { [libraryFieldId]: fv("podcast") } });
+
+  // 4 course occurrences (library field = "course")
+  const courseAlgorithmsOccId      = await mkOcc({ moduleId: courseAlgorithmsModId,      parentId: libraryContOccId, fields: { [libraryFieldId]: fv("course") } });
+  const courseMLSpecOccId          = await mkOcc({ moduleId: courseMLSpecModId,          parentId: libraryContOccId, fields: { [libraryFieldId]: fv("course") } });
+  const courseSystemDesignOccId    = await mkOcc({ moduleId: courseSystemDesignModId,    parentId: libraryContOccId, fields: { [libraryFieldId]: fv("course") } });
+  const courseIntroPhilosophyOccId = await mkOcc({ moduleId: courseIntroPhilosophyModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("course") } });
+
   // Library container occurrence (libraryContOccId pre-generated at top)
   await mkOcc({
     id: libraryContOccId,
     moduleId: libraryContModId,
     occurrences: [
+      // movies
       movieInceptionOccId, movieMatrixOccId, movieArrivalOccId, movieDuneOccId,
       movieInterstellarOccId, movieBladeRunner2049OccId, moviePrestigeOccId, movieTenetOccId,
+      // books
+      bookAtomicHabitsOccId, bookDeepWorkOccId, bookSapiensOccId, bookThinkingFastSlowOccId,
+      bookMeditationsOccId, bookMansSearchOccId, book4HourWorkweekOccId,
+      // podcasts
+      podcastTimFerrissOccId, podcastLexFridmanOccId, podcastHardcoreHistoryOccId,
+      podcastHubermanLabOccId, podcastConvosTylerOccId,
+      // courses
+      courseAlgorithmsOccId, courseMLSpecOccId, courseSystemDesignOccId, courseIntroPhilosophyOccId,
     ],
     filterOverride: {},
   });
 
-  // Patch moviesWatched field's addNew.parentOccurrenceId now that libraryContOccId is real.
-  // Uses dot-notation $set to avoid nuking the rest of meta.optionsSource.
+  // Patch addNew.parentOccurrenceId for all four occurrence-type library fields
+  // now that libraryContOccId is real. Uses dot-notation $set to avoid nuking
+  // the rest of meta.optionsSource.
   await Field.findOneAndUpdate(
     { id: moviesWatchedFieldId },
+    { $set: { "meta.optionsSource.addNew.parentOccurrenceId": libraryContOccId } },
+  );
+  await Field.findOneAndUpdate(
+    { id: booksReadFieldId },
+    { $set: { "meta.optionsSource.addNew.parentOccurrenceId": libraryContOccId } },
+  );
+  await Field.findOneAndUpdate(
+    { id: podcastsListenedFieldId },
+    { $set: { "meta.optionsSource.addNew.parentOccurrenceId": libraryContOccId } },
+  );
+  await Field.findOneAndUpdate(
+    { id: coursesTakenFieldId },
     { $set: { "meta.optionsSource.addNew.parentOccurrenceId": libraryContOccId } },
   );
 
@@ -2842,6 +3050,336 @@ export async function createLiveData(userId, options = {}) {
         {
           type: "action", action: "UPDATE",
           cfg: { path: `$goalItemId.fields.${moviesWatchedDisplayFieldId}.value`, value: "$output" },
+        },
+      ],
+    },
+    enabled: true,
+  }).save();
+
+  // ── Tracker: Books Read ────────────────────────────────────────────────────
+  // Same pipeline shape as Tracker: Movies Watched but for books.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 3,
+    name: "Tracker: Books Read",
+    description: "Build a label list of books read today and update the Books Read goal display.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: booksReadFieldId, priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find the Books Read goal instance
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allInstances",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Books Read" }] },
+            itemVar: "$goalItem", itemIdVar: "$goalItemId",
+          },
+        },
+        // 2. Bail if goal not found
+        {
+          type: "if",
+          condition: { conjunction: "AND", rules: [{ left: "$goalItemId", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
+          else: [],
+        },
+        // 3. Resolve $goalDate from the goal item's effective filter
+        {
+          type: "action", action: "INIT_VAR",
+          cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+        },
+        // 4. Init output accumulator
+        { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
+        // 5. Find the Schedule page (needed for HAS_ANCESTOR)
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allPages",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Schedule" }] },
+            itemVar: "$schedPage", itemIdVar: "$schedPageId",
+          },
+        },
+        // 6. Loop over Reading occurrences dated to $goalDate and under the Schedule page
+        {
+          type: "loop",
+          overExpr: "$allInstances",
+          as: "$readInst",
+          body: [
+            {
+              type: "if",
+              condition: {
+                conjunction: "AND",
+                rules: [
+                  { left: `$readInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                  { left: "$readInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  { left: "$readInst.label", comparator: "IS", right: "Reading" },
+                ],
+              },
+              then: [
+                // 6a. Inner loop: iterate the booksRead array (array of occurrence IDs)
+                {
+                  type: "loop",
+                  overExpr: `$readInst.fields.${booksReadFieldId}.value`,
+                  as: "$bookOccId",
+                  body: [
+                    // Resolve the book occurrence from $allInstances
+                    {
+                      type: "action", action: "FIND",
+                      cfg: {
+                        over: "$allInstances",
+                        predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$bookOccId" }] },
+                        itemVar: "$book", itemIdVar: "$bookId",
+                      },
+                    },
+                    // Append label to $output when found
+                    {
+                      type: "if",
+                      condition: { conjunction: "AND", rules: [{ left: "$bookId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                      then: [
+                        {
+                          type: "action", action: "SET_VAR",
+                          cfg: { name: "$output", expr: "${$output}${$book.label}, " },
+                        },
+                      ],
+                      else: [],
+                    },
+                  ],
+                },
+              ],
+              else: [],
+            },
+          ],
+        },
+        // 7. Write the joined label string to the text display field on the goal item.
+        {
+          type: "action", action: "UPDATE",
+          cfg: { path: `$goalItemId.fields.${booksReadDisplayFieldId}.value`, value: "$output" },
+        },
+      ],
+    },
+    enabled: true,
+  }).save();
+
+  // ── Tracker: Podcasts Listened ─────────────────────────────────────────────
+  // Same pipeline shape as Tracker: Movies Watched but for podcasts.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 3,
+    name: "Tracker: Podcasts Listened",
+    description: "Build a label list of podcasts listened today and update the Podcasts Listened goal display.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: podcastsListenedFieldId, priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find the Podcasts Listened goal instance
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allInstances",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Podcasts Listened" }] },
+            itemVar: "$goalItem", itemIdVar: "$goalItemId",
+          },
+        },
+        // 2. Bail if goal not found
+        {
+          type: "if",
+          condition: { conjunction: "AND", rules: [{ left: "$goalItemId", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
+          else: [],
+        },
+        // 3. Resolve $goalDate from the goal item's effective filter
+        {
+          type: "action", action: "INIT_VAR",
+          cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+        },
+        // 4. Init output accumulator
+        { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
+        // 5. Find the Schedule page (needed for HAS_ANCESTOR)
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allPages",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Schedule" }] },
+            itemVar: "$schedPage", itemIdVar: "$schedPageId",
+          },
+        },
+        // 6. Loop over Listen to Podcast occurrences dated to $goalDate and under the Schedule page
+        {
+          type: "loop",
+          overExpr: "$allInstances",
+          as: "$podcastInst",
+          body: [
+            {
+              type: "if",
+              condition: {
+                conjunction: "AND",
+                rules: [
+                  { left: `$podcastInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                  { left: "$podcastInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  { left: "$podcastInst.label", comparator: "IS", right: "Listen to Podcast" },
+                ],
+              },
+              then: [
+                // 6a. Inner loop: iterate the podcastsListened array (array of occurrence IDs)
+                {
+                  type: "loop",
+                  overExpr: `$podcastInst.fields.${podcastsListenedFieldId}.value`,
+                  as: "$podcastOccId",
+                  body: [
+                    // Resolve the podcast occurrence from $allInstances
+                    {
+                      type: "action", action: "FIND",
+                      cfg: {
+                        over: "$allInstances",
+                        predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$podcastOccId" }] },
+                        itemVar: "$podcast", itemIdVar: "$podcastId",
+                      },
+                    },
+                    // Append label to $output when found
+                    {
+                      type: "if",
+                      condition: { conjunction: "AND", rules: [{ left: "$podcastId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                      then: [
+                        {
+                          type: "action", action: "SET_VAR",
+                          cfg: { name: "$output", expr: "${$output}${$podcast.label}, " },
+                        },
+                      ],
+                      else: [],
+                    },
+                  ],
+                },
+              ],
+              else: [],
+            },
+          ],
+        },
+        // 7. Write the joined label string to the text display field on the goal item.
+        {
+          type: "action", action: "UPDATE",
+          cfg: { path: `$goalItemId.fields.${podcastsListenedDisplayFieldId}.value`, value: "$output" },
+        },
+      ],
+    },
+    enabled: true,
+  }).save();
+
+  // ── Tracker: Courses Taken ─────────────────────────────────────────────────
+  // Same pipeline shape as Tracker: Movies Watched but for courses.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 3,
+    name: "Tracker: Courses Taken",
+    description: "Build a label list of courses taken today and update the Courses Taken goal display.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: coursesTakenFieldId, priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find the Courses Taken goal instance
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allInstances",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Courses Taken" }] },
+            itemVar: "$goalItem", itemIdVar: "$goalItemId",
+          },
+        },
+        // 2. Bail if goal not found
+        {
+          type: "if",
+          condition: { conjunction: "AND", rules: [{ left: "$goalItemId", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
+          else: [],
+        },
+        // 3. Resolve $goalDate from the goal item's effective filter
+        {
+          type: "action", action: "INIT_VAR",
+          cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+        },
+        // 4. Init output accumulator
+        { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
+        // 5. Find the Schedule page (needed for HAS_ANCESTOR)
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allPages",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Schedule" }] },
+            itemVar: "$schedPage", itemIdVar: "$schedPageId",
+          },
+        },
+        // 6. Loop over Online Course occurrences dated to $goalDate and under the Schedule page
+        {
+          type: "loop",
+          overExpr: "$allInstances",
+          as: "$courseInst",
+          body: [
+            {
+              type: "if",
+              condition: {
+                conjunction: "AND",
+                rules: [
+                  { left: `$courseInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                  { left: "$courseInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  { left: "$courseInst.label", comparator: "IS", right: "Online Course" },
+                ],
+              },
+              then: [
+                // 6a. Inner loop: iterate the coursesTaken array (array of occurrence IDs)
+                {
+                  type: "loop",
+                  overExpr: `$courseInst.fields.${coursesTakenFieldId}.value`,
+                  as: "$courseOccId",
+                  body: [
+                    // Resolve the course occurrence from $allInstances
+                    {
+                      type: "action", action: "FIND",
+                      cfg: {
+                        over: "$allInstances",
+                        predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$courseOccId" }] },
+                        itemVar: "$course", itemIdVar: "$courseId",
+                      },
+                    },
+                    // Append label to $output when found
+                    {
+                      type: "if",
+                      condition: { conjunction: "AND", rules: [{ left: "$courseId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                      then: [
+                        {
+                          type: "action", action: "SET_VAR",
+                          cfg: { name: "$output", expr: "${$output}${$course.label}, " },
+                        },
+                      ],
+                      else: [],
+                    },
+                  ],
+                },
+              ],
+              else: [],
+            },
+          ],
+        },
+        // 7. Write the joined label string to the text display field on the goal item.
+        {
+          type: "action", action: "UPDATE",
+          cfg: { path: `$goalItemId.fields.${coursesTakenDisplayFieldId}.value`, value: "$output" },
         },
       ],
     },
