@@ -11,7 +11,7 @@
 // - compact=false → full input controls (was FieldInput)
 // ============================================================
 
-import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef, useContext } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -28,6 +28,8 @@ import {
   getScaledTargetValue,
   calculateProgress,
 } from "../helpers/CalculationHelpers";
+import { createLeafInstanceInParent } from "../helpers/CommitHelpers";
+import GridActionsContext from "../GridActionsContext";
 
 // ─── FlowToggle (popover with 3 flow options) ─────────────────
 function FlowToggle({ flow = "in", onChange, compact = false, disabled = false }) {
@@ -237,6 +239,12 @@ function Field({
   const [selectOpen, setSelectOpen] = useState(false); // for full-mode select popover
   const inputRef = useRef(null);
 
+  // Context needed for occurrence add-new: create a new instance in the library container
+  const { dispatch, socket, gridId, userId, occurrencesById } = useContext(GridActionsContext);
+
+  // occurrenceAddNewCfg is derived from field meta — stable reference, safe to compute here.
+  const occurrenceAddNewCfg = field?.type === "occurrence" && meta?.multiSelect ? meta?.optionsSource?.addNew : null;
+
   useEffect(() => {
     if (!isClickEditing) setLocalValue(resolveInputVal(value));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -255,6 +263,38 @@ function Field({
     setLocalValue(newVal);
     onChange?.(newVal);
   }, [onChange, field?.type]);
+
+  // Build the occurrence add-new handler AFTER handleChange so we can close over it.
+  // MultiSelectWithAdd calls onAddOption({ value: slug, label }) AND then immediately
+  // calls onChange([...selected, slug]) with the slug. We capture localValue BEFORE
+  // the onChange fires, then call handleChange again with the real occurrence ID to
+  // overwrite the intermediate slug state.
+  const handleOccurrenceAddNew = useCallback(({ label: newLabel } = {}) => {
+    if (!occurrenceAddNewCfg || !newLabel?.trim()) return;
+    const { parentOccurrenceId, stampFields = {} } = occurrenceAddNewCfg;
+    const parentOcc = occurrencesById?.[parentOccurrenceId];
+    if (!parentOcc) return;
+
+    // Capture current selections BEFORE the slug write that MultiSelectWithAdd fires after us.
+    const currentVal = Array.isArray(localValue) ? localValue : localValue ? [localValue] : [];
+
+    const result = createLeafInstanceInParent({
+      dispatch, socket, gridId, userId,
+      parentOccurrence: parentOcc,
+      label: newLabel.trim(),
+      initialFields: stampFields,
+    });
+    if (!result) return;
+
+    // Overwrite the slug with the real occurrence ID via a microtask so it fires after
+    // MultiSelectWithAdd's own onChange([...selected, slug]) in the same event flush.
+    const newSelected = [...currentVal, result.occurrenceId];
+    Promise.resolve().then(() => {
+      handleChange(newSelected);
+      onCommit?.(newSelected);
+    });
+  }, [occurrenceAddNewCfg, occurrencesById, localValue, dispatch, socket, gridId, userId, handleChange, onCommit]);
+
   const handleCommit = useCallback(() => {
     setIsClickEditing(false);
     let val = localValue;
@@ -483,10 +523,12 @@ function Field({
       const isMulti = meta?.multiSelect === true;
       if (isMulti) {
         const selectedValues = Array.isArray(localValue) ? localValue : localValue ? [localValue] : [];
+        // When addNew is configured, wire handleOccurrenceAddNew (accepts { value, label } from MultiSelectWithAdd).
+        const occAddNew = occurrenceAddNewCfg ? handleOccurrenceAddNew : null;
         return (
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
-            onAddOption={null} disabled={disabled} compact={compact}
+            onAddOption={occAddNew} disabled={disabled} compact={compact}
             showLabel={showLabel} randomize={false} />
         );
       }
@@ -780,10 +822,11 @@ function Field({
       const isMulti = meta?.multiSelect === true;
       if (isMulti) {
         const selectedValues = Array.isArray(localValue) ? localValue : localValue ? [localValue] : [];
+        const occAddNew = occurrenceAddNewCfg ? handleOccurrenceAddNew : null;
         return (
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
-            onAddOption={null} disabled={disabled} compact={compact}
+            onAddOption={occAddNew} disabled={disabled} compact={compact}
             showLabel={showLabel} randomize={false} />
         );
       }

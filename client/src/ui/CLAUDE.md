@@ -2,6 +2,9 @@
 
 _Updated: 2026-05-17. Check this file before re-reading source._
 
+## Recent Changes (2026-05-17 — Occurrence multi-select add-new wiring)
+- **`Field.jsx`**: Added `createLeafInstanceInParent` import from CommitHelpers + `GridActionsContext` import. Inside `Field`, reads `{ dispatch, socket, gridId, userId, occurrencesById }` from context. Derives `occurrenceAddNewCfg` from `field.meta.optionsSource.addNew` (only for occurrence+multiSelect fields). New `handleOccurrenceAddNew({ label })` `useCallback` (declared AFTER `handleChange` to avoid TDZ): resolves parent occurrence from `occurrencesById[addNew.parentOccurrenceId]`, calls `createLeafInstanceInParent` with `addNew.stampFields`, then uses `Promise.resolve().then(...)` to overwrite the intermediate slug that `MultiSelectWithAdd` pushes synchronously. Both compact and non-compact occurrence multi-select paths pass `occAddNew = occurrenceAddNewCfg ? handleOccurrenceAddNew : null` to `onAddOption`.
+
 ## Recent Changes (2026-05-17 — Select options source refactor + occurrence field type)
 - **`commandCenter/SelectOptionsSourceEditor.jsx` (NEW)**: three-mode editor (Manual / Range / Find) written into `field.meta.optionsSource`. Find mode wires `CategoryPathPicker` (collection + path + value/label/sort paths), `ConditionGroup` (predicate), and a live preview via `resolveOptions`. Used by both select and occurrence field types via `FieldsTab.jsx`'s `["select", "occurrence"].includes(local.type)` conditional.
 - **`Field.jsx`**: all `meta.options` reads swapped to `meta._resolvedOptions` (Task 6). Non-compact select branch rewritten from Radix `<Select>` to `<Popover>` to host the search-when-many input (Task 12 — Radix Select doesn't accept a custom input child cleanly). Compact + non-compact occurrence branches added, with `meta.multiSelect: true` support (uses `MultiSelectWithAdd`). The `formattedValue` switch handles array values for occurrence.

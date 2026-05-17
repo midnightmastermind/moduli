@@ -2,6 +2,17 @@
 
 _Updated: 2026-05-17. Check this file before re-reading source._
 
+## Recent Changes (2026-05-17 — Library page + Watch Movie + Movies Watched tracker)
+- **`scripts/createTestGrid.js`**: Added:
+  - **New fields**: `libraryFieldId` (select, options:["movie","book","tv show"]), `moviesWatchedFieldId` (occurrence, multiSelect:true, optionsSource.find with addNew pointing to libraryContOccId), `moviesWatchedDisplayFieldId` (text, display), `totalMoviesWatchedDisplayFieldId` (number, display, target 2/day).
+  - **Library page**: `libraryPageModId` page module (`role:"page" kind:"board"`), pinned to new `libraryFolderId` folder under Root tree (no grid panel — grid is fully occupied 2×3). Page occurrence has `filterOverride:{}` + `filterNavConfig filter_daily visible:false`.
+  - **Library container + 8 movies**: `libraryContModId` + `libraryContOccId` holding Inception / The Matrix / Arrival / Dune / Interstellar / Blade Runner 2049 / The Prestige / Tenet. Each movie occurrence has `libraryFieldId: {value:"movie"}`.
+  - **Watch Movie task**: `watchMovieModId` in Daily Toolkit's physContOccId. Bindings: `moviesWatchedFieldId` (input) + `dateFieldId` (hidden).
+  - **Movies Watched goal instance**: `moviesWatchedGoalModId` in physGoalContOccId alongside Water + Tasks goals.
+  - **Field patch**: After occurrences are created, `Field.findOneAndUpdate` patches `meta.optionsSource.addNew.parentOccurrenceId` to `libraryContOccId` (can't set at insertMany time — occurrence IDs aren't minted yet when fields are seeded).
+  - **Tracker: Movies Watched operation**: Custom pipeline (not makeTrackerOp). FINDs "Movie Progress" goal → resolves `$goalDate` → FINDs Schedule page → LOOPs over `$allInstances` for Watch Movie occurrences dated `$goalDate` → inner LOOP over `fields[moviesWatchedFieldId].value` array (occurrence IDs) → resolves each movie occurrence → ADDs to count → UPDATEs `totalMoviesWatchedDisplayFieldId` on the goal item. Trigger surface mirrors Water+Tasks (onChange/onAdd/onDelete/onFilterChange ancestorLabel:"Daily Goals"/onLoad).
+- **Re-seed required**: `node --env-file=.env scripts/createTestGrid.js`.
+
 ## Recent Changes (2026-05-17 — Field type enum: module → occurrence)
 - **`models/Field.js`**: type enum drops `"module"`, adds `"occurrence"`. Migration runs lazily client-side at `full_state` ingestion (see `client/src/state/migrateFieldOptionsSource.js`).
 

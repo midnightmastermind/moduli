@@ -2,6 +2,9 @@
 
 _Updated: 2026-05-17. Check this file before re-reading source._
 
+## Recent Changes (2026-05-17 — createLeafInstanceInParent helper)
+- **`CommitHelpers.js`**: New exported function `createLeafInstanceInParent({ dispatch, socket, gridId, userId, parentOccurrence, label, initialFields })`. Creates a `role:"instance" kind:"list"` module + occurrence with optional `initialFields`, optimistically dispatches both, emits `create_module` + `create_occurrence`, then appends the new occurrence ID to `parentOccurrence.occurrences[]`. Returns `{ moduleId, occurrenceId }`. Follows `createTextblockInContainer` pattern. Used by `Field.jsx` for occurrence-field add-new.
+
 ## Recent Changes (2026-05-17 — optionsResolver)
 - **`optionsResolver.js` (NEW)**: `resolveOptions(field, ctx) → { options: Array<{value, label}>, totalMatched: number }`. Branches on `field.meta.optionsSource.mode`: manual (literal values), range (start/end/step expansion), find (collection walk + predicate filter via `evalGroupAgainstRecord` + `valuePath`/`labelPath` extraction via `resolveRecordPath` + dedupe/sort/limit). Used by `FieldRenderer.jsx` (stamps `meta._resolvedOptions` for runtime), by `SelectOptionsSourceEditor`'s live preview, and by `FilterNavWidgets.derivedOptionsForFilter` (now accepts a `ctx` param).
 

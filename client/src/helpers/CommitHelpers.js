@@ -706,6 +706,47 @@ export function createTextblockInContainer({
   return { moduleId, occurrenceId };
 }
 
+// Creates a role:"instance" module + occurrence with optional initialFields,
+// appends it to a parent occurrence's occurrences[].
+// Follows createTextblockInContainer pattern — optimistic dispatch + socket emits.
+// Returns { moduleId, occurrenceId } synchronously (IDs are pre-minted).
+export function createLeafInstanceInParent({
+  dispatch, socket, gridId, userId, parentOccurrence, label = "", initialFields = {},
+}) {
+  if (!gridId || !userId || !parentOccurrence) return null;
+  const moduleId = crypto?.randomUUID?.() || `li-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const occurrenceId = crypto?.randomUUID?.() || `lo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const module = {
+    id: moduleId, userId, gridId,
+    role: "instance", kind: "list",
+    label: label || "",
+  };
+  const occurrence = {
+    id: occurrenceId, userId, gridId,
+    moduleId,
+    parentId: parentOccurrence.id,
+    fields: initialFields,
+  };
+
+  dispatch?.(createModuleAction(module));
+  dispatch?.(createOccurrenceAction(occurrence));
+  safeEmit(socket, "create_module", { module });
+  safeEmit(socket, "create_occurrence", { occurrence });
+
+  // Append to parent's occurrences[].
+  updateOccurrence({
+    dispatch, socket,
+    occurrence: {
+      id: parentOccurrence.id,
+      occurrences: [...(parentOccurrence.occurrences || []), occurrenceId],
+    },
+    emit: true,
+  });
+
+  return { moduleId, occurrenceId };
+}
+
 export async function uploadFile({ file, userId, gridId, dispatch }) {
   const formData = new FormData();
   formData.append("file", file);

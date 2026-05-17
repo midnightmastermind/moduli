@@ -118,6 +118,10 @@ export async function createTestGrid(userId, options = {}) {
   const dueFieldId = uid();
   const totalWaterFieldId = uid();
   const totalTasksCompletedFieldId = uid();
+  const libraryFieldId = uid();
+  const moviesWatchedFieldId = uid();
+  const moviesWatchedDisplayFieldId = uid();
+  const totalMoviesWatchedDisplayFieldId = uid();
 
   const toolkitPanelId = uid();
   const goalsPanelId   = uid();
@@ -145,6 +149,20 @@ export async function createTestGrid(userId, options = {}) {
   const todoEmailModId      = uid();
   const canvasNoteAModId    = uid();
   const canvasNoteBModId    = uid();
+  const watchMovieModId     = uid();
+  const moviesWatchedGoalModId = uid();
+
+  // Library page + container + 8 movie modules
+  const libraryPageModId    = uid();
+  const libraryContModId    = uid();
+  const movieInceptionModId    = uid();
+  const movieMatrixModId       = uid();
+  const movieArrivalModId      = uid();
+  const movieDuneModId         = uid();
+  const movieInterstellarModId = uid();
+  const movieBladeRunner2049ModId = uid();
+  const moviePrestigeModId     = uid();
+  const movieTenetModId        = uid();
 
   const centerHubViewId = uid();
   const manifestId      = uid();
@@ -154,6 +172,7 @@ export async function createTestGrid(userId, options = {}) {
   const tasksFolderId    = uid();
   const trackersFolderId = uid();
   const interfacesFolderId = uid();
+  const libraryFolderId  = uid();
 
   // ── STEP 1: Grid ────────────────────────────────────────────────────────────
   const schedFilterId = uid();
@@ -183,6 +202,37 @@ export async function createTestGrid(userId, options = {}) {
       displayConfig: { showArrows: true, arrowColor: "green", targetValue: 64, targetPeriod: "daily" }, meta: { postfix: " oz" } },
     { id: totalTasksCompletedFieldId, userId, gridId, name: "Tasks Completed", type: "number", inputEnabled: false, displayEnabled: true,
       displayConfig: { showArrows: true, arrowColor: "green", targetValue: 6, targetPeriod: "daily" }, meta: {} },
+    // Library / Movies Watched fields
+    { id: libraryFieldId, userId, gridId, name: "Library", type: "select",
+      inputEnabled: true, displayEnabled: false,
+      meta: { options: ["movie", "book", "tv show"], multiSelect: false } },
+    { id: moviesWatchedFieldId, userId, gridId, name: "Movies Watched", type: "occurrence",
+      inputEnabled: true, displayEnabled: false,
+      meta: {
+        multiSelect: true,
+        optionsSource: {
+          mode: "find",
+          over: "$allInstances",
+          predicate: {
+            conjunction: "AND",
+            rules: [
+              { left: `fields.${libraryFieldId}.value`, comparator: "IS", right: "movie" },
+            ],
+          },
+          valuePath: "id",
+          labelPath: "label",
+          addNew: {
+            parentOccurrenceId: null, // set after libraryContOccId is created
+            stampFields: { [libraryFieldId]: { value: "movie", flow: "in" } },
+          },
+        },
+      },
+    },
+    { id: moviesWatchedDisplayFieldId, userId, gridId, name: "Movies Watched Today", type: "text",
+      inputEnabled: false, displayEnabled: true, meta: {} },
+    { id: totalMoviesWatchedDisplayFieldId, userId, gridId, name: "Movies Watched (Count)", type: "number",
+      inputEnabled: false, displayEnabled: true,
+      displayConfig: { showArrows: true, arrowColor: "green", targetValue: 2, targetPeriod: "daily" }, meta: {} },
   ]);
 
   // ── STEP 3: Instance modules ────────────────────────────────────────────────
@@ -317,6 +367,40 @@ export async function createTestGrid(userId, options = {}) {
         { fieldId: dateFieldId,      role: "input", order: 1, hidden: true },
       ],
     },
+    // Watch Movie — toolkit task that records which movies were watched today
+    {
+      id: watchMovieModId, userId, gridId, role: "instance", kind: "list", label: "Watch Movie",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: moviesWatchedFieldId, role: "input", order: 0 },
+        { fieldId: dateFieldId,          role: "input", order: 1, hidden: true },
+      ],
+    },
+    // Movies Watched goal instance
+    {
+      id: moviesWatchedGoalModId, userId, gridId, role: "instance", kind: "list", label: "Movie Progress",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: totalMoviesWatchedDisplayFieldId, role: "display", order: 0 },
+      ],
+    },
+    // Library movie modules — 8 films
+    { id: movieInceptionModId,       userId, gridId, role: "instance", kind: "list", label: "Inception",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: movieMatrixModId,          userId, gridId, role: "instance", kind: "list", label: "The Matrix",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: movieArrivalModId,         userId, gridId, role: "instance", kind: "list", label: "Arrival",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: movieDuneModId,            userId, gridId, role: "instance", kind: "list", label: "Dune",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: movieInterstellarModId,    userId, gridId, role: "instance", kind: "list", label: "Interstellar",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: movieBladeRunner2049ModId, userId, gridId, role: "instance", kind: "list", label: "Blade Runner 2049",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: moviePrestigeModId,        userId, gridId, role: "instance", kind: "list", label: "The Prestige",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+    { id: movieTenetModId,           userId, gridId, role: "instance", kind: "list", label: "Tenet",
+      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
   ]);
 
   // ── STEP 4: Container modules ───────────────────────────────────────────────
@@ -333,6 +417,8 @@ export async function createTestGrid(userId, options = {}) {
     { id: physicalGoalContId, userId, gridId, role: "container", kind: "list", label: "Physical", styleMode: "own", ownStyle: { bg: "#b44a1a" } },
     { id: todoGeneralContId,  userId, gridId, role: "container", kind: "list", label: "General",
       defaultDragMode: "move", meta: { todoListContainer: true } },
+    { id: libraryContModId,   userId, gridId, role: "container", kind: "list", label: "Library",
+      defaultDragMode: "move" },
     ...timeSlots.map(slot => {
       const key = `slot_${slot.hour}_${slot.minute}`;
       return {
@@ -377,6 +463,7 @@ export async function createTestGrid(userId, options = {}) {
   const physContOccId = uid();
   const physGoalContOccId = uid();
   const todoContOccId = uid();
+  const libraryContOccId = uid();
 
   // Toolkit Physical container instances
   const drinkWaterOccId = await mkOcc({
@@ -404,6 +491,10 @@ export async function createTestGrid(userId, options = {}) {
     moduleId: goToGymModId,
     parentId: physContOccId, fields: {},
   });
+  const watchMovieOccId = await mkOcc({
+    moduleId: watchMovieModId,
+    parentId: physContOccId, fields: {},
+  });
 
   // Goals container instances — goals are persistent (no date field), so they
   // remain visible regardless of the active filter date.
@@ -416,17 +507,47 @@ export async function createTestGrid(userId, options = {}) {
     moduleId: tasksGoalModId,
     parentId: physGoalContOccId, fields: {},
   });
+  const moviesWatchedGoalOccId = await mkOcc({
+    moduleId: moviesWatchedGoalModId,
+    parentId: physGoalContOccId, fields: {},
+  });
 
   await mkOcc({
     id: physContOccId,
     moduleId: physicalContId,
-    occurrences: [drinkWaterOccId, morningRunOccId, vitaminsOccId, stretchOccId, takeMedicationOccId, goToGymOccId],
+    occurrences: [drinkWaterOccId, morningRunOccId, vitaminsOccId, stretchOccId, takeMedicationOccId, goToGymOccId, watchMovieOccId],
     filterOverride: {}
   });
   await mkOcc({
     id: physGoalContOccId,
     moduleId: physicalGoalContId,
-    occurrences: [waterGoalOccId, tasksGoalOccId],
+    occurrences: [waterGoalOccId, tasksGoalOccId, moviesWatchedGoalOccId],
+  });
+
+  // Now that libraryContOccId is known, patch the moviesWatched field's addNew.parentOccurrenceId.
+  // We can't set it at Field.insertMany time because the occurrence IDs aren't minted yet at that
+  // point (fields are seeded before occurrences). Using dot-notation $set here avoids nuking the
+  // rest of meta.optionsSource.
+  await Field.findOneAndUpdate(
+    { id: moviesWatchedFieldId },
+    { $set: { "meta.optionsSource.addNew.parentOccurrenceId": libraryContOccId } },
+  );
+
+  // Library — 8 movie instances (no date filter; persistent reference library)
+  const movieInceptionOccId    = await mkOcc({ moduleId: movieInceptionModId,       parentId: libraryContOccId, fields: { [libraryFieldId]: { value: "movie", flow: "in", timestamp: new Date() } } });
+  const movieMatrixOccId       = await mkOcc({ moduleId: movieMatrixModId,          parentId: libraryContOccId, fields: { [libraryFieldId]: { value: "movie", flow: "in", timestamp: new Date() } } });
+  const movieArrivalOccId      = await mkOcc({ moduleId: movieArrivalModId,         parentId: libraryContOccId, fields: { [libraryFieldId]: { value: "movie", flow: "in", timestamp: new Date() } } });
+  const movieDuneOccId         = await mkOcc({ moduleId: movieDuneModId,            parentId: libraryContOccId, fields: { [libraryFieldId]: { value: "movie", flow: "in", timestamp: new Date() } } });
+  const movieInterstellarOccId = await mkOcc({ moduleId: movieInterstellarModId,    parentId: libraryContOccId, fields: { [libraryFieldId]: { value: "movie", flow: "in", timestamp: new Date() } } });
+  const movieBladeRunner2049OccId = await mkOcc({ moduleId: movieBladeRunner2049ModId, parentId: libraryContOccId, fields: { [libraryFieldId]: { value: "movie", flow: "in", timestamp: new Date() } } });
+  const moviePrestigeOccId     = await mkOcc({ moduleId: moviePrestigeModId,        parentId: libraryContOccId, fields: { [libraryFieldId]: { value: "movie", flow: "in", timestamp: new Date() } } });
+  const movieTenetOccId        = await mkOcc({ moduleId: movieTenetModId,           parentId: libraryContOccId, fields: { [libraryFieldId]: { value: "movie", flow: "in", timestamp: new Date() } } });
+
+  await mkOcc({
+    id: libraryContOccId,
+    moduleId: libraryContModId,
+    occurrences: [movieInceptionOccId, movieMatrixOccId, movieArrivalOccId, movieDuneOccId, movieInterstellarOccId, movieBladeRunner2049OccId, moviePrestigeOccId, movieTenetOccId],
+    filterOverride: {},
   });
 
   // Todo instances
@@ -483,6 +604,8 @@ export async function createTestGrid(userId, options = {}) {
   await new Folder({ id: notesFolderId, userId, gridId, parentId: rootFolderId, name: "Notes", folderType: "normal", sortOrder: 3, isExpanded: true }).save();
   // Day Pages folder — the "Day Page: Build" op drops one doc page per date here.
   await new Folder({ id: dayPagesFolderId, userId, gridId, parentId: rootFolderId, name: "Day Pages", folderType: "day-pages", sortOrder: 4, isExpanded: true }).save();
+  // Library folder — reference library for movies, books, TV shows, etc.
+  await new Folder({ id: libraryFolderId, userId, gridId, parentId: rootFolderId, name: "Library", folderType: "normal", sortOrder: 5, isExpanded: true }).save();
 
   // ── STEP 7b: Templates manifest + Daily Routine + Day Page templates ────────
   // Delegated to liveSystemBuilders (faithful extraction of the prior inline
@@ -585,6 +708,22 @@ export async function createTestGrid(userId, options = {}) {
     filterNavConfig: { filter_daily: { visible: false } },
   });
 
+  // Library page — pinned to manifest Library folder only; no grid panel (grid is fully occupied).
+  // filterOverride:{} so the library is always visible regardless of the active date filter.
+  const libraryPageOccId = uid();
+  await new Module({ id: libraryPageModId, userId, gridId, role: "page", kind: "board", label: "Library" }).save();
+  await mkOcc({
+    id: libraryPageOccId,
+    moduleId: libraryPageModId,
+    parentId: libraryFolderId,
+    sortOrder: 0,
+    occurrences: [libraryContOccId],
+    iteration: { mode: "persistent" },
+    fields: {},
+    filterOverride: {},
+    filterNavConfig: { filter_daily: { visible: false } },
+  });
+
   await new View({ id: centerHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: schedPageOccId }).save();
 
   // ── STEP 9: Panel occurrences (grid placements) ─────────────────────────────
@@ -640,6 +779,129 @@ export async function createTestGrid(userId, options = {}) {
     completedFieldId, dateFieldId,
     agg: "countTrue", timeFilter: "daily",
   })).save();
+
+  // Tracker: Movies Watched — custom string-building pipeline (not makeTrackerOp which is numeric only).
+  // Trigger surface mirrors BOTH Water Today AND Tasks Completed Today so it fires on the same events.
+  // Pipeline: FIND the "Movie Progress" goal instance → determine $goalDate → FIND the Watch Movie
+  // occurrence(s) for that date → LOOP over each occurrence's moviesWatched array → LOOP over library
+  // instances → build a comma-joined label string → UPDATE the display field + count field.
+  await new Operation({
+    userId, gridId, priority: 3,
+    name: "Tracker: Movies Watched",
+    description: "Build a label list of movies watched today and update the Movie Progress goal display.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",      subjectType: "field",     targetId: moviesWatchedFieldId, priority: 3 },
+      { eventType: "onAdd",         subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onDelete",      subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onFilterChange",subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
+      { eventType: "onLoad",        subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find the Movie Progress goal instance
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allInstances",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Movie Progress" }] },
+            itemVar: "$goalItem", itemIdVar: "$goalItemId",
+          },
+        },
+        // 2. Bail if goal not found
+        {
+          type: "if",
+          condition: { conjunction: "AND", rules: [{ left: "$goalItemId", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
+          else: [],
+        },
+        // 3. Resolve $goalDate from the goal item's effective filter
+        {
+          type: "action", action: "INIT_VAR",
+          cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+        },
+        // 4. Init accumulators
+        { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
+        { type: "action", action: "INIT_VAR", cfg: { name: "$count",  expr: "literal:0"  } },
+        // 5. Find the Schedule page (needed for HAS_ANCESTOR)
+        {
+          type: "action", action: "FIND",
+          cfg: {
+            over: "$allPages",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Schedule" }] },
+            itemVar: "$schedPage", itemIdVar: "$schedPageId",
+          },
+        },
+        // 6. Loop over Watch Movie occurrences that are dated to $goalDate and under the Schedule page
+        {
+          type: "loop",
+          overExpr: "$allInstances",
+          as: "$watchInst",
+          body: [
+            // Only process Watch Movie instances (by template module id)
+            {
+              type: "if",
+              condition: {
+                conjunction: "AND",
+                rules: [
+                  { left: `$watchInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                  { left: "$watchInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  { left: "$watchInst.label", comparator: "IS", right: "Watch Movie" },
+                ],
+              },
+              then: [
+                // 6a. Inner loop: iterate the moviesWatched array (array of occurrence IDs)
+                {
+                  type: "loop",
+                  overExpr: `$watchInst.fields.${moviesWatchedFieldId}.value`,
+                  as: "$movieOccId",
+                  body: [
+                    // Resolve the movie occurrence from $allInstances
+                    {
+                      type: "action", action: "FIND",
+                      cfg: {
+                        over: "$allInstances",
+                        predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$movieOccId" }] },
+                        itemVar: "$movie", itemIdVar: "$movieId",
+                      },
+                    },
+                    // Append label to $output when found
+                    {
+                      type: "if",
+                      condition: { conjunction: "AND", rules: [{ left: "$movieId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                      then: [
+                        {
+                          type: "action", action: "SET_VAR",
+                          cfg: { name: "$output", expr: "${$output}${$movie.label}, " },
+                        },
+                        {
+                          type: "action", action: "SET_VAR",
+                          cfg: { name: "$count", expr: "${$count}" }, // placeholder; real increment below
+                        },
+                        // Increment count (ADD_TO_VAR adds numerically)
+                        { type: "action", action: "ADD_TO_VAR", cfg: { name: "$count", amount: 1 } },
+                      ],
+                      else: [],
+                    },
+                  ],
+                },
+              ],
+              else: [],
+            },
+          ],
+        },
+        // 7. Strip trailing ", " from the label list
+        // (resolveExpr template strings; trim is applied server-side — keep it simple with a conditional)
+        // Write the string display field and the count field to the goal item
+        {
+          type: "action", action: "UPDATE",
+          cfg: { path: `$goalItemId.fields.${totalMoviesWatchedDisplayFieldId}.value`, value: "$count" },
+        },
+      ],
+    },
+    enabled: true,
+  }).save();
 
   // ── Schedule + Day-Page operations (delegated to liveSystemBuilders) ──────
   // Each factory is a faithful step-for-step extraction of the prior inline
