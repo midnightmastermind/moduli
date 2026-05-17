@@ -699,6 +699,21 @@ export function copyInstanceToContainer({
 }
 
 /**
+ * Resolve the linkedGroupId for a copylink/fill operation and tag the source.
+ * tagFn(sourceOccurrenceId, linkedGroupId) is called only when the source
+ * exists but had no group yet. Returns { linkedGroupId }.
+ */
+export function assignLinkedGroup(sourceOccurrence, tagFn) {
+  const sourceId = sourceOccurrence?.id || null;
+  const existing = sourceOccurrence?.linkedGroupId || null;
+  const linkedGroupId = existing || sourceId || uid();
+  if (sourceId && !existing && typeof tagFn === "function") {
+    tagFn(sourceId, linkedGroupId);
+  }
+  return { linkedGroupId };
+}
+
+/**
  * Creates a linked (copylink) occurrence for an instance in a container.
  * Linked occurrences share field values — editing one propagates to all
  * occurrences in the same linkedGroupId.
@@ -723,8 +738,14 @@ export function copylinkInstanceToContainer({
   const occurrenceId = uid();
   const dateValue = iterationValue || new Date();
 
-  // Determine linkedGroupId: use source's group, or the source occurrence ID itself
-  const linkedGroupId = sourceOccurrence?.linkedGroupId || sourceOccurrenceId || uid();
+  const { linkedGroupId } = assignLinkedGroup(sourceOccurrence, (sourceId, groupId) => {
+    CommitHelpers.updateOccurrence({
+      dispatch,
+      socket,
+      occurrence: { id: sourceId, linkedGroupId: groupId },
+      emit,
+    });
+  });
 
   // Copy field values from source occurrence
   let copiedFields = {};
@@ -752,16 +773,6 @@ export function copylinkInstanceToContainer({
     parentId: toContainer._occurrence?.id || null,
     ...(initialMeta ? { meta: initialMeta } : {}),
   };
-
-  // Also tag the source occurrence with the same linkedGroupId if it doesn't have one
-  if (sourceOccurrenceId && !sourceOccurrence?.linkedGroupId) {
-    CommitHelpers.updateOccurrence({
-      dispatch,
-      socket,
-      occurrence: { id: sourceOccurrenceId, linkedGroupId },
-      emit,
-    });
-  }
 
   CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit });
 
