@@ -30,7 +30,7 @@ function formatDate(isoDate) {
 }
 
 export default function FilterNavControl({ filter, navValue, dispatch }) {
-  const { fieldsById } = useContext(GridActionsContext);
+  const { fieldsById, occurrencesById, modulesById, foldersById } = useContext(GridActionsContext);
   const field = filter?.fieldId ? fieldsById?.[filter.fieldId] : null;
   const fieldType = field?.type || "text";
 
@@ -61,7 +61,7 @@ export default function FilterNavControl({ filter, navValue, dispatch }) {
   }
 
   if (fieldType === "select") {
-    const options = resolveOptions(field, {}).options.map(o => o.value);
+    const options = resolveOptions(field, { occurrencesById, modulesById, fieldsById, foldersById }).options.map(o => o.value);
     const current = Array.isArray(navValue) ? navValue : (navValue ? [navValue] : []);
     const toggle = (opt) => {
       const next = current.includes(opt)

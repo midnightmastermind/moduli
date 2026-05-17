@@ -86,7 +86,7 @@ function resolveFilterDisplayValue({ own, inherited, fieldType }) {
 
 export default function FiltersSection({ occurrence }) {
   const ctx = useContext(GridActionsContext);
-  const { dispatch, socket, fieldsById, occurrencesById, modulesById, state } = ctx;
+  const { dispatch, socket, fieldsById, occurrencesById, modulesById, foldersById, state } = ctx;
   const grid = state?.grid;
   const filters = grid?.namedFilters || [];
   const activeFilter = filters.find(f => f.id === grid?.activeFilterId);
@@ -429,6 +429,9 @@ export default function FiltersSection({ occurrence }) {
                   navConfig={cfg}
                   value={value}
                   fieldsById={fieldsById}
+                  occurrencesById={occurrencesById}
+                  modulesById={modulesById}
+                  foldersById={foldersById}
                   dispatch={dispatch}
                   onNav={handleNav}
                 />

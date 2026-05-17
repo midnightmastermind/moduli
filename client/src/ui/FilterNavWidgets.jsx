@@ -126,9 +126,10 @@ function InputWidget({ filter, value, dispatch, onNav }) {
   );
 }
 
-export default function FilterNavWidget({ filter, navConfig, value, fieldsById, dispatch, onNav }) {
+export default function FilterNavWidget({ filter, navConfig, value, fieldsById, occurrencesById, modulesById, foldersById, dispatch, onNav }) {
   const style = navConfig?.style || defaultStyleForFilter(filter, fieldsById);
-  const options = navConfig?.options || derivedOptionsForFilter(filter, fieldsById);
+  const ctx = { occurrencesById, modulesById, foldersById };
+  const options = navConfig?.options || derivedOptionsForFilter(filter, fieldsById, ctx);
   if (style === "arrows") return <ArrowsWidget filter={filter} value={value} dispatch={dispatch} onNav={onNav} />;
   if (style === "pills" || style === "custom") return <PillsWidget filter={filter} value={value} options={options} dispatch={dispatch} onNav={onNav} />;
   if (style === "select") return <SelectWidget filter={filter} value={value} options={options} dispatch={dispatch} onNav={onNav} />;
@@ -145,9 +146,9 @@ export function defaultStyleForFilter(filter, fieldsById) {
   return "input";
 }
 
-export function derivedOptionsForFilter(filter, fieldsById) {
+export function derivedOptionsForFilter(filter, fieldsById, ctx = {}) {
   const fld = filter?.primaryDateFieldId ? fieldsById?.[filter.primaryDateFieldId] : null;
   if (fld?.type === "boolean") return [true, false];
-  if (fld?.type === "select") return resolveOptions(fld, {}).options.map(o => o.value);
+  if (fld?.type === "select") return resolveOptions(fld, { fieldsById, ...ctx }).options.map(o => o.value);
   return [];
 }

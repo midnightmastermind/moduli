@@ -14,7 +14,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 
 export default function LocalFilterNav({ occurrence, compact = false }) {
-  const { state: ctxState, dispatch, fieldsById, occurrencesById, modulesById, socket } = useContext(GridActionsContext);
+  const { state: ctxState, dispatch, fieldsById, occurrencesById, modulesById, foldersById, socket } = useContext(GridActionsContext);
   if (!occurrence) return null;
 
   const grid = ctxState?.grid;
@@ -99,6 +99,9 @@ export default function LocalFilterNav({ occurrence, compact = false }) {
             navConfig={cfg}
             value={value}
             fieldsById={fieldsById}
+            occurrencesById={occurrencesById}
+            modulesById={modulesById}
+            foldersById={foldersById}
             dispatch={dispatch}
             onNav={makeOnNav(fieldId)}
           />
