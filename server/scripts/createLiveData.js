@@ -1959,10 +1959,17 @@ export async function createLiveData(userId, options = {}) {
     for (let i = 0; i < instKeys.length; i++) {
       const instKey = instKeys[i];
       const inst = instanceMods[instKey];
-      // Pre-fill due date for planning instances
-      const dueDatePreFill = planningDueDates[instKey]
-        ? { [fields.due.id]: fv(planningDueDates[instKey].toISOString(), "replace") }
-        : {};
+      // Every todo gets a Due date stamped on its occurrence (createTestGrid
+      // parity: createTestGrid pre-filled each todo occ with
+      // `fields[dueFieldId] = { value: <date ISO>, flow: "in", ... }` — without
+      // it the Todo List renders the bound Due field with no value).
+      // Planning instances keep their specific real deadlines; every other
+      // todo gets a randomized due date 1–14 days out so the list has varied,
+      // schedule-sweepable dates (Schedule: Build Day matches
+      // `fields.<dueFieldId>.value SAME_DAY $schedDate`).
+      const dueDate = planningDueDates[instKey]
+        || daysFromNow(1 + Math.floor(Math.random() * 14));
+      const dueDatePreFill = { [fields.due.id]: fv(dueDate.toISOString()) };
       const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: dueDatePreFill });
       childOccIds.push(childId);
     }
