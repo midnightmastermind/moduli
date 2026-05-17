@@ -94,5 +94,44 @@ function ManualBody({ source, onChange }) {
   );
 }
 
-function RangeBody() { return <div style={{ fontSize: 10, color: "var(--text-faint)" }}>Range mode — coming in Task 9</div>; }
+function RangeBody({ source, onChange }) {
+  const range = source?.range || { start: 0, end: 10, step: 1 };
+
+  function set(key, value) {
+    const num = value === "" ? 0 : Number(value);
+    onChange({ ...source, mode: "range", range: { ...range, [key]: num } });
+  }
+
+  const preview = [];
+  if (range.step > 0 && range.end >= range.start) {
+    for (let v = range.start; v <= range.end && preview.length < 11; v += range.step) preview.push(v);
+  }
+  const overflow = preview.length > 10;
+  const shown = overflow ? preview.slice(0, 10) : preview;
+
+  const inputStyle = {
+    width: 60, height: 28, fontSize: 11, fontFamily: "monospace",
+    background: "var(--input-bg)", border: "1px solid var(--input-border)",
+    borderRadius: 5, color: "var(--text-primary)", padding: "0 8px", outline: "none",
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <label style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", display: "inline-flex", flexDirection: "column", gap: 2 }}>
+          Start <input type="number" value={range.start} onChange={(e) => set("start", e.target.value)} style={inputStyle} />
+        </label>
+        <label style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", display: "inline-flex", flexDirection: "column", gap: 2 }}>
+          End <input type="number" value={range.end} onChange={(e) => set("end", e.target.value)} style={inputStyle} />
+        </label>
+        <label style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", display: "inline-flex", flexDirection: "column", gap: 2 }}>
+          Step <input type="number" value={range.step} onChange={(e) => set("step", e.target.value)} style={inputStyle} />
+        </label>
+      </div>
+      <div style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "monospace" }}>
+        Preview: {shown.join(", ")}{overflow ? ", …" : ""}
+      </div>
+    </div>
+  );
+}
 function FindBody()  { return <div style={{ fontSize: 10, color: "var(--text-faint)" }}>Find mode — coming in Task 10</div>; }
