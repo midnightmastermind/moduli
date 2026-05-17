@@ -43,6 +43,11 @@ import {
   buildTemplatesManifest,
   buildDailyRoutineTemplate,
   buildDayPageTemplate,
+  makeScheduleBuildDayOp,
+  makeDayPageBuildOp,
+  makeStampDateTimeSlotOp,
+  makeClearDateOnMoveOutOp,
+  makeTrackerOp,
 } from "../utils/liveSystemBuilders.js";
 import fs from "fs";
 import { parseSectionsWithInstances } from "../utils/mdParsers.js";
@@ -2395,6 +2400,166 @@ export async function createLiveData(userId, options = {}) {
 
   // ── STEP 11: Finalize grid ──────────────────────────────────────────────────
   await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds } });
+
+  // ── STEP 12: Operations ─────────────────────────────────────────────────────
+  //
+  // NO LEGACY. Every aggregation that createDefaultUserData STEP 1b expressed as
+  // a makeLoop*/makeNetBalanceOp/makeCompletionRateOp is converted 1:1 here to a
+  // makeTrackerOp (new conversion engine). Zero AGGREGATE / legacy makeLoop
+  // pipelines exist in this grid — the only ops are the 4 shared schedule/day-
+  // page ops + the converted trackers below.
+  //
+  // goalLabel = the EXACT label of the goalInstances/accountInstances display
+  // instance that binds the target display field (makeTrackerOp does
+  // `FIND $allInstances label IS <goalLabel>` then UPDATEs
+  // `$goalItem.fields.<goalFieldId>.value`). Derived from the seed defs above
+  // (lines ~1508-1658), not guessed. Where several instances bind the same
+  // target field, the canonical first/most-aligned owner is chosen (mirrors
+  // createTestGrid's "Physical Wellness" owning totalWater).
+  //
+  // scopeLabel "Schedule" for ALL trackers: Build Day sweeps tasks (incl.
+  // expenses/income/workouts) under the Schedule page, so every aggregation —
+  // daily AND lifetime — reads its source data from there (same data path as
+  // createTestGrid, whose trackers are all Schedule-scoped).
+  //
+  // NOT converted (intentionally — not aggregations, not in the Task 13 map):
+  //   "Daily Question Cycle"   (CYCLE_FIELD_VALUE)
+  //   "Days Until Due"         (DATE_DIFF, per-occurrence)
+  //   "Overdue Tasks Count"    (COUNT_DATE_OVERDUE)
+  //   "Due This Week"          (COUNT_DATE_UPCOMING)
+  // These are countdown/cycle ops with no makeLoop/AGGREGATE shape, out of
+  // scope for the conversion engine; the live grid simply omits them.
+  //
+  // SKIPPED (no owning display instance — see concerns):
+  //   "Task Count Today"  → fields.taskCount  : NOT bound role:"display" by any
+  //                          goal/account instance (also true in legacy seed).
+  //   "Calories Today"    → fields.calories   : bound only as role:"input"; no
+  //                          goal instance shows it (legacy: same — nutritionGoal
+  //                          binds protein/carbs/fats, never calories).
+  //   A makeTrackerOp for either would FIND nothing and silently never update,
+  //   which the task rules forbid. Their display fields are not surfaced
+  //   anywhere in the live grid, so no UI value is lost.
+
+  const trackerArgs = { userId, gridId, dateFieldId, completedFieldId };
+
+  // ── DAILY TASK / WELLNESS ──
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Completed Today",
+    goalLabel: "Physical Wellness", goalFieldId: fields.totalCompleted.id,
+    agg: "countTrue", timeFilter: "daily",
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Latest Mood",
+    goalLabel: "Emotional Balance", goalFieldId: fields.lastMood.id,
+    sourceFieldId: fields.mood.id, agg: "last", timeFilter: "daily",
+  })).save();
+
+  // ── DAILY ACTIVITY ──
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Steps Today",
+    goalLabel: "Physical Wellness", goalFieldId: fields.totalSteps.id,
+    sourceFieldId: fields.steps.id, agg: "sum", timeFilter: "daily",
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Water Today",
+    goalLabel: "Physical Wellness", goalFieldId: fields.totalWater.id,
+    sourceFieldId: fields.water.id, agg: "sum", timeFilter: "daily",
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Time Spent Today",
+    goalLabel: "Intellectual Growth", goalFieldId: fields.totalDuration.id,
+    sourceFieldId: fields.duration.id, agg: "sum", timeFilter: "daily",
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Pages Today",
+    goalLabel: "Intellectual Growth", goalFieldId: fields.totalPages.id,
+    sourceFieldId: fields.pages.id, agg: "sum", timeFilter: "daily",
+  })).save();
+
+  // ── DAILY FINANCE ──
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Spent Today",
+    goalLabel: "Financial Health", goalFieldId: fields.totalSpent.id,
+    sourceFieldId: fields.amount.id, agg: "sum", flow: "out", timeFilter: "daily",
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Earned Today",
+    goalLabel: "Financial Health", goalFieldId: fields.totalIncome.id,
+    sourceFieldId: fields.income.id, agg: "sum", flow: "in", timeFilter: "daily",
+  })).save();
+
+  // ── DAILY NUTRITION ──
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Protein Today",
+    goalLabel: "Nutrition Today", goalFieldId: fields.totalProtein.id,
+    sourceFieldId: fields.protein.id, agg: "sum", timeFilter: "daily",
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Carbs Today",
+    goalLabel: "Nutrition Today", goalFieldId: fields.totalCarbs.id,
+    sourceFieldId: fields.carbs.id, agg: "sum", timeFilter: "daily",
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Fats Today",
+    goalLabel: "Nutrition Today", goalFieldId: fields.totalFats.id,
+    sourceFieldId: fields.fats.id, agg: "sum", timeFilter: "daily",
+  })).save();
+
+  // ── DAILY WORKOUT (multi-source roll-up) ──
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Total Reps Today",
+    goalLabel: "Workout Today", goalFieldId: fields.totalRepsToday.id,
+    sourceFieldIds: [fields.set1Reps.id, fields.set2Reps.id, fields.set3Reps.id],
+    agg: "multiSum", timeFilter: "daily",
+  })).save();
+
+  // ── ALL-TIME / ACCOUNT AGGREGATIONS ──
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Net Balance",
+    goalLabel: "Checking Account", goalFieldId: fields.netBalance.id,
+    incomeFieldId: fields.income.id, spentFieldId: fields.amount.id,
+    agg: "net", timeFilter: "all",
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Mom's Account Balance",
+    goalLabel: "Mom's Account", goalFieldId: fields.momsAccountBalance.id,
+    sourceFieldId: fields.amount.id, agg: "sum", timeFilter: "all",
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Total Workouts",
+    goalLabel: "Fitness Stats", goalFieldId: fields.totalWorkouts.id,
+    agg: "countTrue", timeFilter: "all",
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Total Reading Time",
+    goalLabel: "Reading Stats", goalFieldId: fields.totalReadingTime.id,
+    sourceFieldId: fields.duration.id, agg: "sum", timeFilter: "all",
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Completion Rate",
+    goalLabel: "Productivity", goalFieldId: fields.completionRate.id,
+    agg: "completionRate", timeFilter: "all",
+  })).save();
+
+  // ── WEEKLY SUMMARY ──
+  // Legacy "Time Spent This Week" reused the totalDuration display field. In the
+  // live port totalDuration is bound by both "Intellectual Growth" (daily, above)
+  // and "Productivity" (productivityAccount order 1). Targeting "Productivity"
+  // here keeps the weekly value off the daily "Intellectual Growth" tile so the
+  // two don't clobber each other. KNOWN LIMITATION (Task 13 rule 4):
+  // makeTrackerOp's weekly loop gate uses real SAME_WEEK, but the per-event
+  // trigger date sub-rule stays SAME_DAY — onLoad/Nav bulk triggers self-heal.
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Tracker: Time Spent This Week",
+    goalLabel: "Productivity", goalFieldId: fields.totalDuration.id,
+    sourceFieldId: fields.duration.id, agg: "sum", timeFilter: "weekly",
+  })).save();
+
+  // ── Shared schedule + day-page operations (delegated to liveSystemBuilders) ──
+  await new Operation(makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId })).save();
+  await new Operation(makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar: panelOccIds.notebook })).save();
+  await new Operation(makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPanelModuleId: panelModuleIds.notebook })).save();
+  await new Operation(makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId })).save();
 
   return {
     gridId,
