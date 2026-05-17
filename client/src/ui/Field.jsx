@@ -240,6 +240,8 @@ function Field({
 
   const [localValue, setLocalValue] = useState(() => resolveInputVal(value));
   const [isClickEditing, setIsClickEditing] = useState(false); // for compact click-to-edit
+  const [selectQuery, setSelectQuery] = useState(""); // for full-mode select search
+  const [selectOpen, setSelectOpen] = useState(false); // for full-mode select popover
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -616,19 +618,58 @@ function Field({
         : [];
 
       if (!isMulti) {
+        const currentLabel = options.find(o => o.value === localValue)?.label ?? localValue ?? "Select...";
+        const filteredOpts = options.length > 10 && selectQuery
+          ? options.filter(o => o.label.toLowerCase().includes(selectQuery.toLowerCase()))
+          : options;
         return (
           <div className="field-input field-input-select" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {showLabel && <span style={inputLabelStyle}>{name}</span>}
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Select value={localValue ?? ""} disabled={disabled}
-                onValueChange={v => { handleChange(v); onCommit?.(v); }}>
-                <SelectTrigger className={compact ? "h-6 text-xs" : "h-7 text-sm"}>
-                  <SelectValue placeholder="Select..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Popover open={selectOpen} onOpenChange={(o) => { setSelectOpen(o); if (!o) setSelectQuery(""); }}>
+                <PopoverTrigger asChild>
+                  <button type="button" disabled={disabled}
+                    className={`inline-flex items-center justify-between gap-1 px-2 rounded border bg-background
+                      ${compact ? "h-6 text-xs" : "h-7 text-sm"}
+                      ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-muted"}`}
+                    style={{ minWidth: 80, borderColor: "var(--input-border, hsl(var(--border)))", color: "var(--text-primary)" }}
+                  >
+                    <span className="truncate">{currentLabel}</span>
+                    <ChevronDown className="w-3 h-3 opacity-50 flex-shrink-0" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="p-2" align="start" style={{ minWidth: 160, maxHeight: 280, overflowY: "auto" }}>
+                  {options.length > 10 && (
+                    <input
+                      autoFocus
+                      value={selectQuery}
+                      onChange={(e) => setSelectQuery(e.target.value)}
+                      placeholder="Filter options…"
+                      style={{
+                        width: "100%", height: 28, fontSize: 11, fontFamily: "monospace",
+                        background: "var(--input-bg)", border: "1px solid var(--input-border)",
+                        borderRadius: 5, color: "var(--text-primary)", padding: "0 8px",
+                        outline: "none", marginBottom: 6,
+                      }}
+                    />
+                  )}
+                  {filteredOpts.length === 0 ? (
+                    <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--text-faint)", padding: 6 }}>
+                      No matches — check the field's options source
+                    </div>
+                  ) : (
+                    filteredOpts.map(o => (
+                      <button key={String(o.value)} type="button"
+                        onClick={() => { handleChange(o.value); onCommit?.(o.value); setSelectQuery(""); setSelectOpen(false); }}
+                        className={`w-full flex items-center px-2 py-1 rounded text-xs transition-colors
+                          ${localValue === o.value ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
+                      >
+                        {o.label}
+                      </button>
+                    ))
+                  )}
+                </PopoverContent>
+              </Popover>
               {meta?.randomize && options.length > 0 && (
                 <Button variant="ghost" size="icon" className={compact ? "h-6 w-6 flex-shrink-0" : "h-7 w-7 flex-shrink-0"}
                   title="Pick random" disabled={disabled}
