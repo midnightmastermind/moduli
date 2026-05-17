@@ -184,6 +184,49 @@ describe("resolveOptions — find mode", () => {
   });
 });
 
+describe("resolveOptions — $this reference in predicate", () => {
+  it("filters by $this.fields.<id>.value when ownerOccurrence provided", () => {
+    const ctx = {
+      occurrencesById: {
+        a: { id: "a", moduleId: "x", role: "instance", fields: { cat: { value: "fruit" } } },
+        b: { id: "b", moduleId: "y", role: "instance", fields: { cat: { value: "veg" } } },
+        c: { id: "c", moduleId: "z", role: "instance", fields: { cat: { value: "fruit" } } },
+      },
+      modulesById: {
+        x: { id: "x", label: "Apple" },
+        y: { id: "y", label: "Carrot" },
+        z: { id: "z", label: "Banana" },
+      },
+      fieldsById: {},
+      foldersById: {},
+    };
+    const owner = { id: "buy1", fields: { type: { value: "fruit" } } };
+    const field = { type: "occurrence", meta: { optionsSource: {
+      mode: "find",
+      over: "$allInstances",
+      predicate: { rules: [{ left: "fields.cat.value", comparator: "IS", right: "$this.fields.type.value" }] },
+      valuePath: "id",
+      labelPath: "label",
+    }}};
+    const { options } = resolveOptions(field, ctx, owner);
+    expect(options.map(o => o.label).sort()).toEqual(["Apple", "Banana"]);
+  });
+
+  it("returns all matches when ownerOccurrence is null (preview mode)", () => {
+    // Without $this, the predicate's $this.fields.X.value resolves to undefined,
+    // so the rule fails for every record — empty options is acceptable.
+    // Confirm we don't CRASH when $this is missing.
+    const field = { type: "occurrence", meta: { optionsSource: {
+      mode: "find",
+      over: "$allInstances",
+      predicate: { rules: [{ left: "fields.cat.value", comparator: "IS", right: "$this.fields.type.value" }] },
+      valuePath: "id",
+      labelPath: "label",
+    }}};
+    expect(() => resolveOptions(field, { occurrencesById: {}, modulesById: {}, fieldsById: {}, foldersById: {} })).not.toThrow();
+  });
+});
+
 describe("resolveOptions — occurrence type", () => {
   it("resolves occurrence-type fields via find mode (regression: bug where guard rejected non-select types)", () => {
     const field = {

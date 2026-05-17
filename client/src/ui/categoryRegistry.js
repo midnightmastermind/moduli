@@ -155,6 +155,7 @@ export const CATEGORIES = [
       { value: "$grid",             title: "$grid",             sub: "object",     description: "The current grid record",          hasChildren: true  },
       { value: "$trigger",          title: "$trigger",          sub: "object",     description: "The triggering event payload (occurrence-shaped + extras)", hasChildren: true },
       { value: "$parentFilter",     title: "$parentFilter",     sub: "filter",     description: "Effective filter values walked from the trigger occurrence's ancestor chain (keyed by fieldId)", hasChildren: true },
+      { value: "$this",             title: "$this",             sub: "occurrence", description: "The current instance — the row this field is bound to (available in find-mode option predicates)", hasChildren: true },
     ],
   },
 ];

@@ -34,7 +34,7 @@ function buildCollection(over, ctx) {
   return records.filter(r => r.role === filter);
 }
 
-export function resolveOptions(field, ctx) {
+export function resolveOptions(field, ctx, ownerOccurrence = null) {
   if (field?.type !== "select" && field?.type !== "occurrence") return { options: [], totalMatched: 0 };
   const src = field.meta?.optionsSource;
   if (!src?.mode) return { options: [], totalMatched: 0 };
@@ -60,13 +60,18 @@ export function resolveOptions(field, ctx) {
   }
 
   if (src.mode === "find") {
-    const cfg = src.find || {};
+    // Support both nested shape ({ find: { over, predicate, ... } }) and
+    // flat shape ({ mode: "find", over, predicate, ... }).
+    const cfg = src.find || src;
     const over = cfg.over || "$allOccurrences";
     const records = buildCollection(over, ctx);
     const predicate = cfg.predicate || { rules: [] };
+    // Pass ownerOccurrence as $this so predicates can reference the instance
+    // whose field is being resolved — e.g. `fields.category.value IS $this.fields.type.value`.
+    const $vars = ownerOccurrence ? { $this: ownerOccurrence } : {};
     const matched = records.filter(r => {
       if (!predicate.rules?.length) return true;
-      return evalGroupAgainstRecord(predicate, r, {});
+      return evalGroupAgainstRecord(predicate, r, $vars);
     });
 
     const valuePath = cfg.valuePath || "id";

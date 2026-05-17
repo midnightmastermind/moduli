@@ -32,10 +32,12 @@ function FieldRenderer({
   const { computedValues } = useContext(GridLiveContext);
 
   // Resolve dynamic options for select and occurrence fields via optionsResolver.
+  // Pass the owner occurrence as $this so find-mode predicates can reference
+  // sibling field values on the same instance (e.g. `$this.fields.type.value`).
   const { options: resolvedOptions, totalMatched } = useMemo(() => {
     if (field?.type !== "select" && field?.type !== "occurrence") return { options: [], totalMatched: 0 };
-    return resolveOptions(field, { occurrencesById, modulesById, fieldsById, foldersById });
-  }, [field, occurrencesById, modulesById, fieldsById, foldersById]);
+    return resolveOptions(field, { occurrencesById, modulesById, fieldsById, foldersById }, occurrence ?? null);
+  }, [field, occurrencesById, modulesById, fieldsById, foldersById, occurrence]);
 
   // Expose resolved options under _resolvedOptions for select and occurrence fields.
   const effectiveField = useMemo(() => {

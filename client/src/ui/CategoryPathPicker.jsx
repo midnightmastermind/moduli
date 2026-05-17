@@ -157,6 +157,7 @@ const BUILTIN_VAR_SHAPES = {
   $parentFilter: "filter",
   $trigger: "occurrence",
   $grid: "grid",
+  $this: "occurrence",  // the current instance — the row whose field is being resolved
 };
 
 function findSourceForVarName(ctx, varName) {
