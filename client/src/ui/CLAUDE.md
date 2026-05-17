@@ -1,6 +1,12 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-05-14. Check this file before re-reading source._
+_Updated: 2026-05-17. Check this file before re-reading source._
+
+## Recent Changes (2026-05-17 — Select options source refactor + occurrence field type)
+- **`commandCenter/SelectOptionsSourceEditor.jsx` (NEW)**: three-mode editor (Manual / Range / Find) written into `field.meta.optionsSource`. Find mode wires `CategoryPathPicker` (collection + path + value/label/sort paths), `ConditionGroup` (predicate), and a live preview via `resolveOptions`. Used by both select and occurrence field types via `FieldsTab.jsx`'s `["select", "occurrence"].includes(local.type)` conditional.
+- **`Field.jsx`**: all `meta.options` reads swapped to `meta._resolvedOptions` (Task 6). Non-compact select branch rewritten from Radix `<Select>` to `<Popover>` to host the search-when-many input (Task 12 — Radix Select doesn't accept a custom input child cleanly). Compact + non-compact occurrence branches added, with `meta.multiSelect: true` support (uses `MultiSelectWithAdd`). The `formattedValue` switch handles array values for occurrence.
+- **`FieldRenderer.jsx`**: the old `_moduleOptions` resolution branch is GONE. Both select and occurrence types flow through one `resolveOptions` call exposed under `field.meta._resolvedOptions`. Randomize button gated on `(select || occurrence) && resolvedOptions.length > 1`.
+- **`FilterNavControl.jsx` + `FilterNavWidgets.jsx`**: now pull `occurrencesById / modulesById / fieldsById / foldersById` from `GridActionsContext` and pass them to `resolveOptions` — needed for find-mode filter widgets to resolve.
 
 ## Recent Changes (May 15 2026 — Cascade-aware nav widget rendering + HeaderChevron filter-state color)
 - **LocalFilterNav.jsx + FiltersSection.jsx (`navItems`)**: Both now consult the occurrence's own `getEffectiveFilterForOccurrence` and skip rendering a nav widget when the field isn't in it (cascade cleared by own override or any ancestor). Solves the "deactivated container still shows the date nav" complaint — non-Schedule/Goals pages and their containers now render zero nav widgets.

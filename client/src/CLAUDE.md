@@ -1,6 +1,13 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-05-11. Check this file before re-reading source._
+_Updated: 2026-05-17. Check this file before re-reading source._
+
+## Recent Changes (2026-05-17 — Select options source refactor + occurrence field type)
+- **Field type "module" replaced by "occurrence"**: `field.meta.options` (string[]) + `meta.sourceType: "pool"` both gone. Replaced by discriminated `field.meta.optionsSource = { mode: "manual" | "range" | "find", ... }`. The "find" mode reuses operations FIND machinery (`evalGroupAgainstRecord` + `resolveRecordPath`) so any reachable record path can be used as the option's value/label.
+- **Field type "occurrence"**: stores an occurrence id, displays its label (or any path). Replaces the prior "module" field type. Supports `meta.multiSelect: true` like select fields do.
+- **Migration**: lazy at `full_state` ingestion in `bindSocketToStore.js`. Legacy `meta.options` → manual mode; legacy pool → find mode with OR-grouped HAS_ANCESTOR rules; legacy `type: "module"` → `type: "occurrence"` with auto-mapped collection.
+- **Settings UI**: `client/src/ui/commandCenter/SelectOptionsSourceEditor.jsx` is the new three-mode editor (Manual / Range / Find) used by both select and occurrence fields. Find mode reuses `CategoryPathPicker`, `COLLECTION_PICKER_CONFIG`, `buildRecordKeyPickerConfig`, and `ConditionGroup` from existing operations primitives. Includes live preview.
+- **Search-when-many**: `Field.jsx`'s non-compact select Popover now renders a filter input above the option list when `_resolvedOptions.length > 10`. (Note: the non-compact occurrence path still uses a native `<select>` — possible follow-up for parity.)
 
 ## Recent Changes (May 15 2026 — Mobile instance cards no longer giant)
 - **index.css** `@media (max-width:600px)`: added `.instance-content { justify-content: flex-start !important }` and `.instance-fields { flex: 0 0 auto !important; justify-content: flex-start !important }`. Root cause: ModuleInstance inline styles assume a ROW — `.instance-content` has `justify-content:space-between`, `.instance-fields` has `flex:1 1 160px`. The existing mobile rule flips `.instance-content` to `flex-direction:column`, which turned the `160px` into a tall, *growing* flex-basis and made `space-between` push label/fields to opposite ends → ~250px empty cards. Pinning justify-content to start + stopping the fields block from growing collapses cards to natural height. (Verified against screenshots.)

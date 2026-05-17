@@ -1,6 +1,9 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-05-14. Check this file before re-reading source._
+_Updated: 2026-05-17. Check this file before re-reading source._
+
+## Recent Changes (2026-05-17 — Field type enum: module → occurrence)
+- **`models/Field.js`**: type enum drops `"module"`, adds `"occurrence"`. Migration runs lazily client-side at `full_state` ingestion (see `client/src/state/migrateFieldOptionsSource.js`).
 
 ## Recent Changes (May 15 2026 — Day Page op/template/folder + root tree org + bills-sweep migration)
 - **scripts/createTestGrid.js** — Re-seed required: `node --env-file=.env scripts/createTestGrid.js`.

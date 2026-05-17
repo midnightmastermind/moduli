@@ -1,6 +1,9 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-05-13. Check this file before re-reading source._
+_Updated: 2026-05-17. Check this file before re-reading source._
+
+## Recent Changes (2026-05-17 — optionsResolver)
+- **`optionsResolver.js` (NEW)**: `resolveOptions(field, ctx) → { options: Array<{value, label}>, totalMatched: number }`. Branches on `field.meta.optionsSource.mode`: manual (literal values), range (start/end/step expansion), find (collection walk + predicate filter via `evalGroupAgainstRecord` + `valuePath`/`labelPath` extraction via `resolveRecordPath` + dedupe/sort/limit). Used by `FieldRenderer.jsx` (stamps `meta._resolvedOptions` for runtime), by `SelectOptionsSourceEditor`'s live preview, and by `FilterNavWidgets.derivedOptionsForFilter` (now accepts a `ctx` param).
 
 ## Recent Changes (May 15 2026 — COPY_LINK deterministic id + APPLY_TEMPLATE replacements/rootParent + ADD_CHILD)
 - **operationActions.js (`COPY_LINK`)**: minted `linkedGroupId` is now DETERMINISTIC `lg-<sourceOccId>` (was `crypto.randomUUID`), in BOTH the fresh-clone path and the migration (`cfg.targetId`) path. Root cause of "Pay monthly bills: complete one, other doesn't tick": Build Day fires several times per load (onLoad + filter-bootstrap onFilterChange); across separate op runs in one batch the source's freshly-minted link isn't visible in the frozen snapshot, so a random id diverged (source in one group, swept/dup copy in another) and the server `update_occurrence` linkedGroupId fan-out never matched. Deterministic derivation makes every COPY_LINK of the same source converge on one group, idempotently. 62 operationActions.unified tests still green.
