@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { setFilterNavAction } from "../state/actions";
+import { resolveOptions } from "../helpers/optionsResolver";
 
 const stepByUnit = { day: 86400000, week: 86400000 * 7, month: 86400000 * 30, year: 86400000 * 365 };
 
@@ -147,6 +148,6 @@ export function defaultStyleForFilter(filter, fieldsById) {
 export function derivedOptionsForFilter(filter, fieldsById) {
   const fld = filter?.primaryDateFieldId ? fieldsById?.[filter.primaryDateFieldId] : null;
   if (fld?.type === "boolean") return [true, false];
-  if (fld?.type === "select") return (fld.meta?.options || []).map(o => o.value ?? o);
+  if (fld?.type === "select") return resolveOptions(fld, {}).options.map(o => o.value);
   return [];
 }

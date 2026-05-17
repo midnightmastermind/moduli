@@ -24,6 +24,7 @@
 
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { applyUpdate, substituteTextmapTokens } from "./applyUpdate";
+import { resolveOptions } from "./optionsResolver";
 import { toast } from "sonner";
 
 // ============================================================
@@ -1929,7 +1930,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // Picks options[dayOfYear % n].label and writes to targetFieldId as a display value.
     case "CYCLE_FIELD_VALUE": {
       const sourceField = fieldsById?.[cfg.sourceFieldId];
-      const options = sourceField?.meta?.options || [];
+      const options = resolveOptions(sourceField, { fieldsById, occurrencesById, modulesById }).options;
       if (options.length === 0) break;
       let idx = 0;
       if (cfg.cycleBy === "sequential") {

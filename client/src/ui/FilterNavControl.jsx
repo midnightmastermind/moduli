@@ -11,6 +11,7 @@ import React, { useContext, useCallback } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { GridActionsContext } from "../GridActionsContext";
 import { setFilterNavAction } from "../state/actions";
+import { resolveOptions } from "../helpers/optionsResolver";
 
 function localDay(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -60,7 +61,7 @@ export default function FilterNavControl({ filter, navValue, dispatch }) {
   }
 
   if (fieldType === "select") {
-    const options = field?.meta?.options || [];
+    const options = resolveOptions(field, {}).options.map(o => o.value);
     const current = Array.isArray(navValue) ? navValue : (navValue ? [navValue] : []);
     const toggle = (opt) => {
       const next = current.includes(opt)
