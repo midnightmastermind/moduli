@@ -9,6 +9,7 @@ import { Plus, FolderPlus, ChevronLeft, GripVertical, Trash2 } from "lucide-reac
 import { GridActionsContext } from "../../GridActionsContext";
 import { uid } from "../../uid";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
+import SelectOptionsSourceEditor from "./SelectOptionsSourceEditor";
 
 // Shared style helpers
 const labelStyle = {
@@ -132,7 +133,6 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
   useMemo(() => setLocal(field), [field.id]);
 
   const setMeta = (key, val) => setLocal(p => ({ ...p, meta: { ...(p.meta || {}), [key]: val } }));
-  const [newOpt, setNewOpt] = useState("");
 
   // Find all instances that bind this field
   const usedInModules = useMemo(
@@ -266,39 +266,11 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
       {/* Select options editor */}
       {local.type === "select" && (
         <div>
-          <span style={labelStyle}>Options</span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
-            {(local.meta?.options || []).map((opt, i) => (
-              <span key={i} style={{
-                display: "inline-flex", alignItems: "center", gap: 3,
-                padding: "1px 7px", borderRadius: 999, fontSize: 10, fontFamily: "monospace",
-                background: "var(--border-subtle)", border: "1px solid var(--border-default)",
-                color: "var(--text-muted)",
-              }}>
-                {opt}
-                <button onClick={() => setMeta("options", (local.meta?.options || []).filter((_, j) => j !== i))}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,100,100,0.6)", padding: 0, lineHeight: 1 }}>✕</button>
-              </span>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 4 }}>
-            <input
-              value={newOpt}
-              onChange={e => setNewOpt(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter" && newOpt.trim()) {
-                  setMeta("options", [...(local.meta?.options || []), newOpt.trim()]);
-                  setNewOpt("");
-                }
-              }}
-              placeholder="Add option (Enter)"
-              style={{ ...inputStyle, flex: 1 }}
-            />
-            <button
-              onClick={() => { if (newOpt.trim()) { setMeta("options", [...(local.meta?.options || []), newOpt.trim()]); setNewOpt(""); } }}
-              style={{ padding: "0 10px", borderRadius: 4, fontSize: 10, fontFamily: "monospace", background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-muted)", cursor: "pointer" }}
-            >Add</button>
-          </div>
+          <span style={labelStyle}>Options source</span>
+          <SelectOptionsSourceEditor
+            source={local.meta?.optionsSource || { mode: "manual", values: [] }}
+            onChange={(next) => setLocal(p => ({ ...p, meta: { ...(p.meta || {}), optionsSource: next } }))}
+          />
         </div>
       )}
 
