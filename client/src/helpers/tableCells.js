@@ -1,0 +1,67 @@
+// helpers/tableCells.js
+// Pure helpers for the table container's layout-only cell model.
+// A cell's content is a TipTap doc fragment stored in
+// occurrence.meta.table.cells["r:c"]. Cells are not entities.
+
+export function cellKey(r, c) {
+  return `${r}:${c}`;
+}
+
+export function emptyCellDoc() {
+  return { type: "doc", content: [{ type: "paragraph" }] };
+}
+
+export function makeEmbedCellDoc(occurrenceId) {
+  return {
+    type: "doc",
+    content: [{ type: "moduleEmbed", attrs: { occurrenceId } }],
+  };
+}
+
+function plainText(doc) {
+  let out = "";
+  const walk = (n) => {
+    if (!n) return;
+    if (n.type === "text" && typeof n.text === "string") out += n.text;
+    (n.content || []).forEach(walk);
+  };
+  walk(doc);
+  return out.trim();
+}
+
+function firstEmbedOccId(doc) {
+  let found = null;
+  const walk = (n) => {
+    if (found || !n) return;
+    if (n.type === "moduleEmbed" || n.type === "instancePill") {
+      found = n.attrs?.occurrenceId || n.attrs?.id || null;
+      if (found) return;
+    }
+    (n.content || []).forEach(walk);
+  };
+  walk(doc);
+  return found;
+}
+
+/**
+ * Derive one comparable scalar for a cell, for TanStack sort/filter.
+ * ctx: { occurrencesById, modulesById }
+ */
+export function getCellSortValue(doc, column, ctx) {
+  if (!doc) return "";
+  const occId = firstEmbedOccId(doc);
+  if (occId) {
+    const occ = ctx?.occurrencesById?.[occId];
+    if (column?.displayFieldId && occ) {
+      const fv = occ.fields?.[column.displayFieldId];
+      const v = fv && typeof fv === "object" ? fv.value : fv;
+      return v == null ? "" : v;
+    }
+    const mod = occ && ctx?.modulesById?.[occ.targetId];
+    return mod?.label || occ?.label || "";
+  }
+  const txt = plainText(doc);
+  if (txt === "") return "";
+  const asNum = Number(txt);
+  return Number.isFinite(asNum) && /^[+-]?\d*\.?\d+$/.test(txt) ? asNum : txt;
+}
