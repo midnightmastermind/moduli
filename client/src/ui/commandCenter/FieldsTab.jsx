@@ -35,6 +35,97 @@ const inputStyle = {
 };
 
 // ============================================================
+// COLUMN EDITOR — inline editor for displayConfig.columns
+// Used by FieldDetail when displayEnabled=true
+// ============================================================
+function ColumnEditor({ columns, onChange }) {
+  const addColumn = () => {
+    onChange([...columns, { path: "", header: "", width: null }]);
+  };
+
+  const updateColumn = (i, patch) => {
+    const next = columns.map((c, idx) => idx === i ? { ...c, ...patch } : c);
+    onChange(next);
+  };
+
+  const removeColumn = (i) => {
+    onChange(columns.filter((_, idx) => idx !== i));
+  };
+
+  const moveColumn = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= columns.length) return;
+    const next = [...columns];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  const rowStyle = { display: "flex", alignItems: "center", gap: 4, marginBottom: 4 };
+  const smallInput = { ...inputStyle, height: 24, fontSize: 10, padding: "0 6px" };
+
+  return (
+    <div>
+      {columns.map((col, i) => (
+        <div key={i} style={rowStyle}>
+          <input
+            type="text"
+            value={col.path}
+            onChange={e => updateColumn(i, { path: e.target.value })}
+            placeholder="path"
+            title="Field path in the row object, e.g. 'label' or 'pages'"
+            style={{ ...smallInput, width: 80 }}
+          />
+          <input
+            type="text"
+            value={col.header}
+            onChange={e => updateColumn(i, { header: e.target.value })}
+            placeholder="header"
+            title="Column header label"
+            style={{ ...smallInput, width: 70 }}
+          />
+          <input
+            type="number"
+            value={col.width ?? ""}
+            onChange={e => {
+              const v = e.target.value === "" ? null : Number(e.target.value);
+              updateColumn(i, { width: v });
+            }}
+            placeholder="px"
+            title="Fixed column width in pixels (leave blank for auto)"
+            style={{ ...smallInput, width: 42 }}
+          />
+          <button
+            type="button"
+            onClick={() => moveColumn(i, -1)}
+            disabled={i === 0}
+            title="Move up"
+            style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 10, padding: "0 2px" }}
+          >↑</button>
+          <button
+            type="button"
+            onClick={() => moveColumn(i, 1)}
+            disabled={i === columns.length - 1}
+            title="Move down"
+            style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 10, padding: "0 2px" }}
+          >↓</button>
+          <button
+            type="button"
+            onClick={() => removeColumn(i)}
+            title="Remove column"
+            style={{ background: "none", border: "none", color: "var(--danger-text, #f87171)", cursor: "pointer", fontSize: 11, padding: "0 2px" }}
+          >✕</button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addColumn}
+        style={{ fontSize: 10, fontFamily: "monospace", color: "var(--accent-blue, #3b82f6)", background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 2 }}
+      >+ Add column</button>
+    </div>
+  );
+}
+
+// ============================================================
 // FIELD PILL (draggable — drag to instance to add field binding)
 // ============================================================
 export function FieldPill({ field, selected, onClick, compact = false }) {
@@ -243,6 +334,17 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
               show
             </label>
           </div>
+        </div>
+      )}
+
+      {/* Columns config — for display fields that return array values (e.g. Books Read showing label + pages) */}
+      {local.displayEnabled === true && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={labelStyle}>Columns (for array values)</span>
+          <ColumnEditor
+            columns={local.displayConfig?.columns || []}
+            onChange={(columns) => setLocal(p => ({ ...p, displayConfig: { ...(p.displayConfig || {}), columns } }))}
+          />
         </div>
       )}
 

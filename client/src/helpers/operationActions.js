@@ -441,6 +441,26 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       $vars[cfg.name] = [...$vars[cfg.name], pushVal];
       break;
     }
+    case "PUSH_TO_ARRAY": {
+      // Push an object row (or primitive) onto an array variable.
+      // cfg: { name: string, value: object | any }
+      // When cfg.value is a plain object, each leaf value is resolved via resolveExpr
+      // so you can write: { label: "$book.label", pages: "$book.fields.<id>.value" }
+      const arrName = cfg.name;
+      if (!arrName) break;
+      if (!Array.isArray($vars[arrName])) $vars[arrName] = [];
+      if (cfg.value !== null && typeof cfg.value === "object" && !Array.isArray(cfg.value)) {
+        const resolved = {};
+        for (const [k, v] of Object.entries(cfg.value)) {
+          resolved[k] = resolveExpr(v, $vars);
+        }
+        $vars[arrName] = [...$vars[arrName], resolved];
+      } else {
+        const pv = resolveExpr(cfg.value, $vars);
+        $vars[arrName] = [...$vars[arrName], pv];
+      }
+      break;
+    }
     case "SUBTRACT_FROM_VAR": {
       const subVal = Number(resolveExpr(cfg.expr, $vars)) || 0;
       $vars[cfg.name] = (Number($vars[cfg.name]) || 0) - subVal;

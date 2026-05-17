@@ -105,6 +105,7 @@ export async function createLiveData(userId, options = {}) {
   // Books Read fields
   const booksReadFieldId           = uid();
   const booksReadDisplayFieldId    = uid();
+  const pagesFieldId               = uid(); // pages per book (used by Books Read tracker)
 
   // Podcasts Listened fields
   const podcastsListenedFieldId           = uid();
@@ -507,6 +508,21 @@ export async function createLiveData(userId, options = {}) {
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
+      meta: {},
+      displayConfig: {
+        columns: [
+          { path: "label", header: "Book" },
+          { path: "pages", header: "Pages", width: 70 },
+        ],
+      },
+    },
+    // Pages field — number of pages in a book (hidden on instances, used by Books Read tracker)
+    pages: {
+      id: pagesFieldId,
+      name: "Pages",
+      type: "number",
+      inputEnabled: true,
+      displayEnabled: false,
       meta: {},
     },
 
@@ -2276,22 +2292,26 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
   ]);
 
-  // 7 book modules
+  // 7 book modules — fieldBindings include libraryFieldId (type) and pagesFieldId (page count), both hidden
+  const bookFieldBindings = [
+    { fieldId: libraryFieldId, role: "input", order: 0, hidden: true },
+    { fieldId: pagesFieldId,   role: "input", order: 1, hidden: true },
+  ];
   await Module.insertMany([
     { id: bookAtomicHabitsModId,     userId, gridId, role: "instance", kind: "list", label: "Atomic Habits",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: bookFieldBindings },
     { id: bookDeepWorkModId,         userId, gridId, role: "instance", kind: "list", label: "Deep Work",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: bookFieldBindings },
     { id: bookSapiensModId,          userId, gridId, role: "instance", kind: "list", label: "Sapiens",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: bookFieldBindings },
     { id: bookThinkingFastSlowModId, userId, gridId, role: "instance", kind: "list", label: "Thinking, Fast and Slow",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: bookFieldBindings },
     { id: bookMeditationsModId,      userId, gridId, role: "instance", kind: "list", label: "Meditations",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: bookFieldBindings },
     { id: bookMansSearchModId,       userId, gridId, role: "instance", kind: "list", label: "Man's Search for Meaning",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: bookFieldBindings },
     { id: book4HourWorkweekModId,    userId, gridId, role: "instance", kind: "list", label: "The 4-Hour Workweek",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: bookFieldBindings },
   ]);
 
   // 5 podcast modules
@@ -2331,13 +2351,13 @@ export async function createLiveData(userId, options = {}) {
   const movieTenetOccId           = await mkOcc({ moduleId: movieTenetModId,           parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
 
   // 7 book occurrences (library field = "book")
-  const bookAtomicHabitsOccId     = await mkOcc({ moduleId: bookAtomicHabitsModId,     parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
-  const bookDeepWorkOccId         = await mkOcc({ moduleId: bookDeepWorkModId,         parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
-  const bookSapiensOccId          = await mkOcc({ moduleId: bookSapiensModId,          parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
-  const bookThinkingFastSlowOccId = await mkOcc({ moduleId: bookThinkingFastSlowModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
-  const bookMeditationsOccId      = await mkOcc({ moduleId: bookMeditationsModId,      parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
-  const bookMansSearchOccId       = await mkOcc({ moduleId: bookMansSearchModId,       parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
-  const book4HourWorkweekOccId    = await mkOcc({ moduleId: book4HourWorkweekModId,    parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book") } });
+  const bookAtomicHabitsOccId     = await mkOcc({ moduleId: bookAtomicHabitsModId,     parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(320) } });
+  const bookDeepWorkOccId         = await mkOcc({ moduleId: bookDeepWorkModId,         parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(304) } });
+  const bookSapiensOccId          = await mkOcc({ moduleId: bookSapiensModId,          parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(464) } });
+  const bookThinkingFastSlowOccId = await mkOcc({ moduleId: bookThinkingFastSlowModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(499) } });
+  const bookMeditationsOccId      = await mkOcc({ moduleId: bookMeditationsModId,      parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(304) } });
+  const bookMansSearchOccId       = await mkOcc({ moduleId: bookMansSearchModId,       parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(165) } });
+  const book4HourWorkweekOccId    = await mkOcc({ moduleId: book4HourWorkweekModId,    parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(320) } });
 
   // 5 podcast occurrences (library field = "podcast")
   const podcastTimFerrissOccId      = await mkOcc({ moduleId: podcastTimFerrissModId,      parentId: libraryContOccId, fields: { [libraryFieldId]: fv("podcast") } });
@@ -3094,8 +3114,8 @@ export async function createLiveData(userId, options = {}) {
           type: "action", action: "INIT_VAR",
           cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
         },
-        // 4. Init output accumulator
-        { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
+        // 4. Init output accumulator as an empty array (rows for the multi-dim display)
+        { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
         // 5. Find the Schedule page (needed for HAS_ANCESTOR)
         {
           type: "action", action: "FIND",
@@ -3137,14 +3157,20 @@ export async function createLiveData(userId, options = {}) {
                         itemVar: "$book", itemIdVar: "$bookId",
                       },
                     },
-                    // Append label to $output when found
+                    // Push a row { label, pages } when found
                     {
                       type: "if",
                       condition: { conjunction: "AND", rules: [{ left: "$bookId", comparator: "IS_NOT_EMPTY", right: "" }] },
                       then: [
                         {
-                          type: "action", action: "SET_VAR",
-                          cfg: { name: "$output", expr: "${$output}${$book.label}, " },
+                          type: "action", action: "PUSH_TO_ARRAY",
+                          cfg: {
+                            name: "$rows",
+                            value: {
+                              label: "$book.label",
+                              pages: `$book.fields.${pagesFieldId}.value`,
+                            },
+                          },
                         },
                       ],
                       else: [],
@@ -3156,10 +3182,10 @@ export async function createLiveData(userId, options = {}) {
             },
           ],
         },
-        // 7. Write the joined label string to the text display field on the goal item.
+        // 7. Write the array of rows to the display field on the goal item.
         {
           type: "action", action: "UPDATE",
-          cfg: { path: `$goalItemId.fields.${booksReadDisplayFieldId}.value`, value: "$output" },
+          cfg: { path: `$goalItemId.fields.${booksReadDisplayFieldId}.value`, value: "$rows" },
         },
       ],
     },

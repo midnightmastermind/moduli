@@ -1111,3 +1111,65 @@ describe("COPY_LINK action", () => {
     expect(childCreate.instance.fields.f_other).toEqual({ value: 42, flow: "in" });
   });
 });
+
+// ============================================================
+// PUSH_TO_ARRAY action
+// ============================================================
+describe("PUSH_TO_ARRAY action", () => {
+  const ctx = makeContext();
+
+  it("pushes a primitive onto a new array", () => {
+    const $vars = {};
+    executeActionItem("PUSH_TO_ARRAY", { name: "$items", value: "literal:hello" }, $vars, ctx);
+    expect($vars.$items).toEqual(["hello"]);
+  });
+
+  it("pushes multiple primitives sequentially", () => {
+    const $vars = { $items: ["first"] };
+    executeActionItem("PUSH_TO_ARRAY", { name: "$items", value: "literal:second" }, $vars, ctx);
+    expect($vars.$items).toEqual(["first", "second"]);
+  });
+
+  it("pushes an object with resolved leaf values", () => {
+    const $vars = {
+      $book: { label: "Deep Work" },
+      $pages: 304,
+    };
+    executeActionItem("PUSH_TO_ARRAY", {
+      name: "$rows",
+      value: { label: "$book.label", pages: "$pages" },
+    }, $vars, ctx);
+    expect($vars.$rows).toEqual([{ label: "Deep Work", pages: 304 }]);
+  });
+
+  it("pushes multiple object rows, building up the array", () => {
+    const $vars = { $rows: [] };
+    const books = [
+      { label: "Atomic Habits", pages: 320 },
+      { label: "Sapiens", pages: 464 },
+    ];
+    for (const b of books) {
+      const $v = { ...$vars, $b: b };
+      executeActionItem("PUSH_TO_ARRAY", { name: "$rows", value: { label: "$b.label", pages: "$b.pages" } }, $v, ctx);
+      $vars.$rows = $v.$rows;
+    }
+    expect($vars.$rows).toEqual([
+      { label: "Atomic Habits", pages: 320 },
+      { label: "Sapiens", pages: 464 },
+    ]);
+  });
+
+  it("creates the array when the variable does not exist", () => {
+    const $vars = {};
+    executeActionItem("PUSH_TO_ARRAY", { name: "$new", value: { x: "literal:1" } }, $vars, ctx);
+    expect(Array.isArray($vars.$new)).toBe(true);
+    expect($vars.$new).toHaveLength(1);
+    expect($vars.$new[0]).toEqual({ x: 1 });
+  });
+
+  it("is a no-op when name is missing", () => {
+    const $vars = {};
+    expect(() => executeActionItem("PUSH_TO_ARRAY", { value: "literal:x" }, $vars, ctx)).not.toThrow();
+    expect(Object.keys($vars)).toHaveLength(0);
+  });
+});

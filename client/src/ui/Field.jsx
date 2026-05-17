@@ -1103,6 +1103,42 @@ function Field({
     );
   }
 
+  // Array display with columns — when displayConfig.columns is set and value is an array
+  const displayColumns = field?.displayConfig?.columns;
+  if (Array.isArray(rawDisplayValue) && Array.isArray(displayColumns) && displayColumns.length > 0) {
+    const cols = displayColumns;
+    const gridTemplateColumns = cols.map(c => c.width ? `${c.width}px` : "1fr").join(" ");
+    return (
+      <div className="field-display" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {showLabel && <span style={labelStyle}>{name}</span>}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns,
+          columnGap: 8,
+          fontSize: 11,
+          fontFamily: "var(--font-mono)",
+          background: "var(--input-bg)",
+          border: "1px solid var(--border-subtle)",
+          borderRadius: 4,
+          padding: "4px 8px",
+        }}>
+          {cols.map((c, i) => (
+            <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: 10, color: "var(--text-muted)", paddingBottom: 2 }}>
+              {c.header || c.path}
+            </div>
+          ))}
+          {rawDisplayValue.map((row, ri) =>
+            cols.map((c, ci) => (
+              <div key={`${ri}-${ci}`} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}>
+                {row[c.path] == null ? "" : String(row[c.path])}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // Number / text / date / default
   return (
     <div className="field-display" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
