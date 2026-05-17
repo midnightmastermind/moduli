@@ -21,6 +21,7 @@ import {
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
+import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptionsSource";
 
 /**
  * Module-level bridge so CommitHelpers can fire operations immediately
@@ -49,6 +50,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (payload.gridId) {
       localStorage.setItem("moduli-gridId", payload.gridId);
     }
+
+    const migratedFields = (payload.fields || []).map(f => {
+      if (!needsMigration(f)) return f;
+      const migrated = migrateFieldOptionsSource(f);
+      safeEmit(socket, "update_field", { field: migrated });
+      return migrated;
+    });
+    payload = { ...payload, fields: migratedFields };
 
     socketDispatch({ type: ActionTypes.FULL_STATE, payload });
 
