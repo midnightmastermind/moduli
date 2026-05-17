@@ -37,7 +37,13 @@ import Operation from "../models/Operation.js";
 import Module from "../models/Module.js";
 import User from "../models/User.js";
 import { generateTimeSlots } from "../utils/operationBuilders.js";
-import { buildGridDoc, buildScheduleFilters } from "../utils/liveSystemBuilders.js";
+import {
+  buildGridDoc,
+  buildScheduleFilters,
+  buildTemplatesManifest,
+  buildDailyRoutineTemplate,
+  buildDayPageTemplate,
+} from "../utils/liveSystemBuilders.js";
 
 const DEFAULT_USER_EMAIL = "josh@jpoms.com";
 const DEFAULT_GRID_NAME = "Live Grid";
@@ -2036,6 +2042,34 @@ export async function createLiveData(userId, options = {}) {
   await new Folder({ id: notesFolderId,      userId, gridId, name: "Notes",      parentId: rootFolderId, folderType: "normal",    sortOrder: 3, isExpanded: true }).save();
   await new Folder({ id: dayPagesFolderId,   userId, gridId, name: "Day Pages",  parentId: rootFolderId, folderType: "day-pages", sortOrder: 4, isExpanded: true }).save();
 
+  // ── STEP 7b: Templates manifest + Daily Routine + Day Page templates ────────
+  // Separate manifest from the user manifest (createTestGrid pattern).
+  // buildTemplatesManifest mints the Templates folder + manifest and returns
+  // the root folder id that both template subtrees parent to.
+  const { tplManifestRootFolderId } = await buildTemplatesManifest({ userId, gridId, Folder, Manifest });
+
+  // Per-slot routine picks (6 items, no completed/water pre-fills).
+  // Slot-label keys are EXACTLY the strings generateTimeSlots() emits:
+  //   `${h}:${m}${ampm}` where h has no leading zero, m is "00"/"30", ampm is lowercase.
+  const routineBySlot = {
+    "6:00am": [
+      { sourceModId: instanceMods.drinkWater.id,        label: "Drink Water" },
+      { sourceModId: instanceMods.takeMeds.id,          label: "Take Vitamins" },
+    ],
+    "7:00am": [{ sourceModId: instanceMods.morningRun.id,        label: "Morning Run" }],
+    "8:00am": [{ sourceModId: instanceMods.scrambledEggs.id,     label: "Scrambled Eggs + Veg" }],
+    "12:00pm": [{ sourceModId: instanceMods.greekSaladChicken.id, label: "Greek Salad + Chicken" }],
+    "6:00pm": [{ sourceModId: instanceMods.readAChapter.id,      label: "Read a chapter" }],
+  };
+
+  await buildDailyRoutineTemplate({
+    userId, gridId, timeSlots, timeslotFieldId, routineBySlot,
+    tplManifestRootFolderId, mkOcc, Module,
+    findModule: (q) => Module.findOne(q).lean(),
+  });
+
+  await buildDayPageTemplate({ userId, gridId, tplManifestRootFolderId, mkOcc, Module });
+
   return {
     gridId,
     gridName,
@@ -2054,6 +2088,8 @@ export async function createLiveData(userId, options = {}) {
     interfacesFolderId,
     notesFolderId,
     dayPagesFolderId,
+    // Templates manifest root folder — consumed by Tasks 12–13
+    tplManifestRootFolderId,
   };
 }
 
@@ -2093,8 +2129,9 @@ async function main() {
     console.log(`   Cont modules:   ${containerCount} (no slot containers)`);
     console.log(`   Container occs: ${totalContOccs} (${tkContOccs} toolkit, ${tdContOccs} todo, ${glContOccs} goal, ${acContOccs} account)`);
     console.log(`   Folders:        Root + 5 children (Tasks/Trackers/Interfaces/Notes/Day Pages)`);
+    console.log(`   Templates:      Daily Routine (6-pick) + Day Page under Templates manifest`);
     console.log("=".repeat(50));
-    console.log("Note: pages/panels/ops/templates added in Tasks 10–14.");
+    console.log("Note: pages/panels/ops added in Tasks 11–14.");
     console.log("=".repeat(50));
   } catch (err) {
     console.error("❌ Failed:", err);
