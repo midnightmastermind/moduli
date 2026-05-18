@@ -4,7 +4,7 @@
 // live cell editors come in later tasks.
 import React, { useMemo, useCallback } from "react";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
-import { cellKey, emptyCellDoc } from "../../helpers/tableCells";
+import { cellKey, emptyCellDoc, plainText } from "../../helpers/tableCells";
 
 const DEFAULT_TABLE = () => ({
   columns: [
@@ -14,13 +14,6 @@ const DEFAULT_TABLE = () => ({
   rowCount: 4,
   cells: {},
 });
-
-function plainText(doc) {
-  let out = "";
-  const walk = (n) => { if (!n) return; if (n.type === "text") out += n.text || ""; (n.content || []).forEach(walk); };
-  walk(doc);
-  return out;
-}
 
 export default function ContainerTable({ occurrence, dispatch, socket }) {
   const table = occurrence?.meta?.table || DEFAULT_TABLE();

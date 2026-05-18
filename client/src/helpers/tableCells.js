@@ -18,7 +18,7 @@ export function makeEmbedCellDoc(occurrenceId) {
   };
 }
 
-function plainText(doc) {
+export function plainText(doc) {
   let out = "";
   const walk = (n) => {
     if (!n) return;
