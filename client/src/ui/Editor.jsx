@@ -142,7 +142,12 @@ const Editor = forwardRef(function Editor({
   onDeleteBlock = null,
   onAutoCreateTextblock = null,
   recentAutoCreateRef = null,
+  mode = "doc",
+  onCellCommitMove = null,
 }, ref) {
+  // Cell mode: opt-in via mode="cell". Gates doc-only behaviors and enables
+  // spreadsheet navigation keymaps. The default mode="doc" path is unchanged.
+  const isCell = mode === "cell";
   const { fieldsById, instancesById, occurrencesById, modulesById } = useContext(GridActionsContext) || {};
 
   // Suggestion / palette state
@@ -352,8 +357,9 @@ const Editor = forwardRef(function Editor({
       if (transaction.getMeta("textblockExit") && recentAutoCreateRef?.current) {
         recentAutoCreateRef.current = { occId: null, expireAt: 0 };
       }
-      // Auto-create textblock: first character typed on a previously empty paragraph
-      if (onAutoCreateTextblock && transaction.docChanged && !transaction.getMeta("skipAutoCreate")) {
+      // Auto-create textblock: first character typed on a previously empty paragraph.
+      // Gated behind !isCell — cell editors have no auto-create-textblock behavior.
+      if (!isCell && onAutoCreateTextblock && transaction.docChanged && !transaction.getMeta("skipAutoCreate")) {
         let handled = false;
         // ── Pre-pass: merge paragraphs that LAND DURING THE FOCUS-RACE
         // WINDOW right after a just-auto-created textblock. Window is gated
@@ -628,6 +634,59 @@ const Editor = forwardRef(function Editor({
             return true;
           }
         }
+        // ── Cell-mode keymaps (only active when mode="cell") ────────────────
+        // These are purely additive — the isCell guard ensures they never
+        // fire on the default mode="doc" path.
+        if (isCell) {
+          // Enter (no shift) → commit and move down
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            onCellCommitMove?.("down");
+            return true;
+          }
+          // Shift+Enter → soft break (allow default, do NOT preventDefault)
+          // Tab → commit and move right; Shift+Tab → move left
+          if (event.key === "Tab") {
+            event.preventDefault();
+            if (event.shiftKey) {
+              onCellCommitMove?.("left");
+            } else {
+              onCellCommitMove?.("right");
+            }
+            return true;
+          }
+          // Escape → blur (defocus the cell editor).
+          // Only fires when no suggestion popup is open — suggestion popups
+          // take priority so the user can dismiss them first.
+          if (event.key === "Escape" && !showSuggestion && !showCommandPalette && !showDocLink && !showExprSuggestion && !showEmbedPicker) {
+            event.preventDefault();
+            _view.dom.blur();
+            return true;
+          }
+          // ArrowUp at first visual line of the first block → move up.
+          // Reuses the exact same edge check used by the sub-editor exit-block
+          // ArrowUp handler above (same structural guard: $anchor.index(0)===0
+          // + endOfTextblock("up")).
+          if (event.key === "ArrowUp") {
+            const { $anchor } = _view.state.selection;
+            if ($anchor.index(0) === 0 && _view.endOfTextblock("up")) {
+              event.preventDefault();
+              onCellCommitMove?.("up");
+              return true;
+            }
+          }
+          // ArrowDown at last visual line of the last block → move down.
+          if (event.key === "ArrowDown") {
+            const { $anchor } = _view.state.selection;
+            if ($anchor.index(0) === _view.state.doc.childCount - 1 && _view.endOfTextblock("down")) {
+              event.preventDefault();
+              onCellCommitMove?.("down");
+              return true;
+            }
+          }
+        }
+        // ── end cell-mode keymaps ─────────────────────────────────────────────
+
         if (event.key === "@") handleAtKey();
         if (event.key === "/") handleSlashKey();
         if (event.key === "[" && lastCharRef.current === "[") handleDocLinkTrigger();
