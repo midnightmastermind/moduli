@@ -36,9 +36,9 @@ const KIND_FALLBACK = { label: "Other", icon: Box, desc: "" };
 // Panels surface container kinds. Pages surface panel kinds.
 const ALLOWED_KINDS_BY_ROLE = {
   instance:  new Set(["list", "textblock", "artifact"]),
-  container: new Set(["list", "doc", "board", "canvas"]),
+  container: new Set(["list", "doc", "board", "canvas", "table"]),
   panel:     new Set(["board"]),
-  page:      new Set(["board", "doc", "canvas", "folder"]),
+  page:      new Set(["board", "doc", "canvas", "table", "folder"]),
 };
 
 export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null }) {

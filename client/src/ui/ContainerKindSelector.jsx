@@ -6,7 +6,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { List, FileText, LayoutGrid, PenTool } from "lucide-react";
+import { List, FileText, LayoutGrid, PenTool, Table } from "lucide-react";
 
 // Canonical kind set used everywhere the user picks a new container/page kind.
 // Mirrors the category tiles QuickAddMenu shows for existing modules, so add-
@@ -39,6 +39,13 @@ const CONTAINER_KINDS = [
     description: "Free-form spatial layout",
     icon: PenTool,
     color: "bg-pink-600 hover:bg-pink-500",
+  },
+  {
+    kind: "table",
+    label: "Table",
+    description: "Spreadsheet grid of cells",
+    icon: Table,
+    color: "bg-amber-600 hover:bg-amber-500",
   },
 ];
 
