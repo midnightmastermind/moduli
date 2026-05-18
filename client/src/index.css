@@ -2022,3 +2022,16 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   from { opacity: 0.55; }
   to   { opacity: 0.9; }
 }
+
+/* ===== TABLE CONTAINER ===== */
+.table-container { overflow: auto; max-height: 100%; }
+.table-grid { display: grid; width: max-content; }
+.table-th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--input-bg); border: 1px solid var(--border-default);
+  font-weight: 600; font-size: 12px; padding: 4px 8px;
+}
+.table-td {
+  border: 1px solid var(--border-subtle); min-height: 28px;
+  padding: 2px 6px; font-size: 13px; overflow: hidden;
+}

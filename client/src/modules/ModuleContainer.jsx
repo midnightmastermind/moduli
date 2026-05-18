@@ -47,6 +47,7 @@ import {
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import { DocEditorShell } from "./DocContent.jsx";
 import ContainerPool from "./containers/ContainerPool.jsx";
+import ContainerTable from "./containers/ContainerTable.jsx";
 import { FilterOverridePopup } from "./containerPopups.jsx";
 import ModuleInstance from "./ModuleInstance.jsx";
 import ArtifactCard from "./ArtifactCard.jsx";
@@ -452,6 +453,7 @@ function Container({
   const isDocContainer = containerViewType === "doc" || (!containerViewType && module?.kind === "doc");
   const isPoolContainer = containerViewType === "pool" || (!containerViewType && module?.kind === "pool");
   const isCanvasContainer = containerViewType === "canvas" || (!containerViewType && module?.kind === "canvas");
+  const isTableContainer = containerViewType === "table" || (!containerViewType && module?.kind === "table");
 
   // Canvas items: look up ALL module roles (instances + containers) from modulesById
   // so both instances and doc/list containers can be dropped onto a canvas.
@@ -879,6 +881,9 @@ function Container({
             });
           }}
         />
+      ) : isTableContainer ? (
+        /* Table Container: static grid from occurrence.meta.table */
+        <ContainerTable occurrence={containerOccurrence} dispatch={dispatch} socket={socket} />
       ) : focusedItem ? (() => {
         const { instance: fi, occurrence: fo } = focusedItem;
 
