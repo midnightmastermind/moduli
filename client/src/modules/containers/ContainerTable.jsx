@@ -102,6 +102,7 @@ function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispat
         editable
         content={initialContent.current}
         onChange={handleChange}
+        onCellCommitMove={onCellCommitMove}
         dispatch={dispatch}
         socket={socket}
         placeholder=""
