@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   emptyCellDoc, makeEmbedCellDoc, cellKey, getCellSortValue,
 } from "../helpers/tableCells.js";
+import { fillRange } from "../helpers/tableCells.js";
 
 describe("tableCells", () => {
   it("cellKey formats r:c", () => {
@@ -51,5 +52,25 @@ describe("tableCells", () => {
 
   it("getCellSortValue: empty doc → empty string", () => {
     expect(getCellSortValue(emptyCellDoc(), { displayFieldId: null }, {})).toBe("");
+  });
+});
+
+describe("fillRange", () => {
+  const src = { r: 1, c: 1 };
+  it("horizontal when |dc| >= |dr|", () => {
+    expect(fillRange(src, { r: 1, c: 4 })).toEqual([
+      { r: 1, c: 2 }, { r: 1, c: 3 }, { r: 1, c: 4 },
+    ]);
+  });
+  it("vertical when |dr| > |dc|", () => {
+    expect(fillRange(src, { r: 4, c: 2 })).toEqual([
+      { r: 2, c: 1 }, { r: 3, c: 1 }, { r: 4, c: 1 },
+    ]);
+  });
+  it("backwards horizontal", () => {
+    expect(fillRange(src, { r: 1, c: -1 }).map(p => p.c)).toEqual([0]);
+  });
+  it("excludes the source cell and returns [] when target == source", () => {
+    expect(fillRange(src, { r: 1, c: 1 })).toEqual([]);
   });
 });

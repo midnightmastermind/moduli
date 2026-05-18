@@ -65,3 +65,29 @@ export function getCellSortValue(doc, column, ctx) {
   const asNum = Number(txt);
   return Number.isFinite(asNum) && /^[+-]?\d*\.?\d+$/.test(txt) ? asNum : txt;
 }
+
+/**
+ * Cells the fill gesture should write, given the source cell and the cell
+ * under the pointer. Constrained to a single axis (Excel-style): the axis
+ * with the larger delta wins; the other axis is pinned to the source.
+ * Source cell itself is excluded. Targets clamped to >= 0.
+ */
+export function fillRange(src, target) {
+  const dr = target.r - src.r;
+  const dc = target.c - src.c;
+  if (dr === 0 && dc === 0) return [];
+  const horizontal = Math.abs(dc) >= Math.abs(dr);
+  const out = [];
+  if (horizontal) {
+    const step = dc > 0 ? 1 : -1;
+    for (let c = src.c + step; c !== src.c + dc + step; c += step) {
+      if (c >= 0) out.push({ r: src.r, c });
+    }
+  } else {
+    const step = dr > 0 ? 1 : -1;
+    for (let r = src.r + step; r !== src.r + dr + step; r += step) {
+      if (r >= 0) out.push({ r, c: src.c });
+    }
+  }
+  return out;
+}
