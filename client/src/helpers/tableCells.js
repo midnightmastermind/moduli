@@ -66,6 +66,29 @@ export function getCellSortValue(doc, column, ctx) {
   return Number.isFinite(asNum) && /^[+-]?\d*\.?\d+$/.test(txt) ? asNum : txt;
 }
 
+function reindex(cells, fromCol, delta) {
+  const next = {};
+  for (const k of Object.keys(cells)) {
+    const [r, c] = k.split(":").map(Number);
+    if (c < fromCol) next[k] = cells[k];
+    else if (delta < 0 && c === fromCol) continue; // dropped
+    else next[`${r}:${c + delta}`] = cells[k];
+  }
+  return next;
+}
+export function deleteColumn(table, colIndex) {
+  return {
+    ...table,
+    columns: table.columns.filter((_, i) => i !== colIndex),
+    cells: reindex(table.cells, colIndex, -1),
+  };
+}
+export function insertColumn(table, colIndex, colDef) {
+  const columns = table.columns.slice();
+  columns.splice(colIndex, 0, colDef);
+  return { ...table, columns, cells: reindex(table.cells, colIndex, +1) };
+}
+
 /**
  * Cells the fill gesture should write, given the source cell and the cell
  * under the pointer. Constrained to a single axis (Excel-style): the axis

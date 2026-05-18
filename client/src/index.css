@@ -2029,8 +2029,103 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .table-th {
   position: sticky; top: 0; z-index: 2;
   background: var(--input-bg); border: 1px solid var(--border-default);
-  font-weight: 600; font-size: 12px; padding: 4px 8px;
+  font-weight: 600; font-size: 12px; padding: 0;
+  user-select: none;
 }
+.table-th-inner {
+  display: flex; align-items: center; gap: 2px;
+  padding: 4px 24px 4px 8px; /* right padding leaves room for resize grip */
+  min-height: 28px;
+}
+.table-th-title {
+  flex: 1; min-width: 0;
+  background: transparent; border: none; outline: none;
+  color: var(--text-primary); font-weight: 600; font-size: 12px;
+  font-family: inherit; cursor: default;
+}
+.table-th-title:focus { cursor: text; }
+.table-th-actions {
+  display: flex; align-items: center; gap: 1px;
+  opacity: 0; transition: opacity 0.1s;
+}
+.table-th:hover .table-th-actions { opacity: 1; }
+
+/* Sort caret */
+.table-sort-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); padding: 2px 3px; border-radius: 3px;
+  display: flex; align-items: center; line-height: 1;
+}
+.table-sort-btn:hover { background: var(--border-default); color: var(--text-primary); }
+.table-sort-inactive { font-size: 10px; opacity: 0.5; }
+
+/* Kebab menu */
+.table-kebab-wrap { position: relative; }
+.table-kebab-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); padding: 2px 3px; border-radius: 3px;
+  display: flex; align-items: center;
+}
+.table-kebab-btn:hover { background: var(--border-default); color: var(--text-primary); }
+.table-kebab-menu {
+  position: absolute; top: calc(100% + 2px); right: 0; z-index: 20;
+  background: hsl(var(--popover-1)); border: 1px solid var(--border-default);
+  border-radius: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  min-width: 130px; overflow: hidden;
+}
+.table-kebab-item {
+  display: block; width: 100%; padding: 7px 12px;
+  background: none; border: none; text-align: left; cursor: pointer;
+  font-size: 12px; color: var(--text-primary);
+}
+.table-kebab-item:hover { background: var(--input-bg); }
+.table-kebab-delete { color: #e05c5c !important; }
+.table-kebab-delete:hover { background: rgba(224,92,92,0.12) !important; }
+
+/* Resize grip */
+.table-resize-grip {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 5px;
+  cursor: col-resize; background: transparent;
+}
+.table-resize-grip:hover,
+.table-resize-grip:active { background: var(--accent-blue); opacity: 0.6; }
+
+/* +Column button cell */
+.table-add-col-th {
+  background: transparent; border-color: transparent !important;
+  min-width: 80px;
+}
+.table-add-col-btn {
+  background: none; border: 1px dashed var(--border-subtle);
+  color: var(--text-muted); font-size: 11px; border-radius: 4px;
+  padding: 3px 8px; cursor: pointer; white-space: nowrap;
+}
+.table-add-col-btn:hover { border-color: var(--border-default); color: var(--text-primary); }
+
+/* Row action cell (trailing-row remove) */
+.table-row-action-cell {
+  border-color: transparent !important; background: transparent;
+  display: flex; align-items: center; justify-content: center; padding: 0 4px;
+}
+.table-remove-row-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-faint); font-size: 14px; line-height: 1; border-radius: 3px;
+  padding: 1px 5px; opacity: 0;
+}
+.table-grid:hover .table-remove-row-btn { opacity: 1; }
+.table-remove-row-btn:hover { color: #e05c5c; background: rgba(224,92,92,0.12); }
+
+/* Footer +row */
+.table-footer {
+  padding: 4px 6px;
+}
+.table-add-row-btn {
+  background: none; border: 1px dashed var(--border-subtle);
+  color: var(--text-muted); font-size: 11px; border-radius: 4px;
+  padding: 3px 10px; cursor: pointer;
+}
+.table-add-row-btn:hover { border-color: var(--border-default); color: var(--text-primary); }
+
 .table-td {
   border: 1px solid var(--border-subtle); min-height: 28px;
   padding: 2px 6px; font-size: 13px; overflow: hidden;

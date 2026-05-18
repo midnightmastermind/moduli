@@ -3,6 +3,7 @@ import {
   emptyCellDoc, makeEmbedCellDoc, cellKey, getCellSortValue,
 } from "../helpers/tableCells.js";
 import { fillRange } from "../helpers/tableCells.js";
+import { deleteColumn, insertColumn } from "../helpers/tableCells.js";
 
 describe("tableCells", () => {
   it("cellKey formats r:c", () => {
@@ -72,5 +73,26 @@ describe("fillRange", () => {
   });
   it("excludes the source cell and returns [] when target == source", () => {
     expect(fillRange(src, { r: 1, c: 1 })).toEqual([]);
+  });
+});
+
+describe("column structural ops", () => {
+  const base = {
+    columns: [{ id: "a" }, { id: "b" }, { id: "c" }],
+    rowCount: 2,
+    cells: { "0:0": 1, "0:1": 2, "0:2": 3, "1:1": 9 },
+  };
+  it("deleteColumn removes col + reindexes cell keys", () => {
+    const out = deleteColumn(base, 1);
+    expect(out.columns.map(c => c.id)).toEqual(["a", "c"]);
+    expect(out.cells).toEqual({ "0:0": 1, "0:1": 3 });
+  });
+  it("insertColumn at index shifts keys right", () => {
+    const out = insertColumn(base, 1, { id: "x" });
+    expect(out.columns.map(c => c.id)).toEqual(["a", "x", "b", "c"]);
+    expect(out.cells["0:0"]).toBe(1);
+    expect(out.cells["0:2"]).toBe(2);
+    expect(out.cells["0:3"]).toBe(3);
+    expect(out.cells["1:2"]).toBe(9);
   });
 });
