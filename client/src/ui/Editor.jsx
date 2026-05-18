@@ -39,6 +39,7 @@ import { HeadingFocus } from "../docs/HeadingFocusExtension";
 import { ModuleEmbed } from "../docs/ModuleEmbedExtension";
 import { InstanceTextblock } from "../docs/InstanceTextblockExtension";
 import { ExprPill } from "../docs/ExprPillExtension";
+import { CellEmbedContext } from "../docs/CellEmbedContext";
 import FieldSuggestion from "../docs/suggestions/FieldSuggestion";
 import CommandPalette from "../docs/suggestions/CommandPalette";
 import DocLinkSuggestion from "../docs/suggestions/DocLinkSuggestion";
@@ -144,6 +145,10 @@ const Editor = forwardRef(function Editor({
   recentAutoCreateRef = null,
   mode = "doc",
   onCellCommitMove = null,
+  // Cell-mode column projection: when set, moduleEmbed NodeViews inside this
+  // cell render ONLY the named field via FieldRenderer instead of the full
+  // instance form. Undefined / null = standard doc-mode render (unchanged).
+  displayFieldId = null,
 }, ref) {
   // Cell mode: opt-in via mode="cell". Gates doc-only behaviors and enables
   // spreadsheet navigation keymaps. The default mode="doc" path is unchanged.
@@ -1553,7 +1558,13 @@ const Editor = forwardRef(function Editor({
           editor.commands.focus('end');
         }}
       >
-        <EditorContent editor={editor} />
+        {displayFieldId != null ? (
+          <CellEmbedContext.Provider value={{ displayFieldId }}>
+            <EditorContent editor={editor} />
+          </CellEmbedContext.Provider>
+        ) : (
+          <EditorContent editor={editor} />
+        )}
       </div>
 
       {showSuggestion && (

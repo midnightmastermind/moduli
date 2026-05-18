@@ -9,12 +9,13 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
 } from "@tanstack/react-table";
-import { MoreVertical, ChevronUp, ChevronDown } from "lucide-react";
+import { MoreVertical, ChevronUp, ChevronDown, Hash } from "lucide-react";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { cellKey, emptyCellDoc, getCellSortValue, deleteColumn, insertColumn } from "../../helpers/tableCells";
 import { GridActionsContext } from "../../GridActionsContext";
 import { uid } from "../../uid";
 import Editor from "../../ui/Editor.jsx";
+import CategoryPathPicker from "../../ui/CategoryPathPicker.jsx";
 
 const DEFAULT_TABLE = () => ({
   columns: [
@@ -43,7 +44,7 @@ const DEBOUNCE_MS = 500;
 // React from tearing down this component across data changes.  `initialContent`
 // is a ref so the `content` prop passed to Editor is the mount-time snapshot
 // only — TipTap is uncontrolled after mount and manages its own doc state.
-function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket }) {
+function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId }) {
   const key = cellKey(r, c);
 
   // Seed TipTap once at mount — never update this ref so the Editor's content
@@ -136,13 +137,14 @@ function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispat
         dispatch={dispatch}
         socket={socket}
         placeholder=""
+        displayFieldId={displayFieldId ?? null}
       />
     </div>
   );
 }
 
 export default function ContainerTable({ occurrence, dispatch, socket }) {
-  const { occurrencesById, modulesById } = useContext(GridActionsContext);
+  const { occurrencesById, modulesById, fieldsById } = useContext(GridActionsContext);
 
   const table = useMemo(() => occurrence?.meta?.table || DEFAULT_TABLE(), [occurrence?.meta?.table]);
   const { columns, rowCount, cells } = table;
@@ -175,6 +177,9 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
   // Kebab menu state: { colIndex, anchor }
   const [kebabOpen, setKebabOpen] = useState(null);
+
+  // Field picker: which column is showing the "Show field" picker
+  const [fieldPickerCol, setFieldPickerCol] = useState(null);
 
   // Resize state: { colIndex, startX, startWidth }
   const [resizing, setResizing] = useState(null);
@@ -276,6 +281,44 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     persist(nextTable);
   }, [table, persist]);
 
+  // --- Set displayFieldId on a column (from kebab "Show field" picker) ---
+  // Pass fieldId=null to clear (show full instance embed instead of single field).
+  const handleSetDisplayField = useCallback((colIndex, fieldId) => {
+    setFieldPickerCol(null);
+    setKebabOpen(null);
+    const nextCols = columns.map((c, i) =>
+      i === colIndex ? { ...c, displayFieldId: fieldId || null } : c
+    );
+    persist({ ...table, columns: nextCols });
+  }, [columns, persist, table]);
+
+  // Build the field picker config — reuse the same CategoryPathPicker pattern
+  // as InstanceForm's FieldsSection: single flat category, one-click commit.
+  const allFields = useMemo(
+    () => Object.values(fieldsById || {}),
+    [fieldsById],
+  );
+  const buildFieldPickerConfig = useCallback((colIndex) => {
+    const currentFieldId = columns[colIndex]?.displayFieldId;
+    return {
+      placeholder: currentFieldId ? "Change field…" : "Pick a field…",
+      categories: [{
+        id: "fields",
+        label: "Pick a field to display",
+        description: "Shows a single field value instead of the full instance form.",
+        icon: Hash,
+        color: "rgba(168,85,247,0.7)",
+        resolveItems: () => allFields.map(f => ({
+          value: f.id,
+          title: f.name || "(unnamed field)",
+          sub: f.type || "field",
+          description: f.meta?.description || `${f.type || "field"} field`,
+          hasChildren: false,
+        })),
+      }],
+    };
+  }, [allFields, columns]);
+
   // --- Resize column ---
   const handleResizePointerDown = useCallback((e, colIndex) => {
     e.preventDefault();
@@ -331,13 +374,14 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     if (rowCount > 1) persist({ ...table, rowCount: rowCount - 1 });
   }, [table, rowCount, persist]);
 
-  // Close kebab on outside click
+  // Close kebab (and field picker) on outside click
   const containerRef = useRef(null);
   React.useEffect(() => {
     if (!kebabOpen) return;
     const handler = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setKebabOpen(null);
+        setFieldPickerCol(null);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -394,6 +438,43 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                   </button>
                   {kebabOpen?.colIndex === c && (
                     <div className="table-kebab-menu">
+                      {/* Show field picker or the Show field trigger */}
+                      {fieldPickerCol === c ? (
+                        <div className="table-kebab-field-picker">
+                          <CategoryPathPicker
+                            value=""
+                            onChange={(picked) => {
+                              const fieldId = picked ? picked.split(".").pop() : null;
+                              handleSetDisplayField(c, fieldId || null);
+                            }}
+                            ctx={{ fields: allFields, sources: [], localVars: [] }}
+                            config={buildFieldPickerConfig(c)}
+                          />
+                          {col.displayFieldId && (
+                            <button
+                              className="table-kebab-item table-kebab-clear-field"
+                              onClick={() => handleSetDisplayField(c, null)}
+                            >
+                              Clear field display
+                            </button>
+                          )}
+                          <button
+                            className="table-kebab-item"
+                            onClick={() => setFieldPickerCol(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="table-kebab-item"
+                          onClick={() => setFieldPickerCol(c)}
+                        >
+                          {col.displayFieldId
+                            ? `Field: ${fieldsById?.[col.displayFieldId]?.name || col.displayFieldId}`
+                            : "Show field…"}
+                        </button>
+                      )}
                       <button
                         className="table-kebab-item table-kebab-delete"
                         onClick={() => handleDeleteColumn(c)}
@@ -434,6 +515,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                 cellRefs={cellRefs}
                 dispatch={dispatch}
                 socket={socket}
+                displayFieldId={col.displayFieldId ?? null}
               />
             ))}
             {/* Trailing-row removal button — aligned to +column cell */}

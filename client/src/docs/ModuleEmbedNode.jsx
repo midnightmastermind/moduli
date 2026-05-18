@@ -9,6 +9,8 @@ import Container from "../modules/ModuleContainer.jsx";
 import ModuleInstance from "../modules/ModuleInstance.jsx";
 import ArtifactContent from "../modules/ArtifactContent.jsx";
 import TextblockCard from "../modules/TextblockCard.jsx";
+import FieldRenderer from "../ui/FieldRenderer.jsx";
+import { CellEmbedContext } from "./CellEmbedContext.js";
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box } from "lucide-react";
 import { embedDeleteRegistry } from "../helpers/embedRegistry.js";
 
@@ -26,7 +28,10 @@ function alignStyle(align, width) {
 }
 
 export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos, deleteNode }) {
-  const { occurrencesById, modulesById, viewsById, dispatch, socket } = useContext(GridActionsContext) || {};
+  const { occurrencesById, modulesById, viewsById, dispatch, socket, fieldsById } = useContext(GridActionsContext) || {};
+  // Cell-mode projection: set by the enclosing cell <Editor> when the column
+  // has a displayFieldId configured. Null/undefined = full doc-mode render.
+  const { displayFieldId } = useContext(CellEmbedContext) || {};
   const occurrenceId = node.attrs.occurrenceId;
   const align = node.attrs.align || "full";
   const width = node.attrs.width || null;
@@ -107,6 +112,41 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       </NodeViewWrapper>
     );
   }
+
+  // ── Cell-mode single-field projection ─────────────────────────────────────
+  // When the enclosing table cell's column has a displayFieldId set AND the
+  // embedded occurrence is an instance role, render ONLY that field via
+  // FieldRenderer (compact, hideName) instead of the full ModuleInstance form.
+  //
+  // Guard: displayFieldId must be a non-empty string, the occurrence must be
+  // an instance role (not container/artifact/textblock), and the field must
+  // exist in fieldsById. The binding is synthesised from occurrence.fields so
+  // FieldRenderer gets the stored value exactly as it would in normal render.
+  //
+  // Doc-mode (displayFieldId null/undefined) — falls straight through to the
+  // original return below; NOT reached by this branch at all.
+  if (displayFieldId && mod?.role === "instance" && occurrence) {
+    const projField = fieldsById?.[displayFieldId];
+    const projBinding = occurrence.fields?.[displayFieldId]
+      ? { fieldId: displayFieldId }
+      : { fieldId: displayFieldId };
+    if (projField) {
+      return (
+        <NodeViewWrapper contentEditable={false} data-occ-id={occurrenceId}>
+          <FieldRenderer
+            field={projField}
+            binding={projBinding}
+            occurrence={occurrence}
+            instance={mod}
+            compact
+            dispatch={dispatch}
+            socket={socket}
+          />
+        </NodeViewWrapper>
+      );
+    }
+  }
+  // ──────────────────────────────────────────────────────────────────────────
 
   return (
     <NodeViewWrapper contentEditable={false} data-occ-id={occurrenceId}>
