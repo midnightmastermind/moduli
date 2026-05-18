@@ -4,7 +4,37 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { setFilterNavAction } from "../state/actions";
 import { resolveOptions } from "../helpers/optionsResolver";
 
-const stepByUnit = { day: 86400000, week: 86400000 * 7, month: 86400000 * 30, year: 86400000 * 365 };
+// Period units exposed in the D/W/M/Y toggle. Stepping uses Date#setDate /
+// setMonth / setFullYear (NOT fixed ms deltas — month/year vary in length).
+const UNIT_LABELS = { day: "D", week: "W", month: "M", year: "Y" };
+const UNIT_ORDER = ["day", "week", "month", "year"];
+
+function readValueShape(v) {
+  if (v && typeof v === "object" && !Array.isArray(v)) return { value: v.value ?? null, unit: v.unit || "day" };
+  return { value: v ?? null, unit: "day" };
+}
+
+function stepByUnit(date, unit, direction) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  if (unit === "week")       d.setDate(d.getDate() + direction * 7);
+  else if (unit === "month") d.setMonth(d.getMonth() + direction);
+  else if (unit === "year")  d.setFullYear(d.getFullYear() + direction);
+  else                       d.setDate(d.getDate() + direction);
+  return d;
+}
+
+function formatPeriodLabel(date, unit) {
+  if (unit === "week") {
+    const start = new Date(date);
+    const dow = start.getDay();
+    const offset = dow === 0 ? -6 : 1 - dow;
+    start.setDate(start.getDate() + offset);
+    return `Week of ${start.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  }
+  if (unit === "month") return date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  if (unit === "year")  return String(date.getFullYear());
+  return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
 
 // Resolve the write path: if `onNav` is provided, call that (used by the
 // HeaderDropdown to auto-unlock the filter for this module via filterOverride).
@@ -34,26 +64,60 @@ function localDayISO(d) {
 }
 
 function ArrowsWidget({ filter, value, dispatch, onNav }) {
-  const unit = filter.timeUnit || "day";
-  const stepMs = stepByUnit[unit] || stepByUnit.day;
+  const shape = readValueShape(value);
+  // Unit precedence: the value's own unit (object form) wins over the filter's
+  // static timeUnit. Lets users pick D/W/M/Y per-occurrence without rewriting
+  // the named filter.
+  const unit = shape.unit || filter.timeUnit || "day";
+  const allowedUnits = Array.isArray(filter?.units) && filter.units.length
+    ? filter.units.filter(u => UNIT_ORDER.includes(u))
+    : null;
   const write = makeWriter(filter, onNav, dispatch);
-  const isDateString = typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value);
+  // Preserve the shape (bare string vs object) of the incoming value when
+  // writing back — except when the unit isn't "day", in which case the
+  // {value, unit} form is required so trackers can see the period.
+  const wasObjectShape = value && typeof value === "object" && !Array.isArray(value);
+  const writeNext = (dateStr, nextUnit) => {
+    if (wasObjectShape || nextUnit !== "day") write({ value: dateStr, unit: nextUnit });
+    else write(dateStr);
+  };
   const onPrev = () => {
-    const d = parseDateValue(value).getTime();
-    const next = new Date(d - stepMs);
-    write(isDateString || !value ? localDayISO(next) : next.toISOString());
+    const next = stepByUnit(parseDateValue(shape.value || new Date()), unit, -1);
+    writeNext(localDayISO(next), unit);
   };
   const onNext = () => {
-    const d = parseDateValue(value).getTime();
-    const next = new Date(d + stepMs);
-    write(isDateString || !value ? localDayISO(next) : next.toISOString());
+    const next = stepByUnit(parseDateValue(shape.value || new Date()), unit, +1);
+    writeNext(localDayISO(next), unit);
   };
-  const label = value ? parseDateValue(value).toLocaleDateString() : "—";
+  const onUnitChange = (u) => {
+    const dateStr = shape.value ? localDayISO(parseDateValue(shape.value)) : localDayISO(new Date());
+    writeNext(dateStr, u);
+  };
+  const label = shape.value ? formatPeriodLabel(parseDateValue(shape.value), unit) : "—";
+  const showToggle = !allowedUnits || allowedUnits.length > 1;
   return (
     <div style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
       <button onClick={onPrev} title="Prev" style={{ background: "transparent", border: 0, color: "inherit", cursor: "pointer" }}><ChevronLeft size={14} /></button>
-      <span style={{ minWidth: 80, textAlign: "center", fontSize: 12 }}>{label}</span>
+      <span style={{ minWidth: 96, textAlign: "center", fontSize: 12 }}>{label}</span>
       <button onClick={onNext} title="Next" style={{ background: "transparent", border: 0, color: "inherit", cursor: "pointer" }}><ChevronRight size={14} /></button>
+      {showToggle && (
+        <div style={{ display: "inline-flex", gap: 2, marginLeft: 4 }}>
+          {(allowedUnits || UNIT_ORDER).map(u => (
+            <button
+              key={u}
+              onClick={() => onUnitChange(u)}
+              title={u}
+              style={{
+                padding: "1px 5px", fontSize: 10, lineHeight: "12px",
+                borderRadius: 4,
+                border: "1px solid var(--panel-border, #374151)",
+                background: u === unit ? "var(--accent, #14b8a6)" : "transparent",
+                color: "inherit", cursor: "pointer",
+              }}
+            >{UNIT_LABELS[u]}</button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

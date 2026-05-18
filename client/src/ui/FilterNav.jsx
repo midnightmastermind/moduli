@@ -20,51 +20,66 @@ import {
 } from "@/components/ui/popover";
 import { ChevronLeft, ChevronRight, CalendarDays, Filter } from "lucide-react";
 
-function formatDateDisplay(date, timeScale) {
+const UNIT_LABELS = { day: "D", week: "W", month: "M", year: "Y" };
+const UNIT_ORDER = ["day", "week", "month", "year"];
+const SCALE_TO_UNIT = { daily: "day", weekly: "week", monthly: "month", yearly: "year" };
+
+// Active filter values can be either a bare YYYY-MM-DD string OR
+// `{value, unit}`. `readValueShape` normalizes to `{ value: Date|null, unit }`.
+function readValueShape(v) {
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    return { value: v.value ? new Date(v.value) : null, unit: v.unit || "day" };
+  }
+  if (v) return { value: new Date(v), unit: null };
+  return { value: null, unit: null };
+}
+
+function formatDateDisplay(date, unit) {
   if (!date) return "Select date";
   const d = new Date(date);
-  switch (timeScale) {
-    case "daily":
+  switch (unit) {
+    case "day":
       return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-    case "weekly": {
+    case "week": {
       const start = new Date(d);
-      start.setDate(d.getDate() - d.getDay());
-      const end = new Date(start);
-      end.setDate(start.getDate() + 6);
-      return `${start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${end.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+      const dow = start.getDay();
+      const offset = dow === 0 ? -6 : 1 - dow;
+      start.setDate(start.getDate() + offset);
+      return `Week of ${start.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
     }
-    case "monthly":
+    case "month":
       return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-    case "yearly":
+    case "year":
       return String(d.getFullYear());
     default:
       return d.toLocaleDateString();
   }
 }
 
-function stepDate(date, timeScale, direction) {
+function stepDate(date, unit, direction) {
   const d = new Date(date);
   const n = direction === "next" ? 1 : -1;
-  switch (timeScale) {
-    case "daily":   d.setDate(d.getDate() + n); break;
-    case "weekly":  d.setDate(d.getDate() + n * 7); break;
-    case "monthly": d.setMonth(d.getMonth() + n); break;
-    case "yearly":  d.setFullYear(d.getFullYear() + n); break;
+  switch (unit) {
+    case "day":   d.setDate(d.getDate() + n); break;
+    case "week":  d.setDate(d.getDate() + n * 7); break;
+    case "month": d.setMonth(d.getMonth() + n); break;
+    case "year":  d.setFullYear(d.getFullYear() + n); break;
+    default:      d.setDate(d.getDate() + n);
   }
   return d;
 }
 
-function QuickDatePicker({ currentDate, timeScale, onSelect }) {
+function QuickDatePicker({ currentDate, unit, onSelect }) {
   const now = new Date();
   const options = useMemo(() => {
     const list = [];
-    if (timeScale === "daily") {
+    if (unit === "day") {
       for (let i = 0; i < 7; i++) {
         const d = new Date(now);
         d.setDate(now.getDate() - i);
         list.push({ date: d, label: i === 0 ? "Today" : i === 1 ? "Yesterday" : d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) });
       }
-    } else if (timeScale === "weekly") {
+    } else if (unit === "week") {
       for (let i = 0; i < 5; i++) {
         const d = new Date(now);
         d.setDate(now.getDate() - i * 7);
@@ -72,13 +87,13 @@ function QuickDatePicker({ currentDate, timeScale, onSelect }) {
         ws.setDate(d.getDate() - d.getDay());
         list.push({ date: d, label: i === 0 ? "This Week" : i === 1 ? "Last Week" : `Week of ${ws.toLocaleDateString(undefined, { month: "short", day: "numeric" })}` });
       }
-    } else if (timeScale === "monthly") {
+    } else if (unit === "month") {
       for (let i = 0; i < 6; i++) {
         const d = new Date(now);
         d.setMonth(now.getMonth() - i);
         list.push({ date: d, label: i === 0 ? "This Month" : d.toLocaleDateString(undefined, { month: "long", year: "numeric" }) });
       }
-    } else if (timeScale === "yearly") {
+    } else if (unit === "year") {
       for (let i = 0; i < 5; i++) {
         const d = new Date(now);
         d.setFullYear(now.getFullYear() - i);
@@ -86,7 +101,7 @@ function QuickDatePicker({ currentDate, timeScale, onSelect }) {
       }
     }
     return list;
-  }, [timeScale]);
+  }, [unit]);
 
   return (
     <div className="flex flex-col gap-1">
@@ -127,12 +142,30 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
     }) || null;
   }, [activeFilter, fieldsById]);
 
-  const timeScale = activeFilter?.timeScale || null;
-  const hasDateNav = !!(dateCond && timeScale);
+  // Allowed units come from `activeFilter.units` if specified; otherwise we
+  // expose all four (D/W/M/Y). The value's own `unit` wins over the filter's
+  // static `timeScale` so per-occurrence toggles don't require editing the
+  // named filter definition.
+  const allowedUnits = useMemo(() => {
+    const decl = Array.isArray(activeFilter?.units) ? activeFilter.units.filter(u => UNIT_ORDER.includes(u)) : null;
+    return decl && decl.length ? decl : UNIT_ORDER;
+  }, [activeFilter]);
 
-  // Current date value for the date field in this filter
-  const currentDateValue = dateCond ? (activeFilterValues[dateCond.fieldId] || new Date()) : new Date();
-  const currentDate = new Date(currentDateValue);
+  const rawValue = dateCond ? activeFilterValues[dateCond.fieldId] : null;
+  const shape = readValueShape(rawValue);
+  const unit = shape.unit || SCALE_TO_UNIT[activeFilter?.timeScale] || "day";
+  const hasDateNav = !!dateCond;
+
+  const currentDate = shape.value || new Date();
+  const wasObjectShape = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue);
+
+  const writeFilterValue = useCallback((date, nextUnit) => {
+    if (!hasDateNav) return;
+    const out = wasObjectShape || nextUnit !== "day"
+      ? { value: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`, unit: nextUnit }
+      : date;
+    onFilterValueChange?.(dateCond.fieldId, out);
+  }, [hasDateNav, dateCond, wasObjectShape, onFilterValueChange]);
 
   const isCurrentPeriod = useMemo(() => {
     if (!hasDateNav) return false;
@@ -140,38 +173,43 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
     today.setHours(0, 0, 0, 0);
     const cur = new Date(currentDate);
     cur.setHours(0, 0, 0, 0);
-    switch (timeScale) {
-      case "daily":   return today.getTime() === cur.getTime();
-      case "weekly": {
+    switch (unit) {
+      case "day":   return today.getTime() === cur.getTime();
+      case "week": {
         const ts = new Date(today); ts.setDate(today.getDate() - today.getDay());
         const cs = new Date(cur);   cs.setDate(cur.getDate() - cur.getDay());
         return ts.getTime() === cs.getTime();
       }
-      case "monthly": return today.getFullYear() === cur.getFullYear() && today.getMonth() === cur.getMonth();
-      case "yearly":  return today.getFullYear() === cur.getFullYear();
+      case "month": return today.getFullYear() === cur.getFullYear() && today.getMonth() === cur.getMonth();
+      case "year":  return today.getFullYear() === cur.getFullYear();
       default: return false;
     }
-  }, [hasDateNav, currentDate, timeScale]);
+  }, [hasDateNav, currentDate, unit]);
 
   const handlePrev = useCallback(() => {
     if (!hasDateNav) return;
-    onFilterValueChange?.(dateCond.fieldId, stepDate(currentDate, timeScale, "prev"));
-  }, [hasDateNav, dateCond, currentDate, timeScale, onFilterValueChange]);
+    writeFilterValue(stepDate(currentDate, unit, "prev"), unit);
+  }, [hasDateNav, currentDate, unit, writeFilterValue]);
 
   const handleNext = useCallback(() => {
     if (!hasDateNav) return;
-    onFilterValueChange?.(dateCond.fieldId, stepDate(currentDate, timeScale, "next"));
-  }, [hasDateNav, dateCond, currentDate, timeScale, onFilterValueChange]);
+    writeFilterValue(stepDate(currentDate, unit, "next"), unit);
+  }, [hasDateNav, currentDate, unit, writeFilterValue]);
 
   const handleToday = useCallback(() => {
     if (!hasDateNav) return;
-    onFilterValueChange?.(dateCond.fieldId, new Date());
-  }, [hasDateNav, dateCond, onFilterValueChange]);
+    writeFilterValue(new Date(), unit);
+  }, [hasDateNav, unit, writeFilterValue]);
 
   const handleDateSelect = useCallback((date) => {
     if (!hasDateNav) return;
-    onFilterValueChange?.(dateCond.fieldId, date);
-  }, [hasDateNav, dateCond, onFilterValueChange]);
+    writeFilterValue(date, unit);
+  }, [hasDateNav, unit, writeFilterValue]);
+
+  const handleUnitChange = useCallback((u) => {
+    if (!hasDateNav) return;
+    writeFilterValue(currentDate, u);
+  }, [hasDateNav, currentDate, writeFilterValue]);
 
   const h = compact ? "h-6" : "h-7";
   const textSz = compact ? "text-[10px]" : "text-xs";
@@ -213,7 +251,7 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
                   className={`!px-1 flex-1 ${isCurrentPeriod ? "text-primary" : ""}`}
                   style={{ height: 26, minWidth: 0, fontSize: 9 }}
                 >
-                  {formatDateDisplay(currentDate, timeScale)}
+                  {formatDateDisplay(currentDate, unit)}
                 </Button>
                 <Button size="sm" onClick={handleNext} className="!p-0" style={{ height: 26, width: 20, minWidth: 20 }}>
                   <ChevronRight className="h-3 w-3" />
@@ -221,11 +259,31 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
               </div>
             )}
 
+            {/* Unit toggle (D / W / M / Y) — only renders when 2+ allowed */}
+            {hasDateNav && allowedUnits.length > 1 && (
+              <div className="flex items-center justify-center" style={{ gap: 2 }}>
+                {allowedUnits.map(u => (
+                  <button
+                    key={u}
+                    onClick={() => handleUnitChange(u)}
+                    title={u}
+                    style={{
+                      padding: "1px 6px", fontSize: 10, lineHeight: "14px",
+                      borderRadius: 4,
+                      border: "1px solid var(--panel-border, #374151)",
+                      background: u === unit ? "var(--accent, #14b8a6)" : "transparent",
+                      color: "inherit", cursor: "pointer",
+                    }}
+                  >{UNIT_LABELS[u]}</button>
+                ))}
+              </div>
+            )}
+
             {/* Quick date picker */}
             {hasDateNav && (
               <>
                 <div className="h-px bg-border" />
-                <QuickDatePicker currentDate={currentDate} timeScale={timeScale} onSelect={handleDateSelect} />
+                <QuickDatePicker currentDate={currentDate} unit={unit} onSelect={handleDateSelect} />
               </>
             )}
           </div>
@@ -265,12 +323,12 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
               className={`px-1 min-w-[72px] ${h} ${textSz} ${isCurrentPeriod ? "text-primary" : ""}`}
             >
               <CalendarDays className="h-3 w-3 mr-1" />
-              {hasDateNav ? formatDateDisplay(currentDate, timeScale) : "No date"}
+              {hasDateNav ? formatDateDisplay(currentDate, unit) : "No date"}
             </Button>
           </PopoverTrigger>
           {hasDateNav && (
             <PopoverContent className="w-auto p-2" align="center">
-              <QuickDatePicker currentDate={currentDate} timeScale={timeScale} onSelect={handleDateSelect} />
+              <QuickDatePicker currentDate={currentDate} unit={unit} onSelect={handleDateSelect} />
               {!isCurrentPeriod && (
                 <div className="pt-2 border-t border-border mt-2">
                   <Button size="sm" className="w-full" onClick={handleToday}>Go to Today</Button>
@@ -283,6 +341,26 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
         <Button size="sm" className={`px-0.5 ${h}`} onClick={handleNext} disabled={!hasDateNav}>
           <ChevronRight className="h-3 w-3" />
         </Button>
+
+        {/* Unit toggle (D / W / M / Y) — compact pill row */}
+        {hasDateNav && allowedUnits.length > 1 && (
+          <div className="flex items-center ml-1" style={{ gap: 1 }}>
+            {allowedUnits.map(u => (
+              <button
+                key={u}
+                onClick={() => handleUnitChange(u)}
+                title={u}
+                style={{
+                  padding: "0 4px", fontSize: 9, lineHeight: compact ? "16px" : "20px",
+                  borderRadius: 3,
+                  border: "1px solid var(--panel-border, #374151)",
+                  background: u === unit ? "var(--accent, #14b8a6)" : "transparent",
+                  color: "inherit", cursor: "pointer",
+                }}
+              >{UNIT_LABELS[u]}</button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
