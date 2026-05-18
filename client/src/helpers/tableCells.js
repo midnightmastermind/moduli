@@ -29,7 +29,7 @@ export function plainText(doc) {
   return out.trim();
 }
 
-function firstEmbedOccId(doc) {
+export function firstEmbedOccId(doc) {
   let found = null;
   const walk = (n) => {
     if (found || !n) return;

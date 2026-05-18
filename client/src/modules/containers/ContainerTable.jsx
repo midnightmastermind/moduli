@@ -11,7 +11,8 @@ import {
 } from "@tanstack/react-table";
 import { MoreVertical, ChevronUp, ChevronDown, Hash } from "lucide-react";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
-import { cellKey, emptyCellDoc, getCellSortValue, deleteColumn, insertColumn } from "../../helpers/tableCells";
+import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, fillRange, firstEmbedOccId } from "../../helpers/tableCells";
+import { assignLinkedGroup } from "../../helpers/LayoutHelpers";
 import { GridActionsContext } from "../../GridActionsContext";
 import { uid } from "../../uid";
 import Editor from "../../ui/Editor.jsx";
@@ -44,7 +45,7 @@ const DEBOUNCE_MS = 500;
 // React from tearing down this component across data changes.  `initialContent`
 // is a ref so the `content` prop passed to Editor is the mount-time snapshot
 // only — TipTap is uncontrolled after mount and manages its own doc state.
-function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId }) {
+function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId, onFocusCell, onBlurCell, isFocused, fillMode, onFillPointerDown, onToggleFillMode }) {
   const key = cellKey(r, c);
 
   // Seed TipTap once at mount — never update this ref so the Editor's content
@@ -125,7 +126,13 @@ function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispat
   }, [key, tableRef, persist]);
 
   return (
-    <div className="table-td" data-r={r} data-c={c}>
+    <div
+      className="table-td"
+      data-r={r}
+      data-c={c}
+      onFocus={onFocusCell}
+      onBlur={onBlurCell}
+    >
       <Editor
         ref={editorRef}
         mode="cell"
@@ -139,6 +146,25 @@ function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispat
         placeholder=""
         displayFieldId={displayFieldId ?? null}
       />
+      {isFocused && (
+        <>
+          {/* Fill handle nub — bottom-right corner */}
+          <div
+            className="table-fill-handle"
+            onPointerDown={(e) => onFillPointerDown(e, r, c)}
+            title="Fill down/right"
+          />
+          {/* Copy/CopyLink mode chip */}
+          <button
+            className="table-fill-mode"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onToggleFillMode(); }}
+            title={fillMode === "copylink" ? "CopyLink — click to switch to Copy" : "Copy — click to switch to CopyLink"}
+          >
+            {fillMode === "copylink" ? "⚡link" : "copy"}
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -196,6 +222,220 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     }
   }, []);
 
+  // ── Fill-drag ─────────────────────────────────────────────────────────────
+  // Track which cell is currently focused so we can render the fill nub on it.
+  const [focusedCell, setFocusedCell] = useState(null); // { r, c } | null
+
+  // fillMode: "copy" | "copylink", persisted to localStorage.
+  const [fillMode, setFillMode] = useState(() => {
+    try { return localStorage.getItem("moduli-table-fill-mode") || "copylink"; }
+    catch { return "copylink"; }
+  });
+  const toggleFillMode = useCallback(() => {
+    setFillMode(prev => {
+      const next = prev === "copylink" ? "copy" : "copylink";
+      try { localStorage.setItem("moduli-table-fill-mode", next); } catch {}
+      return next;
+    });
+  }, []);
+
+  // persistRef: always tracks the latest `persist` function so handleFillPointerDown
+  // (defined before persist in component scope) can call it without TDZ issues.
+  const persistRef = useRef(null);
+
+  // Fill gesture state: src = { r, c } while dragging, null otherwise.
+  const fillSrcRef = useRef(null);
+  // Track which cells currently have the preview highlight so we can clear them.
+  const fillPreviewCellsRef = useRef(new Set());
+  // Store window-level listeners for cleanup on unmount / cancel.
+  const fillHandlersRef = useRef(null);
+
+  // containerRef is declared further down (also used for kebab outside-click).
+  // Forward-reference: fill cleanup effect below uses containerRef which is
+  // declared after the fill block. React refs are stable objects so hoisting
+  // the ref to the top lets both uses share the same ref. Declare here:
+  const containerRef = useRef(null);
+
+  // Clear all preview highlights.
+  const clearFillPreviews = useCallback((containerEl) => {
+    for (const k of fillPreviewCellsRef.current) {
+      const el = containerEl?.querySelector(`[data-r][data-c]${dataRCSelector(k)}`);
+      if (el) el.classList.remove("table-fill-preview");
+    }
+    fillPreviewCellsRef.current.clear();
+  }, []);
+
+  // Cleanup fill listeners if component unmounts mid-gesture.
+  useEffect(() => () => {
+    const h = fillHandlersRef.current;
+    if (h) {
+      window.removeEventListener("pointermove", h.onMove);
+      window.removeEventListener("pointerup", h.onUp);
+      window.removeEventListener("pointercancel", h.onCancel);
+    }
+    if (containerRef.current) clearFillPreviews(containerRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Helper: build an attribute selector for a "r:c" key.
+  function dataRCSelector(key) {
+    const [r, c] = key.split(":");
+    return `[data-r="${r}"][data-c="${c}"]`;
+  }
+
+  const handleFillPointerDown = useCallback((e, r, c) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fillSrcRef.current = { r, c };
+
+    const onMove = (moveE) => {
+      const container = containerRef.current;
+      if (!container || !fillSrcRef.current) return;
+      // Hit-test the cell under the pointer.
+      const el = document.elementFromPoint(moveE.clientX, moveE.clientY);
+      const cellEl = el?.closest("[data-r][data-c]");
+      if (!cellEl) return;
+      const tr = parseInt(cellEl.getAttribute("data-r"), 10);
+      const tc = parseInt(cellEl.getAttribute("data-c"), 10);
+      if (isNaN(tr) || isNaN(tc)) return;
+      const targets = fillRange(fillSrcRef.current, { r: tr, c: tc });
+      const nextKeys = new Set(targets.map(({ r: pr, c: pc }) => cellKey(pr, pc)));
+      // Remove stale previews.
+      for (const k of fillPreviewCellsRef.current) {
+        if (!nextKeys.has(k)) {
+          const staleEl = container.querySelector(`[data-r][data-c]${dataRCSelector(k)}`);
+          if (staleEl) staleEl.classList.remove("table-fill-preview");
+        }
+      }
+      // Add new previews.
+      for (const k of nextKeys) {
+        if (!fillPreviewCellsRef.current.has(k)) {
+          const newEl = container.querySelector(`[data-r][data-c]${dataRCSelector(k)}`);
+          if (newEl) newEl.classList.add("table-fill-preview");
+        }
+      }
+      fillPreviewCellsRef.current = nextKeys;
+    };
+
+    const onUp = (upE) => {
+      cleanup();
+      const container = containerRef.current;
+      if (!fillSrcRef.current || !container) { fillSrcRef.current = null; return; }
+      const src = fillSrcRef.current;
+      fillSrcRef.current = null;
+
+      // Determine final target cell.
+      const el = document.elementFromPoint(upE.clientX, upE.clientY);
+      const cellEl = el?.closest("[data-r][data-c]");
+      if (!cellEl) return;
+      const tr = parseInt(cellEl.getAttribute("data-r"), 10);
+      const tc = parseInt(cellEl.getAttribute("data-c"), 10);
+      if (isNaN(tr) || isNaN(tc)) return;
+      const targets = fillRange(src, { r: tr, c: tc });
+      if (!targets.length) return;
+
+      // Resolve effective mode: Alt key forces "copy" regardless of chip.
+      const mode = upE.altKey ? "copy" : fillMode;
+
+      // Read source cell doc.
+      const srcDoc = tableRef.current.cells[cellKey(src.r, src.c)];
+      const srcOccId = srcDoc ? firstEmbedOccId(srcDoc) : null;
+      const srcOcc = srcOccId ? occurrencesById?.[srcOccId] : null;
+
+      // Build next cells map.
+      const nextCells = { ...tableRef.current.cells };
+
+      if (srcOccId && srcOcc) {
+        // Embed source: CopyLink or Copy.
+        const gridId = occurrence?.gridId;
+        const userId = occurrence?.userId;
+
+        // Resolve linkedGroupId once (for CopyLink mode, tagging the source).
+        let linkedGroupId = null;
+        if (mode === "copylink") {
+          const result = assignLinkedGroup(
+            srcOcc,
+            (sourceId, groupId) => {
+              // Tag the source occurrence with the linkedGroupId — mirrors
+              // copylinkInstanceToContainer's tagFn exactly (LayoutHelpers.js:743-749).
+              CommitHelpers.updateOccurrence({
+                dispatch,
+                socket,
+                occurrence: { id: sourceId, linkedGroupId: groupId },
+              });
+            }
+          );
+          linkedGroupId = result.linkedGroupId;
+        }
+
+        for (const { r: tr2, c: tc2 } of targets) {
+          const newOccId = uid();
+
+          // Deep-copy fields from source occurrence.
+          let copiedFields = {};
+          if (srcOcc.fields && typeof srcOcc.fields === "object") {
+            try { copiedFields = JSON.parse(JSON.stringify(srcOcc.fields)); }
+            catch { copiedFields = { ...srcOcc.fields }; }
+          }
+
+          // Mint a new occurrence — same moduleId as source, same pattern as
+          // CommitHelpers.createOccurrence (the codebase's canonical optimistic
+          // occurrence-create helper). Ordering note: occurrence must exist in
+          // state BEFORE persist() writes the cell doc that references it, so
+          // we createOccurrence first, then accumulate into nextCells, and call
+          // persist() once at the end — a single optimistic state update.
+          const newOcc = {
+            id: newOccId,
+            userId: userId || null,
+            moduleId: srcOcc.moduleId,
+            gridId: gridId || null,
+            iteration: srcOcc.iteration
+              ? JSON.parse(JSON.stringify(srcOcc.iteration))
+              : { key: "time", value: new Date(), mode: "specific" },
+            timestamp: new Date(),
+            fields: copiedFields,
+            parentId: srcOcc.parentId || null,
+            ...(mode === "copylink" ? { linkedGroupId } : {}),
+          };
+          CommitHelpers.createOccurrence({ dispatch, socket, occurrence: newOcc });
+
+          nextCells[cellKey(tr2, tc2)] = makeEmbedCellDoc(newOccId);
+        }
+      } else {
+        // Plain-text / no embed: deep-clone source doc verbatim into each target.
+        const clonedDoc = srcDoc ? JSON.parse(JSON.stringify(srcDoc)) : emptyCellDoc();
+        for (const { r: tr2, c: tc2 } of targets) {
+          nextCells[cellKey(tr2, tc2)] = JSON.parse(JSON.stringify(clonedDoc));
+        }
+      }
+
+      // Single batched persist — all target cells written in one updateOccurrence.
+      // Use persistRef.current so this callback always calls the latest persist
+      // function regardless of declaration order (avoids TDZ issues).
+      persistRef.current?.({ ...tableRef.current, cells: nextCells });
+    };
+
+    const onCancel = () => {
+      cleanup();
+      clearFillPreviews(containerRef.current);
+      fillSrcRef.current = null;
+    };
+
+    function cleanup() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      fillHandlersRef.current = null;
+      clearFillPreviews(containerRef.current);
+    }
+
+    fillHandlersRef.current = { onMove, onUp, onCancel };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fillMode, occurrencesById, occurrence?.gridId, occurrence?.userId, dispatch, socket, clearFillPreviews]);
+
   const persist = useCallback((nextTable) => {
     // Sync the ref immediately so any other cell that flushes within the same
     // JS tick reads the post-write snapshot rather than a stale pre-write one.
@@ -211,6 +451,8 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
       },
     });
   }, [occurrence?.id, occurrence?.meta, socket, dispatch]);
+  // Keep persistRef current so handleFillPointerDown (declared before persist) can call it.
+  persistRef.current = persist;
 
   const rows = useMemo(() => Array.from({ length: rowCount }, (_, r) => r), [rowCount]);
 
@@ -375,7 +617,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   }, [table, rowCount, persist]);
 
   // Close kebab (and field picker) on outside click
-  const containerRef = useRef(null);
+  // (containerRef declared above in the fill-drag section)
   React.useEffect(() => {
     if (!kebabOpen) return;
     const handler = (e) => {
@@ -516,6 +758,12 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                 dispatch={dispatch}
                 socket={socket}
                 displayFieldId={col.displayFieldId ?? null}
+                onFocusCell={() => setFocusedCell({ r, c })}
+                onBlurCell={() => setFocusedCell(prev => (prev?.r === r && prev?.c === c ? null : prev))}
+                isFocused={focusedCell?.r === r && focusedCell?.c === c}
+                fillMode={fillMode}
+                onFillPointerDown={handleFillPointerDown}
+                onToggleFillMode={toggleFillMode}
               />
             ))}
             {/* Trailing-row removal button — aligned to +column cell */}

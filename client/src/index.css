@@ -2129,4 +2129,31 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .table-td {
   border: 1px solid var(--border-subtle); min-height: 28px;
   padding: 2px 6px; font-size: 13px; overflow: hidden;
+  position: relative;
+}
+
+/* Fill handle nub — bottom-right corner of focused cell */
+.table-fill-handle {
+  position: absolute; bottom: -4px; right: -4px;
+  width: 8px; height: 8px;
+  background: var(--accent-blue); border: 1px solid var(--input-bg);
+  border-radius: 1px; cursor: crosshair; z-index: 5;
+}
+.table-fill-handle:hover { background: var(--accent-blue); opacity: 0.85; }
+
+/* Copy/CopyLink mode chip — beside the fill nub */
+.table-fill-mode {
+  position: absolute; bottom: -18px; right: 0;
+  background: var(--input-bg); border: 1px solid var(--border-default);
+  border-radius: 999px; font-size: 9px; color: var(--text-muted);
+  padding: 1px 5px; cursor: pointer; z-index: 6; white-space: nowrap;
+  line-height: 1.4;
+}
+.table-fill-mode:hover { color: var(--text-primary); border-color: var(--accent-blue); }
+
+/* Preview highlight during fill gesture */
+.table-fill-preview {
+  background: rgba(59, 130, 246, 0.12) !important;
+  outline: 1px solid var(--accent-blue);
+  outline-offset: -1px;
 }
