@@ -228,7 +228,14 @@ export async function createTestGrid(userId, options = {}) {
       },
     },
     { id: moviesWatchedDisplayFieldId, userId, gridId, name: "Movies Watched Today", type: "text",
-      inputEnabled: false, displayEnabled: true, meta: {} },
+      inputEnabled: false, displayEnabled: true, meta: {},
+      displayConfig: {
+        columns: [
+          { path: "label", header: "Movie" },
+          { path: "date",  header: "When" },
+        ],
+      },
+    },
   ]);
 
   // ── STEP 3: Instance modules ────────────────────────────────────────────────
@@ -812,13 +819,14 @@ export async function createTestGrid(userId, options = {}) {
           then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
           else: [],
         },
-        // 3. Resolve $goalDate from the goal item's effective filter
+        // 3. Resolve $goalPeriod from the goal item's effective filter — full
+        //    {value, unit} object (DATE_IN_PERIOD reads bare-string + object).
         {
           type: "action", action: "INIT_VAR",
-          cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+          cfg: { name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
         },
-        // 4. Init output accumulator
-        { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
+        // 4. Init rows accumulator
+        { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
         // 5. Find the Schedule page (needed for HAS_ANCESTOR)
         {
           type: "action", action: "FIND",
@@ -828,19 +836,18 @@ export async function createTestGrid(userId, options = {}) {
             itemVar: "$schedPage", itemIdVar: "$schedPageId",
           },
         },
-        // 6. Loop over Watch Movie occurrences that are dated to $goalDate and under the Schedule page
+        // 6. Loop over Watch Movie occurrences in $goalPeriod under Schedule
         {
           type: "loop",
           overExpr: "$allInstances",
           as: "$watchInst",
           body: [
-            // Only process Watch Movie instances (by template module id)
             {
               type: "if",
               condition: {
                 conjunction: "AND",
                 rules: [
-                  { left: `$watchInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                  { left: `$watchInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                   { left: "$watchInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                   { left: "$watchInst.label", comparator: "IS", right: "Watch Movie" },
                 ],
@@ -852,7 +859,6 @@ export async function createTestGrid(userId, options = {}) {
                   overExpr: `$watchInst.fields.${moviesWatchedFieldId}.value`,
                   as: "$movieOccId",
                   body: [
-                    // Resolve the movie occurrence from $allInstances
                     {
                       type: "action", action: "FIND",
                       cfg: {
@@ -861,14 +867,19 @@ export async function createTestGrid(userId, options = {}) {
                         itemVar: "$movie", itemIdVar: "$movieId",
                       },
                     },
-                    // Append label to $output when found
                     {
                       type: "if",
                       condition: { conjunction: "AND", rules: [{ left: "$movieId", comparator: "IS_NOT_EMPTY", right: "" }] },
                       then: [
                         {
-                          type: "action", action: "SET_VAR",
-                          cfg: { name: "$output", expr: "${$output}${$movie.label}, " },
+                          type: "action", action: "PUSH_TO_ARRAY",
+                          cfg: {
+                            name: "$rows",
+                            value: {
+                              label: "$movie.label",
+                              date: `$watchInst.fields.${dateFieldId}.value`,
+                            },
+                          },
                         },
                       ],
                       else: [],
@@ -880,12 +891,10 @@ export async function createTestGrid(userId, options = {}) {
             },
           ],
         },
-        // 7. Write the joined label string to the text display field on the goal item.
-        // NOTE: $output accumulates as "Inception, The Matrix, " — no trim primitive exists yet;
-        // the trailing ", " is acceptable for v1.
+        // 7. Write the rows array to the multi-column display field.
         {
           type: "action", action: "UPDATE",
-          cfg: { path: `$goalItemId.fields.${moviesWatchedDisplayFieldId}.value`, value: "$output" },
+          cfg: { path: `$goalItemId.fields.${moviesWatchedDisplayFieldId}.value`, value: "$rows" },
         },
       ],
     },
