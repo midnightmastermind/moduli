@@ -2,6 +2,10 @@
 
 _Updated: 2026-05-17. Check this file before re-reading source._
 
+## Recent Changes (2026-05-17 — DATE_IN_PERIOD comparator + period-shape filter values)
+- **`operationActions.js` (`DATE_IN_PERIOD` case in `evalRule`)**: New comparator. leftVal = date value (ISO string or Date); rightVal accepts either a bare `"YYYY-MM-DD"` (treated as day unit, equivalent to SAME_DAY) OR `{value: "YYYY-MM-DD", unit: "day"|"week"|"month"|"year"}`. Reuses the SAME_WEEK Mon-Sun weekStart helper for week-unit; month/year compare by calendar month/year. Wildcard right (null/""/empty value) passes. Null left fails. Powers tracker period aggregation across the full selected window. 7 regression tests in `operationActions.unified.test.js`.
+- **`operationExecutor.js` ($activeDate setup)**: Resolves both bare-string and object-shape filter values. New `$activePeriod` var carries the FULL `{value, unit}` object (or bare string fallback) so tracker pipelines can route DATE_IN_PERIOD off the goal page's effective filter without flattening to a day.
+
 ## Recent Changes (2026-05-17 — PUSH_TO_ARRAY pipeline action)
 - **`operationActions.js` (`PUSH_TO_ARRAY`)**: New action case. cfg: `{ name, value }`. When `cfg.value` is a plain object, each leaf value is resolved via `resolveExpr` (supports `$var.path` expressions). When `cfg.value` is a primitive, pushes via `resolveExpr`. Creates the array when the variable doesn't exist. Distinct from `PUSH_TO_VAR` which only pushes scalar values via `cfg.expr`. Used by the Books Read tracker to build `[{label, pages}]` rows. 6 unit tests added to `operationActions.unified.test.js`; 615/615 green.
 

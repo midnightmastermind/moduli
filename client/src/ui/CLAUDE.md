@@ -2,6 +2,10 @@
 
 _Updated: 2026-05-17. Check this file before re-reading source._
 
+## Recent Changes (2026-05-17 — D/W/M/Y unit toggle on FilterNav + LocalFilterNav)
+- **`FilterNav.jsx` (toolbar variant)**: `formatDateDisplay`/`stepDate` switched from `timeScale` ("daily"/"weekly"/...) to `unit` ("day"/"week"/...). Active filter values can be either a bare `"YYYY-MM-DD"` string OR `{value, unit}` — the value's own unit wins over `activeFilter.timeScale`. Adds a D/W/M/Y pill toggle (rendered when `activeFilter.units?.length > 1` or no `units` declared) that writes the unit back into the filter value via `onFilterValueChange`. Label switches per unit: day → "Thu, May 17", week → "Week of May 12", month → "May 2026", year → "2026". Both mobile and desktop paths render the toggle.
+- **`FilterNavWidgets.jsx` (`ArrowsWidget`)**: New `readValueShape` / `stepByUnit` / `formatPeriodLabel` helpers + `UNIT_LABELS` / `UNIT_ORDER` constants. Stepping uses `Date#setDate`/`setMonth`/`setFullYear` (NOT fixed ms — month/year length varies). Unit toggle renders inline next to the prev/next arrows. Writes back as object form `{value, unit}` when unit !== "day" or the incoming value was already object-shaped; otherwise preserves bare-string form for byte-identical day-only paths.
+
 ## Recent Changes (2026-05-17 — Multi-dim display fields with columns)
 - **`Field.jsx`**: Array display branch added before the default number/text/date fallback. When `field.displayConfig.columns` is a non-empty array AND `rawDisplayValue` is an array, renders a CSS-grid table with column headers + rows. Each column entry: `{ path: string, header: string, width?: number }`. `path` is the key to read from each row object. Falls back transparently to scalar rendering in all other cases.
 - **`commandCenter/FieldsTab.jsx`**: New `ColumnEditor` inline component (module-scope, before FieldPill). Renders per-column rows of `[path] [header] [px-width] [↑] [↓] [✕]` inputs + "Add column" button. Wired into `FieldDetail`'s `displayEnabled === true` block as a separate "Columns (for array values)" section. Changes write to `local.displayConfig.columns` and are persisted with the normal save.

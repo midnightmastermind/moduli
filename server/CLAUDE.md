@@ -2,6 +2,16 @@
 
 _Updated: 2026-05-17. Check this file before re-reading source._
 
+## Recent Changes (2026-05-17 — Period-aware trackers + Today's Moods)
+- **`utils/liveSystemBuilders.js`**:
+  - `makeTrackerOp` now gates BOTH the inner loop AND the per-event trigger sub-rule on `DATE_IN_PERIOD $goalPeriod` (was `SAME_DAY $goalDate` / `SAME_WEEK $goalDate`). The aggregator iterates EVERY in-period record under the scope page — weekly view sums all 7 days, monthly view sums all month, etc. `$goalPeriod` is resolved from the goal item's `_effectiveFilter` and carries the full `{value, unit}` object; the same chain (effective filter → `$trigger.date` → `$today`) handles all three cases.
+  - `buildGridDoc` exposes `units: ["day", "week", "month", "year"]` on the seeded `filter_daily` named filter so the D/W/M/Y toggle renders on the toolbar FilterNav.
+- **`scripts/createLiveData.js`**:
+  - **Renamed `Tracker: Latest Mood` → `Tracker: Today's Moods`**. Now a custom pipeline that PUSH_TO_ARRAY's a `{mood, date}` row per mood-bearing occurrence in `$goalPeriod` under Schedule and UPDATEs the goal's display field. The `lastMood` field's `displayConfig.columns` now defines two columns (Mood / When).
+  - **Movies Watched / Books Read / Podcasts Listened / Courses Taken trackers**: switched from string concatenation + `SAME_DAY $goalDate` to PUSH_TO_ARRAY `{label, date}` (Books keeps Pages too) + `DATE_IN_PERIOD $goalPeriod`. Each display field has the corresponding `date` column added — table now shows when each entry happened, broadening to weekly/monthly visibility automatically.
+  - **Daily Goals page filter**: `units: ["day", "week", "month", "year"]` added to the local `goalsFilterId` so the LocalFilterNav D/W/M/Y toggle renders.
+- **`scripts/createTestGrid.js`**: Movies Watched tracker rewritten to the same shape (DATE_IN_PERIOD + PUSH_TO_ARRAY rows + date column). Re-seed required.
+
 ## Recent Changes (2026-05-17 — Library page + Watch Movie + Movies Watched tracker)
 - **`scripts/createTestGrid.js`**: Added:
   - **New fields**: `libraryFieldId` (select, options:["movie","book","tv show"]), `moviesWatchedFieldId` (occurrence, multiSelect:true, optionsSource.find with addNew pointing to libraryContOccId), `moviesWatchedDisplayFieldId` (text, display), `totalMoviesWatchedDisplayFieldId` (number, display, target 2/day).

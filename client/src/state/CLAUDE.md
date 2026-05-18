@@ -2,6 +2,10 @@
 
 _Updated: 2026-05-17. Check this file before re-reading source._
 
+## Recent Changes (2026-05-17 — Period-shape filter values in cascade)
+- **`selectors.js` (`isOccurrenceVisible`)**: Both the condition-based path and the legacy direct-equality path now detect `{value, unit}` filter values and route through `evalRule({..., comparator: "DATE_IN_PERIOD", right})` so weekly/monthly/yearly periods broaden visibility correctly. Bare YYYY-MM-DD strings keep the existing SAME_DAY path; only object-shape values flip to period matching.
+- **`bindSocketToStore.js` (`onFullState` bootstrap)**: `hasValue` helper now treats both bare-string `"YYYY-MM-DD"` AND object-shape `{value, unit}` as "set" so the bootstrap only fills missing fieldIds — no clobbering of unit-carrying values on reload.
+
 ## Recent Changes (2026-05-17 — migrateFieldOptionsSource)
 - **`migrateFieldOptionsSource.js` (NEW)**: pure helper rewriting legacy field shapes to the new `meta.optionsSource` schema. Manual: `meta.options[]` → `{ mode: "manual", values }`. Pool: `sourceType: "pool"` + `poolContainerIds[]` → `{ mode: "find", over: "$allInstances", predicate: { operator: "OR", rules: [HAS_ANCESTOR per id] }, valuePath: "id", labelPath: "label" }`. Module type: `type: "module"` → `type: "occurrence"` with collection derived from `meta.roleFilter`. Idempotent — already-migrated fields are identity returns.
 - **`bindSocketToStore.js`**: `onFullState` handler now runs `migrateFieldOptionsSource` over `payload.fields`, persists rewrites via `safeEmit(socket, "update_field", ...)`, and dispatches the migrated array. First load after deploy: every legacy field rewrites once; subsequent loads short-circuit.
