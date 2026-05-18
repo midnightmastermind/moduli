@@ -1558,13 +1558,9 @@ const Editor = forwardRef(function Editor({
           editor.commands.focus('end');
         }}
       >
-        {displayFieldId != null ? (
-          <CellEmbedContext.Provider value={{ displayFieldId }}>
-            <EditorContent editor={editor} />
-          </CellEmbedContext.Provider>
-        ) : (
+        <CellEmbedContext.Provider value={{ displayFieldId }}>
           <EditorContent editor={editor} />
-        )}
+        </CellEmbedContext.Provider>
       </div>
 
       {showSuggestion && (

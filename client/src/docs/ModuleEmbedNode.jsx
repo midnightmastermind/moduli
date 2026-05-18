@@ -127,9 +127,9 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   // original return below; NOT reached by this branch at all.
   if (displayFieldId && mod?.role === "instance" && occurrence) {
     const projField = fieldsById?.[displayFieldId];
-    const projBinding = occurrence.fields?.[displayFieldId]
-      ? { fieldId: displayFieldId }
-      : { fieldId: displayFieldId };
+    // stored binding carries role/display flags; fall back to a minimal one
+    const storedBinding = mod?.fieldBindings?.find(b => b.fieldId === displayFieldId);
+    const projBinding = storedBinding ?? { fieldId: displayFieldId };
     if (projField) {
       return (
         <NodeViewWrapper contentEditable={false} data-occ-id={occurrenceId}>
@@ -139,6 +139,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
             occurrence={occurrence}
             instance={mod}
             compact
+            hideName
             dispatch={dispatch}
             socket={socket}
           />
