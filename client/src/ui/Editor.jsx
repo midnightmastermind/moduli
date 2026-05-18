@@ -638,13 +638,13 @@ const Editor = forwardRef(function Editor({
         // These are purely additive — the isCell guard ensures they never
         // fire on the default mode="doc" path.
         if (isCell) {
+          // Shift+Enter intentionally has no entry here — soft break is handled by handleDOMEvents.keydown above.
           // Enter (no shift) → commit and move down
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             onCellCommitMove?.("down");
             return true;
           }
-          // Shift+Enter → soft break (allow default, do NOT preventDefault)
           // Tab → commit and move right; Shift+Tab → move left
           if (event.key === "Tab") {
             event.preventDefault();
@@ -674,6 +674,7 @@ const Editor = forwardRef(function Editor({
               onCellCommitMove?.("up");
               return true;
             }
+            return false;
           }
           // ArrowDown at last visual line of the last block → move down.
           if (event.key === "ArrowDown") {
@@ -683,6 +684,7 @@ const Editor = forwardRef(function Editor({
               onCellCommitMove?.("down");
               return true;
             }
+            return false;
           }
         }
         // ── end cell-mode keymaps ─────────────────────────────────────────────
