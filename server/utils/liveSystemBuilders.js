@@ -17,6 +17,10 @@ export function buildGridDoc({ userId, gridName, manifestId, dateFieldId }) {
       name: "Daily",
       conditions: [{ fieldId: dateFieldId, comparator: "SAME_DAY", isNav: true }],
       timeUnit: "day",
+      // D/W/M/Y units exposed on the toolbar FilterNav. The comparator above is
+      // SAME_DAY but `isOccurrenceVisible` routes through DATE_IN_PERIOD when
+      // the active value carries a unit other than "day".
+      units: ["day", "week", "month", "year"],
     }],
     activeFilterId: "filter_daily",
     activeFilterValues: {},
@@ -770,13 +774,15 @@ export function makeTrackerOp({
     if (includeCompletion && completedFieldId) {
       rules.push({ id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS", right: true });
     }
-    // Date gate — daily: SAME_DAY $goalDate; weekly: SAME_WEEK $goalDate
-    // (SAME_WEEK is a real ISO Mon-Sun comparator — operationActions.js
-    // case "SAME_WEEK", lines 260-273); all: omitted.
-    if (timeFilter === "daily") {
-      rules.push({ id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" });
-    } else if (timeFilter === "weekly") {
-      rules.push({ id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "SAME_WEEK", right: "$goalDate" });
+    // Date gate — DATE_IN_PERIOD lets a single rule cover day/week/month/year
+    // by reading the unit off the goal's effective filter (resolved into
+    // $goalPeriod as a `{value, unit}` object — bare string equals day unit).
+    // The aggregator MUST loop over the WHOLE selected period, not just one
+    // day: e.g. weekly view sums every value across all 7 days under the
+    // scope page. timeFilter "all" still drops the gate entirely for lifetime
+    // aggregations.
+    if (timeFilter !== "all") {
+      rules.push({ id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" });
     }
     // Scope — only items under the scope page count.
     rules.push({ id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$scopePageId" });
@@ -933,7 +939,10 @@ export function makeTrackerOp({
   function eventRule(triggerType) {
     const rules = [{ id: uid(), left: "$trigger.type", comparator: "IS", right: triggerType }];
     if (dateGated) {
-      rules.push({ id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" });
+      // DATE_IN_PERIOD broadens the per-event gate to the goal's full period
+      // (weekly/monthly/yearly) so an in-period item change retriggers the
+      // aggregation. Bare-string $goalPeriod still narrows to same-day.
+      rules.push({ id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" });
     }
     return { id: uid(), operator: "AND", rules };
   }
@@ -963,7 +972,7 @@ export function makeTrackerOp({
             rules: uniqMeasureFieldIds.map((fid) => ({ id: uid(), left: "$trigger.fieldId", comparator: "IS", right: fid })),
           },
       ...(dateGated
-        ? [{ id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" }]
+        ? [{ id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" }]
         : []),
     ],
   };
@@ -977,19 +986,23 @@ export function makeTrackerOp({
     measureRule,
   ];
 
-  // ── $goalDate chain (only when date-gated) ──
+  // ── $goalPeriod chain (only when date-gated) ──
+  // $goalPeriod is the FULL filter-value object ({value, unit}) or a bare
+  // YYYY-MM-DD string. DATE_IN_PERIOD reads both. Resolution order:
+  // goal's _effectiveFilter → $trigger.date → $today. Bare-string $trigger.date
+  // and $today both fold cleanly into DATE_IN_PERIOD as "day" unit.
   const goalDateSteps = dateGated ? [
-    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}` } },
+    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}` } },
     {
       id: uid(), type: "if",
-      condition: { operator: "AND", rules: [{ id: uid(), left: "$goalDate", comparator: "IS_EMPTY", right: "" }] },
-      then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalDate", expr: "$trigger.date" } }],
+      condition: { operator: "AND", rules: [{ id: uid(), left: "$goalPeriod", comparator: "IS_EMPTY", right: "" }] },
+      then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalPeriod", expr: "$trigger.date" } }],
       else: [],
     },
     {
       id: uid(), type: "if",
-      condition: { operator: "AND", rules: [{ id: uid(), left: "$goalDate", comparator: "IS_EMPTY", right: "" }] },
-      then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalDate", expr: "$today" } }],
+      condition: { operator: "AND", rules: [{ id: uid(), left: "$goalPeriod", comparator: "IS_EMPTY", right: "" }] },
+      then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalPeriod", expr: "$today" } }],
       else: [],
     },
   ] : [];

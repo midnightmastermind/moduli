@@ -489,6 +489,12 @@ export async function createLiveData(userId, options = {}) {
       inputEnabled: false,
       displayEnabled: true,
       meta: {},
+      displayConfig: {
+        columns: [
+          { path: "label", header: "Movie" },
+          { path: "date",  header: "When" },
+        ],
+      },
     },
 
     // Books Read — occurrence-type field; options sourced from library instances with type "book".
@@ -529,6 +535,7 @@ export async function createLiveData(userId, options = {}) {
         columns: [
           { path: "label", header: "Book" },
           { path: "pages", header: "Pages", width: 70 },
+          { path: "date",  header: "When" },
         ],
       },
     },
@@ -576,6 +583,12 @@ export async function createLiveData(userId, options = {}) {
       inputEnabled: false,
       displayEnabled: true,
       meta: {},
+      displayConfig: {
+        columns: [
+          { path: "label", header: "Podcast" },
+          { path: "date",  header: "When" },
+        ],
+      },
     },
 
     // Courses Taken — occurrence-type field; options sourced from library instances with type "course".
@@ -612,6 +625,12 @@ export async function createLiveData(userId, options = {}) {
       inputEnabled: false,
       displayEnabled: true,
       meta: {},
+      displayConfig: {
+        columns: [
+          { path: "label", header: "Course" },
+          { path: "date",  header: "When" },
+        ],
+      },
     },
     accountSelect: {
       id: uid(),
@@ -733,12 +752,19 @@ export async function createLiveData(userId, options = {}) {
     },
     lastMood: {
       id: uid(),
-      name: "Latest Mood",
+      name: "Today's Moods",
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
       meta: {},
-      displayConfig: {},
+      // Array-shaped display — one row per logged mood in the selected period.
+      // Tracker: Today's Moods pushes {mood, date} rows.
+      displayConfig: {
+        columns: [
+          { path: "mood", header: "Mood" },
+          { path: "date", header: "When" },
+        ],
+      },
     },
     totalPages: {
       id: uid(),
@@ -2784,6 +2810,9 @@ export async function createLiveData(userId, options = {}) {
       {
         id: goalsFilterId, fieldId: dateFieldId, active: true, showNav: true,
         timeUnit: "day", defaultNavValue: "today",
+        // D/W/M/Y unit toggle on the Daily Goals LocalFilterNav — trackers
+        // re-aggregate over the full selected period via DATE_IN_PERIOD.
+        units: ["day", "week", "month", "year"],
         condition: { operator: "OR", rules: [
           { left: "$field.value", comparator: "DATE_EQUALS", right: "$nav" },
           { left: "$field.value", comparator: "IS_EMPTY" },
@@ -2952,11 +2981,88 @@ export async function createLiveData(userId, options = {}) {
     goalLabel: "Physical Wellness", goalFieldId: fields.totalCompleted.id,
     agg: "countTrue", timeFilter: "daily",
   })).save();
-  await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Latest Mood",
-    goalLabel: "Emotional Balance", goalFieldId: fields.lastMood.id,
-    sourceFieldId: fields.mood.id, agg: "last", timeFilter: "daily",
-  })).save();
+  // Tracker: Today's Moods — replaces the prior "Latest Mood" agg:"last".
+  // Builds an array of {mood, date} rows for every mood-bearing occurrence
+  // in $goalPeriod (day/week/month/year — broader windows return multiple
+  // rows). Trigger surface matches makeTrackerOp's surface so onLoad / Nav /
+  // onChange / onAdd / onDelete all re-aggregate.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 3,
+    name: "Tracker: Today's Moods",
+    description: "Build a [{mood, date}] row list for every mood-bearing item in the goal's selected period and write it to Emotional Balance's Today's Moods display.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: fields.mood.id, priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find the Emotional Balance goal instance (Latest Mood's host).
+        { type: "action", action: "FIND",
+          cfg: {
+            over: "$allInstances",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Emotional Balance" }] },
+            itemVar: "$goalItem", itemIdVar: "$goalItemId",
+          },
+        },
+        // 2. Resolve $goalPeriod from the goal item's effective filter (full
+        // {value, unit} object form — DATE_IN_PERIOD reads both shapes).
+        { type: "action", action: "INIT_VAR",
+          cfg: { name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+        },
+        // 3. Find the Schedule page (for HAS_ANCESTOR scoping).
+        { type: "action", action: "FIND",
+          cfg: {
+            over: "$allPages",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Schedule" }] },
+            itemVar: "$schedPage", itemIdVar: "$schedPageId",
+          },
+        },
+        // 4. Init the rows array.
+        { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
+        // 5. Loop $allInstances — match every occurrence in $goalPeriod under
+        // Schedule that has a non-empty mood field value, and push {mood, date}.
+        {
+          type: "loop", overExpr: "$allInstances", as: "$inst",
+          body: [
+            {
+              type: "if",
+              condition: {
+                conjunction: "AND",
+                rules: [
+                  { left: `$inst.fields.${fields.mood.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+                  { left: `$inst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+                  { left: "$inst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                ],
+              },
+              then: [
+                {
+                  type: "action", action: "PUSH_TO_ARRAY",
+                  cfg: {
+                    name: "$rows",
+                    value: {
+                      mood: `$inst.fields.${fields.mood.id}.value`,
+                      date: `$inst.fields.${dateFieldId}.value`,
+                    },
+                  },
+                },
+              ],
+              else: [],
+            },
+          ],
+        },
+        // 6. Write the rows array to the goal item's lastMood display field.
+        { type: "action", action: "UPDATE",
+          cfg: { path: `$goalItem.fields.${fields.lastMood.id}.value`, value: "$rows" },
+        },
+      ],
+    },
+  }).save();
 
   // ── DAILY ACTIVITY ──
   await new Operation(makeTrackerOp({
@@ -3100,10 +3206,11 @@ export async function createLiveData(userId, options = {}) {
           then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
           else: [],
         },
-        // 3. Resolve $goalDate from the goal item's effective filter (same chain as makeTrackerOp)
+        // 3. Resolve $goalPeriod from the goal item's effective filter — full
+        // {value, unit} object (DATE_IN_PERIOD reads both bare-string + object).
         {
           type: "action", action: "INIT_VAR",
-          cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+          cfg: { name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
         },
         // 4. Find the Schedule page (needed for HAS_ANCESTOR; outside trigger gate like makeTrackerOp)
         {
@@ -3115,10 +3222,8 @@ export async function createLiveData(userId, options = {}) {
           },
         },
         // 5. Trigger gate (mirrors makeTrackerOp's triggerGateRules OR block).
-        // Bulk events (onLoad / NavigationOp) always re-aggregate.
-        // Item events (OccurrenceCreateOp / OccurrenceDeleteOp) only re-aggregate
-        // when the trigger item is dated to $goalDate (avoids spurious writes on
-        // drags to/from other days).  MeasureOp gates on moviesWatchedFieldId.
+        // Per-event sub-rules use DATE_IN_PERIOD $goalPeriod so weekly/monthly
+        // views retrigger on any in-period item change, not just same-day.
         {
           type: "if",
           condition: { operator: "OR", rules: [
@@ -3126,22 +3231,22 @@ export async function createLiveData(userId, options = {}) {
             { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "NavigationOp" }] },
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
               { left: "$trigger.fieldId", comparator: "IS", right: moviesWatchedFieldId },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
           ]},
           then: [
-            // 5a. Init output accumulator
-            { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
-            // 5b. Loop over Watch Movie occurrences dated to $goalDate and under the Schedule page
+            // 5a. Init rows accumulator
+            { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
+            // 5b. Loop over Watch Movie occurrences in $goalPeriod under Schedule
             {
               type: "loop",
               overExpr: "$allInstances",
@@ -3152,7 +3257,7 @@ export async function createLiveData(userId, options = {}) {
                   condition: {
                     conjunction: "AND",
                     rules: [
-                      { left: `$watchInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                      { left: `$watchInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$watchInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                       { left: "$watchInst.label", comparator: "IS", right: "Watch Movie" },
                     ],
@@ -3173,14 +3278,20 @@ export async function createLiveData(userId, options = {}) {
                             itemVar: "$movie", itemIdVar: "$movieId",
                           },
                         },
-                        // Append label to $output when found
+                        // Push {label, date} when the movie resolved
                         {
                           type: "if",
                           condition: { conjunction: "AND", rules: [{ left: "$movieId", comparator: "IS_NOT_EMPTY", right: "" }] },
                           then: [
                             {
-                              type: "action", action: "SET_VAR",
-                              cfg: { name: "$output", expr: "${$output}${$movie.label}, " },
+                              type: "action", action: "PUSH_TO_ARRAY",
+                              cfg: {
+                                name: "$rows",
+                                value: {
+                                  label: "$movie.label",
+                                  date: `$watchInst.fields.${dateFieldId}.value`,
+                                },
+                              },
                             },
                           ],
                           else: [],
@@ -3192,11 +3303,10 @@ export async function createLiveData(userId, options = {}) {
                 },
               ],
             },
-            // 5c. Write the joined label string to the text display field on the goal item.
-            // NOTE: $output accumulates as "Inception, The Matrix, " — trailing ", " is acceptable for v1.
+            // 5c. Write the rows array to the multi-column display field.
             {
               type: "action", action: "UPDATE",
-              cfg: { path: `$goalItemId.fields.${moviesWatchedDisplayFieldId}.value`, value: "$output" },
+              cfg: { path: `$goalItemId.fields.${moviesWatchedDisplayFieldId}.value`, value: "$rows" },
             },
           ],
           else: [],
@@ -3240,10 +3350,10 @@ export async function createLiveData(userId, options = {}) {
           then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
           else: [],
         },
-        // 3. Resolve $goalDate from the goal item's effective filter (same chain as makeTrackerOp)
+        // 3. Resolve $goalPeriod — full {value, unit} object (DATE_IN_PERIOD-ready).
         {
           type: "action", action: "INIT_VAR",
-          cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+          cfg: { name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
         },
         // 4. Find the Schedule page (needed for HAS_ANCESTOR; outside trigger gate like makeTrackerOp)
         {
@@ -3262,22 +3372,22 @@ export async function createLiveData(userId, options = {}) {
             { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "NavigationOp" }] },
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
               { left: "$trigger.fieldId", comparator: "IS", right: booksReadFieldId },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
           ]},
           then: [
             // 5a. Init output accumulator as an empty array (rows for the multi-dim display)
             { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
-            // 5b. Loop over Reading occurrences dated to $goalDate and under the Schedule page
+            // 5b. Loop over Reading occurrences in $goalPeriod under Schedule
             {
               type: "loop",
               overExpr: "$allInstances",
@@ -3288,7 +3398,7 @@ export async function createLiveData(userId, options = {}) {
                   condition: {
                     conjunction: "AND",
                     rules: [
-                      { left: `$readInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                      { left: `$readInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$readInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                       { left: "$readInst.label", comparator: "IS", right: "Reading" },
                     ],
@@ -3309,7 +3419,7 @@ export async function createLiveData(userId, options = {}) {
                             itemVar: "$book", itemIdVar: "$bookId",
                           },
                         },
-                        // Push a row { label, pages } when found
+                        // Push a row { label, pages, date } when found
                         {
                           type: "if",
                           condition: { conjunction: "AND", rules: [{ left: "$bookId", comparator: "IS_NOT_EMPTY", right: "" }] },
@@ -3321,6 +3431,7 @@ export async function createLiveData(userId, options = {}) {
                                 value: {
                                   label: "$book.label",
                                   pages: `$book.fields.${pagesFieldId}.value`,
+                                  date: `$readInst.fields.${dateFieldId}.value`,
                                 },
                               },
                             },
@@ -3381,10 +3492,10 @@ export async function createLiveData(userId, options = {}) {
           then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
           else: [],
         },
-        // 3. Resolve $goalDate from the goal item's effective filter (same chain as makeTrackerOp)
+        // 3. Resolve $goalPeriod — full {value, unit} object (DATE_IN_PERIOD-ready).
         {
           type: "action", action: "INIT_VAR",
-          cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+          cfg: { name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
         },
         // 4. Find the Schedule page (needed for HAS_ANCESTOR; outside trigger gate like makeTrackerOp)
         {
@@ -3403,22 +3514,22 @@ export async function createLiveData(userId, options = {}) {
             { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "NavigationOp" }] },
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
               { left: "$trigger.fieldId", comparator: "IS", right: podcastsListenedFieldId },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
           ]},
           then: [
-            // 5a. Init output accumulator
-            { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
-            // 5b. Loop over Listen to Podcast occurrences dated to $goalDate and under the Schedule page
+            // 5a. Init rows accumulator
+            { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
+            // 5b. Loop over Listen to Podcast occurrences in $goalPeriod under Schedule
             {
               type: "loop",
               overExpr: "$allInstances",
@@ -3429,7 +3540,7 @@ export async function createLiveData(userId, options = {}) {
                   condition: {
                     conjunction: "AND",
                     rules: [
-                      { left: `$podcastInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                      { left: `$podcastInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$podcastInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                       { left: "$podcastInst.label", comparator: "IS", right: "Listen to Podcast" },
                     ],
@@ -3450,14 +3561,20 @@ export async function createLiveData(userId, options = {}) {
                             itemVar: "$podcast", itemIdVar: "$podcastId",
                           },
                         },
-                        // Append label to $output when found
+                        // Push {label, date} when the podcast resolved
                         {
                           type: "if",
                           condition: { conjunction: "AND", rules: [{ left: "$podcastId", comparator: "IS_NOT_EMPTY", right: "" }] },
                           then: [
                             {
-                              type: "action", action: "SET_VAR",
-                              cfg: { name: "$output", expr: "${$output}${$podcast.label}, " },
+                              type: "action", action: "PUSH_TO_ARRAY",
+                              cfg: {
+                                name: "$rows",
+                                value: {
+                                  label: "$podcast.label",
+                                  date: `$podcastInst.fields.${dateFieldId}.value`,
+                                },
+                              },
                             },
                           ],
                           else: [],
@@ -3469,10 +3586,10 @@ export async function createLiveData(userId, options = {}) {
                 },
               ],
             },
-            // 5c. Write the joined label string to the text display field on the goal item.
+            // 5c. Write the rows array to the multi-column display field.
             {
               type: "action", action: "UPDATE",
-              cfg: { path: `$goalItemId.fields.${podcastsListenedDisplayFieldId}.value`, value: "$output" },
+              cfg: { path: `$goalItemId.fields.${podcastsListenedDisplayFieldId}.value`, value: "$rows" },
             },
           ],
           else: [],
@@ -3516,10 +3633,10 @@ export async function createLiveData(userId, options = {}) {
           then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
           else: [],
         },
-        // 3. Resolve $goalDate from the goal item's effective filter (same chain as makeTrackerOp)
+        // 3. Resolve $goalPeriod — full {value, unit} object (DATE_IN_PERIOD-ready).
         {
           type: "action", action: "INIT_VAR",
-          cfg: { name: "$goalDate", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+          cfg: { name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
         },
         // 4. Find the Schedule page (needed for HAS_ANCESTOR; outside trigger gate like makeTrackerOp)
         {
@@ -3538,22 +3655,22 @@ export async function createLiveData(userId, options = {}) {
             { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "NavigationOp" }] },
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
               { left: "$trigger.fieldId", comparator: "IS", right: coursesTakenFieldId },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
           ]},
           then: [
-            // 5a. Init output accumulator
-            { type: "action", action: "INIT_VAR", cfg: { name: "$output", expr: "literal:" } },
-            // 5b. Loop over Online Course occurrences dated to $goalDate and under the Schedule page
+            // 5a. Init rows accumulator
+            { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
+            // 5b. Loop over Online Course occurrences in $goalPeriod under Schedule
             {
               type: "loop",
               overExpr: "$allInstances",
@@ -3564,7 +3681,7 @@ export async function createLiveData(userId, options = {}) {
                   condition: {
                     conjunction: "AND",
                     rules: [
-                      { left: `$courseInst.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$goalDate" },
+                      { left: `$courseInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$courseInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                       { left: "$courseInst.label", comparator: "IS", right: "Online Course" },
                     ],
@@ -3585,14 +3702,20 @@ export async function createLiveData(userId, options = {}) {
                             itemVar: "$course", itemIdVar: "$courseId",
                           },
                         },
-                        // Append label to $output when found
+                        // Push {label, date} when the course resolved
                         {
                           type: "if",
                           condition: { conjunction: "AND", rules: [{ left: "$courseId", comparator: "IS_NOT_EMPTY", right: "" }] },
                           then: [
                             {
-                              type: "action", action: "SET_VAR",
-                              cfg: { name: "$output", expr: "${$output}${$course.label}, " },
+                              type: "action", action: "PUSH_TO_ARRAY",
+                              cfg: {
+                                name: "$rows",
+                                value: {
+                                  label: "$course.label",
+                                  date: `$courseInst.fields.${dateFieldId}.value`,
+                                },
+                              },
                             },
                           ],
                           else: [],
@@ -3604,10 +3727,10 @@ export async function createLiveData(userId, options = {}) {
                 },
               ],
             },
-            // 5c. Write the joined label string to the text display field on the goal item.
+            // 5c. Write the rows array to the multi-column display field.
             {
               type: "action", action: "UPDATE",
-              cfg: { path: `$goalItemId.fields.${coursesTakenDisplayFieldId}.value`, value: "$output" },
+              cfg: { path: `$goalItemId.fields.${coursesTakenDisplayFieldId}.value`, value: "$rows" },
             },
           ],
           else: [],
