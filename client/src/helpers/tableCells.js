@@ -72,7 +72,7 @@ function reindex(cells, fromCol, delta) {
     const [r, c] = k.split(":").map(Number);
     if (c < fromCol) next[k] = cells[k];
     else if (delta < 0 && c === fromCol) continue; // dropped
-    else next[`${r}:${c + delta}`] = cells[k];
+    else next[cellKey(r, c + delta)] = cells[k];
   }
   return next;
 }

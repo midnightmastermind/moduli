@@ -2,7 +2,7 @@
 // Layout-only table container. Grid lives in occurrence.meta.table.
 // Rows/cols/cells are NOT entities. Cells are static plain-text this task;
 // live editors come in Task 9.
-import React, { useMemo, useCallback, useState, useRef, useContext } from "react";
+import React, { useMemo, useCallback, useState, useRef, useEffect, useContext } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -27,7 +27,7 @@ const DEFAULT_TABLE = () => ({
 export default function ContainerTable({ occurrence, dispatch, socket }) {
   const { occurrencesById, modulesById } = useContext(GridActionsContext);
 
-  const table = occurrence?.meta?.table || DEFAULT_TABLE();
+  const table = useMemo(() => occurrence?.meta?.table || DEFAULT_TABLE(), [occurrence?.meta?.table]);
   const { columns, rowCount, cells } = table;
 
   // Kebab menu state: { colIndex, anchor }
@@ -35,6 +35,18 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
   // Resize state: { colIndex, startX, startWidth }
   const [resizing, setResizing] = useState(null);
+
+  // Ref to active resize handlers for cleanup on unmount
+  const resizeHandlersRef = useRef(null);
+
+  // Cleanup resize listeners if component unmounts mid-drag
+  useEffect(() => () => {
+    const h = resizeHandlersRef.current;
+    if (h) {
+      window.removeEventListener("pointermove", h.onMove);
+      window.removeEventListener("pointerup", h.onUp);
+    }
+  }, []);
 
   // eslint-disable-next-line no-unused-vars
   const persist = useCallback((nextTable) => {
@@ -66,6 +78,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
   const tanstackData = useMemo(() => rows.map(r => ({ r })), [rows]);
 
+  // Built now; consumed by Task 12 (view-only sort/filter). Intentionally unused here.
   // eslint-disable-next-line no-unused-vars
   const tableInstance = useReactTable({
     data: tanstackData,
@@ -85,7 +98,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     persist({ ...table, columns: nextCols });
   }, [columns, persist, table]);
 
-  const handleTitleKeyDown = useCallback((e, colIndex) => {
+  const handleTitleKeyDown = useCallback((e) => {
     if (e.key === "Enter") {
       e.currentTarget.blur();
     }
@@ -139,7 +152,9 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
       setResizing(null);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      resizeHandlersRef.current = null;
     };
+    resizeHandlersRef.current = { onMove, onUp };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }, [columns, persist, table]);
@@ -165,9 +180,8 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   }, [table, rowCount, persist]);
 
   // --- Remove last row ---
-  const handleRemoveLastRow = useCallback((r) => {
-    if (r !== rowCount - 1) return; // only trailing row
-    persist({ ...table, rowCount: Math.max(0, rowCount - 1) });
+  const handleRemoveLastRow = useCallback(() => {
+    if (rowCount > 1) persist({ ...table, rowCount: rowCount - 1 });
   }, [table, rowCount, persist]);
 
   // Close kebab on outside click
@@ -201,13 +215,13 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
       >
         {/* Header row */}
         {columns.map((col, c) => (
-          <div key={col.id} className="table-th" style={{ position: "relative" }}>
+          <div key={col.id} className="table-th">
             <div className="table-th-inner">
               <input
                 className="table-th-title"
                 defaultValue={col.title}
                 onBlur={(e) => handleTitleBlur(c, e.currentTarget.value)}
-                onKeyDown={(e) => handleTitleKeyDown(e, c)}
+                onKeyDown={(e) => handleTitleKeyDown(e)}
               />
               <div className="table-th-actions">
                 <button
@@ -276,7 +290,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                 <button
                   className="table-remove-row-btn"
                   title="Remove last row"
-                  onClick={() => handleRemoveLastRow(r)}
+                  onClick={handleRemoveLastRow}
                 >
                   –
                 </button>
