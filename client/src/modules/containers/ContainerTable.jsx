@@ -243,6 +243,13 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   // (defined before persist in component scope) can call it without TDZ issues.
   const persistRef = useRef(null);
 
+  // occurrencesByIdRef: mirrors occurrencesById so handleFillPointerDown's onUp
+  // can read the latest map without occurrencesById being in the useCallback dep
+  // array (which would recreate the callback — and every focused cell that
+  // receives it — on every store update).
+  const occurrencesByIdRef = useRef(occurrencesById);
+  occurrencesByIdRef.current = occurrencesById;
+
   // Fill gesture state: src = { r, c } while dragging, null otherwise.
   const fillSrcRef = useRef(null);
   // Track which cells currently have the preview highlight so we can clear them.
@@ -286,6 +293,14 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   const handleFillPointerDown = useCallback((e, r, c) => {
     e.preventDefault();
     e.stopPropagation();
+    const prevFill = fillHandlersRef.current;
+    if (prevFill) {
+      window.removeEventListener("pointermove", prevFill.onMove);
+      window.removeEventListener("pointerup", prevFill.onUp);
+      window.removeEventListener("pointercancel", prevFill.onCancel);
+      fillHandlersRef.current = null;
+      clearFillPreviews(containerRef.current);
+    }
     fillSrcRef.current = { r, c };
 
     const onMove = (moveE) => {
@@ -340,7 +355,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
       // Read source cell doc.
       const srcDoc = tableRef.current.cells[cellKey(src.r, src.c)];
       const srcOccId = srcDoc ? firstEmbedOccId(srcDoc) : null;
-      const srcOcc = srcOccId ? occurrencesById?.[srcOccId] : null;
+      const srcOcc = srcOccId ? occurrencesByIdRef.current?.[srcOccId] : null;
 
       // Build next cells map.
       const nextCells = { ...tableRef.current.cells };
@@ -394,7 +409,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
               : { key: "time", value: new Date(), mode: "specific" },
             timestamp: new Date(),
             fields: copiedFields,
-            parentId: srcOcc.parentId || null,
+            parentId: null,
             ...(mode === "copylink" ? { linkedGroupId } : {}),
           };
           CommitHelpers.createOccurrence({ dispatch, socket, occurrence: newOcc });
@@ -417,7 +432,6 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
     const onCancel = () => {
       cleanup();
-      clearFillPreviews(containerRef.current);
       fillSrcRef.current = null;
     };
 
@@ -434,7 +448,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onCancel);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fillMode, occurrencesById, occurrence?.gridId, occurrence?.userId, dispatch, socket, clearFillPreviews]);
+  }, [fillMode, occurrence?.gridId, occurrence?.userId, dispatch, socket, clearFillPreviews]);
 
   const persist = useCallback((nextTable) => {
     // Sync the ref immediately so any other cell that flushes within the same
