@@ -203,8 +203,8 @@ function routeRecordPath(path, segments, value, { item, occurrencesById }) {
   }
 
   if (segments[1] === "meta") {
-    const metaKey = segments.slice(2).join(".");
-    if (!metaKey) {
+    const metaPath = segments.slice(2);
+    if (!metaPath.length) {
       throw new Error(`unknown path head: ${path}`);
     }
     return {
@@ -212,7 +212,8 @@ function routeRecordPath(path, segments, value, { item, occurrencesById }) {
         {
           _effect: "UPDATE_ITEM_META",
           itemId,
-          metaPatch: { [metaKey]: value },
+          metaPath,
+          value,
         },
       ],
       varWrites: {},

@@ -31,10 +31,11 @@ describe("applyUpdate with a user-defined $var bound to an occurrence record", (
     expect(out.effects[0].value).toBe("out");
   });
 
-  it("$goalItem.meta.<key> emits UPDATE_ITEM_META", () => {
+  it("$goalItem.meta.<key> emits UPDATE_ITEM_META with metaPath", () => {
     const out = applyUpdate("$goalItem.meta.tag", "new", ctx());
     expect(out.effects[0]._effect).toBe("UPDATE_ITEM_META");
-    expect(out.effects[0].metaPatch).toEqual({ tag: "new" });
+    expect(out.effects[0].metaPath).toEqual(["tag"]);
+    expect(out.effects[0].value).toBe("new");
   });
 
   it("$goalItem.fields.<fid>.value with null clears the field value", () => {

@@ -658,8 +658,31 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
         const occ = occOverlay[effect.itemId];
         if (!occ) break;
-        const merged = { ...(occ.meta || {}), ...(effect.metaPatch || {}) };
-        updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, meta: merged } });
+        // Two emit shapes:
+        //   - metaPath: [seg, seg, ...] + value — deep-set at the nested path,
+        //     clone-merging at each level so siblings under the same parent are
+        //     preserved (writing meta.table.cells["0:0"] keeps meta.table.columns,
+        //     meta.table.rowCount, and all other cells intact).
+        //   - metaPatch: { key: value } — legacy shallow merge (kept for any
+        //     direct emitters; applyUpdate now emits metaPath instead).
+        let nextMeta;
+        if (Array.isArray(effect.metaPath) && effect.metaPath.length) {
+          const path = effect.metaPath;
+          nextMeta = { ...(occ.meta || {}) };
+          let cursor = nextMeta;
+          for (let i = 0; i < path.length - 1; i++) {
+            const key = path[i];
+            const existing = cursor[key];
+            cursor[key] = existing && typeof existing === "object" && !Array.isArray(existing)
+              ? { ...existing }
+              : {};
+            cursor = cursor[key];
+          }
+          cursor[path[path.length - 1]] = effect.value;
+        } else {
+          nextMeta = { ...(occ.meta || {}), ...(effect.metaPatch || {}) };
+        }
+        updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, meta: nextMeta } });
         break;
       }
 

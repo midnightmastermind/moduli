@@ -45,6 +45,14 @@ const SHAPES = {
       { value: "templateId",  title: "templateId",  sub: "string",   description: "Same as moduleId — module template",              hasChildren: false },
       { value: "fields",      title: "fields",      sub: "object",   description: "Field values map keyed by field ID",              hasChildren: true,  childShape: "fieldsMap" },
       { value: "meta",        title: "meta",        sub: "object",   description: "Module/occurrence meta",                          hasChildren: false },
+      // Table-container grid state lives under occurrence.meta.table but the
+      // user shouldn't need to know that — surface columns / rowCount / cells
+      // directly at the occurrence level. The `value` carries the literal
+      // `meta.table.*` path so segments.join(".") still produces the address
+      // applyUpdate routes through (UPDATE_ITEM_META → metaPath: [..]).
+      { value: "meta.table.columns",  title: "columns",  sub: "table columns", description: "Column defs (title / width / displayFieldId / sort / filter / fieldFilter)", hasChildren: true, childShape: "tableColumn" },
+      { value: "meta.table.rowCount", title: "rowCount", sub: "number",        description: "Total row count rendered by the table",                                       hasChildren: false },
+      { value: "meta.table.cells",    title: "cells",    sub: "cell map",      description: "Per-cell TipTap doc keyed by \"r:c\"",                                          hasChildren: true, childShape: "tableCellsMap" },
       { value: "filterOverride",   title: "filterOverride",   sub: "object", description: "Per-occurrence filter override",                                       hasChildren: false },
       { value: "_effectiveFilter", title: "_effectiveFilter", sub: "object", description: "Effective filter merged from grid + ancestor chain (read-only)",      hasChildren: true, childShape: "filter" },
     ],
@@ -82,6 +90,29 @@ const SHAPES = {
       { value: "activeFilterId",     title: "activeFilterId",     sub: "string", description: "Current filter preset",        hasChildren: false },
       { value: "activeFilterValues", title: "activeFilterValues", sub: "object", description: "Live filter values",            hasChildren: true, childShape: "filter" },
       { value: "namedFilters",       title: "namedFilters",       sub: "array",  description: "All named filters on the grid", hasChildren: false },
+    ],
+  },
+  // Single column definition under meta.table.columns[i]. Drillable so writes
+  // like `$item.meta.table.columns.0.sort = "asc"` are pickable.
+  tableColumn: {
+    keys: () => [
+      { value: "id",              title: "id",              sub: "string", description: "Stable column id (tcol_<…>)",                                       hasChildren: false },
+      { value: "title",           title: "title",           sub: "string", description: "Header label",                                                       hasChildren: false },
+      { value: "width",           title: "width",           sub: "number", description: "Column width in px",                                                 hasChildren: false },
+      { value: "displayFieldId",  title: "displayFieldId",  sub: "string", description: "Single-field projection: render only this field, compact",         hasChildren: false },
+      { value: "sort",            title: "sort",            sub: "string", description: "View-only sort: null / \"asc\" / \"desc\"",                          hasChildren: false },
+      { value: "filter",          title: "filter",          sub: "object", description: "View-only filter: { comparator, value } (compares against cell sort value)", hasChildren: false },
+      { value: "fieldFilter",     title: "fieldFilter",     sub: "object", description: "Embed-render filter: { mode: \"show\"|\"hide\", fieldIds: [...] }", hasChildren: false },
+    ],
+  },
+  // meta.table.cells is keyed by `"r:c"` — the picker can't enumerate every
+  // r:c pair (rowCount × cols is unbounded), but we need the path to be
+  // drill-stoppable so authors can WRITE specific cells by typing the key.
+  // For now we surface a single "Pick this" leaf — the author commits at
+  // .cells and types the final segment by hand, OR uses a template token.
+  tableCellsMap: {
+    keys: () => [
+      { value: "<r:c>", title: "(cell by r:c)", sub: "any", description: "Pick the cells map; the leaf segment \"r:c\" identifies the cell", hasChildren: false },
     ],
   },
 };

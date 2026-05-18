@@ -79,17 +79,32 @@ describe("applyUpdate — $item.parentId", () => {
 // $item.meta.<key>
 // ---------------------------------------------------------------------------
 describe("applyUpdate — $item.meta.<key>", () => {
-  it("returns UPDATE_ITEM_META with metaPatch", () => {
+  it("returns UPDATE_ITEM_META with metaPath for a single-segment meta key", () => {
     const ctx = makeCtx({ vars: { $item: { id: "occ1" } } });
     const result = applyUpdate("$item.meta.completedAt", "2026-04-27", ctx);
     expect(result.effects).toEqual([
       {
         _effect: "UPDATE_ITEM_META",
         itemId: "occ1",
-        metaPatch: { completedAt: "2026-04-27" },
+        metaPath: ["completedAt"],
+        value: "2026-04-27",
       },
     ]);
     expect(result.varWrites).toEqual({});
+  });
+
+  it("returns UPDATE_ITEM_META with full nested metaPath for deep meta writes", () => {
+    const ctx = makeCtx({ vars: { $item: { id: "occ1" } } });
+    const cellDoc = { type: "doc", content: [{ type: "paragraph" }] };
+    const result = applyUpdate("$item.meta.table.cells.0:0", cellDoc, ctx);
+    expect(result.effects).toEqual([
+      {
+        _effect: "UPDATE_ITEM_META",
+        itemId: "occ1",
+        metaPath: ["table", "cells", "0:0"],
+        value: cellDoc,
+      },
+    ]);
   });
 });
 

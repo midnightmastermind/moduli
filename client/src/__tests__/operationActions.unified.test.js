@@ -501,7 +501,7 @@ describe("UPDATE action", () => {
     expect(updates[0].toParentId).toBe("due1");
   });
 
-  it("routes $item.meta.<key> to UPDATE_ITEM_META", () => {
+  it("routes $item.meta.<key> to UPDATE_ITEM_META with metaPath + value", () => {
     const $vars = { $item: { id: "occ1" } };
     const updates = executeActionItem("UPDATE", {
       path: "$item.meta.starred",
@@ -509,7 +509,21 @@ describe("UPDATE action", () => {
     }, $vars, makeContext());
 
     expect(updates[0]._effect).toBe("UPDATE_ITEM_META");
-    expect(updates[0].metaPatch).toEqual({ starred: true });
+    expect(updates[0].metaPath).toEqual(["starred"]);
+    expect(updates[0].value).toBe(true);
+  });
+
+  it("routes nested meta paths (e.g. $item.meta.table.cells.<key>) preserving depth", () => {
+    const $vars = { $item: { id: "occ1" } };
+    const cellDoc = { type: "doc", content: [{ type: "paragraph" }] };
+    const updates = executeActionItem("UPDATE", {
+      path: "$item.meta.table.cells.0:0",
+      value: cellDoc,
+    }, $vars, makeContext());
+
+    expect(updates[0]._effect).toBe("UPDATE_ITEM_META");
+    expect(updates[0].metaPath).toEqual(["table", "cells", "0:0"]);
+    expect(updates[0].value).toEqual(cellDoc);
   });
 
   it("interpolates ${$var} inside path", () => {
