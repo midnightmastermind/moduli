@@ -1,7 +1,7 @@
 // modules/containers/ContainerTable.jsx
 // Layout-only table container. Grid lives in occurrence.meta.table.
-// Rows/cols/cells are NOT entities. Cells are static plain-text this task;
-// live editors come in Task 9.
+// Task 9: cells are live TipTap editors (mode="cell") with spreadsheet nav
+// and debounced persistence into occurrence.meta.table.cells[key].
 import React, { useMemo, useCallback, useState, useRef, useEffect, useContext } from "react";
 import {
   useReactTable,
@@ -11,9 +11,10 @@ import {
 } from "@tanstack/react-table";
 import { MoreVertical, ChevronUp, ChevronDown } from "lucide-react";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
-import { cellKey, emptyCellDoc, plainText, getCellSortValue, deleteColumn, insertColumn } from "../../helpers/tableCells";
+import { cellKey, emptyCellDoc, getCellSortValue, deleteColumn, insertColumn } from "../../helpers/tableCells";
 import { GridActionsContext } from "../../GridActionsContext";
 import { uid } from "../../uid";
+import Editor from "../../ui/Editor.jsx";
 
 const DEFAULT_TABLE = () => ({
   columns: [
@@ -24,11 +25,122 @@ const DEFAULT_TABLE = () => ({
   cells: {},
 });
 
+// DEBOUNCE_MS mirrors Editor.jsx's internal persistContent delay (500ms).
+const DEBOUNCE_MS = 500;
+
+// ── TableCell ────────────────────────────────────────────────────────────────
+// Renders one live TipTap cell editor. onChange is debounced and persists the
+// new JSON into occurrence.meta.table.cells[key] via the outer `persist`.
+//
+// Stale-cells safety: we must not close over the `cells` object captured at
+// render time because multiple cells share ONE occurrence.meta.table. If two
+// cells are edited concurrently and both flush from a stale snapshot they will
+// clobber each other.  Solution: `tableRef` (a ref to the latest `table`
+// object) is passed in and read at flush time, so each flush always builds
+// nextCells from the FRESHEST cells map — never from the closure snapshot.
+//
+// No-remount guarantee: stable `key={cellKey(r,c)}` on the wrapper div keeps
+// React from tearing down this component across data changes.  `initialContent`
+// is a ref so the `content` prop passed to Editor is the mount-time snapshot
+// only — TipTap is uncontrolled after mount and manages its own doc state.
+function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket }) {
+  const key = cellKey(r, c);
+
+  // Seed TipTap once at mount — never update this ref so the Editor's content
+  // prop is stable across re-renders (TipTap is uncontrolled after mount).
+  const initialContent = useRef(tableRef.current.cells[key] || emptyCellDoc());
+
+  // Debounce timer ref — cleared on unmount to prevent post-unmount flush on
+  // a dead component (mirrors Editor.jsx saveTimeout pattern).
+  const debounceTimer = useRef(null);
+
+  // Forward ref so cellRefs can call editor.commands.focus() on this cell.
+  const editorRef = useRef(null);
+
+  // Register / unregister the focus handle in the shared cellRefs map.
+  useEffect(() => {
+    cellRefs.current.set(key, () => {
+      // editorRef.current is the imperative handle: { editor, ... }
+      editorRef.current?.editor?.commands?.focus?.();
+    });
+    return () => {
+      cellRefs.current.delete(key);
+    };
+  // key is stable for the lifetime of this cell instance — no deps needed
+  // beyond mount/unmount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Flush last edit and cancel timer on unmount so no persist fires on a
+  // stale component reference.
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
+      }
+    };
+  }, []);
+
+  const handleChange = useCallback((newDoc) => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      debounceTimer.current = null;
+      // Read the LATEST table from the ref so concurrent edits in other cells
+      // are not clobbered.  Never use the stale `cells` from closure scope.
+      const latestTable = tableRef.current;
+      const nextCells = { ...latestTable.cells, [key]: newDoc };
+      persist({ ...latestTable, cells: nextCells });
+    }, DEBOUNCE_MS);
+  }, [key, tableRef, persist]);
+
+  return (
+    <div className="table-td" data-r={r} data-c={c}>
+      <Editor
+        ref={editorRef}
+        mode="cell"
+        editable
+        content={initialContent.current}
+        onChange={handleChange}
+        dispatch={dispatch}
+        socket={socket}
+        placeholder=""
+      />
+    </div>
+  );
+}
+
 export default function ContainerTable({ occurrence, dispatch, socket }) {
   const { occurrencesById, modulesById } = useContext(GridActionsContext);
 
   const table = useMemo(() => occurrence?.meta?.table || DEFAULT_TABLE(), [occurrence?.meta?.table]);
   const { columns, rowCount, cells } = table;
+
+  // tableRef always holds the latest table so TableCell.handleChange reads
+  // fresh cells at flush time (avoids concurrent-edit data loss).
+  const tableRef = useRef(table);
+  useEffect(() => { tableRef.current = table; }, [table]);
+
+  // cellRefs: key → focus-handle function.  Populated by each TableCell on mount.
+  const cellRefs = useRef(new Map());
+
+  // ── Focus navigation ─────────────────────────────────────────────────────
+  // nextCoord: given current (r,c) and a direction, return the neighbour cell
+  // clamped to grid bounds.
+  const nextCoord = useCallback((r, c, dir) => {
+    const maxR = tableRef.current.rowCount - 1;
+    const maxC = tableRef.current.columns.length - 1;
+    if (dir === "down")  return { r: Math.min(r + 1, maxR), c };
+    if (dir === "up")    return { r: Math.max(r - 1, 0), c };
+    if (dir === "right") return { r, c: Math.min(c + 1, maxC) };
+    if (dir === "left")  return { r, c: Math.max(c - 1, 0) };
+    return { r, c };
+  }, []);
+
+  const focusCell = useCallback(({ r, c }) => {
+    const handle = cellRefs.current.get(cellKey(r, c));
+    handle?.();
+  }, []);
 
   // Kebab menu state: { colIndex, anchor }
   const [kebabOpen, setKebabOpen] = useState(null);
@@ -48,7 +160,6 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     }
   }, []);
 
-  // eslint-disable-next-line no-unused-vars
   const persist = useCallback((nextTable) => {
     CommitHelpers.updateOccurrence({
       dispatch,
@@ -276,14 +387,19 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
         {/* Data rows */}
         {rows.map((r) => (
           <React.Fragment key={r}>
-            {columns.map((col, c) => {
-              const doc = cells[cellKey(r, c)] || emptyCellDoc();
-              return (
-                <div key={`${r}:${c}`} className="table-td" data-r={r} data-c={c}>
-                  {plainText(doc)}
-                </div>
-              );
-            })}
+            {columns.map((col, c) => (
+              <TableCell
+                key={cellKey(r, c)}
+                r={r}
+                c={c}
+                tableRef={tableRef}
+                persist={persist}
+                onCellCommitMove={(dir) => focusCell(nextCoord(r, c, dir))}
+                cellRefs={cellRefs}
+                dispatch={dispatch}
+                socket={socket}
+              />
+            ))}
             {/* Trailing-row removal button — aligned to +column cell */}
             <div className="table-td table-row-action-cell">
               {r === rowCount - 1 && (
