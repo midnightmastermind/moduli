@@ -30,6 +30,7 @@ import { runMatchingOperations } from "../helpers/operationExecutor";
 import { setComputedValuesAction } from "../state/actions";
 import { DocContent } from "./DocContent.jsx";
 import { hexToRgba } from "../helpers/colorHelpers.js";
+import { CellEmbedContext } from "../docs/CellEmbedContext.js";
 
 // ============================================================
 // INSTANCE INNER ROW — label, field pills, operation widgets
@@ -117,12 +118,30 @@ function InstanceInner({
     });
   }, [occurrence?.id, entityDragMode, dispatch, socket]);
 
-  // Get fields for this instance based on fieldBindings (skip hidden bindings)
+  // Pick up the enclosing table cell's column-level field filter (if any).
+  // When the embed is rendered outside a table cell the context provides
+  // null — instanceFields then renders every visible binding as before.
+  const cellEmbedCtx = useContext(CellEmbedContext);
+  const cellFieldFilter = cellEmbedCtx?.fieldFilter || null;
+
+  // Get fields for this instance based on fieldBindings (skip hidden bindings).
+  // Additional cell-column filter: column.fieldFilter = { mode: "show"|"hide",
+  // fieldIds } — when "show", keep only listed fields; when "hide", drop them.
   const instanceFields = useMemo(() => {
     if (!instance?.fieldBindings || !fieldsById) return [];
 
+    const filterIds = Array.isArray(cellFieldFilter?.fieldIds) ? cellFieldFilter.fieldIds : null;
+    const filterMode = cellFieldFilter?.mode || null;
+    const passesCellFilter = (fieldId) => {
+      if (!filterIds || !filterMode) return true;
+      const inList = filterIds.includes(fieldId);
+      if (filterMode === "show") return inList;
+      if (filterMode === "hide") return !inList;
+      return true;
+    };
+
     return (instance.fieldBindings || [])
-      .filter(binding => !binding.hidden)
+      .filter(binding => !binding.hidden && passesCellFilter(binding.fieldId))
       .map(binding => {
         const field = fieldsById[binding.fieldId];
         if (!field) return null;
@@ -130,7 +149,7 @@ function InstanceInner({
       })
       .filter(Boolean)
       .sort((a, b) => (a.binding.order || 0) - (b.binding.order || 0));
-  }, [instance?.fieldBindings, fieldsById]);
+  }, [instance?.fieldBindings, fieldsById, cellFieldFilter]);
 
   // Operation widget bindings
   const operationWidgets = useMemo(() => {

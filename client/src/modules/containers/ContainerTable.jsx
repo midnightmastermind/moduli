@@ -12,7 +12,7 @@ import {
   getFilteredRowModel,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { MoreVertical, ChevronUp, ChevronDown, Hash, Filter, X } from "lucide-react";
+import { MoreVertical, ChevronUp, ChevronDown, Hash, Filter, X, Eye } from "lucide-react";
 import { evalRule } from "../../helpers/operationActions";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, fillRange, firstEmbedOccId } from "../../helpers/tableCells";
@@ -85,7 +85,7 @@ const DEBOUNCE_MS = 500;
 // React from tearing down this component across data changes.  `initialContent`
 // is a ref so the `content` prop passed to Editor is the mount-time snapshot
 // only — TipTap is uncontrolled after mount and manages its own doc state.
-function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId, onFocusCell, onBlurCell, isFocused, fillMode, onFillPointerDown, onToggleFillMode, style }) {
+function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId, fieldFilter, onFocusCell, onBlurCell, isFocused, fillMode, onFillPointerDown, onToggleFillMode, style }) {
   const key = cellKey(r, c);
 
   // Seed TipTap once at mount — never update this ref so the Editor's content
@@ -186,6 +186,7 @@ function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispat
         socket={socket}
         placeholder=""
         displayFieldId={displayFieldId ?? null}
+        fieldFilter={fieldFilter ?? null}
       />
       {isFocused && (
         <>
@@ -250,6 +251,10 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
   // Filter popover: which column is showing the filter editor
   const [filterPickerCol, setFilterPickerCol] = useState(null);
+
+  // Field-filter (show/hide which fields render inside the cell's embed)
+  // popover: which column is showing the field-filter editor
+  const [fieldFilterPickerCol, setFieldFilterPickerCol] = useState(null);
 
   // Resize state: { colIndex, startX, startWidth }
   const [resizing, setResizing] = useState(null);
@@ -615,6 +620,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
         // Closing: reset nested pickers for this column
         setFieldPickerCol(null);
         setFilterPickerCol(null);
+        setFieldFilterPickerCol(null);
         return null;
       }
       return { colIndex };
@@ -652,6 +658,36 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   const handleClearFilter = useCallback((colIndex) => {
     handleSetFilter(colIndex, null);
   }, [handleSetFilter]);
+
+  // --- Per-column field filter (which fields render inside the embed) ---
+  // Writes columns[colIndex].fieldFilter = { mode: "show"|"hide", fieldIds }
+  // or null to clear. CellEmbedContext picks it up; ModuleInstance reads
+  // fieldFilter from context and filters bindings accordingly. Independent
+  // of displayFieldId (single-field projection) — when both are set,
+  // displayFieldId wins for the projected-cell render path.
+  const handleSetFieldFilterMode = useCallback((colIndex, mode) => {
+    const nextCols = columns.map((c, i) => {
+      if (i !== colIndex) return c;
+      // "off" clears the filter; switching modes keeps the existing fieldIds.
+      if (mode === "off") return { ...c, fieldFilter: null };
+      const prev = c.fieldFilter || { mode: "show", fieldIds: [] };
+      return { ...c, fieldFilter: { mode, fieldIds: prev.fieldIds || [] } };
+    });
+    persist({ ...table, columns: nextCols });
+  }, [columns, persist, table]);
+
+  const handleToggleFieldFilterFieldId = useCallback((colIndex, fieldId) => {
+    const nextCols = columns.map((c, i) => {
+      if (i !== colIndex) return c;
+      const prev = c.fieldFilter || { mode: "show", fieldIds: [] };
+      const has = (prev.fieldIds || []).includes(fieldId);
+      const nextIds = has
+        ? prev.fieldIds.filter(fid => fid !== fieldId)
+        : [...(prev.fieldIds || []), fieldId];
+      return { ...c, fieldFilter: { mode: prev.mode || "show", fieldIds: nextIds } };
+    });
+    persist({ ...table, columns: nextCols });
+  }, [columns, persist, table]);
 
   // Build the field picker config — reuse the same CategoryPathPicker pattern
   // as InstanceForm's FieldsSection: single flat category, one-click commit.
@@ -1171,6 +1207,70 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                               Done
                             </button>
                           </div>
+                        ) : fieldFilterPickerCol === c ? (
+                          /* ── Per-column field filter editor (show/hide which fields render inside the cell embed) ── */
+                          <div className="table-kebab-fieldfilter-picker" style={{ padding: "6px 8px", minWidth: 200 }}>
+                            <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 4, fontFamily: "var(--font-mono)" }}>
+                              Fields visible in cell embed
+                            </div>
+                            {/* Mode toggle: Off / Show / Hide */}
+                            <div style={{ display: "flex", gap: 2, marginBottom: 6 }}>
+                              {["off", "show", "hide"].map(m => {
+                                const isActive = (col.fieldFilter?.mode || "off") === m
+                                  || (m === "off" && !col.fieldFilter);
+                                return (
+                                  <button
+                                    key={m}
+                                    onClick={() => handleSetFieldFilterMode(c, m)}
+                                    style={{
+                                      flex: 1, height: 20, fontSize: 9, fontFamily: "var(--font-mono)",
+                                      borderRadius: 3, border: "1px solid var(--input-border)",
+                                      background: isActive ? "var(--accent-blue-bg, rgba(96,165,250,0.18))" : "var(--input-bg)",
+                                      color: isActive ? "var(--accent-blue, #60a5fa)" : "var(--text-muted)",
+                                      cursor: "pointer", textTransform: "capitalize",
+                                    }}
+                                  >
+                                    {m === "off" ? "All" : m}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {/* Multi-select field list (only when mode != off) */}
+                            {col.fieldFilter && col.fieldFilter.mode && col.fieldFilter.mode !== "off" && (
+                              <div style={{ maxHeight: 160, overflowY: "auto", border: "1px solid var(--border-subtle)", borderRadius: 3, padding: 2 }}>
+                                {allFields.length === 0 && (
+                                  <div style={{ fontSize: 10, color: "var(--text-faint)", padding: 4 }}>No fields available</div>
+                                )}
+                                {allFields.map(f => {
+                                  const checked = (col.fieldFilter.fieldIds || []).includes(f.id);
+                                  return (
+                                    <label
+                                      key={f.id}
+                                      style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer", borderRadius: 2 }}
+                                      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+                                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => handleToggleFieldFilterFieldId(c, f.id)}
+                                        style={{ margin: 0, width: 10, height: 10 }}
+                                      />
+                                      <span style={{ flex: 1, color: "var(--text-primary)" }}>{f.name || "(unnamed)"}</span>
+                                      <span style={{ fontSize: 9, color: "var(--text-faint)" }}>{f.type}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            <button
+                              className="table-kebab-item"
+                              style={{ marginTop: 4 }}
+                              onClick={() => setFieldFilterPickerCol(null)}
+                            >
+                              Done
+                            </button>
+                          </div>
                         ) : (
                           <>
                             <button
@@ -1189,9 +1289,19 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                               <Filter size={9} />
                               {col.filter ? "Edit filter…" : "Filter…"}
                             </button>
+                            <button
+                              className="table-kebab-item"
+                              onClick={() => setFieldFilterPickerCol(c)}
+                              style={{ display: "flex", alignItems: "center", gap: 4 }}
+                            >
+                              <Eye size={9} />
+                              {col.fieldFilter
+                                ? `${col.fieldFilter.mode === "show" ? "Show only" : "Hide"} ${(col.fieldFilter.fieldIds || []).length} field${(col.fieldFilter.fieldIds || []).length === 1 ? "" : "s"}`
+                                : "Field visibility…"}
+                            </button>
                           </>
                         )}
-                        {filterPickerCol !== c && fieldPickerCol !== c && (
+                        {filterPickerCol !== c && fieldPickerCol !== c && fieldFilterPickerCol !== c && (
                           <button
                             className="table-kebab-item table-kebab-delete"
                             onClick={() => handleDeleteColumn(c)}
@@ -1263,6 +1373,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                 dispatch={dispatch}
                 socket={socket}
                 displayFieldId={col.displayFieldId ?? null}
+                fieldFilter={col.fieldFilter ?? null}
                 onFocusCell={() => setFocusedCell({ r, c })}
                 onBlurCell={() => setFocusedCell(prev => (prev?.r === r && prev?.c === c ? null : prev))}
                 isFocused={focusedCell?.r === r && focusedCell?.c === c}

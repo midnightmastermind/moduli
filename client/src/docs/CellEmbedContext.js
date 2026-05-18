@@ -13,6 +13,16 @@
 
 import { createContext } from "react";
 
+// fieldFilter — optional embed-render filter set by the enclosing table
+// column. Shape: { mode: "show" | "hide", fieldIds: string[] }.
+//   - "show": only those field IDs render in the embed (whitelist).
+//   - "hide": those field IDs are skipped; everything else renders (blacklist).
+//   - null/undefined: no filter, full render.
+// Independent of `displayFieldId` (which projects ONE field as a compact
+// pill). Column authors pick either single-field projection OR a multi-
+// field show/hide list, not both — but they don't conflict if both are set,
+// `displayFieldId` wins for the projected-cell render path.
 export const CellEmbedContext = createContext({
   displayFieldId: null,
+  fieldFilter: null,
 });

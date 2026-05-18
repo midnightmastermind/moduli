@@ -149,6 +149,11 @@ const Editor = forwardRef(function Editor({
   // cell render ONLY the named field via FieldRenderer instead of the full
   // instance form. Undefined / null = standard doc-mode render (unchanged).
   displayFieldId = null,
+  // Cell-mode column-level field filter (independent of displayFieldId).
+  // Shape: { mode: "show" | "hide", fieldIds: [...] } or null. Consumed by
+  // ModuleInstance via CellEmbedContext — embed renders the full instance
+  // form but filters which field bindings appear.
+  fieldFilter = null,
 }, ref) {
   // Cell mode: opt-in via mode="cell". Gates doc-only behaviors and enables
   // spreadsheet navigation keymaps. The default mode="doc" path is unchanged.
@@ -1558,7 +1563,7 @@ const Editor = forwardRef(function Editor({
           editor.commands.focus('end');
         }}
       >
-        <CellEmbedContext.Provider value={{ displayFieldId }}>
+        <CellEmbedContext.Provider value={{ displayFieldId, fieldFilter }}>
           <EditorContent editor={editor} />
         </CellEmbedContext.Provider>
       </div>
