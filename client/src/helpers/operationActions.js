@@ -287,6 +287,47 @@ export function evalRule(rule, $vars) {
       if (isNaN(da.getTime()) || isNaN(db.getTime())) return false;
       return da.getFullYear() === db.getFullYear();
     }
+    case "DATE_IN_PERIOD": {
+      // Right shape can be:
+      //   null/"" → wildcard (no filter set) → pass.
+      //   "YYYY-MM-DD" → same-day match.
+      //   { value: "YYYY-MM-DD", unit: "day"|"week"|"month"|"year" } → period match.
+      if (rightVal == null || rightVal === "") return true;
+      if (leftVal == null || leftVal === "") return false;
+      const isObj = typeof rightVal === "object" && !Array.isArray(rightVal);
+      const anchor = isObj ? rightVal.value : rightVal;
+      const unit = isObj ? (rightVal.unit || "day") : "day";
+      if (anchor == null || anchor === "") return true;
+      const dayKey = (v) => {
+        if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return null;
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+      if (unit === "day") {
+        const lk = dayKey(leftVal); const rk = dayKey(anchor);
+        return lk != null && lk === rk;
+      }
+      const da = new Date(leftVal); const db = new Date(anchor);
+      if (isNaN(da.getTime()) || isNaN(db.getTime())) return false;
+      if (unit === "week") {
+        const weekStart = (d) => {
+          const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          const dow = x.getDay();
+          const offset = dow === 0 ? -6 : 1 - dow;
+          x.setDate(x.getDate() + offset);
+          return x.getTime();
+        };
+        return weekStart(da) === weekStart(db);
+      }
+      if (unit === "month") {
+        return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth();
+      }
+      if (unit === "year") {
+        return da.getFullYear() === db.getFullYear();
+      }
+      return false;
+    }
     case "DATE_BEFORE_TODAY": {
       if (!leftVal) return false;
       const d = new Date(leftVal);

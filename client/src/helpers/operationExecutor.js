@@ -983,12 +983,20 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       const targetOccId = operation.targetOccurrenceId;
       const targetOcc = targetOccId ? occurrencesById[targetOccId] : null;
       const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById, parentByChildId });
-      const dateVal = Object.values(efv).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
-      const dayKey = dateVal ? dateVal.slice(0, 10) : null;
-      const d = dateVal ? new Date(dateVal + "T00:00:00") : _nowDate;
+      // Accept both bare-string `YYYY-MM-DD` filter values and the
+      // object form `{value, unit}` used by the date-range nav.
+      const isDateStr = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v);
+      const periodVal = Object.values(efv).find(v => {
+        if (isDateStr(v)) return true;
+        return v && typeof v === "object" && isDateStr(v.value);
+      });
+      const dateStr = periodVal && typeof periodVal === "object" ? periodVal.value : periodVal;
+      const dayKey = dateStr ? dateStr.slice(0, 10) : null;
+      const d = dateStr ? new Date(dateStr + "T00:00:00") : _nowDate;
       return {
         $activeDate: dayKey,
         $filterDate: dayKey,
+        $activePeriod: periodVal || null,
         $activeDateLabel: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
         $activeDayOfWeek: d.toLocaleDateString("en-US", { weekday: "long" }),
       };

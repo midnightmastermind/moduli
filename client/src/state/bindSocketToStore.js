@@ -107,8 +107,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         const existing = grid.activeFilterValues || {};
         const patch = { ...existing };
         let changed = false;
+        // A bare string value is treated as `{value: <string>, unit: "day"}` —
+        // both shapes count as "set" for bootstrap purposes.
+        const hasValue = (v) => v != null && v !== "" && (typeof v !== "object" || v.value);
         for (const c of navConditions) {
-          if (existing[c.fieldId] == null || existing[c.fieldId] === "") {
+          if (!hasValue(existing[c.fieldId])) {
             patch[c.fieldId] = localDay(now);
             changed = true;
           }

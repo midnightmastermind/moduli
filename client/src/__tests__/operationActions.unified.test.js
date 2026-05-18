@@ -87,6 +87,56 @@ describe("evalRule — DATE_EQUALS / SAME_DAY", () => {
   });
 });
 
+describe("evalRule — DATE_IN_PERIOD", () => {
+  it("matches same day with day unit (object form)", () => {
+    expect(evalRule({
+      left: "2026-05-17", comparator: "DATE_IN_PERIOD",
+      right: { value: "2026-05-17", unit: "day" },
+    }, {})).toBe(true);
+  });
+  it("matches a different day in the same ISO week (week unit, Mon-Sun)", () => {
+    // 2026-05-13 (Wed) and 2026-05-17 (Sun) — both Mon-Sun week of 2026-05-11..05-17.
+    expect(evalRule({
+      left: "2026-05-13", comparator: "DATE_IN_PERIOD",
+      right: { value: "2026-05-17", unit: "week" },
+    }, {})).toBe(true);
+  });
+  it("matches different days in the same month (month unit)", () => {
+    expect(evalRule({
+      left: "2026-05-03", comparator: "DATE_IN_PERIOD",
+      right: { value: "2026-05-29", unit: "month" },
+    }, {})).toBe(true);
+  });
+  it("matches different months in the same year (year unit)", () => {
+    expect(evalRule({
+      left: "2026-01-15", comparator: "DATE_IN_PERIOD",
+      right: { value: "2026-11-02", unit: "year" },
+    }, {})).toBe(true);
+  });
+  it("treats a bare YYYY-MM-DD string as day unit", () => {
+    expect(evalRule({
+      left: "2026-05-17", comparator: "DATE_IN_PERIOD", right: "2026-05-17",
+    }, {})).toBe(true);
+    expect(evalRule({
+      left: "2026-05-16", comparator: "DATE_IN_PERIOD", right: "2026-05-17",
+    }, {})).toBe(false);
+  });
+  it("returns true for wildcard right (null/empty)", () => {
+    expect(evalRule({ left: "2026-05-17", comparator: "DATE_IN_PERIOD", right: null }, {})).toBe(true);
+    expect(evalRule({ left: "2026-05-17", comparator: "DATE_IN_PERIOD", right: "" }, {})).toBe(true);
+    expect(evalRule({
+      left: "2026-05-17", comparator: "DATE_IN_PERIOD",
+      right: { value: "", unit: "day" },
+    }, {})).toBe(true);
+  });
+  it("returns false when left is null", () => {
+    expect(evalRule({
+      left: null, comparator: "DATE_IN_PERIOD",
+      right: { value: "2026-05-17", unit: "day" },
+    }, {})).toBe(false);
+  });
+});
+
 // ============================================================
 // FIND verb
 // ============================================================

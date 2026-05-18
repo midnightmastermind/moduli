@@ -263,26 +263,35 @@ export default function App() {
 
   // Filter system — reads directly from grid state (no local copy needed — grid is source of truth)
 
-  // Global toolbar date nav — steps all isNav conditions' fields by timeUnit
+  // Global toolbar date nav — steps all isNav conditions' fields by the active
+  // unit. Filter values can be either a bare "YYYY-MM-DD" string OR
+  // `{value: "YYYY-MM-DD", unit: "day"|"week"|"month"|"year"}` — when the active
+  // value carries a unit, that wins over the filter's static `timeUnit`.
   const handleFilterNav = useCallback((dir) => {
     const grid = state.grid;
     const activeFilter = (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId);
     const navConditions = (activeFilter?.conditions || []).filter(c => c.isNav && c.fieldId);
     if (!navConditions.length) return;
-    const timeUnit = activeFilter?.timeUnit || "day";
+    const readValue = (v) => (v && typeof v === "object" ? v.value : v);
+    const readUnit  = (v) => (v && typeof v === "object" ? v.unit : null);
     // Use first nav field as the reference for current value
     const refFieldId = navConditions[0].fieldId;
-    const currentVal = grid?.activeFilterValues?.[refFieldId];
+    const currentRaw = grid?.activeFilterValues?.[refFieldId];
+    const currentVal = readValue(currentRaw);
+    const unit = readUnit(currentRaw) || activeFilter?.timeUnit || "day";
     const base = currentVal ? new Date(currentVal + "T00:00:00") : new Date();
-    if (timeUnit === "week")       base.setDate(base.getDate() + dir * 7);
-    else if (timeUnit === "month") base.setMonth(base.getMonth() + dir);
-    else if (timeUnit === "year")  base.setFullYear(base.getFullYear() + dir);
-    else                           base.setDate(base.getDate() + dir);
-    // Local-tz YYYY-MM-DD (toISOString rolls over to UTC day — "next" silently
-    // becomes tomorrow anywhere west of UTC after local-evening).
-    const next = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+    if (unit === "week")       base.setDate(base.getDate() + dir * 7);
+    else if (unit === "month") base.setMonth(base.getMonth() + dir);
+    else if (unit === "year")  base.setFullYear(base.getFullYear() + dir);
+    else                       base.setDate(base.getDate() + dir);
+    const nextDateStr = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+    // Preserve the unit if the value was already in object form; otherwise
+    // write a bare string so existing day-only callers stay byte-identical.
+    const writeNext = (prev) => (prev && typeof prev === "object" && prev.unit)
+      ? { value: nextDateStr, unit: prev.unit }
+      : nextDateStr;
     const updatedValues = navConditions.reduce((acc, c) => {
-      acc[c.fieldId] = next;
+      acc[c.fieldId] = writeNext(grid?.activeFilterValues?.[c.fieldId]);
       return acc;
     }, { ...(grid.activeFilterValues || {}) });
     CommitHelpers.updateGrid({

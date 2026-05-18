@@ -399,7 +399,11 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
       // all slots: clearing writes filterOverride[fieldId] = null, the cascade
       // deletes the key, rightVal lands as undefined, and we should pass.
       if (rightVal == null) continue;
-      const comparator = String(cond.comparator || "IS").toUpperCase();
+      // Period-shape `{value, unit}` filter values broaden the match window to
+      // week/month/year — route through DATE_IN_PERIOD regardless of the
+      // condition's static comparator (e.g. SAME_DAY).
+      const hasPeriod = rightVal && typeof rightVal === "object" && rightVal.unit && rightVal.unit !== "day";
+      const comparator = hasPeriod ? "DATE_IN_PERIOD" : String(cond.comparator || "IS").toUpperCase();
       const ok = evalRule({ left: leftVal, comparator, right: rightVal }, {});
       if (!ok) return false;
     }
@@ -416,6 +420,12 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
     if (fieldVal == null) continue;
     const val = fieldVal?.value !== undefined ? fieldVal.value : fieldVal;
     if (val == null) continue;
+    // Period-shape `{value, unit}` filter values broaden the match window —
+    // route through DATE_IN_PERIOD which handles week/month/year correctly.
+    if (required && typeof required === "object" && required.unit) {
+      if (!evalRule({ left: val, comparator: "DATE_IN_PERIOD", right: required }, {})) return false;
+      continue;
+    }
     // Array requirement → value must be included
     if (Array.isArray(required)) {
       if (!required.includes(val)) return false;
