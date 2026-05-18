@@ -50,9 +50,13 @@ function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispat
   // prop is stable across re-renders (TipTap is uncontrolled after mount).
   const initialContent = useRef(tableRef.current.cells[key] || emptyCellDoc());
 
-  // Debounce timer ref — cleared on unmount to prevent post-unmount flush on
-  // a dead component (mirrors Editor.jsx saveTimeout pattern).
+  // Debounce timer ref — flushed (not merely cleared) on blur/unmount so the
+  // last edit is never silently dropped.
   const debounceTimer = useRef(null);
+
+  // Latest pending doc — written by handleChange so blur/unmount can flush
+  // the exact value the debounce would have persisted.
+  const pendingDocRef = useRef(null);
 
   // Forward ref so cellRefs can call editor.commands.focus() on this cell.
   const editorRef = useRef(null);
@@ -71,27 +75,52 @@ function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispat
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Flush last edit and cancel timer on unmount so no persist fires on a
-  // stale component reference.
+  // Flush last edit on unmount instead of silently dropping it.
+  // CommitHelpers/store dispatch is safe on unmount; no local setState called.
   useEffect(() => {
     return () => {
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current);
         debounceTimer.current = null;
+        if (pendingDocRef.current !== null) {
+          const latestTable = tableRef.current;
+          const nextCells = { ...latestTable.cells, [key]: pendingDocRef.current };
+          persist({ ...latestTable, cells: nextCells });
+          pendingDocRef.current = null;
+        }
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleChange = useCallback((newDoc) => {
+    // Track the latest pending doc so blur/unmount can flush it.
+    pendingDocRef.current = newDoc;
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
       debounceTimer.current = null;
+      pendingDocRef.current = null;
       // Read the LATEST table from the ref so concurrent edits in other cells
       // are not clobbered.  Never use the stale `cells` from closure scope.
       const latestTable = tableRef.current;
       const nextCells = { ...latestTable.cells, [key]: newDoc };
       persist({ ...latestTable, cells: nextCells });
     }, DEBOUNCE_MS);
+  }, [key, tableRef, persist]);
+
+  // Immediate-flush on blur: Editor calls onBlur(json) with the current doc.
+  // Cancel the debounce and persist immediately so navigating away never
+  // drops up to DEBOUNCE_MS of edits.
+  const handleBlur = useCallback((blurDoc) => {
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
+    }
+    pendingDocRef.current = null;
+    const latestTable = tableRef.current;
+    const nextCells = { ...latestTable.cells, [key]: blurDoc };
+    tableRef.current = { ...latestTable, cells: nextCells };
+    persist({ ...latestTable, cells: nextCells });
   }, [key, tableRef, persist]);
 
   return (
@@ -102,6 +131,7 @@ function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispat
         editable
         content={initialContent.current}
         onChange={handleChange}
+        onBlur={handleBlur}
         onCellCommitMove={onCellCommitMove}
         dispatch={dispatch}
         socket={socket}
@@ -162,6 +192,11 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   }, []);
 
   const persist = useCallback((nextTable) => {
+    // Sync the ref immediately so any other cell that flushes within the same
+    // JS tick reads the post-write snapshot rather than a stale pre-write one.
+    // The useEffect that keeps tableRef current only runs after React's commit
+    // phase, which is too late when two debounce timers fire in the same tick.
+    tableRef.current = nextTable;
     CommitHelpers.updateOccurrence({
       dispatch,
       socket,
