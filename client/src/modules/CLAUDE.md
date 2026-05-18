@@ -1,6 +1,12 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-05-16. This folder implements occurrence-based view routing._
+_Updated: 2026-05-18. This folder implements occurrence-based view routing._
+
+## Recent Changes (May 18 2026 — Table container, virtualized + sort/filter)
+- **containers/ContainerTable.jsx (NEW)** — Layout-only `kind:"table"` container. Each visible cell is a live `<Editor mode="cell">` over a TipTap doc fragment stored in `occurrence.meta.table.cells["r:c"]`. Rows/cols/cells are NOT entities — pure positional data. Shape: `{ columns:[{id,title,width,displayFieldId,sort,filter}], rowCount, cells }`. TanStack-React-Table owns the column model + view-only sort/filter (cells map never rewritten); `@tanstack/react-virtual` owns row + column virtualization (overscan rows 8 / cols 2) so only on-screen cells mount a TipTap instance. Focused cell is pinned in the rendered set across scroll so the caret is never destroyed mid-edit. Spreadsheet nav (Tab/Enter/Shift+Tab/arrows-at-edge) via `<Editor>` cell mode. Excel-style copylink fill-drag (Copy/CopyLink chip + Alt-override) reuses `assignLinkedGroup` + existing optimistic linked fan-out; embed source mints a new occurrence with the same `targetId` + copied fields. Per-column "Show field" picker projects a single field from a cell-embedded occurrence; the embed renders compact via a CellEmbedContext provider (`docs/CellEmbedContext.js`).
+- **ModuleContainer.jsx** — Added `kind:"table"` routing branch (alongside doc / canvas) that renders `<ContainerTable>` with the container occurrence.
+- **ContainerKindSelector.jsx + QuickAddMenu.jsx** — `table` exposed as a creatable container kind (amber Table icon).
+- **docs/ModuleEmbedNode.jsx** — When rendered inside a CellEmbedContext (table cell), reads `displayFieldId` from context and projects a single `<FieldRenderer compact hideName>` instead of the full embed.
 
 ## Recent Changes (May 16 2026 — Round 2: canvas center + edge bars + manifest X-in-pill + panel filter hide)
 - **CanvasContent.jsx** — `snapToCenter` (and initial mount jump) now ALWAYS go to world center, regardless of card positions. Reasoning: "the entire point is expanding the canvas size" — landing on the bounding-box centroid kept cards visually pinned to the top-left, defeating the world-expansion. Cards near (0,0) are now visibly offset from center on first paint, which is the intended affordance.

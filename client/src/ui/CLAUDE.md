@@ -1,6 +1,10 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-05-17. Check this file before re-reading source._
+_Updated: 2026-05-18. Check this file before re-reading source._
+
+## Recent Changes (May 18 2026 — Editor cell mode + ContainerKindSelector table + shared comparators)
+- **`Editor.jsx`** — Added opt-in `mode="cell"` prop. When set, doc-only behaviors are gated off (block handle / block menu / auto-create-textblock / onUpdate merge pre-pass all skip) and a cell keymap is layered in: `Enter` → `onCellCommitMove("down")`, `Shift+Enter` allows soft break, `Tab` / `Shift+Tab` → right/left, `Escape` → blur, `ArrowUp/Down` at first/last line → `up/down`. Pill/embed/field extensions and the drop pipeline remain fully enabled. Default `mode="doc"` path is untouched — opt-in only.
+- **`ContainerKindSelector.jsx` + `commandCenter/GridSettingsTab.jsx`** — Selector lists `table` alongside list/doc/board/canvas (amber `Table` icon). GridSettingsTab's local `COMPARATOR_OPTIONS` extracted to `helpers/comparators.js` so the table container's per-column filter popover and the grid named-filter editor share one authoritative list.
 
 ## Recent Changes (2026-05-17 — D/W/M/Y unit toggle on FilterNav + LocalFilterNav)
 - **`FilterNav.jsx` (toolbar variant)**: `formatDateDisplay`/`stepDate` switched from `timeScale` ("daily"/"weekly"/...) to `unit` ("day"/"week"/...). Active filter values can be either a bare `"YYYY-MM-DD"` string OR `{value, unit}` — the value's own unit wins over `activeFilter.timeScale`. Adds a D/W/M/Y pill toggle (rendered when `activeFilter.units?.length > 1` or no `units` declared) that writes the unit back into the filter value via `onFilterValueChange`. Label switches per unit: day → "Thu, May 17", week → "Week of May 12", month → "May 2026", year → "2026". Both mobile and desktop paths render the toggle.

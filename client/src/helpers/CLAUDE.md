@@ -1,6 +1,11 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-05-17. Check this file before re-reading source._
+_Updated: 2026-05-18. Check this file before re-reading source._
+
+## Recent Changes (May 18 2026 — Table container helpers + shared COMPARATOR_OPTIONS)
+- **`tableCells.js` (NEW)** — Pure helpers for the `kind:"table"` container: `cellKey(r,c)`, `emptyCellDoc()`, `makeEmbedCellDoc(occId)`, `getCellSortValue(doc, column, ctx)` (numeric coercion for plain text; reads `column.displayFieldId` for embed cells and falls back to the occurrence label), `firstEmbedOccId(doc)`, `fillRange(src, target)` (Excel-style single-axis fill; the larger of |dr|/|dc| wins; source cell excluded; clamps to ≥0), `deleteColumn(table, idx)` and `insertColumn(table, idx, def)` (both reindex `cells["r:c"]` keys to track the structural change). 14 unit tests in `__tests__/tableCells.test.js`.
+- **`LayoutHelpers.js`** — Extracted `assignLinkedGroup(sourceOccurrence, tagFn)` from `copylinkInstanceToContainer` so fill-drag and the existing copylink path share group assignment. Behavior-preserving: reuses existing `linkedGroupId`, falls back to source id (and tags the source), generates a uid only when there is no source. 4 unit tests in `__tests__/assignLinkedGroup.test.js`.
+- **`comparators.js` (NEW)** — Shared `COMPARATOR_OPTIONS` array + `UNARY_COMPARATORS` set. `GridSettingsTab.jsx` and `ContainerTable.jsx`'s per-column filter popover both import from here; `evalRule` is still the canonical evaluator for every value in the list.
 
 ## Recent Changes (2026-05-17 — DATE_IN_PERIOD comparator + period-shape filter values)
 - **`operationActions.js` (`DATE_IN_PERIOD` case in `evalRule`)**: New comparator. leftVal = date value (ISO string or Date); rightVal accepts either a bare `"YYYY-MM-DD"` (treated as day unit, equivalent to SAME_DAY) OR `{value: "YYYY-MM-DD", unit: "day"|"week"|"month"|"year"}`. Reuses the SAME_WEEK Mon-Sun weekStart helper for week-unit; month/year compare by calendar month/year. Wildcard right (null/""/empty value) passes. Null left fails. Powers tracker period aggregation across the full selected window. 7 regression tests in `operationActions.unified.test.js`.
