@@ -2,6 +2,7 @@
 // Layout-only table container. Grid lives in occurrence.meta.table.
 // Task 9: cells are live TipTap editors (mode="cell") with spreadsheet nav
 // and debounced persistence into occurrence.meta.table.cells[key].
+// Task 12: TanStack sort + per-column filter (view-only, never rewrites cells).
 import React, { useMemo, useCallback, useState, useRef, useEffect, useContext } from "react";
 import {
   useReactTable,
@@ -9,14 +10,51 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
 } from "@tanstack/react-table";
-import { MoreVertical, ChevronUp, ChevronDown, Hash } from "lucide-react";
+import { MoreVertical, ChevronUp, ChevronDown, Hash, Filter, X } from "lucide-react";
+import { evalRule } from "../../helpers/operationActions";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, fillRange, firstEmbedOccId } from "../../helpers/tableCells";
 import { assignLinkedGroup } from "../../helpers/LayoutHelpers";
+import { COMPARATOR_OPTIONS, UNARY_COMPARATORS } from "../../helpers/comparators";
 import { GridActionsContext } from "../../GridActionsContext";
 import { uid } from "../../uid";
 import Editor from "../../ui/Editor.jsx";
 import CategoryPathPicker from "../../ui/CategoryPathPicker.jsx";
+
+// ── FilterValueWidget ─────────────────────────────────────────────────────────
+// Minimal inline value-input for the column filter popover.
+// The grid filter system's FilterNavWidget (FilterNavWidgets.jsx) is a nav-
+// period widget (arrows/pills/select driven by filter metadata). It does not
+// expose a general comparator+value pair input and requires a named filter
+// object that doesn't exist in the per-column context. We therefore write a
+// thin inline widget here that covers the same field types the grid filter
+// widgets cover (text/number/date string inputs). Reads/writes a plain scalar
+// or ISO string — the same shapes evalRule handles natively.
+function FilterValueWidget({ comparator, value, onChange }) {
+  if (UNARY_COMPARATORS.has(comparator)) return null;
+  return (
+    <input
+      type="text"
+      placeholder="value…"
+      value={value ?? ""}
+      onChange={e => onChange(e.target.value)}
+      style={{
+        width: "100%",
+        height: 22,
+        fontSize: 10,
+        fontFamily: "var(--font-mono)",
+        padding: "0 5px",
+        borderRadius: 3,
+        background: "var(--input-bg)",
+        border: "1px solid var(--input-border)",
+        color: "var(--text-primary)",
+        outline: "none",
+        boxSizing: "border-box",
+        marginTop: 3,
+      }}
+    />
+  );
+}
 
 const DEFAULT_TABLE = () => ({
   columns: [
@@ -206,6 +244,9 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
   // Field picker: which column is showing the "Show field" picker
   const [fieldPickerCol, setFieldPickerCol] = useState(null);
+
+  // Filter popover: which column is showing the filter editor
+  const [filterPickerCol, setFilterPickerCol] = useState(null);
 
   // Resize state: { colIndex, startX, startWidth }
   const [resizing, setResizing] = useState(null);
@@ -480,20 +521,61 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
       },
       header: col.title,
       meta: { colDef: col, colIdx: idx },
+      // filterFn: evaluate col.filter.{comparator,value} against the cell's
+      // sort value using the same evalRule that powers all grid comparators.
+      // cellValue comes from accessorFn above (already a scalar/string/date).
+      // evalRule({ left, comparator, right }, $vars={}) works with plain
+      // scalars as `left`/`right` because resolveExpr returns non-$-prefixed
+      // values as literals — no $vars map needed here.
+      filterFn: (row, _columnId, filterValue) => {
+        if (!filterValue || !filterValue.comparator) return true;
+        const { comparator, value: filterRightVal } = filterValue;
+        // Get the cell's sort value via the accessor (same logic as sort).
+        const cellValue = row.getValue(col.id);
+        // evalRule({ left, comparator, right }, $vars)
+        // We pass cellValue as `left` directly. resolveExpr treats non-string
+        // or non-$var values as literals; for scalars we pass them through.
+        // Wrap in a synthetic rule so evalRule resolves both sides.
+        return evalRule({ left: cellValue, comparator, right: filterRightVal ?? "" }, {});
+      },
     })),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [columns, cells, occurrencesById, modulesById]);
 
   const tanstackData = useMemo(() => rows.map(r => ({ r })), [rows]);
 
-  // Built now; consumed by Task 12 (view-only sort/filter). Intentionally unused here.
-  // eslint-disable-next-line no-unused-vars
+  // ── Step 1: Derive TanStack sorting state from columns[].sort ─────────────
+  // View-only: only persisted col.sort config drives sort order; cells[] never
+  // modified. Clearing sort (col.sort→null) removes the column from `sorting`.
+  const sorting = useMemo(
+    () => columns
+      .filter(c => c.sort != null)
+      .map(c => ({ id: c.id, desc: c.sort === "desc" })),
+    [columns],
+  );
+
+  // ── Step 3: Derive TanStack columnFilters from columns[].filter ───────────
+  // View-only: filter config stored in columns[].filter; cells[] never touched.
+  const columnFilters = useMemo(
+    () => columns
+      .filter(c => c.filter != null)
+      .map(c => ({ id: c.id, value: c.filter })),
+    [columns],
+  );
+
+  // Wire sorting + filtering into the TanStack instance (was unused in Task 7).
   const tableInstance = useReactTable({
     data: tanstackData,
     columns: tanstackColumns,
+    state: { sorting, columnFilters },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    // Manual state: we drive sort/filter from persisted column config above;
+    // no internal onChange needed (sort cycling is already handled by
+    // handleSortClick → persist).
+    manualSorting: false,
+    manualFiltering: false,
   });
 
   // --- Column title inline editing ---
@@ -525,9 +607,15 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   // --- Kebab menu toggle ---
   const handleKebabClick = useCallback((e, colIndex) => {
     e.stopPropagation();
-    setKebabOpen(prev =>
-      prev?.colIndex === colIndex ? null : { colIndex }
-    );
+    setKebabOpen(prev => {
+      if (prev?.colIndex === colIndex) {
+        // Closing: reset nested pickers for this column
+        setFieldPickerCol(null);
+        setFilterPickerCol(null);
+        return null;
+      }
+      return { colIndex };
+    });
   }, []);
 
   // --- Delete column (from kebab) ---
@@ -547,6 +635,20 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     );
     persist({ ...table, columns: nextCols });
   }, [columns, persist, table]);
+
+  // --- Per-column filter (view-only) ---
+  // Writes columns[colIndex].filter = { comparator, value } or null to clear.
+  // Never touches cells[]. TanStack columnFilters derived from this in the memo above.
+  const handleSetFilter = useCallback((colIndex, filterObj) => {
+    const nextCols = columns.map((c, i) =>
+      i === colIndex ? { ...c, filter: filterObj || null } : c
+    );
+    persist({ ...table, columns: nextCols });
+  }, [columns, persist, table]);
+
+  const handleClearFilter = useCallback((colIndex) => {
+    handleSetFilter(colIndex, null);
+  }, [handleSetFilter]);
 
   // Build the field picker config — reuse the same CategoryPathPicker pattern
   // as InstanceForm's FieldsSection: single flat category, one-click commit.
@@ -721,22 +823,91 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                             Cancel
                           </button>
                         </div>
+                      ) : filterPickerCol === c ? (
+                        /* ── Per-column filter editor ── */
+                        <div className="table-kebab-filter-picker" style={{ padding: "6px 8px", minWidth: 160 }}>
+                          <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 4, fontFamily: "var(--font-mono)" }}>
+                            Filter this column
+                          </div>
+                          {/* Comparator dropdown — shared COMPARATOR_OPTIONS (also used by GridSettingsTab) */}
+                          <select
+                            value={(col.filter?.comparator) || "IS"}
+                            onChange={e => {
+                              const comparator = e.target.value;
+                              const value = UNARY_COMPARATORS.has(comparator) ? "" : (col.filter?.value ?? "");
+                              handleSetFilter(c, { comparator, value });
+                            }}
+                            style={{
+                              width: "100%",
+                              height: 22,
+                              fontSize: 10,
+                              fontFamily: "var(--font-mono)",
+                              padding: "0 4px",
+                              borderRadius: 3,
+                              background: "var(--input-bg)",
+                              border: "1px solid var(--input-border)",
+                              color: "var(--text-primary)",
+                              outline: "none",
+                              cursor: "pointer",
+                              boxSizing: "border-box",
+                            }}
+                          >
+                            {COMPARATOR_OPTIONS.map(o => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                          {/* Value widget — FilterValueWidget (thin inline widget reusing evalRule semantics) */}
+                          <FilterValueWidget
+                            comparator={col.filter?.comparator || "IS"}
+                            value={col.filter?.value ?? ""}
+                            onChange={val => handleSetFilter(c, { comparator: col.filter?.comparator || "IS", value: val })}
+                          />
+                          {/* Clear filter button */}
+                          {col.filter && (
+                            <button
+                              className="table-kebab-item"
+                              style={{ marginTop: 4, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 3 }}
+                              onClick={() => { handleClearFilter(c); setFilterPickerCol(null); }}
+                            >
+                              <X size={9} /> Clear filter
+                            </button>
+                          )}
+                          <button
+                            className="table-kebab-item"
+                            style={{ marginTop: 2 }}
+                            onClick={() => setFilterPickerCol(null)}
+                          >
+                            Done
+                          </button>
+                        </div>
                       ) : (
+                        <>
+                          <button
+                            className="table-kebab-item"
+                            onClick={() => setFieldPickerCol(c)}
+                          >
+                            {col.displayFieldId
+                              ? `Field: ${fieldsById?.[col.displayFieldId]?.name || col.displayFieldId}`
+                              : "Show field…"}
+                          </button>
+                          <button
+                            className="table-kebab-item"
+                            onClick={() => setFilterPickerCol(c)}
+                            style={{ display: "flex", alignItems: "center", gap: 4 }}
+                          >
+                            <Filter size={9} />
+                            {col.filter ? "Edit filter…" : "Filter…"}
+                          </button>
+                        </>
+                      )}
+                      {filterPickerCol !== c && fieldPickerCol !== c && (
                         <button
-                          className="table-kebab-item"
-                          onClick={() => setFieldPickerCol(c)}
+                          className="table-kebab-item table-kebab-delete"
+                          onClick={() => handleDeleteColumn(c)}
                         >
-                          {col.displayFieldId
-                            ? `Field: ${fieldsById?.[col.displayFieldId]?.name || col.displayFieldId}`
-                            : "Show field…"}
+                          Delete column
                         </button>
                       )}
-                      <button
-                        className="table-kebab-item table-kebab-delete"
-                        onClick={() => handleDeleteColumn(c)}
-                      >
-                        Delete column
-                      </button>
                     </div>
                   )}
                 </div>
@@ -757,43 +928,51 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
           </button>
         </div>
 
-        {/* Data rows */}
-        {rows.map((r) => (
-          <React.Fragment key={r}>
-            {columns.map((col, c) => (
-              <TableCell
-                key={cellKey(r, c)}
-                r={r}
-                c={c}
-                tableRef={tableRef}
-                persist={persist}
-                onCellCommitMove={(dir) => focusCell(nextCoord(r, c, dir))}
-                cellRefs={cellRefs}
-                dispatch={dispatch}
-                socket={socket}
-                displayFieldId={col.displayFieldId ?? null}
-                onFocusCell={() => setFocusedCell({ r, c })}
-                onBlurCell={() => setFocusedCell(prev => (prev?.r === r && prev?.c === c ? null : prev))}
-                isFocused={focusedCell?.r === r && focusedCell?.c === c}
-                fillMode={fillMode}
-                onFillPointerDown={handleFillPointerDown}
-                onToggleFillMode={toggleFillMode}
-              />
-            ))}
-            {/* Trailing-row removal button — aligned to +column cell */}
-            <div className="table-td table-row-action-cell">
-              {r === rowCount - 1 && (
-                <button
-                  className="table-remove-row-btn"
-                  title="Remove last row"
-                  onClick={handleRemoveLastRow}
-                >
-                  –
-                </button>
-              )}
-            </div>
-          </React.Fragment>
-        ))}
+        {/* Data rows — rendered in TanStack sort+filter order.
+            tanRow.original.r is the UNDERLYING grid row index used by
+            cellKey(r, colIdx) and by TableCell. cells[] is never modified;
+            sort/filter are purely view-only transforms. */}
+        {tableInstance.getRowModel().rows.map((tanRow) => {
+          const r = tanRow.original.r; // underlying grid row index
+          return (
+            <React.Fragment key={r}>
+              {columns.map((col, c) => (
+                <TableCell
+                  key={cellKey(r, c)}
+                  r={r}
+                  c={c}
+                  tableRef={tableRef}
+                  persist={persist}
+                  onCellCommitMove={(dir) => focusCell(nextCoord(r, c, dir))}
+                  cellRefs={cellRefs}
+                  dispatch={dispatch}
+                  socket={socket}
+                  displayFieldId={col.displayFieldId ?? null}
+                  onFocusCell={() => setFocusedCell({ r, c })}
+                  onBlurCell={() => setFocusedCell(prev => (prev?.r === r && prev?.c === c ? null : prev))}
+                  isFocused={focusedCell?.r === r && focusedCell?.c === c}
+                  fillMode={fillMode}
+                  onFillPointerDown={handleFillPointerDown}
+                  onToggleFillMode={toggleFillMode}
+                />
+              ))}
+              {/* Trailing-row removal button — aligned to +column cell.
+                  Uses the underlying grid row index r, not TanStack's visual
+                  position, so the – button tracks the last original row. */}
+              <div className="table-td table-row-action-cell">
+                {r === rowCount - 1 && (
+                  <button
+                    className="table-remove-row-btn"
+                    title="Remove last row"
+                    onClick={handleRemoveLastRow}
+                  >
+                    –
+                  </button>
+                )}
+              </div>
+            </React.Fragment>
+          );
+        })}
       </div>
 
       {/* Footer +row */}

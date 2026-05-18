@@ -8,6 +8,7 @@ import { Plus, Trash2, Check, ChevronDown, ChevronRight, Navigation } from "luci
 import { GridActionsContext } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { uid } from "../../uid";
+import { COMPARATOR_OPTIONS } from "../../helpers/comparators";
 
 const TIME_UNIT_OPTIONS = [
   { value: "day",   label: "Day" },
@@ -216,20 +217,6 @@ export function GridSettingsTab() {
     </div>
   );
 }
-
-const COMPARATOR_OPTIONS = [
-  { value: "SAME_DAY",   label: "same day" },
-  { value: "SAME_WEEK",  label: "same week" },
-  { value: "SAME_MONTH", label: "same month" },
-  { value: "SAME_YEAR",  label: "same year" },
-  { value: "IS",         label: "is" },
-  { value: "IS_NOT",     label: "is not" },
-  { value: "CONTAINS",   label: "contains" },
-  { value: "GREATER",    label: ">" },
-  { value: "LESS",       label: "<" },
-  { value: "IS_EMPTY",   label: "is empty" },
-  { value: "IS_NOT_EMPTY", label: "not empty" },
-];
 
 // ── FilterRow ─────────────────────────────────────────────────────────────────
 function FilterRow({ filter, isActive, allFields, onActivate, onUpdate, onDelete }) {
