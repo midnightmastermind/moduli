@@ -3,6 +3,7 @@
 // Task 9: cells are live TipTap editors (mode="cell") with spreadsheet nav
 // and debounced persistence into occurrence.meta.table.cells[key].
 // Task 12: TanStack sort + per-column filter (view-only, never rewrites cells).
+// Task 13: Row + column virtualization via @tanstack/react-virtual.
 import React, { useMemo, useCallback, useState, useRef, useEffect, useContext } from "react";
 import {
   useReactTable,
@@ -10,6 +11,7 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
 } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { MoreVertical, ChevronUp, ChevronDown, Hash, Filter, X } from "lucide-react";
 import { evalRule } from "../../helpers/operationActions";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
@@ -83,7 +85,7 @@ const DEBOUNCE_MS = 500;
 // React from tearing down this component across data changes.  `initialContent`
 // is a ref so the `content` prop passed to Editor is the mount-time snapshot
 // only — TipTap is uncontrolled after mount and manages its own doc state.
-function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId, onFocusCell, onBlurCell, isFocused, fillMode, onFillPointerDown, onToggleFillMode }) {
+function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId, onFocusCell, onBlurCell, isFocused, fillMode, onFillPointerDown, onToggleFillMode, style }) {
   const key = cellKey(r, c);
 
   // Seed TipTap once at mount — never update this ref so the Editor's content
@@ -170,6 +172,7 @@ function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispat
       data-c={c}
       onFocus={onFocusCell}
       onBlur={onBlurCell}
+      style={style}
     >
       <Editor
         ref={editorRef}
@@ -754,223 +757,562 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     return c.width || 160;
   });
 
+  // ── Virtualizers (Task 13) ───────────────────────────────────────────────────
+  // The scroll container reference is `containerRef` (already declared above
+  // in the fill-drag section and used for kebab outside-click).
+  //
+  // Row virtualizer iterates the TanStack filtered+sorted row model so that
+  // sort/filter and virtualization agree on which rows are visible and in what
+  // order. tanRow.original.r is the underlying grid-row index stored in cells[].
+  //
+  // Column virtualizer iterates `columns` (the raw column definition array) so
+  // that header cells and data cells share identical start/size offsets.
+  //
+  // ROW_H: fixed row height in px — matches CSS min-height for .table-td.
+  const ROW_H = 28;
+  // HEADER_H: fixed header height — must match what the header row actually
+  // renders so absolutelypositioned body rows start at the right offset.
+  const HEADER_H = 30;
+  // ROW_ACTION_COL_W: width of the trailing "–" action column (pixels).
+  const ROW_ACTION_COL_W = 32;
+
+  const filteredSortedRows = tableInstance.getRowModel().rows;
+
+  // scrollMargin: 0 — cells are positioned at top: HEADER_H + vRow.start
+  // within the single content div that also contains the sticky header. The
+  // sticky header div sits at the top of this content div (position:sticky,
+  // top:0, height:HEADER_H) and body rows start below it.
+  const rowVirtualizer = useVirtualizer({
+    count: filteredSortedRows.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => ROW_H,
+    overscan: 8,
+    // paddingStart: reserve space at the top of the body for the sticky header
+    // so row 0's start === HEADER_H and getTotalSize() includes that space.
+    paddingStart: HEADER_H,
+  });
+
+  const colVirtualizer = useVirtualizer({
+    count: columns.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: (i) => effectiveWidths[i] ?? 160,
+    horizontal: true,
+    overscan: 2,
+  });
+
+  const totalRowsHeight = rowVirtualizer.getTotalSize();
+  // Total width of all data columns + the trailing action column.
+  const totalColsWidth = colVirtualizer.getTotalSize() + ROW_ACTION_COL_W;
+
+  // ── Focused-cell force-include (seamlessness safeguard) ───────────────────
+  // If the focused cell has scrolled just outside the virtualizer's overscan
+  // window, the editor would be torn down mid-edit, destroying the caret.
+  // We prevent this by computing the full set of virtual row/col indices and
+  // injecting the focused-cell indices when they're missing.
+  //
+  // Debounce unmount: we keep a "prev rendered set" in a ref and only truly
+  // remove an item once a rAF fires after it exits the virtual window. This
+  // prevents flicker when the user scrolls fast and items momentarily fall just
+  // outside the overscan window before the virtualizer re-stabilises.
+
+  const virtualRowItems = rowVirtualizer.getVirtualItems();
+  const virtualColItems = colVirtualizer.getVirtualItems();
+
+  // The set of row-vIndex values currently virtual. Used to detect if the
+  // focused row has dropped out of the overscan window.
+  const virtualRowIndexSet = useMemo(
+    () => new Set(virtualRowItems.map(vi => vi.index)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [virtualRowItems],
+  );
+  const virtualColIndexSet = useMemo(
+    () => new Set(virtualColItems.map(vi => vi.index)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [virtualColItems],
+  );
+
+  // Map from underlying grid-row index → vIndex in filteredSortedRows, so we
+  // can look up whether the focused row is currently in the virtual window.
+  const gridRowToVIndex = useMemo(() => {
+    const m = new Map();
+    filteredSortedRows.forEach((tanRow, vi) => m.set(tanRow.original.r, vi));
+    return m;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredSortedRows]);
+
+  // Resolve the vIndex for the focused row (null if not in filtered set at all).
+  const focusedRowVIndex = focusedCell != null
+    ? (gridRowToVIndex.get(focusedCell.r) ?? null)
+    : null;
+  const focusedColVIndex = focusedCell != null ? focusedCell.c : null;
+
+  // Augmented virtual row/col item arrays: if the focused cell's indices are
+  // missing from the virtual window, append synthetic virtual items so they
+  // stay mounted. We build synthetic items from the virtualizer's measureCache.
+  const augmentedVirtualRows = useMemo(() => {
+    if (
+      focusedRowVIndex == null ||
+      virtualRowIndexSet.has(focusedRowVIndex)
+    ) {
+      return virtualRowItems;
+    }
+    // Focused row is outside the overscan window. Build a synthetic virtual item
+    // so the row/cell stays mounted. `start` and `size` are approximate — the
+    // exact value doesn't matter because the focused cell is offscreen; what
+    // matters is that React does not unmount it.
+    const size = ROW_H;
+    const start = focusedRowVIndex * size + HEADER_H;
+    return [
+      ...virtualRowItems,
+      { index: focusedRowVIndex, start, size, key: focusedRowVIndex, lane: 0 },
+    ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [virtualRowItems, virtualRowIndexSet, focusedRowVIndex]);
+
+  const augmentedVirtualCols = useMemo(() => {
+    if (
+      focusedColVIndex == null ||
+      virtualColIndexSet.has(focusedColVIndex)
+    ) {
+      return virtualColItems;
+    }
+    const size = effectiveWidths[focusedColVIndex] ?? 160;
+    // Approximate start from sum of preceding widths.
+    let start = 0;
+    for (let i = 0; i < focusedColVIndex; i++) start += (effectiveWidths[i] ?? 160);
+    return [
+      ...virtualColItems,
+      { index: focusedColVIndex, start, size, key: focusedColVIndex, lane: 0 },
+    ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [virtualColItems, virtualColIndexSet, focusedColVIndex, effectiveWidths]);
+
+  // Debounced-unmount: a ref tracks which (rowVIndex, colVIndex) pairs were
+  // rendered in the previous frame. If a pair exits the augmented virtual
+  // window, we keep it mounted for one rAF before actually removing it, which
+  // avoids flicker on fast scrolls where the virtualizer momentarily under-scans.
+  const prevRenderedPairsRef = useRef(new Set());
+  const debounceTimerRef = useRef(null);
+  const [debouncedPairsToDrop, setDebouncedPairsToDrop] = useState(new Set());
+
+  // Build the current "live" set of (rowVIndex:colVIndex) pairs.
+  const livePairSet = useMemo(() => {
+    const s = new Set();
+    for (const vRow of augmentedVirtualRows) {
+      for (const vCol of augmentedVirtualCols) {
+        s.add(`${vRow.index}:${vCol.index}`);
+      }
+    }
+    return s;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [augmentedVirtualRows, augmentedVirtualCols]);
+
+  useEffect(() => {
+    // Determine which pairs have exited the virtual window since last render.
+    const exiting = [];
+    for (const pair of prevRenderedPairsRef.current) {
+      if (!livePairSet.has(pair)) exiting.push(pair);
+    }
+    prevRenderedPairsRef.current = livePairSet;
+
+    if (exiting.length === 0) {
+      // Nothing exited — clear any pending drop set.
+      if (debounceTimerRef.current != null) {
+        cancelAnimationFrame(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      setDebouncedPairsToDrop(new Set());
+      return;
+    }
+    // Schedule removal of exiting pairs after one animation frame.
+    if (debounceTimerRef.current != null) cancelAnimationFrame(debounceTimerRef.current);
+    debounceTimerRef.current = requestAnimationFrame(() => {
+      debounceTimerRef.current = null;
+      setDebouncedPairsToDrop(new Set(exiting));
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [livePairSet]);
+
+  // Cleanup rAF on unmount.
+  useEffect(() => () => {
+    if (debounceTimerRef.current != null) cancelAnimationFrame(debounceTimerRef.current);
+  }, []);
+
+  // The final set of (rowVIndex, colVIndex) pairs to render:
+  // = livePairSet UNION debouncedPairsToDrop (keep exiting items for one frame).
+  // We rebuild augmented arrays to cover the extra pairs.
+  const extraRowVIndexes = useMemo(() => {
+    const extra = new Set();
+    for (const pair of debouncedPairsToDrop) {
+      if (!livePairSet.has(pair)) {
+        const rvi = parseInt(pair.split(":")[0], 10);
+        extra.add(rvi);
+      }
+    }
+    return extra;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedPairsToDrop, livePairSet]);
+
+  const extraColVIndexes = useMemo(() => {
+    const extra = new Set();
+    for (const pair of debouncedPairsToDrop) {
+      if (!livePairSet.has(pair)) {
+        const cvi = parseInt(pair.split(":")[1], 10);
+        extra.add(cvi);
+      }
+    }
+    return extra;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedPairsToDrop, livePairSet]);
+
+  // Final virtual row/col arrays include debounce-held items.
+  const finalVirtualRows = useMemo(() => {
+    if (extraRowVIndexes.size === 0) return augmentedVirtualRows;
+    const existing = new Set(augmentedVirtualRows.map(vi => vi.index));
+    const extras = [];
+    for (const rvi of extraRowVIndexes) {
+      if (!existing.has(rvi)) {
+        const size = ROW_H;
+        const start = rvi * size + HEADER_H;
+        extras.push({ index: rvi, start, size, key: `debounce-r-${rvi}`, lane: 0 });
+      }
+    }
+    return [...augmentedVirtualRows, ...extras];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [augmentedVirtualRows, extraRowVIndexes]);
+
+  const finalVirtualCols = useMemo(() => {
+    if (extraColVIndexes.size === 0) return augmentedVirtualCols;
+    const existing = new Set(augmentedVirtualCols.map(vi => vi.index));
+    const extras = [];
+    for (const cvi of extraColVIndexes) {
+      if (!existing.has(cvi)) {
+        const size = effectiveWidths[cvi] ?? 160;
+        let start = 0;
+        for (let i = 0; i < cvi; i++) start += (effectiveWidths[i] ?? 160);
+        extras.push({ index: cvi, start, size, key: `debounce-c-${cvi}`, lane: 0 });
+      }
+    }
+    return [...augmentedVirtualCols, ...extras];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [augmentedVirtualCols, extraColVIndexes, effectiveWidths]);
+
   return (
-    <div className="table-container" data-occ-id={occurrence?.id} ref={containerRef}>
+    <div
+      className="table-container table-container-virtual"
+      data-occ-id={occurrence?.id}
+      ref={containerRef}
+    >
+      {/* ── Single content div ───────────────────────────────────────────────
+          One relatively-positioned div owns the total virtual height. The
+          sticky header sits at the top of this div (pinned by the scroll
+          container's viewport). Body cells are absolutely positioned below it.
+          Width = totalColsWidth so horizontal scrolling works correctly. */}
       <div
-        className="table-grid"
+        className="table-body-virtual"
         style={{
-          gridTemplateColumns: effectiveWidths.map(w => `${w}px`).join(" ") + " auto",
+          position: "relative",
+          // totalRowsHeight = rowVirtualizer.getTotalSize(), which includes the
+          // paddingStart (HEADER_H) so row 0 starts at HEADER_H, not 0.
+          height: totalRowsHeight,
+          width: totalColsWidth,
+          minWidth: "100%",
         }}
       >
-        {/* Header row */}
-        {columns.map((col, c) => (
-          <div key={col.id} className="table-th">
-            <div className="table-th-inner">
-              <input
-                className="table-th-title"
-                defaultValue={col.title}
-                onBlur={(e) => handleTitleBlur(c, e.currentTarget.value)}
-                onKeyDown={(e) => handleTitleKeyDown(e)}
-              />
-              <div className="table-th-actions">
-                <button
-                  className="table-sort-btn"
-                  title={col.sort === "asc" ? "Sort ascending" : col.sort === "desc" ? "Sort descending" : "No sort"}
-                  onClick={() => handleSortClick(c)}
-                >
-                  {col.sort === "asc" ? (
-                    <ChevronUp size={11} />
-                  ) : col.sort === "desc" ? (
-                    <ChevronDown size={11} />
-                  ) : (
-                    <span className="table-sort-inactive">↕</span>
-                  )}
-                </button>
-                <div className="table-kebab-wrap">
+      {/* ── Sticky header row ──────────────────────────────────────────────
+          Inside the virtual body div so it scrolls horizontally with the
+          content, but position:sticky keeps it pinned to the top of the
+          scroll viewport vertically. */}
+      <div
+        className="table-header-row"
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 3,
+          height: HEADER_H,
+          // Width of the header = all column widths + action column.
+          // This is wider than the viewport and will clip; the scroll
+          // container handles overflow so the full header scrolls into view.
+          width: totalColsWidth,
+        }}
+      >
+        {finalVirtualCols.map((vCol) => {
+          // Use the column virtualizer's start/size directly from the virtual item.
+          // Only visible columns are rendered (column virtualization).
+          const c = vCol.index;
+          const col = columns[c];
+          if (!col) return null;
+          const colStart = vCol.start;
+          const colW = effectiveWidths[c];
+          return (
+            <div
+              key={col.id}
+              className="table-th"
+              style={{
+                position: "absolute",
+                left: colStart,
+                width: colW,
+                height: HEADER_H,
+                boxSizing: "border-box",
+              }}
+            >
+              <div className="table-th-inner">
+                <input
+                  className="table-th-title"
+                  defaultValue={col.title}
+                  onBlur={(e) => handleTitleBlur(c, e.currentTarget.value)}
+                  onKeyDown={(e) => handleTitleKeyDown(e)}
+                />
+                <div className="table-th-actions">
                   <button
-                    className="table-kebab-btn"
-                    title="Column options"
-                    onClick={(e) => handleKebabClick(e, c)}
+                    className="table-sort-btn"
+                    title={col.sort === "asc" ? "Sort ascending" : col.sort === "desc" ? "Sort descending" : "No sort"}
+                    onClick={() => handleSortClick(c)}
                   >
-                    <MoreVertical size={12} />
+                    {col.sort === "asc" ? (
+                      <ChevronUp size={11} />
+                    ) : col.sort === "desc" ? (
+                      <ChevronDown size={11} />
+                    ) : (
+                      <span className="table-sort-inactive">↕</span>
+                    )}
                   </button>
-                  {kebabOpen?.colIndex === c && (
-                    <div className="table-kebab-menu">
-                      {/* Show field picker or the Show field trigger */}
-                      {fieldPickerCol === c ? (
-                        <div className="table-kebab-field-picker">
-                          <CategoryPathPicker
-                            value=""
-                            onChange={(picked) => {
-                              const fieldId = picked ? picked.split(".").pop() : null;
-                              handleSetDisplayField(c, fieldId || null);
-                            }}
-                            ctx={{ fields: allFields, sources: [], localVars: [] }}
-                            config={buildFieldPickerConfig(c)}
-                          />
-                          {col.displayFieldId && (
-                            <button
-                              className="table-kebab-item table-kebab-clear-field"
-                              onClick={() => handleSetDisplayField(c, null)}
-                            >
-                              Clear field display
-                            </button>
-                          )}
-                          <button
-                            className="table-kebab-item"
-                            onClick={() => setFieldPickerCol(null)}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : filterPickerCol === c ? (
-                        /* ── Per-column filter editor ── */
-                        <div className="table-kebab-filter-picker" style={{ padding: "6px 8px", minWidth: 160 }}>
-                          <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 4, fontFamily: "var(--font-mono)" }}>
-                            Filter this column
-                          </div>
-                          {/* Comparator dropdown — shared COMPARATOR_OPTIONS (also used by GridSettingsTab) */}
-                          <select
-                            value={(col.filter?.comparator) || "IS"}
-                            onChange={e => {
-                              const comparator = e.target.value;
-                              const value = UNARY_COMPARATORS.has(comparator) ? "" : (col.filter?.value ?? "");
-                              handleSetFilter(c, { comparator, value });
-                            }}
-                            style={{
-                              width: "100%",
-                              height: 22,
-                              fontSize: 10,
-                              fontFamily: "var(--font-mono)",
-                              padding: "0 4px",
-                              borderRadius: 3,
-                              background: "var(--input-bg)",
-                              border: "1px solid var(--input-border)",
-                              color: "var(--text-primary)",
-                              outline: "none",
-                              cursor: "pointer",
-                              boxSizing: "border-box",
-                            }}
-                          >
-                            {COMPARATOR_OPTIONS.map(o => (
-                              <option key={o.value} value={o.value}>{o.label}</option>
-                            ))}
-                          </select>
-                          {/* Value widget — FilterValueWidget (thin inline widget reusing evalRule semantics) */}
-                          <FilterValueWidget
-                            comparator={col.filter?.comparator || "IS"}
-                            value={col.filter?.value ?? ""}
-                            onChange={val => handleSetFilter(c, { comparator: col.filter?.comparator || "IS", value: val })}
-                          />
-                          {/* Clear filter button */}
-                          {col.filter && (
+                  <div className="table-kebab-wrap">
+                    <button
+                      className="table-kebab-btn"
+                      title="Column options"
+                      onClick={(e) => handleKebabClick(e, c)}
+                    >
+                      <MoreVertical size={12} />
+                    </button>
+                    {kebabOpen?.colIndex === c && (
+                      <div className="table-kebab-menu">
+                        {/* Show field picker or the Show field trigger */}
+                        {fieldPickerCol === c ? (
+                          <div className="table-kebab-field-picker">
+                            <CategoryPathPicker
+                              value=""
+                              onChange={(picked) => {
+                                const fieldId = picked ? picked.split(".").pop() : null;
+                                handleSetDisplayField(c, fieldId || null);
+                              }}
+                              ctx={{ fields: allFields, sources: [], localVars: [] }}
+                              config={buildFieldPickerConfig(c)}
+                            />
+                            {col.displayFieldId && (
+                              <button
+                                className="table-kebab-item table-kebab-clear-field"
+                                onClick={() => handleSetDisplayField(c, null)}
+                              >
+                                Clear field display
+                              </button>
+                            )}
                             <button
                               className="table-kebab-item"
-                              style={{ marginTop: 4, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 3 }}
-                              onClick={() => { handleClearFilter(c); setFilterPickerCol(null); }}
+                              onClick={() => setFieldPickerCol(null)}
                             >
-                              <X size={9} /> Clear filter
+                              Cancel
                             </button>
-                          )}
+                          </div>
+                        ) : filterPickerCol === c ? (
+                          /* ── Per-column filter editor ── */
+                          <div className="table-kebab-filter-picker" style={{ padding: "6px 8px", minWidth: 160 }}>
+                            <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 4, fontFamily: "var(--font-mono)" }}>
+                              Filter this column
+                            </div>
+                            {/* Comparator dropdown — shared COMPARATOR_OPTIONS (also used by GridSettingsTab) */}
+                            <select
+                              value={(col.filter?.comparator) || "IS"}
+                              onChange={e => {
+                                const comparator = e.target.value;
+                                const value = UNARY_COMPARATORS.has(comparator) ? "" : (col.filter?.value ?? "");
+                                handleSetFilter(c, { comparator, value });
+                              }}
+                              style={{
+                                width: "100%",
+                                height: 22,
+                                fontSize: 10,
+                                fontFamily: "var(--font-mono)",
+                                padding: "0 4px",
+                                borderRadius: 3,
+                                background: "var(--input-bg)",
+                                border: "1px solid var(--input-border)",
+                                color: "var(--text-primary)",
+                                outline: "none",
+                                cursor: "pointer",
+                                boxSizing: "border-box",
+                              }}
+                            >
+                              {COMPARATOR_OPTIONS.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                              ))}
+                            </select>
+                            {/* Value widget — FilterValueWidget (thin inline widget reusing evalRule semantics) */}
+                            <FilterValueWidget
+                              comparator={col.filter?.comparator || "IS"}
+                              value={col.filter?.value ?? ""}
+                              onChange={val => handleSetFilter(c, { comparator: col.filter?.comparator || "IS", value: val })}
+                            />
+                            {/* Clear filter button */}
+                            {col.filter && (
+                              <button
+                                className="table-kebab-item"
+                                style={{ marginTop: 4, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 3 }}
+                                onClick={() => { handleClearFilter(c); setFilterPickerCol(null); }}
+                              >
+                                <X size={9} /> Clear filter
+                              </button>
+                            )}
+                            <button
+                              className="table-kebab-item"
+                              style={{ marginTop: 2 }}
+                              onClick={() => setFilterPickerCol(null)}
+                            >
+                              Done
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              className="table-kebab-item"
+                              onClick={() => setFieldPickerCol(c)}
+                            >
+                              {col.displayFieldId
+                                ? `Field: ${fieldsById?.[col.displayFieldId]?.name || col.displayFieldId}`
+                                : "Show field…"}
+                            </button>
+                            <button
+                              className="table-kebab-item"
+                              onClick={() => setFilterPickerCol(c)}
+                              style={{ display: "flex", alignItems: "center", gap: 4 }}
+                            >
+                              <Filter size={9} />
+                              {col.filter ? "Edit filter…" : "Filter…"}
+                            </button>
+                          </>
+                        )}
+                        {filterPickerCol !== c && fieldPickerCol !== c && (
                           <button
-                            className="table-kebab-item"
-                            style={{ marginTop: 2 }}
-                            onClick={() => setFilterPickerCol(null)}
+                            className="table-kebab-item table-kebab-delete"
+                            onClick={() => handleDeleteColumn(c)}
                           >
-                            Done
+                            Delete column
                           </button>
-                        </div>
-                      ) : (
-                        <>
-                          <button
-                            className="table-kebab-item"
-                            onClick={() => setFieldPickerCol(c)}
-                          >
-                            {col.displayFieldId
-                              ? `Field: ${fieldsById?.[col.displayFieldId]?.name || col.displayFieldId}`
-                              : "Show field…"}
-                          </button>
-                          <button
-                            className="table-kebab-item"
-                            onClick={() => setFilterPickerCol(c)}
-                            style={{ display: "flex", alignItems: "center", gap: 4 }}
-                          >
-                            <Filter size={9} />
-                            {col.filter ? "Edit filter…" : "Filter…"}
-                          </button>
-                        </>
-                      )}
-                      {filterPickerCol !== c && fieldPickerCol !== c && (
-                        <button
-                          className="table-kebab-item table-kebab-delete"
-                          onClick={() => handleDeleteColumn(c)}
-                        >
-                          Delete column
-                        </button>
-                      )}
-                    </div>
-                  )}
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
+              {/* Resize grip */}
+              <div
+                className="table-resize-grip"
+                onPointerDown={(e) => handleResizePointerDown(e, c)}
+              />
             </div>
-            {/* Resize grip */}
-            <div
-              className="table-resize-grip"
-              onPointerDown={(e) => handleResizePointerDown(e, c)}
-            />
-          </div>
-        ))}
+          );
+        })}
 
-        {/* +Column button header cell */}
-        <div className="table-th table-add-col-th">
+        {/* +Column button — sits at the right edge of the header, after all columns */}
+        <div
+          className="table-th table-add-col-th"
+          style={{
+            position: "absolute",
+            left: colVirtualizer.getTotalSize(),
+            width: ROW_ACTION_COL_W,
+            height: HEADER_H,
+            boxSizing: "border-box",
+          }}
+        >
           <button className="table-add-col-btn" onClick={handleAddColumn} title="Add column">
-            + column
+            +
           </button>
         </div>
+      </div>{/* end .table-header-row */}
 
-        {/* Data rows — rendered in TanStack sort+filter order.
-            tanRow.original.r is the UNDERLYING grid row index used by
-            cellKey(r, colIdx) and by TableCell. cells[] is never modified;
-            sort/filter are purely view-only transforms. */}
-        {tableInstance.getRowModel().rows.map((tanRow) => {
-          const r = tanRow.original.r; // underlying grid row index
+        {/* Render only virtualised row × col intersections.
+            finalVirtualRows / finalVirtualCols already include:
+              - the TanStack filtered+sorted row model indices
+              - the focused cell's row/col (force-mounted to keep the caret)
+              - any pairs still in the debounce-unmount grace window           */}
+        {finalVirtualRows.map((vRow) => {
+          const tanRow = filteredSortedRows[vRow.index];
+          if (!tanRow) return null; // safety: index outside filtered set
+          const r = tanRow.original.r; // underlying grid-row index
+
+          return finalVirtualCols.map((vCol) => {
+            const c = vCol.index;
+            const col = columns[c];
+            if (!col) return null;
+
+            // Absolute position of this cell in the virtual body div.
+            // vRow.start already includes paddingStart (HEADER_H) so row 0
+            // starts at HEADER_H (below the sticky header), row N at HEADER_H + N*ROW_H.
+            const cellTop = vRow.start;
+            const cellLeft = vCol.start;
+
+            return (
+              <TableCell
+                key={cellKey(r, c)}
+                r={r}
+                c={c}
+                tableRef={tableRef}
+                persist={persist}
+                onCellCommitMove={(dir) => focusCell(nextCoord(r, c, dir))}
+                cellRefs={cellRefs}
+                dispatch={dispatch}
+                socket={socket}
+                displayFieldId={col.displayFieldId ?? null}
+                onFocusCell={() => setFocusedCell({ r, c })}
+                onBlurCell={() => setFocusedCell(prev => (prev?.r === r && prev?.c === c ? null : prev))}
+                isFocused={focusedCell?.r === r && focusedCell?.c === c}
+                fillMode={fillMode}
+                onFillPointerDown={handleFillPointerDown}
+                onToggleFillMode={toggleFillMode}
+                style={{
+                  position: "absolute",
+                  top: cellTop,
+                  left: cellLeft,
+                  width: effectiveWidths[c],
+                  height: vRow.size,
+                  boxSizing: "border-box",
+                }}
+              />
+            );
+          });
+        })}
+
+        {/* Trailing row-action column ("–" remove last row button).
+            Rendered for each virtual row so the button is visible when the last
+            underlying-grid row is in the virtual window. */}
+        {finalVirtualRows.map((vRow) => {
+          const tanRow = filteredSortedRows[vRow.index];
+          if (!tanRow) return null;
+          const r = tanRow.original.r;
           return (
-            <React.Fragment key={r}>
-              {columns.map((col, c) => (
-                <TableCell
-                  key={cellKey(r, c)}
-                  r={r}
-                  c={c}
-                  tableRef={tableRef}
-                  persist={persist}
-                  onCellCommitMove={(dir) => focusCell(nextCoord(r, c, dir))}
-                  cellRefs={cellRefs}
-                  dispatch={dispatch}
-                  socket={socket}
-                  displayFieldId={col.displayFieldId ?? null}
-                  onFocusCell={() => setFocusedCell({ r, c })}
-                  onBlurCell={() => setFocusedCell(prev => (prev?.r === r && prev?.c === c ? null : prev))}
-                  isFocused={focusedCell?.r === r && focusedCell?.c === c}
-                  fillMode={fillMode}
-                  onFillPointerDown={handleFillPointerDown}
-                  onToggleFillMode={toggleFillMode}
-                />
-              ))}
-              {/* Trailing-row removal button — aligned to +column cell.
-                  Uses the underlying grid row index r, not TanStack's visual
-                  position, so the – button tracks the last original row. */}
-              <div className="table-td table-row-action-cell">
-                {r === rowCount - 1 && (
-                  <button
-                    className="table-remove-row-btn"
-                    title="Remove last row"
-                    onClick={handleRemoveLastRow}
-                  >
-                    –
-                  </button>
-                )}
-              </div>
-            </React.Fragment>
+            <div
+              key={`ra-${r}`}
+              className="table-td table-row-action-cell"
+              data-r={r}
+              style={{
+                position: "absolute",
+                top: vRow.start,
+                left: colVirtualizer.getTotalSize(),
+                width: ROW_ACTION_COL_W,
+                height: vRow.size,
+                boxSizing: "border-box",
+              }}
+            >
+              {r === rowCount - 1 && (
+                <button
+                  className="table-remove-row-btn"
+                  title="Remove last row"
+                  onClick={handleRemoveLastRow}
+                >
+                  –
+                </button>
+              )}
+            </div>
           );
         })}
       </div>

@@ -2112,7 +2112,8 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   color: var(--text-faint); font-size: 14px; line-height: 1; border-radius: 3px;
   padding: 1px 5px; opacity: 0;
 }
-.table-grid:hover .table-remove-row-btn { opacity: 1; }
+.table-grid:hover .table-remove-row-btn,
+.table-body-virtual:hover .table-remove-row-btn { opacity: 1; }
 .table-remove-row-btn:hover { color: #e05c5c; background: rgba(224,92,92,0.12); }
 
 /* Footer +row */
