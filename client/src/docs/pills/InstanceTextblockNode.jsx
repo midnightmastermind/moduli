@@ -1,14 +1,16 @@
 // docs/pills/InstanceTextblockNode.jsx
 // NodeView for the instanceTextblock TipTap node.
 // Renders a DocContent sub-editor with a RadialMenu handle in the top-left.
-import React, { useContext, useCallback, useEffect, useRef } from "react";
+import React, { useContext, useCallback, useEffect, useMemo, useRef } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { GridActionsContext } from "../../GridActionsContext";
 import DocContent from "../../modules/DocContent.jsx";
+import BoundBody from "../../modules/BoundBody.jsx";
 import RadialMenu from "../../ui/RadialMenu.jsx";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { embedDeleteRegistry } from "../../helpers/embedRegistry.js";
+import { resolveEditorBinding } from "../../state/editorBindings.js";
 
 export default function InstanceTextblockNode({ node, editor, getPos, deleteNode }) {
   const { occurrencesById, modulesById, dispatch, socket } = useContext(GridActionsContext) || {};
@@ -18,6 +20,14 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   const instance = modulesById?.[instanceId] || null;
   const wrapperRef = useRef(null);
   const handleRef = useRef(null);
+
+  // Editor↔field body binding: when set, the inner DocContent is replaced by
+  // a BoundBody render that reads (and in Task 4, writes back to) a linked
+  // occurrence's target field instead of this textblock's own textmap.
+  const bodyBinding = useMemo(
+    () => resolveEditorBinding({ occurrence, module: instance, slot: "body" }),
+    [occurrence, instance]
+  );
 
   // Per-occurrence drag mode (move / copy / copylink). Mirrors ModuleInstance —
   // defaults to occurrence.dragMode → instance.defaultDragMode → "move". Stored
@@ -262,20 +272,33 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
         </div>
 
         {occurrence ? (
-          // Inner DocContent sits flush at the top of the card. The
-          // floating RadialMenu handle is absolute-positioned at top:4 /
-          // left:2 and the wrapper's paddingLeft:22 already reserves the
-          // horizontal column for it, so the text doesn't overlap the
-          // handle and we don't need a top spacer that pushes content
-          // down the box.
-          <DocContent
-            occurrence={occurrence}
-            dispatch={dispatch}
-            socket={socket}
-            hideToolbar={true}
-            onExitBlock={handleExitBlock}
-            onDeleteBlock={handleNavigateBack}
-          />
+          bodyBinding ? (
+            <BoundBody hostOccurrence={occurrence} binding={bodyBinding}>
+              <DocContent
+                occurrence={occurrence}
+                dispatch={dispatch}
+                socket={socket}
+                hideToolbar={true}
+                onExitBlock={handleExitBlock}
+                onDeleteBlock={handleNavigateBack}
+              />
+            </BoundBody>
+          ) : (
+            // Inner DocContent sits flush at the top of the card. The
+            // floating RadialMenu handle is absolute-positioned at top:4 /
+            // left:2 and the wrapper's paddingLeft:22 already reserves the
+            // horizontal column for it, so the text doesn't overlap the
+            // handle and we don't need a top spacer that pushes content
+            // down the box.
+            <DocContent
+              occurrence={occurrence}
+              dispatch={dispatch}
+              socket={socket}
+              hideToolbar={true}
+              onExitBlock={handleExitBlock}
+              onDeleteBlock={handleNavigateBack}
+            />
+          )
         ) : (
           <span style={{ opacity: 0.25, fontSize: 11, padding: "4px 8px", display: "block" }}>—</span>
         )}
