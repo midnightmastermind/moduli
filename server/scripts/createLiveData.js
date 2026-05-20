@@ -213,14 +213,152 @@ export async function createLiveData(userId, options = {}) {
   const journalQuestionFieldId = uid();
   const journalAnswerFieldId   = uid();
 
-  // 7 reflection question module IDs (library "question" type)
-  const qWentWellModId          = uid();
-  const qLearnedModId           = uid();
-  const qChallengingModId       = uid();
-  const qGratefulModId          = uid();
-  const qDifferentlyModId       = uid();
-  const qImproveTomorrowModId   = uid();
-  const qSurprisedModId         = uid();
+  // 100 philosophical/spiritual reflection questions (library "question" type).
+  // Tagged in comments by tradition/thinker so it's clear what each draws from;
+  // the tag is NOT stored — only the label is. The Daily Question Rotator op
+  // (and the Daily Question container's header dropdown via journalQuestion's
+  // find-mode optionsSource) picks one of these labels at runtime.
+  const PHIL_QUESTIONS = [
+    // Stoicism (1–10)
+    "What is within my control today, and what is not?",
+    "How would I act if I knew today were my last?",
+    "Which virtue did I practice today — wisdom, justice, courage, or temperance?",
+    "What obstacle is actually showing me the way forward?",
+    "Did I respond to events with my mind, or did my emotions decide?",
+    "Whose opinion am I letting decide my peace today?",
+    "What discomfort could I welcome instead of avoid?",
+    "If I lost everything I'm anxious about, what would still remain?",
+    "Is the thing I'm angry about a fact, or my judgment about it?",
+    "How am I making things harder than they need to be?",
+    // Daoism (11–18)
+    "Where am I forcing what wants to flow?",
+    "What would today look like if I did nothing — and what would actually fall apart?",
+    "What am I emptying out to make room for what's next?",
+    "Where in life am I the rigid tree that breaks instead of the bamboo that bends?",
+    "What unspoken rhythm is the world inviting me to follow?",
+    "Where am I trying to grasp water with a closed fist?",
+    "What is the gentle thing I keep underestimating today?",
+    "Where does the path appear only because I'm willing to stop searching?",
+    // Inner Alchemy (19–23)
+    "What lead in me is asking to be turned into gold today?",
+    "What am I refining inside the vessel of this body right now?",
+    "Which of my reactions today was a chance to transmute, not just survive?",
+    "What heat am I willing to sit in for the sake of becoming?",
+    "Where is the wound that's also the doorway?",
+    // Alan Watts (24–28)
+    "Am I the wave or the water today?",
+    "What if I stopped trying to get somewhere and just listened?",
+    "What would I do if money, time, and approval were not the question?",
+    "Where am I confusing the menu for the meal?",
+    "If I am the universe experiencing itself, what is the universe up to through me right now?",
+    // Carl Jung (29–36)
+    "What shadow showed up today, and what did it want me to see?",
+    "Where am I projecting onto someone else what is actually mine?",
+    "What dream image keeps returning, and what is it asking?",
+    "Which archetype is moving through me this week — hero, lover, sage, fool?",
+    "Where am I refusing the gold hidden in what I despise about myself?",
+    "What synchronicity am I treating as coincidence?",
+    "What part of me is hungry to be witnessed without judgment?",
+    "Where is my persona protecting me, and where is it suffocating me?",
+    // Esoteric Christianity (37–41)
+    "What inside me is ready to be crucified so something deeper can rise?",
+    "Where am I waiting for grace that has already been given?",
+    "What does the word neighbor really ask of me today?",
+    "Where in my heart is the kingdom hidden, unrecognized?",
+    "What forgiveness — given or received — is the work of this moment?",
+    // Zen (42–48)
+    "What is the sound of my own attention right now?",
+    "Who is the one asking these questions?",
+    "Where am I confusing the moon with the finger pointing at it?",
+    "What is unshakable in me, even amid this?",
+    "What am I missing because I expect it to look familiar?",
+    "Where is trying to be still louder than stillness itself?",
+    "What ordinary thing today is also a teaching?",
+    // Mindfulness (49–53)
+    "What sensation am I avoiding feeling fully?",
+    "Where am I rehearsing the past or auditioning the future?",
+    "What does right now actually smell, sound, and taste like?",
+    "What is my breath asking me to notice?",
+    "Where am I performing presence instead of being present?",
+    // Omnism (54–56)
+    "What truth from a tradition I'm not from is calling me lately?",
+    "Where do the world's wisdoms agree, and how am I living that agreement?",
+    "Which voice — religious, secular, ancestral — am I dismissing too quickly?",
+    // Philosopher's Stone (57–60)
+    "What is the prima materia of my life right now — what raw stuff am I working with?",
+    "What in me has been fixed too long and needs to dissolve?",
+    "What in me has been dissolved too long and needs to crystallize?",
+    "What is the marriage of opposites my soul is asking for?",
+    // Mythology / Joseph Campbell (61–68)
+    "Where am I in the hero's journey — call, threshold, ordeal, return?",
+    "What call am I refusing today?",
+    "Who is the mentor my life has quietly placed in front of me?",
+    "What treasure am I being asked to bring back from the underworld?",
+    "Which myth feels like it is living me right now?",
+    "What dragon am I refusing to talk to instead of fight?",
+    "Where is my bliss really pointing me?",
+    "What story have I been telling about myself that I'm ready to let end?",
+    // Synchronicity (69–73)
+    "What pattern keeps surfacing that I have not yet honored?",
+    "Which coincidence today felt addressed to me?",
+    "What did the world rhyme with this week, and what was the rhyme saying?",
+    "Where am I in the right place at the right time and pretending I'm not?",
+    "What did I miss because I dismissed it as random?",
+    // Symbolism (74–78)
+    "If today were a tarot card, which one would it be — and why?",
+    "What is the dominant image in my mind today, and what does it carry?",
+    "Which color, animal, or weather has been with me lately?",
+    "What number, name, or place keeps showing up?",
+    "What was the metaphor the day kept offering me?",
+    // Native American Wisdom (79–83)
+    "Whom — human or non-human — did I treat as kin today?",
+    "Where am I taking from the earth and forgetting to give back?",
+    "What is the seventh-generation cost of what I'm choosing today?",
+    "Whose stories am I carrying, and whose am I ignoring?",
+    "What does the place I live want me to remember about it?",
+    // Ram Dass (84–88)
+    "Where am I right now?",
+    "Whose suffering today is also mine?",
+    "What am I clinging to that is keeping me from loving?",
+    "Where would love show up if I let it?",
+    "What would change if I treated the person in front of me as the divine in disguise?",
+    // Krishnamurti (89–93)
+    "Can I observe my mind today without naming what I see?",
+    "What thought am I taking as truth that I have never really examined?",
+    "Where am I conforming and calling it choosing?",
+    "What is the conditioning behind my reaction?",
+    "Can I look at this fear without making it a problem to solve?",
+    // Thich Nhat Hanh (94–97)
+    "What in this moment is already enough?",
+    "Whose face am I forgetting to look at carefully?",
+    "What suffering — mine or another's — is asking to be held with tenderness?",
+    "What is one small breath I could take to come home to myself?",
+    // Eckhart Tolle (98–100)
+    "Where is my pain-body running the show right now?",
+    "What problem dissolves when I bring full presence to it?",
+    "Who would I be without the story I'm telling about myself?",
+    // Terence McKenna (101–105)
+    "What does my imagination know that my reason has not caught up to?",
+    "If language is a virus and I am its host, what story am I helping to spread today?",
+    "Where in my life would a little more novelty crack the trance open?",
+    "What plant, place, or practice keeps trying to talk to me?",
+    "What if the felt sense of right now is more real than any theory about it?",
+    // Progressive politics / solidarity (106–111)
+    "Whose dignity does my comfort depend on going unseen?",
+    "Who profits when I am too tired or distracted to care?",
+    "What would it mean to think as a we, not just an I, today?",
+    "What injustice am I tolerating because it would cost me to name it?",
+    "Where is solidarity asking more of me than charity ever could?",
+    "What policy or structure shapes my day more than my willpower does?",
+    // Freedom from oppression (112–117)
+    "Where am I free, and where have I forgotten that I am not yet?",
+    "Whose voice was silenced for my comfort, and how can I amplify it?",
+    "What kind of liberation am I willing to want for others that I want for myself?",
+    "What internalized rule have I mistaken for my own truth?",
+    "What does my body know about safety that my mind keeps overriding?",
+    "Where is the line between minding my own peace and looking away?",
+  ];
+  const phQuestionModIds = PHIL_QUESTIONS.map(() => uid());
 
   // Time slots — needed for buildScheduleFilters' timeslotLabels; later tasks
   // also use timeSlots for the schedule subtree, so hoist here to mirror
@@ -255,7 +393,7 @@ export async function createLiveData(userId, options = {}) {
   // Ported from createDefaultUserData STEP 1 with these transforms applied:
   //
   // EXCLUDED (journal/QA/enrichment-exclusive — evidence in comments):
-  //   journalQuestionPool   — WIRED (Feature C): 7 reflection question instances seeded
+  //   journalQuestionPool   — WIRED (Feature C): philosophical reflection question pool seeded (see PHIL_QUESTIONS)
   //                            in the Library container with library:"question"; siblingLinks
   //                            wired on journalQuestion/Answer; Daily Question Rotator op added.
   //   wentWellQuestion      — bound only to journalDocInstances.wentWellDocInst
@@ -2676,24 +2814,26 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
   ]);
 
-  // 7 reflection question modules (library type "question")
-  // Labels are the question text — Daily Question Rotator picks one by day-of-year.
-  await Module.insertMany([
-    { id: qWentWellModId,        userId, gridId, role: "instance", kind: "list", label: "What went well today?",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: qLearnedModId,         userId, gridId, role: "instance", kind: "list", label: "What did you learn?",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: qChallengingModId,     userId, gridId, role: "instance", kind: "list", label: "What was challenging?",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: qGratefulModId,        userId, gridId, role: "instance", kind: "list", label: "What are you grateful for?",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: qDifferentlyModId,     userId, gridId, role: "instance", kind: "list", label: "What would you do differently?",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: qImproveTomorrowModId, userId, gridId, role: "instance", kind: "list", label: "What's one thing you can improve tomorrow?",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: qSurprisedModId,       userId, gridId, role: "instance", kind: "list", label: "What surprised you today?",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-  ]);
+  // Reflection question modules (library type "question"). One Module per
+  // entry in PHIL_QUESTIONS — the Daily Question Rotator op (and the Daily
+  // Question container's header dropdown via journalQuestion's find-mode
+  // optionsSource over libraryFieldId="question") picks one of these labels
+  // at runtime. Spans Stoicism, Daoism, inner alchemy, Alan Watts, Jung,
+  // esoteric Christianity, Zen, mindfulness, omnism, the Philosopher's
+  // Stone, mythology / Joseph Campbell, synchronicity, symbolism, Native
+  // American wisdom, Ram Dass, Krishnamurti, Thich Nhat Hanh, Eckhart
+  // Tolle, Terence McKenna, progressive solidarity, and freedom from
+  // oppression — see PHIL_QUESTIONS array at top of file for comments.
+  await Module.insertMany(
+    PHIL_QUESTIONS.map((label, i) => ({
+      id: phQuestionModIds[i],
+      userId, gridId,
+      role: "instance", kind: "list",
+      label,
+      defaultDragMode: "move",
+      fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }],
+    }))
+  );
 
   // 8 movie occurrences (parentId = libraryContOccId, library field = "movie")
   const movieInceptionOccId       = await mkOcc({ moduleId: movieInceptionModId,       parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
@@ -2727,14 +2867,15 @@ export async function createLiveData(userId, options = {}) {
   const courseSystemDesignOccId    = await mkOcc({ moduleId: courseSystemDesignModId,    parentId: libraryContOccId, fields: { [libraryFieldId]: fv("course") } });
   const courseIntroPhilosophyOccId = await mkOcc({ moduleId: courseIntroPhilosophyModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("course") } });
 
-  // 7 reflection question occurrences (library field = "question")
-  const qWentWellOccId        = await mkOcc({ moduleId: qWentWellModId,        parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
-  const qLearnedOccId         = await mkOcc({ moduleId: qLearnedModId,         parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
-  const qChallengingOccId     = await mkOcc({ moduleId: qChallengingModId,     parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
-  const qGratefulOccId        = await mkOcc({ moduleId: qGratefulModId,        parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
-  const qDifferentlyOccId     = await mkOcc({ moduleId: qDifferentlyModId,     parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
-  const qImproveTomorrowOccId = await mkOcc({ moduleId: qImproveTomorrowModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
-  const qSurprisedOccId       = await mkOcc({ moduleId: qSurprisedModId,       parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
+  // Reflection question occurrences — one per module above (library field = "question").
+  // Parented under the Library container; the Daily Journal Questions board
+  // page also lists them via multi-parent occurrences[] membership (see the
+  // Daily Journal Questions page creation later in the script).
+  const phQuestionOccIds = [];
+  for (const modId of phQuestionModIds) {
+    const occId = await mkOcc({ moduleId: modId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("question") } });
+    phQuestionOccIds.push(occId);
+  }
 
   // Library container occurrence (libraryContOccId pre-generated at top)
   await mkOcc({
@@ -2752,9 +2893,8 @@ export async function createLiveData(userId, options = {}) {
       podcastHubermanLabOccId, podcastConvosTylerOccId,
       // courses
       courseAlgorithmsOccId, courseMLSpecOccId, courseSystemDesignOccId, courseIntroPhilosophyOccId,
-      // questions
-      qWentWellOccId, qLearnedOccId, qChallengingOccId, qGratefulOccId,
-      qDifferentlyOccId, qImproveTomorrowOccId, qSurprisedOccId,
+      // questions (one occurrence per PHIL_QUESTIONS entry — ~117 entries)
+      ...phQuestionOccIds,
     ],
     filterOverride: {},
   });
@@ -3271,10 +3411,7 @@ export async function createLiveData(userId, options = {}) {
     moduleId: questionsContModId,
     // No parentId — this container only renders as a child of the
     // Daily Journal Questions page (it's not in any other tree).
-    occurrences: [
-      qWentWellOccId, qLearnedOccId, qChallengingOccId, qGratefulOccId,
-      qDifferentlyOccId, qImproveTomorrowOccId, qSurprisedOccId,
-    ],
+    occurrences: [...phQuestionOccIds],
     filterOverride: {},
   });
   const journalQuestionsPageModId = uid();

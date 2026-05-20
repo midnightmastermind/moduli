@@ -2,6 +2,38 @@
 
 _Updated: 2026-05-19. Check this file before re-reading source._
 
+## Recent Changes (2026-05-19 — Editor↔field binding (self-field + sync))
+- **NEW**: `state/editorBindings.js` — `resolveEditorBinding({ occurrence, module, slot })`
+  cascade (occurrence.meta wins → module.meta next → null). String "clear"
+  on the occurrence opts out of a module binding without re-setting.
+  `findLinkedSiblings({ binding, hostOccurrence, occurrencesById, nextValue })`
+  returns all occurrences sharing host's link-field value AND carrying the
+  selfField (loop guard: skip if value already matches nextValue). `sameLinkValue`
+  has SAME_DAY semantics for ISO date strings.
+- **NEW**: `helpers/boundFieldSync.js` — `propagateBoundFieldWrite(...)` writes
+  the new value to every linked sibling via `CommitHelpers.updateOccurrence`.
+  Called after every host-field write by BoundHeader / BoundBody.
+- **NEW**: `modules/BoundHeader.jsx` + `modules/BoundBody.jsx` — render the
+  HOST occurrence's own selfField (no remote lookup). Header is type-dispatched
+  (dropdown when field has options — covers `select` AND `text` with optionsSource;
+  plain inline text otherwise). Body uses minimal TipTap (StarterKit + Placeholder)
+  for text fields; debounced 500ms write-back + sync.
+- **ModuleContainer.jsx**: `headerBinding` memo (`resolveEditorBinding`) at
+  component top; both header render sites (embedded + standard) check it and
+  swap in `<BoundHeader hostOccurrence={containerOccurrence} ... />` when set.
+  Falls back to the existing contentEditable/static label path otherwise.
+- **docs/pills/InstanceTextblockNode.jsx**: `bodyBinding` memo similarly gates
+  whether the inner `DocContent` is wrapped by `<BoundBody>` or rendered raw.
+- **NEW**: `ui/EditorBindingSection.jsx` — picker UI (two selects: Self field /
+  Link field, scope toggle module|occurrence, Clear binding). Mounted in
+  `ContainerForm` Settings tab (header binding) and `InstanceForm` Fields tab
+  inside `BodyBindingPicker` (textblock-role only).
+- **Binding shape**: `{ selfField: fieldId, link: fieldId }` stored at
+  `module.meta.<slot>Link` or `occurrence.meta.<slot>Link`. Slot ∈ {"header","body"}.
+- The op layer (e.g. drag-to-Schedule date stamp) does the JOIN setup; the
+  binding layer auto-propagates writes between any occurrences with matching
+  link value + selfField. No explicit linkedGroupId.
+
 ## Recent Changes (2026-05-19 — Grid-level sort with row-major reflow)
 - **Grid.jsx**: `visiblePanels` useMemo gains a reflow path. When
   `grid.meta.localSort.fieldId` is set AND there are ≥2 panels, panels

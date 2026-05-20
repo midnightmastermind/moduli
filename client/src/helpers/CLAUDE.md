@@ -2,6 +2,19 @@
 
 _Updated: 2026-05-19. Check this file before re-reading source._
 
+## Recent Changes (2026-05-19 — boundFieldSync)
+- **`boundFieldSync.js` (NEW)** — `propagateBoundFieldWrite({ hostOccurrence,
+  binding, nextValue, occurrencesById, dispatch, socket })` finds every
+  occurrence sharing host's link-field value AND already carrying
+  binding.selfField (via `findLinkedSiblings`), then emits a
+  `CommitHelpers.updateOccurrence` for each with selfField patched to
+  nextValue. Loop-safe (skips siblings whose value already equals
+  nextValue). Called by `modules/BoundHeader.jsx` after every dropdown
+  write and by `modules/BoundBody.jsx`'s `makeFieldWriter` after every
+  TipTap onUpdate. Editor-↔-field binding sync layer; no explicit
+  linkedGroupId — the implicit group is "everyone matching the link
+  field's value".
+
 ## Recent Changes (May 19 2026 — operationIntrospection + $allOperations)
 - **`operationIntrospection.js` (NEW)** — Pure static analyzer. `analyzeOperation(op, { fieldsById, occurrencesById, operationsById, operationsByName }) → IntrospectionRecord` walks `op.pipeline.steps[]` recursively (LOOP body, IF then/else) + `op.triggerObjects[]` + `op.pipeline.sources[]` and returns ten sets (as arrays): `fields_written / fields_read / occurrences_written / occurrences_read / triggered_by_fields / triggered_by_occurrences / ancestor_scopes / invokes_operations / templates_used / created_modules`. Per-action handlers cover CREATE / UPDATE / DELETE / FIND / COPY_LINK / APPLY_TEMPLATE / RUN_OPERATION / ADD_CHILD / LINK_OCCURRENCE_TO_PARENT / *_VAR / pool actions. A generic string-scanner runs over every cfg leaf to catch `field:<id>` tokens + `$<var>.fields.<fid>` patterns regardless of action type — fieldId existence is checked against `fieldsById` so false positives are dropped. `operationsByName` resolves `RUN_OPERATION.operationName` → opId for `invokes_operations`. `analyzeAllOperations(operationsById, ctx)` memoizes per-op records on a WeakMap keyed by the op object identity — recomputes only when the user edits an op. 15 tests in `__tests__/operationIntrospection.test.js`.
 - **`operationExecutor.js`** — Imports `analyzeAllOperations` and adds `$allOperations` to the `$vars` setup (array of `{ ...op, ...introspectionRecord }`). `_SNAPSHOT_SKIP` extended with `$allOperations` so run-log snapshots stay small. Authors can now write predicates like `$op.fields_written CONTAINS field:<fid>` or LOOP `$allOperations` with a predicate.

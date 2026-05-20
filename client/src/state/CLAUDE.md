@@ -1,6 +1,18 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-05-18. Check this file before re-reading source._
+_Updated: 2026-05-19. Check this file before re-reading source._
+
+## Recent Changes (2026-05-19 — editorBindings.js)
+- **NEW `editorBindings.js`**: `resolveEditorBinding({ occurrence, module, slot })`
+  cascades occurrence.meta.<slot>Link → module.meta.<slot>Link → null. Validates
+  the shape `{ selfField, link }`. Slot ∈ {"header","body"}. The string `"clear"`
+  on the occurrence opts out of the module-level binding without re-setting it.
+- `findLinkedSiblings({ binding, hostOccurrence, occurrencesById, nextValue })`
+  returns occurrences sharing host's link-field value AND already carrying
+  selfField. Loop guard skips siblings whose value already equals nextValue.
+  `sameLinkValue` treats ISO date strings (`YYYY-MM-DD…`) as SAME_DAY.
+- Consumed by `modules/BoundHeader.jsx` + `modules/BoundBody.jsx` (read paths)
+  and `helpers/boundFieldSync.js` (write-time fan-out).
 
 ## Recent Changes (May 18 2026 — applyEffectsToLiveOccs carries role/kind/label on CREATE_ITEM)
 - **operationExecutor.js (`applyEffectsToLiveOccs` `CREATE_ITEM`)**: New occurrence stub now copies `role / kind / label / linkedGroupId` from `effect.template` (or `inst.*` for COPY_LINK which uses `template: null`), and honors `inst.occurrences[]` when the producer inlined children. Without these stamps, the next op in a `runMatchingOperations` batch couldn't see APPLY_TEMPLATE's clones via `$allInstances` / `$allContainers` / etc., because the `allItems` setup in `executePipeline` reads `occ.role ?? tpl?.role` — `tpl` is looked up in `state.modules`, which only updates after `applyOperationEffect` dispatches Redux (which happens AFTER all ops finish running). Symptom: SCHED-TABLE saw 360 instances (toolkit/todo/etc) but ZERO of BUILD-DAY's freshly-created Schedule tasks, so its `_ancestors HAS_ANCESTOR $schedPageId AND SAME_DAY $schedDate` predicate matched nothing → empty Schedule Table. Same shape as the role-stamping already done in bindSocketToStore's CREATE_ITEM handler (line 777-779) — this brings the live overlay into parity.
