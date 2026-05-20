@@ -1,8 +1,8 @@
 // EditorBindingSection — picker UI for a slot's editor↔field binding.
 //
-// A binding is { target, link }: the TARGET field's value is what renders in
-// the editor slot; the LINK field's value is the JOIN match between this
-// entity and the source occurrence.
+// A binding is { selfField, link }: the SELF FIELD is the field on this host
+// whose value the editor IS. The LINK field is the JOIN identity used to
+// auto-sync writes across other occurrences sharing the same link value.
 //
 // Scope:
 //   - "module"      → caller writes to module.meta.<slot>Link (template-wide)
@@ -12,27 +12,27 @@ import React, { useState, useEffect } from "react";
 
 export default function EditorBindingSection({
   slot,                  // "header" | "body"
-  binding,               // current { target, link } | null
-  onChange,              // (next: {target,link} | null) => void
+  binding,               // current { selfField, link } | null
+  onChange,              // (next: {selfField,link} | null) => void
   scope,                 // "module" | "occurrence" — current scope being edited
   onScopeChange,         // (next) => void  (optional)
   fields = [],           // [{id,name,type}]
 }) {
-  const [target, setTarget] = useState(binding?.target || "");
+  const [selfField, setSelfField] = useState(binding?.selfField || "");
   const [link, setLink] = useState(binding?.link || "");
 
   // Keep local state in sync if the binding prop changes (e.g. scope toggle).
   useEffect(() => {
-    setTarget(binding?.target || "");
+    setSelfField(binding?.selfField || "");
     setLink(binding?.link || "");
-  }, [binding?.target, binding?.link]);
+  }, [binding?.selfField, binding?.link]);
 
-  const commit = (nextTarget, nextLink) => {
-    if (nextTarget && nextLink) onChange({ target: nextTarget, link: nextLink });
+  const commit = (nextSelf, nextLink) => {
+    if (nextSelf && nextLink) onChange({ selfField: nextSelf, link: nextLink });
   };
 
   const clear = () => {
-    setTarget("");
+    setSelfField("");
     setLink("");
     onChange(null);
   };
@@ -59,13 +59,13 @@ export default function EditorBindingSection({
       )}
 
       <label style={{ fontSize: 11, display: "flex", flexDirection: "column", gap: 3 }}>
-        <span style={{ opacity: 0.75 }}>Target field (shown content)</span>
+        <span style={{ opacity: 0.75 }}>Self field (the field this editor IS)</span>
         <select
-          aria-label="Target field"
-          value={target}
+          aria-label="Self field"
+          value={selfField}
           onChange={(e) => {
             const v = e.target.value;
-            setTarget(v);
+            setSelfField(v);
             commit(v, link);
           }}
           style={{ fontSize: 12, padding: "3px 6px", background: "var(--input-bg, #1a1c20)", color: "inherit", border: "1px solid var(--input-border, #333)", borderRadius: 4 }}
@@ -78,14 +78,14 @@ export default function EditorBindingSection({
       </label>
 
       <label style={{ fontSize: 11, display: "flex", flexDirection: "column", gap: 3 }}>
-        <span style={{ opacity: 0.75 }}>Link field (JOIN match)</span>
+        <span style={{ opacity: 0.75 }}>Link field (JOIN — sync siblings sharing this value)</span>
         <select
           aria-label="Link field"
           value={link}
           onChange={(e) => {
             const v = e.target.value;
             setLink(v);
-            commit(target, v);
+            commit(selfField, v);
           }}
           style={{ fontSize: 12, padding: "3px 6px", background: "var(--input-bg, #1a1c20)", color: "inherit", border: "1px solid var(--input-border, #333)", borderRadius: 4 }}
         >

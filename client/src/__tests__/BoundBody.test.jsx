@@ -1,7 +1,5 @@
-// Smoke tests for BoundBody — bound text/TipTap field render.
-// Write-back path is type-aware: tested at the helper boundary (makeFieldWriter)
-// and verified end-to-end manually in the browser. The TipTap onUpdate path
-// can't be cleanly driven from JSDOM without faking the editor model.
+// Smoke tests for BoundBody (self-field + sync model). The editor reads
+// and writes the HOST's own selfField; sync covered in editorBindings.test.js.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { render, screen } from "@testing-library/react";
@@ -25,9 +23,8 @@ function makeCtx(overrides = {}) {
     dispatch: vi.fn(),
     socket: { emit: vi.fn() },
     occurrencesById: {
-      host: { id: "host", fields: { dateF: { value: "2026-05-19" } } },
-      src: {
-        id: "src",
+      host: {
+        id: "host",
         fields: { dateF: { value: "2026-05-19" }, aF: { value: tiptapAnswer } },
       },
     },
@@ -40,18 +37,18 @@ function makeCtx(overrides = {}) {
   };
 }
 
-describe("BoundBody", () => {
+describe("BoundBody (self-field model)", () => {
   beforeEach(() => {
     CommitHelpers.updateOccurrence.mockClear();
   });
 
-  it("renders the linked occurrence's TipTap text content", () => {
+  it("renders the host's own selfField TipTap content", () => {
     const ctx = makeCtx();
     render(
       <GridActionsContext.Provider value={ctx}>
         <BoundBody
           hostOccurrence={ctx.occurrencesById.host}
-          binding={{ target: "aF", link: "dateF" }}
+          binding={{ selfField: "aF", link: "dateF" }}
         >
           <div>FALLBACK</div>
         </BoundBody>
@@ -60,15 +57,13 @@ describe("BoundBody", () => {
     expect(screen.getByText(/today's answer/)).toBeTruthy();
   });
 
-  it("falls back to children when no source matches", () => {
-    const ctx = makeCtx({
-      occurrencesById: { host: { id: "host", fields: { dateF: { value: "2026-05-19" } } } },
-    });
+  it("falls back to children when host is missing", () => {
+    const ctx = makeCtx();
     render(
       <GridActionsContext.Provider value={ctx}>
         <BoundBody
-          hostOccurrence={ctx.occurrencesById.host}
-          binding={{ target: "aF", link: "dateF" }}
+          hostOccurrence={null}
+          binding={{ selfField: "aF", link: "dateF" }}
         >
           <div>FALLBACK</div>
         </BoundBody>
@@ -85,7 +80,7 @@ describe("BoundBody", () => {
       <GridActionsContext.Provider value={ctx}>
         <BoundBody
           hostOccurrence={ctx.occurrencesById.host}
-          binding={{ target: "aF", link: "dateF" }}
+          binding={{ selfField: "aF", link: "dateF" }}
         >
           <div>FALLBACK</div>
         </BoundBody>
@@ -94,18 +89,20 @@ describe("BoundBody", () => {
     expect(screen.getByText(/FALLBACK/)).toBeTruthy();
   });
 
-  it("renders a plain-string field value too (string text fields)", () => {
+  it("renders a plain-string field value too (text fields can hold strings)", () => {
     const ctx = makeCtx({
       occurrencesById: {
-        host: { id: "host", fields: { dateF: { value: "2026-05-19" } } },
-        src: { id: "src", fields: { dateF: { value: "2026-05-19" }, aF: { value: "plain string answer" } } },
+        host: {
+          id: "host",
+          fields: { dateF: { value: "2026-05-19" }, aF: { value: "plain string answer" } },
+        },
       },
     });
     render(
       <GridActionsContext.Provider value={ctx}>
         <BoundBody
           hostOccurrence={ctx.occurrencesById.host}
-          binding={{ target: "aF", link: "dateF" }}
+          binding={{ selfField: "aF", link: "dateF" }}
         >
           <div>FALLBACK</div>
         </BoundBody>
@@ -115,32 +112,65 @@ describe("BoundBody", () => {
   });
 });
 
-describe("makeFieldWriter", () => {
-  beforeEach(() => {
-    CommitHelpers.updateOccurrence.mockClear();
-  });
+describe("makeFieldWriter (self-field model)", () => {
+  beforeEach(() => CommitHelpers.updateOccurrence.mockClear());
 
-  it("returns a function that writes value to the source occurrence's target field", () => {
-    const source = { id: "src", fields: { dateF: { value: "2026-05-19" }, aF: { value: "old" } } };
-    const dispatch = vi.fn();
-    const socket = { emit: vi.fn() };
-    const write = makeFieldWriter({ source, binding: { target: "aF", link: "dateF" }, dispatch, socket });
-
+  it("writes nextValue to the HOST occurrence (not a linked one)", () => {
+    const host = {
+      id: "host",
+      fields: { dateF: { value: "2026-05-19" }, aF: { value: "old" } },
+    };
+    const write = makeFieldWriter({
+      host,
+      binding: { selfField: "aF", link: "dateF" },
+      occurrencesById: { host },
+      dispatch: vi.fn(),
+      socket: { emit: vi.fn() },
+    });
     write({ type: "doc", content: [{ type: "paragraph" }] });
-
-    expect(CommitHelpers.updateOccurrence).toHaveBeenCalledTimes(1);
-    const call = CommitHelpers.updateOccurrence.mock.calls[0][0];
-    expect(call.occurrence.id).toBe("src");
-    expect(call.occurrence.fields.aF.value).toEqual({ type: "doc", content: [{ type: "paragraph" }] });
-    // existing fields preserved
-    expect(call.occurrence.fields.dateF.value).toBe("2026-05-19");
-    // existing field meta preserved (no { value: ... } only)
-    expect(call.occurrence.fields.aF).toMatchObject({ value: expect.any(Object) });
+    expect(CommitHelpers.updateOccurrence).toHaveBeenCalled();
+    // First call is the host write; sync may produce additional calls
+    const hostCall = CommitHelpers.updateOccurrence.mock.calls[0][0];
+    expect(hostCall.occurrence.id).toBe("host");
+    expect(hostCall.occurrence.fields.aF.value).toEqual({
+      type: "doc",
+      content: [{ type: "paragraph" }],
+    });
   });
 
-  it("returns a no-op when source is missing", () => {
-    const write = makeFieldWriter({ source: null, binding: { target: "aF", link: "dateF" }, dispatch: vi.fn(), socket: {} });
+  it("returns a no-op when host is missing", () => {
+    const write = makeFieldWriter({
+      host: null,
+      binding: { selfField: "aF", link: "dateF" },
+      occurrencesById: {},
+      dispatch: vi.fn(),
+      socket: {},
+    });
     write("anything");
     expect(CommitHelpers.updateOccurrence).not.toHaveBeenCalled();
+  });
+
+  it("also propagates the write to linked siblings sharing the link value", () => {
+    const host = {
+      id: "host",
+      fields: { dateF: { value: "2026-05-19" }, aF: { value: "old" } },
+    };
+    const sibling = {
+      id: "sib1",
+      fields: { dateF: { value: "2026-05-19" }, aF: { value: "stale" } },
+    };
+    const write = makeFieldWriter({
+      host,
+      binding: { selfField: "aF", link: "dateF" },
+      occurrencesById: { host, sib1: sibling },
+      dispatch: vi.fn(),
+      socket: { emit: vi.fn() },
+    });
+    write("synced value");
+    // First write: host. Second write: propagated to sib1.
+    expect(CommitHelpers.updateOccurrence).toHaveBeenCalledTimes(2);
+    const second = CommitHelpers.updateOccurrence.mock.calls[1][0];
+    expect(second.occurrence.id).toBe("sib1");
+    expect(second.occurrence.fields.aF.value).toBe("synced value");
   });
 });

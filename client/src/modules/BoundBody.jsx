@@ -1,42 +1,54 @@
-// BoundBody — renders a textblock body from a JOIN binding. Type-aware:
-//   - text target: live TipTap editor; edits write back to source.fields[target]
-//     as TipTap JSON (debounced).
-//   - other types: plain extracted text (read-only).
+// BoundBody — renders/edits a HOST occurrence's own field value in the
+// textblock body position. The binding declares { selfField, link }:
+//   - selfField: the field on the host whose value IS the body content
+//   - link:      JOIN identity for cross-occurrence sync (propagation on
+//                write to siblings sharing host.fields[link].value)
 //
-// Falls back to `children` when no source occurrence resolves or the target
-// field is unknown — preserves the textblock's normal behavior for unbound
-// content.
-import React, { useContext, useMemo, useRef, useCallback, useEffect } from "react";
+// Type-dispatched:
+//   - text selfField: live TipTap editor (StarterKit). Edits write back to
+//     host.fields[selfField] as TipTap JSON, then fan out to linked siblings.
+//   - other types:    plain extracted text (read-only — header binding handles
+//     non-text cases via dropdown).
+//
+// Falls back to `children` when no field is resolvable.
+import React, { useContext, useMemo, useRef, useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { GridActionsContext } from "../GridActionsContext.js";
-import { findLinkedOccurrence } from "../state/editorBindings.js";
+import { propagateBoundFieldWrite } from "../helpers/boundFieldSync.js";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
 const EMPTY_DOC = { type: "doc", content: [{ type: "paragraph" }] };
 const DEBOUNCE_MS = 500;
 
-// Exported for unit testing. Produces a (nextValue) => void writer that
-// commits an updateOccurrence on the source occurrence with the new
-// field value spliced in (preserving the rest of `fields`).
-export function makeFieldWriter({ source, binding, dispatch, socket }) {
-  if (!source || !binding?.target || !dispatch || !socket) return () => {};
+// Exported for unit testing. Returns a (nextValue) => void that commits an
+// updateOccurrence to the HOST and fans out to linked siblings.
+export function makeFieldWriter({ host, binding, occurrencesById, dispatch, socket }) {
+  if (!host || !binding?.selfField || !dispatch || !socket) return () => {};
   return (nextValue) => {
     CommitHelpers.updateOccurrence({
       dispatch,
       socket,
       occurrence: {
-        id: source.id,
+        id: host.id,
         fields: {
-          ...source.fields,
-          [binding.target]: {
-            ...(source.fields?.[binding.target] || {}),
+          ...host.fields,
+          [binding.selfField]: {
+            ...(host.fields?.[binding.selfField] || {}),
             value: nextValue,
           },
         },
       },
       emit: true,
+    });
+    propagateBoundFieldWrite({
+      hostOccurrence: host,
+      binding,
+      nextValue,
+      occurrencesById,
+      dispatch,
+      socket,
     });
   };
 }
@@ -54,36 +66,37 @@ function normalizeToDoc(value) {
 
 export default function BoundBody({ hostOccurrence, binding, children }) {
   const { occurrencesById, fieldsById, dispatch, socket } = useContext(GridActionsContext) || {};
-  const source = useMemo(
-    () => findLinkedOccurrence({ binding, hostOccurrence, occurrencesById }),
-    [binding, hostOccurrence, occurrencesById]
-  );
-  const field = fieldsById?.[binding?.target];
+  const field = fieldsById?.[binding?.selfField];
 
-  if (!source || !field) return children ?? null;
+  if (!hostOccurrence || !field) return children ?? null;
 
-  const value = source.fields?.[binding.target]?.value;
+  const value = hostOccurrence.fields?.[binding.selfField]?.value;
 
-  // Text fields get a live TipTap editor with write-back.
   if (field.type === "text") {
     return (
-      <BoundTextEditor source={source} binding={binding} value={value} dispatch={dispatch} socket={socket} />
+      <BoundTextEditor
+        host={hostOccurrence}
+        binding={binding}
+        value={value}
+        occurrencesById={occurrencesById}
+        dispatch={dispatch}
+        socket={socket}
+      />
     );
   }
 
-  // Anything else: plain inline.
   const text = typeof value === "object" ? extractPlainText(value) : String(value ?? "");
   return <div className="bound-body bound-body-text">{text}</div>;
 }
 
-function BoundTextEditor({ source, binding, value, dispatch, socket }) {
+function BoundTextEditor({ host, binding, value, occurrencesById, dispatch, socket }) {
   const writeRef = useRef(() => {});
   writeRef.current = useMemo(
-    () => makeFieldWriter({ source, binding, dispatch, socket }),
-    [source, binding, dispatch, socket]
+    () => makeFieldWriter({ host, binding, occurrencesById, dispatch, socket }),
+    [host, binding, occurrencesById, dispatch, socket]
   );
 
-  const initialDoc = useMemo(() => normalizeToDoc(value), [source?.id, binding?.target]);
+  const initialDoc = useMemo(() => normalizeToDoc(value), [host?.id, binding?.selfField]);
   const debounceTimer = useRef(null);
 
   const editor = useEditor(
@@ -101,21 +114,14 @@ function BoundTextEditor({ source, binding, value, dispatch, socket }) {
         }, DEBOUNCE_MS);
       },
     },
-    // Re-create the editor when binding target changes (different occurrence
-    // or different field). When only the value changes (server echo for the
-    // SAME binding), the syncEffect below patches without remount.
-    [source?.id, binding?.target]
+    [host?.id, binding?.selfField]
   );
 
-  // Server-side echo sync: when `value` changes from outside (e.g. a different
-  // user, or this user's own write echoed back), update the editor content
-  // only if it differs from what we already have.
   useEffect(() => {
     if (!editor) return;
     const incoming = normalizeToDoc(value);
     const current = editor.getJSON();
     if (JSON.stringify(current) === JSON.stringify(incoming)) return;
-    // Suppress the resulting onUpdate's write-back to avoid a write-loop.
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
       debounceTimer.current = null;

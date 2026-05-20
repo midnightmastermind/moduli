@@ -23,16 +23,16 @@ describe("EditorBindingSection", () => {
     expect(screen.getByText(/No binding/i)).toBeTruthy();
   });
 
-  it("renders the current target/link selections when binding is set", () => {
+  it("renders the current selfField/link selections when binding is set", () => {
     render(
       <EditorBindingSection
         slot="header"
-        binding={{ target: "f1", link: "f2" }}
+        binding={{ selfField: "f1", link: "f2" }}
         onChange={onChange}
         fields={fields}
       />
     );
-    expect(screen.getByLabelText(/Target field/i).value).toBe("f1");
+    expect(screen.getByLabelText(/Self field/i).value).toBe("f1");
     expect(screen.getByLabelText(/Link field/i).value).toBe("f2");
   });
 
@@ -40,18 +40,18 @@ describe("EditorBindingSection", () => {
     render(
       <EditorBindingSection slot="header" binding={null} onChange={onChange} fields={fields} />
     );
-    fireEvent.change(screen.getByLabelText(/Target field/i), { target: { value: "f1" } });
-    // Picking only target — not enough yet
-    expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ target: "f1", link: expect.anything() }));
+    fireEvent.change(screen.getByLabelText(/Self field/i), { target: { value: "f1" } });
+    // Picking only selfField — not enough yet
+    expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ selfField: "f1", link: expect.anything() }));
     fireEvent.change(screen.getByLabelText(/Link field/i), { target: { value: "f2" } });
-    expect(onChange).toHaveBeenLastCalledWith({ target: "f1", link: "f2" });
+    expect(onChange).toHaveBeenLastCalledWith({ selfField: "f1", link: "f2" });
   });
 
   it("calls onChange(null) when the Clear button is clicked", () => {
     render(
       <EditorBindingSection
         slot="header"
-        binding={{ target: "f1", link: "f2" }}
+        binding={{ selfField: "f1", link: "f2" }}
         onChange={onChange}
         fields={fields}
       />

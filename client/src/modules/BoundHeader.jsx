@@ -1,25 +1,26 @@
-// BoundHeader — renders a container's header from a JOIN binding instead of
-// the module label. Type-dispatched:
-//   - select target: dropdown + (optional) dice button; rendered text is the
-//     currently selected option's label/value, surrounded by `markdownPrefix`.
-//   - text target:   plain inline text (TipTap JSON → extractPlainText).
-//     Rich body editing happens in BoundBody — headers stay single-line.
-//   - fallback:      `label` when no source occurrence resolves.
+// BoundHeader — renders/edits a HOST occurrence's own field value in the
+// container header position. The binding declares { selfField, link }:
+//   - selfField: the field on the host occurrence whose value IS the header
+//   - link:      JOIN identity for cross-occurrence sync (auto-propagates on
+//                write to other occurrences sharing host.fields[link].value)
+//
+// Type-dispatched:
+//   - select selfField: dropdown + optional dice (when randomizable)
+//   - text/other:       plain inline (read-only — body editor handles edits)
+//
+// Falls back to the module label when the host doesn't yet have a value for
+// the selfField AND the field has no resolvable options.
 import React, { useContext, useMemo, useCallback } from "react";
 import { Dices } from "lucide-react";
 import { GridActionsContext } from "../GridActionsContext.js";
-import { findLinkedOccurrence } from "../state/editorBindings.js";
 import { resolveOptions } from "../helpers/optionsResolver.js";
+import { propagateBoundFieldWrite } from "../helpers/boundFieldSync.js";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
 export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = "", label = "" }) {
   const ctx = useContext(GridActionsContext) || {};
   const { occurrencesById, fieldsById, modulesById, dispatch, socket } = ctx;
-  const source = useMemo(
-    () => findLinkedOccurrence({ binding, hostOccurrence, occurrencesById }),
-    [binding, hostOccurrence, occurrencesById]
-  );
-  const field = fieldsById?.[binding?.target];
+  const field = fieldsById?.[binding?.selfField];
 
   const options = useMemo(() => {
     if (!field) return [];
@@ -28,39 +29,47 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
     return Array.isArray(opts) ? opts : [];
   }, [field, modulesById, occurrencesById, fieldsById]);
 
-  const writeValueToSource = useCallback(
+  const writeAndSync = useCallback(
     (nextValue) => {
-      if (!source || !dispatch || !socket) return;
+      if (!hostOccurrence || !dispatch || !socket) return;
       CommitHelpers.updateOccurrence({
         dispatch,
         socket,
         occurrence: {
-          id: source.id,
+          id: hostOccurrence.id,
           fields: {
-            ...source.fields,
-            [binding.target]: {
-              ...(source.fields?.[binding.target] || {}),
+            ...hostOccurrence.fields,
+            [binding.selfField]: {
+              ...(hostOccurrence.fields?.[binding.selfField] || {}),
               value: nextValue,
             },
           },
         },
         emit: true,
       });
+      propagateBoundFieldWrite({
+        hostOccurrence,
+        binding,
+        nextValue,
+        occurrencesById,
+        dispatch,
+        socket,
+      });
     },
-    [source, binding, dispatch, socket]
+    [hostOccurrence, binding, dispatch, socket, occurrencesById]
   );
 
-  if (!source || !field) {
+  if (!hostOccurrence || !field) {
     return <span>{markdownPrefix}{label}</span>;
   }
 
-  const value = source.fields?.[binding.target]?.value;
+  const value = hostOccurrence.fields?.[binding.selfField]?.value;
 
   if (field.type === "select") {
     const onDice = () => {
       if (!options.length) return;
       const pick = options[Math.floor(Math.random() * options.length)];
-      writeValueToSource(typeof pick === "string" ? pick : pick.value);
+      writeAndSync(typeof pick === "string" ? pick : pick.value);
     };
     return (
       <span
@@ -71,9 +80,10 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
         <select
           aria-label="bound select"
           value={value ?? ""}
-          onChange={(e) => writeValueToSource(e.target.value)}
+          onChange={(e) => writeAndSync(e.target.value)}
           style={{ fontSize: 11, padding: "2px 4px" }}
         >
+          <option value="">— pick —</option>
           {options.map((opt) => {
             const v = typeof opt === "string" ? opt : opt.value;
             const l = typeof opt === "string" ? opt : (opt.label ?? opt.value);
@@ -104,13 +114,14 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
     );
   }
 
-  // Text/other: header stays single-line. Strip TipTap JSON to plain text.
+  // Text/other types: header is single-line readout. Body bindings (BoundBody)
+  // handle rich-content editing.
   const text = typeof value === "object" ? extractPlainText(value) : String(value ?? "");
-  return <span>{markdownPrefix}{text}</span>;
+  return <span>{markdownPrefix}{text || label}</span>;
 }
 
 function stringifyValue(value, options) {
-  if (value == null) return "";
+  if (value == null || value === "") return "";
   if (Array.isArray(options)) {
     const match = options.find((o) => (typeof o === "string" ? o : o.value) === value);
     if (match) return typeof match === "string" ? match : (match.label ?? match.value);
