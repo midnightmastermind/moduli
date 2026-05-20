@@ -31,6 +31,9 @@ import { setComputedValuesAction } from "../state/actions";
 import { DocContent } from "./DocContent.jsx";
 import { hexToRgba } from "../helpers/colorHelpers.js";
 import { CellEmbedContext } from "../docs/CellEmbedContext.js";
+import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import AutoMarquee from "../ui/AutoMarquee.jsx";
+import { getEffectiveFieldVisibilityForOccurrence, fieldPassesVisibility } from "../state/selectors";
 
 // ============================================================
 // INSTANCE INNER ROW — label, field pills, operation widgets
@@ -57,9 +60,15 @@ function InstanceInner({
   // Canvas-friendly handle layout: handle floats absolutely in the
   // top-left of the card instead of consuming a flex slot inline.
   floatHandle = false,
+  // Force-hide the instance label regardless of the user's per-instance
+  // toggle. Set by the moduleEmbed wrapper when rendering inside a table
+  // cell whose column declares `hideLabel: true` (Date/Time projection
+  // columns where every row's task name would be repetitive next to the
+  // Task column anyway).
+  embedHideLabel = false,
 }) {
   const { state } = useContext(GridDataContext);
-  const { fieldsById, addInstanceToContainer, occurrencesById, linkedGroupIndex, instancesById, operationsById } = useContext(GridActionsContext);
+  const { fieldsById, addInstanceToContainer, occurrencesById, modulesById, linkedGroupIndex, instancesById, operationsById } = useContext(GridActionsContext);
   const { computedValues } = useContext(GridLiveContext);
   const isOriginalActive = !overlay && state?.activeId === id;
 
@@ -73,6 +82,10 @@ function InstanceInner({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [linksPopoverOpen, setLinksPopoverOpen] = useState(false);
   const [showLabel, setShowLabel] = useState(true);
+  // Effective label visibility: respect the per-instance user toggle UNLESS the
+  // embed host forced it off (embedHideLabel from CellEmbedContext). Used
+  // throughout the render below in place of the raw `showLabel`.
+  const effectiveShowLabel = !embedHideLabel && showLabel;
 
   // C3: O(1) linked sibling lookup via pre-indexed map
   const linkedSiblings = useMemo(() => {
@@ -118,38 +131,170 @@ function InstanceInner({
     });
   }, [occurrence?.id, entityDragMode, dispatch, socket]);
 
-  // Pick up the enclosing table cell's column-level field filter (if any).
-  // When the embed is rendered outside a table cell the context provides
-  // null — instanceFields then renders every visible binding as before.
+  // Resolve effective field-visibility for this instance. Two layers:
+  //   1. Occurrence cascade — the nearest fieldVisibility set on this
+  //      occurrence or any ancestor (page/container), resolved via the
+  //      shared ancestor walk. Governs doc / board / canvas / table-page.
+  //   2. Table-cell column override — when this embed renders inside a
+  //      table cell, the enclosing column can override per-column. The
+  //      column override WINS over the occurrence cascade when set; when
+  //      the column leaves it null the occurrence cascade applies.
   const cellEmbedCtx = useContext(CellEmbedContext);
-  const cellFieldFilter = cellEmbedCtx?.fieldFilter || null;
+  const columnFieldVisibility = cellEmbedCtx?.fieldVisibility || null;
 
-  // Get fields for this instance based on fieldBindings (skip hidden bindings).
-  // Additional cell-column filter: column.fieldFilter = { mode: "show"|"hide",
-  // fieldIds } — when "show", keep only listed fields; when "hide", drop them.
+  const effectiveFieldVisibility = useMemo(() => {
+    if (columnFieldVisibility) return columnFieldVisibility;
+    return getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById });
+  }, [columnFieldVisibility, occurrence, occurrencesById]);
+
+  // Get fields for this instance based on fieldBindings (skip hidden bindings),
+  // then apply the cascade-resolved field-visibility (show/hide whitelist).
+  // ADDITIONALLY: when the visibility is "show" mode, synthesize bindings for
+  // any fieldIds in the show-list that aren't in the module's bindings — this
+  // is how the Schedule Table's Date/Time projection columns render the date
+  // and timeslot fields that schedule task modules DON'T formally bind (those
+  // are stamped as VALUES on each occurrence via Build Day's defaultFields,
+  // not declared as bindings on the source module). Without this, "show" mode
+  // referring to an unbound fieldId rendered nothing.
   const instanceFields = useMemo(() => {
-    if (!instance?.fieldBindings || !fieldsById) return [];
+    if (!fieldsById) return [];
+    const bindings = Array.isArray(instance?.fieldBindings) ? instance.fieldBindings : [];
+    // Show-mode fieldIds: any binding whose fieldId is in this set must
+    // render even when `binding.hidden === true`. The hide flag is for the
+    // "normal render with default visibility" path — when a column / page
+    // explicitly opts a field IN via "show" mode, that wins over the hide
+    // flag (otherwise Schedule Table's Date column shows nothing: the
+    // schedule task module binds dateFieldId with `hidden: true` so the
+    // date doesn't show inline in the Schedule panel, but the table cell
+    // is explicitly asking for it).
+    const showSet = effectiveFieldVisibility?.mode === "show"
+      && Array.isArray(effectiveFieldVisibility.fieldIds)
+      ? new Set(effectiveFieldVisibility.fieldIds)
+      : null;
 
-    const filterIds = Array.isArray(cellFieldFilter?.fieldIds) ? cellFieldFilter.fieldIds : null;
-    const filterMode = cellFieldFilter?.mode || null;
-    const passesCellFilter = (fieldId) => {
-      if (!filterIds || !filterMode) return true;
-      const inList = filterIds.includes(fieldId);
-      if (filterMode === "show") return inList;
-      if (filterMode === "hide") return !inList;
-      return true;
-    };
-
-    return (instance.fieldBindings || [])
-      .filter(binding => !binding.hidden && passesCellFilter(binding.fieldId))
+    const fromBindings = bindings
+      .filter(binding => {
+        // Media-role bindings render in the dedicated media section under the
+        // label + fields (see `mediaBinding` below) — never as an inline pill.
+        if (binding.role === "media") return false;
+        const isExplicitShow = showSet?.has(binding.fieldId);
+        if (binding.hidden && !isExplicitShow) return false;
+        return fieldPassesVisibility(binding.fieldId, effectiveFieldVisibility);
+      })
       .map(binding => {
         const field = fieldsById[binding.fieldId];
         if (!field) return null;
-        return { field, binding };
+        // Force-show: clone the binding without the hidden flag so any
+        // downstream UI that checks binding.hidden also sees it as visible.
+        const b = (binding.hidden && showSet?.has(binding.fieldId))
+          ? { ...binding, hidden: false }
+          : binding;
+        return { field, binding: b };
       })
-      .filter(Boolean)
+      .filter(Boolean);
+
+    // Synthesize bindings for "show"-mode fieldIds that aren't bound at all
+    // (e.g. schedule task modules don't formally bind date/timeslot — those
+    // values are stamped by Build Day's defaultFields).
+    const extras = [];
+    if (showSet) {
+      const alreadyBound = new Set(bindings.map(b => b.fieldId));
+      for (const fid of showSet) {
+        if (alreadyBound.has(fid)) continue;
+        const field = fieldsById[fid];
+        if (!field) continue;
+        extras.push({ field, binding: { fieldId: fid, role: "input" } });
+      }
+    }
+
+    return [...fromBindings, ...extras]
       .sort((a, b) => (a.binding.order || 0) - (b.binding.order || 0));
-  }, [instance?.fieldBindings, fieldsById, cellFieldFilter]);
+  }, [instance?.fieldBindings, fieldsById, effectiveFieldVisibility]);
+
+  // ── Media section ──────────────────────────────────────────────────────────
+  // A field binding with role:"media" surfaces below the label + fields as an
+  // image/video/audio block (NOT an inline pill — see instanceFields filter).
+  // The value is a file path served from /uploads/<fileRef> (the same path
+  // ArtifactCard uses). Board/list instances only — doc-looking embeds
+  // (renderBody = Artifact/Textblock cards) and table cells (__inCell) are
+  // intentionally excluded: a poster under a textblock makes no sense.
+  const mediaBinding = useMemo(() => {
+    const bindings = Array.isArray(instance?.fieldBindings) ? instance.fieldBindings : [];
+    const b = bindings.find(x => x.role === "media");
+    if (!b) return null;
+    const field = fieldsById?.[b.fieldId];
+    if (!field) return null;
+    return { binding: b, field };
+  }, [instance?.fieldBindings, fieldsById]);
+
+  const mediaValue = mediaBinding
+    ? (occurrence?.fields?.[mediaBinding.binding.fieldId]?.value ?? null)
+    : null;
+
+  // board/list by default — never under a textblock/artifact card. Table cells
+  // can opt back in via the column's showMedia toggle (CellEmbedContext.showMedia).
+  const showMedia = !renderBody && !!mediaBinding && (
+    !cellEmbedCtx?.__inCell || !!cellEmbedCtx?.showMedia
+  );
+
+  const mediaDropRef = useRef(null);
+
+  // Resolve a dropped artifact's file path. Supports ManifestTree's
+  // { type:"artifact", occurrenceId } payload and the CC/pool
+  // { type:"module", role:"artifact", id, data } payload.
+  const resolveArtifactFileRef = useCallback((sourceData) => {
+    const d = sourceData || {};
+    let mod = null;
+    if (d.type === "artifact" && d.occurrenceId) {
+      const occ = occurrencesById?.[d.occurrenceId];
+      mod = occ ? (modulesById?.[occ.moduleId || occ.targetId]) : null;
+    } else if (d.type === "module" && d.role === "artifact") {
+      mod = d.data || modulesById?.[d.id];
+    }
+    return mod?.fileRef || null;
+  }, [occurrencesById, modulesById]);
+
+  const [mediaDragOver, setMediaDragOver] = useState(false);
+
+  useEffect(() => {
+    const el = mediaDropRef.current;
+    if (!el || !showMedia || !mediaBinding || !occurrence?.id) return;
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => {
+        const d = source.data || {};
+        return d.type === "artifact" || (d.type === "module" && d.role === "artifact");
+      },
+      onDragEnter: () => setMediaDragOver(true),
+      onDragLeave: () => setMediaDragOver(false),
+      onDrop: ({ source }) => {
+        setMediaDragOver(false);
+        const fileRef = resolveArtifactFileRef(source.data);
+        if (!fileRef) return;
+        const fid = mediaBinding.binding.fieldId;
+        CommitHelpers.updateOccurrence({
+          dispatch, socket, emit: true,
+          occurrence: {
+            id: occurrence.id,
+            fields: {
+              ...(occurrence.fields || {}),
+              [fid]: { value: fileRef, flow: "in", timestamp: new Date().toISOString() },
+            },
+          },
+        });
+      },
+    });
+  }, [showMedia, mediaBinding, occurrence?.id, occurrence?.fields, resolveArtifactFileRef, dispatch, socket]);
+
+  // Pick a renderer from the file extension (same kinds ArtifactCard uses).
+  const mediaTag = useMemo(() => {
+    if (!mediaValue || typeof mediaValue !== "string") return null;
+    const ext = mediaValue.split(".").pop()?.toLowerCase() || "";
+    if (["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"].includes(ext)) return "img";
+    if (["mp4", "webm", "mov", "m4v"].includes(ext)) return "video";
+    if (["mp3", "wav", "ogg", "m4a", "flac"].includes(ext)) return "audio";
+    return "img"; // best-effort default
+  }, [mediaValue]);
 
   // Operation widget bindings
   const operationWidgets = useMemo(() => {
@@ -177,22 +322,69 @@ function InstanceInner({
     }
   }, [id, occurrence?.id, state, fieldsById, operationsById, occurrencesById, dispatch]);
 
-  // Context for derived field calculations (includes filter timeScale for target scaling)
+  // Context for derived field calculations (includes filter unit for target
+  // scaling — switching the D/W/M/Y toggle should re-scale every progress
+  // target on screen).
   const fieldContext = useMemo(() => {
     const grid = state?.grid;
     const namedFilters = grid?.namedFilters || [];
     const activeFilter = namedFilters.find(f => f.id === grid?.activeFilterId);
-    const currentTimeFilter = activeFilter?.timeScale || "daily";
     const activeFilterValues = grid?.activeFilterValues || {};
+    // Unit precedence: per-value unit (the D/W/M/Y toggle writes here) →
+    // filter.timeUnit → filter.timeScale (legacy) → daily. Map unit → period
+    // name the scaler expects (day → daily, week → weekly, etc.).
+    const UNIT_TO_PERIOD = { day: "daily", week: "weekly", month: "monthly", year: "yearly" };
+    let unit = null;
+    let span = 1;
+    if (activeFilter) {
+      const rawVal = activeFilterValues[activeFilter.id];
+      if (rawVal && typeof rawVal === "object") {
+        if (rawVal.unit) unit = rawVal.unit;
+        const s = Number(rawVal.span);
+        if (Number.isFinite(s) && s > 1) span = Math.floor(s);
+      }
+    }
+    const currentTimeFilter = UNIT_TO_PERIOD[unit] || activeFilter?.timeScale || UNIT_TO_PERIOD[activeFilter?.timeUnit] || "daily";
     // Find the date value from the active filter values (first date-type value found)
-    const dateVal = Object.values(activeFilterValues).find(v => v && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v));
+    const dateVal = Object.values(activeFilterValues).find(v => {
+      if (typeof v === "string") return /^\d{4}-\d{2}-\d{2}/.test(v);
+      if (v && typeof v === "object" && typeof v.value === "string") return /^\d{4}-\d{2}-\d{2}/.test(v.value);
+      return false;
+    });
+    const dateStr = typeof dateVal === "string" ? dateVal : (dateVal?.value || null);
     return {
       gridId: occurrence?.gridId,
       containerId: occurrence?.parentId,
       currentIteration: currentTimeFilter,
-      iterationDate: dateVal || new Date().toISOString(),
+      currentSpan: span,
+      iterationDate: dateStr || new Date().toISOString(),
+      activeFilterUnit: unit || "day",
     };
   }, [occurrence?.gridId, occurrence?.parentId, state?.grid]);
+
+  // Filter-date badge: shows on goals/trackers (instances with at least one
+  // display-type field) so the user can see what date / period they're
+  // currently filtering on. Reads the same iterationDate the field context
+  // already computed.
+  const filterDateLabel = useMemo(() => {
+    const raw = fieldContext.iterationDate;
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return null;
+    const unit = fieldContext.activeFilterUnit || "day";
+    const span = fieldContext.currentSpan || 1;
+    if (unit === "week") {
+      const start = new Date(d);
+      const dow = start.getDay();
+      const offset = dow === 0 ? -6 : 1 - dow;
+      start.setDate(start.getDate() + offset);
+      return `Week of ${start.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+    }
+    if (unit === "month") return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    if (unit === "year")  return String(d.getFullYear());
+    const base = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    return span > 1 ? `${base} + ${span - 1}d` : base;
+  }, [fieldContext.iterationDate, fieldContext.activeFilterUnit, fieldContext.currentSpan]);
 
   // Resolved cascading style for this instance
   const resolvedInstanceCSS = useMemo(
@@ -234,6 +426,13 @@ function InstanceInner({
 
   const hasLabel = !!label;
   const hasFields = instanceFields.length > 0;
+  // Tracker/goal heuristic: at least one display-type field (binding.role
+  // "display" OR field.displayEnabled === true). The filter-date badge only
+  // renders for these — non-tracker instances (regular tasks) skip it.
+  const hasDisplayField = useMemo(
+    () => instanceFields.some(({ field, binding }) => binding?.role === "display" || field?.displayEnabled === true),
+    [instanceFields]
+  );
 
   return (
     <div
@@ -277,7 +476,11 @@ function InstanceInner({
         {/* RadialMenu handle + label — grouped in same flex row, OR absolute top-left when floatHandle */}
         <div style={floatHandle
           ? { position: "absolute", top: 4, left: 2, zIndex: 10, display: "flex", flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 }
-          : { display: "flex", flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 }
+          // minWidth:0 + default shrink lets the label child clip (and its
+          // AutoMarquee detect overflow) whenever space is tight. No flex-grow
+          // so wide layouts are visually unchanged (group sizes to content,
+          // fields take the remainder exactly as before).
+          : { display: "flex", flexDirection: "row", alignItems: "center", gap: 4, minWidth: 0 }
         }>
           <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
             <PopoverAnchor asChild>
@@ -320,21 +523,30 @@ function InstanceInner({
               />
             </PopoverContent>
           </Popover>
-          {showLabel && hasLabel && (
+          {effectiveShowLabel && hasLabel && (
             <div
               style={{
-                flexShrink: 0,
+                flex: "0 1 auto",
+                minWidth: 0,
+                overflow: "hidden",
                 fontSize: 12,
                 color: "var(--text-primary)",
-                overflowWrap: "anywhere",
                 paddingTop: 2,
                 paddingLeft: 2,
               }}
             >
-            {label}
-            {/* Inline link icon next to label removed — the linked-copy badge
-                at the end of the row (`.linked-copy-badge`) is the single
-                authoritative indicator that an occurrence is copy-linked. */}
+            {/* Auto-marquee: scrolls the label only when it's wider than the
+                space it has; otherwise renders static. Applies to every module
+                label (per user request), not just table cells. */}
+            <AutoMarquee>{label}</AutoMarquee>
+            {/* Filter-date badge — only on goal/tracker instances (has a
+                display-typed field). Shows the active filter date/range so
+                the user can confirm what they're filtering on at a glance. */}
+            {hasDisplayField && filterDateLabel && (
+              <div className="instance-filter-date-badge" title="Active filter">
+                {filterDateLabel}
+              </div>
+            )}
           </div>
           )}
         </div>{/* end label+radial wrapper */}
@@ -346,7 +558,7 @@ function InstanceInner({
           </div>
         )}
 
-        {!renderBody && showLabel && hasFields && (
+        {!renderBody && hasFields && (embedHideLabel || showLabel) && (
           <div
             className="instance-fields"
             style={{
@@ -360,20 +572,49 @@ function InstanceInner({
             }}
           >
             {instanceFields.map(({ field, binding }) => (
-              <FieldRenderer
-                key={field.id}
-                field={field}
-                binding={binding}
-                occurrence={occurrence}
-                instance={instance}
-                context={fieldContext}
-                state={state}
-                dispatch={dispatch}
-                socket={socket}
-                compact={true}
-                disabled={!!instance?.meta?.disabled}
-              />
+              // Each pill is its own AutoMarquee box: the fields row still
+              // wraps normally (each box is a flex item), but a single pill
+              // that is itself wider than the available width auto-scrolls
+              // instead of overflowing the container.
+              <AutoMarquee key={field.id} className="instance-field-mq">
+                <FieldRenderer
+                  field={field}
+                  binding={binding}
+                  occurrence={occurrence}
+                  instance={instance}
+                  context={fieldContext}
+                  state={state}
+                  dispatch={dispatch}
+                  socket={socket}
+                  compact={true}
+                  disabled={!!instance?.meta?.disabled}
+                />
+              </AutoMarquee>
             ))}
+          </div>
+        )}
+
+        {/* Media section — full-width row below label + fields. Board/list
+            only (showMedia gate). Doubles as an artifact drop target. */}
+        {showMedia && (
+          <div
+            ref={mediaDropRef}
+            className={"instance-media" + (mediaDragOver ? " instance-media-dragover" : "") + (mediaValue ? "" : " instance-media-empty")}
+            style={{ flex: "1 1 100%", minWidth: 0 }}
+            title={mediaValue ? (mediaBinding?.field?.name || "Media") : "Drop an artifact here"}
+          >
+            {mediaValue && mediaTag === "img" && (
+              <img className="instance-media-el" src={`/uploads/${mediaValue}`} alt={mediaBinding?.field?.name || label || "media"} />
+            )}
+            {mediaValue && mediaTag === "video" && (
+              <video className="instance-media-el" src={`/uploads/${mediaValue}`} controls playsInline preload="metadata" />
+            )}
+            {mediaValue && mediaTag === "audio" && (
+              <audio className="instance-media-el" src={`/uploads/${mediaValue}`} controls style={{ width: "100%" }} />
+            )}
+            {!mediaValue && (
+              <span className="instance-media-placeholder">Drop media here</span>
+            )}
           </div>
         )}
 
@@ -442,6 +683,7 @@ function ModuleInstance({
   embedRadialItems = null,
   embedOnDelete = null,
   embedSourceType = null,
+  embedHideLabel = false,
   renderBody = null,
   floatHandle = false,
 }) {
@@ -533,6 +775,7 @@ function ModuleInstance({
         toggleDoc={toggleDoc}
         onDoubleClick={onInstanceFocus ? () => onInstanceFocus(module, occurrence) : undefined}
         embedRadialItems={embedRadialItems}
+        embedHideLabel={embedHideLabel}
         embedOnDelete={embedOnDelete}
         renderBody={renderBody}
         floatHandle={floatHandle}

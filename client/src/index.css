@@ -427,7 +427,18 @@ body {
 }
 
 .panel-header {
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  background: rgba(0, 0, 0, 0.22);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 2px 4px -2px rgba(0, 0, 0, 0.55);
+}
+.page-header {
+  background: rgba(0, 0, 0, 0.18);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.40);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 2px 4px -2px rgba(0, 0, 0, 0.5);
 }
 
 .panel-scroll {
@@ -477,6 +488,17 @@ body {
   justify-content: start;
   align-items: center;
   cursor: grab;
+  background: rgba(0, 0, 0, 0.22);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 2px 4px -2px rgba(0, 0, 0, 0.55);
+}
+/* Embedded container headers use the host doc's accent color cascade —
+   skip the dark overlay so the embedded header keeps its teal tint. */
+.embedded-container-header {
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 /* Embedded doc container header — hash shows only on hover */
@@ -1243,17 +1265,20 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   background: rgba(50,150,255,0.15);
 }
 
-/* Linked-copy badge */
+/* Linked-copy badge. `box-sizing: content-box` + padding-left gives a small
+   gutter to the LEFT of the icon so it doesn't sit flush against whatever
+   content is rendered next to it in the row corner. */
 .linked-copy-badge {
   position: absolute;
   right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: 4px;
   width: 10px;
   height: 10px;
   color: rgba(96, 165, 250, 0.7);
   pointer-events: none;
   z-index: 5;
+  box-sizing: content-box;
+  padding-left: 4px;
 }
 
 /* Module header layout */
@@ -2024,13 +2049,29 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 
 /* ===== TABLE CONTAINER ===== */
-.table-container { overflow: auto; max-height: 100%; }
+.table-container { overflow: auto; max-height: 100%; width: 100%; box-sizing: border-box; }
 .table-grid { display: grid; width: max-content; }
+/* The header ROW is the sticky element (per-cell sticky double-stuck and
+   shifted columns out of alignment with the body). Give it its own opaque
+   background so scrolling body content doesn't bleed through the gaps
+   between cells or behind the trailing +Column cell (which is intentionally
+   transparent to host the dashed button). */
+.table-header-row {
+  background: var(--input-bg);
+}
 .table-th {
-  position: sticky; top: 0; z-index: 2;
+  /* position: relative (NOT sticky) — the header ROW is the sticky element
+     now (flow layout). Per-cell sticky inside a sticky flex row double-sticks
+     and shifts header cells out of alignment with the body columns. relative
+     is still needed so the absolutely-positioned resize grip anchors here. */
+  position: relative; z-index: 2;
   background: var(--input-bg); border: 1px solid var(--border-default);
   font-weight: 600; font-size: 12px; padding: 0;
   user-select: none;
+  box-sizing: border-box;
+  /* Same flex-item containment as .table-td so header columns hold exactly
+     their flex-basis and stay perfectly aligned with the body columns. */
+  min-width: 0;
 }
 .table-th-inner {
   display: flex; align-items: center; gap: 2px;
@@ -2059,6 +2100,52 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .table-sort-btn:hover { background: var(--border-default); color: var(--text-primary); }
 .table-sort-inactive { font-size: 10px; opacity: 0.5; }
 
+/* Table-level sort overlay (top-left of header row) */
+.table-sort-overlay-btn {
+  position: absolute; top: 4px; left: 4px;
+  background: var(--input-bg); border: 1px solid var(--border-default);
+  cursor: pointer; color: var(--text-muted);
+  padding: 2px 3px; border-radius: 3px;
+  display: flex; align-items: center; line-height: 1;
+  z-index: 6;
+}
+.table-sort-overlay-btn:hover { background: var(--border-default); color: var(--text-primary); }
+.table-sort-overlay-menu {
+  position: absolute; top: 28px; left: 4px; z-index: 20;
+  background: hsl(var(--popover-1)); border: 1px solid var(--border-default);
+  border-radius: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  min-width: 180px; padding: 6px;
+}
+.table-sort-overlay-title {
+  font-size: 10px; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.5px; padding: 2px 4px 6px 4px;
+}
+.table-sort-overlay-row {
+  display: flex; align-items: center; gap: 4px; padding: 4px;
+  border-radius: 3px;
+}
+.table-sort-overlay-row:hover { background: var(--input-bg); }
+.table-sort-overlay-col-name {
+  flex: 1; font-size: 12px; color: var(--text-primary); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.table-sort-overlay-dir {
+  background: none; border: 1px solid transparent; cursor: pointer;
+  color: var(--text-muted); padding: 2px 4px; border-radius: 3px;
+  display: flex; align-items: center;
+}
+.table-sort-overlay-dir:hover { background: var(--border-default); color: var(--text-primary); }
+.table-sort-overlay-dir.active {
+  background: var(--accent-blue, #3b82f6); color: white;
+  border-color: var(--accent-blue, #3b82f6);
+}
+.table-sort-overlay-clear {
+  display: block; width: 100%; padding: 6px 8px; margin-top: 4px;
+  background: none; border: none; border-top: 1px solid var(--border-default);
+  text-align: left; cursor: pointer; font-size: 11px; color: #e05c5c;
+}
+.table-sort-overlay-clear:hover { background: rgba(224,92,92,0.12); }
+
 /* Kebab menu */
 .table-kebab-wrap { position: relative; }
 .table-kebab-btn {
@@ -2070,17 +2157,48 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .table-kebab-menu {
   position: absolute; top: calc(100% + 2px); right: 0; z-index: 20;
   background: hsl(var(--popover-1)); border: 1px solid var(--border-default);
-  border-radius: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  min-width: 130px; overflow: hidden;
+  border-radius: 6px; box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+  min-width: 200px; max-width: 280px;
+  padding: 4px;
+  overflow: visible;
+}
+.table-kebab-section-label {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--text-faint);
+  padding: 4px 8px 2px 8px;
+  font-family: var(--font-mono);
+}
+.table-kebab-divider {
+  height: 1px; background: var(--border-subtle);
+  margin: 4px 0;
 }
 .table-kebab-item {
-  display: block; width: 100%; padding: 7px 12px;
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; padding: 6px 8px;
   background: none; border: none; text-align: left; cursor: pointer;
-  font-size: 12px; color: var(--text-primary);
+  font-size: 11px; color: var(--text-primary);
+  border-radius: 3px;
+  line-height: 1.3;
 }
 .table-kebab-item:hover { background: var(--input-bg); }
+.table-kebab-item-label {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .table-kebab-delete { color: #e05c5c !important; }
 .table-kebab-delete:hover { background: rgba(224,92,92,0.12) !important; }
+
+/* Sub-pickers inside the kebab — uniform padding and width */
+.table-kebab-field-picker,
+.table-kebab-filter-picker,
+.table-kebab-fieldvis-picker {
+  padding: 8px;
+  min-width: 220px;
+}
+.table-kebab-clear-field {
+  color: #e05c5c !important;
+  margin-top: 4px;
+}
 
 /* Resize grip */
 .table-resize-grip {
@@ -2102,7 +2220,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 .table-add-col-btn:hover { border-color: var(--border-default); color: var(--text-primary); }
 
-/* Row action cell (trailing-row remove) */
+/* Row action cell — delete button on every row (hover-revealed) */
 .table-row-action-cell {
   border-color: transparent !important; background: transparent;
   display: flex; align-items: center; justify-content: center; padding: 0 4px;
@@ -2110,28 +2228,136 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .table-remove-row-btn {
   background: none; border: none; cursor: pointer;
   color: var(--text-faint); font-size: 14px; line-height: 1; border-radius: 3px;
-  padding: 1px 5px; opacity: 0;
+  padding: 1px 5px; opacity: 0; transition: opacity 0.12s;
 }
-.table-grid:hover .table-remove-row-btn,
-.table-body-virtual:hover .table-remove-row-btn { opacity: 1; }
-.table-remove-row-btn:hover { color: #e05c5c; background: rgba(224,92,92,0.12); }
+/* Reveal on hover of the cell itself, the cell's row, or anywhere in the body. */
+.table-row-action-cell:hover .table-remove-row-btn,
+.table-row:hover .table-remove-row-btn,
+.table-body-flow:hover .table-remove-row-btn { opacity: 0.65; }
+.table-remove-row-btn:hover { color: #e05c5c; background: rgba(224,92,92,0.12); opacity: 1 !important; }
+.table-remove-row-btn[disabled] { cursor: not-allowed; opacity: 0 !important; }
 
-/* Footer +row */
-.table-footer {
-  padding: 4px 6px;
+/* Filter-date badge — shown inline on goal/tracker instance labels so the
+   user sees what date range they're filtering on. Hover-darkens to read it
+   more clearly when needed. */
+.instance-filter-date-badge {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 1px 6px;
+  font-size: 9px; line-height: 1.3;
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+  background: var(--input-bg, rgba(255,255,255,0.04));
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  white-space: nowrap;
 }
-.table-add-row-btn {
-  background: none; border: 1px dashed var(--border-subtle);
-  color: var(--text-muted); font-size: 11px; border-radius: 4px;
-  padding: 3px 10px; cursor: pointer;
+
+/* Instance media section — image/video/audio block under label + fields on
+   board/list instances. Also an artifact drop target (dashed when empty). */
+.instance-media {
+  margin-top: 4px;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.table-add-row-btn:hover { border-color: var(--border-default); color: var(--text-primary); }
+.instance-media-el {
+  display: block;
+  max-width: 100%;
+  max-height: 160px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+.instance-media-empty {
+  min-height: 56px;
+  border: 1px dashed var(--border-subtle);
+  background: var(--input-bg, rgba(255,255,255,0.03));
+}
+.instance-media-dragover {
+  outline: 2px solid var(--accent-blue-border, #60a5fa);
+  outline-offset: -2px;
+  background: rgba(96,165,250,0.10);
+}
+.instance-media-placeholder {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+  letter-spacing: 0.4px;
+}
+
+/* +Row strip — full-width slim band at the bottom of the body, mirroring
+   the +Column strip in the header but rotated to the row axis. */
+.table-add-row-strip {
+  height: 18px; cursor: pointer;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 4px; margin: 4px 0 2px 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-faint); font-size: 12px; line-height: 1;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.table-add-row-strip:hover {
+  border-color: var(--border-default);
+  color: var(--text-primary);
+  background: var(--input-bg);
+}
+.table-add-row-strip-icon { font-size: 14px; line-height: 1; }
 
 .table-td {
-  border: 1px solid var(--border-subtle); min-height: 28px;
-  padding: 2px 6px; font-size: 13px; overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  /* The cell IS the container / drop point for the embedded occurrence —
+     give it real padding so the instance card sits inside with breathing
+     room (like an item dropped into a container, not flush to the edge). */
+  padding: 8px; font-size: 13px;
   position: relative;
+  display: block;
+  /* min-width:0 is REQUIRED on a flex item or it grows to its content's
+     min-content width (wide instance/field content) and shoves the rest of
+     the row right — that was why body columns drifted out of line with the
+     header. With min-width:0 the cell holds exactly its column flex-basis
+     and clips overflow (overflow-x:hidden below). */
+  min-width: 0;
+  /* Horizontal clip so wide content doesn't bleed across columns. Vertical
+     visible so content grows the row (measureElement reads the wrapper's
+     bounding rect). */
+  overflow-x: hidden;
+  overflow-y: visible;
 }
+.table-td > .doc-editor-wrapper { width: 100%; min-height: 0; }
+.table-td .doc-editor-content.ProseMirror { min-height: 0; line-height: 1.3; padding: 0; }
+.table-td .doc-editor-content.ProseMirror p { margin: 0; }
+/* The embedded occurrence looks EXACTLY like an instance anywhere else —
+   it keeps its normal card chrome AND its normal responsive layout (fields
+   wrap under the label when the cell is narrow, via .instance-content's own
+   flex-wrap). We ONLY constrain it to the cell width so it can't pour out
+   into the next column. No flex-wrap / justify-content overrides here — those
+   broke the wrap-under-label behavior the user wants. */
+/* AutoMarquee: ping-pong scroll by the exact overflow distance (set inline
+   as --mq-shift). `alternate` makes it scroll to the end, then back, so the
+   start is always returned to (readable both directions). */
+@keyframes auto-marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(var(--mq-shift, 0)); }
+}
+/* Field-pill marquee boxes size to their pill (so the fields row still wraps
+   each as a normal flex item); max-width:100% (set inline on .auto-marquee)
+   clamps a single over-wide pill so it scrolls instead of bleeding past the
+   container. No extra rules needed — AutoMarquee's inline styles suffice. */
+
+.table-cell-static { width: 100%; min-width: 0; }
+.table-td .instance-wrap { width: 100% !important; max-width: 100% !important; margin: 0 !important; }
+/* Drop-active highlight: shown while an external drop is hovering the cell.
+   Inset ring (box-shadow, not border) avoids shifting cell content. */
+.table-td-drop-active {
+  box-shadow: inset 0 0 0 2px var(--accent-blue);
+}
+
+/* Focused cell: lift the overflow clip so the fill-handle nub (bottom: -4px)
+   and the copy/copylink chip (bottom: -18px) — both positioned OUTSIDE the
+   cell bounds on purpose — are visible. z-index so they layer over the row
+   below; pointer-events:auto on the descendants keeps clicks live. */
+.table-td-focused { overflow: visible; z-index: 4; }
 
 /* Fill handle nub — bottom-right corner of focused cell */
 .table-fill-handle {

@@ -262,3 +262,124 @@ describe("resolveOptions — occurrence type", () => {
     expect(options).toEqual([{ value: "x", label: "x" }, { value: "y", label: "y" }]);
   });
 });
+
+// Regression — task #8 (handoff). The live grid seeds occurrence fields with
+// optionsSource in the FLAT shape (over/predicate/valuePath at the same
+// level as mode, no `find:` wrapper) AND uses `conjunction` instead of
+// `operator` on the predicate group. Confirm the resolver still filters
+// correctly under that exact shape — the user reported the picker "lets
+// me select anything" even though predicates were scoped, suggesting the
+// flat shape might bypass filtering. This test pins the contract.
+describe("resolveOptions — find mode (live-seed flat shape, regression for handoff task #8)", () => {
+  const liveSeedCtx = {
+    occurrencesById: {
+      movie1: { id: "movie1", moduleId: "mInception", role: "instance", fields: { libraryFid: { value: "movie", flow: "in" } } },
+      movie2: { id: "movie2", moduleId: "mDune",      role: "instance", fields: { libraryFid: { value: "movie", flow: "in" } } },
+      book1:  { id: "book1",  moduleId: "mAtomic",    role: "instance", fields: { libraryFid: { value: "book",  flow: "in" } } },
+      // Tasks have NO library field — must NOT appear in a "library IS movie" pick.
+      task1:  { id: "task1",  moduleId: "mWater",     role: "instance", fields: {} },
+      // Containers must be excluded by the $allInstances filter.
+      cont1:  { id: "cont1",  moduleId: "mCont",      role: "container", fields: { libraryFid: { value: "movie", flow: "in" } } },
+    },
+    modulesById: {
+      mInception: { id: "mInception", label: "Inception",     role: "instance" },
+      mDune:      { id: "mDune",      label: "Dune",          role: "instance" },
+      mAtomic:    { id: "mAtomic",    label: "Atomic Habits", role: "instance" },
+      mWater:     { id: "mWater",     label: "Drink Water",   role: "instance" },
+      mCont:      { id: "mCont",      label: "Library",       role: "container" },
+    },
+    fieldsById: {},
+    foldersById: {},
+  };
+
+  // Mirrors moviesWatchedFieldId in createLiveData.js exactly.
+  const liveSeedField = {
+    type: "occurrence",
+    meta: {
+      multiSelect: true,
+      optionsSource: {
+        mode: "find",
+        over: "$allInstances",
+        predicate: {
+          conjunction: "AND",  // ← seed uses `conjunction` (not `operator`)
+          rules: [
+            { left: "fields.libraryFid.value", comparator: "IS", right: "movie" },
+          ],
+        },
+        valuePath: "id",
+        labelPath: "label",
+      },
+    },
+  };
+
+  it("flat-shape predicate filters $allInstances by library === 'movie' (no `find:` wrapper)", () => {
+    const { options, totalMatched } = resolveOptions(liveSeedField, liveSeedCtx);
+    // Only the two movie instances pass — books/tasks/containers excluded.
+    expect(options.map(o => o.label).sort()).toEqual(["Dune", "Inception"]);
+    expect(totalMatched).toBe(2);
+  });
+
+  it("instances missing the library field are excluded (resolveRecordPath returns null → IS fails)", () => {
+    const { options } = resolveOptions(liveSeedField, liveSeedCtx);
+    // task1 has no fields.libraryFid → null → "null" !== "movie" → excluded.
+    expect(options.find(o => o.label === "Drink Water")).toBeUndefined();
+  });
+
+  it("$allInstances filter excludes container-role records even when they carry library=movie", () => {
+    const { options } = resolveOptions(liveSeedField, liveSeedCtx);
+    // cont1 IS movie-tagged but has role:"container" — buildCollection drops it.
+    expect(options.find(o => o.label === "Library")).toBeUndefined();
+  });
+
+  it("occurrence-type field with NO optionsSource returns empty list (does NOT fall through to 'show all')", () => {
+    // Catches a class of "lets me select anything" bugs where a missing
+    // optionsSource accidentally fell through to the unscoped collection.
+    const fieldMissingSource = { type: "occurrence", meta: { multiSelect: true } };
+    const { options, totalMatched } = resolveOptions(fieldMissingSource, liveSeedCtx);
+    expect(options).toEqual([]);
+    expect(totalMatched).toBe(0);
+  });
+
+  it("find-mode with EMPTY predicate.rules matches ALL records in the collection (no rules = open pool)", () => {
+    // This is the one path where an unscoped pool IS expected — if the
+    // author truly wants every instance, they pass an empty rules array.
+    // Tests pin that intent so future "tighten the default" refactors are
+    // intentional, not accidental.
+    const fieldOpen = {
+      type: "occurrence",
+      meta: {
+        optionsSource: {
+          mode: "find",
+          over: "$allInstances",
+          predicate: { conjunction: "AND", rules: [] },
+          valuePath: "id",
+          labelPath: "label",
+        },
+      },
+    };
+    const { options } = resolveOptions(fieldOpen, liveSeedCtx);
+    // 4 instance-role records (movies + book + task). Container excluded.
+    expect(options.map(o => o.label).sort()).toEqual(["Atomic Habits", "Drink Water", "Dune", "Inception"]);
+  });
+
+  it("predicate.conjunction is silently ignored (group reads `operator`, defaults to AND) — multi-rule still works", () => {
+    const multiRule = {
+      ...liveSeedField,
+      meta: {
+        ...liveSeedField.meta,
+        optionsSource: {
+          ...liveSeedField.meta.optionsSource,
+          predicate: {
+            conjunction: "AND",
+            rules: [
+              { left: "fields.libraryFid.value", comparator: "IS", right: "movie" },
+              { left: "label",                   comparator: "IS", right: "Inception" },
+            ],
+          },
+        },
+      },
+    };
+    const { options } = resolveOptions(multiRule, liveSeedCtx);
+    expect(options.map(o => o.label)).toEqual(["Inception"]);
+  });
+});

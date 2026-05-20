@@ -59,58 +59,82 @@ function StubTab({ label }) {
 export default function CommandCenter({ open, onOpenChange, isMobile }) {
   const [activeTab, setActiveTab] = useState("fields");
 
+  // Per user request: CC is centered horizontally with no side backdrop,
+  // and the max height is fixed (no longer scales with active tab) so it
+  // matches the longest tab (Shortcuts). Outer wrapper has no background —
+  // only the inner centered card does — so the area to either side of the
+  // CC stays transparent and the grid remains visible behind it.
+  const CC_MAX_H = isMobile ? "70vh" : "560px"; // 560px ≈ Shortcuts tab full height
+  const CC_MAX_W = "900px";
   return (
-    // Absolute-positioned overlay — slides down from below the header, overlays the grid.
     <div
       data-testid="command-center"
-      className="absolute left-0 right-0 overflow-hidden font-mono"
+      className="absolute left-0 right-0 font-mono"
       style={{
         top: "100%",
         zIndex: 200,
-        maxHeight: open ? (isMobile ? "70vh" : "50vh") : 0,
+        maxHeight: open ? CC_MAX_H : 0,
+        overflow: "hidden",
         transition: isMobile
           ? "max-height 0.12s ease-out"
           : "max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
-        background: "var(--body-bg)",
-        borderBottom: open ? "1px solid var(--border-default)" : "none",
-        boxShadow: open ? "0 4px 16px rgba(0,0,0,0.5)" : "none",
+        // No outer bg/border so the grid shows through to the sides of the
+        // centered card.
+        background: "transparent",
+        pointerEvents: open ? "auto" : "none",
       }}
     >
-      {/* ── Tab bar — horizontal scroll on mobile ── */}
-      <div className="flex items-center gap-0.5 px-2.5 py-1 border-b border-border-subtle bg-black/20 min-h-[32px] overflow-x-auto cc-tab-bar">
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              title={tab.label}
-              className={[
-                "inline-flex items-center gap-[5px] px-2.5 py-[3px] rounded-md text-[11px] cursor-pointer transition-all duration-150 whitespace-nowrap border",
-                isActive
-                  ? "bg-accent-blue-bg text-accent-blue-text border-accent-blue-border"
-                  : "bg-transparent text-text-muted border-transparent hover:text-foreground/70 hover:bg-white/[0.05]",
-              ].join(" ")}
-            >
-              <Icon className="w-[11px] h-[11px] shrink-0" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      <div
+        className="cc-card mx-auto overflow-hidden font-mono"
+        style={{
+          maxWidth: CC_MAX_W,
+          width: isMobile ? "100%" : "calc(100% - 32px)",
+          background: "var(--body-bg)",
+          border: open ? "1px solid var(--border-default)" : "none",
+          borderRadius: open ? 8 : 0,
+          marginTop: open ? 8 : 0,
+          boxShadow: open ? "0 6px 22px rgba(0,0,0,0.55)" : "none",
+          maxHeight: CC_MAX_H,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* ── Tab bar — horizontal scroll on mobile ── */}
+        <div className="flex items-center gap-0.5 px-2.5 py-1 border-b border-border-subtle bg-black/20 min-h-[32px] overflow-x-auto cc-tab-bar">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                title={tab.label}
+                className={[
+                  "inline-flex items-center gap-[5px] px-2.5 py-[3px] rounded-md text-[11px] cursor-pointer transition-all duration-150 whitespace-nowrap border",
+                  isActive
+                    ? "bg-accent-blue-bg text-accent-blue-text border-accent-blue-border"
+                    : "bg-transparent text-text-muted border-transparent hover:text-foreground/70 hover:bg-white/[0.05]",
+                ].join(" ")}
+              >
+                <Icon className="w-[11px] h-[11px] shrink-0" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
 
-      {/* ── Content ── */}
-      <div style={{ overflow: "auto", maxHeight: isMobile ? "calc(70vh - 40px)" : "calc(50vh - 40px)" }}>
-        {activeTab === "fields"      && <FieldsTab />}
-        {activeTab === "operations"  && <OperationsTab />}
-        {activeTab === "templates"  && <TemplatesTab />}
-        {activeTab === "grid"        && <GridSettingsTab />}
-        {activeTab === "appearance"  && <AppearanceTab />}
-        {activeTab === "shortcuts"   && <ShortcutsTab />}
-        {activeTab === "settings"    && <UserSettingsTab />}
-        {activeTab === "connections" && <ConnectionsTab />}
-        {activeTab === "files"       && <FilesTab />}
+        {/* ── Content — flex:1 lets every tab fill available height; overflow:auto inside */}
+        <div style={{ overflow: "auto", flex: 1, minHeight: 0 }}>
+          {activeTab === "fields"      && <FieldsTab />}
+          {activeTab === "operations"  && <OperationsTab />}
+          {activeTab === "templates"  && <TemplatesTab />}
+          {activeTab === "grid"        && <GridSettingsTab />}
+          {activeTab === "appearance"  && <AppearanceTab />}
+          {activeTab === "shortcuts"   && <ShortcutsTab />}
+          {activeTab === "settings"    && <UserSettingsTab />}
+          {activeTab === "connections" && <ConnectionsTab />}
+          {activeTab === "files"       && <FilesTab />}
+        </div>
       </div>
     </div>
   );

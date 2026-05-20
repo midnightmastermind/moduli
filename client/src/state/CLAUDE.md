@@ -1,6 +1,15 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-05-17. Check this file before re-reading source._
+_Updated: 2026-05-18. Check this file before re-reading source._
+
+## Recent Changes (May 18 2026 — applyEffectsToLiveOccs carries role/kind/label on CREATE_ITEM)
+- **operationExecutor.js (`applyEffectsToLiveOccs` `CREATE_ITEM`)**: New occurrence stub now copies `role / kind / label / linkedGroupId` from `effect.template` (or `inst.*` for COPY_LINK which uses `template: null`), and honors `inst.occurrences[]` when the producer inlined children. Without these stamps, the next op in a `runMatchingOperations` batch couldn't see APPLY_TEMPLATE's clones via `$allInstances` / `$allContainers` / etc., because the `allItems` setup in `executePipeline` reads `occ.role ?? tpl?.role` — `tpl` is looked up in `state.modules`, which only updates after `applyOperationEffect` dispatches Redux (which happens AFTER all ops finish running). Symptom: SCHED-TABLE saw 360 instances (toolkit/todo/etc) but ZERO of BUILD-DAY's freshly-created Schedule tasks, so its `_ancestors HAS_ANCESTOR $schedPageId AND SAME_DAY $schedDate` predicate matched nothing → empty Schedule Table. Same shape as the role-stamping already done in bindSocketToStore's CREATE_ITEM handler (line 777-779) — this brings the live overlay into parity.
+
+## Recent Changes (May 18 2026 — UPDATE_ITEM_META mirrors writes into localOccsById)
+- **bindSocketToStore.js (`applyOperationEffect` `UPDATE_ITEM_META`)**: Now writes the freshly-computed `nextMeta` back into `localOccsById[effect.itemId]` BEFORE calling `updateOccurrence`. Without this mirror, two `UPDATE_ITEM_META` effects emitted in the same effect batch (e.g. the Schedule Table op writing 4 cells per row) both read the pre-write meta from the overlay, recompute `nextMeta` from that stale snapshot, and silently overwrite each other's cell entries — only the LAST write per batch survived (`cellsPersisted: 1` for a 6-row × 4-col rebuild). The Redux dispatch already updates React's render layer; this overlay mirror keeps the executor's view fresh too. No behavior change for callers that emit a single UPDATE_ITEM_META at a time (write applied immediately to both layers as before).
+
+## Recent Changes (May 18 2026 — fieldVisibility cascade selectors)
+- **selectors.js**: `getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById, parentByChildId })` — walks leaf→root via the shared `buildParentMap` (same authoritative occurrences[]-reverse-map + parentId-fallback as `getEffectiveFilterForOccurrence`); returns the FIRST non-null `occ.fieldVisibility` in the chain. `{mode:"off"}` short-circuits to `null` ("show all here + descendants until re-overridden"). `fieldPassesVisibility(fieldId, fv)` — pure predicate (null/off/empty = pass; show=whitelist; hide=blacklist). Tests in `__tests__/fieldVisibilityCascade.test.js` (9 cases).
 
 ## Recent Changes (2026-05-17 — Period-shape filter values in cascade)
 - **`selectors.js` (`isOccurrenceVisible`)**: Both the condition-based path and the legacy direct-equality path now detect `{value, unit}` filter values and route through `evalRule({..., comparator: "DATE_IN_PERIOD", right})` so weekly/monthly/yearly periods broaden visibility correctly. Bare YYYY-MM-DD strings keep the existing SAME_DAY path; only object-shape values flip to period matching.

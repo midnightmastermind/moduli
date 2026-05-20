@@ -11,7 +11,7 @@
 // makes the source visible inside the Occurrences category. Field bindings
 // stay in the Fields category alongside the global field templates.
 
-import { Database, Box, Hash, Variable, Sparkles } from "lucide-react";
+import { Database, Box, Hash, Variable, Sparkles, Zap } from "lucide-react";
 
 const OCCURRENCE_COLLECTION_TYPES = new Set([
   "allOccurrences", "allContainers", "allPages", "allInstances", "allTemplates",
@@ -141,6 +141,33 @@ export const CATEGORIES = [
     })),
   },
   {
+    id: "operations",
+    label: "Operations",
+    description: "Every operation on the grid, with introspection metadata (fields_written, triggered_by, invokes, …). $allOperations iterates all of them; individual op:<id> rows pick a specific one.",
+    icon: Zap,
+    color: "rgba(245,158,11,0.7)",   // amber
+    resolveItems: (ctx) => {
+      const builtins = [{
+        value: "$allOperations",
+        title: "$allOperations",
+        sub: "operationArray",
+        description: "Every operation on the grid (each entry merged with its introspection record)",
+        hasChildren: true,
+      }];
+      const opsById = ctx?.operationsById || {};
+      const opRows = Object.values(opsById)
+        .map(op => ({
+          value: `op:${op.id}`,
+          title: op.name || "(unnamed operation)",
+          sub: op.triggerType || "operation",
+          description: op.description || `Operation${op.enabled === false ? " (disabled)" : ""}`,
+          hasChildren: true,
+        }))
+        .sort((a, b) => a.title.localeCompare(b.title));
+      return [...builtins, ...opRows];
+    },
+  },
+  {
     id: "builtins",
     label: "Built-ins",
     description: "Date/time/grid scalars provided by the runtime.",
@@ -215,6 +242,11 @@ const COLLECTION_ITEMS = [
     description: "Every field record on the grid",
     hasChildren: false,
   },
+  {
+    value: "$allOperations", title: "$allOperations", sub: "operationArray",
+    description: "Every operation on the grid (with introspection metadata: fields_written, triggered_by_*, invokes_operations, …)",
+    hasChildren: false,
+  },
 ];
 
 export const COLLECTION_PICKER_CONFIG = {
@@ -238,6 +270,7 @@ export function recordShapeForCollection(over) {
   if (!over) return "occurrence";
   if (over === "$allTemplates") return "templateArray";
   if (over === "$allFields") return "fieldArray";
+  if (over === "$allOperations") return "operation";
   // Everything else (allOccurrences/allItems/allContainers/allPages/allInstances)
   // resolves to per-occurrence keys.
   return "occurrence";

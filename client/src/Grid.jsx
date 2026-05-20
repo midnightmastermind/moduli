@@ -25,6 +25,7 @@ import { DragProvider } from "./helpers/DragProvider";
 import { useDragContext, useDragHotContext, useDroppable, DragType, DropAccepts } from "./helpers/dragSystem";
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import { getGridPanels } from "./state/selectors";
+import { applyLocalSort } from "./helpers/LayoutHelpers";
 import MobileGridNav from "./mobile/MobileGridNav";
 import { Layers } from "lucide-react";
 
@@ -361,13 +362,18 @@ function GridInner() {
 
   const gridRef = useRef(null);
 
-  // Get panel occurrences with placement data from the grid
+  // Get panel occurrences with placement data from the grid.
+  // When `grid.meta.localSort` is set, panels are sorted by the chosen key
+  // and reflowed row-major into 1×1 cells — placement is overridden but the
+  // underlying occurrence.placement is NOT mutated (clear sort → original
+  // placement is back). rowSpan/colSpan collapse to 1 in sort mode; user
+  // can re-resize after clearing sort.
   const visiblePanels = useMemo(() => {
     const panelOccurrences = getGridPanels(state);
 
     // Map occurrences to panels with placement merged in
     // occ.panel is set by autofillOccurrence when the linked module has role "panel"
-    return panelOccurrences
+    const placed = panelOccurrences
       .filter(occ => !!occ.panel)
       .map(occ => ({
         ...occ.panel,
@@ -380,7 +386,28 @@ function GridInner() {
         _occurrenceId: occ.id,
         _occurrence: occ,
       }));
-  }, [state]);
+
+    const gridSort = grid?.meta?.localSort || null;
+    if (!gridSort?.fieldId || placed.length < 2) return placed;
+
+    // Sort + reflow row-major. Use applyLocalSort against `{ instance,
+    // occurrence }`-shaped wrappers so the helper's label / field-value
+    // resolution paths apply unchanged. Hidden panels (display:none) keep
+    // their relative order with the rest — the per-cell visibility hook
+    // below still picks ONE visible panel per cell when needed.
+    const items = placed.map(p => ({ instance: p, occurrence: p._occurrence }));
+    const sorted = applyLocalSort(items, gridSort, state?.modulesById);
+    const colsClamped = Math.max(1, cols);
+    return sorted.map((it, i) => ({
+      ...it.instance,
+      row: Math.floor(i / colsClamped),
+      col: i % colsClamped,
+      width: 1,
+      height: 1,
+      _occurrenceId: it.occurrence?.id,
+      _occurrence: it.occurrence,
+    }));
+  }, [state, grid?.meta?.localSort, cols]);
 
   // Defensive: Ensure at least one panel per cell is visible
   useEffect(() => {

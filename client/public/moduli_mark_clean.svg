@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200" fill="none" role="img" aria-label="Moduli mark">
+  <defs>
+    <linearGradient id="mGrad" x1="40" y1="40" x2="280" y2="160" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#48F2E6"/>
+      <stop offset="0.55" stop-color="#39A9E6"/>
+      <stop offset="1" stop-color="#2C4FD9"/>
+    </linearGradient>
+    <linearGradient id="mGradDark" x1="40" y1="40" x2="280" y2="160" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0b3a55"/>
+      <stop offset="1" stop-color="#06152e"/>
+    </linearGradient>
+    <clipPath id="overL"><rect x="0"   y="0" width="160" height="200"/></clipPath>
+    <clipPath id="overR"><rect x="160" y="0" width="160" height="200"/></clipPath>
+  </defs>
+
+  <!-- Outer dark ribbon for depth (no dasharray => no broken pixels) -->
+  <path
+    d="M 40 100
+       C 40 50, 100 30, 145 60
+       C 175 80, 195 95, 215 100
+       C 235 105, 255 110, 285 130
+       C 320 150, 320 70, 285 60
+       C 255 50, 235 70, 215 100
+       C 195 130, 175 145, 145 165
+       C 100 195, 40 175, 40 100 Z"
+    stroke="url(#mGradDark)"
+    stroke-width="46"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.55"
+  />
+
+  <!-- Main gradient ribbon (continuous infinity knot) -->
+  <path
+    d="M 40 100
+       C 40 50, 100 30, 145 60
+       C 175 80, 195 95, 215 100
+       C 235 105, 255 110, 285 130
+       C 320 150, 320 70, 285 60
+       C 255 50, 235 70, 215 100
+       C 195 130, 175 145, 145 165
+       C 100 195, 40 175, 40 100 Z"
+    stroke="url(#mGrad)"
+    stroke-width="38"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Inner specular highlight -->
+  <path
+    d="M 60 100
+       C 60 64, 106 50, 142 78
+       C 170 96, 192 110, 214 110
+       C 238 110, 256 120, 280 134
+       C 302 146, 302 78, 280 70
+       C 256 62, 238 82, 214 100
+       C 192 110, 170 122, 142 138
+       C 106 158, 60 142, 60 100 Z"
+    stroke="rgba(255,255,255,0.30)"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+
+  <!-- Over/under knot illusion at center cross -->
+  <g>
+    <path d="M 168 78 C 188 92, 200 100, 215 100"
+      stroke="url(#mGrad)" stroke-width="40"
+      stroke-linecap="round" stroke-linejoin="round"
+      clip-path="url(#overL)" />
+    <path d="M 215 100 C 232 100, 242 110, 258 122"
+      stroke="url(#mGrad)" stroke-width="40"
+      stroke-linecap="round" stroke-linejoin="round"
+      clip-path="url(#overR)" />
+  </g>
+</svg>

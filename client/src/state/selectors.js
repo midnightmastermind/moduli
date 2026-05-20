@@ -350,6 +350,56 @@ export function getEffectiveFilterForOccurrence(occ, { grid, occurrencesById, pa
   return effective;
 }
 
+// Resolve the effective field-visibility for an occurrence by walking its
+// ancestor chain (same authoritative parent linkage as
+// getEffectiveFilterForOccurrence — occurrences[] reverse map, parentId
+// fallback). Field-visibility cascades top→down: a descendant inherits the
+// nearest ancestor's setting unless it sets its own or explicitly turns it
+// off.
+//
+// occurrence.fieldVisibility shapes:
+//   - null / undefined        → no own setting; inherit from ancestors
+//   - { mode: "off" }         → explicitly clear inherited visibility here
+//                                (and for descendants, until one re-overrides)
+//   - { mode: "show", fieldIds } → only those field IDs render (whitelist)
+//   - { mode: "hide", fieldIds } → those field IDs are skipped (blacklist)
+//
+// Walk leaf→root; the FIRST occurrence with a non-null fieldVisibility wins
+// (it is by construction the nearest setting in the chain). When that nearest
+// setting is mode:"off" the function returns null — "show all fields here".
+// Returns { mode: "show"|"hide", fieldIds: string[] } or null.
+export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById, parentByChildId } = {}) {
+  if (!occ) return null;
+  const pbc = parentByChildId || buildParentMap(occurrencesById || {});
+  let cur = occ;
+  const guard = new Set();
+  while (cur && !guard.has(cur.id)) {
+    guard.add(cur.id);
+    const fv = cur.fieldVisibility;
+    if (fv != null) {
+      if (fv.mode === "off") return null;
+      if (fv.mode === "show" || fv.mode === "hide") {
+        return { mode: fv.mode, fieldIds: Array.isArray(fv.fieldIds) ? fv.fieldIds : [] };
+      }
+      // Unknown/empty mode — treat as no constraint, keep walking up.
+    }
+    const nextId = pbc[cur.id] ?? cur.parentId;
+    cur = nextId ? (occurrencesById?.[nextId] || null) : null;
+  }
+  return null;
+}
+
+// Pure predicate: does fieldId pass the given resolved field-visibility?
+// `fv` is the output of getEffectiveFieldVisibilityForOccurrence (or a table
+// column's local fieldVisibility). null = no constraint, everything passes.
+export function fieldPassesVisibility(fieldId, fv) {
+  if (!fv || !fv.mode || fv.mode === "off") return true;
+  const inList = Array.isArray(fv.fieldIds) && fv.fieldIds.includes(fieldId);
+  if (fv.mode === "show") return inList;
+  if (fv.mode === "hide") return !inList;
+  return true;
+}
+
 // Returns synthesized IS-comparator conditions for an occurrence's local
 // `filters[]` entries that opt into cascade-driven matching (active && fieldId
 // && condition == null). The Time Slot select on the schedule page is the

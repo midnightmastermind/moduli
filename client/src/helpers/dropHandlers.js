@@ -93,6 +93,7 @@ import { createModuleAction, createOccurrenceAction } from "../state/actions";
 import { mimeToKind } from "./fileKind";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import { DROP_TARGET_KIND } from "./dragHitTesting";
+import { autoAppendFieldsToAncestorsShowMode } from "./fieldVisibilityAutoAppend";
 
 // Normalize a date-typed filter value to a local-tz YYYY-MM-DD string. Handles
 // the three input shapes the filter pipeline produces in the wild:
@@ -182,6 +183,28 @@ function makeUUID() {
 
 function cellKeyFromPanel(p) {
   return `cell-${p.row}-${p.col}`;
+}
+
+// Thin wrapper that resolves the new occurrence + destination parent by id and
+// fires the auto-append helper. Defined once here so every drop branch can call
+// it with whatever ids it has — the helper itself short-circuits when there's
+// nothing to do (no fieldIds to add, no ancestor in show mode). Resilient to
+// stale `occurrencesById` references: the dispatched/optimistic copy of the
+// new occurrence may not have landed back into the passed `occurrencesById`
+// map yet, so callers can pass `newOccurrence` directly (object) as a
+// fallback.
+function autoAppendOnDrop({ ctx, newOccurrenceId, newOccurrence, parentOccurrenceId }) {
+  if (!ctx) return;
+  const { dispatch, socket, state, occurrencesById } = ctx;
+  const occ = newOccurrence || (newOccurrenceId ? occurrencesById?.[newOccurrenceId] : null);
+  if (!occ) return;
+  const parent = parentOccurrenceId ? occurrencesById?.[parentOccurrenceId] : null;
+  if (!parent) return;
+  autoAppendFieldsToAncestorsShowMode({
+    newOccurrence: occ,
+    destinationOccurrence: parent,
+    ctx: { dispatch, socket, occurrencesById, modulesById: state?.modulesById },
+  });
 }
 
 // ============================================================
@@ -641,6 +664,7 @@ export function handleDocEmbedDrop(dropContext, ctx) {
         occurrence: { id: toPageOccId, occurrences: [...(toPageOcc.occurrences || []), newOccId] },
         emit: true,
       });
+      autoAppendOnDrop({ ctx, newOccurrence: { ...movedOcc, id: newOccId, parentId: toPageOccId }, parentOccurrenceId: toPageOccId });
     } else {
       CommitHelpers.updateOccurrence({
         dispatch, socket,
@@ -653,6 +677,7 @@ export function handleDocEmbedDrop(dropContext, ctx) {
         emit: true,
       });
       embedDeleteRegistry.get(occurrenceId)?.();
+      autoAppendOnDrop({ ctx, newOccurrence: movedOcc, parentOccurrenceId: toPageOccId });
     }
     clearSession();
     return;
@@ -715,6 +740,7 @@ export function handleDocEmbedDrop(dropContext, ctx) {
     if (toIndex !== null) newOccurrences.splice(toIndex, 0, newOccId);
     else newOccurrences.push(newOccId);
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: toCOcc.id, occurrences: newOccurrences }, emit: true });
+    autoAppendOnDrop({ ctx, newOccurrence: { ...movedOcc, id: newOccId, parentId: toCOcc.id }, parentOccurrenceId: toCOcc.id });
   } else {
     CommitHelpers.updateOccurrence({
       dispatch, socket,
@@ -726,6 +752,7 @@ export function handleDocEmbedDrop(dropContext, ctx) {
     else newOccurrences.push(occurrenceId);
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: toCOcc.id, occurrences: newOccurrences }, emit: true });
     embedDeleteRegistry.get(occurrenceId)?.();
+    autoAppendOnDrop({ ctx, newOccurrence: movedOcc, parentOccurrenceId: toCOcc.id });
   }
   clearSession();
 }
@@ -833,17 +860,18 @@ export function handleOccurrenceMove(dropContext, ctx) {
     const isCopy = sessionRef.current?.mode === "copy";
     if (isCopy) {
       const newOccId = makeUUID();
+      const newCopyOcc = {
+        id: newOccId,
+        userId: state?.userId,
+        gridId: state?.gridId || state?.grid?._id,
+        moduleId: movedOcc.moduleId,
+        parentId: toPageOccId,
+        fields: { ...(movedOcc.fields || {}) },
+        meta: { ...(movedOcc.meta || {}), x: cx, y: cy },
+      };
       CommitHelpers.createOccurrence({
         dispatch, socket,
-        occurrence: {
-          id: newOccId,
-          userId: state?.userId,
-          gridId: state?.gridId || state?.grid?._id,
-          moduleId: movedOcc.moduleId,
-          parentId: toPageOccId,
-          fields: { ...(movedOcc.fields || {}) },
-          meta: { ...(movedOcc.meta || {}), x: cx, y: cy },
-        },
+        occurrence: newCopyOcc,
         emit: true,
       });
       CommitHelpers.updateOccurrence({
@@ -851,6 +879,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
         occurrence: { id: toPageOccId, occurrences: [...(toPageOcc.occurrences || []), newOccId] },
         emit: true,
       });
+      autoAppendOnDrop({ ctx, newOccurrence: newCopyOcc, parentOccurrenceId: toPageOccId });
     } else {
       // Move: detach from old parent, attach to page, stamp canvas position.
       const fromParentOccId = movedOcc.parentId;
@@ -912,6 +941,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
         fromPanelId: null,
         toPanelId: null,
       });
+      autoAppendOnDrop({ ctx, newOccurrence: { ...movedOcc, parentId: toPageOccId, meta: newMeta }, parentOccurrenceId: toPageOccId });
     }
     clearSession();
     return;
@@ -938,7 +968,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
 
     const isCopy = sessionRef.current?.mode === "copy";
     if (isCopy) {
-      LayoutHelpers.copyInstanceToContainer({
+      const canvasCopyResult = LayoutHelpers.copyInstanceToContainer({
         dispatch, socket,
         gridId: state?.gridId || state?.grid?._id,
         sourceInstanceId: payload.moduleId,
@@ -946,6 +976,9 @@ export function handleOccurrenceMove(dropContext, ctx) {
         userId: state?.userId, emit: true,
         sourceOccurrence: movedOcc,
       });
+      if (canvasCopyResult?.occurrence) {
+        autoAppendOnDrop({ ctx, newOccurrence: canvasCopyResult.occurrence, parentOccurrenceId: toCInnerOcc.id });
+      }
     } else {
       // Strip canvas-only positional meta (x/y) so it doesn't carry into a list container.
       const { x: _x, y: _y, ...metaWithoutPos } = movedOcc.meta || {};
@@ -1002,6 +1035,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
         fromPanelId: null,
         toPanelId: null,
       });
+      autoAppendOnDrop({ ctx, newOccurrence: { ...movedOcc, parentId: toCInnerOcc.id, meta: metaWithoutPos }, parentOccurrenceId: toCInnerOcc.id });
     }
     clearSession();
     return;
@@ -1114,6 +1148,9 @@ export function handleOccurrenceMove(dropContext, ctx) {
       toPanelLabel: toPanelMod?.label || "",
     });
     autoCheckBooleanFields(state, dispatch, socket, draggedInstanceId, copyResult?.occurrence?.id);
+    if (copyResult?.occurrence && toCOcc) {
+      autoAppendOnDrop({ ctx, newOccurrence: copyResult.occurrence, parentOccurrenceId: toCOcc.id });
+    }
 
     // Trackers + onChange-bound aggregations fire while createOccurrence is
     // still inside the OccurrenceCreateOp dispatch — at that moment the new
@@ -1152,6 +1189,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
         occurrence: occurrencesById[occurrenceId],
         parentContainerOcc: toCOcc,
       });
+      autoAppendOnDrop({ ctx, newOccurrenceId: occurrenceId, parentOccurrenceId: toCOcc.id });
 
       // Fire OccurrenceMoveOp
       const _revMap = buildReverseMap(Object.values(occurrencesById));
@@ -1447,17 +1485,18 @@ export function handleModuleDrop(dropContext, ctx) {
       const cy = rect ? Math.max(0, Math.round(y - rect.top + scrollY)) : 20;
 
       const newOccId = makeUUID();
+      const newCanvasLeaf = {
+        id: newOccId,
+        userId: state?.userId,
+        gridId,
+        moduleId: payload.moduleId,
+        parentId: pageOccId,
+        fields: {},
+        meta: { x: cx, y: cy },
+      };
       CommitHelpers.createOccurrence({
         dispatch, socket,
-        occurrence: {
-          id: newOccId,
-          userId: state?.userId,
-          gridId,
-          moduleId: payload.moduleId,
-          parentId: pageOccId,
-          fields: {},
-          meta: { x: cx, y: cy },
-        },
+        occurrence: newCanvasLeaf,
         emit: true,
       });
       CommitHelpers.updateOccurrence({
@@ -1465,6 +1504,7 @@ export function handleModuleDrop(dropContext, ctx) {
         occurrence: { id: pageOccId, occurrences: [...(pageOcc.occurrences || []), newOccId] },
         emit: true,
       });
+      autoAppendOnDrop({ ctx, newOccurrence: newCanvasLeaf, parentOccurrenceId: pageOccId });
       return;
     }
   }
@@ -1501,12 +1541,15 @@ export function handleModuleDrop(dropContext, ctx) {
         parentContainerOcc: targetContainerOcc,
         existingFields: {},
       });
-      LayoutHelpers.copyInstanceToContainer({
+      const ccCopyResult = LayoutHelpers.copyInstanceToContainer({
         dispatch, socket, gridId, sourceInstanceId: payload.moduleId,
         toContainer: targetContainerOcc ? { ...targetContainer, _occurrence: targetContainerOcc } : targetContainer,
         userId: state?.userId, iterationMode: "persistent", emit: true,
         sourceOccurrence: Object.keys(stampedFields).length ? { fields: stampedFields } : null,
       });
+      if (ccCopyResult?.occurrence && targetContainerOcc) {
+        autoAppendOnDrop({ ctx, newOccurrence: ccCopyResult.occurrence, parentOccurrenceId: targetContainerOcc.id });
+      }
     }
   }
 

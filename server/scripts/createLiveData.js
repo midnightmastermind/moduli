@@ -45,13 +45,14 @@ import {
   buildDayPageTemplate,
   makeScheduleBuildDayOp,
   makeDayPageBuildOp,
+  makeDayPageBuildTasksCompletedOp,
   makeStampDateTimeSlotOp,
   makeClearDateOnMoveOutOp,
   makeTrackerOp,
 } from "../utils/liveSystemBuilders.js";
 import fs from "fs";
 import { parseSectionsWithInstances } from "../utils/mdParsers.js";
-import { makeDocContent, buildMergedDocTextmap } from "../utils/docBuilders.js";
+import { makeDocContent, buildMergedDocTextmap, inlineToTipTap } from "../utils/docBuilders.js";
 
 // Markdown source files live at moduli/docs/ (same resolution as createDefaultUserData)
 const __liveDataDirname = dirname(__filename);
@@ -93,10 +94,59 @@ export async function createLiveData(userId, options = {}) {
   const timeslotFieldId  = uid();
   const dueFieldId       = uid();
   const completedFieldId = uid();
+  // lastSeen: stamped on every schedule-drop by Schedule: Stamp Date & Time
+  // Slot. Surfaces as a freshness indicator on occurrence-select chips
+  // (movies/books/podcasts/courses) so the user can see when each entry
+  // was last added to schedule. Type=date so the same display widgets that
+  // render the regular `date` field can render it.
+  const lastSeenFieldId  = uid();
   const manifestId       = uid();
   const schedFilterId    = uid();
   const timeslotFilterId = uid();
   const goalsFilterId    = uid();
+  const accountsFilterId = uid();
+  // isTask: hidden boolean marker on every task module. Tracker: Tasks
+  // Completed filters on `isTask IS true` so non-task items in Schedule
+  // (mood logs, water logs, etc.) don't pad the count.
+  const isTaskFieldId    = uid();
+  // Bill schedule fields — used by bill instances in the new Bills page.
+  // billCadence is a select; billDay/billCadenceN are numeric; billAnchor
+  // is a date used as the cycle origin; billNextDue is the op-computed
+  // next due date.
+  const billCadenceFieldId   = uid();
+  const billDayFieldId       = uid();
+  const billCadenceNFieldId  = uid();
+  const billAnchorFieldId    = uid();
+  const billNextDueFieldId   = uid();
+  // Occurrence-type references used by tasks to point at the bill / account /
+  // subscription instances they target. All find-mode (see optionsSource).
+  const accountRefFieldId      = uid();
+  const billRefFieldId         = uid();
+  const subscriptionRefFieldId = uid();
+
+  // Category folder IDs — pre-generated so field/op records can declare
+  // their folderId at definition time. The actual Folder records are
+  // persisted in the Manifest step further down. These are command-center
+  // category folders (folderType: "category"), not manifest-tree pages.
+  const fieldCategoryIds = {
+    scheduling:   uid(),
+    workouts:     uid(),
+    nutrition:    uid(),
+    finance:      uid(),
+    wellness:     uid(),
+    intellectual: uid(),
+    bills:        uid(),
+    display:      uid(),
+    library:      uid(),
+    refs:         uid(),
+  };
+  const opCategoryIds = {
+    trackers: uid(),
+    schedule: uid(),
+    daypage:  uid(),
+    bills:    uid(),
+    library:  uid(),
+  };
 
   // Library / Movies Watched fields (matches createTestGrid naming exactly)
   const libraryFieldId              = uid();
@@ -251,6 +301,7 @@ export async function createLiveData(userId, options = {}) {
       inputEnabled: true,
       displayEnabled: false,
       meta: { variant: "switch", defaultValue: false },
+      folderId: fieldCategoryIds.scheduling,
     },
     date: {
       id: dateFieldId,
@@ -258,6 +309,7 @@ export async function createLiveData(userId, options = {}) {
       type: "date",
       inputEnabled: true,
       displayEnabled: false,
+      folderId: fieldCategoryIds.scheduling,
     },
     timeslot: {
       id: timeslotFieldId,
@@ -265,6 +317,7 @@ export async function createLiveData(userId, options = {}) {
       type: "text",
       inputEnabled: true,
       displayEnabled: false,
+      folderId: fieldCategoryIds.scheduling,
     },
     due: {
       id: dueFieldId,
@@ -273,6 +326,150 @@ export async function createLiveData(userId, options = {}) {
       inputEnabled: true,
       displayEnabled: false,
       meta: {},
+      folderId: fieldCategoryIds.scheduling,
+    },
+    // lastSeen: stamped on every schedule-drop by Schedule: Stamp Date & Time
+    // Slot (extended in liveSystemBuilders.makeStampDateTimeSlotOp). Renders
+    // on occurrence-select chips (e.g. Movies Watched: "Inception · 2026-05-19")
+    // so the user can see when each option was last added to schedule.
+    lastSeen: {
+      id: lastSeenFieldId,
+      name: "Last Seen",
+      type: "date",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: {},
+      folderId: fieldCategoryIds.scheduling,
+    },
+    // isTask: hidden boolean marker. Pre-stamped true on every task module's
+    // occurrence so trackers can filter `isTask IS true` to exclude non-task
+    // schedule items from the count.
+    isTask: {
+      id: isTaskFieldId,
+      name: "Is Task",
+      type: "boolean",
+      inputEnabled: true,
+      displayEnabled: false,
+      folderId: fieldCategoryIds.scheduling,
+    },
+    // ── BILL SCHEDULE FIELDS ──────────────────────────────────────────────────
+    // Used by bill instances in the Bills page (see Phase B3). Together they
+    // describe a recurring schedule. `Bill: Compute Next Due` reads these and
+    // writes `billNextDue` to the bill. `Schedule Due: Seed` then COPY_LINKs
+    // Pay Bill tasks into Schedule's Due container when billNextDue falls in
+    // the active window.
+    billCadence: {
+      id: billCadenceFieldId,
+      name: "Cadence",
+      type: "select",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: {
+        optionsSource: {
+          mode: "manual",
+          options: ["weekly", "biweekly", "monthly", "quarterly", "yearly", "every-n-days"],
+        },
+      },
+      folderId: fieldCategoryIds.bills,
+    },
+    billDay: {
+      id: billDayFieldId,
+      // For monthly/quarterly/yearly: day-of-month (1-31).
+      // For weekly/biweekly: day-of-week (1=Mon, 7=Sun).
+      // Ignored for every-n-days (use billCadenceN + billAnchor).
+      name: "Day",
+      type: "number",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: { min: 1, max: 31, increment: 1 },
+      folderId: fieldCategoryIds.bills,
+    },
+    billCadenceN: {
+      id: billCadenceNFieldId,
+      name: "Every N Days",
+      type: "number",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: { min: 1, increment: 1 },
+      folderId: fieldCategoryIds.bills,
+    },
+    billAnchor: {
+      id: billAnchorFieldId,
+      name: "Anchor Date",
+      type: "date",
+      inputEnabled: true,
+      displayEnabled: false,
+      folderId: fieldCategoryIds.bills,
+    },
+    billNextDue: {
+      // Computed by Bill: Compute Next Due. User-editable as override.
+      id: billNextDueFieldId,
+      name: "Next Due",
+      type: "date",
+      inputEnabled: true,
+      displayEnabled: false,
+      folderId: fieldCategoryIds.bills,
+    },
+    // ── REFERENCE FIELDS (occurrence-type, find-mode) ──
+    // accountRef: any task whose `amount` field is set can point at the
+    // account the money came from / went to. Resolves to account instance
+    // labels via find-mode predicate at render time.
+    accountRef: {
+      id: accountRefFieldId,
+      name: "Account",
+      type: "occurrence",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: {
+        // Find any instance under the Accounts page. parentOccurrenceId is
+        // patched after the Accounts page is created (see post-seed patch).
+        optionsSource: {
+          mode: "find",
+          over: "$allInstances",
+          // Filled in after accounts page occurrence id is known.
+          predicate: { conjunction: "AND", rules: [] },
+          valuePath: "id",
+          labelPath: "label",
+        },
+      },
+      folderId: fieldCategoryIds.refs,
+    },
+    // billRef: used by the Pay Bill task to select WHICH bill to pay.
+    billRef: {
+      id: billRefFieldId,
+      name: "Bill",
+      type: "occurrence",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: {
+        optionsSource: {
+          mode: "find",
+          over: "$allInstances",
+          predicate: { conjunction: "AND", rules: [] },
+          valuePath: "id",
+          labelPath: "label",
+        },
+      },
+      folderId: fieldCategoryIds.refs,
+    },
+    // subscriptionRef: used by Cancel Subscription. Same shape as billRef
+    // but predicate gets scoped to the Subscriptions container.
+    subscriptionRef: {
+      id: subscriptionRefFieldId,
+      name: "Subscription",
+      type: "occurrence",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: {
+        optionsSource: {
+          mode: "find",
+          over: "$allInstances",
+          predicate: { conjunction: "AND", rules: [] },
+          valuePath: "id",
+          labelPath: "label",
+        },
+      },
+      folderId: fieldCategoryIds.refs,
     },
 
     // ── GENERAL INPUT FIELDS ──────────────────────────────────────────────────
@@ -475,6 +672,14 @@ export async function createLiveData(userId, options = {}) {
           },
           valuePath: "id",
           labelPath: "label",
+          // Selected-chip display — shows just the library tag on chips.
+          // No media yet (movies don't have posters seeded); label + tag is
+          // enough to disambiguate.
+          chipDisplay: {
+            showLabel: true,
+            showMedia: false,
+            fieldIds: [libraryFieldId],
+          },
           addNew: {
             parentOccurrenceId: null, // patched to libraryContOccId after occurrences are created
             stampFields: { [libraryFieldId]: { value: "movie", flow: "in" } },
@@ -484,7 +689,7 @@ export async function createLiveData(userId, options = {}) {
     },
     moviesWatchedDisplay: {
       id: moviesWatchedDisplayFieldId,
-      name: "Movies Watched Today",
+      name: "Movies Watched",
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
@@ -517,6 +722,15 @@ export async function createLiveData(userId, options = {}) {
           },
           valuePath: "id",
           labelPath: "label",
+          // Selected-chip display config (consumed by Field.jsx's
+          // OccurrenceOption). Show the book's page count + library
+          // category on each selected chip — demos the new
+          // chip-display config UI added in command-center FieldsTab.
+          chipDisplay: {
+            showLabel: true,
+            showMedia: true,  // Link2 placeholder for now; once book covers are added, posters render.
+            fieldIds: [pagesFieldId, libraryFieldId],
+          },
           addNew: {
             parentOccurrenceId: null, // patched to libraryContOccId after occurrences are created
             stampFields: { [libraryFieldId]: { value: "book", flow: "in" } },
@@ -526,7 +740,7 @@ export async function createLiveData(userId, options = {}) {
     },
     booksReadDisplay: {
       id: booksReadDisplayFieldId,
-      name: "Books Read Today",
+      name: "Books Read",
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
@@ -578,7 +792,7 @@ export async function createLiveData(userId, options = {}) {
     },
     podcastsListenedDisplay: {
       id: podcastsListenedDisplayFieldId,
-      name: "Podcasts Listened Today",
+      name: "Podcasts Listened",
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
@@ -620,7 +834,7 @@ export async function createLiveData(userId, options = {}) {
     },
     coursesTakenDisplay: {
       id: coursesTakenDisplayFieldId,
-      name: "Courses Taken Today",
+      name: "Courses Taken",
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
@@ -682,7 +896,29 @@ export async function createLiveData(userId, options = {}) {
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
-      meta: {},
+      // `randomizable: true` + an `optionsSource.find` pool lets FieldRenderer
+      // surface a 🎲 button on the display-only field. The Daily Question
+      // Rotator op still drives the value on filter changes; the button is a
+      // manual re-roll for "give me a different question right now". valuePath
+      // returns the question instance's label, which the rotator op also uses
+      // as the written value.
+      meta: {
+        randomizable: true,
+        optionsSource: {
+          mode: "find",
+          find: {
+            over: "$allInstances",
+            predicate: {
+              conjunction: "AND",
+              rules: [
+                { left: `fields.${libraryFieldId}.value`, comparator: "IS", right: "question" },
+              ],
+            },
+            valuePath: "label",
+            labelPath: "label",
+          },
+        },
+      },
       siblingLinks: [], // patched to [journalAnswerFieldId] after fields object is built
     },
     journalAnswer: {
@@ -707,7 +943,7 @@ export async function createLiveData(userId, options = {}) {
     },
     totalDuration: {
       id: uid(),
-      name: "Time Spent Today",
+      name: "Time Spent",
       type: "number",
       inputEnabled: false,
       displayEnabled: true,
@@ -716,7 +952,7 @@ export async function createLiveData(userId, options = {}) {
     },
     totalSpent: {
       id: uid(),
-      name: "Spent Today",
+      name: "Spent",
       type: "number",
       inputEnabled: false,
       displayEnabled: true,
@@ -725,7 +961,7 @@ export async function createLiveData(userId, options = {}) {
     },
     totalIncome: {
       id: uid(),
-      name: "Earned Today",
+      name: "Earned",
       type: "number",
       inputEnabled: false,
       displayEnabled: true,
@@ -752,7 +988,7 @@ export async function createLiveData(userId, options = {}) {
     },
     lastMood: {
       id: uid(),
-      name: "Today's Moods",
+      name: "Moods",
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
@@ -768,7 +1004,7 @@ export async function createLiveData(userId, options = {}) {
     },
     totalPages: {
       id: uid(),
-      name: "Pages Read Today",
+      name: "Pages Read",
       type: "number",
       inputEnabled: false,
       displayEnabled: true,
@@ -777,7 +1013,7 @@ export async function createLiveData(userId, options = {}) {
     },
     taskCount: {
       id: uid(),
-      name: "Task Count Today",
+      name: "Task Count",
       type: "number",
       inputEnabled: false,
       displayEnabled: true,
@@ -894,7 +1130,7 @@ export async function createLiveData(userId, options = {}) {
       },
     },
     totalRepsToday: {
-      id: uid(), name: "Total Reps Today", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Reps", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: " reps" },
       displayConfig: { showArrows: true, targetValue: 150, targetPeriod: "daily" },
     },
@@ -926,15 +1162,15 @@ export async function createLiveData(userId, options = {}) {
       },
     },
     totalProtein: {
-      id: uid(), name: "Protein Today", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Protein", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
     totalCarbs: {
-      id: uid(), name: "Carbs Today", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Carbs", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
     totalFats: {
-      id: uid(), name: "Fats Today", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Fats", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
 
@@ -968,9 +1204,29 @@ export async function createLiveData(userId, options = {}) {
     },
   };
 
-  await Field.insertMany(
-    Object.values(fields).map(f => ({ ...f, userId, gridId }))
-  );
+  // Auto-categorize fields by name pattern so existing fields land in the
+  // right command-center category column without touching every single field
+  // definition. Explicit folderId set in the definitions above wins (we only
+  // fill the missing ones here). Name-based routing is brittle in general,
+  // but for the seed it's a one-shot operation against known names.
+  const _catRoute = (name) => {
+    if (!name) return null;
+    const n = String(name).toLowerCase();
+    if (/(reps|sets?|weight|cardio|muscle|workout|gym|exercise|push|pull|squat|deadlift|run|cycl|jump|burpee)/.test(n)) return fieldCategoryIds.workouts;
+    if (/(protein|carb|fat|calor|meal|breakfast|lunch|dinner|snack|nutrition|ingredient|recipe)/.test(n))            return fieldCategoryIds.nutrition;
+    if (/(amount|income|spent|earned|budget|salary|balance|finance|expense|investment|net)/.test(n))                  return fieldCategoryIds.finance;
+    if (/(water|step|sleep|mood|emotion|gratitude|breath|mindful|stretch|medication|vitamin|drink|wellness|spirit|social)/.test(n)) return fieldCategoryIds.wellness;
+    if (/(read|pages?|book|podcast|movie|course|library|study|brain|game|journal)/.test(n))                            return fieldCategoryIds.intellectual;
+    if (/(total|count|daily|weekly|monthly|display)/.test(n))                                                           return fieldCategoryIds.display;
+    if (/(rating|priority|due|duration|category|select|label|note)/.test(n))                                            return fieldCategoryIds.scheduling;
+    return null;
+  };
+  const _fieldRecords = Object.values(fields).map(f => {
+    if (f.folderId) return { ...f, userId, gridId };
+    const routed = _catRoute(f.name);
+    return { ...f, userId, gridId, ...(routed ? { folderId: routed } : {}) };
+  });
+  await Field.insertMany(_fieldRecords);
 
   // Patch siblingLinks bidirectionally for journalQuestion ↔ journalAnswer.
   // Can't set at definition time because each field's id is declared inline and
@@ -1802,7 +2058,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     workoutGoal: {
-      id: uid(), label: "Workout Today", kind: "list",
+      id: uid(), label: "Workout", kind: "list",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalRepsToday.id, role: "display", order: 0 },
@@ -1810,7 +2066,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     nutritionGoal: {
-      id: uid(), label: "Nutrition Today", kind: "list",
+      id: uid(), label: "Nutrition", kind: "list",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalProtein.id, role: "display", order: 0 },
@@ -2554,6 +2810,32 @@ export async function createLiveData(userId, options = {}) {
   await new Folder({ id: dayPagesFolderId,   userId, gridId, name: "Day Pages",  parentId: rootFolderId, folderType: "day-pages", sortOrder: 4, isExpanded: true }).save();
   await new Folder({ id: libraryFolderId,    userId, gridId, name: "Library",    parentId: rootFolderId, folderType: "normal",    sortOrder: 5, isExpanded: true }).save();
 
+  // ── Category folders (Command Center: Fields + Operations grouping) ────────
+  // folderType: "category" is the marker FieldsTab + OperationsTab read off of
+  // to render category columns. Field/op records reference these by folderId.
+  // IDs were pre-generated at the top so field/op definitions can carry
+  // their folderId inline.
+  await Promise.all([
+    new Folder({ id: fieldCategoryIds.scheduling,   userId, gridId, name: "Scheduling",    parentId: rootFolderId, folderType: "category", sortOrder: 100, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.workouts,     userId, gridId, name: "Workouts",      parentId: rootFolderId, folderType: "category", sortOrder: 101, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.nutrition,    userId, gridId, name: "Nutrition",     parentId: rootFolderId, folderType: "category", sortOrder: 102, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.finance,      userId, gridId, name: "Finance",       parentId: rootFolderId, folderType: "category", sortOrder: 103, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.wellness,     userId, gridId, name: "Wellness",      parentId: rootFolderId, folderType: "category", sortOrder: 104, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.intellectual, userId, gridId, name: "Intellectual",  parentId: rootFolderId, folderType: "category", sortOrder: 105, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.bills,        userId, gridId, name: "Bills",         parentId: rootFolderId, folderType: "category", sortOrder: 106, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.display,      userId, gridId, name: "Display",       parentId: rootFolderId, folderType: "category", sortOrder: 107, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.library,      userId, gridId, name: "Library",       parentId: rootFolderId, folderType: "category", sortOrder: 108, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.refs,         userId, gridId, name: "References",    parentId: rootFolderId, folderType: "category", sortOrder: 109, isExpanded: false }).save(),
+  ]);
+
+  await Promise.all([
+    new Folder({ id: opCategoryIds.trackers, userId, gridId, name: "Trackers",       parentId: rootFolderId, folderType: "category", sortOrder: 200, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.schedule, userId, gridId, name: "Schedule Ops",   parentId: rootFolderId, folderType: "category", sortOrder: 201, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.daypage,  userId, gridId, name: "Day Page Ops",   parentId: rootFolderId, folderType: "category", sortOrder: 202, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.bills,    userId, gridId, name: "Bill Ops",       parentId: rootFolderId, folderType: "category", sortOrder: 203, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.library,  userId, gridId, name: "Library Ops",    parentId: rootFolderId, folderType: "category", sortOrder: 204, isExpanded: false }).save(),
+  ]);
+
   // ── STEP 7b: Templates manifest + Daily Routine + Day Page templates ────────
   // Separate manifest from the user manifest (createTestGrid pattern).
   // buildTemplatesManifest mints the Templates folder + manifest and returns
@@ -2650,6 +2932,79 @@ export async function createLiveData(userId, options = {}) {
 
   const notebookDocOccIds = {}; // label → occurrenceId (exposed on return for Task 12)
 
+  // Per-section textblock seeder. Mirrors the runtime contract enforced by
+  // Editor.jsx's strict-block sweep (May 18 2026): a `role:"page" kind:"doc"`
+  // page's textmap should contain ONLY `instanceTextblock` nodes. Each
+  // {heading, headingLevel, lines} section becomes its own
+  // `role:"textblock" kind:"doc"` occurrence parented under the page; the
+  // page textmap is a flat list of references. Title becomes the first
+  // textblock (level-1 heading).
+  async function seedTextblocksForDoc(title, sections, pageOccId) {
+    const refNodes = [];
+    // Title textblock
+    if (title) {
+      const tbModId = uid(); const tbOccId = uid();
+      await new Module({ id: tbModId, userId, gridId, role: "textblock", kind: "doc", label: "" }).save();
+      await mkOcc({
+        id: tbOccId, moduleId: tbModId,
+        parentId: pageOccId,
+        iteration: { mode: "persistent" }, fields: {},
+        textmap: { type: "doc", content: [
+          { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: title }] },
+        ] },
+      });
+      refNodes.push({ type: "instanceTextblock", attrs: { instanceId: tbModId, occurrenceId: tbOccId } });
+    }
+    // Section textblocks
+    for (const sec of sections) {
+      const tbModId = uid(); const tbOccId = uid();
+      await new Module({ id: tbModId, userId, gridId, role: "textblock", kind: "doc", label: "" }).save();
+      const tbContent = [];
+      if (sec.heading) {
+        tbContent.push({ type: "heading", attrs: { level: sec.headingLevel || 2 }, content: inlineToTipTap(sec.heading) });
+      }
+      if (Array.isArray(sec.lines) && sec.lines.length > 0) {
+        const bodyDoc = makeDocContent(sec.lines);
+        // Drop empty paragraphs — they bloat the textblock and never render
+        // anything visible. makeDocContent emits one for blank lines.
+        for (const n of bodyDoc.content) {
+          if (n.type === "paragraph" && (!n.content || !n.content.some(c => c.text && c.text.trim()))) continue;
+          tbContent.push(n);
+        }
+      }
+      await mkOcc({
+        id: tbOccId, moduleId: tbModId,
+        parentId: pageOccId,
+        iteration: { mode: "persistent" }, fields: {},
+        textmap: { type: "doc", content: tbContent.length ? tbContent : [{ type: "paragraph", content: [] }] },
+      });
+      refNodes.push({ type: "instanceTextblock", attrs: { instanceId: tbModId, occurrenceId: tbOccId } });
+    }
+    return { type: "doc", content: refNodes.length ? refNodes : [{ type: "paragraph", content: [] }] };
+  }
+
+  // Flat-line variant (one textblock per paragraph/heading/list) for the
+  // two docs that don't have parseSectionsWithInstances structure.
+  async function seedTextblocksFromLines(title, lines, pageOccId) {
+    // Group the raw lines into "section-like" chunks at any heading boundary
+    // so each heading + its following body lines lands in ONE textblock.
+    const sections = [];
+    let current = null;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)/);
+      if (headingMatch) {
+        if (current) sections.push(current);
+        current = { heading: headingMatch[2], headingLevel: headingMatch[1].length, lines: [] };
+      } else {
+        if (!current) current = { heading: "", headingLevel: 2, lines: [] };
+        current.lines.push(line);
+      }
+    }
+    if (current) sections.push(current);
+    return seedTextblocksForDoc(title, sections, pageOccId);
+  }
+
   // ── 1. Philosopher's Stone ── morenotes.md + philosopherstone.md merged ──
   {
     const moreNotesSections = parseSectionsWithInstances(join(ROOT_DIR_MD, "morenotes.md"), 1, 2, 8);
@@ -2658,8 +3013,8 @@ export async function createLiveData(userId, options = {}) {
       ...sectionsToMergeInput(moreNotesSections, 2),
       ...sectionsToMergeInput(philSections, 2),
     ];
-    const textmap = buildFlatDocTextmap("Philosopher’s Stone", mergeInput);
     const modId = uid(); const occId = uid();
+    const textmap = await seedTextblocksForDoc("Philosopher’s Stone", mergeInput, occId);
     await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Philosopher’s Stone" }).save();
     await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 0,
       iteration: { mode: "persistent" }, fields: {}, textmap,
@@ -2671,8 +3026,8 @@ export async function createLiveData(userId, options = {}) {
   {
     const sections = parseSectionsWithInstances(join(ROOT_DIR_MD, "gospelofthomasnotes.md"), 2, 3, 8);
     const mergeInput = sectionsToMergeInput(sections, 2);
-    const textmap = buildFlatDocTextmap("Gospel of Thomas (Notes)", mergeInput);
     const modId = uid(); const occId = uid();
+    const textmap = await seedTextblocksForDoc("Gospel of Thomas (Notes)", mergeInput, occId);
     await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Gospel of Thomas (Notes)" }).save();
     await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 1,
       iteration: { mode: "persistent" }, fields: {}, textmap,
@@ -2684,8 +3039,8 @@ export async function createLiveData(userId, options = {}) {
   {
     const sections = parseSectionsWithInstances(join(ROOT_DIR_MD, "uses.md"), 2, 3, 12);
     const mergeInput = sectionsToMergeInput(sections, 2);
-    const textmap = buildFlatDocTextmap("Uses", mergeInput);
     const modId = uid(); const occId = uid();
+    const textmap = await seedTextblocksForDoc("Uses", mergeInput, occId);
     await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Uses" }).save();
     await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 2,
       iteration: { mode: "persistent" }, fields: {}, textmap,
@@ -2697,8 +3052,8 @@ export async function createLiveData(userId, options = {}) {
   {
     const sections = parseSectionsWithInstances(join(ROOT_DIR_MD, "PRAGMATIC.md"), 2, 3, 12);
     const mergeInput = sectionsToMergeInput(sections, 2);
-    const textmap = buildFlatDocTextmap("Pragmatic", mergeInput);
     const modId = uid(); const occId = uid();
+    const textmap = await seedTextblocksForDoc("Pragmatic", mergeInput, occId);
     await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Pragmatic" }).save();
     await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 3,
       iteration: { mode: "persistent" }, fields: {}, textmap,
@@ -2710,8 +3065,8 @@ export async function createLiveData(userId, options = {}) {
   {
     const sections = parseSectionsWithInstances(join(ROOT_DIR_MD, "aispecs.md"), 1, 3, 12);
     const mergeInput = sectionsToMergeInput(sections, 2);
-    const textmap = buildFlatDocTextmap("AI Specs", mergeInput);
     const modId = uid(); const occId = uid();
+    const textmap = await seedTextblocksForDoc("AI Specs", mergeInput, occId);
     await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "AI Specs" }).save();
     await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 4,
       iteration: { mode: "persistent" }, fields: {}, textmap,
@@ -2723,8 +3078,8 @@ export async function createLiveData(userId, options = {}) {
   {
     const sections = parseSectionsWithInstances(join(ROOT_DIR_MD, "banglespecs.md"), 1, 2, 12);
     const mergeInput = sectionsToMergeInput(sections, 2);
-    const textmap = buildFlatDocTextmap("Bangle Specs", mergeInput);
     const modId = uid(); const occId = uid();
+    const textmap = await seedTextblocksForDoc("Bangle Specs", mergeInput, occId);
     await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Bangle Specs" }).save();
     await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 5,
       iteration: { mode: "persistent" }, fields: {}, textmap,
@@ -2735,8 +3090,8 @@ export async function createLiveData(userId, options = {}) {
   // ── 7. Comparative Religion ── comparitive_religion.md (flat) ──
   {
     const lines = readRawLines(join(ROOT_DIR_MD, "comparitive_religion.md"), 120);
-    const textmap = buildFlatLinesTextmap("Comparative Religion", lines);
     const modId = uid(); const occId = uid();
+    const textmap = await seedTextblocksFromLines("Comparative Religion", lines, occId);
     await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Comparative Religion" }).save();
     await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 6,
       iteration: { mode: "persistent" }, fields: {}, textmap,
@@ -2747,8 +3102,8 @@ export async function createLiveData(userId, options = {}) {
   // ── 8. Gospel of Thomas (Text) ── gospelthomas.md (flat, 80 lines) ──
   {
     const lines = readRawLines(join(ROOT_DIR_MD, "gospelthomas.md"), 80);
-    const textmap = buildFlatLinesTextmap("Gospel of Thomas (Text)", lines);
     const modId = uid(); const occId = uid();
+    const textmap = await seedTextblocksFromLines("Gospel of Thomas (Text)", lines, occId);
     await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Gospel of Thomas (Text)" }).save();
     await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 7,
       iteration: { mode: "persistent" }, fields: {}, textmap,
@@ -2828,7 +3183,21 @@ export async function createLiveData(userId, options = {}) {
     parentId: trackersFolderId, sortOrder: 1,
     occurrences: Object.values(accountContOccIds),
     iteration: { mode: "persistent" }, fields: {},
-    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+    // D/W/M/Y filter (mirrors Daily Goals) so account aggregations can be
+    // viewed over different periods. Condition matches goals/schedule:
+    // DATE_EQUALS OR IS_EMPTY so all-time aggregation rows (no date) still
+    // appear regardless of the active period.
+    filters: [
+      {
+        id: accountsFilterId, fieldId: dateFieldId, active: true, showNav: true,
+        timeUnit: "day", defaultNavValue: "today",
+        units: ["day", "week", "month", "year"],
+        condition: { operator: "OR", rules: [
+          { left: "$field.value", comparator: "DATE_EQUALS", right: "$nav" },
+          { left: "$field.value", comparator: "IS_EMPTY" },
+        ]},
+      },
+    ],
   });
 
   const schedPageModId = uid(); const schedPageOccId = uid();
@@ -2868,6 +3237,121 @@ export async function createLiveData(userId, options = {}) {
     fields: {},
     filterOverride: {},
     filterNavConfig: { filter_daily: { visible: false } },
+  });
+
+  // Daily Journal Questions page — pinned in Library folder alongside the
+  // main Library page. Lets the user manage the question pool the Rotator
+  // op + 🎲 randomize button draw from, without scrolling past movies /
+  // books / podcasts / courses.
+  //
+  // Shape: a board page with a single container "Reflection Questions"
+  // whose `occurrences[]` lists the same question occurrence IDs that
+  // already live under libraryContOccId. Occurrences support multi-parent
+  // membership via the occurrences[] array (the canonical parentId stays
+  // libraryContOccId), so the questions render here without being moved.
+  // Editing a question's label / fields here updates it in the Library
+  // too — they're the same physical occurrences.
+  const questionsContModId  = uid();
+  const questionsContOccId  = uid();
+  await new Module({ id: questionsContModId, userId, gridId, role: "container", kind: "list", label: "Reflection Questions" }).save();
+  await mkOcc({
+    id: questionsContOccId,
+    moduleId: questionsContModId,
+    // No parentId — this container only renders as a child of the
+    // Daily Journal Questions page (it's not in any other tree).
+    occurrences: [
+      qWentWellOccId, qLearnedOccId, qChallengingOccId, qGratefulOccId,
+      qDifferentlyOccId, qImproveTomorrowOccId, qSurprisedOccId,
+    ],
+    filterOverride: {},
+  });
+  const journalQuestionsPageModId = uid();
+  const journalQuestionsPageOccId = uid();
+  await new Module({ id: journalQuestionsPageModId, userId, gridId, role: "page", kind: "board", label: "Daily Journal Questions" }).save();
+  await mkOcc({
+    id: journalQuestionsPageOccId,
+    moduleId: journalQuestionsPageModId,
+    parentId: libraryFolderId,
+    sortOrder: 1,
+    occurrences: [questionsContOccId],
+    iteration: { mode: "persistent" },
+    fields: {},
+    filterOverride: {},
+    filterNavConfig: { filter_daily: { visible: false } },
+  });
+
+  // ── Schedule Table page (kind:"table", standalone in Interfaces tree) ──────
+  // A live mirror of the Schedule built by the "Schedule Table: Build" op.
+  // Columns are seeded here (stable ids); the op writes cells + rowCount.
+  //   col0 "Task" — full embed, date+timeslot HIDDEN via fieldVisibility
+  //   col1 "Date" — same occ, projected to the date field
+  //   col2 "Time" — same occ, projected to the timeslot field
+  //   col3 "Goal" — the goal instance this row rolls up to (copy-linked)
+  // filterOverride:{} so the table is always visible regardless of date nav
+  // (its rows already represent a specific built day).
+  const STBL_COLS = {
+    task: "tcol_task", date: "tcol_date", time: "tcol_time", goal: "tcol_goal",
+  };
+  const schedTablePageModId = uid(); const schedTablePageOccId = uid();
+  await new Module({ id: schedTablePageModId, userId, gridId, role: "page", kind: "table", label: "Schedule Table" }).save();
+  await mkOcc({
+    id: schedTablePageOccId, moduleId: schedTablePageModId,
+    parentId: interfacesFolderId, sortOrder: 2,
+    occurrences: [],
+    iteration: { mode: "persistent" }, fields: {},
+    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+    meta: {
+      table: {
+        columns: [
+          // Task: full embed (label + every field except date/timeslot which
+          // have their own columns). hideLabel false — we want to see the
+          // task name in this column.
+          { id: STBL_COLS.task, title: "Task", width: 240, displayFieldId: null, sort: null, filter: null,
+            fieldVisibility: { mode: "hide", fieldIds: [dateFieldId, timeslotFieldId] }, hideLabel: false },
+          // Date / Time: render the FULL ModuleInstance for the copy, but
+          // filter to a single field via fieldVisibility "show" mode, and
+          // hide the label (the row's task name is already in the Task col).
+          // ModuleInstance now synthesizes a binding for "show"-mode fieldIds
+          // that aren't in the module's fieldBindings (schedule task modules
+          // don't formally bind date/timeslot — those are stamped as values
+          // by Build Day's defaultFields).
+          { id: STBL_COLS.date, title: "Date", width: 200, displayFieldId: null, sort: null, filter: null,
+            fieldVisibility: { mode: "show", fieldIds: [dateFieldId]    }, hideLabel: true },
+          { id: STBL_COLS.time, title: "Time", width: 200, displayFieldId: null, sort: null, filter: null,
+            fieldVisibility: { mode: "show", fieldIds: [timeslotFieldId] }, hideLabel: true },
+          // Goal: full embed (Physical Wellness has 3 field pills). Trimmed so
+          // the Date/Time projection columns get more of the row width — the
+          // responsive scaler preserves these ratios when filling the panel.
+          { id: STBL_COLS.goal, title: "Goal", width: 230, displayFieldId: null, sort: null, filter: null,
+            fieldVisibility: null, hideLabel: false },
+        ],
+        rowCount: 0,
+        cells: {},
+        // Table-level sort: ascending by Time column so rows land in timeslot
+        // order regardless of the order rows were appended by Schedule Table:
+        // Build (which appends per-task as it walks $allInstances). Per-column
+        // sort remains independent — table.sort is the primary, columns[i].sort
+        // are additional layers (merged in ContainerTable's `sorting` useMemo).
+        sort: { colId: STBL_COLS.time, dir: "asc" },
+      },
+    },
+  });
+
+  // ── Schedule Canvas page (kind:"canvas", standalone in Interfaces tree) ────
+  // Mirror of the Schedule into a canvas layout. Each task on the active day
+  // gets ONE copy-linked occurrence parented under this canvas page with
+  // meta.x/y stamped by Schedule Canvas: Build so the cards land in a tidy
+  // column. filterOverride:{} so the canvas is always visible regardless of
+  // date navigation (its rows represent a specific built day, and the
+  // canvas page is intentionally outside the daily date cascade).
+  const schedCanvasPageModId = uid(); const schedCanvasPageOccId = uid();
+  await new Module({ id: schedCanvasPageModId, userId, gridId, role: "page", kind: "canvas", label: "Schedule Canvas" }).save();
+  await mkOcc({
+    id: schedCanvasPageOccId, moduleId: schedCanvasPageModId,
+    parentId: interfacesFolderId, sortOrder: 3,
+    occurrences: [], // Schedule Canvas: Build populates at runtime
+    iteration: { mode: "persistent" }, fields: {},
+    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
   });
 
   // Notebook hub View — Schedule is the default active tab.
@@ -2916,6 +3400,7 @@ export async function createLiveData(userId, options = {}) {
       moduleId: p.panelId,
       placement: { row: p.row, col: p.col, width: p.width, height: p.height },
       ...(p.viewId && { viewId: p.viewId }),
+      meta: { autohide: true },
     });
     panelOccIds[p.key] = occId;
     gridOccIds.push(occId);
@@ -2927,7 +3412,7 @@ export async function createLiveData(userId, options = {}) {
   // pages (Task 11) are NOT pinned — they live only under notesFolderId.
   await Occurrence.findOneAndUpdate({ id: panelOccIds.toolkit },  { $set: { occurrences: [toolkitPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.todo },     { $set: { occurrences: [todoPageOccId] } });
-  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [schedPageOccId, canvasPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [schedPageOccId, canvasPageOccId, schedCanvasPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.goals },    { $set: { occurrences: [goalsPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.accounts }, { $set: { occurrences: [accountsPageOccId] } });
 
@@ -2977,7 +3462,7 @@ export async function createLiveData(userId, options = {}) {
 
   // ── DAILY TASK / WELLNESS ──
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Completed Today",
+    ...trackerArgs, name: "Tracker: Completed",
     goalLabel: "Physical Wellness", goalFieldId: fields.totalCompleted.id,
     agg: "countTrue", timeFilter: "daily",
   })).save();
@@ -2988,8 +3473,8 @@ export async function createLiveData(userId, options = {}) {
   // onChange / onAdd / onDelete all re-aggregate.
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
-    name: "Tracker: Today's Moods",
-    description: "Build a [{mood, date}] row list for every mood-bearing item in the goal's selected period and write it to Emotional Balance's Today's Moods display.",
+    name: "Tracker: Moods",
+    description: "Build a [{mood, date}] row list for every mood-bearing item in the goal's selected period and write it to Emotional Balance's Moods display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: fields.mood.id, priority: 3 },
@@ -3066,59 +3551,59 @@ export async function createLiveData(userId, options = {}) {
 
   // ── DAILY ACTIVITY ──
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Steps Today",
+    ...trackerArgs, name: "Tracker: Steps",
     goalLabel: "Physical Wellness", goalFieldId: fields.totalSteps.id,
     sourceFieldId: fields.steps.id, agg: "sum", timeFilter: "daily",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Water Today",
+    ...trackerArgs, name: "Tracker: Water",
     goalLabel: "Physical Wellness", goalFieldId: fields.totalWater.id,
     sourceFieldId: fields.water.id, agg: "sum", timeFilter: "daily",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Time Spent Today",
+    ...trackerArgs, name: "Tracker: Time Spent",
     goalLabel: "Intellectual Growth", goalFieldId: fields.totalDuration.id,
     sourceFieldId: fields.duration.id, agg: "sum", timeFilter: "daily",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Pages Today",
+    ...trackerArgs, name: "Tracker: Pages",
     goalLabel: "Intellectual Growth", goalFieldId: fields.totalPages.id,
     sourceFieldId: fields.pages.id, agg: "sum", timeFilter: "daily",
   })).save();
 
   // ── DAILY FINANCE ──
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Spent Today",
+    ...trackerArgs, name: "Tracker: Spent",
     goalLabel: "Financial Health", goalFieldId: fields.totalSpent.id,
     sourceFieldId: fields.amount.id, agg: "sum", flow: "out", timeFilter: "daily",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Earned Today",
+    ...trackerArgs, name: "Tracker: Earned",
     goalLabel: "Financial Health", goalFieldId: fields.totalIncome.id,
     sourceFieldId: fields.income.id, agg: "sum", flow: "in", timeFilter: "daily",
   })).save();
 
   // ── DAILY NUTRITION ──
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Protein Today",
-    goalLabel: "Nutrition Today", goalFieldId: fields.totalProtein.id,
+    ...trackerArgs, name: "Tracker: Protein",
+    goalLabel: "Nutrition", goalFieldId: fields.totalProtein.id,
     sourceFieldId: fields.protein.id, agg: "sum", timeFilter: "daily",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Carbs Today",
-    goalLabel: "Nutrition Today", goalFieldId: fields.totalCarbs.id,
+    ...trackerArgs, name: "Tracker: Carbs",
+    goalLabel: "Nutrition", goalFieldId: fields.totalCarbs.id,
     sourceFieldId: fields.carbs.id, agg: "sum", timeFilter: "daily",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Fats Today",
-    goalLabel: "Nutrition Today", goalFieldId: fields.totalFats.id,
+    ...trackerArgs, name: "Tracker: Fats",
+    goalLabel: "Nutrition", goalFieldId: fields.totalFats.id,
     sourceFieldId: fields.fats.id, agg: "sum", timeFilter: "daily",
   })).save();
 
   // ── DAILY WORKOUT (multi-source roll-up) ──
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Total Reps Today",
-    goalLabel: "Workout Today", goalFieldId: fields.totalRepsToday.id,
+    ...trackerArgs, name: "Tracker: Total Reps",
+    goalLabel: "Workout", goalFieldId: fields.totalRepsToday.id,
     sourceFieldIds: [fields.set1Reps.id, fields.set2Reps.id, fields.set3Reps.id],
     agg: "multiSum", timeFilter: "daily",
   })).save();
@@ -3801,7 +4286,11 @@ export async function createLiveData(userId, options = {}) {
           then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
           else: [],
         },
-        // 5. Find the Daily Journal instance dated to today under Schedule
+        // 5. Find the Daily Journal instance — anywhere in the grid (Daily
+        // Toolkit's Intellectual category seeds it; Schedule may or may not
+        // include it depending on the Daily Routine picks). Date-filter on
+        // today when the instance carries a date field; instances without a
+        // date binding (the persistent toolkit copy) match unconditionally.
         {
           type: "action", action: "FIND",
           cfg: {
@@ -3810,8 +4299,6 @@ export async function createLiveData(userId, options = {}) {
               conjunction: "AND",
               rules: [
                 { left: "label", comparator: "IS", right: "Daily Journal" },
-                { left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$today" },
-                { left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
               ],
             },
             itemVar: "$journalingInst", itemIdVar: "$journalingInstId",
@@ -3835,10 +4322,371 @@ export async function createLiveData(userId, options = {}) {
   }).save();
 
   // ── Shared schedule + day-page operations (delegated to liveSystemBuilders) ──
-  await new Operation(makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId })).save();
+  // createLiveData seeds the trackers as "Tracker: Completed Today" (not the
+  // longer "Tracker: Tasks Completed Today" used by createTestGrid). Pass the
+  // matching name so Build Day's tail RUN_OPERATION resolves it.
+  await new Operation(makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, completedTrackerName: "Tracker: Completed" })).save();
+  // Extend Stamp Date & Time Slot to also stamp lastSeen on every dropped occurrence.
   await new Operation(makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar: panelOccIds.notebook })).save();
-  await new Operation(makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPanelModuleId: panelModuleIds.notebook })).save();
+  // Body-seeds the Tasks Completed container minted by buildDayPageTemplate.
+  // Runs at priority 4 — after Build Day, Stamp, and trackers — so the
+  // completion state and date stamps it reads are settled.
+  await new Operation(makeDayPageBuildTasksCompletedOp({ userId, gridId, dateFieldId, completedFieldId, isTaskFieldId })).save();
+  await new Operation(makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, lastSeenFieldId, hubPanelModuleId: panelModuleIds.notebook })).save();
   await new Operation(makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId })).save();
+
+  // ── Schedule Table: Build ───────────────────────────────────────────────────
+  // Mirrors the Schedule into the kind:"table" "Schedule Table" page. For every
+  // schedule task on the active day it COPY_LINKs the task occurrence into 3
+  // cells (col0 full embed w/ date+timeslot hidden via the column's
+  // fieldVisibility, col1 date projection, col2 timeslot projection) plus a
+  // COPY_LINK of the "Physical Wellness" goal it rolls up to (col3). The
+  // copies share linkedGroupId with the source so editing either side fans
+  // out (server update_occurrence linked-group propagation).
+  //
+  // FINDs its OWN target by label "Schedule Table" and reads source data from
+  // "Schedule" — the Schedule trackers/Build-Day FIND `label IS "Schedule"`
+  // (exact), so they never cross-fire on this page.
+  //
+  // Idempotent the SAME way Schedule: Build Day is — module-based COPY_LINK
+  // (copies reuse the Schedule task's moduleId, like every copy in this
+  // system) parented under the Schedule Table page, with row-level
+  // existence dedup using Build Day's exact predicate scoped to the table:
+  // `templateId IS <task> AND _ancestors HAS_ANCESTOR <tbl> AND
+  // fields.<date> SAME_DAY <schedDate>`. Row already present → skip (its
+  // cells persist); absent → create THREE copy-linked task occurrences
+  // (col0 main, col1 date-only, col2 timeslot-only — the column
+  // displayFieldId/fieldVisibility projections render the three views) plus
+  // the shared goal copy for col3. $r is append-only from the table's
+  // current rowCount, so re-running adds nothing and a new day appends —
+  // exactly how Build Day leaves prior Due copies untouched. No flags, no
+  // stamped markers. Priority 8 so it runs AFTER Schedule: Build Day (p1)
+  // within an onLoad batch and sees its created tasks via the in-batch
+  // liveOccs overlay (same path the trackers rely on).
+  const stCellDoc = (occVar) => ({ type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: occVar } }] });
+  await new Operation({
+    id: uid(), userId, gridId, priority: 8,
+    name: "Schedule Table: Build",
+    description: "Mirror the Schedule into the Schedule Table page. Per task on the active day: 3 copy-linked occurrences parented under the table (col0 main w/ date+timeslot hidden via the column's fieldVisibility, col1 date-only projection, col2 timeslot-only projection) + a shared copy-linked Physical Wellness goal (col3, all fields). Row-level existence dedup using Schedule: Build Day's exact predicate (templateId IS task AND _ancestors HAS_ANCESTOR table AND fields.<date> SAME_DAY schedDate) — row present → skip, absent → create. $r appends from the table's current rowCount. Idempotent + per-date + self-healing, no flags, no stamped markers.",
+    triggerTypes: ["onAdd", "onDelete", "onChange", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      // Container add/delete (e.g. slot or page-level edits).
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 8 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 8 },
+      // Instance add/delete — drag a task into / out of a Schedule slot.
+      // Without these, dragging a task into Schedule didn't refire the table
+      // build, so the new task never appeared in the Schedule Table mirror
+      // until a full reload.
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 8 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 8 },
+      // Date field change — Schedule: Stamp Date & Time Slot writes
+      // dateFieldId immediately after the drop, so subscribing to that field
+      // catches both new drops AND date-edits on existing tasks.
+      { eventType: "onChange",       subjectType: "field",     targetId: dateFieldId,    priority: 8 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule", priority: 8 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 8 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find the Schedule Table page (our write target).
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            over: "$allPages",
+            predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule Table" }] },
+            itemVar: "$tbl", itemIdVar: "$tblId",
+        }},
+        // 2. Proceed only when the table page exists (FIND bound $tbl).
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$tblId", comparator: "IS_NOT_EMPTY", right: "" },
+          ] },
+          then: [
+            // 3. Find the Schedule page (source data + HAS_ANCESTOR scope).
+            { id: uid(), type: "action", config: {
+                type: "FIND",
+                over: "$allPages",
+                predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule" }] },
+                itemVar: "$schedPage", itemIdVar: "$schedPageId",
+            }},
+            // 4. Resolve the active schedule date: $trigger.date →
+            //    Schedule page effective filter → today.
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$trigger.date" } },
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } }],
+              else: [],
+            },
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
+              else: [],
+            },
+            // 5. Find the goal these tasks roll up to (col3 source). Every
+            //    completed schedule task increments Physical Wellness via
+            //    Tracker: Completed Today, so it's the canonical per-row goal.
+            { id: uid(), type: "action", config: {
+                type: "FIND",
+                over: "$allInstances",
+                predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Physical Wellness" }] },
+                itemVar: "$goalItem", itemIdVar: "$goalOccId",
+            }},
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalTpl", expr: "$goalItem.templateId" } },
+            // 6. Goal copy — ONE copy-link of the goal, parented under the
+            //    Schedule Table page (its occurrences[]), reused by every
+            //    row's col3 (all fields shown). Same existence dedup
+            //    Schedule: Build Day uses for its swept Due copy:
+            //    `templateId IS … AND _ancestors HAS_ANCESTOR <container>`.
+            //    The Schedule-side source goal lives under Daily Goals (not
+            //    $tbl) so it never matches — only the table's own copy does.
+            { id: uid(), type: "action", config: {
+                type: "FIND",
+                over: "$allInstances",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "templateId", comparator: "IS", right: "$goalTpl" },
+                  { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$tblId" },
+                ] },
+                itemIdVar: "$cg",
+            }},
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$cg", comparator: "IS_EMPTY", right: "" }] },
+              then: [{ id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$goalOccId", parent: "$tblId", itemIdVar: "$cg" } }],
+              else: [],
+            },
+            // 7. CHEAP IDEMPOTENCY GUARD. The full clean+rebuild emits ~50
+            //    effects per fire (18 CREATE_ITEM + 6 linkedGroup UPDATEs +
+            //    25 cell UPDATEs + 1 final rowCount). Each effect is a Redux
+            //    dispatch + socket emit that triggers a React re-render of
+            //    the table — with 24 TipTap editors mounted in cells, this
+            //    pegs the browser every time the op fires (which is on
+            //    onLoad, onFilterChange, onAdd container, onDelete container).
+            //    Skip the whole rebuild ONLY when the table already has rows
+            //    AND there's NO explicit trigger (i.e. the bulk onLoad case
+            //    that fires once per `full_state`). Any explicit trigger event
+            //    — NavigationOp (filter change), OccurrenceCreateOp (drag a
+            //    task into Schedule), OccurrenceDeleteOp (remove a task),
+            //    MeasureOp (field write) — always rebuilds so the table mirror
+            //    catches the new/removed task.
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$existingRowCount", expr: "$tbl.meta.table.rowCount" } },
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerType",      expr: "$trigger.type" } },
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$existingRowCount", comparator: "GREATER_THAN", right: 0 },
+                { id: uid(), left: "$triggerType",      comparator: "IS_EMPTY",     right: ""             },
+              ] },
+              then: [
+                // Already built + not a date nav → no-op, leave existing rows + cells alone.
+              ],
+              else: [
+                // Step 7a: delete every task copy parented under $tbl
+                // (everything except the goal copy, which is dedup'd above).
+                {
+                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$orphan",
+                  body: [
+                    { id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: "$orphan._ancestors", comparator: "HAS_ANCESTOR", right: "$tblId" },
+                        { id: uid(), left: "$orphan.id",         comparator: "IS_NOT",       right: "$cg"    },
+                      ] },
+                      then: [
+                        { id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$orphan.id" } },
+                      ],
+                      else: [],
+                    },
+                  ],
+                },
+                // Step 7b: reset cells and rowCount.
+                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells",    value: {} } },
+                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.rowCount", value: 0  } },
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$r", expr: "literal:0" } },
+
+                // 8. One row per schedule task on $schedDate under the Schedule
+                //    page. No dedup (handled by step 7's wipe) — every matching
+                //    task gets 3 fresh copy-linked occurrences + cells + goal.
+                {
+                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$task",
+                  body: [
+                    {
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: "$task._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                        { id: uid(), left: `$task.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+                        { id: uid(), left: "$task.label", comparator: "IS_NOT_EMPTY", right: "" },
+                      ] },
+                      then: [
+                        // 3 task copies parented under $tbl (Build Day pattern:
+                        // COPY_LINK with `parent`). copyFields default true so
+                        // the cells render the task's current field values.
+                        { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$tblId", itemIdVar: "$c0" } },
+                        { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$tblId", itemIdVar: "$c1" } },
+                        { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$tblId", itemIdVar: "$c2" } },
+                        // Position the row's 4 cells ($var leaves deep-resolved).
+                        { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:0", value: stCellDoc("$c0") } },
+                        { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:1", value: stCellDoc("$c1") } },
+                        { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:2", value: stCellDoc("$c2") } },
+                        { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:3", value: stCellDoc("$cg") } },
+                        { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$r" } },
+                      ],
+                      else: [],
+                    },
+                  ],
+                },
+                // 9. Publish the row count.
+                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.rowCount", value: "$r" } },
+              ],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+  }).save();
+
+  // ── Schedule Canvas: Build ─────────────────────────────────────────────────
+  // Mirror of the Schedule into the kind:"canvas" "Schedule Canvas" page. Per
+  // schedule task on the active day, COPY_LINKs the task occurrence ONCE,
+  // parents it under the canvas page, and stamps meta.x/y so cards land in
+  // a tidy vertical column ordered by walk position. Same idempotency model
+  // as Schedule Table: Build — full clean+rebuild on any explicit trigger,
+  // skip when canvas already populated + no explicit trigger (onLoad bulk).
+  await new Operation({
+    id: uid(), userId, gridId, priority: 8,
+    name: "Schedule Canvas: Build",
+    description: "Mirror Schedule tasks for the active day onto the Schedule Canvas page. Each task → one copy-linked occurrence stamped with meta.x/y so cards stack vertically on the canvas. Idempotent + per-date + self-healing.",
+    triggerTypes: ["onAdd", "onDelete", "onChange", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 8 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 8 },
+      { eventType: "onChange",       subjectType: "field",     targetId: dateFieldId,    priority: 8 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule", priority: 8 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 8 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find the Schedule Canvas page (write target).
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            over: "$allPages",
+            predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule Canvas" }] },
+            itemVar: "$canvas", itemIdVar: "$canvasId",
+        }},
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$canvasId", comparator: "IS_NOT_EMPTY", right: "" },
+          ] },
+          then: [
+            // 2. Find the Schedule page (source data + HAS_ANCESTOR scope).
+            { id: uid(), type: "action", config: {
+                type: "FIND",
+                over: "$allPages",
+                predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule" }] },
+                itemVar: "$schedPage", itemIdVar: "$schedPageId",
+            }},
+            // 3. Resolve active schedule date (same chain as Schedule Table: Build).
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$trigger.date" } },
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } }],
+              else: [],
+            },
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
+              else: [],
+            },
+            // 4. Idempotency guard — only rebuild on explicit triggers OR when canvas is empty.
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$existingChildCount", expr: "$canvas.occurrences.length" } },
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerType",        expr: "$trigger.type" } },
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$existingChildCount", comparator: "GREATER_THAN", right: 0 },
+                { id: uid(), left: "$triggerType",        comparator: "IS_EMPTY",     right: ""  },
+              ] },
+              then: [
+                // Already built + bulk onLoad → no-op.
+              ],
+              else: [
+                // 5a. Clean: delete every existing copy parented under $canvas.
+                {
+                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$orphan",
+                  body: [
+                    { id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: "$orphan._ancestors", comparator: "HAS_ANCESTOR", right: "$canvasId" },
+                      ] },
+                      then: [
+                        { id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$orphan.id" } },
+                      ],
+                      else: [],
+                    },
+                  ],
+                },
+                // 5b. Reset row counter.
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$r", expr: "literal:0" } },
+                // 6. One copy per schedule task on $schedDate under the Schedule page.
+                //    Stamp meta.x/y so cards stack vertically (60px column + 80px row stride).
+                {
+                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$task",
+                  body: [
+                    {
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: "$task._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                        { id: uid(), left: `$task.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+                        { id: uid(), left: "$task.label", comparator: "IS_NOT_EMPTY", right: "" },
+                      ] },
+                      then: [
+                        { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$canvasId", itemVar: "$copy", itemIdVar: "$copyId" } },
+                        // Compute y = $r * 80 + 60 via INIT_VAR + MULTIPLY_VAR + ADD_TO_VAR.
+                        { id: uid(), type: "action", config: { type: "INIT_VAR",     name: "$y", expr: "$r" } },
+                        { id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$y", by: 80 } },
+                        { id: uid(), type: "action", config: { type: "ADD_TO_VAR",   name: "$y", expr: "literal:60" } },
+                        { id: uid(), type: "action", config: { type: "UPDATE", path: "$copy.meta.x", value: 60 } },
+                        { id: uid(), type: "action", config: { type: "UPDATE", path: "$copy.meta.y", value: "$y" } },
+                        { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$r" } },
+                      ],
+                      else: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+  }).save();
+
+  // ── Categorize operations (post-save bulk patch) ───────────────────────────
+  // Same name-pattern routing as fields. Lets the existing 28 Operation
+  // records (each defined inline above) land in a sensible Command Center
+  // column without touching every definition. Run AFTER every save above.
+  await Operation.updateMany(
+    { userId, gridId, name: /^Tracker:/i, folderId: { $in: [null, undefined] } },
+    { $set: { folderId: opCategoryIds.trackers } },
+  );
+  await Operation.updateMany(
+    { userId, gridId, name: /^Schedule(?: Table)?:/i, folderId: { $in: [null, undefined] } },
+    { $set: { folderId: opCategoryIds.schedule } },
+  );
+  await Operation.updateMany(
+    { userId, gridId, name: /^Day Page:/i, folderId: { $in: [null, undefined] } },
+    { $set: { folderId: opCategoryIds.daypage } },
+  );
+  await Operation.updateMany(
+    { userId, gridId, name: /^Bill:/i, folderId: { $in: [null, undefined] } },
+    { $set: { folderId: opCategoryIds.bills } },
+  );
+  await Operation.updateMany(
+    { userId, gridId, name: /Movie|Book|Podcast|Course/i, folderId: { $in: [null, undefined] } },
+    { $set: { folderId: opCategoryIds.library } },
+  );
 
   return {
     gridId,
@@ -3920,9 +4768,9 @@ async function main() {
     console.log(`   Notebook docs:  ${notebookCount} (${Object.keys(result.notebookDocOccIds || {}).join(", ")})`);
     console.log(`   Folders:        Root + 5 children (Tasks/Trackers/Interfaces/Notes/Day Pages)`);
     console.log(`   Templates:      Daily Routine (6-pick) + Day Page under Templates manifest`);
-    console.log(`   Operations:     24 (19 trackers + 1 daily question rotator + 4 schedule/day-page)`);
+    console.log(`   Operations:     26 (19 trackers + 1 daily question rotator + 4 schedule/day-page + Schedule Table: Build + Schedule Canvas: Build)`);
     console.log(`   Panels:         ${Object.keys(result.panelOccIds || {}).join(", ")}`);
-    console.log(`   Pages:          Daily Toolkit, Todo List, Daily Goals, Accounts, Schedule (board) + Canvas`);
+    console.log(`   Pages:          Daily Toolkit, Todo List, Daily Goals, Accounts, Schedule (board) + Canvas + Schedule Table (table)`);
     console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Schedule (${result.schedPageOccId}); tabs=[Schedule, Canvas]`);
     console.log("=".repeat(50));
   } catch (err) {

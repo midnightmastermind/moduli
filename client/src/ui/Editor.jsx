@@ -149,11 +149,13 @@ const Editor = forwardRef(function Editor({
   // cell render ONLY the named field via FieldRenderer instead of the full
   // instance form. Undefined / null = standard doc-mode render (unchanged).
   displayFieldId = null,
-  // Cell-mode column-level field filter (independent of displayFieldId).
+  // Cell-mode column-level field visibility (independent of displayFieldId).
   // Shape: { mode: "show" | "hide", fieldIds: [...] } or null. Consumed by
   // ModuleInstance via CellEmbedContext — embed renders the full instance
-  // form but filters which field bindings appear.
-  fieldFilter = null,
+  // form but filters which field bindings appear. This is the per-column
+  // LOCAL override; it wins over the occurrence-level fieldVisibility cascade.
+  fieldVisibility = null,
+  hideLabel = false,
 }, ref) {
   // Cell mode: opt-in via mode="cell". Gates doc-only behaviors and enables
   // spreadsheet navigation keymaps. The default mode="doc" path is unchanged.
@@ -530,6 +532,62 @@ const Editor = forwardRef(function Editor({
           if (!handled && standaloneList) {
             onAutoCreateTextblock(standaloneList.offset, null, standaloneList.nodeSize, standaloneList.nodeJson);
             handled = true;
+          }
+        }
+        // ── Strict-block sweep ─────────────────────────────────────────────
+        // Page docs should never carry raw paragraphs/headings/blockquotes/
+        // codeBlocks/etc. at the top level — only `instanceTextblock` nodes.
+        // The earlier branches handle the active-typing flow (single-char
+        // paragraph, pending timer, top-level lists). Anything else that
+        // landed at the top level (paste of multi-char text, markdown heading
+        // shortcut, blockquote shortcut, undo restoring orphaned content) is
+        // converted here in a single batched transaction. Bypasses the
+        // DocContent cooldown by writing directly via CommitHelpers — there's
+        // no focus-race to manage for these bulk conversions; user can click
+        // into the new textblock.
+        if (!handled && !autoCreateTimerRef.current && occurrence?.userId && occurrence?.gridId && occurrence?.id) {
+          const schema = editor.state.schema;
+          if (schema.nodes.instanceTextblock) {
+            const conversions = [];
+            editor.state.doc.forEach((node, offset) => {
+              if (node.type.name === "instanceTextblock") return;
+              // Skip truly empty paragraphs (cursor placeholder TipTap maintains).
+              if (node.type.name === "paragraph" && node.textContent.length === 0 && node.childCount <= 1) return;
+              conversions.push({ offset, nodeSize: node.nodeSize, nodeJson: node.toJSON() });
+            });
+            if (conversions.length > 0) {
+              const tr = editor.state.tr;
+              tr.setMeta("skipAutoCreate", true);
+              // Reverse order keeps earlier offsets stable across replacements.
+              for (let i = conversions.length - 1; i >= 0; i--) {
+                const { offset, nodeSize, nodeJson } = conversions[i];
+                const tbModId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `m_${Math.random().toString(36).slice(2)}`;
+                const tbOccId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `o_${Math.random().toString(36).slice(2)}`;
+                CommitHelpers.createModule({
+                  dispatch, socket,
+                  module: { id: tbModId, userId: occurrence.userId, gridId: occurrence.gridId, role: "textblock", kind: "doc", label: "" },
+                  emit: true,
+                });
+                CommitHelpers.createOccurrence({
+                  dispatch, socket,
+                  occurrence: {
+                    id: tbOccId, userId: occurrence.userId, gridId: occurrence.gridId,
+                    moduleId: tbModId,
+                    parentId: occurrence.id,
+                    iteration: { mode: "persistent" },
+                    textmap: { type: "doc", content: [nodeJson] },
+                    fields: {},
+                  },
+                  emit: true,
+                });
+                tr.replaceWith(offset, offset + nodeSize, schema.nodes.instanceTextblock.create({
+                  instanceId: tbModId,
+                  occurrenceId: tbOccId,
+                }));
+              }
+              editor.view.dispatch(tr);
+              handled = true;
+            }
           }
         }
       }
@@ -1059,6 +1117,11 @@ const Editor = forwardRef(function Editor({
         // the indicator is the visible half of that contract.
         const sourceOccId = sd.context?.occurrenceId || sd.occurrenceId;
         if (sourceOccId && occurrence?.id && sourceOccId === occurrence.id) return false;
+        // Per user request: fields + operations from the CommandCenter are
+        // organize-in-place only. Reject drops of those payloads when they
+        // originate in the CC. Use `@` mention inside the editor to insert
+        // a field pill instead.
+        if (sd.sourceType === "command-center" && (type === "field" || type === "operation")) return false;
         return type === "instance" || type === "field" || type === "container" || type === "artifact" || type === "module";
       },
       onDragEnter: () => setIsDropTarget(true),
@@ -1563,7 +1626,7 @@ const Editor = forwardRef(function Editor({
           editor.commands.focus('end');
         }}
       >
-        <CellEmbedContext.Provider value={{ displayFieldId, fieldFilter }}>
+        <CellEmbedContext.Provider value={{ displayFieldId, fieldVisibility, hideLabel, __inCell: true }}>
           <EditorContent editor={editor} />
         </CellEmbedContext.Provider>
       </div>

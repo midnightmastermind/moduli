@@ -31,7 +31,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   const { occurrencesById, modulesById, viewsById, dispatch, socket, fieldsById } = useContext(GridActionsContext) || {};
   // Cell-mode projection: set by the enclosing cell <Editor> when the column
   // has a displayFieldId configured. Null/undefined = full doc-mode render.
-  const { displayFieldId } = useContext(CellEmbedContext) || {};
+  const { displayFieldId, hideLabel: cellHideLabel } = useContext(CellEmbedContext) || {};
   const occurrenceId = node.attrs.occurrenceId;
   const align = node.attrs.align || "full";
   const width = node.attrs.width || null;
@@ -167,6 +167,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
             embedRadialItems={embedRadialItems}
             embedOnDelete={deleteNode}
             embedSourceType="doc-embed"
+            embedHideLabel={cellHideLabel === true}
           />
         ) : (mod?.kind === "artifact" || occView?.viewType === "display") ? (
           <ArtifactContent

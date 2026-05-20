@@ -205,6 +205,24 @@ export function resolveExpr(expr, $vars) {
   return expr; // literal
 }
 
+// Recursively resolve every string leaf of an object/array through
+// resolveExpr, leaving structure (and non-string scalars) intact. Used by
+// the UPDATE action so an object-shaped value — e.g. a TipTap embed-cell
+// doc `{ type:"doc", content:[{ type:"moduleEmbed", attrs:{ occurrenceId:
+// "$c0" } }] }` — gets its `$var` leaves substituted. Literal strings pass
+// through unchanged (resolveExpr returns non-`$`/non-prefixed strings as-is),
+// so node `type`/`text` values are preserved.
+export function deepResolveExpr(value, $vars) {
+  if (typeof value === "string") return resolveExpr(value, $vars);
+  if (Array.isArray(value)) return value.map(v => deepResolveExpr(v, $vars));
+  if (value !== null && typeof value === "object") {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = deepResolveExpr(v, $vars);
+    return out;
+  }
+  return value; // number / boolean / null / undefined — literal
+}
+
 // ============================================================
 // CONDITION EVALUATORS
 // ============================================================
@@ -291,12 +309,16 @@ export function evalRule(rule, $vars) {
       // Right shape can be:
       //   null/"" → wildcard (no filter set) → pass.
       //   "YYYY-MM-DD" → same-day match.
-      //   { value: "YYYY-MM-DD", unit: "day"|"week"|"month"|"year" } → period match.
+      //   { value: "YYYY-MM-DD", unit: "day"|"week"|"month"|"year", span?: N } →
+      //     period match. `span > 1` is supported for unit:"day" only and
+      //     widens the match to a rolling window of N days starting at value.
       if (rightVal == null || rightVal === "") return true;
       if (leftVal == null || leftVal === "") return false;
       const isObj = typeof rightVal === "object" && !Array.isArray(rightVal);
       const anchor = isObj ? rightVal.value : rightVal;
       const unit = isObj ? (rightVal.unit || "day") : "day";
+      const spanRaw = isObj ? Number(rightVal.span) : 1;
+      const span = Number.isFinite(spanRaw) && spanRaw > 1 ? Math.floor(spanRaw) : 1;
       if (anchor == null || anchor === "") return true;
       const dayKey = (v) => {
         if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
@@ -306,7 +328,16 @@ export function evalRule(rule, $vars) {
       };
       if (unit === "day") {
         const lk = dayKey(leftVal); const rk = dayKey(anchor);
-        return lk != null && lk === rk;
+        if (lk == null || rk == null) return false;
+        if (span <= 1) return lk === rk;
+        // Multi-day span: leftVal must fall in [rk, rk + span) by calendar day.
+        const [ry, rm, rd] = rk.split("-").map(Number);
+        const startMs = new Date(ry, rm - 1, rd).getTime();
+        const [ly, lm, ld] = lk.split("-").map(Number);
+        const leftMs = new Date(ly, lm - 1, ld).getTime();
+        const dayMs = 24 * 60 * 60 * 1000;
+        const diffDays = Math.round((leftMs - startMs) / dayMs);
+        return diffDays >= 0 && diffDays < span;
       }
       const da = new Date(leftVal); const db = new Date(anchor);
       if (isNaN(da.getTime()) || isNaN(db.getTime())) return false;
@@ -1144,8 +1175,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           fromTemplate: resolveExpr(cfg.value.fromTemplate, $vars),
           tokens,
         };
-      } else if (cfg.value !== null && typeof cfg.value === "object" && !Array.isArray(cfg.value)) {
-        value = cfg.value;
+      } else if (cfg.value !== null && typeof cfg.value === "object") {
+        // Object OR array value (e.g. embed-cell doc JSON, table column-def
+        // array). Deep-resolve so `$var` string leaves substitute while
+        // structure + literal node types are preserved. (Was: objects passed
+        // through verbatim and arrays hit resolveExpr as-a-whole, both
+        // storing literal "$cellOcc" strings — the Phase-D blocker.)
+        value = deepResolveExpr(cfg.value, $vars);
       } else {
         value = resolveExpr(cfg.value, $vars);
       }

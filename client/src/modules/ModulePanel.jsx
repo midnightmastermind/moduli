@@ -26,6 +26,7 @@ import {
   copylinkPanel,
   splitPanel,
   unsplitPanel,
+  applyLocalSort,
 } from "../helpers/LayoutHelpers";
 import {
   useDragDrop,
@@ -47,6 +48,8 @@ import {
   Folder,
   FileText,
   Layers,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 import Container from "./ModuleContainer.jsx";
@@ -55,6 +58,8 @@ import { CanvasDrawSection } from "./CanvasContent.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import SortSection from "../ui/SortSection";
+import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import TemplatesSection from "../ui/TemplatesSection";
 
 // ============================================================
@@ -279,6 +284,10 @@ function Panel({
   const [showHeader, setShowHeader] = useState(true);
   const [rootTreeOpen, setRootTreeOpen] = useState(false);
   const [localTreeOpen, setLocalTreeOpen] = useState(false);
+  // Autohide reveal state — ephemeral. The persisted `autohide` flag itself
+  // lives on panelOccurrence.meta.autohide and is read further down (after
+  // panelOccurrence is resolved).
+  const [headerRevealed, setHeaderRevealed] = useState(false);
   const [pendingDrilldown, setPendingDrilldown] = useState(null);
   const [dropdownAnchor, setDropdownAnchor] = useState(null);
   const openDropdown = useCallback((e) => setDropdownAnchor(e.currentTarget.getBoundingClientRect()), []);
@@ -350,6 +359,20 @@ function Panel({
     if (!panelOccurrence?.id) return;
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, ...updates }, emit: true });
   }, [panelOccurrence, dispatch, socket]);
+
+  // Autohide setting — persisted on panelOccurrence.meta.autohide so it can
+  // be seeded by createLiveData. Collapses pageHeader + breadcrumbBar; the
+  // hover strip at the top of the panel reveals them.
+  const autohide = !!panelOccurrence?.meta?.autohide;
+  const toggleAutohide = useCallback(() => {
+    if (!panelOccurrence?.id) return;
+    const nextMeta = { ...(panelOccurrence.meta || {}), autohide: !autohide };
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: panelOccurrence.id, meta: nextMeta },
+      emit: true,
+    });
+  }, [panelOccurrence, autohide, dispatch, socket]);
 
   // View: check occurrence.viewId first (new system), fall back to module.viewId (legacy)
   const resolvedViewId = panelOccurrence?.viewId || module.viewId;
@@ -519,7 +542,10 @@ function Panel({
   });
 
 
-  // Build page list from panel children (all children are pages)
+  // Build page list from panel children (all children are pages).
+  // Honors the panel occurrence's local sort (meta.localSort) — when set,
+  // pages are auto-sorted by label or by a field value; otherwise drop
+  // order (the existing occurrences[] array) is preserved.
   const pagesList = useMemo(() => {
     const panelChildOccIds = panelOccurrence?.occurrences || [];
     const pages = [];
@@ -529,10 +555,11 @@ function Panel({
       const mod = modulesById[occ.moduleId];
       if (!mod) continue;
       if (mod.role === "page") {
-        pages.push({ page: mod, occurrence: occ });
+        pages.push({ page: mod, occurrence: occ, instance: mod });
       }
     }
-    return pages;
+    const sorted = applyLocalSort(pages, panelOccurrence?.meta?.localSort, modulesById);
+    return sorted.map(({ page, occurrence }) => ({ page, occurrence }));
   }, [panelOccurrence, occurrencesById, modulesById]);
 
   // Auto-create panel View if it doesn't have one yet
@@ -574,6 +601,14 @@ function Panel({
       CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: occId }, emit: true });
     }
   }, [panelOccurrence, currentView, dispatch, socket]);
+
+  // Sidebar-aware page open: anything that opens a page from the Local/Root
+  // tree should also collapse the sidebar (user requested: selecting closes it).
+  const openPageAndCloseTrees = useCallback((occId, options) => {
+    openPage(occId, options);
+    setLocalTreeOpen(false);
+    setRootTreeOpen(false);
+  }, [openPage]);
 
   const closePage = useCallback((occId) => {
     if (!occId || !panelOccurrence?.id) return;
@@ -678,7 +713,7 @@ function Panel({
               socket={socket}
               collapsed={false}
               onToggleCollapse={() => setRootTreeOpen(false)}
-              onOpenPage={openPage}
+              onOpenPage={openPageAndCloseTrees}
               activePageView={activePageView}
             />
           );
@@ -693,7 +728,7 @@ function Panel({
               collapsed={false}
               onToggleCollapse={() => setLocalTreeOpen(false)}
               panelOccurrence={panelOccurrence}
-              onOpenPage={openPage}
+              onOpenPage={openPageAndCloseTrees}
               onClosePage={closePage}
             />
           );
@@ -701,10 +736,9 @@ function Panel({
           // Page panel header — drag handle on LEFT, then page name, then QuickAdd + filters
           const activePageLabel = activePageEntry?.page?.label || "Untitled";
           const pageHeader = (
-            <div style={{
+            <div className="page-header" style={{
               display: "flex", alignItems: "center",
               flexShrink: 0, padding: "2px 6px 2px 10px", gap: 6,
-              borderBottom: "1px solid var(--border-default)",
             }}>
               {/* Panel drag handle — leftmost */}
               <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
@@ -733,6 +767,11 @@ function Panel({
                       onHistory={() => setHistoryOpen(true)}
                       onTemplate={openTemplates}
                       onDelete={handleRemovePanel}
+                      extraItems={[{
+                        icon: autohide ? Eye : EyeOff,
+                        label: autohide ? "Disable autohide" : "Autohide header",
+                        onClick: () => { toggleAutohide(); setHeaderRevealed(false); },
+                      }]}
                     />
                   </div>
                 </PopoverAnchor>
@@ -864,6 +903,8 @@ function Panel({
               <button
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => { setLocalTreeOpen(v => !v); setRootTreeOpen(false); }}
+                onDragEnter={(e) => { e.preventDefault(); setLocalTreeOpen(true); setRootTreeOpen(false); }}
+                onDragOver={(e) => e.preventDefault()}
                 style={{
                   display: "flex", alignItems: "center", gap: 3, flexShrink: 0,
                   padding: "2px 7px", border: "none", borderRadius: 4, cursor: "pointer",
@@ -904,6 +945,8 @@ function Panel({
               <button
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => { setRootTreeOpen(v => !v); setLocalTreeOpen(false); }}
+                onDragEnter={(e) => { e.preventDefault(); setRootTreeOpen(true); setLocalTreeOpen(false); }}
+                onDragOver={(e) => e.preventDefault()}
                 style={{
                   display: "flex", alignItems: "center", gap: 3, flexShrink: 0,
                   padding: "2px 7px", border: "none", borderRadius: 4, cursor: "pointer",
@@ -918,10 +961,32 @@ function Panel({
             </div>
           );
 
-          return (
-            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          // Autohide: header + breadcrumb collapse and a thin top hover strip
+          // reveals them. When revealed they stay in normal flow and push the
+          // page content down (not overlaid). When NOT autohiding, render inline.
+          const headersVisible = !autohide || headerRevealed;
+          const headerCluster = (
+            <div
+              onMouseEnter={() => autohide && setHeaderRevealed(true)}
+              onMouseLeave={() => autohide && setHeaderRevealed(false)}
+              style={{ flexShrink: 0 }}
+            >
               {pageHeader}
               {breadcrumbBar}
+            </div>
+          );
+
+          return (
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
+              {/* Top hover strip — only present when autohide is on. Reveals the
+                  header cluster on hover. Tall enough to be hittable. */}
+              {autohide && !headerRevealed && (
+                <div
+                  onMouseEnter={() => setHeaderRevealed(true)}
+                  style={{ position: "absolute", top: 0, left: 0, right: 0, height: 8, zIndex: 40, cursor: "pointer" }}
+                />
+              )}
+              {headersVisible && headerCluster}
               {/* On desktop: sidebars push content (flex row). On mobile: sidebars overlay (absolute). */}
               <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", position: "relative" }}>
                 {/* Local tree sidebar — LEFT, pushes content on desktop, overlays on mobile */}
@@ -1105,6 +1170,8 @@ function Panel({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={panelOccurrence} />
+          <SortSection occurrence={panelOccurrence} />
+          <FieldVisibilitySection occurrence={panelOccurrence} />
         </HeaderDropdown>
       )}
       {templatesAnchor && (

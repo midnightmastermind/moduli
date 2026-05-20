@@ -526,6 +526,38 @@ describe("UPDATE action", () => {
     expect(updates[0].value).toEqual(cellDoc);
   });
 
+  it("deep-resolves $var string leaves inside an object value (embed-cell doc)", () => {
+    const $vars = { $item: { id: "tbl1" }, $cellOcc: "occ-abc" };
+    const updates = executeActionItem("UPDATE", {
+      path: "$item.meta.table.cells.0:0",
+      value: { type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: "$cellOcc" } }] },
+    }, $vars, makeContext());
+
+    expect(updates[0]._effect).toBe("UPDATE_ITEM_META");
+    expect(updates[0].metaPath).toEqual(["table", "cells", "0:0"]);
+    expect(updates[0].value).toEqual({
+      type: "doc",
+      content: [{ type: "moduleEmbed", attrs: { occurrenceId: "occ-abc" } }],
+    });
+  });
+
+  it("deep-resolves $var leaves inside an array value (column defs), preserving literals", () => {
+    const $vars = { $item: { id: "tbl1" }, $dateFid: "f_date" };
+    const updates = executeActionItem("UPDATE", {
+      path: "$item.meta.table.columns",
+      value: [
+        { id: "c0", title: "Task" },
+        { id: "c1", title: "Date", displayFieldId: "$dateFid" },
+      ],
+    }, $vars, makeContext());
+
+    expect(updates[0]._effect).toBe("UPDATE_ITEM_META");
+    expect(updates[0].value).toEqual([
+      { id: "c0", title: "Task" },
+      { id: "c1", title: "Date", displayFieldId: "f_date" },
+    ]);
+  });
+
   it("interpolates ${$var} inside path", () => {
     const $vars = { $goalId: "goal1" };
     const updates = executeActionItem("UPDATE", {

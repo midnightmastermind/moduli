@@ -7,8 +7,8 @@ export const Switch = React.forwardRef(({ className, ...props }, ref) => (
   <SwitchPrimitive.Root
     ref={ref}
     className={cn(
-      // Toggle pill shape (overrides CONTROL_BASE width/height)
-      "peer inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full",
+      // Toggle pill shape (overrides CONTROL_BASE width/height) — sized down ~28% from h-4 w-7
+      "peer inline-flex h-3 w-5 shrink-0 cursor-pointer items-center rounded-full",
       "border border-borderScale-0 bg-inputScale-2",
       "transition-colors",
       "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
@@ -20,8 +20,8 @@ export const Switch = React.forwardRef(({ className, ...props }, ref) => (
   >
     <SwitchPrimitive.Thumb
       className={cn(
-        "pointer-events-none block h-3 w-3 rounded-full bg-white shadow",
-        "transition-transform data-[state=checked]:translate-x-3 data-[state=unchecked]:translate-x-0.5"
+        "pointer-events-none block h-2 w-2 rounded-full bg-white shadow",
+        "transition-transform data-[state=checked]:translate-x-2.5 data-[state=unchecked]:translate-x-0.5"
       )}
     />
   </SwitchPrimitive.Root>

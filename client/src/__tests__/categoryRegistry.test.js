@@ -3,9 +3,9 @@ import { describe, it, expect } from "vitest";
 import { CATEGORIES, resolveCategoryItems } from "../ui/categoryRegistry";
 
 describe("categoryRegistry", () => {
-  it("declares the five top-level categories in order", () => {
+  it("declares the six top-level categories in order", () => {
     expect(CATEGORIES.map(c => c.id)).toEqual([
-      "sources", "occurrences", "fields", "localVars", "builtins",
+      "sources", "occurrences", "fields", "localVars", "operations", "builtins",
     ]);
   });
 

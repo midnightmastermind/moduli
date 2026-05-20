@@ -1,6 +1,62 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-05-17. Check this file before re-reading source._
+_Updated: 2026-05-19. Check this file before re-reading source._
+
+## Recent Changes (May 19 2026 — Daily Journal Questions page)
+- **scripts/createLiveData.js**: New "Daily Journal Questions" page
+  (`role:page kind:board`) pinned in the Library folder at `sortOrder: 1`
+  (Library page is sortOrder 0). Contains a new "Reflection Questions"
+  container (`role:container kind:list`, `questionsContModId/OccId`) whose
+  `occurrences[]` lists the 7 existing question occurrence IDs. The
+  questions stay parented under `libraryContOccId` (canonical) and render
+  in BOTH places via multi-parent occurrences[] membership — editing a
+  question label here updates the Library page too. Page-level
+  `filterOverride: {}` + `filterNavConfig.filter_daily.visible: false`
+  (mirrors the Library page). No grid panel pin — Library folder only.
+
+## Recent Changes (May 19 2026 — Day Page Build Tasks Completed op + journalQuestion randomizable)
+- **utils/liveSystemBuilders.js**: New
+  `makeDayPageBuildTasksCompletedOp({ userId, gridId, dateFieldId,
+  completedFieldId, isTaskFieldId })` factory. Mirrors `makeDayPageBuildOp`'s
+  `$dayDate` chain + idempotent page lookup, then FINDs the cloned "Tasks
+  Completed" container under the day page (`parentId IS $dayPageId AND
+  label IS "Tasks Completed"`) and rewrites its `textmap` to a
+  `{type:"doc", content:[moduleEmbed×N]}` doc — one embed per completed
+  task on `$dayDate` under Schedule (`_ancestors HAS_ANCESTOR $schedPageId
+  AND fields.<dateFieldId>.value SAME_DAY $dayDate AND completed IS true
+  AND isTask IS true`). Uses PUSH_TO_ARRAY + `deepResolveExpr` so each
+  `attrs.occurrenceId` resolves to the iteration's `$task.id`. Empty
+  result writes a single empty paragraph so TipTap's non-empty-content
+  invariant holds. Priority 4 (after Build Day/Stamp/trackers).
+- **scripts/createLiveData.js**:
+  - Imports + instantiates the new op alongside `makeDayPageBuildOp`.
+  - `journalQuestion` field gains `meta.randomizable: true` and
+    `meta.optionsSource = { mode:"find", find:{ over:"$allInstances",
+    predicate: AND(fields.<libraryFid>.value IS "question"),
+    valuePath:"label", labelPath:"label" } }`. FieldRenderer's display
+    branch surfaces a 🎲 button (client side) — the Rotator op still
+    drives the value on filter changes; the button is a manual re-roll.
+- Re-seed required: `node --env-file=.env server/scripts/createLiveData.js`.
+
+## Recent Changes (May 18 2026 — Schedule Table column widths rebalanced)
+- **scripts/createLiveData.js (Schedule Table `meta.table.columns`)**: widths Date 150→200, Time 150→200, Goal 320→230 (Task stays 240). Date/Time projection columns were cramped while Goal had excess space; the client's `effectiveWidths` scaler preserves these ratios when filling the panel. Existing live grids were patched in-place via a one-off `Occurrence.updateOne` on `meta.table.columns` (the `Schedule Table: Build` op only writes `cells`/`rowCount` by path, so it doesn't clobber column defs) — but the running server caches occurrences in memory, so a server restart (or reseed) is needed for an already-loaded grid to serve the new widths. No new reseed strictly required for the data, but `node --env-file=.env server/scripts/createLiveData.js` will produce the new widths for fresh grids.
+
+## Recent Changes (May 18 2026 — Schedule Table columns use fieldVisibility instead of displayFieldId)
+- **scripts/createLiveData.js (Schedule Table page `meta.table.columns`)**: Date/Time columns no longer use the single-field `displayFieldId` projection — they now use `fieldVisibility: { mode: "show", fieldIds: [<one fid>] } + hideLabel: true`. The cell embed renders the full `ModuleInstance` for the copy but filters down to the single targeted field (date or timeslot) AND suppresses the row label (the task name is already in the Task column — duplicating it here added noise). Goal column keeps `fieldVisibility: null + hideLabel: false` (full embed). Task column bumped width 220→240. Visual result: every cell now reads as a row of the same instance, just filtered differently per column — matches the user's mental model of "table rows are occurrences, columns are field projections" instead of "table cells are arbitrary content". Re-seed required: `node --env-file=.env server/scripts/createLiveData.js`.
+
+## Recent Changes (May 18 2026 — Schedule Table: Build skips rebuild when already populated)
+- **scripts/createLiveData.js (`Schedule Table: Build` op)**: Wrapped step 7–9 (cleanup + reset + rebuild) in an early-exit IF. New guard: `$tbl.meta.table.rowCount > 0 AND $trigger.type IS_NOT "NavigationOp"` → no-op. Motivation: the full rebuild emits ~50 effects (18 CREATE_ITEM + 6 linkedGroup UPDATEs + 25 cell UPDATEs + 1 final rowCount). Each effect is a Redux dispatch + socket emit that triggers a React re-render of the table — with 24 TipTap editors mounted across the cells, every fire pegged the browser. Op fires on onLoad / onFilterChange / onAdd container / onDelete container; before the guard, every full_state re-ran the whole rebuild even when the table was already correct. Now: first load (rowCount === 0) builds; subsequent reloads see rowCount > 0 + null trigger → no-op; date navigation (`$trigger.type === "NavigationOp"`) always rebuilds for the new day; schedule structure changes (onAdd/onDelete containers) also rebuild because $trigger isn't NavigationOp BUT rowCount might be 0 if Build Day wiped it — covered by the IS_NOT guard which only short-circuits when BOTH conditions hold. Re-seed required: `node --env-file=.env server/scripts/createLiveData.js`.
+
+## Recent Changes (May 18 2026 — Schedule Table: Build is now self-healing)
+- **scripts/createLiveData.js (`Schedule Table: Build` op)**: Replaced the per-task dedup-FIND (`$rowExists IS_EMPTY` skip-if-exists) with a "clean + reset + rebuild" sequence: (1) loop `$allInstances` and DELETE every occurrence whose `_ancestors HAS_ANCESTOR $tblId` AND `id IS_NOT $cg` (the goal copy is preserved — its dedup remains); (2) UPDATE `$tbl.meta.table.cells` = `{}` and `$tbl.meta.table.rowCount` = `0`; (3) INIT `$r` = 0 via `literal:0`; (4) then the existing task loop COPY_LINKs + cell UPDATEs run unconditionally for every matching task. Motivation: the prior dedup was idempotent only when both the copies AND the cells map were consistent across runs. A client-side concurrency bug (now fixed — see state/CLAUDE.md UPDATE_ITEM_META) silently dropped all but the last cell write per batch, leaving orphan task copies that the dedup happily skipped forever. Self-healing rebuild costs ~6 deletes + 18 COPY_LINKs + 24 cell UPDATEs per op fire, which is cheap and guarantees the table always reflects the current Schedule even if a prior partial run left bad state. Re-seed required: `node --env-file=.env server/scripts/createLiveData.js`.
+- **utils/liveSystemBuilders.js**: `makeScheduleBuildDayOp` accepts new `completedTrackerName` param (default `"Tracker: Tasks Completed Today"` for createTestGrid compatibility). createLiveData passes `"Tracker: Completed Today"` (the name it actually seeds) so Build Day's tail `RUN_OPERATION` resolves — previously crashed with `operation not found`.
+
+## Recent Changes (May 18 2026 — Schedule Table page + Build op in createLiveData)
+- **scripts/createLiveData.js**: NEW standalone `role:"page" kind:"table"` **"Schedule Table"** page (Interfaces folder, sortOrder 2, after Schedule/Canvas; `filterOverride:{}`). Seeded `meta.table` with 4 stable columns: col0 "Task" (`fieldVisibility:{mode:"hide",fieldIds:[date,timeslot]}`), col1 "Date" (`displayFieldId:dateFieldId`), col2 "Time" (`displayFieldId:timeslotFieldId`), col3 "Goal". `rowCount:0`, `cells:{}` — the op fills them.
+- **scripts/createLiveData.js**: NEW op **"Schedule Table: Build"** (priority 8; triggers onAdd/onDelete/onFilterChange[ancestorLabel:"Schedule"]/onLoad). **Idempotent the same way Schedule: Build Day is** — module-based COPY_LINK (copies reuse the Schedule task's moduleId) parented under the Schedule Table page, with row-level existence dedup using Build Day's exact predicate scoped to the table: `templateId IS $taskTpl AND _ancestors HAS_ANCESTOR $tblId AND fields.<dateFieldId>.value SAME_DAY $schedDate`. Row present → skip (cells persist); absent → create **3 copy-linked task occurrences** (col0 main, col1 date-only, col2 timeslot-only — the column `displayFieldId`/`fieldVisibility` projections render the 3 views) + the shared "Physical Wellness" goal copy for col3 (dedup'd ONCE before the loop by `templateId IS $goalTpl AND _ancestors HAS_ANCESTOR $tblId` and reused for every row). The existence FIND uses `IS_EMPTY` which is unambiguous even though 3 copies share templateId, so no per-copy markers needed. `$r` is append-only from the table's current `rowCount`, so re-running adds nothing and a new day appends — exactly how Build Day leaves prior Due copies untouched. No flags, no stamped meta keys. Cell embed docs written via UPDATE (relies on the client `deepResolveExpr`). FINDs target by `label IS "Schedule Table"`; reads source from `label IS "Schedule"` (Schedule trackers/Build-Day use exact `"Schedule"` so no cross-fire). Op count log → 25. Re-seed required: `node --env-file=.env scripts/createLiveData.js`.
+
+## Recent Changes (May 18 2026 — Occurrence.fieldVisibility)
+- **models/Occurrence.js**: new top-level `fieldVisibility: Mixed (default null)`. Per-occurrence field-visibility `{ mode:"show"|"hide"|"off", fieldIds:[] }` that cascades to descendant instances like `filters[]` (resolved client-side by `getEffectiveFieldVisibilityForOccurrence`). Generic `update_occurrence` already persists it (`{ ...prev, ...occurrence }`) — no handler change. No re-seed required (default null).
 
 ## Recent Changes (2026-05-17 — Period-aware trackers + Today's Moods)
 - **`utils/liveSystemBuilders.js`**:

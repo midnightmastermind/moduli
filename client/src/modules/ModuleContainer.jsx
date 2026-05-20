@@ -31,6 +31,8 @@ import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getLocalFilterCon
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import SortSection from "../ui/SortSection";
+import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import TemplatesSection from "../ui/TemplatesSection";
 
 import {
@@ -186,7 +188,10 @@ function Container({
     return () => { document.getElementById(styleId)?.remove(); };
   }, [module?.customCss, module?.id]);
 
-  const onAdd = useCallback(() => addInstanceToContainer(module.id), [addInstanceToContainer, module.id]);
+  // `opts` carries the QuickAddMenu field-picker payload: `{ fieldIds }`.
+  // Forwarded to addInstanceToContainer (App.jsx) which pre-binds those
+  // fields on the new module. Other call sites that pass no arg still work.
+  const onAdd = useCallback((opts) => addInstanceToContainer(module.id, opts), [addInstanceToContainer, module.id]);
 
   const commitLabel = useCallback(() => {
     const next = (draft?.label ?? "").trim();
@@ -592,7 +597,7 @@ function Container({
       {showHeader && (
       <div
         ref={headerDropRef}
-        className={`container-header module-header-row no-select ${embedded ? "embedded-container-header" : "border-b border-gray-700 border-solid"}`}
+        className={`container-header module-header-row no-select ${embedded ? "embedded-container-header" : ""}`}
         style={embedded
           ? { padding: "0", alignItems: "stretch", flexDirection: "column", ...embeddedHeaderStyle }
           : { height: "20px", gap: 6, padding: "2px 3px" }
@@ -775,7 +780,7 @@ function Container({
                 />
               </div>
             ) : (
-              <span className="truncate" style={{ fontSize: "0.75rem", fontWeight: 500 }}>
+              <span className="truncate" style={{ fontSize: module.kind === "board" ? "0.95rem" : "0.75rem", fontWeight: module.kind === "board" ? 600 : 500 }}>
                 {module.label || "Container"}
                 {containerOccurrence?.linkedGroupId && (
                   <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0 inline ml-1" title="Linked" />
@@ -1140,6 +1145,8 @@ function Container({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={containerOccurrence} />
+          <SortSection occurrence={containerOccurrence} />
+          <FieldVisibilitySection occurrence={containerOccurrence} />
         </HeaderDropdown>
       )}
       {templatesAnchor && (

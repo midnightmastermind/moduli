@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="160" viewBox="0 0 640 160" fill="none" role="img" aria-label="moduli">
+  <defs>
+    <linearGradient id="wGrad" x1="0" y1="20" x2="640" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#48F2E6"/>
+      <stop offset="0.5" stop-color="#39A9E6"/>
+      <stop offset="1" stop-color="#2C4FD9"/>
+    </linearGradient>
+    <linearGradient id="wGradDark" x1="0" y1="20" x2="640" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0b3a55"/>
+      <stop offset="1" stop-color="#06152e"/>
+    </linearGradient>
+
+    <!-- One "letter loop" template: stroke style is shared via <use> + class -->
+  </defs>
+
+  <!--
+    Each glyph is drawn as a continuous ribbon stroke (no dasharray, no breaks),
+    same blue gradient as the mark. Letters that have natural closed bowls
+    (o, d) form a small loop / knot. Letters with stems (l, i) end in rounded
+    caps. The m / u glyphs are written as a single weaving ribbon so they
+    feel like miniature infinity knots.
+
+    A single mini "knot" appears at the center of the wordmark between
+    `du` to echo the mark's interlocking ribbons.
+  -->
+
+  <!-- shared stroke attrs via group -->
+  <g
+    fill="none"
+    stroke-width="18"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <!-- DARK BACKERS (slight offset for depth) -->
+    <g stroke="url(#wGradDark)" opacity="0.55" transform="translate(0,3)">
+      <!-- m -->
+      <path d="M 24 120
+               C 24 80, 38 60, 58 60
+               C 78 60, 92 80, 92 120
+               C 92 80, 106 60, 126 60
+               C 146 60, 160 80, 160 120" />
+      <!-- o -->
+      <path d="M 200 90
+               C 200 64, 220 50, 240 50
+               C 260 50, 280 64, 280 90
+               C 280 116, 260 130, 240 130
+               C 220 130, 200 116, 200 90 Z" />
+      <!-- d -->
+      <path d="M 350 30
+               L 350 130
+               M 350 90
+               C 350 64, 332 50, 314 50
+               C 296 50, 280 64, 280 90
+               C 280 116, 296 130, 314 130
+               C 332 130, 350 116, 350 90 Z" />
+      <!-- u -->
+      <path d="M 390 60
+               L 390 110
+               C 390 124, 405 132, 420 132
+               C 435 132, 452 124, 452 110
+               L 452 60
+               L 452 130" />
+      <!-- l -->
+      <path d="M 500 22
+               L 500 130" />
+      <!-- i -->
+      <path d="M 560 60
+               L 560 130
+               M 560 30
+               L 560 36" />
+    </g>
+
+    <!-- MAIN GRADIENT RIBBON -->
+    <g stroke="url(#wGrad)">
+      <!-- m: a single weaving ribbon, two humps -->
+      <path d="M 24 120
+               C 24 80, 38 60, 58 60
+               C 78 60, 92 80, 92 120
+               C 92 80, 106 60, 126 60
+               C 146 60, 160 80, 160 120" />
+
+      <!-- o: closed loop (continuous, no gaps) -->
+      <path d="M 200 90
+               C 200 64, 220 50, 240 50
+               C 260 50, 280 64, 280 90
+               C 280 116, 260 130, 240 130
+               C 220 130, 200 116, 200 90 Z" />
+
+      <!-- d: stem + bowl, drawn as one ribbon path -->
+      <path d="M 350 30
+               L 350 130
+               M 350 90
+               C 350 64, 332 50, 314 50
+               C 296 50, 280 64, 280 90
+               C 280 116, 296 130, 314 130
+               C 332 130, 350 116, 350 90 Z" />
+
+      <!-- u: two legs joined by a rounded scoop -->
+      <path d="M 390 60
+               L 390 110
+               C 390 124, 405 132, 420 132
+               C 435 132, 452 124, 452 110
+               L 452 60
+               L 452 130" />
+
+      <!-- l: tall stem with rounded caps -->
+      <path d="M 500 22
+               L 500 130" />
+
+      <!-- i: stem -->
+      <path d="M 560 60
+               L 560 130" />
+      <!-- i: tittle (the dot) as a tiny knot, matching cap shape -->
+      <path d="M 560 28
+               L 560 30" />
+    </g>
+
+    <!-- Inner specular highlight (subtle white sheen on each glyph's "top") -->
+    <g stroke="rgba(255,255,255,0.30)" stroke-width="4">
+      <path d="M 32 100 C 38 72, 50 66, 60 66" />
+      <path d="M 100 100 C 106 72, 118 66, 128 66" />
+      <path d="M 210 78  C 220 62, 232 58, 244 58" />
+      <path d="M 290 60  C 314 56, 332 64, 344 78" />
+      <path d="M 398 72  C 398 92, 398 102, 402 110" />
+      <path d="M 500 40  L 500 110" />
+      <path d="M 560 70  L 560 120" />
+    </g>
+
+    <!-- Mini interlocking knot between d & u, echoing the mark -->
+    <g>
+      <path d="M 358 100 C 372 90, 380 90, 388 100"
+        stroke="url(#wGrad)" stroke-width="14" />
+      <path d="M 372 92  C 378 100, 380 102, 388 100"
+        stroke="url(#wGradDark)" stroke-width="6" opacity="0.7" />
+    </g>
+  </g>
+</svg>

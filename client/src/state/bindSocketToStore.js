@@ -682,6 +682,16 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         } else {
           nextMeta = { ...(occ.meta || {}), ...(effect.metaPatch || {}) };
         }
+        // Mirror the freshly-computed meta into the local overlay BEFORE
+        // emitting. Without this, a subsequent UPDATE_ITEM_META in the same
+        // effect batch (e.g. the Schedule Table op writing 4 cells per row)
+        // reads the pre-write meta from localOccsById, recomputes nextMeta
+        // from that stale snapshot, and silently overwrites the previous cell
+        // entries — only the LAST write per batch survives. Updating the
+        // overlay synchronously here means the next handler sees the merged
+        // state. dispatch() updates Redux for the React render layer; the
+        // overlay update keeps the executor's view fresh too.
+        localOccsById[effect.itemId] = { ...occ, meta: nextMeta };
         updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, meta: nextMeta } });
         break;
       }

@@ -1,6 +1,9 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-04-12. Check this file before re-reading source._
+_Updated: 2026-05-18. Check this file before re-reading source._
+
+## Recent Changes (May 18 2026 — CellEmbedContext fieldFilter → fieldVisibility)
+- **CellEmbedContext.js**: `fieldFilter` key renamed to `fieldVisibility` (default null). Semantics unchanged: `{ mode:"show"|"hide", fieldIds:[] }` is the table column's LOCAL override; null = no column override (ModuleInstance falls back to the occurrence's ancestor `fieldVisibility` cascade). Consumed by ModuleInstance.
 
 ## Recent Changes (May 15 2026 — HeadingFocus gated on editor focus)
 - **HeadingFocusExtension.js**: `decorations(state)` now returns `DecorationSet.empty` unless `editor.isFocused`. Was applying `.heading-focused` (and the `# ` ::before marker) to whatever heading the *default* selection sat in — every textblock sub-editor's doc is just `[heading]`, default selection is inside it, so an unfocused day-page textblock always showed a stray `#`. Added `handleDOMEvents.focus/blur` that dispatch a no-op tx so the marker appears/clears immediately (a pure blur doesn't otherwise re-run decorations). Captures `const extension = this` to read the live editor. General improvement — affects all doc editors (no stray markers when unfocused), matches the extension's stated "only while editing" intent.

@@ -1,6 +1,97 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-05-18. Check this file before re-reading source._
+_Updated: 2026-05-19. Check this file before re-reading source._
+
+## Recent Changes (May 19 2026 — Selected chip display config + resolver regression coverage)
+- **Field.jsx**: `resolveOccCard(occId, maps, chipDisplay = null)` honors
+  the field's `meta.optionsSource.chipDisplay` config. Explicit
+  `fieldIds` order wins over the legacy "first 3 non-hidden bindings"
+  heuristic. `showLabel:false` hides the label row; `showMedia:false`
+  collapses the media slot entirely (zero-width — not just a Link2
+  placeholder). `OccurrenceOption` accepts `chipDisplay` prop. All
+  four call sites thread `field?.meta?.optionsSource?.chipDisplay`
+  through.
+- **commandCenter/SelectOptionsSourceEditor.jsx**: New
+  `ChipDisplayBody` subcomponent rendered only when `fieldType ===
+  "occurrence"` (passed as new prop from FieldsTab). Two toggles
+  (Label / Media) + a sorted, multi-select chip list of every grid
+  field. Selection is ORDERED (each picked field shows its index
+  badge "1.", "2.", …); re-click toggles off. "✕ auto" button
+  clears the config to re-enable auto-derive.
+- **commandCenter/FieldsTab.jsx**: passes `fieldType={local.type}`
+  to the editor.
+- **__tests__/optionsResolver.test.js**: 6 new regression tests
+  covering the live-seed flat shape (handoff task #8). Confirms the
+  resolver correctly filters $allInstances, excludes records with
+  missing left-path values (returns null → IS fails), excludes
+  container-role records, ignores `predicate.conjunction`, returns
+  empty for missing optionsSource (no fall-through to "show all"),
+  and respects empty `predicate.rules:[]` as an intentional open
+  pool. 28/28 optionsResolver tests + 675/675 total green.
+
+## Recent Changes (May 19 2026 — Daily Question 🎲 randomize button)
+- **FieldRenderer.jsx**: `resolveOptions` gate widened to also run
+  for any field with `meta.randomizable === true` (was previously
+  gated to `select` / `occurrence` types only). Display-only branch
+  surfaces a 🎲 button when `canRandomizeDisplay` is true.
+  `handleRandomizeDisplay` writes via `CommitHelpers.updateOccurrence`
+  with `triggerField` so downstream ops fire as if a user edited it.
+
+## Recent Changes (May 19 2026 — QuickAddMenu field picker on New X)
+- **QuickAddMenu.jsx**: Two new states `pickingFields` (null = normal /
+  Array = picker open with selected fieldIds) and `fieldSearch`. The
+  "New X" button's click handler (`handleClickNew`) opens the picker
+  only when `targetRole === "instance"` AND the grid has at least one
+  non-trashed field; everything else (containers / panels / pages /
+  empty-grid case) short-circuits to immediate `onCreateNew({ fieldIds:
+  [] })`. Picker UI takes over the entire menu body: back chevron, count
+  header, search input, then a checkable list of every field on the
+  grid (read from `fieldsById` via `GridActionsContext`). Footer pinned
+  to bottom — `[Skip]` calls `onCreateNew({ fieldIds: [] })`,
+  `[Create]` calls `onCreateNew({ fieldIds })`. Both close the menu.
+  Category tiles / module list / template tiles all gated on
+  `pickingFields == null` so they're hidden while picking.
+- **Switch (`components/ui/switch.jsx`)**: Track `h-4 w-7 → h-3 w-5`,
+  thumb `h-3 w-3 → h-2 w-2`, `translate-x-3 → translate-x-2.5`. ~28%
+  smaller end-to-end. Used by ~every boolean field, Filters/Sort/Field-
+  Visibility section toggles. Parent pill padding unchanged so the
+  tap target stays roughly the same.
+
+## Recent Changes (May 19 2026 — Rich occurrence-select picker)
+- **Field.jsx**: New module-scope `OccurrenceOption` component + `resolveOccCard`
+  helper. `resolveOccCard(occId, {occurrencesById,modulesById,fieldsById})`
+  resolves the referenced occurrence's module, its `role:"media"` binding value
+  (poster, served `/uploads/<val>`), label, and up to 3 non-hidden field
+  values. `OccurrenceOption` renders a 34×46 poster (or Link2 placeholder) +
+  bold label + tiny field-value chips. `MultiSelectWithAdd` gained an optional
+  `renderOption(o)` prop (falls back to the old `<span>{label}</span>`). All
+  FOUR occurrence-type paths now render rich rows: compact multi, compact
+  single list, non-compact multi, and the non-compact single path — the native
+  `<select>` was REPLACED with a rich `<Popover>` list (reuses the existing
+  `selectOpen`/`setSelectOpen` state; single-click sets value + closes; trigger
+  button shows the selected card). Added `modulesById`+`fieldsById` to the
+  `GridActionsContext` destructure; `occMaps` useMemo + `renderOccurrenceOption`
+  useCallback. Build exit 0, 669/669 tests green.
+- **Field.jsx (task #8 client half — DONE)**: `MultiSelectWithAdd` gained a
+  `fieldName` prop; occurrence multi calls pass `fieldName={name}`. When set,
+  the compact trigger always shows `name:` prefix + cyan field-pill chrome
+  (background/border/color rgba(6,182,212,...)), fixing "occurrence selects
+  show no field name / no pill". Select-multi unaffected (no fieldName passed).
+- KNOWN-PENDING (task #8 seed/resolver half — see HANDOFF): occurrence dropdowns
+  "select anything" even though seed predicates ARE scoped — likely Library
+  instances missing the libraryFieldId value OR optionsResolver passing on a
+  missing left-path. Per-field chips display config also still TODO.
+  Per-field config of which fields the selected chips show — still TODO.
+
+## Recent Changes (May 19 2026 — Operation introspection in CategoryPathPicker)
+- **`CategoryPathPicker.jsx`** — Added three new SHAPES (`operation`, `triggerObject`, `sourceBinding`). The `operation` shape exposes raw op keys (id/name/description/enabled/priority/folderId/targetFieldId/triggerObjects/pipeline.sources) plus the ten static-analysis sets the analyzer computes (fields_written / fields_read / occurrences_written / occurrences_read / triggered_by_fields / triggered_by_occurrences / ancestor_scopes / invokes_operations / templates_used / created_modules). Each set drills via `childShape` to the matching array shape so authors can pick e.g. `$op.fields_written.<fid>`. `BUILTIN_VAR_SHAPES.$allOperations = "operationArray"`. `arrayItemsAsKeys` + `descendShape` extended to handle `operationArray / triggerObjectArray / sourceBindingArray`. `segmentDisplay` resolves `op:<id>` tokens to operation names (mirrors `field:<id>` handling).
+- **`categoryRegistry.js`** — New top-level "Operations" CATEGORY (amber, Zap icon, between Local Variables and Built-ins). Exposes `$allOperations` plus individual `op:<id>` rows for every operation on the grid (sorted by name). `$allOperations` added to `COLLECTION_ITEMS` so it appears in Loop / Find pickers. `recordShapeForCollection` returns `"operation"` when iterating `$allOperations` so the Find-predicate left-picker drills into operation keys.
+
+## Recent Changes (May 18 2026 — FieldVisibilitySection + fieldVisibility rename)
+- **FieldVisibilitySection.jsx (NEW)** — HeaderDropdown section, sibling to FiltersSection, mounted in container/page/panel chevron dropdowns. One mode control: Inherit (`fieldVisibility=null`) / Off (`{mode:"off"}` — show all, ignore ancestor) / Show / Hide (`{mode,fieldIds}` local override). Shows an "Effective: … · Local|Ancestor" readout + field checklist when Show/Hide. Writes `occurrence.fieldVisibility` via `CommitHelpers.updateOccurrence`. Cascade resolved via `getEffectiveFieldVisibilityForOccurrence` (selectors).
+- **Editor.jsx** — cell prop `fieldFilter` → `fieldVisibility`; `CellEmbedContext.Provider value={{ displayFieldId, fieldVisibility }}`.
+- **CategoryPathPicker.jsx** — tableColumn shape key `fieldFilter` → `fieldVisibility`.
+- **Field.jsx** — fixed pre-existing build break: `import GridActionsContext` (default) → `import { GridActionsContext }` (named; the module only has a named export). Was breaking `npm run build` (rollup); unrelated to fieldVisibility work.
 
 ## Recent Changes (May 18 2026 — Editor cell mode + ContainerKindSelector table + shared comparators)
 - **`Editor.jsx`** — Added opt-in `mode="cell"` prop. When set, doc-only behaviors are gated off (block handle / block menu / auto-create-textblock / onUpdate merge pre-pass all skip) and a cell keymap is layered in: `Enter` → `onCellCommitMove("down")`, `Shift+Enter` allows soft break, `Tab` / `Shift+Tab` → right/left, `Escape` → blur, `ArrowUp/Down` at first/last line → `up/down`. Pill/embed/field extensions and the drop pipeline remain fully enabled. Default `mode="doc"` path is untouched — opt-in only.

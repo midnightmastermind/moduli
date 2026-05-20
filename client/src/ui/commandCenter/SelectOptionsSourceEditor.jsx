@@ -22,7 +22,7 @@ const pillStyle = (active) => ({
   cursor: "pointer",
 });
 
-export default function SelectOptionsSourceEditor({ source, onChange }) {
+export default function SelectOptionsSourceEditor({ source, onChange, fieldType = "select" }) {
   const mode = source?.mode || "manual";
 
   function setMode(next) {
@@ -44,6 +44,101 @@ export default function SelectOptionsSourceEditor({ source, onChange }) {
       {mode === "manual" && <ManualBody source={source} onChange={onChange} />}
       {mode === "range"  && <RangeBody  source={source} onChange={onChange} />}
       {mode === "find"   && <FindBody   source={source} onChange={onChange} />}
+      {/* Chip-display config is occurrence-only — picks which fields show
+          on the SELECTED occurrence chip's subtitle row. Independent of
+          options-source mode (works in both find & manual modes) so the
+          editor lives at the bottom of the panel. */}
+      {fieldType === "occurrence" && <ChipDisplayBody source={source} onChange={onChange} />}
+    </div>
+  );
+}
+
+// ─── ChipDisplayBody — pick which fields render on selected occurrence chips ─
+// Persists to `source.chipDisplay = { fieldIds: string[], showMedia: bool, showLabel: bool }`.
+// When chipDisplay is null/missing, Field.jsx's OccurrenceOption falls back
+// to the auto-derived "first 3 non-hidden bindings" heuristic — so this UI
+// is purely opt-in. Empty fieldIds + showMedia:true is a valid "media only"
+// chip; empty everything + showLabel:false is a "blank" chip (probably bad
+// but allowed — UX feedback comes from the live preview).
+function ChipDisplayBody({ source, onChange }) {
+  const { fieldsById } = useContext(GridActionsContext);
+  const cd = source?.chipDisplay || { fieldIds: [], showMedia: true, showLabel: true };
+  const fields = useMemo(
+    () => Object.values(fieldsById || {})
+      .filter(f => !f.trashed)
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+    [fieldsById]
+  );
+
+  function patchCD(p) {
+    onChange({ ...source, chipDisplay: { ...cd, ...p } });
+  }
+  function toggleField(fid) {
+    const next = cd.fieldIds?.includes(fid)
+      ? cd.fieldIds.filter(x => x !== fid)
+      : [...(cd.fieldIds || []), fid];
+    patchCD({ fieldIds: next });
+  }
+  function clear() {
+    onChange({ ...source, chipDisplay: undefined });
+  }
+
+  const sectionLabel = { fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", marginBottom: 3 };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4, paddingTop: 8, borderTop: "1px dashed var(--border-subtle)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={sectionLabel}>Selected chip display</div>
+        {source?.chipDisplay && (
+          <button onClick={clear} type="button" style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: "var(--text-faint)", fontSize: 10, fontFamily: "monospace",
+            padding: "0 4px",
+          }} title="Clear chip display config (revert to auto-derive)">
+            ✕ auto
+          </button>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 10, fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace" }}>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+          <input type="checkbox" checked={cd.showLabel !== false} onChange={(e) => patchCD({ showLabel: e.target.checked })} />
+          Label
+        </label>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+          <input type="checkbox" checked={cd.showMedia !== false} onChange={(e) => patchCD({ showMedia: e.target.checked })} />
+          Media
+        </label>
+      </div>
+      <div style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "monospace" }}>
+        Fields ({cd.fieldIds?.length || 0} selected — order matters; empty = no field chips)
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxHeight: 140, overflowY: "auto", padding: 2, border: "1px solid var(--border-subtle)", borderRadius: 4 }}>
+        {fields.length === 0 && (
+          <div style={{ fontSize: 10, color: "var(--text-faint)", fontStyle: "italic", padding: "4px 6px" }}>
+            No fields on this grid.
+          </div>
+        )}
+        {fields.map(f => {
+          const selected = cd.fieldIds?.includes(f.id);
+          return (
+            <button
+              key={f.id} type="button" onClick={() => toggleField(f.id)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 3,
+                padding: "2px 7px", borderRadius: 999, fontSize: 10, fontFamily: "monospace",
+                background: selected ? "var(--accent-blue-bg)" : "var(--input-bg)",
+                border: `1px solid ${selected ? "var(--accent-blue-border)" : "var(--input-border)"}`,
+                color: selected ? "var(--accent-blue-text)" : "var(--text-muted)",
+                cursor: "pointer",
+              }}
+              title={`${f.name} · ${f.type}${selected ? ` · index ${cd.fieldIds.indexOf(f.id) + 1}` : ""}`}
+            >
+              {selected && <span style={{ fontSize: 8, opacity: 0.7 }}>{cd.fieldIds.indexOf(f.id) + 1}.</span>}
+              {f.name || "(unnamed)"}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

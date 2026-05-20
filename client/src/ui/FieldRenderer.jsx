@@ -34,12 +34,20 @@ function FieldRenderer({
   // Resolve dynamic options for select and occurrence fields via optionsResolver.
   // Pass the owner occurrence as $this so find-mode predicates can reference
   // sibling field values on the same instance (e.g. `$this.fields.type.value`).
+  // Also resolve for any field carrying `meta.randomizable === true` — the
+  // display-only randomize button needs a candidate pool (e.g. journalQuestion
+  // text field with an optionsSource.find).
   const { options: resolvedOptions, totalMatched } = useMemo(() => {
-    if (field?.type !== "select" && field?.type !== "occurrence") return { options: [], totalMatched: 0 };
+    const wantsResolve =
+      field?.type === "select" ||
+      field?.type === "occurrence" ||
+      field?.meta?.randomizable === true;
+    if (!wantsResolve) return { options: [], totalMatched: 0 };
     return resolveOptions(field, { occurrencesById, modulesById, fieldsById, foldersById }, occurrence ?? null);
   }, [field, occurrencesById, modulesById, fieldsById, foldersById, occurrence]);
 
-  // Expose resolved options under _resolvedOptions for select and occurrence fields.
+  // Expose resolved options under _resolvedOptions for select and occurrence
+  // fields (other types don't render an options chooser so the meta isn't read).
   const effectiveField = useMemo(() => {
     if (field?.type !== "select" && field?.type !== "occurrence") return field;
     return { ...field, meta: { ...field.meta, _resolvedOptions: resolvedOptions, _totalMatched: totalMatched } };
@@ -132,6 +140,11 @@ function FieldRenderer({
   if (!field) return null;
 
   const canRandomize = (field?.type === "select" || field?.type === "occurrence") && resolvedOptions.length > 1;
+  // Display-only randomize: any field carrying `meta.randomizable === true` +
+  // having an optionsSource.find that resolves to >1 candidates. Powers the
+  // Daily Question 🎲 button — the journalQuestion text field is display-only
+  // but should still be re-rollable from the questions library.
+  const canRandomizeDisplay = field?.meta?.randomizable === true && resolvedOptions.length > 1;
 
   // Randomize: pick a random option from any multi-option select
   function handleRandomize() {
@@ -140,31 +153,68 @@ function FieldRenderer({
     if (pick) handleCommit(pick.value);
   }
 
-  // Display-only: no onCommit
+  // Randomize for display-only fields: writes directly via updateOccurrence
+  // (handleCommit isn't wired for the display-only branch — input-side only).
+  // Uses `triggerField` so any downstream ops listening for journalQuestion
+  // changes still fire as if a user edited it.
+  function handleRandomizeDisplay() {
+    if (!resolvedOptions.length || !occurrence?.id || !field?.id) return;
+    const pick = resolvedOptions[Math.floor(Math.random() * resolvedOptions.length)];
+    if (!pick) return;
+    const stored = occurrence.fields?.[field.id];
+    const flow = (stored && typeof stored === "object" && "flow" in stored) ? stored.flow : "in";
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: {
+        id: occurrence.id,
+        fields: { ...(occurrence.fields || {}), [field.id]: { value: pick.value, flow } },
+      },
+      emit: true,
+      triggerField: { fieldId: field.id, value: pick.value, instanceId: occurrence.moduleId },
+    });
+  }
+
+  // Display-only: no onCommit. Wrap in the SAME column-flex shell as the
+  // input branch below so a display field (e.g. Daily Journal's
+  // `journalQuestion`) sits on the same baseline as sibling input fields
+  // (checkbox / duration / answer). Previously the display-only branch used
+  // a bare row inline-flex which read as a vertically misaligned pill next
+  // to the column-stacked input renderers.
   if (displayEnabled && !inputEnabled) {
     return (
-      <div style={{ position: "relative", display: "inline-flex" }}>
-        <Field
-          field={effectiveField}
-          binding={binding}
-          value={displayValue}
-          target={computedTarget}
-          state={state}
-          context={context}
-          compact={compact}
-          hideName={hideName}
-          hidePrefix={hidePrefix}
-          hidePostfix={hidePostfix}
-        />
-        {delta && (
-          <span
-            key={delta.key}
-            className={`delta-popup ${delta.positive ? "positive" : "negative"}`}
-            style={{ right: 0, top: -2 }}
-          >
-            {delta.positive ? "+" : ""}{delta.diff % 1 === 0 ? delta.diff : delta.diff.toFixed(1)}
-          </span>
-        )}
+      <div style={{ display: "inline-flex", justifyContent: "start", flexDirection: "column", alignItems: "flex-start" }}>
+        <div style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 2 }}>
+          <Field
+            field={effectiveField}
+            binding={binding}
+            value={displayValue}
+            target={computedTarget}
+            state={state}
+            context={context}
+            compact={compact}
+            hideName={hideName}
+            hidePrefix={hidePrefix}
+            hidePostfix={hidePostfix}
+          />
+          {canRandomizeDisplay && (
+            <button
+              onClick={handleRandomizeDisplay}
+              title={`Pick a random ${field?.name || "value"}`}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: "0 2px", color: "var(--text-faint)", fontSize: 11, flexShrink: 0, lineHeight: 1 }}
+            >
+              &#x1F3B2;
+            </button>
+          )}
+          {delta && (
+            <span
+              key={delta.key}
+              className={`delta-popup ${delta.positive ? "positive" : "negative"}`}
+              style={{ right: 0, top: -2 }}
+            >
+              {delta.positive ? "+" : ""}{delta.diff % 1 === 0 ? delta.diff : delta.diff.toFixed(1)}
+            </span>
+          )}
+        </div>
       </div>
     );
   }

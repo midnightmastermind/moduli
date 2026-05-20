@@ -94,7 +94,7 @@ export async function buildTemplatesManifest({ userId, gridId, Folder, Manifest 
 export async function buildDailyRoutineTemplate({
   userId, gridId, timeSlots, timeslotFieldId, routineBySlot,
   tplManifestRootFolderId, mkOcc, Module, findModule,
-  completedFieldId, waterFieldId,
+  completedFieldId, waterFieldId, isTaskFieldId,
 }) {
   const tplRoutineRootModId = uid();
   await new Module({
@@ -142,6 +142,9 @@ export async function buildDailyRoutineTemplate({
       };
       if (r.completed && completedFieldId) initialFields[completedFieldId] = { value: true, flow: "in" };
       if (r.water != null && waterFieldId) initialFields[waterFieldId] = { value: r.water, flow: "in" };
+      // Mark every daily-routine instance as a task so the cloned occurrences
+      // (per-day copies minted by APPLY_TEMPLATE) inherit isTask=true.
+      if (isTaskFieldId) initialFields[isTaskFieldId] = { value: true, flow: "in" };
       await mkOcc({
         id: tplInstOccId,
         moduleId: tplInstModId,
@@ -206,6 +209,9 @@ export async function buildDayPageTemplate({ userId, gridId, tplManifestRootFold
     meta: { templateModule: true },
   }).save();
 
+  // Day page heading (textblock) — H1 "Day Page - {Date}". APPLY_TEMPLATE
+  // replaces {Date} via cfg.replacements when Day Page: Build clones the
+  // template into a fresh occurrence.
   const tplDayPageTextblockModId = uid();
   await new Module({
     id: tplDayPageTextblockModId, userId, gridId,
@@ -213,8 +219,22 @@ export async function buildDayPageTemplate({ userId, gridId, tplManifestRootFold
     meta: { templateModule: true },
   }).save();
 
+  // Tasks Completed container — kind:doc so its body is a TipTap editor that
+  // "Day Page: Build Tasks Completed" (separate op, pending) can write a
+  // sorted-by-timeslot list into. Label "Tasks Completed" renders as the
+  // embedded-container H2-ish header (Container.jsx embedded mode already
+  // styles the label as a 20px/700 mono heading, matching `##`).
+  const tplTasksCompletedContModId = uid();
+  await new Module({
+    id: tplTasksCompletedContModId, userId, gridId,
+    role: "container", kind: "doc", label: "Tasks Completed",
+    meta: { templateModule: true },
+  }).save();
+
   const tplDayPageRootOccId = uid();
   const tplDayPageTextblockOccId = uid();
+  const tplTasksCompletedContOccId = uid();
+
   await mkOcc({
     id: tplDayPageTextblockOccId,
     moduleId: tplDayPageTextblockModId,
@@ -228,17 +248,31 @@ export async function buildDayPageTemplate({ userId, gridId, tplManifestRootFold
     },
     occurrences: [],
   });
+
+  await mkOcc({
+    id: tplTasksCompletedContOccId,
+    moduleId: tplTasksCompletedContModId,
+    targetId: tplTasksCompletedContModId, targetType: "module",
+    parentId: tplDayPageRootOccId,
+    // Empty placeholder paragraph — the seeding op rewrites this on each
+    // Day Page: Build run with the schedule tasks for that day.
+    textmap: { type: "doc", content: [{ type: "paragraph" }] },
+    occurrences: [],
+  });
+
   await mkOcc({
     id: tplDayPageRootOccId,
     moduleId: tplDayPageRootModId,
     targetId: tplDayPageRootModId, targetType: "module",
     parentId: tplManifestRootFolderId,
-    occurrences: [tplDayPageTextblockOccId],
-    // The doc page's OWN content: an instanceTextblock node hosting the child.
+    occurrences: [tplDayPageTextblockOccId, tplTasksCompletedContOccId],
+    // The doc page's OWN content: the H1 textblock followed by the Tasks
+    // Completed doc container (rendered inline as an embedded card).
     textmap: {
       type: "doc",
       content: [
         { type: "instanceTextblock", attrs: { instanceId: tplDayPageTextblockModId, occurrenceId: tplDayPageTextblockOccId } },
+        { type: "moduleEmbed",       attrs: { occurrenceId: tplTasksCompletedContOccId } },
       ],
     },
     meta: { templateName: "Day Page", templateModule: true },
@@ -265,7 +299,7 @@ export async function buildDayPageTemplate({ userId, gridId, tplManifestRootFold
 //      (idempotent: skips if routine instances for that date already exist).
 // Also sweeps todos whose dueDate matches the active date into Due.
 // "Schedule: Seed Daily Routine" has been removed; this op now owns both jobs.
-export function makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId }) {
+export function makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, completedTrackerName = "Tracker: Tasks Completed" }) {
   return {
     id: uid(), userId, gridId, name: "Schedule: Build Day",
     description: "Ensure Due + 48 timeslot containers exist, seed Daily Routine via APPLY_TEMPLATE, and sweep matching todos into Due.",
@@ -545,7 +579,7 @@ export function makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId
             // also fire naturally at priority 3 — these tail invocations are
             // a redundant-but-idempotent recompute (aggregations are pure).
             { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: "Tracker: Water Today" } },
-            { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: "Tracker: Tasks Completed Today" } },
+            { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: completedTrackerName } },
           ],
           else: [],
         },
@@ -677,7 +711,192 @@ export function makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolder
   };
 }
 
-export function makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPanelModuleId }) {
+// ── Day Page: Build Tasks Completed ─────────────────────────────────────────
+// Sibling op to `Day Page: Build`. After the day page exists (containing the
+// cloned "Tasks Completed" doc container), this op walks $allInstances and
+// rewrites the container's textmap to a list of moduleEmbed nodes pointing at
+// each completed schedule task for `$dayDate`.
+//
+// Trigger surface:
+//   - onLoad                                            — cold-start build
+//   - onFilterChange grid                               — global filter date moved
+//   - onFilterChange filterNav ancestorLabel "Schedule" — schedule day navigation
+//   - onChange on completedFieldId                      — tick a task complete/uncomplete
+//
+// $dayDate chain mirrors Day Page: Build (and Build Day): $trigger.date →
+// Schedule page's effective filter → $today. The day page is found by its
+// deterministic label "Day Page - <date>" (the same idempotency key Build
+// uses). The Tasks Completed container is found by walking the day page's
+// occurrences[] and matching `label IS "Tasks Completed"`.
+//
+// Sort: naïve. $allInstances iteration order is whatever insertion order the
+// executor's $allItems carries (typically load-time order). For perfectly
+// time-ordered rendering, a future SORT_BY primitive would walk
+// `$schedPage.occurrences` (slot containers in time order) and inner-loop
+// each slot's children. Filed as TODO; the unsorted list is still useful.
+export function makeDayPageBuildTasksCompletedOp({
+  userId, gridId, dateFieldId, completedFieldId, isTaskFieldId,
+}) {
+  return {
+    id: uid(), userId, gridId, name: "Day Page: Build Tasks Completed",
+    description: "Rewrite the Tasks Completed container on the active day's Day Page with moduleEmbed nodes for every completed schedule task on that date.",
+    // Priority 4 — runs AFTER Build Day (1), Stamp (2), trackers (3) so the
+    // completion state it reads is fully settled.
+    triggerTypes: ["onLoad", "onFilterChange", "onChange"],
+    triggerObjects: [
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 4 },
+      { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 4 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule", priority: 4 },
+      { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId, priority: 4 },
+    ],
+    enabled: true,
+    pipeline: {
+      steps: [
+        // Resolve $dayDate exactly like Day Page: Build.
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            over: "$allPages",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "label", comparator: "IS", right: "Schedule" },
+            ]},
+            itemIdVar: "$schedPageId",
+            itemVar: "$schedPage",
+        }},
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$trigger.date" } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } }],
+          else: [],
+        },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$today" } }],
+          else: [],
+        },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayPageName", expr: "Day Page - ${$dayDate}" } },
+
+        // Locate the day page for $dayDate.
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            over: "$allPages",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "label", comparator: "IS", right: "$dayPageName" },
+            ]},
+            itemIdVar: "$dayPageId",
+            itemVar: "$dayPage",
+        }},
+        // Bail when no day page has been built yet — Day Page: Build runs
+        // earlier in the same priority sweep but this op is safe either way.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            // Find the Tasks Completed container as a direct child of the
+            // day page. Match by parentId + label — both fields survive the
+            // template clone (the template module's label "Tasks Completed"
+            // copies onto the clone; parentId is the cloned day page id).
+            { id: uid(), type: "action", config: {
+                type: "FIND",
+                over: "$allContainers",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "parentId", comparator: "IS",  right: "$dayPageId" },
+                  { id: uid(), left: "label",    comparator: "IS",  right: "Tasks Completed" },
+                ]},
+                itemIdVar: "$tcContId",
+                itemVar: "$tcCont",
+            }},
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$tcContId", comparator: "IS_NOT_EMPTY", right: "" }] },
+              then: [
+                // Build the moduleEmbed array via PUSH_TO_ARRAY.
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tcContent", expr: "json:[]" } },
+                { id: uid(), type: "loop",
+                  over: "$allInstances",
+                  as: "$task",
+                  predicate: { operator: "AND", rules: [
+                    { id: uid(), left: "_ancestors",                              comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                    { id: uid(), left: `fields.${dateFieldId}.value`,             comparator: "SAME_DAY",     right: "$dayDate" },
+                    { id: uid(), left: `fields.${completedFieldId}.value`,        comparator: "IS",           right: "true" },
+                    { id: uid(), left: `fields.${isTaskFieldId}.value`,           comparator: "IS",           right: "true" },
+                  ]},
+                  body: [
+                    // PUSH_TO_ARRAY deep-resolves `$task.id` inside the embed
+                    // object so each push lands a unique occurrenceId.
+                    { id: uid(), type: "action", config: {
+                        type: "PUSH_TO_ARRAY",
+                        name: "$tcContent",
+                        value: { type: "moduleEmbed", attrs: { occurrenceId: "$task.id" } },
+                    }},
+                  ],
+                },
+                // If the loop pushed nothing, leave a single empty paragraph
+                // so the container body still renders cleanly (TipTap requires
+                // doc.content to be non-empty).
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [{ id: uid(), left: "$tcContent.length", comparator: "IS", right: "0" }] },
+                  then: [
+                    { id: uid(), type: "action", config: {
+                        type: "UPDATE",
+                        path: "$tcCont.textmap",
+                        value: { type: "doc", content: [{ type: "paragraph" }] },
+                    }},
+                  ],
+                  else: [
+                    { id: uid(), type: "action", config: {
+                        type: "UPDATE",
+                        path: "$tcCont.textmap",
+                        value: { type: "doc", content: "$tcContent" },
+                    }},
+                  ],
+                },
+              ],
+              else: [],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+  };
+}
+
+export function makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPanelModuleId, lastSeenFieldId = null }) {
+  const steps = [
+    // Bind $item to the freshly-created occurrence so UPDATE paths resolve.
+    { id: uid(), type: "action", config: {
+        type: "FIND",
+        predicate: { operator: "AND", rules: [
+          { id: uid(), left: "id", comparator: "IS", right: "$trigger.occurrenceId" },
+        ]},
+        itemVar: "$item",
+    }},
+    // Date stamping is handled by the drop side (dropHandlers.stampPageFilterFields /
+    // computePageFilterFields) which reads the slot's parent-chain effective
+    // filter at drop time and pre-stamps the new occurrence's fields BEFORE
+    // the OccurrenceCreateOp dispatch. The Stamp op only handles the timeslot
+    // label here — writing the date again would overwrite the drop-side stamp
+    // with $trigger._effectiveFilter.Date, which doesn't exist on the
+    // optimistic OccurrenceCreateOp transaction (resolves to undefined → null).
+    { id: uid(), type: "action", config: {
+        type: "UPDATE",
+        path: `$item.fields.${timeslotFieldId}.value`,
+        value: "$trigger.containerLabel",
+    }},
+  ];
+  // Optional lastSeen stamp — when a lastSeenFieldId is provided, also stamp
+  // today's date (or the active Schedule filter date) onto the dropped
+  // occurrence so "last seen / last touched" displays + occurrence-select
+  // chip configs can surface a freshness signal.
+  if (lastSeenFieldId) {
+    steps.push({
+      id: uid(), type: "action", config: {
+        type: "UPDATE",
+        path: `$item.fields.${lastSeenFieldId}.value`,
+        // Prefer the trigger's date (carries the active schedule day on a
+        // drop into a slot), fall back to $today.
+        value: "$today",
+      },
+    });
+  }
   return {
     id: uid(), userId, gridId, name: "Schedule: Stamp Date & Time Slot",
     triggerTypes: ["onCreate"],
@@ -686,30 +905,7 @@ export function makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPa
       { eventType: "onCreate", subjectType: "module", subjectRole: "panel", targetId: hubPanelModuleId, priority: 2 },
     ],
     enabled: true,
-    pipeline: {
-      steps: [
-        // Bind $item to the freshly-created occurrence so UPDATE paths resolve.
-        { id: uid(), type: "action", config: {
-            type: "FIND",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "id", comparator: "IS", right: "$trigger.occurrenceId" },
-            ]},
-            itemVar: "$item",
-        }},
-        // Date stamping is handled by the drop side (dropHandlers.stampPageFilterFields /
-        // computePageFilterFields) which reads the slot's parent-chain effective
-        // filter at drop time and pre-stamps the new occurrence's fields BEFORE
-        // the OccurrenceCreateOp dispatch. The Stamp op only handles the timeslot
-        // label here — writing the date again would overwrite the drop-side stamp
-        // with $trigger._effectiveFilter.Date, which doesn't exist on the
-        // optimistic OccurrenceCreateOp transaction (resolves to undefined → null).
-        { id: uid(), type: "action", config: {
-            type: "UPDATE",
-            path: `$item.fields.${timeslotFieldId}.value`,
-            value: "$trigger.containerLabel",
-        }},
-      ],
-    },
+    pipeline: { steps },
   };
 }
 
@@ -746,6 +942,10 @@ export function makeTrackerOp({
   sourceFieldId, sourceFieldIds, incomeFieldId, spentFieldId,
   agg, flow = "any", timeFilter = "daily", scopeLabel = "Schedule",
   description,
+  // Optional filter: only count items where this boolean field is true.
+  // Used by Tracker: Tasks Completed to filter out non-task items dragged
+  // into Schedule (mood checks, water logs, etc. that don't have isTask=true).
+  isTaskFieldId,
 }) {
   // ── Fail-fast argument guards ──
   // Task 13 calls this ~20× with varying agg types; silent-zero goals are hard
@@ -791,6 +991,12 @@ export function makeTrackerOp({
       rules.push({ id: uid(), left: `$item.fields.${flowField}.flow`, comparator: "IS", right: "in" });
     } else if (flowField && flow === "out") {
       rules.push({ id: uid(), left: `$item.fields.${flowField}.flow`, comparator: "IS", right: "out" });
+    }
+    // isTask gate — only items explicitly marked as tasks. Lets the Tasks
+    // Completed tracker exclude non-task items in Schedule (mood checks,
+    // water logs, etc.).
+    if (isTaskFieldId) {
+      rules.push({ id: uid(), left: `$item.fields.${isTaskFieldId}.value`, comparator: "IS", right: true });
     }
     return rules;
   }

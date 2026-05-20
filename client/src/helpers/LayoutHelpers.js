@@ -52,6 +52,59 @@ function resolveChildOccurrenceIds(entityOccurrence) {
   return entityOccurrence?.occurrences || [];
 }
 
+// Numeric coercion for sort. Returns NaN when the value can't be compared
+// numerically; the comparator falls through to a string compare in that case.
+function _numericValue(v) {
+  if (v == null || v === "") return NaN;
+  if (typeof v === "number") return v;
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === "string") {
+    // Date-like strings: parse via Date to get an epoch ms.
+    if (/^\d{4}-\d{2}-\d{2}/.test(v)) {
+      const t = new Date(v).getTime();
+      if (!Number.isNaN(t)) return t;
+    }
+    const n = Number(v);
+    return Number.isNaN(n) ? NaN : n;
+  }
+  if (typeof v === "boolean") return v ? 1 : 0;
+  return NaN;
+}
+
+// Apply a per-occurrence local sort to an ordered list of children.
+// `localSort = { fieldId: string|"label", dir: "asc"|"desc" } | null`.
+// Children carry an `occurrence` (and optionally a `moduleId` for label).
+// `fieldId === "label"` reads from the resolved module's label.
+// Anything else reads `occurrence.fields[fid].value`.
+// Stable — items with equal keys preserve drop order.
+export function applyLocalSort(items, localSort, leafModulesLookup) {
+  if (!localSort || !localSort.fieldId || !Array.isArray(items) || items.length < 2) return items;
+  const { fieldId, dir = "asc" } = localSort;
+  const mult = dir === "desc" ? -1 : 1;
+  const decorated = items.map((it, idx) => {
+    let v;
+    if (fieldId === "label") {
+      const mod = it.instance || (it.occurrence?.moduleId ? leafModulesLookup?.[it.occurrence.moduleId] : null);
+      v = mod?.label ?? "";
+    } else {
+      v = it.occurrence?.fields?.[fieldId]?.value ?? null;
+    }
+    return { it, idx, v };
+  });
+  decorated.sort((a, b) => {
+    const an = _numericValue(a.v);
+    const bn = _numericValue(b.v);
+    if (!Number.isNaN(an) && !Number.isNaN(bn)) {
+      return (an - bn) * mult || (a.idx - b.idx);
+    }
+    // Fall through to string compare on missing/non-numeric.
+    const as = a.v == null ? "" : String(a.v);
+    const bs = b.v == null ? "" : String(b.v);
+    return as.localeCompare(bs) * mult || (a.idx - b.idx);
+  });
+  return decorated.map(d => d.it);
+}
+
 export function getContainerItems(container, occurrencesLookup, leafModulesLookup, currentFilterValue, containerOccurrence) {
   const ids = resolveChildOccurrenceIds(containerOccurrence);
   if (!ids.length) return [];
@@ -72,7 +125,7 @@ export function getContainerItems(container, occurrencesLookup, leafModulesLooku
 export function getContainerItemsWithOccurrences(container, occurrencesLookup, leafModulesLookup, currentFilterValue, containerOccurrence) {
   const ids = resolveChildOccurrenceIds(containerOccurrence);
   if (!ids.length) return [];
-  return ids
+  const items = ids
     .map(occId => {
       const occ = getItemById(occId, occurrencesLookup);
       if (!occ) return null;
@@ -81,6 +134,7 @@ export function getContainerItemsWithOccurrences(container, occurrencesLookup, l
       return { instance, occurrence: occ };
     })
     .filter(Boolean);
+  return applyLocalSort(items, containerOccurrence?.meta?.localSort, leafModulesLookup);
 }
 
 /**

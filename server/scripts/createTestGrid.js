@@ -116,6 +116,11 @@ export async function createTestGrid(userId, options = {}) {
   const completedFieldId = uid();
   const timeslotFieldId = uid();
   const dueFieldId = uid();
+  // isTask: hidden boolean marker on every task module (toolkit + todos + daily
+  // routine clones). Tracker: Tasks Completed includes `isTask IS true` so only
+  // marked tasks count toward the goal — non-task items dragged into Schedule
+  // (mood checks, journal entries, etc.) are excluded.
+  const isTaskFieldId = uid();
   const totalWaterFieldId = uid();
   const totalTasksCompletedFieldId = uid();
   const libraryFieldId = uid();
@@ -195,6 +200,9 @@ export async function createTestGrid(userId, options = {}) {
     { id: dateFieldId, userId, gridId, name: "Date", type: "date", inputEnabled: true, displayEnabled: false },
     { id: waterFieldId, userId, gridId, name: "Water", type: "number", inputEnabled: true, displayEnabled: false, meta: { postfix: " oz", increment: 8, flow: "in" } },
     { id: completedFieldId, userId, gridId, name: "Completed", type: "boolean", inputEnabled: true, displayEnabled: false },
+    // isTask: hidden boolean. Pre-stamped true on all task occurrences in seed
+    // and on cloned occurrences via the Daily Routine template's defaultFields.
+    { id: isTaskFieldId, userId, gridId, name: "Is Task", type: "boolean", inputEnabled: true, displayEnabled: false },
     { id: timeslotFieldId, userId, gridId, name: "Time Slot", type: "text", inputEnabled: true, displayEnabled: false },
     { id: dueFieldId, userId, gridId, name: "Due", type: "date", inputEnabled: true, displayEnabled: false },
     { id: totalWaterFieldId, userId, gridId, name: "Daily Water", type: "number", inputEnabled: false, displayEnabled: true,
@@ -227,7 +235,7 @@ export async function createTestGrid(userId, options = {}) {
         },
       },
     },
-    { id: moviesWatchedDisplayFieldId, userId, gridId, name: "Movies Watched Today", type: "text",
+    { id: moviesWatchedDisplayFieldId, userId, gridId, name: "Movies Watched", type: "text",
       inputEnabled: false, displayEnabled: true, meta: {},
       displayConfig: {
         columns: [
@@ -247,6 +255,7 @@ export async function createTestGrid(userId, options = {}) {
         { fieldId: completedFieldId, role: "input", order: 0 },
         { fieldId: waterFieldId, role: "input", order: 1 },
         { fieldId: dateFieldId, role: "input", order: 2, hidden: true },
+        { fieldId: isTaskFieldId, role: "input", order: 3, hidden: true },
       ],
     },
     // Schedulable physical instances all bind dateFieldId (hidden) so the
@@ -262,6 +271,7 @@ export async function createTestGrid(userId, options = {}) {
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
         { fieldId: dateFieldId, role: "input", order: 1, hidden: true },
+        { fieldId: isTaskFieldId, role: "input", order: 2, hidden: true },
       ],
     },
     {
@@ -270,6 +280,7 @@ export async function createTestGrid(userId, options = {}) {
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
         { fieldId: dateFieldId, role: "input", order: 1, hidden: true },
+        { fieldId: isTaskFieldId, role: "input", order: 2, hidden: true },
       ],
     },
     {
@@ -278,6 +289,7 @@ export async function createTestGrid(userId, options = {}) {
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
         { fieldId: dateFieldId, role: "input", order: 1, hidden: true },
+        { fieldId: isTaskFieldId, role: "input", order: 2, hidden: true },
       ],
     },
     {
@@ -286,6 +298,7 @@ export async function createTestGrid(userId, options = {}) {
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
         { fieldId: dateFieldId, role: "input", order: 1, hidden: true },
+        { fieldId: isTaskFieldId, role: "input", order: 2, hidden: true },
       ],
     },
     {
@@ -294,6 +307,7 @@ export async function createTestGrid(userId, options = {}) {
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
         { fieldId: dateFieldId, role: "input", order: 1, hidden: true },
+        { fieldId: isTaskFieldId, role: "input", order: 2, hidden: true },
       ],
     },
     {
@@ -314,6 +328,7 @@ export async function createTestGrid(userId, options = {}) {
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
         { fieldId: dueFieldId, role: "input", order: 1 },
+        { fieldId: isTaskFieldId, role: "input", order: 2, hidden: true },
       ],
     },
     {
@@ -322,6 +337,7 @@ export async function createTestGrid(userId, options = {}) {
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
         { fieldId: dueFieldId, role: "input", order: 1 },
+        { fieldId: isTaskFieldId, role: "input", order: 2, hidden: true },
       ],
     },
     {
@@ -330,6 +346,7 @@ export async function createTestGrid(userId, options = {}) {
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
         { fieldId: dueFieldId, role: "input", order: 1 },
+        { fieldId: isTaskFieldId, role: "input", order: 2, hidden: true },
       ],
     },
     {
@@ -338,17 +355,24 @@ export async function createTestGrid(userId, options = {}) {
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
         { fieldId: dueFieldId, role: "input", order: 1 },
+        { fieldId: isTaskFieldId, role: "input", order: 2, hidden: true },
       ],
     },
     {
       id: todoReadModId, userId, gridId, role: "instance", kind: "list", label: "Read a chapter",
       defaultDragMode: "move",
-      fieldBindings: [{ fieldId: completedFieldId, role: "input", order: 0 }],
+      fieldBindings: [
+        { fieldId: completedFieldId, role: "input", order: 0 },
+        { fieldId: isTaskFieldId, role: "input", order: 1, hidden: true },
+      ],
     },
     {
       id: todoEmailModId, userId, gridId, role: "instance", kind: "list", label: "Clear inbox",
       defaultDragMode: "move",
-      fieldBindings: [{ fieldId: completedFieldId, role: "input", order: 0 }],
+      fieldBindings: [
+        { fieldId: completedFieldId, role: "input", order: 0 },
+        { fieldId: isTaskFieldId, role: "input", order: 1, hidden: true },
+      ],
     },
     // Canvas test instances — used to verify drag-to and drag-from canvas.
     {
@@ -377,6 +401,7 @@ export async function createTestGrid(userId, options = {}) {
       fieldBindings: [
         { fieldId: moviesWatchedFieldId, role: "input", order: 0 },
         { fieldId: dateFieldId,          role: "input", order: 1, hidden: true },
+        { fieldId: isTaskFieldId,        role: "input", order: 2, hidden: true },
       ],
     },
     // Movies Watched goal instance
@@ -468,35 +493,39 @@ export async function createTestGrid(userId, options = {}) {
   const todoContOccId = uid();
   const libraryContOccId = uid();
 
+  // isTask flag shape — reused on every task occurrence pre-stamp so the
+  // Tracker: Tasks Completed predicate can filter non-task items.
+  const isTaskFv = () => ({ [isTaskFieldId]: { value: true, flow: "in", timestamp: new Date() } });
+
   // Toolkit Physical container instances
   const drinkWaterOccId = await mkOcc({
     moduleId: drinkWaterModId,
-    parentId: physContOccId, fields: {},
+    parentId: physContOccId, fields: { ...isTaskFv() },
   });
   const morningRunOccId = await mkOcc({
     moduleId: morningRunModId,
-    parentId: physContOccId, fields: {},
+    parentId: physContOccId, fields: { ...isTaskFv() },
   });
   const vitaminsOccId = await mkOcc({
     moduleId: vitaminsModId,
     parentId: physContOccId,
-    fields: { [completedFieldId]: { value: true, flow: "in", timestamp: new Date() } },
+    fields: { [completedFieldId]: { value: true, flow: "in", timestamp: new Date() }, ...isTaskFv() },
   });
   const stretchOccId = await mkOcc({
     moduleId: stretchModId,
-    parentId: physContOccId, fields: {},
+    parentId: physContOccId, fields: { ...isTaskFv() },
   });
   const takeMedicationOccId = await mkOcc({
     moduleId: takeMedicationModId,
-    parentId: physContOccId, fields: {},
+    parentId: physContOccId, fields: { ...isTaskFv() },
   });
   const goToGymOccId = await mkOcc({
     moduleId: goToGymModId,
-    parentId: physContOccId, fields: {},
+    parentId: physContOccId, fields: { ...isTaskFv() },
   });
   const watchMovieOccId = await mkOcc({
     moduleId: watchMovieModId,
-    parentId: physContOccId, fields: {},
+    parentId: physContOccId, fields: { ...isTaskFv() },
   });
 
   // Goals container instances — goals are persistent (no date field), so they
@@ -557,17 +586,17 @@ export async function createTestGrid(userId, options = {}) {
   const todoGroceriesOccId = await mkOcc({
     moduleId: todoGroceriesModId,
     parentId: todoContOccId,
-    fields: { [dueFieldId]: { value: in2Days.toISOString(), flow: "in", timestamp: new Date() } },
+    fields: { [dueFieldId]: { value: in2Days.toISOString(), flow: "in", timestamp: new Date() }, ...isTaskFv() },
   });
   const todoDentistOccId = await mkOcc({
     moduleId: todoDentistModId,
     parentId: todoContOccId,
-    fields: { [dueFieldId]: { value: in7Days.toISOString(), flow: "in", timestamp: new Date() } },
+    fields: { [dueFieldId]: { value: in7Days.toISOString(), flow: "in", timestamp: new Date() }, ...isTaskFv() },
   });
   const todoReviewPROccId = await mkOcc({
     moduleId: todoReviewPRModId,
     parentId: todoContOccId,
-    fields: { [dueFieldId]: { value: in1Day.toISOString(), flow: "in", timestamp: new Date() } },
+    fields: { [dueFieldId]: { value: in1Day.toISOString(), flow: "in", timestamp: new Date() }, ...isTaskFv() },
   });
   const todoBillsOccId = await mkOcc({
     moduleId: todoBillsModId,
@@ -575,15 +604,16 @@ export async function createTestGrid(userId, options = {}) {
     fields: {
       [completedFieldId]: { value: true, flow: "in", timestamp: new Date() },
       [dueFieldId]: { value: today.toISOString(), flow: "in", timestamp: new Date() },
+      ...isTaskFv(),
     },
   });
   const todoReadOccId = await mkOcc({
     moduleId: todoReadModId,
-    parentId: todoContOccId, fields: {},
+    parentId: todoContOccId, fields: { ...isTaskFv() },
   });
   const todoEmailOccId = await mkOcc({
     moduleId: todoEmailModId,
-    parentId: todoContOccId, fields: {},
+    parentId: todoContOccId, fields: { ...isTaskFv() },
   });
 
   await mkOcc({
@@ -630,7 +660,7 @@ export async function createTestGrid(userId, options = {}) {
     userId, gridId, timeSlots, timeslotFieldId, routineBySlot,
     tplManifestRootFolderId, mkOcc, Module,
     findModule: (q) => Module.findOne(q).lean(),
-    completedFieldId, waterFieldId,
+    completedFieldId, waterFieldId, isTaskFieldId,
   });
 
   await buildDayPageTemplate({ userId, gridId, tplManifestRootFolderId, mkOcc, Module });
@@ -767,7 +797,7 @@ export async function createTestGrid(userId, options = {}) {
   // accumulator var is $acc and triggerObjects list completed before the
   // source field — both are internal/order-insensitive, behavior identical).
   await new Operation(makeTrackerOp({
-    userId, gridId, name: "Tracker: Water Today",
+    userId, gridId, name: "Tracker: Water",
     description: "Sum water oz under the Schedule page for the date the Daily Goals page is showing.",
     goalLabel: "Physical Wellness", goalFieldId: totalWaterFieldId,
     sourceFieldId: waterFieldId, completedFieldId, dateFieldId,
@@ -776,10 +806,10 @@ export async function createTestGrid(userId, options = {}) {
 
   // Tracker: Tasks Completed Today — countTrue agg (Task Progress goal).
   await new Operation(makeTrackerOp({
-    userId, gridId, name: "Tracker: Tasks Completed Today",
-    description: "Count completed tasks under the Schedule page for the date the Daily Goals page is showing.",
+    userId, gridId, name: "Tracker: Tasks Completed",
+    description: "Count completed tasks (isTask=true AND completed=true) under the Schedule page for the date the Daily Goals page is showing.",
     goalLabel: "Task Progress", goalFieldId: totalTasksCompletedFieldId,
-    completedFieldId, dateFieldId,
+    completedFieldId, dateFieldId, isTaskFieldId,
     agg: "countTrue", timeFilter: "daily",
   })).save();
 

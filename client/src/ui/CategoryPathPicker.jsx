@@ -44,15 +44,20 @@ const SHAPES = {
       { value: "label",       title: "label",       sub: "string",   description: "Module label (resolved from template)",           hasChildren: false },
       { value: "templateId",  title: "templateId",  sub: "string",   description: "Same as moduleId — module template",              hasChildren: false },
       { value: "fields",      title: "fields",      sub: "object",   description: "Field values map keyed by field ID",              hasChildren: true,  childShape: "fieldsMap" },
-      { value: "meta",        title: "meta",        sub: "object",   description: "Module/occurrence meta",                          hasChildren: false },
-      // Table-container grid state lives under occurrence.meta.table but the
-      // user shouldn't need to know that — surface columns / rowCount / cells
-      // directly at the occurrence level. The `value` carries the literal
-      // `meta.table.*` path so segments.join(".") still produces the address
-      // applyUpdate routes through (UPDATE_ITEM_META → metaPath: [..]).
-      { value: "meta.table.columns",  title: "columns",  sub: "table columns", description: "Column defs (title / width / displayFieldId / sort / filter / fieldFilter)", hasChildren: true, childShape: "tableColumn" },
-      { value: "meta.table.rowCount", title: "rowCount", sub: "number",        description: "Total row count rendered by the table",                                       hasChildren: false },
-      { value: "meta.table.cells",    title: "cells",    sub: "cell map",      description: "Per-cell TipTap doc keyed by \"r:c\"",                                          hasChildren: true, childShape: "tableCellsMap" },
+      // Occurrence.meta sub-keys are hoisted as first-class occurrence keys
+      // so authors never have to traverse a "meta" step. Each item's `value`
+      // carries the literal dotted path; segments.join(".") still produces
+      // the address applyUpdate routes through (UPDATE_ITEM_META →
+      // metaPath: [..]). Any kind-specific keys are available on every
+      // occurrence — they'll just resolve to undefined when not applicable.
+      { value: "meta.x",                    title: "x",                   sub: "number",  description: "Canvas card x position",                                                                       hasChildren: false },
+      { value: "meta.y",                    title: "y",                   sub: "number",  description: "Canvas card y position",                                                                       hasChildren: false },
+      { value: "meta.date",                 title: "date",                sub: "string",  description: "Day-page date stamp (YYYY-MM-DD)",                                                              hasChildren: false },
+      { value: "meta.isTemplate",           title: "isTemplate",          sub: "boolean", description: "Marks this occurrence as a template",                                                            hasChildren: false },
+      { value: "meta.appliedFromTemplateId", title: "appliedFromTemplateId", sub: "string", description: "Template this occurrence was applied from",                                                    hasChildren: false },
+      { value: "meta.table.columns",        title: "columns",             sub: "table columns", description: "Column defs (title / width / displayFieldId / sort / filter / fieldVisibility)",            hasChildren: true,  childShape: "tableColumn" },
+      { value: "meta.table.rowCount",       title: "rowCount",            sub: "number",  description: "Total row count rendered by the table",                                                          hasChildren: false },
+      { value: "meta.table.cells",          title: "cells",               sub: "cell map", description: "Per-cell TipTap doc keyed by \"r:c\"",                                                          hasChildren: true,  childShape: "tableCellsMap" },
       { value: "filterOverride",   title: "filterOverride",   sub: "object", description: "Per-occurrence filter override",                                       hasChildren: false },
       { value: "_effectiveFilter", title: "_effectiveFilter", sub: "object", description: "Effective filter merged from grid + ancestor chain (read-only)",      hasChildren: true, childShape: "filter" },
     ],
@@ -102,7 +107,7 @@ const SHAPES = {
       { value: "displayFieldId",  title: "displayFieldId",  sub: "string", description: "Single-field projection: render only this field, compact",         hasChildren: false },
       { value: "sort",            title: "sort",            sub: "string", description: "View-only sort: null / \"asc\" / \"desc\"",                          hasChildren: false },
       { value: "filter",          title: "filter",          sub: "object", description: "View-only filter: { comparator, value } (compares against cell sort value)", hasChildren: false },
-      { value: "fieldFilter",     title: "fieldFilter",     sub: "object", description: "Embed-render filter: { mode: \"show\"|\"hide\", fieldIds: [...] }", hasChildren: false },
+      { value: "fieldVisibility", title: "fieldVisibility", sub: "object", description: "Embed field visibility: { mode: \"show\"|\"hide\", fieldIds: [...] }", hasChildren: false },
     ],
   },
   // meta.table.cells is keyed by `"r:c"` — the picker can't enumerate every
@@ -113,6 +118,59 @@ const SHAPES = {
   tableCellsMap: {
     keys: () => [
       { value: "<r:c>", title: "(cell by r:c)", sub: "any", description: "Pick the cells map; the leaf segment \"r:c\" identifies the cell", hasChildren: false },
+    ],
+  },
+  // Single operation record (returned when drilling `$allOperations[*]`).
+  // The picker exposes both raw operation fields (id/name/etc.) AND the
+  // ten introspection sets the operationIntrospection.js analyzer computes,
+  // so authors can write predicates like:
+  //   $op.fields_written CONTAINS field:<fid>
+  //   $op.triggered_by_occurrences HAS_ANCESTOR $somePage
+  //   $op.invokes_operations CONTAINS $otherOpId
+  operation: {
+    keys: () => [
+      { value: "id",             title: "id",             sub: "string",   description: "Unique operation ID",                                            hasChildren: false },
+      { value: "name",           title: "name",           sub: "string",   description: "Operation name (Untitled Operation by default)",                  hasChildren: false },
+      { value: "description",    title: "description",    sub: "string",   description: "Author-written description",                                      hasChildren: false },
+      { value: "enabled",        title: "enabled",        sub: "boolean",  description: "Whether this op is active",                                       hasChildren: false },
+      { value: "priority",       title: "priority",       sub: "number",   description: "Sort priority (lower runs first)",                                hasChildren: false },
+      { value: "folderId",       title: "folderId",       sub: "string",   description: "Category folder ID",                                              hasChildren: false },
+      { value: "targetFieldId",  title: "targetFieldId",  sub: "string",   description: "Field this op calculates (display ops)",                          hasChildren: false },
+      { value: "triggerObjects", title: "triggerObjects", sub: "array",    description: "Configured triggers (event/subject/target)",                      hasChildren: true,  childShape: "triggerObjectArray" },
+      { value: "pipeline.sources", title: "pipeline.sources", sub: "array", description: "Source bindings declared in the pipeline",                         hasChildren: true,  childShape: "sourceBindingArray" },
+      // Introspection sets (each is an array of IDs / strings) — drillable
+      // to the corresponding per-record shape via childShape.
+      { value: "fields_written",           title: "fields_written",           sub: "fieldId[]",      description: "Fields this op writes (UPDATE / CREATE.fields / SET_FIELD_VALUE)",      hasChildren: true, childShape: "fieldArray" },
+      { value: "fields_read",              title: "fields_read",              sub: "fieldId[]",      description: "Fields this op reads (predicates, expressions, $.fields.<fid>)",         hasChildren: true, childShape: "fieldArray" },
+      { value: "occurrences_written",      title: "occurrences_written",      sub: "occId[]",        description: "Occurrences this op writes (UPDATE target, CREATE parent, DELETE)",      hasChildren: true, childShape: "occurrenceArray" },
+      { value: "occurrences_read",         title: "occurrences_read",         sub: "occId[]",        description: "Occurrences this op reads (FIND target, hard-coded refs)",               hasChildren: true, childShape: "occurrenceArray" },
+      { value: "triggered_by_fields",      title: "triggered_by_fields",      sub: "fieldId[]",      description: "Field IDs that trigger this op (subjectType:field)",                     hasChildren: true, childShape: "fieldArray" },
+      { value: "triggered_by_occurrences", title: "triggered_by_occurrences", sub: "occId[]",        description: "Occurrence IDs that trigger this op",                                    hasChildren: true, childShape: "occurrenceArray" },
+      { value: "ancestor_scopes",          title: "ancestor_scopes",          sub: "string[]",       description: "Trigger ancestorLabels declared on this op",                             hasChildren: false },
+      { value: "invokes_operations",       title: "invokes_operations",       sub: "opId[]",         description: "Operations this op calls via RUN_OPERATION",                              hasChildren: true, childShape: "operationArray" },
+      { value: "templates_used",           title: "templates_used",           sub: "occId[]",        description: "Templates applied by this op (APPLY_TEMPLATE / FILL_FROM_TEMPLATE)",       hasChildren: true, childShape: "occurrenceArray" },
+      { value: "created_modules",          title: "created_modules",          sub: "string[]",       description: "\"role:kind\" pairs this op creates via CREATE_ITEM / CREATE_MODULE",     hasChildren: false },
+    ],
+  },
+  // Single trigger object (element of triggerObjects[]).
+  triggerObject: {
+    keys: () => [
+      { value: "eventType",      title: "eventType",      sub: "string", description: "onChange / onAdd / onMove / onFilterChange / …",                  hasChildren: false },
+      { value: "subjectType",    title: "subjectType",    sub: "string", description: "field / occurrence / instance / container / panel / grid / filterNav", hasChildren: false },
+      { value: "subjectRole",    title: "subjectRole",    sub: "string", description: "Role filter (instance / container / page / panel)",               hasChildren: false },
+      { value: "targetId",       title: "targetId",       sub: "string", description: "Specific entity id (when subject is concrete)",                    hasChildren: false },
+      { value: "ancestorId",     title: "ancestorId",     sub: "string", description: "Ancestor scope id — only fires when changed entity is below it",  hasChildren: false },
+      { value: "ancestorLabel",  title: "ancestorLabel",  sub: "string", description: "Ancestor scope label (resolves to ancestorId at fire time)",      hasChildren: false },
+      { value: "priority",       title: "priority",       sub: "number", description: "Trigger priority (lower fires first)",                            hasChildren: false },
+    ],
+  },
+  // Single source binding (element of pipeline.sources[]).
+  sourceBinding: {
+    keys: () => [
+      { value: "variableName", title: "variableName", sub: "string", description: "$var name this source binds to",                                hasChildren: false },
+      { value: "entityType",   title: "entityType",   sub: "string", description: "What kind of value the var resolves to",                         hasChildren: false },
+      { value: "entityId",     title: "entityId",     sub: "string", description: "Specific entity id (when source is concrete)",                   hasChildren: false },
+      { value: "triggerProp",  title: "triggerProp",  sub: "string", description: "Trigger property path (when entityType:\"trigger\")",            hasChildren: false },
     ],
   },
 };
@@ -147,6 +205,9 @@ function arrayItemsAsKeys(arrayShape, ctx) {
     { value: "meta",  title: "meta",  sub: "object", description: "Field meta (unit, options, prefix, postfix, etc.)", hasChildren: false },
     { value: "folderId", title: "folderId", sub: "string", description: "Category folder ID", hasChildren: false },
   ];
+  if (arrayShape === "operationArray") return SHAPES.operation.keys(ctx);
+  if (arrayShape === "triggerObjectArray") return SHAPES.triggerObject.keys(ctx);
+  if (arrayShape === "sourceBindingArray") return SHAPES.sourceBinding.keys(ctx);
   return [];
 }
 
@@ -169,7 +230,13 @@ function descendShape(shape, ctx) {
   if (shape === "filter") return SHAPES.filter.keys(ctx);
   if (shape === "grid") return SHAPES.grid.keys(ctx);
   if (shape === "fieldsMap") return fieldsMapItems(ctx);
-  if (shape === "occurrenceArray" || shape === "templateArray" || shape === "fieldArray") return arrayItemsAsKeys(shape, ctx);
+  if (shape === "operation") return SHAPES.operation.keys(ctx);
+  if (shape === "triggerObject") return SHAPES.triggerObject.keys(ctx);
+  if (shape === "sourceBinding") return SHAPES.sourceBinding.keys(ctx);
+  if (
+    shape === "occurrenceArray" || shape === "templateArray" || shape === "fieldArray" ||
+    shape === "operationArray" || shape === "triggerObjectArray" || shape === "sourceBindingArray"
+  ) return arrayItemsAsKeys(shape, ctx);
   return [];
 }
 
@@ -185,6 +252,7 @@ const BUILTIN_VAR_SHAPES = {
   $allPanels: "occurrenceArray",
   $allTemplates: "templateArray",
   $allFields: "fieldArray",
+  $allOperations: "operationArray",
   $parentFilter: "filter",
   $trigger: "occurrence",
   $grid: "grid",
@@ -206,6 +274,12 @@ function segmentDisplay(seg, ctx) {
     const fid = seg.slice(6);
     const f = ctx?.fieldsById?.[fid];
     if (f?.name) return f.name;
+    return seg;
+  }
+  if (seg.startsWith("op:")) {
+    const oid = seg.slice(3);
+    const op = ctx?.operationsById?.[oid];
+    if (op?.name) return op.name;
     return seg;
   }
   if (seg.startsWith("$")) return seg;

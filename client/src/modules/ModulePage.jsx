@@ -12,6 +12,8 @@ import { Trash2, Copy, FileText, Layout, Paintbrush, Monitor, Folder, ArrowLeft,
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import SortSection from "../ui/SortSection";
+import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import TemplatesSection from "../ui/TemplatesSection";
 import NodePill from "./NodePill.jsx";
 import PreviewNode from "./PreviewNode.jsx";
@@ -25,6 +27,7 @@ import PageDoc from "./pages/PageDoc.jsx";
 import PageCanvas from "./pages/PageCanvas.jsx";
 import PageDisplay from "./pages/PageDisplay.jsx";
 import PageFolder from "./pages/PageFolder.jsx";
+import ContainerTable from "./containers/ContainerTable.jsx";
 
 import { GridActionsContext } from "../GridActionsContext";
 import { GridDataContext } from "../GridDataContext";
@@ -32,6 +35,7 @@ import { GridLiveContext } from "../GridLiveContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   getPageChildrenModules,
+  applyLocalSort,
 } from "../helpers/LayoutHelpers";
 import {
   useDragDrop,
@@ -202,12 +206,18 @@ function Page({
         }
       }
       if (matchedOcc) {
-        pairs.push({ container, occurrence: matchedOcc });
+        pairs.push({ container, occurrence: matchedOcc, instance: container });
       } else if (!hasAnyOcc && isOccurrenceVisible({ id: container.id }, pageEffectiveFilters, pageActiveFilterConditions)) {
-        pairs.push({ container, occurrence: null });
+        pairs.push({ container, occurrence: null, instance: container });
       }
     }
-    return pairs;
+    // Apply the page occurrence's local sort to its direct children (when set).
+    // `applyLocalSort` reads `instance.label` (we set instance=container above)
+    // for the "label" key, or occurrence.fields[fid].value otherwise.
+    const sorted = applyLocalSort(pairs, occurrence?.meta?.localSort, modulesById);
+    // Strip the temporary `instance` field so we don't leak it into the
+    // existing PageBoard call sites that expect `{ container, occurrence }`.
+    return sorted.map(({ container, occurrence }) => ({ container, occurrence }));
   }, [occurrence, occurrencesById, modulesById, pageEffectiveFilters, pageActiveFilterConditions]);
 
   // Label editing
@@ -297,6 +307,10 @@ function Page({
     );
   } else if (kind === "doc") {
     content = <PageDoc occurrence={occurrence} dispatch={dispatch} socket={socket} scrollAnchor={scrollAnchor} />;
+  } else if (kind === "table") {
+    // Table as a page — same layout-only grid as the table container,
+    // just hosted directly by the page (mirrors canvas/doc delegation).
+    content = <ContainerTable occurrence={occurrence} dispatch={dispatch} socket={socket} />;
   } else if (kind === "display") {
     content = <PageDisplay occurrence={occurrence} pageView={pageView} dispatch={dispatch} socket={socket} />;
   } else if (kind === "folder") {
@@ -446,6 +460,8 @@ function Page({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={occurrence} />
+          <SortSection occurrence={occurrence} />
+          <FieldVisibilitySection occurrence={occurrence} />
         </HeaderDropdown>
       )}
       {templatesAnchor && (

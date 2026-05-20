@@ -6,7 +6,7 @@
 import { useContext, useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { GridActionsContext } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
-import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Monitor, Folder, Pencil, Trash2, X } from "lucide-react";
+import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Monitor, Folder, Table, Pencil, Trash2, X } from "lucide-react";
 import ContextMenu from "../ui/ContextMenu.jsx";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 
@@ -436,7 +436,10 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     const modId = crypto.randomUUID();
     const occId = crypto.randomUUID();
     CommitHelpers.createModule({ dispatch, socket, module: { id: modId, userId, gridId, role: "page", kind: "folder", label: folder.name }, emit: true });
-    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: -1, iteration: { mode: "persistent" }, fields: {}, meta: {} }, emit: true });
+    // moduleId is the schema-canonical pointer the rest of the client reads
+    // (pagesList / activePageEntry / role lookups all do `occurrencesById[id].moduleId`).
+    // Without it the new folder page is invisible to ModulePanel.pagesList → falls back to pagesList[0] (Schedule).
+    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: -1, iteration: { mode: "persistent" }, fields: {}, meta: {} }, emit: true });
     navigate(occId);
   }, [isRenaming, onOpenPage, onSelect, allChildOccs, modulesById, dispatch, socket, state, folder.id, folder.name]);
 
@@ -719,7 +722,10 @@ function LocalFolderGroup({ folder, pageOccIds, occurrencesById, modulesById, ch
     const modId = crypto.randomUUID();
     const occId = crypto.randomUUID();
     CommitHelpers.createModule({ dispatch, socket, module: { id: modId, userId, gridId, role: "page", kind: "folder", label: folder.name }, emit: true });
-    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: -1, iteration: { mode: "persistent" }, fields: {}, meta: {} }, emit: true });
+    // moduleId is the schema-canonical pointer the rest of the client reads
+    // (pagesList / activePageEntry / role lookups all do `occurrencesById[id].moduleId`).
+    // Without it the new folder page is invisible to ModulePanel.pagesList → falls back to pagesList[0] (Schedule).
+    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: -1, iteration: { mode: "persistent" }, fields: {}, meta: {} }, emit: true });
     navigate(occId);
   }, [onOpenPage, onSelect, childrenByParentId, folder.id, folder.name, modulesById, dispatch, socket, state]);
 
@@ -882,7 +888,8 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
     CommitHelpers.createPage({
       dispatch, socket,
       module: { id: modId, userId, gridId, role: "page", kind, label },
-      occurrence: { id: occId, userId, gridId, targetId: modId, parentId: manifest?.rootFolderId ?? null, iteration: { mode: "persistent" }, fields: {} },
+      // Carry both moduleId (schema canonical, read by pagesList) and targetId (legacy alias still used by server's createOccurrenceData).
+      occurrence: { id: occId, userId, gridId, moduleId: modId, targetId: modId, parentId: manifest?.rootFolderId ?? null, iteration: { mode: "persistent" }, fields: {} },
       panelOccurrenceId: panelOccurrence.id,
       ...(!view?.id && {
         panelViewData: { id: crypto.randomUUID(), userId, gridId, viewType: "board", activeOccurrenceId: occId },
@@ -980,6 +987,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                     { label: "Board page", icon: Layout, onClick: () => handleCreatePage("board") },
                     { label: "Doc page", icon: FileText, onClick: () => handleCreatePage("doc") },
                     { label: "Canvas page", icon: Paintbrush, onClick: () => handleCreatePage("canvas") },
+                    { label: "Table page", icon: Table, onClick: () => handleCreatePage("table") },
                     { label: "Folder page", icon: Folder, onClick: () => handleCreatePage("folder") },
                     { label: "New folder", icon: FolderPlus, onClick: handleCreateFolder },
                   ] : []),

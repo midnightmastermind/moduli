@@ -1,0 +1,368 @@
+s● Three changes shipped this round (all four if you count the doc updates):
+
+  1. Full-occurrence rendering with single-field visibility (your "render the entire occurrence" ask)
+  - New hideLabel column property threaded through TableCell → Editor → CellEmbedContext → ModuleEmbedNode →
+  ModuleInstance (as embedHideLabel).
+  - Date/Time columns in the seed switched from displayFieldId: <fid> (single-field projection via FieldRenderer) to
+  fieldVisibility: { mode: "show", fieldIds: [<fid>] } + hideLabel: true. The cell now renders the full ModuleInstance
+  for the copy, but filters down to one field and hides the row label.
+  - Inside InstanceInner, effectiveShowLabel = !embedHideLabel && showLabel overrides the user's local toggle. The
+  fields-section condition gained embedHideLabel || showLabel so fields stay visible when the embed forces label off.
+
+  2. Dynamic row heights (your "always show the full content, height shouldn't be fixed" ask)
+  - rowVirtualizer now uses measureElement (ResizeObserver-backed) — rows grow to fit their tallest cell's natural
+  height.                                                                                                                 - Restructured cell render: each row is wrapped in one absolutely-positioned .table-row flex container that the
+  virtualizer measures. Cells inside use flex: 0 0 <width>px (no per-cell absolute positioning).
+  - ROW_H is now the minimum (44px) so short-content rows don't collapse to a strip.
+  - Column virtualization dropped (4 cols render cheaply); horizontal scroll still works via the row wrapper's total
+  width.
+                                                                                                                          3. Responsive column widths (your "responsive to page size" ask)
+  - Column virtualization dropped (4 cols render cheaply); horizontal scroll still works via the row wrapper's total
+  width.
+
+  3. Responsive column widths (your "responsive to page size" ask)
+  - New containerWidth state fed by ResizeObserver on the scroll container.
+  - effectiveWidths proportionally scales persisted col.width values UP to fill the viewport when their sum is less than
+   available width. Never shrinks below your chosen widths (so narrow viewports horizontal-scroll as before).
+
+  Do this:
+  1. Re-seed: node --env-file=.env server/scripts/createLiveData.js (for the Date/Time column config change)
+  2. Hard refresh.
+
+  You should see:
+  - Schedule Table fills the available panel width (no dead zone on the right).
+  - Date column shows the date pill only, no task label.
+  - Time column shows the timeslot pill only, no task label.
+  - Each row's height matches its tallest cell's content (mood check-in with rating + notes will be taller than a plain
+  completed-only row).
+
+✻ Worked for 9m 7s
+
+※ recap: Building a Schedule Table page that mirrors the Schedule into a 4-column grid (Task / Date / Time / Goal). Just
+   rewrote columns to render full ModuleInstances with field-visibility filtering and dynamic row heights. Next: re-seed
+   with `node --env-file=.env server/scripts/createLiveData.js` and refresh.
+
+❯ okay look at the latest screenshot. we shouldnt have a min set for the table. also the Date and Timeslot fields arent    showing up in the occurances. also theres a weird line in the middle of the rows. and the goal ones arent fitting in    the cells correctly                                                                                                  
+  Read 1 file, listed 1 directory (ctrl+o to expand)
+
+● Let me check how ModuleInstance iterates fields:
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● The bug: instanceFields only iterates module.fieldBindings. Schedule task modules don't bind date/timeslot (they're
+  just stamped values). When fieldVisibility: {mode:"show", fieldIds:[dateFieldId]} says "show only date", but date
+  isn't in the bindings list, nothing renders. Let me fix this by synthesizing bindings for the "show" set:
+
+● Update(client/src/modules/ModuleInstance.jsx)
+  ⎿  Added 25 lines, removed 3 lines
+      147
+      148    // Get fields for this instance based on fieldBindings (skip hidden bindings),
+      149    // then apply the cascade-resolved field-visibility (show/hide whitelist).
+      150 +  // ADDITIONALLY: when the visibility is "show" mode, synthesize bindings for
+      151 +  // any fieldIds in the show-list that aren't in the module's bindings — this
+      152 +  // is how the Schedule Table's Date/Time projection columns render the date
+      153 +  // and timeslot fields that schedule task modules DON'T formally bind (those
+      154 +  // are stamped as VALUES on each occurrence via Build Day's defaultFields,
+      155 +  // not declared as bindings on the source module). Without this, "show" mode
+      156 +  // referring to an unbound fieldId rendered nothing.
+      157    const instanceFields = useMemo(() => {
+      151 -    if (!instance?.fieldBindings || !fieldsById) return [];
+      158 +    if (!fieldsById) return [];
+      159 +    const bindings = Array.isArray(instance?.fieldBindings) ? instance.fieldBindings : [];
+      160
+      153 -    return (instance.fieldBindings || [])
+      161 +    const fromBindings = bindings
+      162        .filter(binding => !binding.hidden && fieldPassesVisibility(binding.fieldId, effectiveFieldVisib
+           ility))
+      163        .map(binding => {
+      164          const field = fieldsById[binding.fieldId];
+      165          if (!field) return null;
+      166          return { field, binding };
+      167        })
+      160 -      .filter(Boolean)
+      168 +      .filter(Boolean);
+      169 +
+      170 +    // Synthesize bindings for "show"-mode fieldIds that aren't already bound.
+      171 +    const extras = [];
+      172 +    if (effectiveFieldVisibility?.mode === "show" && Array.isArray(effectiveFieldVisibility.fieldIds))
+          + {
+      173 +      const alreadyBound = new Set(bindings.map(b => b.fieldId));
+      174 +      for (const fid of effectiveFieldVisibility.fieldIds) {
+      175 +        if (alreadyBound.has(fid)) continue;
+      176 +        const field = fieldsById[fid];
+      177 +        if (!field) continue;
+      178 +        extras.push({ field, binding: { fieldId: fid, role: "input" } });
+      179 +      }
+      180 +    }
+      181 +
+      182 +    return [...fromBindings, ...extras]
+      183        .sort((a, b) => (a.binding.order || 0) - (b.binding.order || 0));
+      184    }, [instance?.fieldBindings, fieldsById, effectiveFieldVisibility]);
+      185
+
+● Now remove the min-height: ROW_H from the rows + cells (user wants no min):
+
+● Update(client/src/modules/containers/ContainerTable.jsx)
+      1498                {columns.map((col, c) => (
+
+● Update(client/src/modules/containers/ContainerTable.jsx)
+  ⎿  Removed 1 line
+      1518                    onToggleFillMode={toggleFillMode}
+      1519                    style={{
+      1520                      flex: `0 0 ${effectiveWidths[c]}px`,
+      1521 -                    minHeight: ROW_H,
+      1521                      boxSizing: "border-box",
+      1522                    }}
+      1523                  />
+
+● Update(client/src/modules/containers/ContainerTable.jsx)
+  ⎿  Removed 1 line
+      1528                  data-r={r}
+      1529                  style={{
+      1530                    flex: `0 0 ${ROW_ACTION_COL_W}px`,
+      1531 -                  minHeight: ROW_H,
+      1531                    boxSizing: "border-box",
+      1532                  }}
+      1533                >
+
+● Let me look at the cell rendering — likely the "weird line" is overlapping borders between .table-td and
+  .instance-wrap. Let me update the table CSS:
+
+● Update(client/src/index.css)
+  ⎿  Added 17 lines, removed 10 lines
+      2128  .table-add-row-btn:hover { border-color: var(--border-default); color: var(--text-primary); }
+      2129
+      2130  .table-td {
+      2131 -  border: 1px solid var(--border-subtle); min-height: 28px;
+      2132 -  padding: 2px 6px; font-size: 13px; overflow: hidden;
+      2131 +  border: 1px solid var(--border-subtle);
+      2132 +  padding: 2px 6px; font-size: 13px;
+      2133    position: relative;
+      2134 -  /* Vertical-center single-line content so typing doesn't hug the top of the
+      2135 -     cell (the screenshot showed "yikytk" sitting flush with the top border —
+      2136 -     ProseMirror's default block placement was top-aligned inside a 28px cell). */
+      2137 -  display: flex; align-items: center;
+      2134 +  /* No min-height: rows size to content (user spec). */
+      2135 +  /* No flex centering: cells now wrap a TipTap moduleEmbed → ModuleInstance
+      2136 +     which has its own internal layout. Centering would fight with the
+      2137 +     instance's natural top-aligned flex. */
+      2138 +  display: block;
+      2139 +  /* No overflow: hidden — multi-line cell content (rich fields, ratings)
+      2140 +     needs to grow vertically with the row. Horizontal long content can
+      2141 +     wrap or clip via the inner ProseMirror layout. */
+      2142 +  overflow: visible;
+      2143  }
+      2139 -/* Inside the cell, the Editor's wrapper should fill the cell width and not
+      2140 -   contribute its own block margin. Without this the .doc-editor-wrapper's
+      2141 -   flex:1 grow nudges the centered child off-axis. */
+      2144  .table-td > .doc-editor-wrapper { width: 100%; min-height: 0; }
+      2143 -.table-td .doc-editor-content.ProseMirror { min-height: 0; line-height: 1.3; }
+      2145 +.table-td .doc-editor-content.ProseMirror { min-height: 0; line-height: 1.3; padding: 0; }
+      2146  .table-td .doc-editor-content.ProseMirror p { margin: 0; }
+      2147 +/* Drop the inner ModuleInstance row's wrap background/border so the cell
+      2148 +   doesn't read as a card-inside-a-card (the "weird line in the middle of
+      2149 +   the rows" the user spotted). Cell border alone is enough delineation. */
+      2150 +.table-td .instance-wrap,
+      2151 +.table-td .instance-row { background: transparent !important; border: none !important; box-shadow: no
+           +ne !important; }
+      2152  /* Focused cell: lift the overflow clip so the fill-handle nub (bottom: -4px)
+      2153     and the copy/copylink chip (bottom: -18px) — both positioned OUTSIDE the
+      2154     cell bounds on purpose — are visible. z-index so they layer over the row
+
+● Cells need horizontal clipping (so content doesn't bleed across columns) but vertical visible (so content fits
+  naturally):
+
+● Update(client/src/index.css)
+  ⎿  Added 5 lines, removed 8 lines
+      2131    border: 1px solid var(--border-subtle);
+      2132    padding: 2px 6px; font-size: 13px;
+      2133    position: relative;
+      2134 -  /* No min-height: rows size to content (user spec). */
+      2135 -  /* No flex centering: cells now wrap a TipTap moduleEmbed → ModuleInstance
+      2136 -     which has its own internal layout. Centering would fight with the
+      2137 -     instance's natural top-aligned flex. */
+      2134    display: block;
+      2139 -  /* No overflow: hidden — multi-line cell content (rich fields, ratings)
+      2140 -     needs to grow vertically with the row. Horizontal long content can
+      2141 -     wrap or clip via the inner ProseMirror layout. */
+      2142 -  overflow: visible;
+      2135 +  /* Horizontal clip so wide content doesn't bleed across columns. Vertical
+      2136 +     visible so content grows the row (measureElement reads the wrapper's
+      2137 +     bounding rect). */
+      2138 +  overflow-x: hidden;
+      2139 +  overflow-y: visible;
+      2140  }
+      2141  .table-td > .doc-editor-wrapper { width: 100%; min-height: 0; }
+      2142  .table-td .doc-editor-content.ProseMirror { min-height: 0; line-height: 1.3; padding: 0; }
+
+● Let me also bump column widths and update docs:
+
+● Update(server/scripts/createLiveData.js)
+  ⎿  Added 9 lines, removed 6 lines
+      2974            // Date / Time: render the FULL ModuleInstance for the copy, but
+      2975            // filter to a single field via fieldVisibility "show" mode, and
+      2976            // hide the label (the row's task name is already in the Task col).
+      2977 -          // displayFieldId is null — we no longer single-field-project.
+      2978 -          { id: STBL_COLS.date, title: "Date", width: 160, displayFieldId: null, sort: null, filter:
+           -null,
+      2977 +          // ModuleInstance now synthesizes a binding for "show"-mode fieldIds
+      2978 +          // that aren't in the module's fieldBindings (schedule task modules
+      2979 +          // don't formally bind date/timeslot — those are stamped as values
+      2980 +          // by Build Day's defaultFields).
+      2981 +          { id: STBL_COLS.date, title: "Date", width: 150, displayFieldId: null, sort: null, filter:
+           +null,
+      2982              fieldVisibility: { mode: "show", fieldIds: [dateFieldId]    }, hideLabel: true },
+      2980 -          { id: STBL_COLS.time, title: "Time", width: 160, displayFieldId: null, sort: null, filter:
+           -null,
+      2983 +          { id: STBL_COLS.time, title: "Time", width: 150, displayFieldId: null, sort: null, filter:
+           +null,
+      2984              fieldVisibility: { mode: "show", fieldIds: [timeslotFieldId] }, hideLabel: true },
+      2982 -          // Goal: full embed (Physical Wellness goal occurrence). hideLabel
+      2983 -          // false — the goal's label/fields are the point of the column.
+      2984 -          { id: STBL_COLS.goal, title: "Goal", width: 240, displayFieldId: null, sort: null, filter:
+           -null,
+      2985 +          // Goal: full embed (Physical Wellness has 3 field pills — Tasks
+      2986 +          // Completed, Daily Steps, Daily Water — plus label). Wider to fit.
+      2987 +          { id: STBL_COLS.goal, title: "Goal", width: 320, displayFieldId: null, sort: null, filter:
+           +null,
+      2988              fieldVisibility: null, hideLabel: false },
+      2989          ],
+      2990          rowCount: 0,
+
+● Update(client/src/modules/CLAUDE.md)
+  ⎿  Added 4 lines
+       2
+       3  _Updated: 2026-05-18. This folder implements occurrence-based view routing._
+       4
+       5 +## Recent Changes (May 18 2026 — ModuleInstance synthesizes bindings for "show"-mode fieldVisibility)
+       6 +- **ModuleInstance.jsx (`instanceFields` useMemo)**: when `effectiveFieldVisibility.mode === "show"`, t
+         +he renderer now SYNTHESIZES a `{fieldId, role:"input"}` binding for any fieldId in the show-list that i
+         +sn't already in `instance.fieldBindings`. Without this, the Schedule Table's Date/Time projection colum
+         +ns rendered empty: schedule task modules don't formally bind `dateFieldId` / `timeslotFieldId` (those a
+         +re stamped as VALUES on each occurrence by Build Day's APPLY_TEMPLATE `defaultFields`), so `instance.fi
+         +eldBindings.filter(b => fieldPassesVisibility(b.fieldId, {mode:"show",fieldIds:[dateFid]}))` matched ze
+         +ro bindings → no FieldRenderer mounted → empty cell. Synthesizing fills the gap so any field with a val
+         +ue on the occurrence renders even when the module doesn't formally bind it. Hide-mode and null-mode pat
+         +hs unchanged.
+       7 +- **index.css `.table-td`**: dropped `min-height`, dropped `display:flex/align-items:center`, dropped `
+         +overflow:hidden`. Now: `display:block`, `overflow-x:hidden / overflow-y:visible`. Rationale: with dynam
+         +ic row heights via `measureElement`, content drives the row's height — vertical clipping defeats the pu
+         +rpose. Horizontal clipping is still on so wide content doesn't bleed across columns. Added `.table-td .
+         +instance-wrap, .table-td .instance-row { background:transparent; border:none; box-shadow:none }` to str
+         +ip the inner ModuleInstance card chrome — without this the cell looked like a card-inside-a-card with a
+         + visible inner border (the "weird line in the middle of the rows" the user spotted).
+       8 +
+       9  ## Recent Changes (May 18 2026 — Table responsive widths, dynamic row heights, hideLabel)
+      10  - **containers/ContainerTable.jsx** — three big changes:
+      11    1. **Dynamic row heights**: rowVirtualizer now passes `measureElement` (uses `getBoundingClientRect()
+          .height`). Cells are no longer absolute-positioned individually; each row is wrapped in a single absolu
+          te-positioned `.table-row` flex container whose ref feeds `rowVirtualizer.measureElement(...)`. Rows gr
+          ow to fit their tallest cell's natural content height (per user request: "always show the full content,
+           height shouldn't be fixed"). `ROW_H` is now just the minimum (44px) so short rows don't collapse. Colu
+          mn virtualization dropped (4-col tables render cheaply; horizontal scroll still works via `colVirtualiz
+          er.getTotalSize()` width on the row wrapper).
+
+● Four fixes this round:
+
+  1. Date/Timeslot fields now show — Found the root cause. ModuleInstance.instanceFields only iterated
+  module.fieldBindings. Schedule task modules (Drink Water, Mood Check-in, etc.) don't formally bind dateFieldId /
+  timeslotFieldId — those are stamped as values by Build Day's defaultFields. So fieldVisibility: { mode: "show",
+  fieldIds: [dateFieldId] } matched zero bindings → empty cell. Now instanceFields synthesizes a { fieldId, role:
+  "input" } binding for any "show"-mode fieldId not already bound — so the date/time field renders from the occurrence's
+   value.
+
+  2. No min row height — removed minHeight: ROW_H from row wrapper + each cell + .table-td CSS. Rows now size purely to
+  their tallest cell's content.
+
+  3. Weird middle line — That was the ModuleInstance's own .instance-wrap card chrome (background + border + shadow)
+  drawing a card INSIDE the cell border, making it look like a card-inside-a-card. Added a CSS rule to strip those when
+  an instance lives inside a .table-td. Cell border alone is enough delineation.
+
+  4. Goal cells fitting — Bumped Goal column width 240 → 320 (it has 3 field pills + a label). Date/Time columns dropped   to 150 each (single field doesn't need 160). Plus the cell now allows vertical overflow + clips horizontal, so
+  multi-pill goal content can wrap to a second line in tight viewports instead of being clipped.
+
+  Do this:
+  1. Re-seed: node --env-file=.env server/scripts/createLiveData.js
+  2. Hard refresh.
+
+  Expected:
+  - Date cells show a date pill (May 18).
+  - Time cells show a time pill (6:00am, 7:00am, etc).
+  - No visible "card inside cell" line — just the cell borders.
+  - Rows are exactly as tall as their tallest cell needs to be (mood check-in with rating + notes will be taller than a
+  plain Drink Water row).
+  - Goal column shows "Physical Wellness" + the 3 field pills (Tasks Completed, Daily Steps, Daily Water) without
+      185 +          ? { ...binding, hidden: false }
+      186 +          : binding;
+      187 +        return { field, binding: b };
+      188        })
+      189        .filter(Boolean);
+      190
+      170 -    // Synthesize bindings for "show"-mode fieldIds that aren't already bound.
+      191 +    // Synthesize bindings for "show"-mode fieldIds that aren't bound at all
+      192 +    // (e.g. schedule task modules don't formally bind date/timeslot — those
+      193 +    // values are stamped by Build Day's defaultFields).
+      194      const extras = [];
+      172 -    if (effectiveFieldVisibility?.mode === "show" && Array.isArray(effectiveFieldVisibility.fieldIds))
+          - {
+      195 +    if (showSet) {
+      196        const alreadyBound = new Set(bindings.map(b => b.fieldId));
+      174 -      for (const fid of effectiveFieldVisibility.fieldIds) {
+      197 +      for (const fid of showSet) {
+      198          if (alreadyBound.has(fid)) continue;
+      199          const field = fieldsById[fid];
+      200          if (!field) continue;
+
+● Now make widths always fit the panel — scale both up and down:
+
+● Update(client/src/modules/containers/ContainerTable.jsx)
+  ⎿  Added 12 lines, removed 7 lines
+      856    }, []);
+      857
+      858    // effectiveWidths: live resize takes priority, otherwise the persisted
+      859 -  // col.width. Then a single proportional scale pass blows the row up to
+      860 -  // fit the available container width (minus the trailing action column),
+      861 -  // but only when the persisted widths sum LESS than the viewport — never
+      862 -  // shrinks below the user's chosen widths (they can still horizontally
+      863 -  // scroll on narrow viewports).
+      859 +  // col.width treated as a RATIO (not absolute pixels). The whole row is
+      860 +  // then scaled to exactly fit the container width (minus the trailing
+      861 +  // action column). Always fills the panel, never overflows — matches the
+      862 +  // user spec "should be contained by the table page width (always
+      863 +  // matching it, and the cells are responsive to that)".
+      864 +  // First-paint guard: containerWidth is 0 before the ResizeObserver fires;
+      865 +  // fall through to raw widths in that case so cells aren't pinned to 0.
+      866    const effectiveWidths = useMemo(() => {
+      867      const raw = columns.map((c, i) => {
+      868        if (resizing && resizing.colIndex === i && resizing.currentWidth != null) {
+     ...
+      873      const sum = raw.reduce((a, w) => a + w, 0);
+      874      const ROW_ACTION_COL_W_LOCAL = 32; // mirrors the const below — keep in sync
+      875      const target = Math.max(0, containerWidth - ROW_ACTION_COL_W_LOCAL);
+      874 -    if (sum >= target || sum === 0) return raw;
+      876 +    if (target <= 0 || sum <= 0) return raw;
+      877 +    // Live-resize takes precedence — if the user is dragging a column,
+      878 +    // don't redistribute their drag.
+      879 +    if (resizing) return raw;
+      880      const scale = target / sum;
+      876 -    return raw.map(w => Math.round(w * scale));
+      881 +    return raw.map(w => Math.max(40, Math.round(w * scale)));
+      882    // eslint-disable-next-line react-hooks/exhaustive-deps
+      883    }, [columns, resizing, containerWidth]);
+      884
+
+❯ theres more fixes needed. other stuff you were fixing arent fixed
+
+● Let me check where columnFieldVisibility comes from in ModuleInstance:
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+❯ quickly stop what you are doing and write to the claude file what needs to be done still
+
+● Stopping and writing a punch list to CLAUDE.md.
+  ⎿  Interrupted · What should Claude do instead?
+
+❯ like whats still broken                                                                                               
+  Read 1 file (ctrl+o to expand)
+  ⎿  You're out of extra usage · resets 10:20pm (America/Chicago)
+     /upgrade to increase your usage limit.

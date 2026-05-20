@@ -1,6 +1,55 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-05-17. Check this file before re-reading source._
+_Updated: 2026-05-19. Check this file before re-reading source._
+
+## Recent Changes (2026-05-19 — Grid-level sort with row-major reflow)
+- **Grid.jsx**: `visiblePanels` useMemo gains a reflow path. When
+  `grid.meta.localSort.fieldId` is set AND there are ≥2 panels, panels
+  are wrapped as `{ instance, occurrence }` items, sorted via
+  `applyLocalSort` (the same helper used by container/page/panel
+  sorts), and re-emitted with row-major placement (`row: i/cols, col:
+  i%cols, width: 1, height: 1`). Occurrence `placement` is NOT
+  mutated — clearing sort restores the original 2D placement +
+  rowSpan/colSpan. Imports `applyLocalSort` from `./helpers/LayoutHelpers`.
+- **ui/SortSection.jsx**: Refactored to accept `entity` prop +
+  optional `onPersistSort(next)` callback. Falls back to occurrence-
+  based persist when only `occurrence={...}` is passed (back-compat).
+  New `labelOverride` prop. Used by `commandCenter/GridSettingsTab.jsx`
+  with `entity={grid}` + `onPersistSort` that writes through
+  `CommitHelpers.updateGrid({ grid: { meta: { ...grid.meta, localSort: next } } })`.
+
+## Recent Changes (2026-05-19 — LoginScreen redesign + new lockup SVG + addInstanceToContainer fieldIds)
+- **LoginScreen.jsx**: Layout switched from a centered single column over
+  `#1D2125` to a flex row. Left 2/3 of the viewport: `background-image:
+  url(/login_bg.jpg)` (cover/center/no-repeat) with a left-to-right
+  gradient scrim `rgba(14,33,64,0.25) → rgba(29,33,37,0.55)` so the dark
+  login box reads against the photo. Right 1/3: centered column wrapping
+  the existing login box (input/button styles unchanged). `minWidth: 280`
+  on the right column so the form never compresses below its inputs. The
+  logo `<img>` was swapped from `/moduli_logo.png` (36px) to
+  `/moduli_lockup.svg` (56px) — the new ribbon-style mark + wordmark.
+- **public/login_bg.jpg** (NEW): copy of root-folder `20260209_083212.jpg`
+  (architecture-diagram screenshot, ~147 KB) so Vite serves it. The PNG
+  in the root folder is left in place.
+- **public/moduli_mark_clean.svg + public/moduli_wordmark.svg +
+  public/moduli_lockup.svg** (NEW): clean redraw of the infinity-knot
+  mark (no `stroke-dasharray`, single continuous ribbon, dark backer +
+  specular highlight + over/under knot) plus a "moduli" wordmark where
+  each letter is drawn in the same ribbon-stroke style (rounded caps,
+  blue gradient, mini interlocking knot between `d` and `u`). Lockup
+  combines both. Existing PNGs / older SVGs left in place for A/B.
+- **App.jsx**: `addInstanceToContainer(containerId)` now accepts an
+  optional second arg `opts = { fieldIds }`. When fieldIds is a non-empty
+  array, the new module is created with `fieldBindings: [{ fieldId,
+  role:"input", hidden:false }]` pre-stamped. Empty / missing fieldIds
+  is byte-identical to before. Used by the QuickAddMenu field-picker
+  flow. Added `occurrencesById` to the useCallback dep array (was
+  previously read inside the callback without being declared — small
+  pre-existing freshness bug fixed in passing).
+
+## Recent Changes (2026-05-18 — Grid-switch loading overlay + auto-retry)
+- **App.jsx**: Grid-frame div now has `position: relative` + a conditional overlay child rendered when `state.gridId && state.grid?._id && state.gridId !== state.grid._id` (i.e. the user picked a new grid in the toolbar but `request_full_state` hasn't returned yet). Overlay is `position:absolute inset:0`, flex-column centered (gap:12) over a semi-transparent black w/ 2px backdrop blur, `zIndex:900`, with `<Spinner size="xl" />` plus a "Retrying..." label that appears underneath the spinner once the retry timer kicks in. Clears automatically when `FULL_STATE` lands and `state.grid._id` catches up to `state.gridId`. Initial app load still uses the existing full-frame spinner (the early branch where `state.grid?._id` is falsy) — the overlay only kicks in for grid-to-grid switches.
+- **App.jsx**: `gridSwitchRetrying` state + a useEffect keyed on the derived `isSwitchingGrid` flag. While switching, a `setInterval` every 8s re-emits `socket.emit("request_full_state", { gridId: targetGridId })` and flips `gridSwitchRetrying=true`. Resets to false whenever switching ends (cleanup runs on dep change). Motivation: server-side Mongo timeouts (e.g. `MongoNetworkTimeoutError` to 89.192.237.102:27017) silently swallow the first `request_full_state` socket emit — without the retry the spinner would hang forever.
 
 ## Recent Changes (2026-05-17 — Select options source refactor + occurrence field type)
 - **Field type "module" replaced by "occurrence"**: `field.meta.options` (string[]) + `meta.sourceType: "pool"` both gone. Replaced by discriminated `field.meta.optionsSource = { mode: "manual" | "range" | "find", ... }`. The "find" mode reuses operations FIND machinery (`evalGroupAgainstRecord` + `resolveRecordPath`) so any reachable record path can be used as the option's value/label.

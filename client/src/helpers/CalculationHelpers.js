@@ -77,19 +77,27 @@ function dateSeed(date) {
  * // If target is "100 per month" and we're viewing daily:
  * scaleTarget(100, "monthly", "daily") // => 3.33
  */
-export function scaleTarget(targetValue, targetTimeFilter, currentTimeFilter) {
+export function scaleTarget(targetValue, targetTimeFilter, currentTimeFilter, opts = {}) {
   if (targetValue === null || targetValue === undefined) return null;
   if (!targetTimeFilter || !currentTimeFilter) return targetValue;
-  if (targetTimeFilter === currentTimeFilter) return targetValue;
   if (targetTimeFilter === "inherit" || targetTimeFilter === "all") return targetValue;
   if (currentTimeFilter === "inherit" || currentTimeFilter === "all") return targetValue;
+
+  // Span — extends day-unit currentTimeFilter to an N-day window. If the
+  // viewer is filtering a 3-day range, multiply daily targets by 3.
+  const span = Number(opts.span) > 1 ? Math.floor(Number(opts.span)) : 1;
+
+  if (targetTimeFilter === currentTimeFilter) {
+    // Same base period — only the span widens the target.
+    return targetValue * span;
+  }
 
   const targetMultiplier = TIME_FILTER_MULTIPLIERS[targetTimeFilter] || 1;
   const currentMultiplier = TIME_FILTER_MULTIPLIERS[currentTimeFilter] || 1;
 
-  // Scale from target's base period to current viewing period
-  // e.g., 3 per day × (7 days / 1 day) = 21 per week
-  return targetValue * (currentMultiplier / targetMultiplier);
+  // Scale from target's base period to current viewing period × span
+  // e.g., 3 per day × (7 days / 1 day) = 21 per week; ×span for multi-week.
+  return targetValue * (currentMultiplier / targetMultiplier) * span;
 }
 
 /**
@@ -442,7 +450,7 @@ export function applyAggregation(values, aggregation, options = {}) {
  * @param {string} currentTimeFilter - The current viewing time filter (for scaling)
  * @returns {boolean|null} Whether target is met, or null if no target
  */
-export function checkTarget(value, target, currentTimeFilter = null) {
+export function checkTarget(value, target, currentTimeFilter = null, opts = {}) {
   if (!target || target.value === undefined) return null;
 
   const comparison = COMPARISONS[target.op || ">="];
@@ -451,7 +459,10 @@ export function checkTarget(value, target, currentTimeFilter = null) {
   // Scale the target if viewing in a different time period
   let scaledTarget = target.value;
   if (currentTimeFilter && target.timeFilter && target.timeFilter !== "inherit") {
-    scaledTarget = scaleTarget(target.value, target.timeFilter, currentTimeFilter);
+    scaledTarget = scaleTarget(target.value, target.timeFilter, currentTimeFilter, opts);
+  } else if (opts.span && opts.span > 1) {
+    // Same period — still apply span multiplier so daily target × 3 days works.
+    scaledTarget = target.value * Math.floor(opts.span);
   }
 
   return comparison.fn(value, scaledTarget);
@@ -464,13 +475,15 @@ export function checkTarget(value, target, currentTimeFilter = null) {
  * @param {string} currentTimeFilter - The current viewing time filter
  * @returns {number|null} The scaled target value
  */
-export function getScaledTargetValue(target, currentTimeFilter) {
+export function getScaledTargetValue(target, currentTimeFilter, opts = {}) {
   if (!target || target.value === undefined) return null;
 
   if (currentTimeFilter && target.timeFilter && target.timeFilter !== "inherit") {
-    return scaleTarget(target.value, target.timeFilter, currentTimeFilter);
+    return scaleTarget(target.value, target.timeFilter, currentTimeFilter, opts);
   }
-
+  if (opts.span && opts.span > 1) {
+    return target.value * Math.floor(opts.span);
+  }
   return target.value;
 }
 
@@ -482,13 +495,15 @@ export function getScaledTargetValue(target, currentTimeFilter) {
  * @param {string} currentTimeFilter - The current viewing time filter (for scaling)
  * @returns {number|null} Progress percentage, or null if no target
  */
-export function calculateProgress(value, target, currentTimeFilter = null) {
+export function calculateProgress(value, target, currentTimeFilter = null, opts = {}) {
   if (!target || target.value === undefined || target.value === 0) return null;
 
   // Scale the target if viewing in a different time period
   let scaledTarget = target.value;
   if (currentTimeFilter && target.timeFilter && target.timeFilter !== "inherit") {
-    scaledTarget = scaleTarget(target.value, target.timeFilter, currentTimeFilter);
+    scaledTarget = scaleTarget(target.value, target.timeFilter, currentTimeFilter, opts);
+  } else if (opts.span && opts.span > 1) {
+    scaledTarget = target.value * Math.floor(opts.span);
   }
 
   if (scaledTarget === 0) return null;

@@ -31,6 +31,15 @@ const OccurrenceSchema = new mongoose.Schema(
     // this carries the per-occurrence filter rule rows with optional condition groups.
     filters: { type: [mongoose.Schema.Types.Mixed], default: [] },
 
+    // Per-occurrence field-visibility (which instance fields render inside this
+    // occurrence's descendants). Shape: { mode: "show"|"hide", fieldIds: [] } or
+    // null. Cascades to descendant instances the same way filters[] does — a
+    // child inherits the nearest ancestor's setting unless it sets its own or
+    // explicitly turns it off (mode: "off"). Distinct from filterOverride/filters
+    // (value filters) — this only governs which field rows are shown, not row
+    // visibility. Consumed by ModuleInstance via getEffectiveFieldVisibility.
+    fieldVisibility: { type: mongoose.Schema.Types.Mixed, default: null },
+
     // Template merge identity. When set on a template-side occurrence, APPLY_TEMPLATE
     // in mode:"merge" treats any sibling under the apply target with the same
     // identitySignature as "the same node" — skips cloning, recurses into its

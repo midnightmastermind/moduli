@@ -29,7 +29,7 @@ import {
   calculateProgress,
 } from "../helpers/CalculationHelpers";
 import { createLeafInstanceInParent } from "../helpers/CommitHelpers";
-import GridActionsContext from "../GridActionsContext";
+import { GridActionsContext } from "../GridActionsContext";
 
 // ─── FlowToggle (popover with 3 flow options) ─────────────────
 function FlowToggle({ flow = "in", onChange, compact = false, disabled = false }) {
@@ -78,7 +78,7 @@ function FlowToggle({ flow = "in", onChange, compact = false, disabled = false }
 }
 
 // ─── MultiSelectWithAdd ─────────────────────────────────────────
-function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, disabled, compact, showLabel, randomize }) {
+function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, disabled, compact, showLabel, randomize, renderOption, fieldName }) {
   const [isOpen, setIsOpen] = useState(false);
   const [newValue, setNewValue] = useState("");
   const selectedOptions = useMemo(() => options.filter(o => selected.includes(o.value)), [options, selected]);
@@ -97,9 +97,14 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
         <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" role="combobox" disabled={disabled}
-              className={`w-full justify-between font-normal ${compact ? "h-6 text-xs" : "h-7 text-sm"}`}>
+              className={`w-full justify-between font-normal ${compact ? "h-6 text-xs" : "h-7 text-sm"}`}
+              style={fieldName ? { background: "rgba(6,182,212,0.08)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(103,232,249)" } : undefined}>
+              {/* occurrence field-pill: always show the field name so it reads
+                  as a labelled pill (fixes "occurrence selects show no field
+                  name / no pill"). */}
+              {fieldName && <span className="text-[10px] mr-1 flex-shrink-0" style={{ opacity: 0.7 }}>{fieldName}:</span>}
               {selectedOptions.length === 0
-                ? <span className="text-muted-foreground">{compact ? name : "Select..."}</span>
+                ? <span className="text-muted-foreground">{compact ? (fieldName ? "—" : name) : "Select..."}</span>
                 : <div className="flex flex-wrap gap-1 items-center overflow-hidden">
                     {selectedOptions.slice(0, 2).map(o => (
                       <span key={o.value} className="inline-flex items-center gap-0.5 px-1.5 py-0 text-[10px] rounded-full bg-primary/20 text-primary">
@@ -134,7 +139,7 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
                         ${selected.includes(o.value) ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
                         {selected.includes(o.value) && <Check className="h-3 w-3 text-primary-foreground" />}
                       </div>
-                      <span className="truncate">{o.label}</span>
+                      {renderOption ? renderOption(o) : <span className="truncate">{o.label}</span>}
                     </button>
                   ))}
             </div>
@@ -166,6 +171,93 @@ function Stars({ rating, max = 5, size = "w-4 h-4" }) {
           <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
         </svg>
       ))}
+    </div>
+  );
+}
+
+// ─── OccurrenceOption — rich picker row ─────────────────────────
+// Renders a referenced occurrence the way a "flushed out" search result
+// would: poster image (from a role:"media" binding), the label, and a few
+// of its field values. Used in every occurrence-type picker so selecting
+// an occurrence shows its media + fields + label, not bare text.
+// Resolve an occurrence id to the data needed to render an OccurrenceOption.
+// `chipDisplay` (optional) is `field.meta.optionsSource.chipDisplay`:
+//   { fieldIds: string[], showMedia: boolean, showLabel: boolean }
+// When set, the explicit `fieldIds` order wins (any non-empty value renders,
+// in the picked order). When null/undefined, falls back to the original
+// heuristic: first 3 non-hidden, non-media bindings with non-empty values.
+function resolveOccCard(occId, { occurrencesById, modulesById, fieldsById }, chipDisplay = null) {
+  const occ = occurrencesById?.[occId];
+  if (!occ) return null;
+  const mod = modulesById?.[occ.moduleId || occ.targetId] || null;
+  const bindings = Array.isArray(mod?.fieldBindings) ? mod.fieldBindings : [];
+  const mediaB = bindings.find(b => b.role === "media");
+  const showMedia = chipDisplay ? chipDisplay.showMedia !== false : true;
+  const mediaVal = (showMedia && mediaB) ? (occ.fields?.[mediaB.fieldId]?.value ?? null) : null;
+  const showLabel = chipDisplay ? chipDisplay.showLabel !== false : true;
+
+  let fieldVals;
+  if (chipDisplay && Array.isArray(chipDisplay.fieldIds)) {
+    // Explicit field list — render in the configured order. Skip empty/missing
+    // values (rendering "name: undefined" is worse than rendering nothing).
+    fieldVals = chipDisplay.fieldIds
+      .map(fid => {
+        const v = occ.fields?.[fid]?.value;
+        if (v == null || v === "") return null;
+        const f = fieldsById?.[fid];
+        return f ? { name: f.name, value: v } : null;
+      })
+      .filter(Boolean);
+  } else {
+    // Auto-derive (legacy heuristic) — first 3 non-hidden, non-media bindings.
+    fieldVals = bindings
+      .filter(b => b.role !== "media" && !b.hidden && occ.fields?.[b.fieldId]?.value != null && occ.fields?.[b.fieldId]?.value !== "")
+      .slice(0, 3)
+      .map(b => {
+        const f = fieldsById?.[b.fieldId];
+        return f ? { name: f.name, value: occ.fields[b.fieldId].value } : null;
+      })
+      .filter(Boolean);
+  }
+
+  return {
+    label: showLabel ? (mod?.label || occ.label || null) : null,
+    mediaVal, fieldVals,
+  };
+}
+
+function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null }) {
+  const card = resolveOccCard(occId, maps, chipDisplay);
+  const label = card?.label || (card && chipDisplay && chipDisplay.showLabel === false ? null : (fallbackLabel || occId));
+  const mediaVal = card?.mediaVal;
+  const ext = typeof mediaVal === "string" ? (mediaVal.split(".").pop() || "").toLowerCase() : "";
+  const isImg = ["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"].includes(ext);
+  // Hide the media slot entirely when chipDisplay opts out (showMedia=false).
+  const renderMediaSlot = chipDisplay ? chipDisplay.showMedia !== false : true;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, width: "100%" }}>
+      {renderMediaSlot && (
+        <div style={{ width: 34, height: 46, flexShrink: 0, borderRadius: 4, overflow: "hidden",
+          background: "var(--input-bg, rgba(255,255,255,0.04))", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {mediaVal && isImg
+            ? <img src={`/uploads/${mediaVal}`} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : <Link2 style={{ width: 12, height: 12, opacity: 0.4 }} />}
+        </div>
+      )}
+      <div style={{ minWidth: 0, flex: 1 }}>
+        {label != null && (
+          <div style={{ fontWeight: 600, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
+        )}
+        {card?.fieldVals?.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+            {card.fieldVals.map((fv, i) => (
+              <span key={i} style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+                {fv.name}: {String(fv.value)}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -211,6 +303,8 @@ function Field({
 }) {
   const isEditable = typeof onCommit === "function";
   const currentTimeFilter = context?.currentIteration || "daily";
+  const currentSpan = Number(context?.currentSpan) > 1 ? Math.floor(Number(context.currentSpan)) : 1;
+  const scaleOpts = currentSpan > 1 ? { span: currentSpan } : {};
   const displayConfigTarget = useMemo(() => {
     const dc = field?.displayConfig;
     if (!dc || dc.targetValue == null) return null;
@@ -240,10 +334,22 @@ function Field({
   const inputRef = useRef(null);
 
   // Context needed for occurrence add-new: create a new instance in the library container
-  const { dispatch, socket, gridId, userId, occurrencesById } = useContext(GridActionsContext);
+  const { dispatch, socket, gridId, userId, occurrencesById, modulesById, fieldsById } = useContext(GridActionsContext);
 
   // occurrenceAddNewCfg is derived from field meta — stable reference, safe to compute here.
-  const occurrenceAddNewCfg = field?.type === "occurrence" && meta?.multiSelect ? meta?.optionsSource?.addNew : null;
+  // Read via field?.meta because the `meta` destructure happens later in the function.
+  const occurrenceAddNewCfg = field?.type === "occurrence" && field?.meta?.multiSelect ? field?.meta?.optionsSource?.addNew : null;
+
+  // Rich occurrence-picker row renderer (poster + label + field values).
+  // chipDisplay = the field's `meta.optionsSource.chipDisplay` config (or null).
+  // When set, drives which fields/media render on each chip; otherwise the
+  // OccurrenceOption auto-derives from the referenced module's bindings.
+  const occMaps = useMemo(() => ({ occurrencesById, modulesById, fieldsById }), [occurrencesById, modulesById, fieldsById]);
+  const chipDisplay = field?.meta?.optionsSource?.chipDisplay || null;
+  const renderOccurrenceOption = useCallback(
+    (o) => <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} chipDisplay={chipDisplay} />,
+    [occMaps, chipDisplay]
+  );
 
   useEffect(() => {
     if (!isClickEditing) setLocalValue(resolveInputVal(value));
@@ -529,7 +635,7 @@ function Field({
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
             onAddOption={occAddNew} disabled={disabled} compact={compact}
-            showLabel={showLabel} randomize={false} />
+            showLabel={showLabel} randomize={false} renderOption={renderOccurrenceOption} fieldName={name} />
         );
       }
       const currentLabel = options.find(o => o.value === localValue)?.label || localValue || "—";
@@ -563,7 +669,7 @@ function Field({
                         border: "none", cursor: "pointer", textAlign: "left",
                       }}
                     >
-                      {o.label}
+                      <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} chipDisplay={chipDisplay} />
                     </button>
                   ))}
             </div>
@@ -827,25 +933,46 @@ function Field({
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
             onAddOption={occAddNew} disabled={disabled} compact={compact}
-            showLabel={showLabel} randomize={false} />
+            showLabel={showLabel} randomize={false} renderOption={renderOccurrenceOption} fieldName={name} />
         );
       }
       return (
         <div className="field-input field-input-occurrence" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {showLabel && <span style={inputLabelStyle}>{name}</span>}
-          <select
-            value={localValue ?? ""}
-            disabled={disabled}
-            onChange={e => { handleChange(e.target.value || null); onCommit?.(e.target.value || null); }}
-            style={{
-              height: compact ? 24 : 28, fontSize: compact ? 10 : 12, fontFamily: "var(--font-mono)",
-              background: "rgba(6,182,212,0.08)", border: "1px solid rgba(6,182,212,0.25)",
-              borderRadius: 5, color: "rgb(103,232,249)", padding: "0 8px", outline: "none",
-            }}
-          >
-            <option value="">Select occurrence...</option>
-            {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <Popover open={selectOpen} onOpenChange={setSelectOpen}>
+            <PopoverTrigger asChild>
+              <button type="button" disabled={disabled}
+                style={{
+                  minHeight: 28, fontSize: 12, fontFamily: "var(--font-mono)",
+                  background: "rgba(6,182,212,0.08)", border: "1px solid rgba(6,182,212,0.25)",
+                  borderRadius: 5, color: "rgb(103,232,249)", padding: "4px 8px", outline: "none",
+                  display: "flex", alignItems: "center", gap: 6, cursor: disabled ? "not-allowed" : "pointer",
+                  textAlign: "left",
+                }}>
+                {localValue
+                  ? <div style={{ flex: 1, minWidth: 0 }}><OccurrenceOption occId={localValue} fallbackLabel={localValue} maps={occMaps} chipDisplay={chipDisplay} /></div>
+                  : <span style={{ flex: 1, opacity: 0.6 }}>Select occurrence...</span>}
+                <ChevronDown style={{ width: 12, height: 12, opacity: 0.5, flexShrink: 0 }} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-1" align="start" side="bottom">
+              <div style={{ maxHeight: 280, overflowY: "auto" }}>
+                {options.length === 0
+                  ? <div style={{ padding: "16px 0", textAlign: "center", fontSize: 11, color: "var(--text-faint)" }}>No occurrences available</div>
+                  : options.map(o => (
+                      <button key={o.value} type="button"
+                        onClick={() => { handleChange(o.value); onCommit?.(o.value); setSelectOpen(false); }}
+                        style={{
+                          width: "100%", display: "flex", alignItems: "center", padding: "5px 6px",
+                          borderRadius: 4, border: "none", cursor: "pointer", textAlign: "left",
+                          background: localValue === o.value ? "rgba(6,182,212,0.15)" : "transparent",
+                        }}>
+                        <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} />
+                      </button>
+                    ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       );
     }
@@ -918,23 +1045,23 @@ function Field({
 
   // Target/progress calculations
   const scaledTarget = useMemo(
-    () => hasTarget ? getScaledTargetValue(target, currentTimeFilter) : null,
-    [hasTarget, target, currentTimeFilter]
+    () => hasTarget ? getScaledTargetValue(target, currentTimeFilter, scaleOpts) : null,
+    [hasTarget, target, currentTimeFilter, currentSpan]
   );
   const targetMet = useMemo(() => {
     if (!hasTarget) return null;
-    return checkTarget(rawDisplayValue ?? 0, target, currentTimeFilter);
-  }, [hasTarget, target, rawDisplayValue, currentTimeFilter]);
+    return checkTarget(rawDisplayValue ?? 0, target, currentTimeFilter, scaleOpts);
+  }, [hasTarget, target, rawDisplayValue, currentTimeFilter, currentSpan]);
   const targetProgress = useMemo(() => {
     if (!hasTarget || rawDisplayValue == null) return null;
     if (typeof target.value !== "number") return null;
     const current = Number(rawDisplayValue);
     if (isNaN(current)) return null;
-    const scaledT = getScaledTargetValue(target, currentTimeFilter);
-    const progress = calculateProgress(current, target, currentTimeFilter) ?? 0;
-    const met = checkTarget(current, target, currentTimeFilter) ?? false;
+    const scaledT = getScaledTargetValue(target, currentTimeFilter, scaleOpts);
+    const progress = calculateProgress(current, target, currentTimeFilter, scaleOpts) ?? 0;
+    const met = checkTarget(current, target, currentTimeFilter, scaleOpts) ?? false;
     return { progress, met, target: scaledT };
-  }, [hasTarget, target, rawDisplayValue, currentTimeFilter]);
+  }, [hasTarget, target, rawDisplayValue, currentTimeFilter, currentSpan]);
 
   const fmt = (v) => typeof v === "number" ? (Number.isInteger(v) ? v : v.toFixed(2)) : v;
   const valueDisplay = hasTarget && scaledTarget !== null

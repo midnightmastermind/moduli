@@ -106,6 +106,9 @@ export const CanvasContent = React.memo(function CanvasContent({
   // attach to the same node.
   const setSurfaceRef = useCallback((el) => {
     surfaceRef.current = el;
+    if (el) {
+      prevScrollRef.current = { x: el.scrollLeft, y: el.scrollTop };
+    }
     if (typeof listDropRef === "function") listDropRef(el);
     else if (listDropRef) listDropRef.current = el;
   }, [listDropRef]);
@@ -278,6 +281,13 @@ export const CanvasContent = React.memo(function CanvasContent({
   // 2 = red (scroll hit the world boundary, can't go further).
   const [edgeHover, setEdgeHover] = useState({ top: 0, bottom: 0, left: 0, right: 0 });
 
+  // Scroll-driven minimap visibility — true for ~900ms after the last scroll
+  // event so a mouse-wheel / trackpad scroll surfaces the minimap and edge
+  // bars (same affordance as grab-pan and dragover).
+  const [isScrolling, setIsScrolling] = useState(false);
+  const prevScrollRef = useRef({ x: 0, y: 0 });
+  const scrollHideTimerRef = useRef(null);
+
   // Boundary-aware edge classification: given a "this direction is active"
   // flag per edge, paint red if the surface is already pinned at that side
   // of the world (max scroll reached), otherwise blue.
@@ -351,6 +361,45 @@ export const CanvasContent = React.memo(function CanvasContent({
     panStateRef.current = null;
     setEdgeHover({ top: 0, bottom: 0, left: 0, right: 0 });
   }, []);
+
+  // Mouse-wheel / trackpad scroll on the surface should surface the minimap
+  // + edge bars the same way grab-pan does: gives the user spatial awareness
+  // of where they are inside the 4000×4000 world. The dragover autoscroll
+  // path also fires onScroll (it programmatically nudges scrollLeft/Top), so
+  // we bail when a pan or dragover is already driving edges — they own that
+  // state and we'd just thrash it.
+  const onSurfaceScroll = useCallback(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    // Don't fight the pan handler — it sets edges from pointer delta which is
+    // strictly better-signal than scroll delta during a drag.
+    if (panStateRef.current) return;
+    const sx = surface.scrollLeft;
+    const sy = surface.scrollTop;
+    const dx = sx - prevScrollRef.current.x;
+    const dy = sy - prevScrollRef.current.y;
+    prevScrollRef.current = { x: sx, y: sy };
+    // Only paint edges when the scroll actually moved (filter rounding noise).
+    const active = {
+      left:   dx < -2,
+      right:  dx >  2,
+      top:    dy < -2,
+      bottom: dy >  2,
+    };
+    if (active.left || active.right || active.top || active.bottom) {
+      setEdgeHover(classifyEdges(active));
+    }
+    setIsScrolling(true);
+    if (scrollHideTimerRef.current) clearTimeout(scrollHideTimerRef.current);
+    scrollHideTimerRef.current = setTimeout(() => {
+      setIsScrolling(false);
+      // Clear edge bars too — but only if we still own them (no pan / dragover
+      // started in the meantime).
+      if (!panStateRef.current && !autoscrollIntervalRef.current) {
+        setEdgeHover({ top: 0, bottom: 0, left: 0, right: 0 });
+      }
+    }, 900);
+  }, [classifyEdges]);
 
   // Drawing pointer events — only when a draw tool is active. Run on the world
   // div (not the surface) so coordinates map to world space directly.
@@ -525,9 +574,15 @@ export const CanvasContent = React.memo(function CanvasContent({
   // world-coord point.
   const MINIMAP_SIZE = 120;
   const minimapScale = MINIMAP_SIZE / CANVAS_WORLD_SIZE;
-  const showMinimap =
+  // Coerce to boolean — edgeHover values are 0/1/2 (not booleans). Without
+  // !! the JSX guard `{showMinimap && (...)}` would render the literal `0`
+  // as text when all edge values are 0 and drawTool isn't "grab". `isScrolling`
+  // makes the minimap appear on plain mouse-wheel / trackpad scroll too.
+  const showMinimap = !!(
     drawTool === "grab" ||
-    edgeHover.top || edgeHover.bottom || edgeHover.left || edgeHover.right;
+    isScrolling ||
+    edgeHover.top || edgeHover.bottom || edgeHover.left || edgeHover.right
+  );
   const handleMinimapClick = useCallback((e) => {
     const surface = surfaceRef.current;
     if (!surface) return;
@@ -697,7 +752,7 @@ export const CanvasContent = React.memo(function CanvasContent({
           on dragover edge zones AND while grab-panning in that direction.
           State value 1 = blue (can scroll further); 2 = red (pinned at world
           boundary, can't pan that way). */}
-      {(edgeHover.top || edgeHover.bottom || edgeHover.left || edgeHover.right) && (
+      {!!(edgeHover.top || edgeHover.bottom || edgeHover.left || edgeHover.right) && (
         <>
           {edgeHover.top    ? <div className={`canvas-edge-bar canvas-edge-top    ${edgeHover.top    === 2 ? "canvas-edge-blocked" : ""}`} /> : null}
           {edgeHover.bottom ? <div className={`canvas-edge-bar canvas-edge-bottom ${edgeHover.bottom === 2 ? "canvas-edge-blocked" : ""}`} /> : null}
@@ -721,6 +776,7 @@ export const CanvasContent = React.memo(function CanvasContent({
         onDragOver={onSurfaceDragOver}
         onDragLeave={onSurfaceDragLeave}
         onDrop={stopAutoscroll}
+        onScroll={onSurfaceScroll}
       >
         {/* World — fixed huge size; pan moves scroll of the surface */}
         <div

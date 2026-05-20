@@ -186,11 +186,14 @@ export default function App() {
   const [commandCenterEverOpened, setCommandCenterEverOpened] = useState(false);
   useEffect(() => { if (commandCenterOpen) setCommandCenterEverOpened(true); }, [commandCenterOpen]);
 
-  // Auto-collapse CommandCenter when ANY drag starts + prevent OS from intercepting unhandled drags
+  // Prevent OS from intercepting unhandled drags. Per user request, the
+  // CommandCenter does NOT auto-collapse on drag start — only file (artifact)
+  // pills are still draggable onto the grid; fields and operations are now
+  // organize-in-place only (category reorder), so keeping the CC open while
+  // dragging makes the source location stay visible.
   useEffect(() => {
     return monitorForElements({
       onDragStart: () => {
-        setCommandCenterOpen(false);
         preventUnhandled.start();
       },
       onDrop: () => {
@@ -219,6 +222,7 @@ export default function App() {
   const { isMobile } = useMobileDetect();
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
   const [zoomedOut, setZoomedOut] = useState(false);
+  const [gridSwitchRetrying, setGridSwitchRetrying] = useState(false);
 
   // CS6b — Load persisted CSS token overrides on mount
   useEffect(() => {
@@ -415,6 +419,25 @@ export default function App() {
     socket.emit("request_full_state");
   };
 
+  // Grid-switch retry: if the requested grid hasn't arrived after 8s
+  // (e.g. server Mongo timeout swallowed the request_full_state), re-emit
+  // and show "Retrying..." under the overlay spinner. Repeats every 8s
+  // until state.grid._id catches up to state.gridId.
+  const isSwitchingGrid =
+    !!state.gridId && !!state.grid?._id && state.gridId !== state.grid._id;
+  useEffect(() => {
+    if (!isSwitchingGrid) {
+      setGridSwitchRetrying(false);
+      return;
+    }
+    const targetGridId = state.gridId;
+    const id = setInterval(() => {
+      setGridSwitchRetrying(true);
+      socket.emit("request_full_state", { gridId: targetGridId });
+    }, 8000);
+    return () => clearInterval(id);
+  }, [isSwitchingGrid, state.gridId]);
+
   // Reset activeCell + zoomedOut when grid changes — restore from localStorage if available
   useEffect(() => {
     if (!state.gridId) return;
@@ -504,15 +527,22 @@ export default function App() {
     [dispatch, state.gridId, state.userId, state.containers, state.panels, socket]
   );
 
-  // Use occurrence-based creation with userId
+  // Use occurrence-based creation with userId.
+  // Optional second arg `{ fieldIds }` pre-binds those fields onto the new
+  // module — used by QuickAddMenu's "New X" field picker so the user can
+  // attach a starter set of fields before creation.
   const addInstanceToContainer = useCallback(
-    (containerId) => {
+    (containerId, opts) => {
       if (!containerId || !state.gridId || !state.userId) return;
+      const fieldIds = Array.isArray(opts?.fieldIds) ? opts.fieldIds : [];
 
       const id = crypto.randomUUID();
       const label = `Item ${(state.instances?.length || 0) + 1}`;
-      // Module with role: "instance"
-      const module = { id, role: "instance", kind: "list", label };
+      // Module with role: "instance". Pre-bind any fields the user picked
+      // in the QuickAddMenu field-picker step. Default role="input" so the
+      // field renders as an editable pill (matches FieldsTab "attach" flow).
+      const fieldBindings = fieldIds.map(fid => ({ fieldId: fid, role: "input", hidden: false }));
+      const module = { id, role: "instance", kind: "list", label, fieldBindings };
 
       const container = (state.containers || []).find((c) => c.id === containerId);
       if (!container) return;
@@ -532,7 +562,7 @@ export default function App() {
         emit: true,
       });
     },
-    [dispatch, state.instances, state.gridId, state.userId, state.containers, socket]
+    [dispatch, state.instances, state.gridId, state.userId, state.containers, socket, occurrencesById]
   );
 
 
@@ -749,6 +779,7 @@ export default function App() {
         />
 
         <div data-testid="app-root" className={`app-root grid-frame bg-background2 shadow-inner ${isMobile ? 'p-0 border-0 rounded-none ring-0' : 'p-3 ring-1 ring-black/40 rounded-xl border border-border'}`}
+          style={{ position: "relative" }}
           onTouchStart={(ev) => {
             if (!commandCenterOpen) return;
             const startY = ev.touches[0].clientY;
@@ -768,6 +799,30 @@ export default function App() {
           ) : (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
               <Spinner size="xl" />
+            </div>
+          )}
+          {isSwitchingGrid && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 12,
+                background: "rgba(0, 0, 0, 0.45)",
+                backdropFilter: "blur(2px)",
+                zIndex: 900,
+                pointerEvents: "auto",
+              }}
+            >
+              <Spinner size="xl" />
+              {gridSwitchRetrying && (
+                <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, letterSpacing: 0.3 }}>
+                  Retrying...
+                </div>
+              )}
             </div>
           )}
         </div>

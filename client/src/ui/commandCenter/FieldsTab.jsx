@@ -371,6 +371,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
           <span style={labelStyle}>Options source</span>
           <SelectOptionsSourceEditor
             source={local.meta?.optionsSource || { mode: "manual", values: [] }}
+            fieldType={local.type}
             onChange={(next) => setLocal(p => ({ ...p, meta: { ...(p.meta || {}), optionsSource: next } }))}
           />
         </div>

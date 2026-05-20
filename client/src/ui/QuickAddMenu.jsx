@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useContext, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Plus, ChevronLeft, List, FileText, LayoutGrid, Image as ImageIcon, Box, FileQuestion } from "lucide-react";
+import { Plus, ChevronLeft, List, FileText, LayoutGrid, Image as ImageIcon, Box, FileQuestion, Check, Search } from "lucide-react";
 import { GridActionsContext } from "../GridActionsContext";
 import { templatesByKind } from "../helpers/templateHelpers";
 import { commitApplyTemplate } from "../helpers/CommitHelpers";
@@ -42,7 +42,7 @@ const ALLOWED_KINDS_BY_ROLE = {
 };
 
 export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null }) {
-  const { modulesById, roleByModuleId, socket, state, occurrencesById, manifestsById, foldersById } = useContext(GridActionsContext);
+  const { modulesById, roleByModuleId, socket, state, occurrencesById, manifestsById, foldersById, fieldsById } = useContext(GridActionsContext);
   const lookups = useMemo(
     () => ({ manifestsById, foldersById, occurrencesById, modulesById }),
     [manifestsById, foldersById, occurrencesById, modulesById]
@@ -51,6 +51,14 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   const [search, setSearch] = useState("");
   const [pickedKind, setPickedKind] = useState(null); // null = showing categories
   const [pos, setPos] = useState({ top: 0, left: 0 });
+  // Field-picker step: when user clicks "New X", we show a multi-select
+  // field list so they can pre-bind fields to the new module before it's
+  // created. `null` = not in picker; `[]` = picker open with no fields chosen
+  // yet. The picker only opens for `instance` role (containers/panels/pages
+  // don't carry field bindings) AND only when at least one field exists on
+  // the grid.
+  const [pickingFields, setPickingFields] = useState(null);
+  const [fieldSearch, setFieldSearch] = useState("");
   const menuRef = useRef(null);
   const btnRef = useRef(null);
 
@@ -71,7 +79,48 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     setOpen(false);
     setSearch("");
     setPickedKind(null);
+    setPickingFields(null);
+    setFieldSearch("");
   }, []);
+
+  // Sorted, search-filtered field list for the picker. Only computed when the
+  // picker is open. Reads `fieldsById` from context.
+  const fieldList = useMemo(() => {
+    if (pickingFields == null) return [];
+    const q = fieldSearch.trim().toLowerCase();
+    return Object.values(fieldsById || {})
+      .filter(f => !f.trashed)
+      .filter(f => !q || (f.name || "").toLowerCase().includes(q))
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }, [fieldsById, pickingFields, fieldSearch]);
+
+  const toggleFieldPick = useCallback((fieldId) => {
+    setPickingFields(prev => {
+      if (!Array.isArray(prev)) return [fieldId];
+      return prev.includes(fieldId) ? prev.filter(id => id !== fieldId) : [...prev, fieldId];
+    });
+  }, []);
+
+  // Confirm: call onCreateNew with the chosen fieldIds. Back-compat: callers
+  // that ignore the arg (current ModuleContainer / ModulePanel / ModulePage
+  // wiring) keep working — the picker is purely additive.
+  const confirmCreate = useCallback(() => {
+    const fieldIds = Array.isArray(pickingFields) ? pickingFields : [];
+    onCreateNew?.({ fieldIds });
+    closeMenu();
+  }, [pickingFields, onCreateNew, closeMenu]);
+
+  // "New X" click handler — opens the field picker for instance role when
+  // any field exists; otherwise skips straight to creation.
+  const handleClickNew = useCallback(() => {
+    const hasFields = Object.values(fieldsById || {}).some(f => !f.trashed);
+    if (targetRole === "instance" && hasFields) {
+      setPickingFields([]);
+      return;
+    }
+    onCreateNew?.({ fieldIds: [] });
+    closeMenu();
+  }, [fieldsById, targetRole, onCreateNew, closeMenu]);
 
   // Close on outside click or Escape
   useEffect(() => {
@@ -204,7 +253,29 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {!showCategories && (
+          {pickingFields != null ? (
+            <>
+              <button
+                onClick={() => { setPickingFields(null); setFieldSearch(""); }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 8px", background: "none", border: "none", borderBottom: "1px solid var(--border-subtle)", cursor: "pointer", color: "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-mono)", textAlign: "left" }}
+              >
+                <ChevronLeft size={10} /> Back
+              </button>
+              <div style={{ padding: "8px 10px 4px", fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", borderBottom: "1px solid var(--border-subtle)" }}>
+                Pick fields to attach to the new {targetRole} ({pickingFields.length} selected)
+              </div>
+              <div style={{ position: "relative" }}>
+                <Search size={10} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "var(--text-faint)" }} />
+                <input
+                  autoFocus
+                  value={fieldSearch}
+                  onChange={(e) => setFieldSearch(e.target.value)}
+                  placeholder="Search fields…"
+                  style={{ background: "var(--input-bg)", border: "none", borderBottom: "1px solid var(--border-subtle)", padding: "6px 8px 6px 22px", fontSize: 11, color: "var(--text-primary)", outline: "none", fontFamily: "var(--font-mono)", width: "100%", boxSizing: "border-box" }}
+                />
+              </div>
+            </>
+          ) : !showCategories && (
             <>
               {pickedKind && categories.length > 1 && (
                 <button
@@ -224,7 +295,38 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
             </>
           )}
           <div style={{ flex: 1, overflowY: "auto" }}>
-            {showCategories && (
+            {pickingFields != null && (
+              <>
+                {fieldList.length === 0 && (
+                  <div style={{ padding: "8px", fontSize: 10, color: "var(--text-faint)", textAlign: "center" }}>
+                    No fields found
+                  </div>
+                )}
+                {fieldList.map(f => {
+                  const selected = pickingFields.includes(f.id);
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => toggleFieldPick(f.id)}
+                      style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "5px 10px", background: selected ? "rgba(59,130,246,0.12)" : "none", border: "none", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
+                      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = "var(--input-bg)"; }}
+                      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "none"; }}
+                    >
+                      <span style={{ width: 14, height: 14, borderRadius: 3, border: `1px solid ${selected ? "rgba(59,130,246,0.8)" : "var(--border-default)"}`, background: selected ? "rgba(59,130,246,0.8)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {selected && <Check size={10} color="white" strokeWidth={3} />}
+                      </span>
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {f.name || "(unnamed)"}
+                      </span>
+                      {f.type && (
+                        <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{f.type}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </>
+            )}
+            {pickingFields == null && showCategories && (
               <>
                 {categories.map(cat => {
                   const Icon = cat.icon || Box;
@@ -251,7 +353,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                 })}
                 {onCreateNew && (
                   <button
-                    onClick={() => { onCreateNew(); closeMenu(); }}
+                    onClick={handleClickNew}
                     style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", padding: "8px 10px", background: "none", border: "none", borderTop: "1px solid var(--border-subtle)", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "var(--input-bg)"}
                     onMouseLeave={(e) => e.currentTarget.style.background = "none"}
@@ -264,7 +366,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                         {createLabel || `New ${targetRole}`}
                       </span>
                       <span style={{ display: "block", fontSize: 9, color: "var(--text-muted)", marginTop: 1 }}>
-                        Create a new {targetRole} from scratch
+                        {targetRole === "instance" ? "Pick fields to attach, then create" : `Create a new ${targetRole} from scratch`}
                       </span>
                     </span>
                   </button>
@@ -291,11 +393,11 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                 )}
               </>
             )}
-            {!showCategories && (
+            {pickingFields == null && !showCategories && (
               <>
                 {onCreateNew && (
                   <button
-                    onClick={() => { onCreateNew(); closeMenu(); }}
+                    onClick={handleClickNew}
                     style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "5px 8px", background: "none", border: "none", borderBottom: onAddTextblock ? "none" : "1px solid var(--border-subtle)", cursor: "pointer", color: "var(--accent-blue, #60a5fa)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
                   >
                     <Plus size={10} /> {createLabel || `New ${targetRole}`}
@@ -333,7 +435,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                 ))}
               </>
             )}
-            {templateRows.length > 0 && (
+            {pickingFields == null && templateRows.length > 0 && (
               <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "6px 8px" }}>
                 <div style={{ fontSize: 9, color: "var(--text-faint)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Templates
@@ -365,6 +467,22 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
               </div>
             )}
           </div>
+          {pickingFields != null && (
+            <div style={{ display: "flex", gap: 6, padding: "6px 8px", borderTop: "1px solid var(--border-subtle)", background: "var(--input-bg)" }}>
+              <button
+                onClick={() => { onCreateNew?.({ fieldIds: [] }); closeMenu(); }}
+                style={{ flex: 1, padding: "5px 8px", background: "transparent", border: "1px solid var(--border-default)", borderRadius: 4, cursor: "pointer", color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}
+              >
+                Skip
+              </button>
+              <button
+                onClick={confirmCreate}
+                style={{ flex: 1, padding: "5px 8px", background: "rgba(59,130,246,0.8)", border: "1px solid rgba(59,130,246,0.9)", borderRadius: 4, cursor: "pointer", color: "white", fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600 }}
+              >
+                Create
+              </button>
+            </div>
+          )}
         </div>,
         document.body
       )}

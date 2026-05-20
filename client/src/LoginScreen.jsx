@@ -48,11 +48,42 @@ export default function LoginScreen() {
   return (
     <div style={{
       height: "100vh",
+      width: "100vw",
       display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
+      flexDirection: "row",
       background: "#1D2125",
+      overflow: "hidden",
     }}>
+      {/* LEFT 2/3 — background image */}
+      <div style={{
+        flex: "2 1 0",
+        minWidth: 0,
+        position: "relative",
+        background: "#0e2140",
+        backgroundImage: "url(/login_bg.jpg)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}>
+        {/* Subtle scrim so the photo doesn't fight with the dark login chrome */}
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          background: "linear-gradient(90deg, rgba(14,33,64,0.25), rgba(29,33,37,0.55))",
+          pointerEvents: "none",
+        }} />
+      </div>
+
+      {/* RIGHT 1/3 — centered login box */}
+      <div style={{
+        flex: "1 1 0",
+        minWidth: 280,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "0 24px",
+      }}>
       <div style={{
         display: "flex",
         flexDirection: "column",
@@ -65,9 +96,9 @@ export default function LoginScreen() {
         width: 300,
       }}>
         <img
-          src="/moduli_logo.png"
+          src="/moduli_lockup.svg"
           alt="Moduli"
-          style={{ height: 36, width: "auto", marginBottom: 4 }}
+          style={{ height: 56, width: "auto", marginBottom: 4 }}
         />
 
         {error && (
@@ -167,6 +198,7 @@ export default function LoginScreen() {
         >
           Register
         </button>
+      </div>
       </div>
     </div>
   );

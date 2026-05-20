@@ -9,6 +9,7 @@ import { GridActionsContext } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { uid } from "../../uid";
 import { COMPARATOR_OPTIONS } from "../../helpers/comparators";
+import SortSection from "../SortSection";
 
 const TIME_UNIT_OPTIONS = [
   { value: "day",   label: "Day" },
@@ -162,6 +163,20 @@ export function GridSettingsTab() {
             onKeyDown={e => { if (e.key === "Enter") commitCols(e.currentTarget.value); }}
           />
         </div>
+      </div>
+
+      <Separator className="mb-3" />
+
+      {/* ── Sort panels (reflows row-major when active) ── */}
+      <div className="mb-3">
+        <SortSection
+          entity={grid}
+          labelOverride="Sort panels"
+          onPersistSort={(next) => {
+            const nextMeta = { ...(grid?.meta || {}), localSort: next };
+            CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta: nextMeta }, emit: true });
+          }}
+        />
       </div>
 
       <Separator className="mb-3" />

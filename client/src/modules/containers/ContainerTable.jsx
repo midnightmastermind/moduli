@@ -5,23 +5,31 @@
 // Task 12: TanStack sort + per-column filter (view-only, never rewrites cells).
 // Task 13: Row + column virtualization via @tanstack/react-virtual.
 import React, { useMemo, useCallback, useState, useRef, useEffect, useContext } from "react";
+import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
   getFilteredRowModel,
 } from "@tanstack/react-table";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { MoreVertical, ChevronUp, ChevronDown, Hash, Filter, X, Eye } from "lucide-react";
+import { MoreVertical, ChevronUp, ChevronDown, Hash, Filter, X, Eye, Image as ImageIcon } from "lucide-react";
 import { evalRule } from "../../helpers/operationActions";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, fillRange, firstEmbedOccId } from "../../helpers/tableCells";
 import { assignLinkedGroup } from "../../helpers/LayoutHelpers";
 import { COMPARATOR_OPTIONS, UNARY_COMPARATORS } from "../../helpers/comparators";
 import { GridActionsContext } from "../../GridActionsContext";
+import { getEffectiveFieldVisibilityForOccurrence } from "../../state/selectors";
+import {
+  autoAppendFieldsToAncestorsShowMode,
+  autoAppendFieldsToTableColumnShowMode,
+} from "../../helpers/fieldVisibilityAutoAppend";
 import { uid } from "../../uid";
 import Editor from "../../ui/Editor.jsx";
 import CategoryPathPicker from "../../ui/CategoryPathPicker.jsx";
+import ModuleInstance from "../ModuleInstance.jsx";
+import ModuleContainer from "../ModuleContainer.jsx";
+import { CellEmbedContext } from "../../docs/CellEmbedContext.js";
 
 // ── FilterValueWidget ─────────────────────────────────────────────────────────
 // Minimal inline value-input for the column filter popover.
@@ -85,12 +93,64 @@ const DEBOUNCE_MS = 500;
 // React from tearing down this component across data changes.  `initialContent`
 // is a ref so the `content` prop passed to Editor is the mount-time snapshot
 // only — TipTap is uncontrolled after mount and manages its own doc state.
-function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId, fieldFilter, onFocusCell, onBlurCell, isFocused, fillMode, onFillPointerDown, onToggleFillMode, style }) {
+// StaticCellEmbed — renders a single embedded occurrence WITHOUT a TipTap
+// editor (the non-active cell state). Mirrors ModuleEmbedNode's role branch
+// for the cases tables actually use (instance / container). Wrapped in
+// CellEmbedContext so ModuleInstance's field-visibility + hideLabel projection
+// works identically to the editor path.
+function StaticCellEmbed({ occId, occurrencesById, modulesById, dispatch, socket, displayFieldId, fieldVisibility, hideLabel, showMedia }) {
+  const occurrence = occId ? occurrencesById?.[occId] : null;
+  const mod = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
+  const ctxValue = useMemo(
+    () => ({ displayFieldId, fieldVisibility, hideLabel, showMedia: !!showMedia, __inCell: true }),
+    [displayFieldId, fieldVisibility, hideLabel, showMedia],
+  );
+  if (!occurrence || !mod) {
+    return <div className="table-cell-static" style={{ minHeight: 18 }} />;
+  }
+  return (
+    <CellEmbedContext.Provider value={ctxValue}>
+      <div className="table-cell-static">
+        {mod.role === "instance" ? (
+          <ModuleInstance
+            module={mod}
+            occurrence={occurrence}
+            dispatch={dispatch}
+            socket={socket}
+            embedSourceType="doc-embed"
+            embedHideLabel={hideLabel === true}
+          />
+        ) : (
+          <ModuleContainer
+            module={mod}
+            panel={null}
+            dispatch={dispatch}
+            socket={socket}
+            occurrenceOverride={occurrence}
+            embedSourceType="doc-embed"
+          />
+        )}
+      </div>
+    </CellEmbedContext.Provider>
+  );
+}
+
+function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId, fieldVisibility, hideLabel, showMedia, onFocusCell, onBlurCell, isFocused, fillMode, onFillPointerDown, onToggleFillMode, style }) {
   const key = cellKey(r, c);
 
   // Seed TipTap once at mount — never update this ref so the Editor's content
   // prop is stable across re-renders (TipTap is uncontrolled after mount).
-  const initialContent = useRef(tableRef.current.cells[key] || emptyCellDoc());
+  //
+  // CRITICAL: must read from `initialDoc` PROP (current-render value passed by
+  // the parent) — NOT from `tableRef.current.cells[key]`. The tableRef is
+  // updated in a useEffect that runs AFTER commit, so during the first render
+  // where this cell mounts, the ref still holds the PREVIOUS table snapshot.
+  // For a cell that didn't exist before (rowCount went 0 → 6), the previous
+  // snapshot has no entry for `key` → emptyCellDoc() forever (TipTap is
+  // uncontrolled after mount, so a later ref update doesn't repopulate the
+  // editor). Was the root cause of "table renders rows but every cell is
+  // empty" right after the Schedule Table: Build op ran.
+  const initialContent = useRef(initialDoc || emptyCellDoc());
 
   // Debounce timer ref — flushed (not merely cleared) on blur/unmount so the
   // last edit is never silently dropped.
@@ -102,6 +162,92 @@ function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispat
 
   // Forward ref so cellRefs can call editor.commands.focus() on this cell.
   const editorRef = useRef(null);
+
+  // Lazy-editor: a cell that holds a single occurrence embed renders that
+  // occurrence DIRECTLY (no TipTap) until it's focused or hovered. Mounting a
+  // live <Editor mode="cell"> per cell meant ~24 TipTap instances on the
+  // Schedule Table page — Firefox crawled to a crash. Now at most the focused
+  // + hovered cell is a real editor; everything else is a plain ModuleInstance
+  // (still interactive — checkboxes/fields work). Free-text cells (no embed)
+  // always use the editor so typed content keeps working.
+  const { occurrencesById, modulesById } = useContext(GridActionsContext) || {};
+  const [hovered, setHovered] = useState(false);
+  const [dropActive, setDropActive] = useState(false);
+  const cellElRef = useRef(null);
+  const embedOccId = useMemo(
+    () => firstEmbedOccId(initialContent.current),
+    [],
+  );
+  const showEditor = !embedOccId || isFocused || hovered;
+
+  // Cell-level drop target — catches drops anywhere in the .table-td,
+  // including the padding outside .doc-editor-wrapper, and drops onto cells
+  // showing the StaticCellEmbed (where no Editor is mounted). The Editor's
+  // own dropTargetForElements still fires for drops INSIDE the editor (it's
+  // the innermost target, so pragmatic DnD routes there first) — this
+  // handler is the fallback that makes cells with existing content drop-
+  // able too. Resolves the dropped occurrence id, then either replaces an
+  // empty cell with a moduleEmbed doc, or appends a moduleEmbed to a cell
+  // with existing content.
+  useEffect(() => {
+    const el = cellElRef.current;
+    if (!el) return;
+    return dropTargetForElements({
+      element: el,
+      getData: () => ({ type: "table-cell", r, c }),
+      canDrop: ({ source }) => {
+        const t = source.data?.type;
+        return t === "instance" || t === "module" || t === "container" || t === "artifact" || t === "textblock";
+      },
+      onDragEnter: () => setDropActive(true),
+      onDragLeave: () => setDropActive(false),
+      onDrop: ({ source }) => {
+        setDropActive(false);
+        const sd = source.data || {};
+        // If the inner Editor is visible AND the user dropped into the
+        // Editor's element specifically, the Editor's own drop handler
+        // already fired (it's the innermost target). Bail to avoid double-
+        // inserting. We detect this by checking whether `el` was the
+        // outermost target — pragmatic DnD calls onDrop on every target in
+        // the chain, but the Editor's onDrop runs BEFORE ours so we'd see
+        // its insertion reflected in tableRef. Skip when the Editor is
+        // showing — the doc-editor handler covers it.
+        if (showEditor) return;
+
+        let occId = sd.context?.occurrenceId || sd.occurrenceId;
+        if (!occId && sd.id) {
+          const existing = Object.values(occurrencesById || {}).find(o => o.moduleId === sd.id);
+          if (existing) occId = existing.id;
+        }
+        if (!occId) return;
+
+        const latestTable = tableRef.current;
+        const currentDoc = latestTable.cells?.[key];
+        const isEmpty = !currentDoc
+          || (Array.isArray(currentDoc.content)
+              && currentDoc.content.length === 1
+              && currentDoc.content[0]?.type === "paragraph"
+              && !currentDoc.content[0]?.content);
+
+        let newDoc;
+        if (isEmpty) {
+          // Empty cell → embed at first position.
+          newDoc = makeEmbedCellDoc(occId);
+        } else {
+          // Non-empty cell → append moduleEmbed at last position.
+          const content = Array.isArray(currentDoc.content) ? currentDoc.content : [];
+          newDoc = {
+            ...currentDoc,
+            type: currentDoc.type || "doc",
+            content: [...content, { type: "moduleEmbed", attrs: { occurrenceId: occId } }],
+          };
+        }
+
+        const nextCells = { ...latestTable.cells, [key]: newDoc };
+        persist({ ...latestTable, cells: nextCells });
+      },
+    });
+  }, [r, c, key, tableRef, persist, occurrencesById, showEditor]);
 
   // Register / unregister the focus handle in the shared cellRefs map.
   useEffect(() => {
@@ -167,28 +313,47 @@ function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispat
 
   return (
     <div
-      className="table-td"
+      ref={cellElRef}
+      className={`table-td${isFocused || hovered ? " table-td-focused" : ""}${dropActive ? " table-td-drop-active" : ""}`}
       data-r={r}
       data-c={c}
       onFocus={onFocusCell}
       onBlur={onBlurCell}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={style}
     >
-      <Editor
-        ref={editorRef}
-        mode="cell"
-        editable
-        content={initialContent.current}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        onCellCommitMove={onCellCommitMove}
-        dispatch={dispatch}
-        socket={socket}
-        placeholder=""
-        displayFieldId={displayFieldId ?? null}
-        fieldFilter={fieldFilter ?? null}
-      />
-      {isFocused && (
+      {showEditor ? (
+        <Editor
+          ref={editorRef}
+          mode="cell"
+          editable
+          content={initialContent.current}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          onCellCommitMove={onCellCommitMove}
+          dispatch={dispatch}
+          socket={socket}
+          placeholder=""
+          displayFieldId={displayFieldId ?? null}
+          fieldVisibility={fieldVisibility ?? null}
+          hideLabel={hideLabel ?? false}
+          showMedia={showMedia ?? false}
+        />
+      ) : (
+        <StaticCellEmbed
+          occId={embedOccId}
+          occurrencesById={occurrencesById}
+          modulesById={modulesById}
+          dispatch={dispatch}
+          socket={socket}
+          displayFieldId={displayFieldId ?? null}
+          fieldVisibility={fieldVisibility ?? null}
+          hideLabel={hideLabel ?? false}
+          showMedia={showMedia ?? false}
+        />
+      )}
+      {(isFocused || hovered) && (
         <>
           {/* Fill handle nub — bottom-right corner */}
           <div
@@ -214,8 +379,55 @@ function TableCell({ r, c, tableRef, persist, onCellCommitMove, cellRefs, dispat
 export default function ContainerTable({ occurrence, dispatch, socket }) {
   const { occurrencesById, modulesById, fieldsById } = useContext(GridActionsContext);
 
-  const table = useMemo(() => occurrence?.meta?.table || DEFAULT_TABLE(), [occurrence?.meta?.table]);
+  // Normalize: cells/columns can come back null from the server if a prior
+  // partial write stored `null` (e.g. Mongoose Mixed-type quirks on empty
+  // subdocs). Without this guard, `tableRef.current.cells[key]` in TableCell
+  // throws "can't access property '0:0', t.current.cells is null" and the
+  // whole panel crashes. Fall back to safe defaults whenever a field is null
+  // or the wrong type — same shape DEFAULT_TABLE provides.
+  const table = useMemo(() => {
+    const raw = occurrence?.meta?.table || DEFAULT_TABLE();
+    return {
+      ...raw,
+      columns: Array.isArray(raw.columns) ? raw.columns : DEFAULT_TABLE().columns,
+      rowCount: typeof raw.rowCount === "number" ? raw.rowCount : 0,
+      cells: (raw.cells && typeof raw.cells === "object" && !Array.isArray(raw.cells)) ? raw.cells : {},
+      // Table-level sort sits alongside per-column sort. Shape: `{ colId, dir }`
+      // where dir is "asc" | "desc". Merged into TanStack's `sorting` state
+      // BEFORE per-column entries so it acts as the primary sort key.
+      sort: (raw.sort && typeof raw.sort === "object" && raw.sort.colId) ? raw.sort : null,
+    };
+  }, [occurrence?.meta?.table]);
   const { columns, rowCount, cells } = table;
+
+  // [TABLE-DIAG] Emit a one-line summary every time the table data changes so
+  // we can spot "rendered but rowCount=0" vs "rendered but cells missing".
+  // Toggle off by setting window.__moduliTableDiag = false.
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.__moduliTableDiag === false) return;
+    const cellCount = cells && typeof cells === "object" ? Object.keys(cells).length : 0;
+    // eslint-disable-next-line no-console
+    console.log("[table]", {
+      occId: occurrence?.id,
+      label: modulesById?.[occurrence?.moduleId]?.label,
+      rowCount,
+      columns: columns?.length,
+      cellsPersisted: cellCount,
+      hasMetaTable: !!occurrence?.meta?.table,
+    });
+  }, [occurrence?.id, occurrence?.moduleId, occurrence?.meta?.table, columns, rowCount, cells, modulesById]);
+
+  // Field-visibility cascade resolved at the TABLE-CONTAINER occurrence
+  // (its own fieldVisibility, or whatever it inherits from the page/grid
+  // via the HeaderDropdown FieldVisibilitySection). Cell-embedded
+  // occurrences are not parented under this container, so ModuleInstance's
+  // own ancestor walk can't see this — the column must pass it down
+  // explicitly. A per-column kebab override (col.fieldVisibility) WINS
+  // over this; a null column falls back to this table-level setting.
+  const tableFieldVisibility = useMemo(
+    () => getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById }),
+    [occurrence, occurrencesById],
+  );
 
   // tableRef always holds the latest table so TableCell.handleChange reads
   // fresh cells at flush time (avoids concurrent-edit data loss).
@@ -254,7 +466,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
   // Field-filter (show/hide which fields render inside the cell's embed)
   // popover: which column is showing the field-filter editor
-  const [fieldFilterPickerCol, setFieldFilterPickerCol] = useState(null);
+  const [fieldVisibilityPickerCol, setFieldVisibilityPickerCol] = useState(null);
 
   // Resize state: { colIndex, startX, startWidth }
   const [resizing, setResizing] = useState(null);
@@ -464,6 +676,24 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
           CommitHelpers.createOccurrence({ dispatch, socket, occurrence: newOcc });
 
           nextCells[cellKey(tr2, tc2)] = makeEmbedCellDoc(newOccId);
+
+          // Auto-append: if this column is in show-mode field-visibility,
+          // append the new embed's fieldIds to col.fieldVisibility.fieldIds.
+          // Mirror for the table's ancestors (a page/panel in show-mode
+          // surfaces the new fieldIds too — cell embeds aren't parented under
+          // the table in occurrences[], so we walk from the table occurrence
+          // itself rather than the embed).
+          autoAppendFieldsToTableColumnShowMode({
+            tableOccurrence: occurrence,
+            columnIndex: tc2,
+            newOccurrence: newOcc,
+            ctx: { dispatch, socket, modulesById },
+          });
+          autoAppendFieldsToAncestorsShowMode({
+            newOccurrence: newOcc,
+            destinationOccurrence: occurrence,
+            ctx: { dispatch, socket, occurrencesById, modulesById },
+          });
         }
       } else {
         // Plain-text / no embed: deep-clone source doc verbatim into each target.
@@ -552,15 +782,23 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
   const tanstackData = useMemo(() => rows.map(r => ({ r })), [rows]);
 
-  // ── Step 1: Derive TanStack sorting state from columns[].sort ─────────────
-  // View-only: only persisted col.sort config drives sort order; cells[] never
-  // modified. Clearing sort (col.sort→null) removes the column from `sorting`.
-  const sorting = useMemo(
-    () => columns
-      .filter(c => c.sort != null)
-      .map(c => ({ id: c.id, desc: c.sort === "desc" })),
-    [columns],
-  );
+  // ── Step 1: Derive TanStack sorting state ─────────────────────────────────
+  // View-only: persisted sort config drives order; cells[] never mutated.
+  // Order: table.sort (primary) first, then any per-column sorts. TanStack
+  // applies them in array order, so the table-level entry wins ties. Per-column
+  // sort lives alongside — clearing the table sort falls back to per-column.
+  const sorting = useMemo(() => {
+    const out = [];
+    if (table.sort?.colId) {
+      out.push({ id: table.sort.colId, desc: table.sort.dir === "desc" });
+    }
+    for (const c of columns) {
+      if (c.sort != null && c.id !== table.sort?.colId) {
+        out.push({ id: c.id, desc: c.sort === "desc" });
+      }
+    }
+    return out;
+  }, [columns, table.sort]);
 
   // ── Step 3: Derive TanStack columnFilters from columns[].filter ───────────
   // View-only: filter config stored in columns[].filter; cells[] never touched.
@@ -612,6 +850,28 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     persist({ ...table, columns: nextCols });
   }, [columns, persist, table]);
 
+  // --- Toggle per-column "show media" — when on, table cells in this column
+  // surface their occurrence's role:"media" binding (image/video/audio) as
+  // a block under label + fields. Off by default; mirrors col.hideLabel.
+  const toggleColumnShowMedia = useCallback((colIndex) => {
+    const col = columns[colIndex];
+    const nextCols = columns.map((c, i) =>
+      i === colIndex ? { ...c, showMedia: !c.showMedia } : c
+    );
+    persist({ ...table, columns: nextCols });
+  }, [columns, persist, table]);
+
+  // --- Table-level sort: writes meta.table.sort = { colId, dir } | null ---
+  // Independent of per-column sort; lives at table scope so the entire table
+  // is sorted by one column at a time. Per-column sort still works for
+  // additional layers. Pass colId=null to clear.
+  const handleSetTableSort = useCallback((colId, dir) => {
+    const next = colId ? { colId, dir: dir === "desc" ? "desc" : "asc" } : null;
+    persist({ ...table, sort: next });
+  }, [persist, table]);
+
+  const [tableSortMenuOpen, setTableSortMenuOpen] = useState(false);
+
   // --- Kebab menu toggle ---
   const handleKebabClick = useCallback((e, colIndex) => {
     e.stopPropagation();
@@ -620,7 +880,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
         // Closing: reset nested pickers for this column
         setFieldPickerCol(null);
         setFilterPickerCol(null);
-        setFieldFilterPickerCol(null);
+        setFieldVisibilityPickerCol(null);
         return null;
       }
       return { colIndex };
@@ -660,31 +920,31 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   }, [handleSetFilter]);
 
   // --- Per-column field filter (which fields render inside the embed) ---
-  // Writes columns[colIndex].fieldFilter = { mode: "show"|"hide", fieldIds }
+  // Writes columns[colIndex].fieldVisibility = { mode: "show"|"hide", fieldIds }
   // or null to clear. CellEmbedContext picks it up; ModuleInstance reads
-  // fieldFilter from context and filters bindings accordingly. Independent
+  // fieldVisibility from context and filters bindings accordingly. Independent
   // of displayFieldId (single-field projection) — when both are set,
   // displayFieldId wins for the projected-cell render path.
-  const handleSetFieldFilterMode = useCallback((colIndex, mode) => {
+  const handleSetFieldVisibilityMode = useCallback((colIndex, mode) => {
     const nextCols = columns.map((c, i) => {
       if (i !== colIndex) return c;
       // "off" clears the filter; switching modes keeps the existing fieldIds.
-      if (mode === "off") return { ...c, fieldFilter: null };
-      const prev = c.fieldFilter || { mode: "show", fieldIds: [] };
-      return { ...c, fieldFilter: { mode, fieldIds: prev.fieldIds || [] } };
+      if (mode === "off") return { ...c, fieldVisibility: null };
+      const prev = c.fieldVisibility || { mode: "show", fieldIds: [] };
+      return { ...c, fieldVisibility: { mode, fieldIds: prev.fieldIds || [] } };
     });
     persist({ ...table, columns: nextCols });
   }, [columns, persist, table]);
 
-  const handleToggleFieldFilterFieldId = useCallback((colIndex, fieldId) => {
+  const handleToggleFieldVisibilityFieldId = useCallback((colIndex, fieldId) => {
     const nextCols = columns.map((c, i) => {
       if (i !== colIndex) return c;
-      const prev = c.fieldFilter || { mode: "show", fieldIds: [] };
+      const prev = c.fieldVisibility || { mode: "show", fieldIds: [] };
       const has = (prev.fieldIds || []).includes(fieldId);
       const nextIds = has
         ? prev.fieldIds.filter(fid => fid !== fieldId)
         : [...(prev.fieldIds || []), fieldId];
-      return { ...c, fieldFilter: { mode: prev.mode || "show", fieldIds: nextIds } };
+      return { ...c, fieldVisibility: { mode: prev.mode || "show", fieldIds: nextIds } };
     });
     persist({ ...table, columns: nextCols });
   }, [columns, persist, table]);
@@ -766,10 +1026,25 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     persist({ ...table, rowCount: rowCount + 1 });
   }, [table, rowCount, persist]);
 
-  // --- Remove last row ---
-  const handleRemoveLastRow = useCallback(() => {
-    if (rowCount > 1) persist({ ...table, rowCount: rowCount - 1 });
-  }, [table, rowCount, persist]);
+  // --- Remove a specific row at index ---
+  // Shifts every cell from rows below up by one row, drops the now-last-row
+  // cells, decrements rowCount. Mirrors deleteColumn's reindex pattern.
+  const handleRemoveRowAt = useCallback((rowIdx) => {
+    if (rowCount <= 1) return;
+    const nextCells = {};
+    Object.entries(cells || {}).forEach(([k, v]) => {
+      const [rs, cs] = k.split(":");
+      const r = Number(rs);
+      const c = Number(cs);
+      if (r < rowIdx) {
+        nextCells[k] = v;
+      } else if (r > rowIdx) {
+        nextCells[`${r - 1}:${c}`] = v;
+      }
+      // r === rowIdx → drop
+    });
+    persist({ ...table, cells: nextCells, rowCount: rowCount - 1 });
+  }, [table, rowCount, cells, persist]);
 
   // Close kebab (and field picker) on outside click
   // (containerRef declared above in the fill-drag section)
@@ -786,252 +1061,74 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   }, [kebabOpen]);
 
   // Compute effective column widths (accounting for live resize)
-  const effectiveWidths = columns.map((c, i) => {
-    if (resizing && resizing.colIndex === i && resizing.currentWidth != null) {
-      return resizing.currentWidth;
-    }
-    return c.width || 160;
-  });
+  // Track scroll-container width so columns can flex to fill it. Without
+  // this, narrow viewports clipped right-side columns AND wide viewports
+  // had a dead-zone of empty whitespace past the last column.
+  const [containerWidth, setContainerWidth] = useState(0);
+  useEffect(() => {
+    if (!containerRef.current || typeof ResizeObserver === "undefined") return;
+    const el = containerRef.current;
+    const update = () => setContainerWidth(el.clientWidth || 0);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
-  // ── Virtualizers (Task 13) ───────────────────────────────────────────────────
-  // The scroll container reference is `containerRef` (already declared above
-  // in the fill-drag section and used for kebab outside-click).
-  //
-  // Row virtualizer iterates the TanStack filtered+sorted row model so that
-  // sort/filter and virtualization agree on which rows are visible and in what
-  // order. tanRow.original.r is the underlying grid-row index stored in cells[].
-  //
-  // Column virtualizer iterates `columns` (the raw column definition array) so
-  // that header cells and data cells share identical start/size offsets.
-  //
-  // ROW_H: fixed row height in px — matches CSS min-height for .table-td.
-  const ROW_H = 28;
-  // HEADER_H: fixed header height — must match what the header row actually
-  // renders so absolutelypositioned body rows start at the right offset.
+  // effectiveWidths: live resize takes priority, otherwise the persisted
+  // col.width treated as a RATIO (not absolute pixels). The whole row is
+  // then scaled to exactly fit the container width (minus the trailing
+  // action column). Always fills the panel, never overflows — matches the
+  // user spec "should be contained by the table page width (always
+  // matching it, and the cells are responsive to that)".
+  // First-paint guard: containerWidth is 0 before the ResizeObserver fires;
+  // fall through to raw widths in that case so cells aren't pinned to 0.
+  const effectiveWidths = useMemo(() => {
+    const raw = columns.map((c, i) => {
+      if (resizing && resizing.colIndex === i && resizing.currentWidth != null) {
+        return resizing.currentWidth;
+      }
+      return c.width || 160;
+    });
+    const sum = raw.reduce((a, w) => a + w, 0);
+    const ROW_ACTION_COL_W_LOCAL = 32; // mirrors the const below — keep in sync
+    const target = Math.max(0, containerWidth - ROW_ACTION_COL_W_LOCAL);
+    if (target <= 0 || sum <= 0) return raw;
+    // Live-resize takes precedence — if the user is dragging a column,
+    // don't redistribute their drag.
+    if (resizing) return raw;
+    const scale = target / sum;
+    const scaled = raw.map(w => Math.max(40, Math.round(w * scale)));
+    // Push the rounding remainder into the last column so the columns sum to
+    // EXACTLY `target` — fills the panel to the right edge with no dead zone
+    // and keeps header/body widths byte-identical.
+    const scaledSum = scaled.reduce((a, w) => a + w, 0);
+    const remainder = target - scaledSum;
+    if (remainder !== 0 && scaled.length > 0) {
+      const last = scaled.length - 1;
+      scaled[last] = Math.max(40, scaled[last] + remainder);
+    }
+    return scaled;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columns, resizing, containerWidth]);
+
+  // Layout constants. Rows are normal-flow flex rows (no virtualization), so
+  // there is no min row height — a row is exactly as tall as its tallest cell.
+  // HEADER_H: fixed header height.
   const HEADER_H = 30;
   // ROW_ACTION_COL_W: width of the trailing "–" action column (pixels).
   const ROW_ACTION_COL_W = 32;
 
   const filteredSortedRows = tableInstance.getRowModel().rows;
 
-  // scrollMargin: 0 — cells are positioned at top: HEADER_H + vRow.start
-  // within the single content div that also contains the sticky header. The
-  // sticky header div sits at the top of this content div (position:sticky,
-  // top:0, height:HEADER_H) and body rows start below it.
-  const rowVirtualizer = useVirtualizer({
-    count: filteredSortedRows.length,
-    getScrollElement: () => containerRef.current,
-    estimateSize: () => ROW_H,
-    overscan: 8,
-    // paddingStart: reserve space at the top of the body for the sticky header
-    // so row 0's start === HEADER_H and getTotalSize() includes that space.
-    paddingStart: HEADER_H,
-  });
-
-  const colVirtualizer = useVirtualizer({
-    count: columns.length,
-    getScrollElement: () => containerRef.current,
-    estimateSize: (i) => effectiveWidths[i] ?? 160,
-    horizontal: true,
-    overscan: 2,
-  });
-
-  const totalRowsHeight = rowVirtualizer.getTotalSize();
-  // Total width of all data columns + the trailing action column.
-  const totalColsWidth = colVirtualizer.getTotalSize() + ROW_ACTION_COL_W;
-
-  // ── Focused-cell force-include (seamlessness safeguard) ───────────────────
-  // If the focused cell has scrolled just outside the virtualizer's overscan
-  // window, the editor would be torn down mid-edit, destroying the caret.
-  // We prevent this by computing the full set of virtual row/col indices and
-  // injecting the focused-cell indices when they're missing.
-  //
-  // Debounce unmount: we keep a "prev rendered set" in a ref and only truly
-  // remove an item once a rAF fires after it exits the virtual window. This
-  // prevents flicker when the user scrolls fast and items momentarily fall just
-  // outside the overscan window before the virtualizer re-stabilises.
-
-  const virtualRowItems = rowVirtualizer.getVirtualItems();
-  const virtualColItems = colVirtualizer.getVirtualItems();
-
-  // The set of row-vIndex values currently virtual. Used to detect if the
-  // focused row has dropped out of the overscan window.
-  const virtualRowIndexSet = useMemo(
-    () => new Set(virtualRowItems.map(vi => vi.index)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [virtualRowItems],
-  );
-  const virtualColIndexSet = useMemo(
-    () => new Set(virtualColItems.map(vi => vi.index)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [virtualColItems],
-  );
-
-  // Map from underlying grid-row index → vIndex in filteredSortedRows, so we
-  // can look up whether the focused row is currently in the virtual window.
-  const gridRowToVIndex = useMemo(() => {
-    const m = new Map();
-    filteredSortedRows.forEach((tanRow, vi) => m.set(tanRow.original.r, vi));
-    return m;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredSortedRows]);
-
-  // Resolve the vIndex for the focused row (null if not in filtered set at all).
-  const focusedRowVIndex = focusedCell != null
-    ? (gridRowToVIndex.get(focusedCell.r) ?? null)
-    : null;
-  const focusedColVIndex = focusedCell != null ? focusedCell.c : null;
-
-  // Augmented virtual row/col item arrays: if the focused cell's indices are
-  // missing from the virtual window, append synthetic virtual items so they
-  // stay mounted. We build synthetic items from the virtualizer's measureCache.
-  const augmentedVirtualRows = useMemo(() => {
-    if (
-      focusedRowVIndex == null ||
-      virtualRowIndexSet.has(focusedRowVIndex)
-    ) {
-      return virtualRowItems;
-    }
-    // Focused row is outside the overscan window. Build a synthetic virtual item
-    // so the row/cell stays mounted. `start` and `size` are approximate — the
-    // exact value doesn't matter because the focused cell is offscreen; what
-    // matters is that React does not unmount it.
-    const size = ROW_H;
-    const start = focusedRowVIndex * size + HEADER_H;
-    return [
-      ...virtualRowItems,
-      { index: focusedRowVIndex, start, size, key: focusedRowVIndex, lane: 0 },
-    ];
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [virtualRowItems, virtualRowIndexSet, focusedRowVIndex]);
-
-  const augmentedVirtualCols = useMemo(() => {
-    if (
-      focusedColVIndex == null ||
-      virtualColIndexSet.has(focusedColVIndex)
-    ) {
-      return virtualColItems;
-    }
-    const size = effectiveWidths[focusedColVIndex] ?? 160;
-    // Approximate start from sum of preceding widths.
-    let start = 0;
-    for (let i = 0; i < focusedColVIndex; i++) start += (effectiveWidths[i] ?? 160);
-    return [
-      ...virtualColItems,
-      { index: focusedColVIndex, start, size, key: focusedColVIndex, lane: 0 },
-    ];
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [virtualColItems, virtualColIndexSet, focusedColVIndex, effectiveWidths]);
-
-  // Debounced-unmount: a ref tracks which (rowVIndex, colVIndex) pairs were
-  // rendered in the previous frame. If a pair exits the augmented virtual
-  // window, we keep it mounted for one rAF before actually removing it, which
-  // avoids flicker on fast scrolls where the virtualizer momentarily under-scans.
-  const prevRenderedPairsRef = useRef(new Set());
-  const debounceTimerRef = useRef(null);
-  const [debouncedPairsToDrop, setDebouncedPairsToDrop] = useState(new Set());
-
-  // Build the current "live" set of (rowVIndex:colVIndex) pairs.
-  const livePairSet = useMemo(() => {
-    const s = new Set();
-    for (const vRow of augmentedVirtualRows) {
-      for (const vCol of augmentedVirtualCols) {
-        s.add(`${vRow.index}:${vCol.index}`);
-      }
-    }
-    return s;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [augmentedVirtualRows, augmentedVirtualCols]);
-
-  useEffect(() => {
-    // Determine which pairs have exited the virtual window since last render.
-    const exiting = [];
-    for (const pair of prevRenderedPairsRef.current) {
-      if (!livePairSet.has(pair)) exiting.push(pair);
-    }
-    prevRenderedPairsRef.current = livePairSet;
-
-    if (exiting.length === 0) {
-      // Nothing exited — clear any pending drop set.
-      if (debounceTimerRef.current != null) {
-        cancelAnimationFrame(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
-      setDebouncedPairsToDrop(new Set());
-      return;
-    }
-    // Schedule removal of exiting pairs after one animation frame.
-    if (debounceTimerRef.current != null) cancelAnimationFrame(debounceTimerRef.current);
-    debounceTimerRef.current = requestAnimationFrame(() => {
-      debounceTimerRef.current = null;
-      setDebouncedPairsToDrop(new Set(exiting));
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [livePairSet]);
-
-  // Cleanup rAF on unmount.
-  useEffect(() => () => {
-    if (debounceTimerRef.current != null) cancelAnimationFrame(debounceTimerRef.current);
-  }, []);
-
-  // The final set of (rowVIndex, colVIndex) pairs to render:
-  // = livePairSet UNION debouncedPairsToDrop (keep exiting items for one frame).
-  // We rebuild augmented arrays to cover the extra pairs.
-  const extraRowVIndexes = useMemo(() => {
-    const extra = new Set();
-    for (const pair of debouncedPairsToDrop) {
-      if (!livePairSet.has(pair)) {
-        const rvi = parseInt(pair.split(":")[0], 10);
-        extra.add(rvi);
-      }
-    }
-    return extra;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedPairsToDrop, livePairSet]);
-
-  const extraColVIndexes = useMemo(() => {
-    const extra = new Set();
-    for (const pair of debouncedPairsToDrop) {
-      if (!livePairSet.has(pair)) {
-        const cvi = parseInt(pair.split(":")[1], 10);
-        extra.add(cvi);
-      }
-    }
-    return extra;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedPairsToDrop, livePairSet]);
-
-  // Final virtual row/col arrays include debounce-held items.
-  const finalVirtualRows = useMemo(() => {
-    if (extraRowVIndexes.size === 0) return augmentedVirtualRows;
-    const existing = new Set(augmentedVirtualRows.map(vi => vi.index));
-    const extras = [];
-    for (const rvi of extraRowVIndexes) {
-      if (!existing.has(rvi)) {
-        const size = ROW_H;
-        const start = rvi * size + HEADER_H;
-        extras.push({ index: rvi, start, size, key: `debounce-r-${rvi}`, lane: 0 });
-      }
-    }
-    return [...augmentedVirtualRows, ...extras];
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [augmentedVirtualRows, extraRowVIndexes]);
-
-  const finalVirtualCols = useMemo(() => {
-    if (extraColVIndexes.size === 0) return augmentedVirtualCols;
-    const existing = new Set(augmentedVirtualCols.map(vi => vi.index));
-    const extras = [];
-    for (const cvi of extraColVIndexes) {
-      if (!existing.has(cvi)) {
-        const size = effectiveWidths[cvi] ?? 160;
-        let start = 0;
-        for (let i = 0; i < cvi; i++) start += (effectiveWidths[i] ?? 160);
-        extras.push({ index: cvi, start, size, key: `debounce-c-${cvi}`, lane: 0 });
-      }
-    }
-    return [...augmentedVirtualCols, ...extras];
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [augmentedVirtualCols, extraColVIndexes, effectiveWidths]);
+  // Normal document flow — NO row/column virtualization. This table holds a
+  // handful of rows whose cells are heavy occurrence embeds. The virtualizer's
+  // absolute positioning + async height measurement was the source of the
+  // "extra random line" / overlap and stopped cells in a row from sharing the
+  // tallest cell's height. In flow, each row sizes to its tallest cell and all
+  // cells stretch to match via CSS `align-items: stretch`.
+  const totalColsWidth =
+    effectiveWidths.reduce((a, w) => a + w, 0) + ROW_ACTION_COL_W;
 
   return (
     <div
@@ -1039,26 +1136,82 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
       data-occ-id={occurrence?.id}
       ref={containerRef}
     >
-      {/* ── Single content div ───────────────────────────────────────────────
-          One relatively-positioned div owns the total virtual height. The
-          sticky header sits at the top of this div (pinned by the scroll
-          container's viewport). Body cells are absolutely positioned below it.
-          Width = totalColsWidth so horizontal scrolling works correctly. */}
+      {/* ── Flow content div ─────────────────────────────────────────────────
+          No virtualization. width = totalColsWidth so the row stays as wide as
+          its columns (horizontal scroll handled by the scroll container);
+          height is intrinsic so the body grows with its rows. */}
       <div
-        className="table-body-virtual"
+        className="table-body-flow"
         style={{
-          position: "relative",
-          // totalRowsHeight = rowVirtualizer.getTotalSize(), which includes the
-          // paddingStart (HEADER_H) so row 0 starts at HEADER_H, not 0.
-          height: totalRowsHeight,
           width: totalColsWidth,
           minWidth: "100%",
         }}
       >
-      {/* ── Sticky header row ──────────────────────────────────────────────
-          Inside the virtual body div so it scrolls horizontally with the
-          content, but position:sticky keeps it pinned to the top of the
-          scroll viewport vertically. */}
+      {/* ── Table-level sort button (top-left of header row) ─────────────────
+          Sticky-positioned overlay anchored to the table's top-left corner.
+          Opens a small popover with a column picker + asc/desc/clear so the
+          user can sort the whole table by one column at a time. Per-column
+          sort is still available via each column's chevron button. */}
+      <div
+        className="table-sort-overlay"
+        style={{
+          position: "sticky",
+          top: 0,
+          left: 0,
+          zIndex: 6,
+          width: 0,
+          height: 0,
+        }}
+      >
+        <button
+          className="table-sort-overlay-btn"
+          title={table.sort?.colId
+            ? `Sort: ${columns.find(c => c.id === table.sort.colId)?.title || "?"} ${table.sort.dir}`
+            : "Set table-level sort"}
+          onClick={(e) => { e.stopPropagation(); setTableSortMenuOpen(v => !v); }}
+        >
+          {table.sort?.dir === "desc" ? (
+            <ChevronDown size={11} />
+          ) : table.sort?.colId ? (
+            <ChevronUp size={11} />
+          ) : (
+            <span className="table-sort-inactive">↕</span>
+          )}
+        </button>
+        {tableSortMenuOpen && (
+          <div className="table-sort-overlay-menu">
+            <div className="table-sort-overlay-title">Sort table by</div>
+            {columns.map((col) => (
+              <div key={col.id} className="table-sort-overlay-row">
+                <span className="table-sort-overlay-col-name">{col.title}</span>
+                <button
+                  className={`table-sort-overlay-dir${table.sort?.colId === col.id && table.sort.dir === "asc" ? " active" : ""}`}
+                  onClick={() => { handleSetTableSort(col.id, "asc"); setTableSortMenuOpen(false); }}
+                  title="Ascending"
+                >
+                  <ChevronUp size={11} />
+                </button>
+                <button
+                  className={`table-sort-overlay-dir${table.sort?.colId === col.id && table.sort.dir === "desc" ? " active" : ""}`}
+                  onClick={() => { handleSetTableSort(col.id, "desc"); setTableSortMenuOpen(false); }}
+                  title="Descending"
+                >
+                  <ChevronDown size={11} />
+                </button>
+              </div>
+            ))}
+            {table.sort?.colId && (
+              <button
+                className="table-sort-overlay-clear"
+                onClick={() => { handleSetTableSort(null); setTableSortMenuOpen(false); }}
+              >
+                Clear table sort
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      {/* ── Sticky header row (flex) ───────────────────────────────────────── */}
       <div
         className="table-header-row"
         style={{
@@ -1066,28 +1219,20 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
           top: 0,
           zIndex: 3,
           height: HEADER_H,
-          // Width of the header = all column widths + action column.
-          // This is wider than the viewport and will clip; the scroll
-          // container handles overflow so the full header scrolls into view.
           width: totalColsWidth,
+          display: "flex",
+          flexDirection: "row",
         }}
       >
-        {finalVirtualCols.map((vCol) => {
-          // Use the column virtualizer's start/size directly from the virtual item.
-          // Only visible columns are rendered (column virtualization).
-          const c = vCol.index;
-          const col = columns[c];
+        {columns.map((col, c) => {
           if (!col) return null;
-          const colStart = vCol.start;
           const colW = effectiveWidths[c];
           return (
             <div
               key={col.id}
               className="table-th"
               style={{
-                position: "absolute",
-                left: colStart,
-                width: colW,
+                flex: `0 0 ${colW}px`,
                 height: HEADER_H,
                 boxSizing: "border-box",
               }}
@@ -1207,21 +1352,31 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                               Done
                             </button>
                           </div>
-                        ) : fieldFilterPickerCol === c ? (
+                        ) : fieldVisibilityPickerCol === c ? (
                           /* ── Per-column field filter editor (show/hide which fields render inside the cell embed) ── */
-                          <div className="table-kebab-fieldfilter-picker" style={{ padding: "6px 8px", minWidth: 200 }}>
+                          <div className="table-kebab-fieldvis-picker" style={{ padding: "6px 8px", minWidth: 200 }}>
                             <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 4, fontFamily: "var(--font-mono)" }}>
                               Fields visible in cell embed
                             </div>
-                            {/* Mode toggle: Off / Show / Hide */}
+                            {/* Inherit = use the table's HeaderDropdown field
+                                visibility (which itself cascades from the
+                                page/grid). Show / Hide = per-column override. */}
+                            {!col.fieldVisibility && (
+                              <div style={{ fontSize: 9, color: "var(--text-faint)", marginBottom: 6 }}>
+                                Inheriting: {tableFieldVisibility
+                                  ? `${tableFieldVisibility.mode === "show" ? "Show only" : "Hide"} ${(tableFieldVisibility.fieldIds || []).length} field${(tableFieldVisibility.fieldIds || []).length === 1 ? "" : "s"}`
+                                  : "all fields"}
+                              </div>
+                            )}
+                            {/* Mode toggle: Inherit / Show / Hide */}
                             <div style={{ display: "flex", gap: 2, marginBottom: 6 }}>
                               {["off", "show", "hide"].map(m => {
-                                const isActive = (col.fieldFilter?.mode || "off") === m
-                                  || (m === "off" && !col.fieldFilter);
+                                const isActive = (col.fieldVisibility?.mode || "off") === m
+                                  || (m === "off" && !col.fieldVisibility);
                                 return (
                                   <button
                                     key={m}
-                                    onClick={() => handleSetFieldFilterMode(c, m)}
+                                    onClick={() => handleSetFieldVisibilityMode(c, m)}
                                     style={{
                                       flex: 1, height: 20, fontSize: 9, fontFamily: "var(--font-mono)",
                                       borderRadius: 3, border: "1px solid var(--input-border)",
@@ -1230,19 +1385,19 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                                       cursor: "pointer", textTransform: "capitalize",
                                     }}
                                   >
-                                    {m === "off" ? "All" : m}
+                                    {m === "off" ? "Inherit" : m}
                                   </button>
                                 );
                               })}
                             </div>
                             {/* Multi-select field list (only when mode != off) */}
-                            {col.fieldFilter && col.fieldFilter.mode && col.fieldFilter.mode !== "off" && (
+                            {col.fieldVisibility && col.fieldVisibility.mode && col.fieldVisibility.mode !== "off" && (
                               <div style={{ maxHeight: 160, overflowY: "auto", border: "1px solid var(--border-subtle)", borderRadius: 3, padding: 2 }}>
                                 {allFields.length === 0 && (
                                   <div style={{ fontSize: 10, color: "var(--text-faint)", padding: 4 }}>No fields available</div>
                                 )}
                                 {allFields.map(f => {
-                                  const checked = (col.fieldFilter.fieldIds || []).includes(f.id);
+                                  const checked = (col.fieldVisibility.fieldIds || []).includes(f.id);
                                   return (
                                     <label
                                       key={f.id}
@@ -1253,7 +1408,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                                       <input
                                         type="checkbox"
                                         checked={checked}
-                                        onChange={() => handleToggleFieldFilterFieldId(c, f.id)}
+                                        onChange={() => handleToggleFieldVisibilityFieldId(c, f.id)}
                                         style={{ margin: 0, width: 10, height: 10 }}
                                       />
                                       <span style={{ flex: 1, color: "var(--text-primary)" }}>{f.name || "(unnamed)"}</span>
@@ -1266,48 +1421,83 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                             <button
                               className="table-kebab-item"
                               style={{ marginTop: 4 }}
-                              onClick={() => setFieldFilterPickerCol(null)}
+                              onClick={() => setFieldVisibilityPickerCol(null)}
                             >
                               Done
                             </button>
                           </div>
                         ) : (
                           <>
+                            <div className="table-kebab-section-label">Display</div>
                             <button
                               className="table-kebab-item"
                               onClick={() => setFieldPickerCol(c)}
                             >
-                              {col.displayFieldId
-                                ? `Field: ${fieldsById?.[col.displayFieldId]?.name || col.displayFieldId}`
-                                : "Show field…"}
+                              <span className="table-kebab-item-label">
+                                {col.displayFieldId
+                                  ? `Field: ${fieldsById?.[col.displayFieldId]?.name || col.displayFieldId}`
+                                  : "Show field…"}
+                              </span>
                             </button>
+                            <button
+                              className="table-kebab-item"
+                              onClick={() => setFieldVisibilityPickerCol(c)}
+                            >
+                              <Eye size={11} />
+                              <span className="table-kebab-item-label">
+                                {col.fieldVisibility
+                                  ? `${col.fieldVisibility.mode === "show" ? "Show only" : "Hide"} ${(col.fieldVisibility.fieldIds || []).length} field${(col.fieldVisibility.fieldIds || []).length === 1 ? "" : "s"}`
+                                  : tableFieldVisibility
+                                    ? `Inherited: ${tableFieldVisibility.mode === "show" ? "Show only" : "Hide"} ${(tableFieldVisibility.fieldIds || []).length}`
+                                    : "Field visibility…"}
+                              </span>
+                            </button>
+                            <button
+                              className="table-kebab-item"
+                              onClick={() => toggleColumnShowMedia(c)}
+                            >
+                              <ImageIcon size={11} />
+                              <span className="table-kebab-item-label">
+                                {col.showMedia ? "Hide media" : "Show media"}
+                              </span>
+                            </button>
+                            <div className="table-kebab-divider" />
+                            <div className="table-kebab-section-label">Sort</div>
+                            <button
+                              className="table-kebab-item"
+                              onClick={() => handleSortClick(c)}
+                            >
+                              {col.sort === "asc" ? (
+                                <ChevronUp size={11} />
+                              ) : col.sort === "desc" ? (
+                                <ChevronDown size={11} />
+                              ) : (
+                                <span className="table-sort-inactive" style={{ width: 11, display: "inline-flex", justifyContent: "center" }}>↕</span>
+                              )}
+                              <span className="table-kebab-item-label">
+                                {col.sort === "asc" ? "Sort: Ascending" : col.sort === "desc" ? "Sort: Descending" : "Sort: None (click to cycle)"}
+                              </span>
+                            </button>
+                            <div className="table-kebab-divider" />
+                            <div className="table-kebab-section-label">Filter</div>
                             <button
                               className="table-kebab-item"
                               onClick={() => setFilterPickerCol(c)}
-                              style={{ display: "flex", alignItems: "center", gap: 4 }}
                             >
-                              <Filter size={9} />
-                              {col.filter ? "Edit filter…" : "Filter…"}
+                              <Filter size={11} />
+                              <span className="table-kebab-item-label">
+                                {col.filter ? "Edit filter…" : "Add filter…"}
+                              </span>
                             </button>
+                            <div className="table-kebab-divider" />
                             <button
-                              className="table-kebab-item"
-                              onClick={() => setFieldFilterPickerCol(c)}
-                              style={{ display: "flex", alignItems: "center", gap: 4 }}
+                              className="table-kebab-item table-kebab-delete"
+                              onClick={() => handleDeleteColumn(c)}
                             >
-                              <Eye size={9} />
-                              {col.fieldFilter
-                                ? `${col.fieldFilter.mode === "show" ? "Show only" : "Hide"} ${(col.fieldFilter.fieldIds || []).length} field${(col.fieldFilter.fieldIds || []).length === 1 ? "" : "s"}`
-                                : "Field visibility…"}
+                              <X size={11} />
+                              <span className="table-kebab-item-label">Delete column</span>
                             </button>
                           </>
-                        )}
-                        {filterPickerCol !== c && fieldPickerCol !== c && fieldFilterPickerCol !== c && (
-                          <button
-                            className="table-kebab-item table-kebab-delete"
-                            onClick={() => handleDeleteColumn(c)}
-                          >
-                            Delete column
-                          </button>
                         )}
                       </div>
                     )}
@@ -1327,9 +1517,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
         <div
           className="table-th table-add-col-th"
           style={{
-            position: "absolute",
-            left: colVirtualizer.getTotalSize(),
-            width: ROW_ACTION_COL_W,
+            flex: `0 0 ${ROW_ACTION_COL_W}px`,
             height: HEADER_H,
             boxSizing: "border-box",
           }}
@@ -1340,99 +1528,89 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
         </div>
       </div>{/* end .table-header-row */}
 
-        {/* Render only virtualised row × col intersections.
-            finalVirtualRows / finalVirtualCols already include:
-              - the TanStack filtered+sorted row model indices
-              - the focused cell's row/col (force-mounted to keep the caret)
-              - any pairs still in the debounce-unmount grace window           */}
-        {finalVirtualRows.map((vRow) => {
-          const tanRow = filteredSortedRows[vRow.index];
-          if (!tanRow) return null; // safety: index outside filtered set
-          const r = tanRow.original.r; // underlying grid-row index
-
-          return finalVirtualCols.map((vCol) => {
-            const c = vCol.index;
-            const col = columns[c];
-            if (!col) return null;
-
-            // Absolute position of this cell in the virtual body div.
-            // vRow.start already includes paddingStart (HEADER_H) so row 0
-            // starts at HEADER_H (below the sticky header), row N at HEADER_H + N*ROW_H.
-            const cellTop = vRow.start;
-            const cellLeft = vCol.start;
-
-            return (
-              <TableCell
-                key={cellKey(r, c)}
-                r={r}
-                c={c}
-                tableRef={tableRef}
-                persist={persist}
-                onCellCommitMove={(dir) => focusCell(nextCoord(r, c, dir))}
-                cellRefs={cellRefs}
-                dispatch={dispatch}
-                socket={socket}
-                displayFieldId={col.displayFieldId ?? null}
-                fieldFilter={col.fieldFilter ?? null}
-                onFocusCell={() => setFocusedCell({ r, c })}
-                onBlurCell={() => setFocusedCell(prev => (prev?.r === r && prev?.c === c ? null : prev))}
-                isFocused={focusedCell?.r === r && focusedCell?.c === c}
-                fillMode={fillMode}
-                onFillPointerDown={handleFillPointerDown}
-                onToggleFillMode={toggleFillMode}
-                style={{
-                  position: "absolute",
-                  top: cellTop,
-                  left: cellLeft,
-                  width: effectiveWidths[c],
-                  height: vRow.size,
-                  boxSizing: "border-box",
-                }}
-              />
-            );
-          });
-        })}
-
-        {/* Trailing row-action column ("–" remove last row button).
-            Rendered for each virtual row so the button is visible when the last
-            underlying-grid row is in the virtual window. */}
-        {finalVirtualRows.map((vRow) => {
-          const tanRow = filteredSortedRows[vRow.index];
+        {/* Flow rows: each row is a flex row of cells in normal document flow.
+            `align-items: stretch` makes every cell in the row take the height
+            of the tallest cell, so the row grows with its biggest occurrence
+            and all cells stay uniform (no absolute positioning, no measured
+            offsets — that was the "extra random line"). */}
+        {filteredSortedRows.map((tanRow) => {
           if (!tanRow) return null;
           const r = tanRow.original.r;
           return (
             <div
-              key={`ra-${r}`}
-              className="table-td table-row-action-cell"
-              data-r={r}
+              key={`row-${r}`}
+              className="table-row"
               style={{
-                position: "absolute",
-                top: vRow.start,
-                left: colVirtualizer.getTotalSize(),
-                width: ROW_ACTION_COL_W,
-                height: vRow.size,
-                boxSizing: "border-box",
+                width: totalColsWidth,
+                display: "flex",
+                flexDirection: "row",
+                alignItems: "stretch",
               }}
             >
-              {r === rowCount - 1 && (
+              {columns.map((col, c) => (
+                <TableCell
+                  key={cellKey(r, c)}
+                  r={r}
+                  c={c}
+                  initialDoc={cells[cellKey(r, c)] || null}
+                  tableRef={tableRef}
+                  persist={persist}
+                  onCellCommitMove={(dir) => focusCell(nextCoord(r, c, dir))}
+                  cellRefs={cellRefs}
+                  dispatch={dispatch}
+                  socket={socket}
+                  displayFieldId={col.displayFieldId ?? null}
+                  fieldVisibility={col.fieldVisibility ?? tableFieldVisibility}
+                  hideLabel={col.hideLabel === true}
+                  showMedia={col.showMedia === true}
+                  onFocusCell={() => setFocusedCell({ r, c })}
+                  onBlurCell={() => setFocusedCell(prev => (prev?.r === r && prev?.c === c ? null : prev))}
+                  isFocused={focusedCell?.r === r && focusedCell?.c === c}
+                  fillMode={fillMode}
+                  onFillPointerDown={handleFillPointerDown}
+                  onToggleFillMode={toggleFillMode}
+                  style={{
+                    flex: `0 0 ${effectiveWidths[c]}px`,
+                    boxSizing: "border-box",
+                  }}
+                />
+              ))}
+              {/* Trailing row-action column — every row gets a delete
+                  button (hover-revealed via CSS). Mirrors the +Column at the
+                  far right of the header. Last-row-only behavior is gone. */}
+              <div
+                className="table-td table-row-action-cell"
+                data-r={r}
+                style={{
+                  flex: `0 0 ${ROW_ACTION_COL_W}px`,
+                  boxSizing: "border-box",
+                }}
+              >
                 <button
                   className="table-remove-row-btn"
-                  title="Remove last row"
-                  onClick={handleRemoveLastRow}
+                  title="Remove this row"
+                  onClick={() => handleRemoveRowAt(r)}
+                  disabled={rowCount <= 1}
                 >
                   –
                 </button>
-              )}
+              </div>
             </div>
           );
         })}
-      </div>
 
-      {/* Footer +row */}
-      <div className="table-footer">
-        <button className="table-add-row-btn" onClick={handleAddRow}>
-          + row
-        </button>
+      {/* +Row strip — mirrors the +Column strip at the right edge of the
+          header but spans the full body width along the bottom. Vertically
+          flexed (full-width, slim height) so it reads as the row analogue
+          of the column add affordance. */}
+      <div
+        className="table-add-row-strip"
+        onClick={handleAddRow}
+        style={{ width: totalColsWidth }}
+        title="Add row"
+      >
+        <span className="table-add-row-strip-icon">+</span>
+      </div>
       </div>
     </div>
   );
