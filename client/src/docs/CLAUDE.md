@@ -1,6 +1,28 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-05-18. Check this file before re-reading source._
+_Updated: 2026-05-20. Check this file before re-reading source._
+
+## Recent Changes (2026-05-20 — InstanceTextblockNode body binding gate)
+- **pills/InstanceTextblockNode.jsx**: new `bodyBinding` memo at component
+  top, computed via `resolveEditorBinding({ occurrence, module, slot:
+  "body" })` (from `client/src/state/editorBindings.js`). When set, the
+  inner `<DocContent>` is wrapped in `<BoundBody hostOccurrence={occurrence}
+  binding={bodyBinding}>` so the textblock body reads/writes the host's
+  own `fields[selfField].value` (TipTap JSON for text fields) instead of
+  `occurrence.textmap`. Auto-sync via `propagateBoundFieldWrite` fans
+  writes out to any sibling occurrence sharing the host's link-field
+  value with selfField present. When `bodyBinding` is null the textblock
+  falls through to the existing raw `DocContent` path — fully backward
+  compatible with every textblock that hasn't opted into a binding.
+- **Binding cascade**: `occurrence.meta.bodyLink` →
+  `module.meta.bodyLink` → null. The literal string `"clear"` on the
+  occurrence opts out of a module-level binding without re-setting it.
+  Same shape that `ModuleContainer.jsx` uses for `headerBinding`.
+- **Picker UI** lives in `ui/EditorBindingSection.jsx` (mounted in
+  `InstanceForm.jsx` Fields tab inside `BodyBindingPicker`,
+  textblock-role only). BoundHeader / BoundBody also render a small
+  Link2/Unlink2 badge top-right with the bound field's name (linked when
+  host's link value has matching siblings; broken otherwise).
 
 ## Recent Changes (May 18 2026 — CellEmbedContext fieldFilter → fieldVisibility)
 - **CellEmbedContext.js**: `fieldFilter` key renamed to `fieldVisibility` (default null). Semantics unchanged: `{ mode:"show"|"hide", fieldIds:[] }` is the table column's LOCAL override; null = no column override (ModuleInstance falls back to the occurrence's ancestor `fieldVisibility` cascade). Consumed by ModuleInstance.

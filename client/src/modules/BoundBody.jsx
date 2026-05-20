@@ -15,9 +15,38 @@ import React, { useContext, useMemo, useRef, useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import { Link2, Unlink2 } from "lucide-react";
 import { GridActionsContext } from "../GridActionsContext.js";
 import { propagateBoundFieldWrite } from "../helpers/boundFieldSync.js";
+import { findLinkedSiblings } from "../state/editorBindings.js";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+
+const LINK_PROBE = Symbol("link-probe");
+function BindingBadge({ field, isLinked }) {
+  const Icon = isLinked ? Link2 : Unlink2;
+  return (
+    <span
+      className="bound-binding-badge"
+      title={isLinked ? `Linked: ${field?.name || ""}` : `Broken link: ${field?.name || ""}`}
+      style={{
+        position: "absolute",
+        top: 4,
+        right: 6,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 3,
+        fontSize: 9,
+        opacity: 0.65,
+        color: isLinked ? "var(--text-muted, #888)" : "var(--text-faint, #b06a6a)",
+        pointerEvents: "none",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <Icon size={10} />
+      <span>{field?.name || ""}</span>
+    </span>
+  );
+}
 
 const EMPTY_DOC = { type: "doc", content: [{ type: "paragraph" }] };
 const DEBOUNCE_MS = 500;
@@ -68,6 +97,12 @@ export default function BoundBody({ hostOccurrence, binding, children }) {
   const { occurrencesById, fieldsById, dispatch, socket } = useContext(GridActionsContext) || {};
   const field = fieldsById?.[binding?.selfField];
 
+  const isLinked = useMemo(() => {
+    if (!binding || !hostOccurrence || !occurrencesById) return false;
+    if (hostOccurrence?.fields?.[binding.link]?.value == null) return false;
+    return findLinkedSiblings({ binding, hostOccurrence, occurrencesById, nextValue: LINK_PROBE }).length > 0;
+  }, [binding, hostOccurrence, occurrencesById]);
+
   if (!hostOccurrence || !field) return children ?? null;
 
   const value = hostOccurrence.fields?.[binding.selfField]?.value;
@@ -78,6 +113,8 @@ export default function BoundBody({ hostOccurrence, binding, children }) {
         host={hostOccurrence}
         binding={binding}
         value={value}
+        field={field}
+        isLinked={isLinked}
         occurrencesById={occurrencesById}
         dispatch={dispatch}
         socket={socket}
@@ -86,10 +123,15 @@ export default function BoundBody({ hostOccurrence, binding, children }) {
   }
 
   const text = typeof value === "object" ? extractPlainText(value) : String(value ?? "");
-  return <div className="bound-body bound-body-text">{text}</div>;
+  return (
+    <div className="bound-body bound-body-text" style={{ position: "relative" }}>
+      {text}
+      <BindingBadge field={field} isLinked={isLinked} />
+    </div>
+  );
 }
 
-function BoundTextEditor({ host, binding, value, occurrencesById, dispatch, socket }) {
+function BoundTextEditor({ host, binding, value, field, isLinked, occurrencesById, dispatch, socket }) {
   const writeRef = useRef(() => {});
   writeRef.current = useMemo(
     () => makeFieldWriter({ host, binding, occurrencesById, dispatch, socket }),
@@ -136,8 +178,9 @@ function BoundTextEditor({ host, binding, value, occurrencesById, dispatch, sock
   }, []);
 
   return (
-    <div className="bound-body bound-body-text bound-body-editor">
+    <div className="bound-body bound-body-text bound-body-editor" style={{ position: "relative" }}>
       <EditorContent editor={editor} />
+      <BindingBadge field={field} isLinked={isLinked} />
     </div>
   );
 }

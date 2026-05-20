@@ -1,6 +1,47 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-05-19. This folder implements occurrence-based view routing._
+_Updated: 2026-05-20. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-05-20 — BoundHeader + BoundBody (editor↔field binding))
+- **NEW `BoundHeader.jsx`** — replaces container's static header label when the
+  host occurrence (or its module) carries `meta.headerLink = { selfField, link }`.
+  Reads `hostOccurrence.fields[selfField].value`. Type-dispatched:
+  - select field OR text field with `optionsSource` → inline `<select>`
+    dropdown (+ 🎲 dice button when `field.meta.randomizable`).
+  - other types → plain inline readout (body editor owns edits).
+  Writes go through `CommitHelpers.updateOccurrence` and then fan out via
+  `propagateBoundFieldWrite` to any sibling occurrence whose link-field
+  matches the host's link value (loop guard skips siblings already at the
+  new value). Falls back to module label when no value and no options.
+- **NEW `BoundBody.jsx`** — wraps `InstanceTextblockNode`'s inner DocContent
+  when a `meta.bodyLink` binding is set. For `field.type === "text"` mounts a
+  minimal TipTap editor (StarterKit + Placeholder) over the host's
+  `fields[selfField].value` (string OR TipTap-JSON; normalized via
+  `normalizeToDoc`). Edits debounce 500ms then commit + propagate. Non-text
+  fields render as read-only extracted plain text. `makeFieldWriter` exported
+  for unit tests.
+- **Mounted from**:
+  - `ModuleContainer.jsx` — `headerBinding` memo via `resolveEditorBinding({
+    occurrence: containerOccurrence, module, slot: "header" })`. When set,
+    BOTH header render sites (embedded + standard) swap in `<BoundHeader
+    hostOccurrence={containerOccurrence} binding={headerBinding} />` in
+    place of the contentEditable/static label.
+  - `../docs/pills/InstanceTextblockNode.jsx` — `bodyBinding` memo wraps
+    `DocContent` in `<BoundBody>` when set.
+- **Binding badge (top-right)** — both components now render a small
+  `<BindingBadge>` showing a `Link2`/`Unlink2` Lucide icon + the bound
+  field's name. `isLinked` = host has link-field value set AND at least one
+  sibling exists with matching link value + selfField present (probed via
+  `findLinkedSiblings` with a `Symbol()` nextValue so the loop guard never
+  drops matches). Badge is `position: absolute; top: 4; right: 6` on the
+  body editor (relative wrapper) and `margin-left: auto` inline on the
+  header. Tooltip reads "Linked: <field name>" or "Broken link: …".
+- **Cascade**: `occurrence.meta.<slot>Link` → `module.meta.<slot>Link` →
+  null. The string `"clear"` on the occurrence opts out of a module-level
+  binding without re-setting it. Lives in `state/editorBindings.js`.
+- **Tests**: `__tests__/BoundHeader.test.jsx` (4) and
+  `__tests__/BoundBody.test.jsx` (7) cover dropdown writes to host,
+  loop-prevention, and write-back round-trip.
 
 ## Recent Changes (May 19 2026 — Instance media section + artifact drop)
 - **ModuleInstance.jsx**: New media section. A `fieldBindings` entry with

@@ -11,11 +11,40 @@
 // Falls back to the module label when the host doesn't yet have a value for
 // the selfField AND the field has no resolvable options.
 import React, { useContext, useMemo, useCallback } from "react";
-import { Dices } from "lucide-react";
+import { Dices, Link2, Unlink2 } from "lucide-react";
 import { GridActionsContext } from "../GridActionsContext.js";
 import { resolveOptions } from "../helpers/optionsResolver.js";
 import { propagateBoundFieldWrite } from "../helpers/boundFieldSync.js";
+import { findLinkedSiblings } from "../state/editorBindings.js";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+
+// Small inline badge: [link/broken-link icon] [field name]
+// Sentinel break — never matches a real value, so findLinkedSiblings's
+// loop-prevention skip-if-equal check doesn't drop matches.
+const LINK_PROBE = Symbol("link-probe");
+function BindingBadge({ field, isLinked }) {
+  const Icon = isLinked ? Link2 : Unlink2;
+  return (
+    <span
+      className="bound-binding-badge"
+      title={isLinked ? `Linked: ${field?.name || ""}` : `Broken link: ${field?.name || ""}`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 3,
+        marginLeft: "auto",
+        paddingLeft: 6,
+        fontSize: 9,
+        opacity: 0.65,
+        color: isLinked ? "var(--text-muted, #888)" : "var(--text-faint, #b06a6a)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <Icon size={10} />
+      <span>{field?.name || ""}</span>
+    </span>
+  );
+}
 
 export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = "", label = "" }) {
   const ctx = useContext(GridActionsContext) || {};
@@ -28,6 +57,12 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
     const { options: opts } = resolveOptions(field, { modulesById, occurrencesById, fieldsById }) || {};
     return Array.isArray(opts) ? opts : [];
   }, [field, modulesById, occurrencesById, fieldsById]);
+
+  const isLinked = useMemo(() => {
+    if (!binding || !hostOccurrence || !occurrencesById) return false;
+    if (hostOccurrence?.fields?.[binding.link]?.value == null) return false;
+    return findLinkedSiblings({ binding, hostOccurrence, occurrencesById, nextValue: LINK_PROBE }).length > 0;
+  }, [binding, hostOccurrence, occurrencesById]);
 
   const writeAndSync = useCallback(
     (nextValue) => {
@@ -114,6 +149,7 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
             <Dices size={12} />
           </button>
         )}
+        <BindingBadge field={field} isLinked={isLinked} />
       </span>
     );
   }
@@ -121,7 +157,15 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
   // Text/other types: header is single-line readout. Body bindings (BoundBody)
   // handle rich-content editing.
   const text = typeof value === "object" ? extractPlainText(value) : String(value ?? "");
-  return <span>{markdownPrefix}{text || label}</span>;
+  return (
+    <span
+      className="bound-header bound-header-text"
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}
+    >
+      <span>{markdownPrefix}{text || label}</span>
+      <BindingBadge field={field} isLinked={isLinked} />
+    </span>
+  );
 }
 
 function stringifyValue(value, options) {
