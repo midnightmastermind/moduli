@@ -1874,6 +1874,157 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
 
+    // === BILLS (Bills page — under Library folder; B3 from carry-over plan) ===
+    // Every bill instance carries the FULL bill-schedule field set (cadence /
+    // day / cadenceN / anchor / amount / account + the op-computed billNextDue).
+    // Bill: Compute Next Due reads cadence+day+anchor to write billNextDue;
+    // Schedule Due: Seed COPY_LINKs a Pay Bill task into Schedule Due when
+    // billNextDue falls in the active window. Cancel Subscription targets the
+    // Subscriptions container via subscriptionRef.
+    netflixSub: {
+      id: uid(), label: "Netflix", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.amount.id,         role: "input", order: 0 },
+        { fieldId: fields.accountRef.id,     role: "input", order: 1 },
+        { fieldId: fields.billCadence.id,    role: "input", order: 2 },
+        { fieldId: fields.billDay.id,        role: "input", order: 3 },
+        { fieldId: fields.billCadenceN.id,   role: "input", order: 4, hidden: true },
+        { fieldId: fields.billAnchor.id,     role: "input", order: 5, hidden: true },
+        { fieldId: fields.billNextDue.id,    role: "display", order: 6 },
+      ],
+    },
+    spotifySub: {
+      id: uid(), label: "Spotify", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 0 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
+        { fieldId: fields.billCadence.id, role: "input", order: 2 },
+        { fieldId: fields.billDay.id, role: "input", order: 3 },
+        { fieldId: fields.billCadenceN.id, role: "input", order: 4, hidden: true },
+        { fieldId: fields.billAnchor.id, role: "input", order: 5, hidden: true },
+        { fieldId: fields.billNextDue.id, role: "display", order: 6 },
+      ],
+    },
+    iCloudSub: {
+      id: uid(), label: "iCloud+", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 0 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
+        { fieldId: fields.billCadence.id, role: "input", order: 2 },
+        { fieldId: fields.billDay.id, role: "input", order: 3 },
+        { fieldId: fields.billCadenceN.id, role: "input", order: 4, hidden: true },
+        { fieldId: fields.billAnchor.id, role: "input", order: 5, hidden: true },
+        { fieldId: fields.billNextDue.id, role: "display", order: 6 },
+      ],
+    },
+    electricBill: {
+      id: uid(), label: "Electric", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 0 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
+        { fieldId: fields.billCadence.id, role: "input", order: 2 },
+        { fieldId: fields.billDay.id, role: "input", order: 3 },
+        { fieldId: fields.billCadenceN.id, role: "input", order: 4, hidden: true },
+        { fieldId: fields.billAnchor.id, role: "input", order: 5, hidden: true },
+        { fieldId: fields.billNextDue.id, role: "display", order: 6 },
+      ],
+    },
+    waterBill: {
+      id: uid(), label: "Water", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 0 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
+        { fieldId: fields.billCadence.id, role: "input", order: 2 },
+        { fieldId: fields.billDay.id, role: "input", order: 3 },
+        { fieldId: fields.billCadenceN.id, role: "input", order: 4, hidden: true },
+        { fieldId: fields.billAnchor.id, role: "input", order: 5, hidden: true },
+        { fieldId: fields.billNextDue.id, role: "display", order: 6 },
+      ],
+    },
+    internetBill: {
+      id: uid(), label: "Internet", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 0 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
+        { fieldId: fields.billCadence.id, role: "input", order: 2 },
+        { fieldId: fields.billDay.id, role: "input", order: 3 },
+        { fieldId: fields.billCadenceN.id, role: "input", order: 4, hidden: true },
+        { fieldId: fields.billAnchor.id, role: "input", order: 5, hidden: true },
+        { fieldId: fields.billNextDue.id, role: "display", order: 6 },
+      ],
+    },
+    phoneBill: {
+      id: uid(), label: "Phone", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 0 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
+        { fieldId: fields.billCadence.id, role: "input", order: 2 },
+        { fieldId: fields.billDay.id, role: "input", order: 3 },
+        { fieldId: fields.billCadenceN.id, role: "input", order: 4, hidden: true },
+        { fieldId: fields.billAnchor.id, role: "input", order: 5, hidden: true },
+        { fieldId: fields.billNextDue.id, role: "display", order: 6 },
+      ],
+    },
+    carInsuranceBill: {
+      id: uid(), label: "Car Insurance", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 0 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
+        { fieldId: fields.billCadence.id, role: "input", order: 2 },
+        { fieldId: fields.billDay.id, role: "input", order: 3 },
+        { fieldId: fields.billCadenceN.id, role: "input", order: 4, hidden: true },
+        { fieldId: fields.billAnchor.id, role: "input", order: 5, hidden: true },
+        { fieldId: fields.billNextDue.id, role: "display", order: 6 },
+      ],
+    },
+    renterInsuranceBill: {
+      id: uid(), label: "Renter Insurance", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 0 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
+        { fieldId: fields.billCadence.id, role: "input", order: 2 },
+        { fieldId: fields.billDay.id, role: "input", order: 3 },
+        { fieldId: fields.billCadenceN.id, role: "input", order: 4, hidden: true },
+        { fieldId: fields.billAnchor.id, role: "input", order: 5, hidden: true },
+        { fieldId: fields.billNextDue.id, role: "display", order: 6 },
+      ],
+    },
+    studentLoanBill: {
+      id: uid(), label: "Student Loan", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 0 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
+        { fieldId: fields.billCadence.id, role: "input", order: 2 },
+        { fieldId: fields.billDay.id, role: "input", order: 3 },
+        { fieldId: fields.billCadenceN.id, role: "input", order: 4, hidden: true },
+        { fieldId: fields.billAnchor.id, role: "input", order: 5, hidden: true },
+        { fieldId: fields.billNextDue.id, role: "display", order: 6 },
+      ],
+    },
+    rentMortgage: {
+      id: uid(), label: "Rent / Mortgage", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "input", order: 0 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
+        { fieldId: fields.billCadence.id, role: "input", order: 2 },
+        { fieldId: fields.billDay.id, role: "input", order: 3 },
+        { fieldId: fields.billCadenceN.id, role: "input", order: 4, hidden: true },
+        { fieldId: fields.billAnchor.id, role: "input", order: 5, hidden: true },
+        { fieldId: fields.billNextDue.id, role: "display", order: 6 },
+      ],
+    },
+
     // === DAILY ROUTINE SOURCE MODULES (schedulable — hidden dateFieldId binding required) ===
     // These 6 land in the Daily Routine template; the hidden date binding enables
     // the seed's SAME_DAY dedup-FIND and per-copy date stamp (createTestGrid convention).
@@ -2035,19 +2186,30 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     payBills: {
-      id: uid(), label: "Pay utility bills", kind: "list",
+      // Generic Pay Bill task. The user picks which bill via the billRef
+      // dropdown; Schedule Due: Seed copies this task into the Schedule Due
+      // container for each bill whose billNextDue falls in the active window
+      // (B3+C2 — Bills page + ops). amount + account flow through from the
+      // selected bill via downstream ops (auto-resolve in C2).
+      id: uid(), label: "Pay Bill", kind: "list",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: fields.amount.id, role: "input", order: 1 },
-        { fieldId: fields.due.id, role: "input", order: 2 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 3 },
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.billRef.id,   role: "input", order: 1 },
+        { fieldId: fields.amount.id,    role: "input", order: 2 },
+        { fieldId: fields.due.id,       role: "input", order: 3 },
       ],
     },
     cancelSub: {
-      id: uid(), label: "Cancel unused subscription", kind: "list",
+      // Cancel Subscription — user picks which subscription via
+      // subscriptionRef (scoped to Subscriptions container in Bills page).
+      // Drops amount/daysUntilDue/priority (the legacy bindings the user
+      // flagged as spurious — see please-continue.txt B9).
+      id: uid(), label: "Cancel Subscription", kind: "list",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: fields.amount.id, role: "input", order: 1 },
+        { fieldId: fields.completed.id,       role: "input", order: 0 },
+        { fieldId: fields.subscriptionRef.id, role: "input", order: 1 },
       ],
     },
     renewLicense: {
@@ -2520,6 +2682,20 @@ export async function createLiveData(userId, options = {}) {
     library: { id: libraryContModId, label: "Library" },
   };
 
+  // ── Bills containers (5 bill-type groupings) ────────────────────────────────
+  // The Bills page (under Library folder) has these as its sub-containers.
+  // Subscriptions is the target of subscriptionRef's find predicate; the other
+  // four hold non-subscription recurring expenses. Color cue is finance-green
+  // to match the Financial wellness column.
+  const BILLS_BG = "#1d8a30";
+  const billContainerMods = {
+    billSubscriptions: { id: uid(), label: "Subscriptions", styleMode: "own", ownStyle: { bg: BILLS_BG } },
+    billUtilities:     { id: uid(), label: "Utilities",     styleMode: "own", ownStyle: { bg: BILLS_BG } },
+    billInsurance:     { id: uid(), label: "Insurance",     styleMode: "own", ownStyle: { bg: BILLS_BG } },
+    billLoans:         { id: uid(), label: "Loans",         styleMode: "own", ownStyle: { bg: BILLS_BG } },
+    billOther:         { id: uid(), label: "Other",         styleMode: "own", ownStyle: { bg: BILLS_BG } },
+  };
+
   // ── Merge + persist container modules ────────────────────────────────────────
   const containerMods = {
     ...toolkitContainerMods,
@@ -2527,6 +2703,7 @@ export async function createLiveData(userId, options = {}) {
     ...goalContainerMods,
     ...accountContainerMods,
     ...libraryContainerMods,
+    ...billContainerMods,
   };
 
   const containerDocs = Object.values(containerMods).map(c => ({
@@ -2605,6 +2782,13 @@ export async function createLiveData(userId, options = {}) {
   const financialContOccId     = uid();
   const environmentalContOccId = uid();
   const creativeContOccId      = uid();
+
+  // Bills containers — placed in the Bills page (under Library folder).
+  const billSubscriptionsContOccId = uid();
+  const billUtilitiesContOccId     = uid();
+  const billInsuranceContOccId     = uid();
+  const billLoansContOccId         = uid();
+  const billOtherContOccId         = uid();
 
   // Todo containers
   const todoHomeContOccId     = uid();
@@ -2878,6 +3062,67 @@ export async function createLiveData(userId, options = {}) {
     }
     await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds });
     accountContOccIds[contModKey] = contOccId;
+  }
+
+  // ── Bill containers + instances (B3 from carry-over plan) ──────────────────
+  // Bills page (under Library folder) hosts 5 sub-containers by bill type.
+  // Each bill instance carries amount + accountRef + cadence/day/anchor +
+  // billNextDue (computed by Bill: Compute Next Due op — C1 follow-up).
+  // First-of-month / anchor dates pre-seeded so the op has data to compute on.
+  const firstOfNextMonth = (() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + (d.getDate() > 1 ? 1 : 0));
+    d.setDate(1); d.setHours(12, 0, 0, 0);
+    return d.toISOString();
+  })();
+  const fortyTwoDaysAgo = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 42); d.setHours(12, 0, 0, 0);
+    return d.toISOString();
+  })();
+  const billDefaults = {
+    // Each entry: { amount(out), cadence, day-of-month, anchor (for every-n-days) }
+    netflixSub:          { amount: 15.99, cadence: "monthly", day: 8 },
+    spotifySub:          { amount: 11.99, cadence: "monthly", day: 12 },
+    iCloudSub:           { amount: 2.99,  cadence: "monthly", day: 20 },
+    electricBill:        { amount: 95.0,  cadence: "monthly", day: 5 },
+    waterBill:           { amount: 38.0,  cadence: "monthly", day: 18 },
+    internetBill:        { amount: 65.0,  cadence: "monthly", day: 10 },
+    phoneBill:           { amount: 55.0,  cadence: "monthly", day: 22 },
+    carInsuranceBill:    { amount: 180.0, cadence: "every-n-days", n: 180, anchor: fortyTwoDaysAgo },
+    renterInsuranceBill: { amount: 22.0,  cadence: "monthly", day: 1 },
+    studentLoanBill:     { amount: 285.0, cadence: "monthly", day: 15 },
+    rentMortgage:        { amount: 1450.0,cadence: "monthly", day: 1 },
+  };
+  const billMappings = {
+    billSubscriptions: { contOccId: billSubscriptionsContOccId, contModKey: "billSubscriptions", instKeys: ["netflixSub", "spotifySub", "iCloudSub"] },
+    billUtilities:     { contOccId: billUtilitiesContOccId,     contModKey: "billUtilities",     instKeys: ["electricBill", "waterBill", "internetBill", "phoneBill"] },
+    billInsurance:     { contOccId: billInsuranceContOccId,     contModKey: "billInsurance",     instKeys: ["carInsuranceBill", "renterInsuranceBill"] },
+    billLoans:         { contOccId: billLoansContOccId,         contModKey: "billLoans",         instKeys: ["studentLoanBill"] },
+    billOther:         { contOccId: billOtherContOccId,         contModKey: "billOther",         instKeys: ["rentMortgage"] },
+  };
+  const billContOccIds = {};
+  for (const [key, { contOccId, contModKey, instKeys }] of Object.entries(billMappings)) {
+    const childOccIds = [];
+    for (let i = 0; i < instKeys.length; i++) {
+      const instKey = instKeys[i];
+      const inst = instanceMods[instKey];
+      const def = billDefaults[instKey] || {};
+      const defaultFields = {};
+      if (def.amount !== undefined)     defaultFields[fields.amount.id]        = fv(def.amount, "out");
+      if (def.cadence)                  defaultFields[fields.billCadence.id]   = fv(def.cadence, "in");
+      if (def.day !== undefined)        defaultFields[fields.billDay.id]       = fv(def.day, "in");
+      if (def.n !== undefined)          defaultFields[fields.billCadenceN.id]  = fv(def.n, "in");
+      if (def.anchor)                   defaultFields[fields.billAnchor.id]    = fv(def.anchor, "in");
+      // Pre-seed billNextDue with the 1st of next month (op recomputes on
+      // first load with the real cadence math; this just gives Schedule
+      // Due: Seed something to read before the op fires).
+      defaultFields[fields.billNextDue.id] = fv(firstOfNextMonth, "in");
+      const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: defaultFields });
+      childOccIds.push(childId);
+    }
+    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds, filterOverride: {} });
+    billContOccIds[contModKey] = contOccId;
   }
 
   // ── Library: movies + books + podcasts + courses modules + container + page + field patches ──
@@ -3515,6 +3760,21 @@ export async function createLiveData(userId, options = {}) {
     ],
   });
 
+  // Patch accountRef predicate now that the Accounts page exists. Any
+  // amount-bearing task or bill instance with accountRef gets a dropdown
+  // listing every instance parented under the Accounts page (Checking,
+  // Savings, Mom's Account, etc.). late-bound predicate — read at render.
+  await Field.findOneAndUpdate(
+    { id: accountRefFieldId },
+    { $set: {
+        "meta.optionsSource.predicate": {
+          conjunction: "AND",
+          rules: [{ left: "$record._ancestors", comparator: "HAS_ANCESTOR", right: accountsPageOccId }],
+        },
+        "meta.optionsSource.addNew": { parentOccurrenceId: financeAccountContOccId },
+    }},
+  );
+
   const schedPageModId = uid(); const schedPageOccId = uid();
   await new Module({ id: schedPageModId, userId, gridId, role: "page", kind: "board", label: "Schedule" }).save();
   await mkOcc({
@@ -3591,6 +3851,67 @@ export async function createLiveData(userId, options = {}) {
     filterOverride: {},
     filterNavConfig: { filter_daily: { visible: false } },
   });
+
+  // ── Bills page (B3 — under Library folder, sortOrder 2) ─────────────────────
+  // Hosts the 5 bill-type containers (Subscriptions/Utilities/Insurance/Loans/
+  // Other). Sits in the Library folder per user spec ("a subscription page in
+  // a bills page (where library is)"). Bill instances pre-seeded in the bill
+  // mappings loop above carry amount + accountRef + cadence/day/anchor +
+  // billNextDue field values.
+  const billsPageModId = uid();
+  const billsPageOccId = uid();
+  await new Module({ id: billsPageModId, userId, gridId, role: "page", kind: "board", label: "Bills" }).save();
+  await mkOcc({
+    id: billsPageOccId,
+    moduleId: billsPageModId,
+    parentId: libraryFolderId,
+    sortOrder: 2,
+    occurrences: [
+      billSubscriptionsContOccId,
+      billUtilitiesContOccId,
+      billInsuranceContOccId,
+      billLoansContOccId,
+      billOtherContOccId,
+    ],
+    iteration: { mode: "persistent" },
+    fields: {},
+    filterOverride: {},
+    filterNavConfig: { filter_daily: { visible: false } },
+  });
+
+  // Patch accountRef predicate to resolve against instances under the
+  // Accounts page (so the bill instances' Account dropdown lists Checking,
+  // Savings, Mom's Account, etc.). accountsPageOccId is created further below
+  // in STEP 8 — at this point in flow the page doesn't exist yet, but the
+  // predicate is read at runtime by the client's optionsResolver against
+  // $allInstances by ancestor — late binding is fine. Mirrors libraryFieldId.
+  // We'll do the predicate write AFTER the accounts page block (it's the
+  // same Field.findOneAndUpdate dance), so this comment is a placeholder.
+
+  // Patch billRef / subscriptionRef predicates so the dropdowns resolve
+  // against bill instances in the Bills page (billRef = any bill, subscription
+  // Ref = only Subscriptions container). Mirrors how libraryFieldId's optionsSource
+  // gets patched against libraryContOccId post-seed.
+  await Field.findOneAndUpdate(
+    { id: billRefFieldId },
+    { $set: {
+        "meta.optionsSource.predicate": {
+          conjunction: "AND",
+          rules: [{ left: "$record._ancestors", comparator: "HAS_ANCESTOR", right: billsPageOccId }],
+        },
+        "meta.optionsSource.addNew": { parentOccurrenceId: billOtherContOccId },
+    }},
+  );
+  await Field.findOneAndUpdate(
+    { id: subscriptionRefFieldId },
+    { $set: {
+        "meta.optionsSource.predicate": {
+          conjunction: "AND",
+          rules: [{ left: "$record._ancestors", comparator: "HAS_ANCESTOR", right: billSubscriptionsContOccId }],
+        },
+        "meta.optionsSource.addNew": { parentOccurrenceId: billSubscriptionsContOccId },
+    }},
+  );
 
   // ── Schedule Table page (kind:"table", standalone in Interfaces tree) ──────
   // A live mirror of the Schedule built by the "Schedule Table: Build" op.
@@ -5015,6 +5336,8 @@ export async function createLiveData(userId, options = {}) {
     todoContOccIds,      // contModKey → containerOccId for todo containers
     goalContOccIds,      // contModKey → containerOccId for goal containers
     accountContOccIds,   // contModKey → containerOccId for account containers
+    billContOccIds,      // contModKey → containerOccId for bill containers (B3)
+    billsPageOccId,      // Bills page occurrence id (B3)
     // Folder ids — consumed by Tasks 11–13
     rootFolderId,
     tasksFolderId,
@@ -5071,7 +5394,8 @@ async function main() {
     const tdContOccs     = Object.keys(result.todoContOccIds || {}).length;
     const glContOccs     = Object.keys(result.goalContOccIds || {}).length;
     const acContOccs     = Object.keys(result.accountContOccIds || {}).length;
-    const totalContOccs  = tkContOccs + tdContOccs + glContOccs + acContOccs;
+    const blContOccs     = Object.keys(result.billContOccIds || {}).length;
+    const totalContOccs  = tkContOccs + tdContOccs + glContOccs + acContOccs + blContOccs;
     const notebookCount  = Object.keys(result.notebookDocOccIds || {}).length;
     console.log("=".repeat(50));
     console.log("Live Grid created!");
@@ -5080,13 +5404,13 @@ async function main() {
     console.log(`   Fields:         ${fieldCount}`);
     console.log(`   Inst modules:   ${instanceCount}`);
     console.log(`   Cont modules:   ${containerCount} (no slot containers)`);
-    console.log(`   Container occs: ${totalContOccs} (${tkContOccs} toolkit, ${tdContOccs} todo, ${glContOccs} goal, ${acContOccs} account)`);
+    console.log(`   Container occs: ${totalContOccs} (${tkContOccs} toolkit, ${tdContOccs} todo, ${glContOccs} goal, ${acContOccs} account, ${blContOccs} bills)`);
     console.log(`   Notebook docs:  ${notebookCount} (${Object.keys(result.notebookDocOccIds || {}).join(", ")})`);
     console.log(`   Folders:        Root + 5 children (Tasks/Trackers/Interfaces/Notes/Day Pages)`);
     console.log(`   Templates:      Daily Routine (6-pick) + Day Page under Templates manifest`);
     console.log(`   Operations:     26 (19 trackers + 1 daily question rotator + 4 schedule/day-page + Schedule Table: Build + Schedule Canvas: Build)`);
     console.log(`   Panels:         ${Object.keys(result.panelOccIds || {}).join(", ")}`);
-    console.log(`   Pages:          Daily Toolkit folder (11 wellness pages: Physical, Phys-Fitness, Phys-Nutrition, Intellectual, Emotional, Social, Spiritual, Occupational, Financial, Environmental, Creative) + Todo List + Daily Goals + Accounts + Schedule + Canvas + Schedule Table`);
+    console.log(`   Pages:          Daily Toolkit folder (11 wellness pages: Physical, Phys-Fitness, Phys-Nutrition, Intellectual, Emotional, Social, Spiritual, Occupational, Financial, Environmental, Creative) + Todo List + Daily Goals + Accounts + Schedule + Canvas + Schedule Table + Library + Daily Journal Questions + Bills`);
     console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Schedule (${result.schedPageOccId}); tabs=[Schedule, Canvas]`);
     console.log("=".repeat(50));
   } catch (err) {
