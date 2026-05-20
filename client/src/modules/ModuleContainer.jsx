@@ -54,8 +54,10 @@ import { FilterOverridePopup } from "./containerPopups.jsx";
 import ModuleInstance from "./ModuleInstance.jsx";
 import ArtifactCard from "./ArtifactCard.jsx";
 import TextblockCard from "./TextblockCard.jsx";
+import BoundHeader from "./BoundHeader.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import FieldRenderer from "../ui/FieldRenderer.jsx";
+import { resolveEditorBinding } from "../state/editorBindings.js";
 
 // ============================================================
 // HELPERS
@@ -213,6 +215,14 @@ function Container({
   }, [occurrenceOverride, occurrencesById, module.id]);
 
   const containerDragMode = containerOccurrence?.dragMode ?? module?.defaultDragMode ?? "move";
+
+  // Editor↔field binding for the container header. When set, the contentEditable
+  // / static label is replaced by a BoundHeader that reads/writes the linked
+  // occurrence's target field (see client/src/state/editorBindings.js).
+  const headerBinding = useMemo(
+    () => resolveEditorBinding({ occurrence: containerOccurrence, module, slot: "header" }),
+    [containerOccurrence, module]
+  );
 
   // Resolve fields bound to this container (for header display)
   const containerFields = useMemo(() => {
@@ -674,26 +684,40 @@ function Container({
                 </PopoverContent>
               </Popover>
               <span className="embedded-hash" style={{ fontSize: 20, fontWeight: 700, color: embeddedAccent, fontFamily: "var(--font-mono)" }}>#</span>
-              <span
-                contentEditable
-                suppressContentEditableWarning
-                onBlur={(e) => {
-                  const next = e.currentTarget.textContent.trim();
-                  if (next && next !== module.label) {
-                    CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next }, emit: true });
-                  } else {
-                    e.currentTarget.textContent = module.label || "Container";
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
-                  e.stopPropagation();
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                style={{ outline: "none", cursor: "text", fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: embeddedAccent, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}
-              >
-                {module.label || "Container"}
-              </span>
+              {headerBinding ? (
+                <span
+                  onPointerDown={(e) => e.stopPropagation()}
+                  style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: embeddedAccent, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}
+                >
+                  <BoundHeader
+                    hostOccurrence={containerOccurrence}
+                    binding={headerBinding}
+                    markdownPrefix=""
+                    label={module.label || "Container"}
+                  />
+                </span>
+              ) : (
+                <span
+                  contentEditable
+                  suppressContentEditableWarning
+                  onBlur={(e) => {
+                    const next = e.currentTarget.textContent.trim();
+                    if (next && next !== module.label) {
+                      CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next }, emit: true });
+                    } else {
+                      e.currentTarget.textContent = module.label || "Container";
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+                    e.stopPropagation();
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  style={{ outline: "none", cursor: "text", fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: embeddedAccent, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}
+                >
+                  {module.label || "Container"}
+                </span>
+              )}
               <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0, marginLeft: "auto" }}>
               </div>
             </div>
@@ -781,7 +805,16 @@ function Container({
               </div>
             ) : (
               <span className="truncate" style={{ fontSize: module.kind === "board" ? "0.95rem" : "0.75rem", fontWeight: module.kind === "board" ? 600 : 500 }}>
-                {module.label || "Container"}
+                {headerBinding ? (
+                  <BoundHeader
+                    hostOccurrence={containerOccurrence}
+                    binding={headerBinding}
+                    markdownPrefix=""
+                    label={module.label || "Container"}
+                  />
+                ) : (
+                  module.label || "Container"
+                )}
                 {containerOccurrence?.linkedGroupId && (
                   <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0 inline ml-1" title="Linked" />
                 )}
