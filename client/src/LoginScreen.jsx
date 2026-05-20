@@ -95,11 +95,27 @@ export default function LoginScreen() {
         background: "rgba(255,255,255,0.04)",
         width: 300,
       }}>
-        <img
-          src="/moduli_lockup.svg"
-          alt="Moduli"
-          style={{ height: 56, width: "auto", marginBottom: 4 }}
-        />
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 4,
+        }}>
+          <img
+            src="/moduli_logo.png"
+            alt="Moduli"
+            style={{ height: 36, width: "auto", display: "block" }}
+          />
+          <span style={{
+            fontFamily: "var(--font-mono, monospace)",
+            fontSize: 24,
+            fontWeight: 600,
+            color: "#e0e0e0",
+            letterSpacing: "0.02em",
+          }}>
+            moduli
+          </span>
+        </div>
 
         {error && (
           <div style={{

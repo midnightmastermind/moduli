@@ -362,30 +362,6 @@ function InstanceInner({
     };
   }, [occurrence?.gridId, occurrence?.parentId, state?.grid]);
 
-  // Filter-date badge: shows on goals/trackers (instances with at least one
-  // display-type field) so the user can see what date / period they're
-  // currently filtering on. Reads the same iterationDate the field context
-  // already computed.
-  const filterDateLabel = useMemo(() => {
-    const raw = fieldContext.iterationDate;
-    if (!raw) return null;
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return null;
-    const unit = fieldContext.activeFilterUnit || "day";
-    const span = fieldContext.currentSpan || 1;
-    if (unit === "week") {
-      const start = new Date(d);
-      const dow = start.getDay();
-      const offset = dow === 0 ? -6 : 1 - dow;
-      start.setDate(start.getDate() + offset);
-      return `Week of ${start.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-    }
-    if (unit === "month") return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-    if (unit === "year")  return String(d.getFullYear());
-    const base = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-    return span > 1 ? `${base} + ${span - 1}d` : base;
-  }, [fieldContext.iterationDate, fieldContext.activeFilterUnit, fieldContext.currentSpan]);
-
   // Resolved cascading style for this instance
   const resolvedInstanceCSS = useMemo(
     () => styleToCSS(resolveInstanceStyle(instance, container, panel)),

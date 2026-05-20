@@ -347,6 +347,13 @@ body {
   color: var(--body-color, #f5f5f5);
 }
 
+/* Native <select> shows the i-beam text cursor by default in some browsers,
+   which reads as "this is a text input" — not what a dropdown should signal.
+   Force a pointer cursor so all selects across the app feel clickable.
+   :disabled keeps the standard not-allowed cursor for unusable selects. */
+select { cursor: pointer; }
+select:disabled { cursor: not-allowed; }
+
 /* =============================================================================
    4. APP LAYOUT
    ============================================================================= */
