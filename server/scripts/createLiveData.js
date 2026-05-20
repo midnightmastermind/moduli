@@ -1538,6 +1538,29 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
 
+    // "Answered Daily Question" — toolkit-side task counterpart to the
+    // day-page Daily Question container. Same field set as journaling
+    // (journalQuestion + journalAnswer) but with date binding so a
+    // drag-to-Schedule stamp brings it into the same linked group as the
+    // day-page container. When dragged onto Schedule, Schedule: Stamp Date
+    // & Time Slot writes fields[dateFieldId]; the day-page container
+    // already carries that date from Day Page: Build's defaultFields. Both
+    // now share the link value — propagateBoundFieldWrite from BoundHeader
+    // / BoundBody on the day-page side fans out writes to this occurrence.
+    // (v1 note: edits made directly on this instance's field rows do NOT
+    // auto-propagate back to the day-page side; only binding-driven writes
+    // through the header dropdown / body editor fan out.)
+    answeredDailyQuestion: {
+      id: uid(), label: "Answered Daily Question", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.journalQuestion.id, role: "display", order: 1 },
+        { fieldId: fields.journalAnswer.id, role: "input", order: 2 },
+        { fieldId: fields.duration.id, role: "input", order: 3 },
+      ],
+    },
+
     // === EMOTIONAL ===
     gratitude: {
       id: uid(), label: "Gratitude Practice", kind: "list",
@@ -2532,7 +2555,7 @@ export async function createLiveData(userId, options = {}) {
   // ── Container→instance mappings (ported from createDefaultUserData) ────────
   const toolkitMappings = {
     physical:      { contOccId: physContOccId,         contModKey: "physical",      instKeys: ["morningWorkout", "eveningRun", "stretching", "drinkWater", "takeMeds", "sleepLog"] },
-    intellectual:  { contOccId: intellectualContOccId, contModKey: "intellectual",  instKeys: ["reading", "podcast", "watchMovie", "onlineCourse", "brainGames", "journaling"] },
+    intellectual:  { contOccId: intellectualContOccId, contModKey: "intellectual",  instKeys: ["reading", "podcast", "watchMovie", "onlineCourse", "brainGames", "journaling", "answeredDailyQuestion"] },
     emotional:     { contOccId: emotionalContOccId,    contModKey: "emotional",     instKeys: ["gratitude", "meditation", "breathing", "moodCheck", "selfCare"] },
     social:        { contOccId: socialContOccId,       contModKey: "social",        instKeys: ["callFriend", "familyTime", "socialEvent", "helpSomeone"] },
     spiritual:     { contOccId: spiritualContOccId,    contModKey: "spiritual",     instKeys: ["prayer", "natureWalk", "spiritualReading", "mindfulness"] },
