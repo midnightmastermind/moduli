@@ -1829,6 +1829,51 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
 
+    // === CREATIVE (9th wellness — Make / Explore / Express) ===
+    sketch: {
+      id: uid(), label: "Sketch / Draw", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+    writeCreative: {
+      id: uid(), label: "Creative Writing", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+    playMusic: {
+      id: uid(), label: "Play Music", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+      ],
+    },
+    photograph: {
+      id: uid(), label: "Photograph", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.notes.id, role: "input", order: 1 },
+      ],
+    },
+    craftMake: {
+      id: uid(), label: "Craft / Make", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.duration.id, role: "input", order: 1 },
+        { fieldId: fields.notes.id, role: "input", order: 2 },
+      ],
+    },
+
     // === DAILY ROUTINE SOURCE MODULES (schedulable — hidden dateFieldId binding required) ===
     // These 6 land in the Daily Routine template; the hidden date binding enables
     // the seed's SAME_DAY dedup-FIND and per-copy date stamp (createTestGrid convention).
@@ -2383,22 +2428,52 @@ export async function createLiveData(userId, options = {}) {
   //   filterOverride on occurrences (Physical/General) is set at OCCURRENCE creation
   //   in Task 9 — NOT on the module record here.
 
-  // ── Toolkit containers (dimensions + fitness + meal categories) ───────────────
+  // ── Toolkit containers ───────────────────────────────────────────────────────
+  // Daily Toolkit is now a FOLDER with 11 wellness pages inside; the containers
+  // below are sub-groupings WITHIN each wellness page (not top-level dimensions
+  // anymore). Physical splits into 4 daily-habit groups; Physical-Fitness into
+  // 6 muscle groups; Physical-Nutrition into 5 meal types; the rest are single
+  // containers per page until the user wants finer breakdown.
+  const PHYS_BG  = "#b44a1a";
+  const INTEL_BG = "#1562b0";
+  const EMO_BG   = "#a02158";
+  const SOC_BG   = "#c49000";
+  const SPIR_BG  = "#6427c5";
+  const OCC_BG   = "#0d7a52";
+  const FIN_BG   = "#1d8a30";
+  const ENV_BG   = "#0779a0";
+  const CRE_BG   = "#c2399a"; // magenta — Creative wellness (NEW)
   const toolkitContainerMods = {
-    physical:      { id: uid(), label: "Physical",          styleMode: "own", ownStyle: { bg: "#b44a1a" } },
-    intellectual:  { id: uid(), label: "Intellectual",      styleMode: "own", ownStyle: { bg: "#1562b0" } },
-    emotional:     { id: uid(), label: "Emotional",         styleMode: "own", ownStyle: { bg: "#a02158" } },
-    social:        { id: uid(), label: "Social",            styleMode: "own", ownStyle: { bg: "#c49000" } },
-    spiritual:     { id: uid(), label: "Spiritual",         styleMode: "own", ownStyle: { bg: "#6427c5" } },
-    occupational:  { id: uid(), label: "Occupational",      styleMode: "own", ownStyle: { bg: "#0d7a52" } },
-    financial:     { id: uid(), label: "Financial",         styleMode: "own", ownStyle: { bg: "#1d8a30" } },
-    environmental: { id: uid(), label: "Environmental",     styleMode: "own", ownStyle: { bg: "#0779a0" } },
-    workoutAll:    { id: uid(), label: "Physical - Fitness" },
-    mealBreakfast:   { id: uid(), label: "Breakfast" },
-    mealLunch:       { id: uid(), label: "Lunch" },
-    mealSnack:       { id: uid(), label: "Snack" },
-    mealDinner:      { id: uid(), label: "Dinner" },
-    mealIngredients: { id: uid(), label: "Ingredients" },
+    // Physical (general daily habits) — 4 sub-containers
+    physicalMovement:  { id: uid(), label: "Movement",  styleMode: "own", ownStyle: { bg: PHYS_BG } },
+    physicalHydration: { id: uid(), label: "Hydration", styleMode: "own", ownStyle: { bg: PHYS_BG } },
+    physicalMeds:      { id: uid(), label: "Medication",styleMode: "own", ownStyle: { bg: PHYS_BG } },
+    physicalSleep:     { id: uid(), label: "Sleep",     styleMode: "own", ownStyle: { bg: PHYS_BG } },
+
+    // Physical-Fitness — 6 muscle-group containers
+    chestExercises:     { id: uid(), label: "Chest",     styleMode: "own", ownStyle: { bg: PHYS_BG } },
+    backExercises:      { id: uid(), label: "Back",      styleMode: "own", ownStyle: { bg: PHYS_BG } },
+    legsExercises:      { id: uid(), label: "Legs",      styleMode: "own", ownStyle: { bg: PHYS_BG } },
+    shouldersExercises: { id: uid(), label: "Shoulders", styleMode: "own", ownStyle: { bg: PHYS_BG } },
+    armsExercises:      { id: uid(), label: "Arms",      styleMode: "own", ownStyle: { bg: PHYS_BG } },
+    cardioExercises:    { id: uid(), label: "Cardio",    styleMode: "own", ownStyle: { bg: PHYS_BG } },
+
+    // Physical-Nutrition — 5 meal-type containers
+    mealBreakfast:   { id: uid(), label: "Breakfast",   styleMode: "own", ownStyle: { bg: PHYS_BG } },
+    mealLunch:       { id: uid(), label: "Lunch",       styleMode: "own", ownStyle: { bg: PHYS_BG } },
+    mealSnack:       { id: uid(), label: "Snack",       styleMode: "own", ownStyle: { bg: PHYS_BG } },
+    mealDinner:      { id: uid(), label: "Dinner",      styleMode: "own", ownStyle: { bg: PHYS_BG } },
+    mealIngredients: { id: uid(), label: "Ingredients", styleMode: "own", ownStyle: { bg: PHYS_BG } },
+
+    // Single container per remaining wellness page
+    intellectual:  { id: uid(), label: "Intellectual",   styleMode: "own", ownStyle: { bg: INTEL_BG } },
+    emotional:     { id: uid(), label: "Emotional",      styleMode: "own", ownStyle: { bg: EMO_BG  } },
+    social:        { id: uid(), label: "Social",         styleMode: "own", ownStyle: { bg: SOC_BG  } },
+    spiritual:     { id: uid(), label: "Spiritual",      styleMode: "own", ownStyle: { bg: SPIR_BG } },
+    occupational:  { id: uid(), label: "Occupational",   styleMode: "own", ownStyle: { bg: OCC_BG  } },
+    financial:     { id: uid(), label: "Financial",      styleMode: "own", ownStyle: { bg: FIN_BG  } },
+    environmental: { id: uid(), label: "Environmental",  styleMode: "own", ownStyle: { bg: ENV_BG  } },
+    creative:      { id: uid(), label: "Creative",       styleMode: "own", ownStyle: { bg: CRE_BG  } }, // NEW
   };
 
   // ── Todo containers (5 categories) ───────────────────────────────────────────
@@ -2503,21 +2578,33 @@ export async function createLiveData(userId, options = {}) {
   }
 
   // ── Pre-generate container occurrence IDs ─────────────────────────────────
-  // Toolkit containers
-  const physContOccId         = uid();
-  const intellectualContOccId = uid();
-  const emotionalContOccId    = uid();
-  const socialContOccId       = uid();
-  const spiritualContOccId    = uid();
-  const occupationalContOccId = uid();
-  const financialContOccId    = uid();
-  const environmentalContOccId = uid();
-  const workoutAllContOccId   = uid();
-  const mealBreakfastContOccId  = uid();
-  const mealLunchContOccId      = uid();
-  const mealSnackContOccId      = uid();
-  const mealDinnerContOccId     = uid();
+  // Toolkit containers — now grouped by wellness PAGE (folder-based Daily Toolkit).
+  // Physical (general) splits into 4 daily-habit groups. Physical-Fitness splits
+  // into 6 muscle groups. Physical-Nutrition splits into 5 meal types. Other
+  // wellness pages keep a single container until the user wants finer breakdown.
+  const physMovementContOccId  = uid();
+  const physHydrationContOccId = uid();
+  const physMedsContOccId      = uid();
+  const physSleepContOccId     = uid();
+  const chestExContOccId      = uid();
+  const backExContOccId       = uid();
+  const legsExContOccId       = uid();
+  const shouldersExContOccId  = uid();
+  const armsExContOccId       = uid();
+  const cardioExContOccId     = uid();
+  const mealBreakfastContOccId   = uid();
+  const mealLunchContOccId       = uid();
+  const mealSnackContOccId       = uid();
+  const mealDinnerContOccId      = uid();
   const mealIngredientsContOccId = uid();
+  const intellectualContOccId  = uid();
+  const emotionalContOccId     = uid();
+  const socialContOccId        = uid();
+  const spiritualContOccId     = uid();
+  const occupationalContOccId  = uid();
+  const financialContOccId     = uid();
+  const environmentalContOccId = uid();
+  const creativeContOccId      = uid();
 
   // Todo containers
   const todoHomeContOccId     = uid();
@@ -2552,9 +2639,34 @@ export async function createLiveData(userId, options = {}) {
   const podcastsListenedGoalContOccId = uid();
   const coursesTakenGoalContOccId   = uid();
 
-  // ── Container→instance mappings (ported from createDefaultUserData) ────────
+  // ── Container→instance mappings (now grouped by wellness sub-container) ────
+  // Each key is a CONTAINER (matches toolkitContainerMods key). instKeys lists
+  // the instance modules that live in that container. The wellness PAGE
+  // structure (which containers belong to which page) is defined separately
+  // in `wellnessPages` below.
   const toolkitMappings = {
-    physical:      { contOccId: physContOccId,         contModKey: "physical",      instKeys: ["morningWorkout", "eveningRun", "stretching", "drinkWater", "takeMeds", "sleepLog"] },
+    // Physical (general) — split daily habits into 4 sub-containers
+    physicalMovement:  { contOccId: physMovementContOccId,  contModKey: "physicalMovement",  instKeys: ["morningWorkout", "eveningRun", "stretching"] },
+    physicalHydration: { contOccId: physHydrationContOccId, contModKey: "physicalHydration", instKeys: ["drinkWater"] },
+    physicalMeds:      { contOccId: physMedsContOccId,      contModKey: "physicalMeds",      instKeys: ["takeMeds"] },
+    physicalSleep:     { contOccId: physSleepContOccId,     contModKey: "physicalSleep",     instKeys: ["sleepLog"] },
+
+    // Physical-Fitness — split 30 exercises across 6 muscle groups
+    chestExercises:     { contOccId: chestExContOccId,     contModKey: "chestExercises",     instKeys: ["benchPress", "inclinePress", "chestFly", "pushUps", "cableCrossover"] },
+    backExercises:      { contOccId: backExContOccId,      contModKey: "backExercises",      instKeys: ["deadlift", "pullUps", "bentRow", "latPulldown", "seatedRow"] },
+    legsExercises:      { contOccId: legsExContOccId,      contModKey: "legsExercises",      instKeys: ["squat", "legPress", "lunges", "legCurl", "calfRaise"] },
+    shouldersExercises: { contOccId: shouldersExContOccId, contModKey: "shouldersExercises", instKeys: ["overheadPress", "lateralRaise", "frontRaise", "facePull", "shrugs"] },
+    armsExercises:      { contOccId: armsExContOccId,      contModKey: "armsExercises",      instKeys: ["bicepCurl", "hammerCurl", "tricepDip", "skullCrusher", "tricepPushdown"] },
+    cardioExercises:    { contOccId: cardioExContOccId,    contModKey: "cardioExercises",    instKeys: ["running", "cycling", "jumpRope", "rowMachine", "burpees"] },
+
+    // Physical-Nutrition — meal types
+    mealBreakfast:    { contOccId: mealBreakfastContOccId,   contModKey: "mealBreakfast",   instKeys: ["greekYogurtBowl", "scrambledEggs", "oatmealBerries", "avocadoToast", "smoothieBowl"] },
+    mealLunch:        { contOccId: mealLunchContOccId,       contModKey: "mealLunch",       instKeys: ["greekSaladChicken", "tunaWrap", "lentilSoup", "quinoaBowl", "hummusPita"] },
+    mealSnack:        { contOccId: mealSnackContOccId,       contModKey: "mealSnack",       instKeys: ["almonds", "olivesHummus", "cheeseCrackers", "mixedBerries", "proteinBar"] },
+    mealDinner:       { contOccId: mealDinnerContOccId,      contModKey: "mealDinner",      instKeys: ["grilledSalmon", "chickenSouvlaki", "lambKofta", "pastaMarinara", "stuffedPeppers"] },
+    mealIngredients:  { contOccId: mealIngredientsContOccId, contModKey: "mealIngredients", instKeys: ["oliveOil", "chickpeas", "lemonGarlic", "wholeGrainBread", "greekOlives"] },
+
+    // Remaining wellness pages — single container each
     intellectual:  { contOccId: intellectualContOccId, contModKey: "intellectual",  instKeys: ["reading", "podcast", "watchMovie", "onlineCourse", "brainGames", "journaling", "answeredDailyQuestion"] },
     emotional:     { contOccId: emotionalContOccId,    contModKey: "emotional",     instKeys: ["gratitude", "meditation", "breathing", "moodCheck", "selfCare"] },
     social:        { contOccId: socialContOccId,       contModKey: "social",        instKeys: ["callFriend", "familyTime", "socialEvent", "helpSomeone"] },
@@ -2562,20 +2674,26 @@ export async function createLiveData(userId, options = {}) {
     occupational:  { contOccId: occupationalContOccId, contModKey: "occupational",  instKeys: ["deepWork", "meeting", "emailBlock", "skillDev", "networking"] },
     financial:     { contOccId: financialContOccId,    contModKey: "financial",     instKeys: ["budgetReview", "trackExpense", "purchase", "logIncome", "investmentCheck", "savingsGoal"] },
     environmental: { contOccId: environmentalContOccId,contModKey: "environmental", instKeys: ["cleanDesk", "declutter", "plantCare", "recycling", "ecoAction"] },
-    workoutAll:    { contOccId: workoutAllContOccId,   contModKey: "workoutAll",    instKeys: [
-      "benchPress", "inclinePress", "chestFly", "pushUps", "cableCrossover",
-      "deadlift", "pullUps", "bentRow", "latPulldown", "seatedRow",
-      "squat", "legPress", "lunges", "legCurl", "calfRaise",
-      "overheadPress", "lateralRaise", "frontRaise", "facePull", "shrugs",
-      "bicepCurl", "hammerCurl", "tricepDip", "skullCrusher", "tricepPushdown",
-      "running", "cycling", "jumpRope", "rowMachine", "burpees",
-    ] },
-    mealBreakfast:    { contOccId: mealBreakfastContOccId,   contModKey: "mealBreakfast",   instKeys: ["greekYogurtBowl", "scrambledEggs", "oatmealBerries", "avocadoToast", "smoothieBowl"] },
-    mealLunch:        { contOccId: mealLunchContOccId,       contModKey: "mealLunch",       instKeys: ["greekSaladChicken", "tunaWrap", "lentilSoup", "quinoaBowl", "hummusPita"] },
-    mealSnack:        { contOccId: mealSnackContOccId,       contModKey: "mealSnack",       instKeys: ["almonds", "olivesHummus", "cheeseCrackers", "mixedBerries", "proteinBar"] },
-    mealDinner:       { contOccId: mealDinnerContOccId,      contModKey: "mealDinner",      instKeys: ["grilledSalmon", "chickenSouvlaki", "lambKofta", "pastaMarinara", "stuffedPeppers"] },
-    mealIngredients:  { contOccId: mealIngredientsContOccId, contModKey: "mealIngredients", instKeys: ["oliveOil", "chickpeas", "lemonGarlic", "wholeGrainBread", "greekOlives"] },
+    creative:      { contOccId: creativeContOccId,     contModKey: "creative",      instKeys: ["sketch", "writeCreative", "playMusic", "photograph", "craftMake"] },
   };
+
+  // Wellness PAGE → containers (used in Task 12 to wire 11 wellness pages
+  // under the Daily Toolkit folder). The grid panel at [0,0] hosts ALL of
+  // these pages as tabs; the manifest tree shows them under the Daily Toolkit
+  // folder so the user can navigate them by name.
+  const wellnessPages = [
+    { key: "physical",         label: "Physical",          containers: ["physicalMovement", "physicalHydration", "physicalMeds", "physicalSleep"] },
+    { key: "physicalFitness",  label: "Physical - Fitness",containers: ["chestExercises", "backExercises", "legsExercises", "shouldersExercises", "armsExercises", "cardioExercises"] },
+    { key: "physicalNutrition",label: "Physical - Nutrition", containers: ["mealBreakfast", "mealLunch", "mealSnack", "mealDinner", "mealIngredients"] },
+    { key: "intellectual",     label: "Intellectual",      containers: ["intellectual"] },
+    { key: "emotional",        label: "Emotional",         containers: ["emotional"] },
+    { key: "social",           label: "Social",            containers: ["social"] },
+    { key: "spiritual",        label: "Spiritual",         containers: ["spiritual"] },
+    { key: "occupational",     label: "Occupational",      containers: ["occupational"] },
+    { key: "financial",        label: "Financial",         containers: ["financial"] },
+    { key: "environmental",    label: "Environmental",     containers: ["environmental"] },
+    { key: "creative",         label: "Creative",          containers: ["creative"] },
+  ];
 
   // Per-exercise starting weights (lbs) — a realistic intermediate-lifter
   // state, as if the user had been progressively overloading. Bodyweight /
@@ -2957,16 +3075,18 @@ export async function createLiveData(userId, options = {}) {
   // Task 12 (pages parent into Tasks/Trackers/Interfaces), and Task 13 (makeDayPageBuildOp
   // needs dayPagesFolderId).
 
-  const rootFolderId       = uid();
-  const tasksFolderId      = uid();
-  const trackersFolderId   = uid();
-  const interfacesFolderId = uid();
-  const notesFolderId      = uid();
-  const dayPagesFolderId   = uid();
+  const rootFolderId         = uid();
+  const tasksFolderId        = uid();
+  const dailyToolkitFolderId = uid(); // NEW — sub-folder of Tasks holding 11 wellness pages
+  const trackersFolderId     = uid();
+  const interfacesFolderId   = uid();
+  const notesFolderId        = uid();
+  const dayPagesFolderId     = uid();
 
   await new Manifest({ id: manifestId, userId, gridId, manifestType: "user", rootFolderId }).save();
-  await new Folder({ id: rootFolderId,       userId, gridId, name: "Root",       parentId: null,       folderType: "normal",    sortOrder: 0, isExpanded: true }).save();
-  await new Folder({ id: tasksFolderId,      userId, gridId, name: "Tasks",      parentId: rootFolderId, folderType: "normal",    sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: rootFolderId,         userId, gridId, name: "Root",          parentId: null,            folderType: "normal",    sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: tasksFolderId,        userId, gridId, name: "Tasks",         parentId: rootFolderId,    folderType: "normal",    sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: dailyToolkitFolderId, userId, gridId, name: "Daily Toolkit", parentId: tasksFolderId,   folderType: "normal",    sortOrder: 0, isExpanded: true }).save();
   await new Folder({ id: trackersFolderId,   userId, gridId, name: "Trackers",   parentId: rootFolderId, folderType: "normal",    sortOrder: 1, isExpanded: true }).save();
   await new Folder({ id: interfacesFolderId, userId, gridId, name: "Interfaces", parentId: rootFolderId, folderType: "normal",    sortOrder: 2, isExpanded: true }).save();
   await new Folder({ id: notesFolderId,      userId, gridId, name: "Notes",      parentId: rootFolderId, folderType: "normal",    sortOrder: 3, isExpanded: true }).save();
@@ -3305,15 +3425,35 @@ export async function createLiveData(userId, options = {}) {
   //                            from the Daily Routine template — Task 13)
   //   Canvas        (canvas) → empty free-form scratchpad page
 
-  const toolkitPageModId = uid(); const toolkitPageOccId = uid();
-  await new Module({ id: toolkitPageModId, userId, gridId, role: "page", kind: "board", label: "Daily Toolkit" }).save();
-  await mkOcc({
-    id: toolkitPageOccId, moduleId: toolkitPageModId,
-    parentId: tasksFolderId, sortOrder: 0,
-    occurrences: Object.values(toolkitContOccIds),
-    iteration: { mode: "persistent" }, fields: {},
-    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
-  });
+  // Daily Toolkit — 11 wellness pages parented under the Daily Toolkit folder.
+  // Each page's occurrences[] = its sub-container occurrence IDs. The grid
+  // panel at [0,0] (panelOccIds.toolkit) holds ALL of these as tabs (set
+  // further below in panel wiring). manifest tree shows them by label.
+  // Loop emits the same per-page filterOverride + nav-hide as every non-
+  // Schedule/non-Daily-Goals page (createTestGrid date-scope rule).
+  const wellnessPageOccs = {}; // wellnessPage.key → page occurrence id
+  const wellnessPageMods = {}; // wellnessPage.key → page module id
+  for (let i = 0; i < wellnessPages.length; i++) {
+    const wp = wellnessPages[i];
+    const pageModId = uid();
+    const pageOccId = uid();
+    wellnessPageMods[wp.key] = pageModId;
+    wellnessPageOccs[wp.key] = pageOccId;
+    await new Module({ id: pageModId, userId, gridId, role: "page", kind: "board", label: wp.label }).save();
+    await mkOcc({
+      id: pageOccId, moduleId: pageModId,
+      parentId: dailyToolkitFolderId, sortOrder: i,
+      occurrences: wp.containers.map(ck => toolkitContOccIds[ck]).filter(Boolean),
+      iteration: { mode: "persistent" }, fields: {},
+      filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+    });
+  }
+  // Used by panel wiring + return value (the grid panel pins all 11 in order).
+  const wellnessPageOccList = wellnessPages.map(wp => wellnessPageOccs[wp.key]);
+  // Convenience pointer to the FIRST wellness page (Physical) — kept on the
+  // return value for back-compat with any consumer that expected a single
+  // "Daily Toolkit" page (and as the default active tab on the panel).
+  const toolkitPageOccId = wellnessPageOccs.physical;
 
   const todoPageModId = uid(); const todoPageOccId = uid();
   await new Module({ id: todoPageModId, userId, gridId, role: "page", kind: "board", label: "Todo List" }).save();
@@ -3530,6 +3670,10 @@ export async function createLiveData(userId, options = {}) {
   const notebookHubViewId = uid();
   await new View({ id: notebookHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: schedPageOccId }).save();
 
+  // Daily Toolkit View — Physical is the default active tab (first wellness page).
+  const toolkitHubViewId = uid();
+  await new View({ id: toolkitHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: wellnessPageOccs.physical }).save();
+
   // ── STEP 9: Panel modules + panel occurrences (grid placements) ─────────────
   // Layout (2 rows × 3 cols per buildGridDoc):
   //   [0,0] Daily Toolkit   [0,1 h=2] Notebook hub   [0,2] Daily Goals
@@ -3559,7 +3703,7 @@ export async function createLiveData(userId, options = {}) {
     accounts: accountsPanelId,
   };
   const placements = [
-    { key: "toolkit",  panelId: toolkitPanelId,  row: 0, col: 0, width: 1, height: 1, viewId: null              },
+    { key: "toolkit",  panelId: toolkitPanelId,  row: 0, col: 0, width: 1, height: 1, viewId: toolkitHubViewId  },
     { key: "todo",     panelId: todoPanelId,     row: 1, col: 0, width: 1, height: 1, viewId: null              },
     { key: "notebook", panelId: notebookPanelId, row: 0, col: 1, width: 1, height: 2, viewId: notebookHubViewId },
     { key: "goals",    panelId: goalsPanelId,    row: 0, col: 2, width: 1, height: 1, viewId: null              },
@@ -3582,7 +3726,7 @@ export async function createLiveData(userId, options = {}) {
   // Notebook hub pins Schedule + Canvas. The Day Page tab is NOT pinned here —
   // Day Page: Build adds it via ADD_CHILD at runtime (Task 13). Notebook DOC
   // pages (Task 11) are NOT pinned — they live only under notesFolderId.
-  await Occurrence.findOneAndUpdate({ id: panelOccIds.toolkit },  { $set: { occurrences: [toolkitPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.toolkit },  { $set: { occurrences: wellnessPageOccList } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.todo },     { $set: { occurrences: [todoPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [schedPageOccId, canvasPageOccId, schedCanvasPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.goals },    { $set: { occurrences: [goalsPageOccId] } });
@@ -4417,7 +4561,7 @@ export async function createLiveData(userId, options = {}) {
     description: "Pick today's reflection question from the library and write it to the Daily Journal's journalQuestion display field.",
     triggerTypes: ["onFilterChange", "onLoad"],
     triggerObjects: [
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Toolkit", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Intellectual", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     pipeline: {
@@ -4942,7 +5086,7 @@ async function main() {
     console.log(`   Templates:      Daily Routine (6-pick) + Day Page under Templates manifest`);
     console.log(`   Operations:     26 (19 trackers + 1 daily question rotator + 4 schedule/day-page + Schedule Table: Build + Schedule Canvas: Build)`);
     console.log(`   Panels:         ${Object.keys(result.panelOccIds || {}).join(", ")}`);
-    console.log(`   Pages:          Daily Toolkit, Todo List, Daily Goals, Accounts, Schedule (board) + Canvas + Schedule Table (table)`);
+    console.log(`   Pages:          Daily Toolkit folder (11 wellness pages: Physical, Phys-Fitness, Phys-Nutrition, Intellectual, Emotional, Social, Spiritual, Occupational, Financial, Environmental, Creative) + Todo List + Daily Goals + Accounts + Schedule + Canvas + Schedule Table`);
     console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Schedule (${result.schedPageOccId}); tabs=[Schedule, Canvas]`);
     console.log("=".repeat(50));
   } catch (err) {
