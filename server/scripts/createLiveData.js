@@ -157,6 +157,7 @@ export async function createLiveData(userId, options = {}) {
   const booksReadFieldId           = uid();
   const booksReadDisplayFieldId    = uid();
   const pagesFieldId               = uid(); // pages per book (used by Books Read tracker)
+  const posterUrlFieldId           = uid(); // library cover image url (text; role:"media" on bindings)
 
   // Podcasts Listened fields
   const podcastsListenedFieldId           = uid();
@@ -896,6 +897,20 @@ export async function createLiveData(userId, options = {}) {
       id: pagesFieldId,
       name: "Pages",
       type: "number",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: {},
+    },
+
+    // Poster URL — text field that holds an absolute image URL (or upload
+    // fileRef). Bound on library entry modules with role:"media" so the
+    // ModuleInstance media block renders it as a cover image below the
+    // label. ModuleInstance auto-detects http(s):// vs fileRef and routes
+    // src correctly (see "Strip query string..." block in ModuleInstance).
+    posterUrl: {
+      id: posterUrlFieldId,
+      name: "Poster",
+      type: "text",
       inputEnabled: true,
       displayEnabled: false,
       meta: {},
@@ -3134,30 +3149,42 @@ export async function createLiveData(userId, options = {}) {
   // All done here so libraryContOccId exists before STEP 7 folder tree references it.
   // filterOverride:{} on both container and page — always visible, no date filter.
 
-  // 8 movie modules (role:"instance", hidden library binding)
+  // Library bindings — every library entry now also binds posterUrl with
+  // role:"media" so the ModuleInstance media block renders the cover image
+  // under the label/fields row. Value stays per-occurrence (stamped further
+  // below) so the same entry could carry different cover URLs in different
+  // contexts if anyone ever wants that.
+  const movieFieldBindings = [
+    { fieldId: libraryFieldId, role: "input", order: 0, hidden: true },
+    { fieldId: posterUrlFieldId, role: "media", order: 1, hidden: true },
+  ];
+  // 8 movie modules (role:"instance", hidden library + poster bindings)
   await Module.insertMany([
     { id: movieInceptionModId,       userId, gridId, role: "instance", kind: "list", label: "Inception",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: movieFieldBindings },
     { id: movieMatrixModId,          userId, gridId, role: "instance", kind: "list", label: "The Matrix",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: movieFieldBindings },
     { id: movieArrivalModId,         userId, gridId, role: "instance", kind: "list", label: "Arrival",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: movieFieldBindings },
     { id: movieDuneModId,            userId, gridId, role: "instance", kind: "list", label: "Dune",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: movieFieldBindings },
     { id: movieInterstellarModId,    userId, gridId, role: "instance", kind: "list", label: "Interstellar",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: movieFieldBindings },
     { id: movieBladeRunner2049ModId, userId, gridId, role: "instance", kind: "list", label: "Blade Runner 2049",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: movieFieldBindings },
     { id: moviePrestigeModId,        userId, gridId, role: "instance", kind: "list", label: "The Prestige",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: movieFieldBindings },
     { id: movieTenetModId,           userId, gridId, role: "instance", kind: "list", label: "Tenet",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: movieFieldBindings },
   ]);
 
-  // 7 book modules — fieldBindings include libraryFieldId (type) and pagesFieldId (page count), both hidden
+  // 7 book modules — fieldBindings include libraryFieldId (type), pagesFieldId
+  // (page count) AND posterUrl (cover image, role:"media"), all hidden as
+  // inline inputs (media block renders separately below the label).
   const bookFieldBindings = [
-    { fieldId: libraryFieldId, role: "input", order: 0, hidden: true },
-    { fieldId: pagesFieldId,   role: "input", order: 1, hidden: true },
+    { fieldId: libraryFieldId,   role: "input", order: 0, hidden: true },
+    { fieldId: pagesFieldId,     role: "input", order: 1, hidden: true },
+    { fieldId: posterUrlFieldId, role: "media", order: 2, hidden: true },
   ];
   await Module.insertMany([
     { id: bookAtomicHabitsModId,     userId, gridId, role: "instance", kind: "list", label: "Atomic Habits",
@@ -3176,30 +3203,41 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "move", fieldBindings: bookFieldBindings },
   ]);
 
+  // Podcast / course modules share the same bindings shape: library type +
+  // poster URL (hidden) so the cover image renders below the label.
+  const podcastFieldBindings = [
+    { fieldId: libraryFieldId,   role: "input", order: 0, hidden: true },
+    { fieldId: posterUrlFieldId, role: "media", order: 1, hidden: true },
+  ];
+  const courseFieldBindings = [
+    { fieldId: libraryFieldId,   role: "input", order: 0, hidden: true },
+    { fieldId: posterUrlFieldId, role: "media", order: 1, hidden: true },
+  ];
+
   // 5 podcast modules
   await Module.insertMany([
     { id: podcastTimFerrissModId,      userId, gridId, role: "instance", kind: "list", label: "The Tim Ferriss Show",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: podcastFieldBindings },
     { id: podcastLexFridmanModId,      userId, gridId, role: "instance", kind: "list", label: "Lex Fridman Podcast",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: podcastFieldBindings },
     { id: podcastHardcoreHistoryModId, userId, gridId, role: "instance", kind: "list", label: "Hardcore History",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: podcastFieldBindings },
     { id: podcastHubermanLabModId,     userId, gridId, role: "instance", kind: "list", label: "Huberman Lab",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: podcastFieldBindings },
     { id: podcastConvosTylerModId,     userId, gridId, role: "instance", kind: "list", label: "Conversations with Tyler",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: podcastFieldBindings },
   ]);
 
   // 4 course modules
   await Module.insertMany([
     { id: courseAlgorithmsModId,      userId, gridId, role: "instance", kind: "list", label: "Algorithms (Coursera)",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: courseFieldBindings },
     { id: courseMLSpecModId,          userId, gridId, role: "instance", kind: "list", label: "Machine Learning Specialization",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: courseFieldBindings },
     { id: courseSystemDesignModId,    userId, gridId, role: "instance", kind: "list", label: "System Design Primer",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: courseFieldBindings },
     { id: courseIntroPhilosophyModId, userId, gridId, role: "instance", kind: "list", label: "Introduction to Philosophy",
-      defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
+      defaultDragMode: "move", fieldBindings: courseFieldBindings },
   ]);
 
   // Reflection question modules (library type "question"). One Module per
@@ -3223,37 +3261,96 @@ export async function createLiveData(userId, options = {}) {
     }))
   );
 
+  // Poster URLs per library entry. OpenLibrary covers (by ISBN) are stable
+  // and free for books; for movies / podcasts / courses we use placehold.co
+  // (a real public placeholder service) with category-coded backgrounds and
+  // the title overlaid as text. Real TMDB/Wikipedia URLs can be swapped in
+  // per-entry later — values live on each library OCCURRENCE under
+  // fields[posterUrlFieldId].value, so a user edit just rewrites that one.
+  const ph = (bg, text, title) =>
+    `https://placehold.co/300x450/${bg}/${text}.jpg?text=${encodeURIComponent(title)}&font=oswald`;
+  const movieBg   = "1d4ed8"; // blue-700
+  const bookBg    = "92400e"; // amber-800
+  const podcastBg = "7c2d92"; // purple-800
+  const courseBg  = "065f46"; // emerald-800
+  const txt       = "ffffff";
+  const moviePosters = {
+    Inception:           ph(movieBg, txt, "Inception"),
+    "The Matrix":        ph(movieBg, txt, "The Matrix"),
+    Arrival:             ph(movieBg, txt, "Arrival"),
+    Dune:                ph(movieBg, txt, "Dune"),
+    Interstellar:        ph(movieBg, txt, "Interstellar"),
+    "Blade Runner 2049": ph(movieBg, txt, "Blade Runner 2049"),
+    "The Prestige":      ph(movieBg, txt, "The Prestige"),
+    Tenet:               ph(movieBg, txt, "Tenet"),
+  };
+  // Books — real OpenLibrary covers by ISBN for the ones with known ISBNs;
+  // placeholder for the rest. The OL cover endpoint returns 1x1 if not
+  // found, which still looks reasonable; placeholders below are explicit
+  // fallbacks so every cell renders something distinctive.
+  const bookPosters = {
+    "Atomic Habits":              "https://covers.openlibrary.org/b/isbn/9780735211292-L.jpg",
+    "Deep Work":                  "https://covers.openlibrary.org/b/isbn/9781455586691-L.jpg",
+    Sapiens:                      "https://covers.openlibrary.org/b/isbn/9780062316097-L.jpg",
+    "Thinking, Fast and Slow":    "https://covers.openlibrary.org/b/isbn/9780374533557-L.jpg",
+    Meditations:                  "https://covers.openlibrary.org/b/isbn/9780812968255-L.jpg",
+    "Man's Search for Meaning":   "https://covers.openlibrary.org/b/isbn/9780807014295-L.jpg",
+    "The 4-Hour Workweek":        "https://covers.openlibrary.org/b/isbn/9780307465351-L.jpg",
+  };
+  const podcastPosters = {
+    "The Tim Ferriss Show":       ph(podcastBg, txt, "Tim Ferriss"),
+    "Lex Fridman Podcast":        ph(podcastBg, txt, "Lex Fridman"),
+    "Hardcore History":           ph(podcastBg, txt, "Hardcore History"),
+    "Huberman Lab":               ph(podcastBg, txt, "Huberman Lab"),
+    "Conversations with Tyler":   ph(podcastBg, txt, "Conversations with Tyler"),
+  };
+  const coursePosters = {
+    "Algorithms (Coursera)":           ph(courseBg, txt, "Algorithms"),
+    "Machine Learning Specialization": ph(courseBg, txt, "ML Specialization"),
+    "System Design Primer":            ph(courseBg, txt, "System Design"),
+    "Introduction to Philosophy":      ph(courseBg, txt, "Intro to Philosophy"),
+  };
+  const libFields = (libraryType, title, posterMap) => {
+    const out = { [libraryFieldId]: fv(libraryType) };
+    const url = posterMap[title];
+    if (url) out[posterUrlFieldId] = fv(url);
+    return out;
+  };
+
+  // Helper for book fields (adds pages alongside library+poster).
+  const bookFields = (title, pages) => ({ ...libFields("book", title, bookPosters), [pagesFieldId]: fv(pages) });
+
   // 8 movie occurrences (parentId = libraryContOccId, library field = "movie")
-  const movieInceptionOccId       = await mkOcc({ moduleId: movieInceptionModId,       parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
-  const movieMatrixOccId          = await mkOcc({ moduleId: movieMatrixModId,          parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
-  const movieArrivalOccId         = await mkOcc({ moduleId: movieArrivalModId,         parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
-  const movieDuneOccId            = await mkOcc({ moduleId: movieDuneModId,            parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
-  const movieInterstellarOccId    = await mkOcc({ moduleId: movieInterstellarModId,    parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
-  const movieBladeRunner2049OccId = await mkOcc({ moduleId: movieBladeRunner2049ModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
-  const moviePrestigeOccId        = await mkOcc({ moduleId: moviePrestigeModId,        parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
-  const movieTenetOccId           = await mkOcc({ moduleId: movieTenetModId,           parentId: libraryContOccId, fields: { [libraryFieldId]: fv("movie") } });
+  const movieInceptionOccId       = await mkOcc({ moduleId: movieInceptionModId,       parentId: libraryContOccId, fields: libFields("movie", "Inception",           moviePosters) });
+  const movieMatrixOccId          = await mkOcc({ moduleId: movieMatrixModId,          parentId: libraryContOccId, fields: libFields("movie", "The Matrix",          moviePosters) });
+  const movieArrivalOccId         = await mkOcc({ moduleId: movieArrivalModId,         parentId: libraryContOccId, fields: libFields("movie", "Arrival",             moviePosters) });
+  const movieDuneOccId            = await mkOcc({ moduleId: movieDuneModId,            parentId: libraryContOccId, fields: libFields("movie", "Dune",                moviePosters) });
+  const movieInterstellarOccId    = await mkOcc({ moduleId: movieInterstellarModId,    parentId: libraryContOccId, fields: libFields("movie", "Interstellar",        moviePosters) });
+  const movieBladeRunner2049OccId = await mkOcc({ moduleId: movieBladeRunner2049ModId, parentId: libraryContOccId, fields: libFields("movie", "Blade Runner 2049",   moviePosters) });
+  const moviePrestigeOccId        = await mkOcc({ moduleId: moviePrestigeModId,        parentId: libraryContOccId, fields: libFields("movie", "The Prestige",        moviePosters) });
+  const movieTenetOccId           = await mkOcc({ moduleId: movieTenetModId,           parentId: libraryContOccId, fields: libFields("movie", "Tenet",               moviePosters) });
 
   // 7 book occurrences (library field = "book")
-  const bookAtomicHabitsOccId     = await mkOcc({ moduleId: bookAtomicHabitsModId,     parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(320) } });
-  const bookDeepWorkOccId         = await mkOcc({ moduleId: bookDeepWorkModId,         parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(304) } });
-  const bookSapiensOccId          = await mkOcc({ moduleId: bookSapiensModId,          parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(464) } });
-  const bookThinkingFastSlowOccId = await mkOcc({ moduleId: bookThinkingFastSlowModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(499) } });
-  const bookMeditationsOccId      = await mkOcc({ moduleId: bookMeditationsModId,      parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(304) } });
-  const bookMansSearchOccId       = await mkOcc({ moduleId: bookMansSearchModId,       parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(165) } });
-  const book4HourWorkweekOccId    = await mkOcc({ moduleId: book4HourWorkweekModId,    parentId: libraryContOccId, fields: { [libraryFieldId]: fv("book"), [pagesFieldId]: fv(320) } });
+  const bookAtomicHabitsOccId     = await mkOcc({ moduleId: bookAtomicHabitsModId,     parentId: libraryContOccId, fields: bookFields("Atomic Habits",            320) });
+  const bookDeepWorkOccId         = await mkOcc({ moduleId: bookDeepWorkModId,         parentId: libraryContOccId, fields: bookFields("Deep Work",                304) });
+  const bookSapiensOccId          = await mkOcc({ moduleId: bookSapiensModId,          parentId: libraryContOccId, fields: bookFields("Sapiens",                  464) });
+  const bookThinkingFastSlowOccId = await mkOcc({ moduleId: bookThinkingFastSlowModId, parentId: libraryContOccId, fields: bookFields("Thinking, Fast and Slow",  499) });
+  const bookMeditationsOccId      = await mkOcc({ moduleId: bookMeditationsModId,      parentId: libraryContOccId, fields: bookFields("Meditations",              304) });
+  const bookMansSearchOccId       = await mkOcc({ moduleId: bookMansSearchModId,       parentId: libraryContOccId, fields: bookFields("Man's Search for Meaning", 165) });
+  const book4HourWorkweekOccId    = await mkOcc({ moduleId: book4HourWorkweekModId,    parentId: libraryContOccId, fields: bookFields("The 4-Hour Workweek",      320) });
 
   // 5 podcast occurrences (library field = "podcast")
-  const podcastTimFerrissOccId      = await mkOcc({ moduleId: podcastTimFerrissModId,      parentId: libraryContOccId, fields: { [libraryFieldId]: fv("podcast") } });
-  const podcastLexFridmanOccId      = await mkOcc({ moduleId: podcastLexFridmanModId,      parentId: libraryContOccId, fields: { [libraryFieldId]: fv("podcast") } });
-  const podcastHardcoreHistoryOccId = await mkOcc({ moduleId: podcastHardcoreHistoryModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("podcast") } });
-  const podcastHubermanLabOccId     = await mkOcc({ moduleId: podcastHubermanLabModId,     parentId: libraryContOccId, fields: { [libraryFieldId]: fv("podcast") } });
-  const podcastConvosTylerOccId     = await mkOcc({ moduleId: podcastConvosTylerModId,     parentId: libraryContOccId, fields: { [libraryFieldId]: fv("podcast") } });
+  const podcastTimFerrissOccId      = await mkOcc({ moduleId: podcastTimFerrissModId,      parentId: libraryContOccId, fields: libFields("podcast", "The Tim Ferriss Show",     podcastPosters) });
+  const podcastLexFridmanOccId      = await mkOcc({ moduleId: podcastLexFridmanModId,      parentId: libraryContOccId, fields: libFields("podcast", "Lex Fridman Podcast",      podcastPosters) });
+  const podcastHardcoreHistoryOccId = await mkOcc({ moduleId: podcastHardcoreHistoryModId, parentId: libraryContOccId, fields: libFields("podcast", "Hardcore History",         podcastPosters) });
+  const podcastHubermanLabOccId     = await mkOcc({ moduleId: podcastHubermanLabModId,     parentId: libraryContOccId, fields: libFields("podcast", "Huberman Lab",             podcastPosters) });
+  const podcastConvosTylerOccId     = await mkOcc({ moduleId: podcastConvosTylerModId,     parentId: libraryContOccId, fields: libFields("podcast", "Conversations with Tyler", podcastPosters) });
 
   // 4 course occurrences (library field = "course")
-  const courseAlgorithmsOccId      = await mkOcc({ moduleId: courseAlgorithmsModId,      parentId: libraryContOccId, fields: { [libraryFieldId]: fv("course") } });
-  const courseMLSpecOccId          = await mkOcc({ moduleId: courseMLSpecModId,          parentId: libraryContOccId, fields: { [libraryFieldId]: fv("course") } });
-  const courseSystemDesignOccId    = await mkOcc({ moduleId: courseSystemDesignModId,    parentId: libraryContOccId, fields: { [libraryFieldId]: fv("course") } });
-  const courseIntroPhilosophyOccId = await mkOcc({ moduleId: courseIntroPhilosophyModId, parentId: libraryContOccId, fields: { [libraryFieldId]: fv("course") } });
+  const courseAlgorithmsOccId      = await mkOcc({ moduleId: courseAlgorithmsModId,      parentId: libraryContOccId, fields: libFields("course", "Algorithms (Coursera)",           coursePosters) });
+  const courseMLSpecOccId          = await mkOcc({ moduleId: courseMLSpecModId,          parentId: libraryContOccId, fields: libFields("course", "Machine Learning Specialization", coursePosters) });
+  const courseSystemDesignOccId    = await mkOcc({ moduleId: courseSystemDesignModId,    parentId: libraryContOccId, fields: libFields("course", "System Design Primer",            coursePosters) });
+  const courseIntroPhilosophyOccId = await mkOcc({ moduleId: courseIntroPhilosophyModId, parentId: libraryContOccId, fields: libFields("course", "Introduction to Philosophy",     coursePosters) });
 
   // Reflection question occurrences — one per module above (library field = "question").
   // Parented under the Library container; the Daily Journal Questions board

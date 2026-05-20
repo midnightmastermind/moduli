@@ -289,7 +289,10 @@ function InstanceInner({
   // Pick a renderer from the file extension (same kinds ArtifactCard uses).
   const mediaTag = useMemo(() => {
     if (!mediaValue || typeof mediaValue !== "string") return null;
-    const ext = mediaValue.split(".").pop()?.toLowerCase() || "";
+    // Strip query string + fragment before sniffing extension so URLs like
+    // https://image.tmdb.org/.../poster.jpg?token=abc still classify right.
+    const cleaned = mediaValue.split(/[?#]/)[0];
+    const ext = cleaned.split(".").pop()?.toLowerCase() || "";
     if (["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"].includes(ext)) return "img";
     if (["mp4", "webm", "mov", "m4v"].includes(ext)) return "video";
     if (["mp3", "wav", "ogg", "m4a", "flac"].includes(ext)) return "audio";
@@ -572,27 +575,37 @@ function InstanceInner({
 
         {/* Media section — full-width row below label + fields. Board/list
             only (showMedia gate). Doubles as an artifact drop target. */}
-        {showMedia && (
-          <div
-            ref={mediaDropRef}
-            className={"instance-media" + (mediaDragOver ? " instance-media-dragover" : "") + (mediaValue ? "" : " instance-media-empty")}
-            style={{ flex: "1 1 100%", minWidth: 0 }}
-            title={mediaValue ? (mediaBinding?.field?.name || "Media") : "Drop an artifact here"}
-          >
-            {mediaValue && mediaTag === "img" && (
-              <img className="instance-media-el" src={`/uploads/${mediaValue}`} alt={mediaBinding?.field?.name || label || "media"} />
-            )}
-            {mediaValue && mediaTag === "video" && (
-              <video className="instance-media-el" src={`/uploads/${mediaValue}`} controls playsInline preload="metadata" />
-            )}
-            {mediaValue && mediaTag === "audio" && (
-              <audio className="instance-media-el" src={`/uploads/${mediaValue}`} controls style={{ width: "100%" }} />
-            )}
-            {!mediaValue && (
-              <span className="instance-media-placeholder">Drop media here</span>
-            )}
-          </div>
-        )}
+        {showMedia && (() => {
+          // mediaValue can be either a local upload (fileRef → /uploads/<…>)
+          // or an absolute URL (http(s):// or data:) — e.g. seeded library
+          // poster URLs from openlibrary / wikimedia. Detect-and-use-as-is
+          // when absolute; prefix /uploads/ otherwise.
+          const isAbsolute =
+            typeof mediaValue === "string" &&
+            /^(https?:\/\/|data:)/.test(mediaValue);
+          const src = isAbsolute ? mediaValue : `/uploads/${mediaValue}`;
+          return (
+            <div
+              ref={mediaDropRef}
+              className={"instance-media" + (mediaDragOver ? " instance-media-dragover" : "") + (mediaValue ? "" : " instance-media-empty")}
+              style={{ flex: "1 1 100%", minWidth: 0 }}
+              title={mediaValue ? (mediaBinding?.field?.name || "Media") : "Drop an artifact here"}
+            >
+              {mediaValue && mediaTag === "img" && (
+                <img className="instance-media-el" src={src} alt={mediaBinding?.field?.name || label || "media"} />
+              )}
+              {mediaValue && mediaTag === "video" && (
+                <video className="instance-media-el" src={src} controls playsInline preload="metadata" />
+              )}
+              {mediaValue && mediaTag === "audio" && (
+                <audio className="instance-media-el" src={src} controls style={{ width: "100%" }} />
+              )}
+              {!mediaValue && (
+                <span className="instance-media-placeholder">Drop media here</span>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Operation widgets */}
         {!renderBody && operationWidgets.length > 0 && (
