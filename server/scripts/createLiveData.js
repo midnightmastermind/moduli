@@ -3122,19 +3122,46 @@ export async function createLiveData(userId, options = {}) {
   // ── Bill containers + instances (B3 from carry-over plan) ──────────────────
   // Bills page (under Library folder) hosts 5 sub-containers by bill type.
   // Each bill instance carries amount + accountRef + cadence/day/anchor +
-  // billNextDue (computed by Bill: Compute Next Due op — C1 follow-up).
-  // First-of-month / anchor dates pre-seeded so the op has data to compute on.
-  const firstOfNextMonth = (() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() + (d.getDate() > 1 ? 1 : 0));
-    d.setDate(1); d.setHours(12, 0, 0, 0);
-    return d.toISOString();
-  })();
+  // billNextDue. Initial billNextDue is computed JS-side from cadence + day
+  // (+ anchor for every-n-days) so the seed lands realistic next-due values
+  // per cadence shape. The Bill: Compute Next Due op (C1 follow-up) will
+  // recompute these on cadence-field changes.
   const fortyTwoDaysAgo = (() => {
     const d = new Date();
     d.setDate(d.getDate() - 42); d.setHours(12, 0, 0, 0);
     return d.toISOString();
   })();
+  // Compute next-due ISO for a bill given its cadence shape. monthly /
+  // quarterly / yearly land on the given day-of-month at the upcoming
+  // cycle boundary; weekly / biweekly advance by 7/14 days from today;
+  // every-n-days advances anchor + N until > today.
+  const computeNextDue = (cadence, day, n, anchorIso) => {
+    const today = new Date(); today.setHours(12, 0, 0, 0);
+    const out = new Date(today);
+    if (cadence === "monthly" && Number.isFinite(day)) {
+      out.setDate(day);
+      if (out <= today) out.setMonth(out.getMonth() + 1);
+    } else if (cadence === "quarterly" && Number.isFinite(day)) {
+      out.setDate(day);
+      while (out <= today) out.setMonth(out.getMonth() + 3);
+    } else if (cadence === "yearly" && Number.isFinite(day)) {
+      out.setDate(day);
+      while (out <= today) out.setFullYear(out.getFullYear() + 1);
+    } else if (cadence === "weekly") {
+      out.setDate(out.getDate() + 7);
+    } else if (cadence === "biweekly") {
+      out.setDate(out.getDate() + 14);
+    } else if (cadence === "every-n-days" && Number.isFinite(n) && anchorIso) {
+      const a = new Date(anchorIso); a.setHours(12, 0, 0, 0);
+      const next = new Date(a);
+      while (next <= today) next.setDate(next.getDate() + n);
+      return next.toISOString();
+    } else {
+      // Unknown cadence → default 30 days out so the field has SOMETHING.
+      out.setDate(out.getDate() + 30);
+    }
+    return out.toISOString();
+  };
   const billDefaults = {
     // Each entry: { amount(out), cadence, day-of-month, anchor (for every-n-days) }
     netflixSub:          { amount: 15.99, cadence: "monthly", day: 8 },
@@ -3169,10 +3196,10 @@ export async function createLiveData(userId, options = {}) {
       if (def.day !== undefined)        defaultFields[fields.billDay.id]       = fv(def.day, "in");
       if (def.n !== undefined)          defaultFields[fields.billCadenceN.id]  = fv(def.n, "in");
       if (def.anchor)                   defaultFields[fields.billAnchor.id]    = fv(def.anchor, "in");
-      // Pre-seed billNextDue with the 1st of next month (op recomputes on
-      // first load with the real cadence math; this just gives Schedule
-      // Due: Seed something to read before the op fires).
-      defaultFields[fields.billNextDue.id] = fv(firstOfNextMonth, "in");
+      // Compute initial next-due from cadence shape. C1 (Bill: Compute Next
+      // Due) op recomputes this on cadence-field changes.
+      const initialDue = computeNextDue(def.cadence, def.day, def.n, def.anchor);
+      defaultFields[fields.billNextDue.id] = fv(initialDue, "in");
       const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: defaultFields });
       childOccIds.push(childId);
     }
