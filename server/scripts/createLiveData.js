@@ -2316,16 +2316,12 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
       ],
     },
-    carInsurance: {
-      id: uid(), label: "Car Insurance Renewal", kind: "list",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.amount.id, role: "input", order: 1 },
-        { fieldId: fields.due.id, role: "input", order: 2 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 3 },
-      ],
-    },
+    // carInsurance (Car Insurance Renewal) intentionally removed per B9 —
+    // recurring renewals now live as a bill in the Bills page
+    // (carInsuranceBill, every-180-days cadence). The Pay Bill task in the
+    // Financial wellness page picks it up via billRef; Schedule Due: Seed
+    // (C2 follow-up) copies it into Schedule Due when billNextDue lands.
+
     fileTaxes: {
       id: uid(), label: "File Taxes", kind: "list",
       defaultDragMode: "move",
@@ -2856,7 +2852,11 @@ export async function createLiveData(userId, options = {}) {
     social:        { contOccId: socialContOccId,       contModKey: "social",        instKeys: ["callFriend", "familyTime", "socialEvent", "helpSomeone"] },
     spiritual:     { contOccId: spiritualContOccId,    contModKey: "spiritual",     instKeys: ["prayer", "natureWalk", "spiritualReading", "mindfulness"] },
     occupational:  { contOccId: occupationalContOccId, contModKey: "occupational",  instKeys: ["deepWork", "meeting", "emailBlock", "skillDev", "networking"] },
-    financial:     { contOccId: financialContOccId,    contModKey: "financial",     instKeys: ["budgetReview", "trackExpense", "purchase", "logIncome", "investmentCheck", "savingsGoal"] },
+    // Financial wellness — daily finance habits + Pay Bill + Cancel Sub
+    // (moved here from Todo List per user spec; Pay Bill drags into Schedule
+    // via the upcoming Schedule Due: Seed op, Cancel Subscription targets
+    // the Bills page's Subscriptions container via subscriptionRef).
+    financial:     { contOccId: financialContOccId,    contModKey: "financial",     instKeys: ["budgetReview", "trackExpense", "purchase", "logIncome", "investmentCheck", "savingsGoal", "payBills", "cancelSub"] },
     environmental: { contOccId: environmentalContOccId,contModKey: "environmental", instKeys: ["cleanDesk", "declutter", "plantCare", "recycling", "ecoAction"] },
     creative:      { contOccId: creativeContOccId,     contModKey: "creative",      instKeys: ["sketch", "writeCreative", "playMusic", "photograph", "craftMake"] },
   };
@@ -2923,6 +2923,8 @@ export async function createLiveData(userId, options = {}) {
         trackExpense: 35,  // generic tracked expense (~coffee + lunch)
         purchase:     22,  // small purchase
         savingsGoal:  50,  // contribution toward a savings target
+        payBills:     85,  // generic pay-bill default until user picks billRef
+        cancelSub:    15,  // subscription cancellation fee / last charge
       };
       if (toolkitDefaultAmounts[instKey] !== undefined) {
         defaultFields[fields.amount.id] = fv(toolkitDefaultAmounts[instKey], "out");
@@ -2953,17 +2955,19 @@ export async function createLiveData(userId, options = {}) {
   const planningDueDates = {
     moduliLaunch:    daysFromNow(45),
     doctorCheckup:   daysFromNow(90),
-    carInsurance:    daysFromNow(12),
     fileTaxes:       daysFromNow(38),
     quarterlyReview: daysFromNow(21),
   };
 
   const todoMappings = {
     todoHome:     { contOccId: todoHomeContOccId,     contModKey: "todoHome",     instKeys: ["buyGroceries", "cleanGarage", "fixLeakyFaucet", "returnBooks", "organizePantry"] },
-    todoFinance:  { contOccId: todoFinanceContOccId,  contModKey: "todoFinance",  instKeys: ["payBills", "cancelSub", "renewLicense", "dentistAppt", "fileInsurance"] },
+    // todoFinance — Pay Bill + Cancel Subscription moved to Daily Toolkit's
+    // Financial wellness page (recurring finance tasks belong with the rest
+    // of the financial daily habits, not with Todo List one-offs).
+    todoFinance:  { contOccId: todoFinanceContOccId,  contModKey: "todoFinance",  instKeys: ["renewLicense", "dentistAppt", "fileInsurance"] },
     todoWork:     { contOccId: todoWorkContOccId,     contModKey: "todoWork",     instKeys: ["orderSupplies", "backupComputer", "updatePortfolio", "prepPresentation"] },
     todoPersonal: { contOccId: todoPersonalContOccId, contModKey: "todoPersonal", instKeys: ["callMom", "planVacation", "birthdayGift", "signUpClass"] },
-    todoPlan:     { contOccId: todoPlanContOccId,     contModKey: "todoPlan",     instKeys: ["moduliLaunch", "doctorCheckup", "carInsurance", "fileTaxes", "quarterlyReview"] },
+    todoPlan:     { contOccId: todoPlanContOccId,     contModKey: "todoPlan",     instKeys: ["moduliLaunch", "doctorCheckup", "fileTaxes", "quarterlyReview"] },
   };
 
   const todoContOccIds = {};
@@ -2988,12 +2992,13 @@ export async function createLiveData(userId, options = {}) {
       // so "Spent Today" / "Net Balance" trackers show non-zero values after the
       // first Schedule: Build Day sweep.  Flow is "out" (expense) for all.
       const todoDefaultAmounts = {
-        payBills:     85,   // utility bills (avg monthly)
-        cancelSub:    15,   // subscription cancellation fee / last charge
+        // payBills / cancelSub moved to Financial wellness toolkit page (no
+        // longer in todo list). carInsurance removed entirely — recurring
+        // renewal now handled by Pay Bill against carInsuranceBill in the
+        // Bills page (every-180-days cadence).
         orderSupplies: 45,  // office supplies order
         birthdayGift:  55,  // birthday gift for Sarah
         signUpClass:   75,  // cooking class enrollment
-        carInsurance: 210,  // quarterly car insurance premium
       };
       if (todoDefaultAmounts[instKey] !== undefined) {
         dueDatePreFill[fields.amount.id] = fv(todoDefaultAmounts[instKey], "out");
