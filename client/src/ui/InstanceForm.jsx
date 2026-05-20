@@ -8,6 +8,7 @@ import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
 import { X, Eye, EyeOff, Hash, Plus } from "lucide-react";
 import CategoryPathPicker from "./CategoryPathPicker";
+import EditorBindingSection from "./EditorBindingSection.jsx";
 import StyleEditor from "./StyleEditor";
 import { GridActionsContext } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
@@ -278,6 +279,17 @@ export default function InstanceForm({
             dispatch={dispatch}
             socket={socket}
           />
+
+          {/* Body binding picker — textblock-role instances only */}
+          {instance?.role === "textblock" && (
+            <BodyBindingPicker
+              instance={instance}
+              occurrence={occurrence}
+              fields={allFields}
+              dispatch={dispatch}
+              socket={socket}
+            />
+          )}
         </TabsContent>
       </Tabs>
 
@@ -301,6 +313,47 @@ export default function InstanceForm({
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * BodyBindingPicker — wraps EditorBindingSection with the read/write plumbing
+ * for textblock-role instance bindings. Module-level binding lives at
+ * instance.meta.bodyLink; occurrence-level at occurrence.meta.bodyLink.
+ */
+function BodyBindingPicker({ instance, occurrence, fields, dispatch, socket }) {
+  const [bindingScope, setBindingScope] = useState("module");
+  const sortedFields = useMemo(
+    () => (fields || []).filter((f) => !f.trashed).sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+    [fields]
+  );
+  const bindingValue = bindingScope === "module"
+    ? (instance?.meta?.bodyLink ?? null)
+    : (occurrence?.meta?.bodyLink ?? instance?.meta?.bodyLink ?? null);
+  const setBinding = (next) => {
+    if (bindingScope === "module") {
+      CommitHelpers.updateModule({
+        dispatch, socket,
+        module: { ...instance, meta: { ...(instance?.meta || {}), bodyLink: next } },
+        emit: true,
+      });
+    } else if (occurrence?.id) {
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: occurrence.id, meta: { ...(occurrence?.meta || {}), bodyLink: next } },
+        emit: true,
+      });
+    }
+  };
+  return (
+    <EditorBindingSection
+      slot="body"
+      binding={bindingValue}
+      onChange={setBinding}
+      scope={bindingScope}
+      onScopeChange={setBindingScope}
+      fields={sortedFields}
+    />
   );
 }
 

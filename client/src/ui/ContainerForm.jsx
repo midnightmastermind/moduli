@@ -1,5 +1,5 @@
 // forms/ContainerForm.jsx
-import React, { useContext, useMemo } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import StyleEditor from "./StyleEditor";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { GridActionsContext } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
+import EditorBindingSection from "./EditorBindingSection.jsx";
 
 const DRAG_MODE_OPTIONS = [
   { value: "move", label: "Move (relocate occurrence)" },
@@ -43,6 +44,26 @@ export default function ContainerForm({
 
   const attachedHeader = container?.attachedFields?.header || [];
   const attachedBody   = container?.attachedFields?.body   || [];
+
+  // Editor↔field binding picker state — scope toggle between module (template)
+  // and occurrence (this placement). Defaults to module.
+  const [bindingScope, setBindingScope] = useState("module");
+  const allFields = useMemo(
+    () => Object.values(fieldsById || {})
+      .filter((f) => !f.trashed)
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+    [fieldsById]
+  );
+  const headerBindingValue = bindingScope === "module"
+    ? (container?.meta?.headerLink ?? null)
+    : (occurrence?.meta?.headerLink ?? container?.meta?.headerLink ?? null);
+  const setHeaderBinding = (next) => {
+    if (bindingScope === "module") {
+      onContainerUpdate?.({ meta: { ...(container?.meta || {}), headerLink: next } });
+    } else if (occurrence?.id) {
+      onOccurrenceUpdate?.({ meta: { ...(occurrence?.meta || {}), headerLink: next } });
+    }
+  };
 
   const otherPlacements = useMemo(
     () => getOtherOccurrences(occurrencesById, modulesById, containerId, occurrence?.id),
@@ -201,6 +222,18 @@ export default function ContainerForm({
             )}
           </div>
 
+
+          <Separator />
+
+          {/* Editor↔Field Binding (header slot) */}
+          <EditorBindingSection
+            slot="header"
+            binding={headerBindingValue}
+            onChange={setHeaderBinding}
+            scope={bindingScope}
+            onScopeChange={setBindingScope}
+            fields={allFields}
+          />
 
           {/* Other Placements */}
           {otherPlacements.length > 0 && (
