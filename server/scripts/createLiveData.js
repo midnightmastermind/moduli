@@ -2425,6 +2425,17 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
       ],
     },
+    creativeSummary: {
+      // New — pairs with the 9th wellness (Creative). Mirrors other
+      // wellness-summary instances: completed + total duration aggregate
+      // sketch / writeCreative / playMusic / photograph / craftMake.
+      id: uid(), label: "Creative Expression", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
+        { fieldId: fields.totalDuration.id, role: "display", order: 1 },
+      ],
+    },
     planningSummary: {
       id: uid(), label: "Planning Overview", kind: "list",
       defaultDragMode: "move",
@@ -2665,6 +2676,7 @@ export async function createLiveData(userId, options = {}) {
     occupationalGoal:  { id: uid(), label: "Occupational",  styleMode: "own", ownStyle: { bg: "#0d7a52" } },
     financialGoal:     { id: uid(), label: "Financial",     styleMode: "own", ownStyle: { bg: "#1d8a30" } },
     environmentalGoal: { id: uid(), label: "Environmental", styleMode: "own", ownStyle: { bg: "#0779a0" } },
+    creativeGoal:      { id: uid(), label: "Creative",      styleMode: "own", ownStyle: { bg: "#c2399a" } },
     workoutGoal:      { id: uid(), label: "Workout" },
     nutritionGoal:    { id: uid(), label: "Nutrition" },
     planningGoal:     { id: uid(), label: "Planning" },
@@ -2814,6 +2826,7 @@ export async function createLiveData(userId, options = {}) {
   const occupationalGoalContOccId  = uid();
   const financialGoalContOccId     = uid();
   const environmentalGoalContOccId = uid();
+  const creativeGoalContOccId      = uid();
   const workoutGoalContOccId       = uid();
   const nutritionGoalContOccId     = uid();
   const planningGoalContOccId      = uid();
@@ -3034,6 +3047,7 @@ export async function createLiveData(userId, options = {}) {
     occupationalGoal:  { contOccId: occupationalGoalContOccId,  contModKey: "occupationalGoal",  instKeys: ["occupationalSummary"] },
     financialGoal:     { contOccId: financialGoalContOccId,     contModKey: "financialGoal",     instKeys: ["financialSummary"] },
     environmentalGoal: { contOccId: environmentalGoalContOccId, contModKey: "environmentalGoal", instKeys: ["environmentalSummary"] },
+    creativeGoal:      { contOccId: creativeGoalContOccId,      contModKey: "creativeGoal",      instKeys: ["creativeSummary"] },
     workoutGoal:       { contOccId: workoutGoalContOccId,       contModKey: "workoutGoal",       instKeys: ["workoutGoal"] },
     nutritionGoal:     { contOccId: nutritionGoalContOccId,     contModKey: "nutritionGoal",     instKeys: ["nutritionGoal"] },
     planningGoal:      { contOccId: planningGoalContOccId,      contModKey: "planningGoal",      instKeys: ["planningSummary"] },
@@ -3810,7 +3824,7 @@ export async function createLiveData(userId, options = {}) {
   });
 
   const goalsPageModId = uid(); const goalsPageOccId = uid();
-  await new Module({ id: goalsPageModId, userId, gridId, role: "page", kind: "board", label: "Daily Goals" }).save();
+  await new Module({ id: goalsPageModId, userId, gridId, role: "page", kind: "board", label: "Goals" }).save();
   await mkOcc({
     id: goalsPageOccId, moduleId: goalsPageModId,
     parentId: trackersFolderId, sortOrder: 0,
@@ -4216,7 +4230,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: fields.mood.id, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     enabled: true,
@@ -4405,7 +4419,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: moviesWatchedFieldId, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     pipeline: {
@@ -4549,7 +4563,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: booksReadFieldId, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     pipeline: {
@@ -4691,7 +4705,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: podcastsListenedFieldId, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     pipeline: {
@@ -4832,7 +4846,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: coursesTakenFieldId, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     pipeline: {
@@ -5509,7 +5523,7 @@ async function main() {
     console.log(`   Templates:      Daily Routine (6-pick) + Day Page under Templates manifest`);
     console.log(`   Operations:     26 (19 trackers + 1 daily question rotator + 4 schedule/day-page + Schedule Table: Build + Schedule Canvas: Build)`);
     console.log(`   Panels:         ${Object.keys(result.panelOccIds || {}).join(", ")}`);
-    console.log(`   Pages:          Daily Toolkit folder (11 wellness pages: Physical, Phys-Fitness, Phys-Nutrition, Intellectual, Emotional, Social, Spiritual, Occupational, Financial, Environmental, Creative) + Todo List + Daily Goals + Accounts + Schedule + Canvas + Schedule Table + Library + Daily Journal Questions + Bills`);
+    console.log(`   Pages:          Daily Toolkit folder (11 wellness pages: Physical, Phys-Fitness, Phys-Nutrition, Intellectual, Emotional, Social, Spiritual, Occupational, Financial, Environmental, Creative) + Todo List + Goals + Accounts + Schedule + Canvas + Schedule Table + Library + Daily Journal Questions + Bills`);
     console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Schedule (${result.schedPageOccId}); tabs=[Schedule, Canvas]`);
     console.log("=".repeat(50));
   } catch (err) {
