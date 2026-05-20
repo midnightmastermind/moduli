@@ -2548,6 +2548,30 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.totalWater.id, role: "display", order: 1 },
       ],
     },
+    // B8 — granular accounts. Net Worth + bill aggregations alongside the
+    // existing checking/savings/etc. Display fields reused; aggregator ops
+    // can be wired later to feed them (TBD follow-up).
+    netWorth: {
+      id: uid(), label: "Net Worth", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.netBalance.id, role: "display", order: 0 },
+      ],
+    },
+    totalSubscriptions: {
+      id: uid(), label: "Total Subscriptions", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "display", order: 0 },
+      ],
+    },
+    monthlyBills: {
+      id: uid(), label: "Monthly Bills", kind: "list",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.amount.id, role: "display", order: 0 },
+      ],
+    },
   };
 
   // ── Merge all kept instance sets ─────────────────────────────────────────────
@@ -3074,7 +3098,7 @@ export async function createLiveData(userId, options = {}) {
   // ── Account containers ─────────────────────────────────────────────────────
   // Account containers are all-time aggregations — no filterOverride needed.
   const accountMappings = {
-    financeAccount:      { contOccId: financeAccountContOccId,      contModKey: "financeAccount",      instKeys: ["bankAccount", "savingsAccount", "momsAccount"] },
+    financeAccount:      { contOccId: financeAccountContOccId,      contModKey: "financeAccount",      instKeys: ["bankAccount", "savingsAccount", "momsAccount", "netWorth", "totalSubscriptions", "monthlyBills"] },
     fitnessAccount:      { contOccId: fitnessAccountContOccId,      contModKey: "fitnessAccount",      instKeys: ["fitnessAccount"] },
     learningAccount:     { contOccId: learningAccountContOccId,     contModKey: "learningAccount",     instKeys: ["readingAccount"] },
     productivityAccount: { contOccId: productivityAccountContOccId, contModKey: "productivityAccount", instKeys: ["productivityAccount"] },
