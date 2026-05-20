@@ -984,20 +984,9 @@ export async function createLiveData(userId, options = {}) {
         ],
       },
     },
-    accountSelect: {
-      id: uid(),
-      name: "Account",
-      type: "select",
-      inputEnabled: true,
-      displayEnabled: false,
-      meta: {
-        options: [
-          { value: "checking", label: "Checking" },
-          { value: "savings",  label: "Savings" },
-          { value: "moms",     label: "Mom's Account" },
-        ],
-      },
-    },
+    // accountSelect (legacy string-options) removed per B4. accountRef
+    // (occurrence-pointer → Accounts page instance) replaces it on every
+    // amount-bearing task.
 
     // ── TEXT INPUT FIELDS ─────────────────────────────────────────────────────
     workoutType: {
@@ -1740,12 +1729,15 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     trackExpense: {
+      // accountSelect (legacy string-options) replaced by accountRef
+      // (occurrence-pointer → instance under Accounts page) per B4. Every
+      // amount-bearing task now uses accountRef.
       id: uid(), label: "Track Expense", kind: "list",
       defaultDragMode: "copy",
       styleMode: "own", ownStyle: { bg: "rgba(29,138,48,0.15)", textColor: "#4cba64" },
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.accountSelect.id, role: "input", order: 1 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
         { fieldId: fields.amount.id, role: "input", order: 2 },
         { fieldId: fields.category.id, role: "input", order: 3 },
         { fieldId: fields.notes.id, role: "input", order: 4 },
@@ -1756,7 +1748,7 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.accountSelect.id, role: "input", order: 1 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
         { fieldId: fields.amount.id, role: "input", order: 2 },
       ],
     },
@@ -1783,7 +1775,8 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.amount.id, role: "input", order: 1 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
+        { fieldId: fields.amount.id, role: "input", order: 2 },
       ],
     },
 
@@ -2189,15 +2182,16 @@ export async function createLiveData(userId, options = {}) {
       // Generic Pay Bill task. The user picks which bill via the billRef
       // dropdown; Schedule Due: Seed copies this task into the Schedule Due
       // container for each bill whose billNextDue falls in the active window
-      // (B3+C2 — Bills page + ops). amount + account flow through from the
-      // selected bill via downstream ops (auto-resolve in C2).
+      // (B3+C2 — Bills page + ops). amount + account default to whatever's
+      // on the selected bill but stay user-editable per instance.
       id: uid(), label: "Pay Bill", kind: "list",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.billRef.id,   role: "input", order: 1 },
-        { fieldId: fields.amount.id,    role: "input", order: 2 },
-        { fieldId: fields.due.id,       role: "input", order: 3 },
+        { fieldId: fields.completed.id,  role: "input", order: 0 },
+        { fieldId: fields.billRef.id,    role: "input", order: 1 },
+        { fieldId: fields.accountRef.id, role: "input", order: 2 },
+        { fieldId: fields.amount.id,     role: "input", order: 3 },
+        { fieldId: fields.due.id,        role: "input", order: 4 },
       ],
     },
     cancelSub: {
@@ -2240,7 +2234,8 @@ export async function createLiveData(userId, options = {}) {
       id: uid(), label: "Order office supplies", kind: "list",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: fields.amount.id, role: "input", order: 1 },
+        { fieldId: fields.accountRef.id, role: "input", order: 0 },
+        { fieldId: fields.amount.id,     role: "input", order: 1 },
       ],
     },
     backupComputer: {
@@ -2280,6 +2275,7 @@ export async function createLiveData(userId, options = {}) {
       id: uid(), label: "Buy birthday gift for Sarah", kind: "list",
       defaultDragMode: "move",
       fieldBindings: [
+        { fieldId: fields.accountRef.id, role: "input", order: 0 },
         { fieldId: fields.amount.id, role: "input", order: 1 },
         { fieldId: fields.due.id, role: "input", order: 2 },
         { fieldId: fields.daysUntilDue.id, role: "display", order: 3 },
@@ -2289,6 +2285,7 @@ export async function createLiveData(userId, options = {}) {
       id: uid(), label: "Sign up for cooking class", kind: "list",
       defaultDragMode: "move",
       fieldBindings: [
+        { fieldId: fields.accountRef.id, role: "input", order: 0 },
         { fieldId: fields.amount.id, role: "input", order: 1 },
       ],
     },
