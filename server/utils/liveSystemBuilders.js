@@ -201,7 +201,18 @@ export async function buildDailyRoutineTemplate({
 //   - Module      — caller-supplied Mongoose model constructor
 //
 // Returns tplDayPageRootOccId.
-export async function buildDayPageTemplate({ userId, gridId, tplManifestRootFolderId, mkOcc, Module }) {
+export async function buildDayPageTemplate({
+  userId,
+  gridId,
+  tplManifestRootFolderId,
+  mkOcc,
+  Module,
+  // Editor↔field binding context (optional — when present, the template
+  // wires a Daily Question container with header/body bindings).
+  dateFieldId = null,
+  journalQuestionFieldId = null,
+  journalAnswerFieldId = null,
+}) {
   const tplDayPageRootModId = uid();
   await new Module({
     id: tplDayPageRootModId, userId, gridId,
@@ -230,6 +241,52 @@ export async function buildDayPageTemplate({ userId, gridId, tplManifestRootFold
     role: "container", kind: "doc", label: "Tasks Completed",
     meta: { templateModule: true },
   }).save();
+
+  // Daily Question container — only mounted when binding context is supplied.
+  // Header binding: container.fields[journalQuestion] drives the header
+  // dropdown (options come from journalQuestion's find-mode pool).
+  // Body binding (on inner textblock): textblock.fields[journalAnswer] is
+  // edited via TipTap; both are stamped with date so propagateBoundFieldWrite
+  // syncs them with any other occurrence (e.g. journaling instance) sharing
+  // the same date.
+  const wantsDailyQuestion = !!(dateFieldId && journalQuestionFieldId && journalAnswerFieldId);
+  let tplDailyQContModId = null;
+  let tplDailyQContOccId = null;
+  let tplDailyQTextblockModId = null;
+  let tplDailyQTextblockOccId = null;
+
+  if (wantsDailyQuestion) {
+    tplDailyQContModId = uid();
+    tplDailyQContOccId = uid();
+    tplDailyQTextblockModId = uid();
+    tplDailyQTextblockOccId = uid();
+
+    await new Module({
+      id: tplDailyQContModId, userId, gridId,
+      role: "container", kind: "doc", label: "Daily Question",
+      fieldBindings: [
+        { fieldId: dateFieldId, role: "input", hidden: true, order: 0 },
+        { fieldId: journalQuestionFieldId, role: "input", hidden: true, order: 1 },
+      ],
+      meta: {
+        templateModule: true,
+        headerLink: { selfField: journalQuestionFieldId, link: dateFieldId },
+      },
+    }).save();
+
+    await new Module({
+      id: tplDailyQTextblockModId, userId, gridId,
+      role: "textblock", kind: "doc", label: "Daily Answer",
+      fieldBindings: [
+        { fieldId: dateFieldId, role: "input", hidden: true, order: 0 },
+        { fieldId: journalAnswerFieldId, role: "input", hidden: true, order: 1 },
+      ],
+      meta: {
+        templateModule: true,
+        bodyLink: { selfField: journalAnswerFieldId, link: dateFieldId },
+      },
+    }).save();
+  }
 
   const tplDayPageRootOccId = uid();
   const tplDayPageTextblockOccId = uid();
@@ -260,21 +317,62 @@ export async function buildDayPageTemplate({ userId, gridId, tplManifestRootFold
     occurrences: [],
   });
 
+  if (wantsDailyQuestion) {
+    // Daily Question container occurrence — fields[dateFieldId] is stamped at
+    // APPLY_TEMPLATE time by Day Page: Build (replacements + defaultFields).
+    // The header binding reads fields[journalQuestion]; the textblock body
+    // reads fields[journalAnswer]. Both fields are blank on the template;
+    // ops + user edits populate them on the cloned occurrence.
+    await mkOcc({
+      id: tplDailyQTextblockOccId,
+      moduleId: tplDailyQTextblockModId,
+      targetId: tplDailyQTextblockModId, targetType: "module",
+      parentId: tplDailyQContOccId,
+      // Blank doc — the bound body editor will populate from
+      // fields[journalAnswer] via BoundBody at render time.
+      textmap: { type: "doc", content: [{ type: "paragraph" }] },
+      occurrences: [],
+    });
+
+    await mkOcc({
+      id: tplDailyQContOccId,
+      moduleId: tplDailyQContModId,
+      targetId: tplDailyQContModId, targetType: "module",
+      parentId: tplDayPageRootOccId,
+      // Container body embeds the textblock (which is what the user types into
+      // for the answer).
+      textmap: {
+        type: "doc",
+        content: [
+          { type: "instanceTextblock", attrs: { instanceId: tplDailyQTextblockModId, occurrenceId: tplDailyQTextblockOccId } },
+        ],
+      },
+      occurrences: [tplDailyQTextblockOccId],
+    });
+  }
+
+  const dayPageOccurrencesList = wantsDailyQuestion
+    ? [tplDayPageTextblockOccId, tplDailyQContOccId, tplTasksCompletedContOccId]
+    : [tplDayPageTextblockOccId, tplTasksCompletedContOccId];
+
+  const dayPageTextmapContent = wantsDailyQuestion
+    ? [
+        { type: "instanceTextblock", attrs: { instanceId: tplDayPageTextblockModId, occurrenceId: tplDayPageTextblockOccId } },
+        { type: "moduleEmbed",       attrs: { occurrenceId: tplDailyQContOccId } },
+        { type: "moduleEmbed",       attrs: { occurrenceId: tplTasksCompletedContOccId } },
+      ]
+    : [
+        { type: "instanceTextblock", attrs: { instanceId: tplDayPageTextblockModId, occurrenceId: tplDayPageTextblockOccId } },
+        { type: "moduleEmbed",       attrs: { occurrenceId: tplTasksCompletedContOccId } },
+      ];
+
   await mkOcc({
     id: tplDayPageRootOccId,
     moduleId: tplDayPageRootModId,
     targetId: tplDayPageRootModId, targetType: "module",
     parentId: tplManifestRootFolderId,
-    occurrences: [tplDayPageTextblockOccId, tplTasksCompletedContOccId],
-    // The doc page's OWN content: the H1 textblock followed by the Tasks
-    // Completed doc container (rendered inline as an embedded card).
-    textmap: {
-      type: "doc",
-      content: [
-        { type: "instanceTextblock", attrs: { instanceId: tplDayPageTextblockModId, occurrenceId: tplDayPageTextblockOccId } },
-        { type: "moduleEmbed",       attrs: { occurrenceId: tplTasksCompletedContOccId } },
-      ],
-    },
+    occurrences: dayPageOccurrencesList,
+    textmap: { type: "doc", content: dayPageTextmapContent },
     meta: { templateName: "Day Page", templateModule: true },
   });
 
@@ -681,6 +779,13 @@ export function makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolder
                 // existing target); rootLabel names it per date; replacements
                 // stamps the date into the cloned textblock's H1. The page's
                 // own instanceTextblock ref is auto-remapped to the clone.
+                //
+                // defaultFields stamps fields[dateFieldId] = $dayDate on every
+                // cloned occurrence (the Daily Question container + textblock
+                // need this so their { selfField, link:dateFieldId } bindings
+                // can JOIN with the journaling instance for that day). The H1
+                // textblock and Tasks Completed container also receive the
+                // stamp — harmless; they just don't read it.
                 { id: uid(), type: "action", config: {
                     type: "APPLY_TEMPLATE",
                     templateRef: "$dayPageTplId",
@@ -688,6 +793,7 @@ export function makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolder
                     rootLabel: "$dayPageName",
                     replacements: { "{Date}": "$dayDate" },
                     rootIdVar: "$newDayPageId",
+                    defaultFields: { [dateFieldId]: "$dayDate" },
                 }},
                 // Pin the new day page into the Center Hub panel as an
                 // inactive tab — same as how the Notes page is "opened"

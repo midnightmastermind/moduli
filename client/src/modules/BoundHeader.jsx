@@ -64,8 +64,12 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
   }
 
   const value = hostOccurrence.fields?.[binding.selfField]?.value;
+  // Render as a dropdown whenever options are available — covers select-type
+  // fields AND text-type fields with an optionsSource (e.g. journalQuestion's
+  // find-mode pool). Falls back to the text branch when no options resolve.
+  const hasOptions = options.length > 0;
 
-  if (field.type === "select") {
+  if (field.type === "select" || hasOptions) {
     const onDice = () => {
       if (!options.length) return;
       const pick = options[Math.floor(Math.random() * options.length)];

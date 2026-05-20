@@ -2862,7 +2862,19 @@ export async function createLiveData(userId, options = {}) {
     findModule: (q) => Module.findOne(q).lean(),
   });
 
-  await buildDayPageTemplate({ userId, gridId, tplManifestRootFolderId, mkOcc, Module });
+  await buildDayPageTemplate({
+    userId, gridId, tplManifestRootFolderId, mkOcc, Module,
+    // Editor↔field binding wiring: Daily Question container in the day page
+    // template carries header binding for journalQuestion (dropdown from the
+    // questions pool via find-mode optionsSource) and body binding for
+    // journalAnswer. Both join on dateFieldId — Day Page: Build stamps the
+    // date on the cloned occurrences, and any other occurrence with matching
+    // date + selfField (e.g. journaling instance) syncs automatically via
+    // propagateBoundFieldWrite on every write.
+    dateFieldId,
+    journalQuestionFieldId,
+    journalAnswerFieldId,
+  });
 
   // ── STEP 7c: Notebook docs parsed into DB textmaps ──────────────────────────
   //
