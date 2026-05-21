@@ -294,13 +294,13 @@ export const CanvasContent = React.memo(function CanvasContent({
     }
   }, [containerOccurrence, dispatch, socket]);
 
-  // Hit-test: given a world-space pointer event, return the occurrence
-  // id of the card under the pointer (or null). Uses document.elementFromPoint
-  // so the routine works regardless of whether the card is an instance
-  // (data-occurrence-id) or a container (data-occ-id). Crucially we
-  // temporarily hide the SVG overlay during the test so its pointer-
-  // events don't shadow the cards — but it's already pointer-events:none
-  // in the render, so this is just defense.
+  // Hit-test: given a viewport-space pointer event, return the
+  // occurrence id of the card under the pointer (or null). Uses
+  // document.elementFromPoint so the routine works regardless of
+  // whether the card is an instance (data-occurrence-id) or a
+  // container (data-occ-id). The SVG edge overlay is already
+  // pointer-events:none at the layer level, so it doesn't shadow
+  // cards even when edges are dense.
   const hitTestOccId = useCallback((clientX, clientY) => {
     const el = document.elementFromPoint(clientX, clientY);
     if (!el) return null;

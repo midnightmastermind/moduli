@@ -665,6 +665,11 @@ function ModuleInstance({
   const dragCtx = useDragContext();
   const { isContainerDrag } = dragCtx;
   const selection = useContext(SelectionContext);
+  // Pull occurrencesById so the bulk-delete handler can look up each
+  // selected occurrence (+ its parent) and pass them to removeOccurrence
+  // so MeasureOps fire and the parent's occurrences[] cleans up. Single-
+  // item delete below already does this for the right-clicked target.
+  const { occurrencesById } = useContext(GridActionsContext);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [showDoc, setShowDoc] = useState(false);
 
@@ -711,8 +716,29 @@ function ModuleInstance({
         onClick: () => {
           const ids = [...selection.selectedIds];
           selection.clear();
+          // Resolve each occurrence + its parent so removeOccurrence
+          // fires MeasureOps for the deleted fields and cleans the
+          // parent's occurrences[] list. Parent lookup mirrors the
+          // pasteClipboard / dragHitTesting convention: reverse-scan
+          // occurrences[] arrays, fall back to parentId.
           for (const id of ids) {
-            CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: id, emit: true });
+            const target = occurrencesById?.[id];
+            let parentOcc = null;
+            if (occurrencesById) {
+              for (const cand of Object.values(occurrencesById)) {
+                if (Array.isArray(cand.occurrences) && cand.occurrences.includes(id)) {
+                  parentOcc = cand;
+                  break;
+                }
+              }
+              if (!parentOcc && target?.parentId) parentOcc = occurrencesById[target.parentId] || null;
+            }
+            CommitHelpers.removeOccurrence({
+              dispatch, socket, occurrenceId: id,
+              occurrence: target || undefined,
+              parentOccurrence: parentOcc || undefined,
+              emit: true,
+            });
           }
         },
       },
@@ -740,7 +766,7 @@ function ModuleInstance({
       },
     ].filter(Boolean);
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
-  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection]);
+  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, occurrencesById]);
 
   const handleRef = useRef(null);
 

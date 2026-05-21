@@ -25,7 +25,7 @@
 // reports a `reconnect_attempt`; reset to 0 on successful reconnect.
 // Toolbar can use this to show "Retrying (3)" or similar if desired.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { socket } from "../socket";
 
 const DEFAULT_RECOVERED_MS = 3000;
@@ -33,31 +33,40 @@ const DEFAULT_RECOVERED_MS = 3000;
 export function useSocketStatus({ recoveredDurationMs = DEFAULT_RECOVERED_MS } = {}) {
   const [status, setStatus] = useState(() => (socket.connected ? "connected" : "disconnected"));
   const [attempts, setAttempts] = useState(0);
+  // Tracks whether we've seen a real disconnect event (or booted up
+  // already disconnected). Without this, the first `connect` event on
+  // a fresh page load flips status "disconnected" → "recovered" and
+  // shows a 3s green pill on every reload — cosmetic but annoying.
+  // We only treat a connect as a "recovery" when there's actually
+  // something to recover from.
+  const wasDisconnectedRef = useRef(!socket.connected);
 
   useEffect(() => {
     let recoveredTimer = null;
 
     const onConnect = () => {
       setAttempts(0);
-      // If we were previously down (or the very first connect during
-      // a restored-offline tab) show the recovered banner briefly.
-      // For the initial connect on a healthy session this flip from
-      // "connected" → "recovered" → "connected" still happens, but the
-      // recovered pill is small enough that we accept the cosmetic
-      // flash. If it becomes annoying, gate on a "wasDisconnected"
-      // ref set inside onDisconnect.
-      setStatus((prev) => (prev === "disconnected" ? "recovered" : prev));
+      const wasDown = wasDisconnectedRef.current;
+      wasDisconnectedRef.current = false;
+      if (!wasDown) {
+        // Healthy boot — go straight to connected, no recovered flash.
+        setStatus("connected");
+        return;
+      }
+      setStatus("recovered");
       if (recoveredTimer) clearTimeout(recoveredTimer);
       recoveredTimer = setTimeout(() => setStatus("connected"), recoveredDurationMs);
     };
 
     const onDisconnect = () => {
       if (recoveredTimer) { clearTimeout(recoveredTimer); recoveredTimer = null; }
+      wasDisconnectedRef.current = true;
       setStatus("disconnected");
     };
 
     const onConnectError = () => {
       if (recoveredTimer) { clearTimeout(recoveredTimer); recoveredTimer = null; }
+      wasDisconnectedRef.current = true;
       setStatus("disconnected");
     };
 
