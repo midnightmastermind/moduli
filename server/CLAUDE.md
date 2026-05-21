@@ -2,6 +2,32 @@
 
 _Updated: 2026-05-20. Check this file before re-reading source._
 
+## Recent Changes (2026-05-21 — Jarvis assistant (branch: assistant-jarvis))
+- **`services/wikipediaTools.js` (NEW)** — `search`, `summary`, and
+  `fullMarkdown` against the public Wikipedia REST + MediaWiki APIs.
+  No auth. Includes a dependency-free HTML→markdown converter tuned
+  for Wikipedia output (strips infobox/navbox/refs/images, keeps
+  headings/paragraphs/lists/inline marks).
+- **`services/assistantAgent.js` (NEW)** — Jarvis. Two modes:
+  - Mode A (default, no key): deterministic dispatcher matching
+    `wiki <q>` / `look up <q>` / `page on <q>` / `research <q>` /
+    `import:\n<md>` / `list ops` to the matching tool.
+  - Mode B (`ANTHROPIC_API_KEY` set): real Claude agent loop with
+    tool catalog. Default model `claude-haiku-4-5-20251001`,
+    overridable via `ANTHROPIC_MODEL`. MAX_TOOL_ITERATIONS=6 cap.
+  Tool catalog (5 tools): `wikipedia_search`, `wikipedia_import`,
+  `import_markdown`, `list_operations`, `run_operation`. Each tool
+  is a wrapper over an existing `/api/v1/*` endpoint — Jarvis has
+  no special privileges.
+- **`routes/apiV1.js`** added:
+  - `GET /research/wikipedia/search?q=` — list matches
+  - `GET /research/wikipedia/summary?title=` — lede + thumbnail
+  - `GET /research/wikipedia/full?title=` — full article as markdown
+  - `POST /research/wikipedia/import` — composite search → fullMarkdown
+    → markdownImporter → broadcast. One HTTP call = a finished page.
+  - `POST /assistant/chat` — chat endpoint. Body: `{ messages, gridId }`.
+- **`@anthropic-ai/sdk`** added as server dep.
+
 ## Recent Changes (2026-05-21 — Phase 4: webhook HMAC + idempotency keys + markdown import)
 - **`models/Operation.js`** — added `webhookSecret: String | null`.
   When set, `/api/webhooks/:operationId` requires

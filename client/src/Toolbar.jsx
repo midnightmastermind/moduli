@@ -125,6 +125,19 @@ const gridOptions = useMemo(
         window.addEventListener("touchend", done, { passive: true });
       }}
     >
+      {/* Socket connection status — centered overlay so it sits in the
+          middle of the toolbar regardless of left/right section widths.
+          Only renders when offline / just reconnected (null otherwise),
+          so it doesn't visually interfere with normal toolbar UI. */}
+      <div
+        className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center"
+        style={{ zIndex: 5 }}
+      >
+        <div className="pointer-events-auto">
+          <SocketStatusBanner />
+        </div>
+      </div>
+
       <div className="flex items-center w-full gap-1.5">
         {/* ── Left: Logo + Add Panel + Grid Select ── */}
         <div className="flex items-center gap-1 shrink-0">
@@ -133,11 +146,6 @@ const gridOptions = useMemo(
             <img src="/moduli_logo.png" alt="Moduli" style={{ height: 18, width: "auto", display: "block" }} />
             {!isMobile && <span className="text-[10px] px-1 text-text-muted font-mono whitespace-nowrap">+moduli+</span>}
           </div>
-
-          {/* Socket connection status — renders only when offline / just
-              reconnected. Sits flush against the logo so it's the first
-              thing the user sees if their connection drops. */}
-          <SocketStatusBanner />
 
           {/* Add Panel button */}
           <Button

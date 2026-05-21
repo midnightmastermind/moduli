@@ -21,15 +21,23 @@ import { WifiOff, Wifi } from "lucide-react";
 import { useSocketStatus } from "../hooks/useSocketStatus";
 
 export default function SocketStatusBanner() {
-  const { status, attempts } = useSocketStatus();
+  const { status, attempts, retryInMs } = useSocketStatus();
 
   if (status === "connected") return null;
 
   const isDown = status === "disconnected";
   const Icon = isDown ? WifiOff : Wifi;
-  const label = isDown
-    ? (attempts > 0 ? `Disconnected — retrying (${attempts})` : "Disconnected — retrying…")
-    : "Reconnected";
+  let label;
+  if (!isDown) {
+    label = "Reconnected";
+  } else if (retryInMs > 0) {
+    // ceil so the user sees a smooth countdown ("3s … 2s … 1s")
+    // instead of jumping from "1s" straight to "trying".
+    const seconds = Math.ceil(retryInMs / 1000);
+    label = `Disconnected — retry in ${seconds}s${attempts > 0 ? ` (attempt ${attempts + 1})` : ""}`;
+  } else {
+    label = attempts > 0 ? `Disconnected — trying now (attempt ${attempts})` : "Disconnected — retrying…";
+  }
   const tooltip = isDown
     ? "Connection to server lost. Your changes are being saved locally and will sync when the connection comes back."
     : "Connection restored. Buffered changes have been replayed.";

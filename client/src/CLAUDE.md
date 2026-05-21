@@ -2,6 +2,27 @@
 
 _Updated: 2026-05-20. Check this file before re-reading source._
 
+## Recent Changes (2026-05-21 — Jarvis assistant drawer + socket retry countdown (branch: assistant-jarvis))
+- **`ui/AssistantDrawer.jsx` (NEW)** — bottom-right floating "J"
+  button, click → 380×560 slide-in chat drawer. State all local:
+  `token` (Bearer, in localStorage `moduli_api_token`), `messages`
+  (chat history, in localStorage `moduli_assistant_history`), `input`.
+  POSTs `{ messages, gridId }` to `/api/v1/assistant/chat` and
+  renders assistant + tool transcript bubbles. Settings (⚙) panel
+  in the header for pasting the API token. Mounted in `App.jsx`
+  alongside `<TransactionHistory>`.
+- **`hooks/useSocketStatus.js`** now exposes `retryInMs` — a live
+  countdown to the next socket.io reconnect attempt. Decremented
+  every 100ms by an internal ticker. Reset to the predicted backoff
+  delay on every `connect_error`; parked at 0 while an attempt is
+  actively in flight (`reconnect_attempt` event); cleared on success.
+  Computed from `socket.io.opts.reconnectionDelay` /
+  `reconnectionDelayMax` (matches socket.io's actual backoff formula,
+  minus jitter).
+- **`ui/SocketStatusBanner.jsx`** label updated to show
+  `"Disconnected — retry in 2s (attempt 3)"` while waiting, and
+  `"Disconnected — trying now (attempt N)"` during an active attempt.
+
 ## Recent Changes (2026-05-20 — Removed temporary [BUILD-DAY]/[SCHED-TABLE]/[FILTER-DIAG]/[VIS-DIAG] console logs)
 - Six files were emitting tagged diagnostic `console.log`s on every load,
   NavigationOp, filter change, and Schedule render (~50 lines per debug
