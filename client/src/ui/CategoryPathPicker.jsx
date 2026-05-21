@@ -223,6 +223,28 @@ function fieldsMapItems(ctx) {
   }));
 }
 
+// Items for an id-keyed occurrence map ($allItemsById / $allOccurrencesById).
+// Each entry surfaces the occurrence id as the path segment (matches the
+// executor's `{[id]: occ}` shape so `$allItemsById.<id>` resolves) but renders
+// the occurrence's label so authors can pick by name. Drills into the standard
+// occurrence shape thereafter.
+function occurrenceMapItems(ctx) {
+  const byId = ctx?.occurrencesById || {};
+  const modById = ctx?.modulesById || {};
+  return Object.values(byId).map(occ => {
+    const mod = occ.moduleId ? modById[occ.moduleId] : null;
+    const label = mod?.label || occ.label || occ.id;
+    return {
+      value: occ.id,
+      title: label,
+      sub: mod?.role || "occurrence",
+      description: mod?.kind ? `${mod.role}/${mod.kind}` : (mod?.role || "occurrence"),
+      hasChildren: true,
+      childShape: "occurrence",
+    };
+  });
+}
+
 function descendShape(shape, ctx) {
   if (!shape) return [];
   if (shape === "occurrence") return SHAPES.occurrence.keys(ctx);
@@ -230,6 +252,7 @@ function descendShape(shape, ctx) {
   if (shape === "filter") return SHAPES.filter.keys(ctx);
   if (shape === "grid") return SHAPES.grid.keys(ctx);
   if (shape === "fieldsMap") return fieldsMapItems(ctx);
+  if (shape === "occurrenceMap") return occurrenceMapItems(ctx);
   if (shape === "operation") return SHAPES.operation.keys(ctx);
   if (shape === "triggerObject") return SHAPES.triggerObject.keys(ctx);
   if (shape === "sourceBinding") return SHAPES.sourceBinding.keys(ctx);
@@ -246,6 +269,8 @@ function descendShape(shape, ctx) {
 const BUILTIN_VAR_SHAPES = {
   $allItems: "occurrenceArray",
   $allOccurrences: "occurrenceArray",
+  $allItemsById: "occurrenceMap",
+  $allOccurrencesById: "occurrenceMap",
   $allContainers: "occurrenceArray",
   $allInstances: "occurrenceArray",
   $allPages: "occurrenceArray",

@@ -74,6 +74,13 @@ export const CATEGORIES = [
           hasChildren: true,
         },
         {
+          value: "$allItemsById",
+          title: "$allItemsById",
+          sub: "occurrenceMap",
+          description: "Id-keyed map of every occurrence — drill into one to commit a stable id path (no scan, no FIND)",
+          hasChildren: true,
+        },
+        {
           value: "$allTemplates",
           title: "$allTemplates",
           sub: "templateArray",
