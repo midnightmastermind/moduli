@@ -85,6 +85,13 @@ export const CanvasContent = React.memo(function CanvasContent({
   const [drawColor, setDrawColor] = useState("#e2e8f0");
   const [drawSize, setDrawSize] = useState(2);
   const [strokes, setStrokes] = useState(() => containerOccurrence?.meta?.drawData || []);
+  // Unified undo / redo. Each entry: { type, payload }
+  //   "stroke-add"  — payload is the stroke object (push at end of `strokes`)
+  //   "edge-add"    — payload is the edge object (push at end of `edges`)
+  //   "edge-delete" — payload is the deleted edge (was removed from `edges`)
+  // Undo pops the top, inverts, pushes onto redoStack; redo replays.
+  // History does not persist server-side — fresh each session.
+  const [history, setHistory] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
   // Connection edges between cards. Persisted on the page occurrence's
   // meta.edges array. Each entry: { id, from: occurrenceId, to:
@@ -114,6 +121,10 @@ export const CanvasContent = React.memo(function CanvasContent({
   const currentPath = useRef([]);
   const strokesRef = useRef(strokes);
   strokesRef.current = strokes;
+  // Mirror edges into a ref so undo/redo can read the latest array
+  // without depending on stale state captured by useCallback closures.
+  const edgesRef = useRef(edges);
+  edgesRef.current = edges;
 
   // Combined ref for surface so the parent's drop ref and our local ref both
   // attach to the same node.
@@ -222,9 +233,12 @@ export const CanvasContent = React.memo(function CanvasContent({
     };
   }, [containerOccurrence, dispatch, socket]);
 
-  // Sync strokes when occurrence changes externally
+  // Sync strokes when occurrence changes externally. Clear undo/redo on
+  // occurrence switch — history is per-canvas and shouldn't bleed across
+  // navigations.
   useEffect(() => {
     setStrokes(containerOccurrence?.meta?.drawData || []);
+    setHistory([]);
     setRedoStack([]);
   }, [containerOccurrence?.id]);
 
@@ -268,23 +282,6 @@ export const CanvasContent = React.memo(function CanvasContent({
     }
   }, [containerOccurrence, dispatch, socket]);
 
-  const undo = useCallback(() => {
-    if (strokesRef.current.length === 0) return;
-    const last = strokesRef.current[strokesRef.current.length - 1];
-    const next = strokesRef.current.slice(0, -1);
-    setRedoStack(r => [...r, last]);
-    saveStrokes(next);
-  }, [saveStrokes]);
-
-  const redo = useCallback(() => {
-    setRedoStack(r => {
-      if (r.length === 0) return r;
-      const last = r[r.length - 1];
-      saveStrokes([...strokesRef.current, last]);
-      return r.slice(0, -1);
-    });
-  }, [saveStrokes]);
-
   const saveEdges = useCallback((nextEdges) => {
     setEdges(nextEdges);
     if (containerOccurrence?.id) {
@@ -293,6 +290,44 @@ export const CanvasContent = React.memo(function CanvasContent({
         emit: true });
     }
   }, [containerOccurrence, dispatch, socket]);
+
+  // Unified undo: peek the most recent action and inverse it. Each
+  // action type knows how to roll back its own payload. The reversed
+  // entry is pushed onto redoStack so redo can re-apply.
+  const undo = useCallback(() => {
+    setHistory(h => {
+      if (h.length === 0) return h;
+      const last = h[h.length - 1];
+      setRedoStack(r => [...r, last]);
+      if (last.type === "stroke-add") {
+        // Strokes are append-only; the most recent stroke is always at
+        // the tail of strokes[]. Slice it off.
+        saveStrokes(strokesRef.current.slice(0, -1));
+      } else if (last.type === "edge-add") {
+        saveEdges(edgesRef.current.filter(e => e.id !== last.payload.id));
+      } else if (last.type === "edge-delete") {
+        saveEdges([...edgesRef.current, last.payload]);
+      }
+      return h.slice(0, -1);
+    });
+  }, [saveStrokes, saveEdges]);
+
+  // Unified redo: pop from redoStack, re-apply, push back onto history.
+  const redo = useCallback(() => {
+    setRedoStack(r => {
+      if (r.length === 0) return r;
+      const last = r[r.length - 1];
+      setHistory(h => [...h, last]);
+      if (last.type === "stroke-add") {
+        saveStrokes([...strokesRef.current, last.payload]);
+      } else if (last.type === "edge-add") {
+        saveEdges([...edgesRef.current, last.payload]);
+      } else if (last.type === "edge-delete") {
+        saveEdges(edgesRef.current.filter(e => e.id !== last.payload.id));
+      }
+      return r.slice(0, -1);
+    });
+  }, [saveStrokes, saveEdges]);
 
   // Hit-test: given a viewport-space pointer event, return the
   // occurrence id of the card under the pointer (or null). Uses
@@ -536,6 +571,8 @@ export const CanvasContent = React.memo(function CanvasContent({
         if (!exists) {
           const newEdge = { id: `e-${connectDrag.fromOccId}-${toOccId}-${Date.now()}`, from: connectDrag.fromOccId, to: toOccId };
           saveEdges([...edges, newEdge]);
+          setHistory(h => [...h, { type: "edge-add", payload: newEdge }]);
+          setRedoStack([]);
         }
       }
       setConnectDrag(null);
@@ -558,8 +595,11 @@ export const CanvasContent = React.memo(function CanvasContent({
     }
     currentPath.current = [];
     if (newStroke) {
-      // New stroke clears any pending redo branch.
+      // New stroke clears any pending redo branch and pushes onto the
+      // unified undo history so Cmd-Z rolls back the most recent action
+      // regardless of type.
       setRedoStack([]);
+      setHistory(h => [...h, { type: "stroke-add", payload: newStroke }]);
       saveStrokes([...strokesRef.current, newStroke]);
     }
   }, [drawTool, drawColor, drawSize, getPos, saveStrokes, connectDrag, edges, hitTestOccId, saveEdges]);
@@ -648,7 +688,10 @@ export const CanvasContent = React.memo(function CanvasContent({
   }, []);
 
   const effectiveContainerId = containerId || module?.id;
-  const canUndo = strokes.length > 0;
+  // canUndo/canRedo come from the unified history (strokes + edges).
+  // Was previously gated on strokes.length, which left undo grayed-out
+  // for canvases that only had edge actions.
+  const canUndo = history.length > 0;
   const canRedo = redoStack.length > 0;
 
   // Per-tool cursor for the surface — grab/grabbing for pan, otherwise based
@@ -724,7 +767,7 @@ export const CanvasContent = React.memo(function CanvasContent({
   );
   const historyButtons = (
     <div className="canvas-toolbar-group">
-      <button onClick={undo} disabled={!canUndo} title="Undo (last stroke)"
+      <button onClick={undo} disabled={!canUndo} title="Undo last action (stroke or edge)"
         style={{ background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: canUndo ? "pointer" : "not-allowed", color: canUndo ? "var(--text-muted)" : "var(--text-faint)", display: "flex", alignItems: "center", opacity: canUndo ? 1 : 0.4 }}>
         <Undo2 style={{ width: 12, height: 12 }} />
       </button>
@@ -772,7 +815,12 @@ export const CanvasContent = React.memo(function CanvasContent({
   };
   const handleEdgeClick = (edgeId) => {
     if (drawTool !== "connect") return;
+    const removed = edges.find(e => e.id === edgeId);
     saveEdges(edges.filter(e => e.id !== edgeId));
+    if (removed) {
+      setHistory(h => [...h, { type: "edge-delete", payload: removed }]);
+      setRedoStack([]);
+    }
   };
   // Suppress the lint warning about cardPosTick — its purpose is to
   // force a re-render of the SVG layer when an upstream card moves.

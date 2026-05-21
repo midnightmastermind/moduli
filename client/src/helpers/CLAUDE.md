@@ -8,8 +8,14 @@ _Updated: 2026-05-20. Check this file before re-reading source._
   socket, gridId, userId, panelId })` replays the multi-select
   clipboard (`state/SelectionContext.js`) into a destination occurrence
   (container or page). Mode dispatch:
-  - `copy` → `LayoutHelpers.copyInstanceToContainer` per id (fresh
-    occurrences with deep-copied fields; no `linkedGroupId`).
+  - `copy` → **deep clone** when source has children: walks
+    `src.occurrences[]` recursively via `buildCloneSubtree` (depth-
+    capped at 24), mints fresh ids at every level, deep-copies fields,
+    preserves iteration mode, then `emitCloneSubtree` pushes
+    parent-first through `CommitHelpers.createOccurrence`. Leaf-only
+    sources fall back to `LayoutHelpers.copyInstanceToContainer` so
+    they keep firing the existing `OccurrenceCreateOp` + per-field
+    `MeasureOp` triggers.
   - `copylink` → `LayoutHelpers.copylinkInstanceToContainer` per id
     (mints fresh occurrences sharing `moduleId` + `linkedGroupId`;
     assigns a group to the source if it had none — server fan-out
