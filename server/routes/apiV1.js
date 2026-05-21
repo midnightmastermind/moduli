@@ -3,10 +3,12 @@
 // /api/v1 REST surface. Per docs/api-plan.md §1.
 //
 // Phase 1: auth + read grid state + write single field + sync op invoke.
-// Phase 2 (this file): full CRUD for modules/occurrences/fields/operations,
-//                      bulk field-write, batch endpoint, pagination.
-// Phase 3 (deferred):  server-side executor for headless ops, Secrets Store,
-//                      CALL_API moved server-side, OpenAPI doc.
+// Phase 2: full CRUD for modules/occurrences/fields/operations,
+//          bulk field-write, batch endpoint, pagination.
+// Phase 3 (this file): Secrets Store + server-side executor fallback
+//                      for /operations/:id/run (no browser tab needed
+//                      for CALL_API ops) + OpenAPI doc + per-token
+//                      rate limiting.
 //
 // Each handler maps 1:1 to a socket event the existing CRUD layer already
 // understands — REST is a thin HTTP wrapper that also broadcasts the
@@ -19,8 +21,12 @@ import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
 import Field from "../models/Field.js";
 import Operation from "../models/Operation.js";
+import Secret, { encryptValue, isSecretsKeyConfigured } from "../models/Secret.js";
 
 import { apiAuth } from "../middleware/apiAuth.js";
+import { rateLimit } from "../middleware/rateLimit.js";
+import { runOperationServerSide } from "../services/serverExecutor.js";
+import { buildOpenApiDoc } from "./apiV1OpenApi.js";
 
 const uid = () => crypto.randomUUID();
 const err = (res, status, code, message, details) =>
@@ -50,11 +56,17 @@ function paginate(items, { limit, cursor }) {
 export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   const router = express.Router();
 
+  // Per-token rate limit (600 req/min). Composed with apiAuth so it
+  // runs AFTER auth has set req.apiToken. Each route below that needs
+  // limiting uses `authAndLimit(...)` instead of bare `apiAuth(...)`.
+  const limiter = rateLimit();
+  const authAndLimit = (opts) => [apiAuth(opts), limiter];
+
   // ====================================================================
   // GRIDS
   // ====================================================================
 
-  router.get("/grids", apiAuth({ requireScope: "read" }), async (req, res) => {
+  router.get("/grids", authAndLimit({ requireScope: "read" }), async (req, res) => {
     try {
       const grids = await Grid.find({ userId: req.userId }).sort({ createdAt: 1 }).lean();
       res.json({
@@ -67,7 +79,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.get("/grids/:id/state", apiAuth({ requireScope: "read" }), async (req, res) => {
+  router.get("/grids/:id/state", authAndLimit({ requireScope: "read" }), async (req, res) => {
     try {
       const grid = await Grid.findOne({ _id: req.params.id, userId: req.userId }).lean();
       if (!grid) return err(res, 404, "not_found", "Grid not found");
@@ -89,7 +101,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   // MODULES
   // ====================================================================
 
-  router.get("/modules", apiAuth({ requireScope: "read" }), async (req, res) => {
+  router.get("/modules", authAndLimit({ requireScope: "read" }), async (req, res) => {
     try {
       const { gridId, role, kind, q, limit, cursor } = req.query;
       const filter = { userId: req.userId };
@@ -106,7 +118,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.post("/modules", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.post("/modules", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const body = req.body || {};
       if (!body.gridId) return err(res, 400, "validation_error", "gridId required");
@@ -122,7 +134,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.patch("/modules/:id", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.patch("/modules/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const patch = req.body || {};
       const next = await Module.findOneAndUpdate(
@@ -136,7 +148,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.delete("/modules/:id", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.delete("/modules/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const doomed = await Module.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Module not found");
@@ -149,7 +161,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   // OCCURRENCES
   // ====================================================================
 
-  router.get("/occurrences", apiAuth({ requireScope: "read" }), async (req, res) => {
+  router.get("/occurrences", authAndLimit({ requireScope: "read" }), async (req, res) => {
     try {
       const { gridId, parentId, moduleId, limit, cursor } = req.query;
       const filter = { userId: req.userId };
@@ -162,7 +174,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.get("/occurrences/:id", apiAuth({ requireScope: "read" }), async (req, res) => {
+  router.get("/occurrences/:id", authAndLimit({ requireScope: "read" }), async (req, res) => {
     try {
       const occ = await Occurrence.findOne({ id: req.params.id, userId: req.userId }).lean();
       if (!occ) return err(res, 404, "not_found", "Occurrence not found");
@@ -170,7 +182,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.post("/occurrences", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.post("/occurrences", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const body = req.body || {};
       if (!body.gridId) return err(res, 400, "validation_error", "gridId required");
@@ -187,7 +199,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.patch("/occurrences/:id", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.patch("/occurrences/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const patch = req.body || {};
       const next = await Occurrence.findOneAndUpdate(
@@ -201,7 +213,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.delete("/occurrences/:id", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.delete("/occurrences/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const doomed = await Occurrence.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Occurrence not found");
@@ -211,7 +223,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   });
 
   // ── PUT /api/v1/occurrences/:id/fields/:fieldId — single field write ──
-  router.put("/occurrences/:id/fields/:fieldId", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.put("/occurrences/:id/fields/:fieldId", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { id, fieldId } = req.params;
       const { value, flow } = req.body || {};
@@ -231,7 +243,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   });
 
   // ── PATCH /api/v1/occurrences/:id/fields — bulk field write on one occ ──
-  router.patch("/occurrences/:id/fields", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.patch("/occurrences/:id/fields", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { id } = req.params;
       const { fields: writes } = req.body || {};
@@ -260,7 +272,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   });
 
   // ── POST /api/v1/fields/bulk — write field values across many occs ────
-  router.post("/fields/bulk", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.post("/fields/bulk", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { writes } = req.body || {};
       if (!Array.isArray(writes)) {
@@ -305,7 +317,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   // FIELDS
   // ====================================================================
 
-  router.get("/fields", apiAuth({ requireScope: "read" }), async (req, res) => {
+  router.get("/fields", authAndLimit({ requireScope: "read" }), async (req, res) => {
     try {
       const { gridId, q, type, limit, cursor } = req.query;
       const filter = { userId: req.userId };
@@ -321,7 +333,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.post("/fields", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.post("/fields", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const body = req.body || {};
       if (!body.gridId) return err(res, 400, "validation_error", "gridId required");
@@ -333,7 +345,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.patch("/fields/:id", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.patch("/fields/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const next = await Field.findOneAndUpdate(
         { id: req.params.id, userId: req.userId },
@@ -346,7 +358,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.delete("/fields/:id", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.delete("/fields/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const doomed = await Field.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Field not found");
@@ -359,7 +371,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   // OPERATIONS
   // ====================================================================
 
-  router.get("/operations", apiAuth({ requireScope: "read" }), async (req, res) => {
+  router.get("/operations", authAndLimit({ requireScope: "read" }), async (req, res) => {
     try {
       const { gridId, q, runnable, limit, cursor } = req.query;
       const filter = { userId: req.userId };
@@ -382,7 +394,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.post("/operations", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.post("/operations", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const body = req.body || {};
       if (!body.gridId) return err(res, 400, "validation_error", "gridId required");
@@ -394,7 +406,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.patch("/operations/:id", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.patch("/operations/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const next = await Operation.findOneAndUpdate(
         { id: req.params.id, userId: req.userId },
@@ -407,7 +419,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.delete("/operations/:id", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.delete("/operations/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const doomed = await Operation.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Operation not found");
@@ -422,17 +434,38 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   // first connected client runs the op via its existing executor (with
   // vars folded into $vars), emits api_op_result back. Bridge resolves
   // the awaiting HTTP Promise.
-  router.post("/operations/:id/run", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.post("/operations/:id/run", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { id } = req.params;
-      const { vars = {}, wait = true, timeoutMs = 30000, dryRun = false } = req.body || {};
-      const op = await Operation.findOne({ id, userId: req.userId });
+      const { vars = {}, wait = true, timeoutMs = 30000, dryRun = false, executor } = req.body || {};
+      const op = await Operation.findOne({ id, userId: req.userId }).lean();
       if (!op) return err(res, 404, "not_found", "Operation not found");
 
       const room = io.sockets.adapter.rooms.get(userRoom(req.userId));
-      if (!room || room.size === 0) {
+      const hasClient = !!(room && room.size > 0);
+
+      // Executor selection:
+      //   - "server"  → always use the headless server executor
+      //   - "client"  → require a connected browser tab; 503 if none
+      //   - "auto"    → prefer client (full executor), fall back to server
+      //                 when no client is connected
+      const mode = executor === "server" || executor === "client" ? executor : "auto";
+      const useServer = mode === "server" || (mode === "auto" && !hasClient);
+
+      if (useServer) {
+        // Server-side execution. CALL_API / INIT_VAR / SHOW_VALUE / IF / LOOP
+        // are supported; anything else needs a connected client.
+        const result = await runOperationServerSide(op, { vars, userId: req.userId });
+        return res.json({
+          ...result,
+          executor: "server",
+          note: result.ok ? undefined : "Server-side executor handles a subset of action types. If the op uses FIND/CREATE/COPY_LINK/etc., open a Moduli tab and retry with executor:'client' (or 'auto').",
+        });
+      }
+
+      if (!hasClient) {
         return err(res, 503, "no_executor",
-          "No connected client to execute the operation. Phase 3 will add a server-side executor; for now, the user must have an active Moduli tab open OR run server/scripts/apiDemoClient.js."
+          "Op requires the client-side executor (uses action types beyond the server-side subset) and no client is connected. Either open a Moduli tab, run server/scripts/apiDemoClient.js, or retry with executor:'server' if the op only uses CALL_API / INIT_VAR / SHOW_VALUE / IF / LOOP."
         );
       }
 
@@ -440,7 +473,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
         io.to(userRoom(req.userId)).emit("run_op_for_api", {
           requestId: null, operationId: id, vars, dryRun,
         });
-        return res.status(202).json({ ok: true, queued: true });
+        return res.status(202).json({ ok: true, queued: true, executor: "client" });
       }
 
       const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -453,7 +486,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
           });
         },
       });
-      res.json(result);
+      res.json({ ...result, executor: "client" });
     } catch (e) {
       if (e?.code === "TIMEOUT") return err(res, 504, "timeout", e.message);
       err(res, 500, "internal_error", e.message);
@@ -464,7 +497,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   // BATCH — pack multiple sub-requests into one round-trip
   // ====================================================================
 
-  router.post("/batch", apiAuth({ requireScope: "write" }), async (req, res) => {
+  router.post("/batch", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { operations: subs } = req.body || {};
       if (!Array.isArray(subs)) {
@@ -533,6 +566,56 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       }
       res.json({ results });
     } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ====================================================================
+  // SECRETS — encrypted per-user values usable in CALL_API as $secrets.KEY
+  // ====================================================================
+
+  router.get("/secrets", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const docs = await Secret.find({ userId: req.userId }).sort({ key: 1 }).lean();
+      // Never return values — only metadata.
+      res.json({
+        secrets: docs.map(d => ({ key: d.key, lastUsedAt: d.lastUsedAt, createdAt: d.createdAt })),
+        configured: isSecretsKeyConfigured(),
+      });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  router.post("/secrets", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      if (!isSecretsKeyConfigured()) {
+        return err(res, 503, "secrets_unavailable",
+          "Server has no SECRETS_KEY env var configured. Add 32 random bytes (base64) as SECRETS_KEY in server/.env.");
+      }
+      const { key, value } = req.body || {};
+      if (!key || typeof key !== "string") return err(res, 400, "validation_error", "key required");
+      if (value == null) return err(res, 400, "validation_error", "value required");
+      const enc = encryptValue(value);
+      const doc = await Secret.findOneAndUpdate(
+        { userId: req.userId, key },
+        { $set: { ...enc, userId: req.userId, key } },
+        { upsert: true, new: true, lean: true },
+      );
+      res.status(201).json({ key: doc.key, createdAt: doc.createdAt, lastUsedAt: doc.lastUsedAt });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  router.delete("/secrets/:key", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const doomed = await Secret.findOneAndDelete({ userId: req.userId, key: req.params.key });
+      if (!doomed) return err(res, 404, "not_found", "Secret not found");
+      res.json({ ok: true });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ====================================================================
+  // OPENAPI — machine-readable spec served at /api/v1/openapi.json
+  // ====================================================================
+
+  router.get("/openapi.json", (_req, res) => {
+    res.json(buildOpenApiDoc());
   });
 
   return router;

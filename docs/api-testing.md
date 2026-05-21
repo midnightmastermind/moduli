@@ -519,22 +519,172 @@ spins up an in-process Express + supertest would be the next step.
 
 ---
 
-## 11. Deferred to Phase 3+
+## 11. Phase 3 — headless server-side executor + secrets + OpenAPI + rate limit
 
-These are explicitly NOT in Slice 1/2:
+Shipped in commit after `cb2bc474`. The biggest unlock: `/operations/:id/run`
+no longer requires a browser tab for `CALL_API` ops.
 
-- **Server-side executor** — would let `/operations/:id/run` work
-  without a connected client. CALL_API runs server-side, secrets
-  store becomes meaningful, fully headless. Big lift.
-- **Secrets Store** — `$secrets.STRIPE_KEY` in CALL_API headers.
-  Requires server-side execution to be useful.
-- **Rate limiting** — per-token request bucket.
+### 11.1 Server-side executor
+
+A lean executor in `server/services/serverExecutor.js` handles the subset
+of action types most integrations need:
+
+- `INIT_VAR` / `SET_VAR` — read/write `$vars` with `resolveExpr` support
+- `IF` — predicate eval with `IS / IS_NOT / IS_EMPTY / IS_NOT_EMPTY /
+  GREATER / GREATER_OR_EQUAL / LESS / LESS_OR_EQUAL / CONTAINS /
+  ARRAY_INCLUDES` comparators
+- `LOOP` — over arrays in `$vars` with `as` binding
+- `CALL_API` — full outbound HTTP including `$secrets.KEY` resolution
+- `SHOW_VALUE` — surfaces named results in the response's `vars`
+
+Anything outside this subset (FIND / CREATE / COPY_LINK / APPLY_TEMPLATE /
+aggregations / etc.) needs the full client-side executor — open a browser
+tab or run `apiDemoClient.js`.
+
+### 11.2 Executor selection
+
+The `/operations/:id/run` endpoint accepts an `executor` field:
+
+```bash
+# auto (default) — prefer client if connected, fall back to server
+curl -X POST -H "$AUTH" -H "$CT" -d '{"vars":{"$lat":41.88,"$lon":-87.63}}' \
+  "$BASE/api/v1/operations/<id>/run"
+
+# server — always headless (CALL_API, INIT_VAR, IF, LOOP, SHOW_VALUE only)
+curl -X POST -H "$AUTH" -H "$CT" \
+  -d '{"vars":{"$lat":41.88,"$lon":-87.63},"executor":"server"}' \
+  "$BASE/api/v1/operations/<id>/run"
+
+# client — require a connected browser tab (503 if none)
+curl -X POST -H "$AUTH" -H "$CT" \
+  -d '{"vars":{"$lat":41.88,"$lon":-87.63},"executor":"client"}' \
+  "$BASE/api/v1/operations/<id>/run"
+```
+
+Response now includes `executor: "server" | "client"` so you can tell
+which path ran.
+
+**Verified live** (no browser tab, no fake client):
+
+```
+$ curl -X POST -H "$AUTH" -H "$CT" \
+    -d '{"vars":{"$lat":41.88,"$lon":-87.63}}' \
+    http://localhost:5001/api/v1/operations/<weatherOp>/run
+{
+  "ok": true,
+  "durationMs": 534,
+  "vars": { "$temperature": 8.2, "$windSpeed": 15.3, "$units": "°C" },
+  "effects": [ ... 3 SHOW_VALUE entries ... ],
+  "executor": "server"
+}
+```
+
+### 11.3 Secrets store
+
+Configure the master key (one time per deploy):
+
+```bash
+# 32 random bytes, base64-encoded
+SECRETS_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
+echo "SECRETS_KEY=$SECRETS_KEY" >> server/.env
+# Restart server to pick up the env var
+```
+
+AES-256-GCM with a unique IV per secret. Server fails closed if
+`SECRETS_KEY` is missing — POST `/secrets` returns 503 `secrets_unavailable`.
+
+Endpoints:
+
+```bash
+# Store / update a secret (value visible only at create time)
+curl -X POST -H "$AUTH" -H "$CT" \
+  -d '{"key":"STRIPE_KEY","value":"sk_live_xxx"}' \
+  "$BASE/api/v1/secrets"
+
+# List secret keys (no values ever returned)
+curl -H "$AUTH" "$BASE/api/v1/secrets"
+# → { "secrets": [{ "key": "STRIPE_KEY", "lastUsedAt": "...", "createdAt": "..." }],
+#     "configured": true }
+
+# Delete
+curl -X DELETE -H "$AUTH" "$BASE/api/v1/secrets/STRIPE_KEY"
+```
+
+Use in a `CALL_API` pipeline step:
+
+```json
+{
+  "type": "CALL_API",
+  "url": "https://api.stripe.com/v1/customers",
+  "headers": { "Authorization": "Bearer $secrets.STRIPE_KEY" }
+}
+```
+
+Secrets ONLY resolve in the server-side executor (the client executor
+never sees them). The plain `$secrets.X` expression in headers/body/url
+is replaced with the decrypted value at execution time.
+
+**Verified live**: created `DEMO_BEARER` → `"my-secret-bearer-xyz"`,
+created an op with `headers: { "X-My-Secret": "$secrets.DEMO_BEARER" }`,
+invoked via the server executor against `httpbin.org/headers` →
+response echoed `X-My-Secret: my-secret-bearer-xyz`. Round-trip works.
+
+### 11.4 Rate limiting
+
+Per-token in-memory token bucket. Default: **600 requests/minute** per
+token. Response headers exposed on every request:
+
+```
+X-RateLimit-Limit: 600
+X-RateLimit-Remaining: 594
+```
+
+When a token exceeds its window:
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 47
+X-RateLimit-Limit: 600
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1779337123
+
+{"error":"rate_limited","message":"Token exceeded 600 requests per 60s window"}
+```
+
+Single-process state — multi-instance deploys need a shared backend
+(redis) which is deferred.
+
+### 11.5 OpenAPI document
+
+Auto-served — no auth required (intentionally, so tooling can fetch
+the spec to discover auth requirements):
+
+```bash
+curl http://localhost:5001/api/v1/openapi.json
+```
+
+Importable by Postman / Insomnia / Hoppscotch / openapi-generator /
+any OpenAPI 3.1 consumer. Covers all 17 path templates, request +
+response shapes, security scheme, and the BearerAuth `scopes` field.
+
+Open in [Swagger Editor](https://editor.swagger.io/) for a rendered
+view:
+
+1. Open the editor
+2. File → Import URL → `http://localhost:5001/api/v1/openapi.json`
+3. Browse the endpoints with full schema + try-it-out tabs
+
+---
+
+## 12. Phase 4+ still deferred
+
 - **Webhook signing** — HMAC-SHA256 over `/api/webhooks/:opId`.
-- **OpenAPI doc** — auto-served at `/api/v1/openapi.json`. Schemas
-  extracted from Mongoose models. Importable by Postman / Insomnia.
 - **Idempotency keys** — `Idempotency-Key` header for retry-safe POSTs.
-- **Pagination cursor** — present but trivially based on array index;
-  proper opaque cursors needed for large lists.
 - **Per-token request log endpoint** — `GET /api/v1/tokens/me/requests`.
+- **Shared rate-limit backend** for multi-instance deploys.
+- **Push the full client executor server-side** for parity. Requires
+  splitting the executor out of its React/Redux deps (`sonner`,
+  `bindSocketToStore`). Current Phase-3 mini-executor covers the
+  common integration case.
 
 See `docs/api-plan.md` §3 (Phased rollout) for the full sequence.

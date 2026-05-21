@@ -2,6 +2,36 @@
 
 _Updated: 2026-05-20. Check this file before re-reading source._
 
+## Recent Changes (2026-05-21 night — /api/v1 Phase 3: server executor + secrets + OpenAPI + rate limit)
+- **`services/serverExecutor.js` (NEW)** — headless executor for
+  `/api/v1/operations/:id/run` when no browser tab is connected.
+  Subset of the client executor: `INIT_VAR / SET_VAR / IF / LOOP /
+  CALL_API / SHOW_VALUE`. Pure async — Node `fetch` for CALL_API,
+  Mongo lookup for `$secrets.X`. Anything outside that subset
+  (FIND/CREATE/etc.) still needs the full client executor.
+- **`models/Secret.js` (NEW)** — per-user encrypted secret store.
+  AES-256-GCM, master key from `SECRETS_KEY` env (32 raw bytes
+  base64-encoded). `(userId, key)` unique index. Fails closed if
+  `SECRETS_KEY` missing. Used by serverExecutor's `$secrets.<KEY>`
+  expressions in CALL_API headers/body/url.
+- **`middleware/rateLimit.js` (NEW)** — per-token in-memory token-
+  bucket (default 600 req/min). Composes with `apiAuth` so it runs
+  after the token's identity is known. Exposes
+  `X-RateLimit-{Limit,Remaining,Reset}` + `Retry-After` headers.
+  Single-process state; multi-instance deploys need redis.
+- **`routes/apiV1OpenApi.js` (NEW)** — hand-curated OpenAPI 3.1
+  document. Auto-served at `/api/v1/openapi.json` (no auth — tooling
+  needs to fetch the spec to learn the auth scheme). Covers all 17
+  path templates, security scheme, request + response shapes.
+- **`routes/apiV1.js` updated**:
+  - `/operations/:id/run` accepts `executor: "auto" | "server" | "client"`.
+    `auto` (default) prefers the client when connected, falls back to
+    server executor. Response includes `executor: "server" | "client"`.
+  - All 27 protected routes now use `authAndLimit(...)` instead of
+    bare `apiAuth(...)` so the rate limiter actually runs.
+  - New endpoints: `GET /secrets`, `POST /secrets`,
+    `DELETE /secrets/:key`, `GET /openapi.json`.
+
 ## Recent Changes (2026-05-21 late — /api/v1 Phase 2: full CRUD + bulk + batch)
 - **`routes/apiV1.js` expanded** — added every CRUD verb across the
   four primary entities + bulk + batch:
