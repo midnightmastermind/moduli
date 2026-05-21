@@ -19,6 +19,7 @@ import { PlusSquare, Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, 
 import ToolbarFilterDropdown from "./ui/ToolbarFilterDropdown";
 import SocketStatusBanner from "./ui/SocketStatusBanner";
 import ClipboardStatusBanner from "./ui/ClipboardStatusBanner";
+import SelectionStatusBanner from "./ui/SelectionStatusBanner";
 
 export default function Toolbar({
   gridId,
@@ -136,6 +137,12 @@ const gridOptions = useMemo(
       >
         <div className="pointer-events-auto">
           <SocketStatusBanner />
+        </div>
+        {/* Selection pill — only renders while multi-select is non-empty.
+            Sibling of ClipboardStatusBanner; selection becomes clipboard
+            via the right-click bulk-action menu. */}
+        <div className="pointer-events-auto">
+          <SelectionStatusBanner />
         </div>
         {/* Clipboard pill — only renders while the multi-select clipboard
             is non-empty. Shows mode + count + a Clear button. Pasting
