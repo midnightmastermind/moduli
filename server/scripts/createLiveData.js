@@ -6763,16 +6763,38 @@ export async function createLiveData(userId, options = {}) {
               then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
               else: [],
             },
-            // 4. Idempotency guard — only rebuild on explicit triggers OR when canvas is empty.
+            // 4. Idempotency guard — only rebuild on explicit triggers OR
+            // when canvas is empty OR when ANY existing child lacks a
+            // meta.x/y stamp (signals stale data from a prior version of
+            // this op that didn't position cards). The lacks-position
+            // probe stops "all cards overlap at (0,0)" from persisting
+            // across reloads silently.
             { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$existingChildCount", expr: "$canvas.occurrences.length" } },
             { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerType",        expr: "$trigger.type" } },
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$missingPositions",   expr: "literal:0" } },
+            {
+              id: uid(), type: "loop", overExpr: "$allInstances", as: "$probe",
+              body: [
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$probe._ancestors", comparator: "HAS_ANCESTOR", right: "$canvasId" },
+                    { id: uid(), left: "$probe.meta.y",     comparator: "IS_EMPTY",     right: "" },
+                  ] },
+                  then: [
+                    { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$missingPositions" } },
+                  ],
+                  else: [],
+                },
+              ],
+            },
             { id: uid(), type: "if",
               condition: { operator: "AND", rules: [
                 { id: uid(), left: "$existingChildCount", comparator: "GREATER_THAN", right: 0 },
                 { id: uid(), left: "$triggerType",        comparator: "IS_EMPTY",     right: ""  },
+                { id: uid(), left: "$missingPositions",   comparator: "IS",           right: 0   },
               ] },
               then: [
-                // Already built + bulk onLoad → no-op.
+                // Already built + bulk onLoad + all cards have positions → no-op.
               ],
               else: [
                 // 5a. Clean: delete every existing copy parented under $canvas.
