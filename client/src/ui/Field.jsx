@@ -275,16 +275,16 @@ function useFlowDelta(value, holdMs = 1500) {
 // colors instead (see targetMet checks at the call sites).
 function valueSignColor(value) {
   if (value == null || value === "" || value === 0) {
-    return "var(--accent-blue, #60a5fa)";
+    return "var(--accent-blue-text, #bfdbfe)";
   }
   if (typeof value === "number") {
     return value < 0 ? "var(--danger-text)" : "var(--accent-green-text)";
   }
   if (typeof value === "boolean") {
-    return value ? "var(--accent-green-text)" : "var(--accent-blue, #60a5fa)";
+    return value ? "var(--accent-green-text)" : "var(--accent-blue-text, #bfdbfe)";
   }
   if (Array.isArray(value)) {
-    return value.length > 0 ? "var(--accent-green-text)" : "var(--accent-blue, #60a5fa)";
+    return value.length > 0 ? "var(--accent-green-text)" : "var(--accent-blue-text, #bfdbfe)";
   }
   return "var(--accent-green-text)";
 }

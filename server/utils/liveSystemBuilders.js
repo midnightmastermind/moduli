@@ -1210,12 +1210,19 @@ export function makeDayPageBuildTasksCompletedOp({
     description: "Rewrite the Tasks Completed container on the active day's Day Page with moduleEmbed nodes for every completed schedule task on that date.",
     // Priority 4 — runs AFTER Build Day (1), Stamp (2), trackers (3) so the
     // completion state it reads is fully settled.
-    triggerTypes: ["onLoad", "onFilterChange", "onChange"],
+    // onAdd / onDelete on container subjects added 2026-05-21 — when
+    // Build Day mints/clears schedule task occurrences, this op MUST
+    // rerun so its moduleEmbed array doesn't reference stale ids that
+    // no longer exist (root cause of "Tasks Completed has broken
+    // links" — the rebuild was orphaning embeds at fresh task ids).
+    triggerTypes: ["onLoad", "onFilterChange", "onChange", "onAdd", "onDelete"],
     triggerObjects: [
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 4 },
       { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 4 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule", priority: 4 },
       { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId, priority: 4 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 4 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 4 },
     ],
     enabled: true,
     pipeline: {

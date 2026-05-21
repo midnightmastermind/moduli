@@ -46,8 +46,373 @@ _Updated: 2026-05-21. Check this file before re-reading source._
   `color/icon/suffix/replaceValue` defaults — not touched here).
 
 ## Open docket (work still pending — handed off 2026-05-21)
-This session built the rules / picker / pill scaffolding. The data-
-authoring and integration passes remain:
+
+### 🔴 BUGS — fix soon
+
+- **Slow initial connection / app freezes during load.** First load is
+  fast; subsequent reloads take forever (whole app frozen) UNLESS the
+  server is killed + rebuilt + restarted. Symptom timing: long delay
+  for initial connection → frozen UI → folder-page previews finally
+  paint → app responsive again. Clicking around AFTER the freeze
+  doesn't lag. Suspect: socket reconnection backoff is over-long when
+  the server-side cache is stale, OR folder-preview render is doing
+  synchronous DOM work that blocks the main thread. Try the
+  `useSocketStatus` retryInMs path + check `loadUserIntoCache`'s
+  warm-up timing.
+- **Folder page preview — instances don't render inside containers.**
+  Containers eventually appear (after a long delay) but instances
+  inside the previewed containers don't render — empty shells.
+  Limited to **board** containers and possibly **doc** containers.
+  Other kinds may be fine. Likely `PageFolder.jsx` is rendering a
+  preview shell that doesn't recurse into instance children, OR the
+  preview's render-context doesn't include `occurrencesById` deeply
+  enough to resolve grandchildren.
+- **Canvas occurrences overlapping** (latest canvas screenshot). All
+  the canvas cards land on top of each other. Probably the default
+  `meta.x/y` placement is `(0,0)` for new occurrences and nothing
+  spreads them. Either auto-grid on creation or set spread-defaults
+  in the seed.
+- **Daily Question header chevron `<>` doesn't open question picker.**
+  Code inspection (2026-05-21) shows the wiring IS correct:
+  - Template's Daily Question container module carries
+    `meta.headerLink = { selfField: journalQuestionFieldId,
+    link: dateFieldId }` (liveSystemBuilders.js:289).
+  - `BoundHeader.jsx:107` renders an inline `<select>` whenever
+    `field.type === "select"` OR `hasOptions` (i.e. the field
+    resolves options via `optionsSource`). journalQuestion has a
+    `find`-mode optionsSource pointing at library instances with
+    `fields.<libraryFieldId>.value === "question"`.
+  - The `<>` glyph the user clicked is probably the **filter
+    chevron** (`HeaderChevron.jsx`), not the question picker. The
+    question picker is the `<select>` inside the header label
+    itself.
+  Most likely root cause: `options` is resolving to `[]` because
+  the predicate `fields.<libraryFieldId>.value IS "question"`
+  isn't matching anything. Verify by:
+  1. Open Command Center → Fields → journalQuestion → check that
+     `meta._resolvedOptions` has entries after a re-seed.
+  2. If empty, check that the question instances in the Library
+     container have `fields[libraryFieldId].value === "question"`
+     (they should, but the seed may have changed).
+  3. If options resolve, the dropdown should render — if it
+     doesn't, the binding lookup is failing somewhere.
+  Until verified in-browser, this stays open.
+- **"Tasks Completed" on day page has broken links.** The Day Page
+  Build Tasks Completed op (`makeDayPageBuildTasksCompletedOp`)
+  writes `moduleEmbed` doc entries referencing completed-task
+  occurrence ids. Once those tasks are deleted/rebuilt, the embeds
+  point at stale ids → broken-link rendering. Either re-run the op
+  on every Schedule rebuild (already triggers on filterChange?) or
+  switch to COPY_LINK so the embed source survives independently.
+- **Schedule on load doesn't seed instances — just shows "daycontainer".**
+  After re-seed, Schedule page renders only a container labelled
+  "daycontainer" with no children. Code-inspection (2026-05-21):
+  - `Schedule: Build Schedule` op has both `onLoad` + multiple
+    `onFilterChange` triggers — should fire on cold load.
+  - `PageBoard.jsx` recognizes a day-col by the
+    `scheduleFormat` field's value being NOT in `{"slot","due"}`.
+    When the field is "timeslot" / "shortened" the day-col
+    renders; when null/empty, the page falls back to flat
+    rendering of `containersList`.
+  - If the user sees ONE container labelled "daycontainer" with
+    no children, likely either (a) the day-col was created but
+    slot containers weren't multi-parented into it via
+    `ADD_CHILD`, OR (b) PageBoard isn't recognizing the day-col
+    as such (label collision / format field not stamped).
+  Re-seed first to verify whether the Date-field removal +
+  `Stamp Filter Date` disable cleans this up. If still broken,
+  inspect the op's run log for `ADD_CHILD` effects and check
+  what the `scheduleFormat` field value is on the day-col
+  occurrence.
+- **Date-stamp bug on goal/tracker occurrences — RESOLVE BY REMOVING.**
+  The Date field on goal/tracker occurrences was never reliably
+  getting stamped (was a deferred docket item). User decision:
+  **just remove the Date field from goal/tracker occurrences
+  entirely.** Filters in the header cover what the Date field was
+  there for. Edit `server/scripts/createLiveData.js` — drop the
+  `dateFieldId` binding from goal container `fieldBindings` AND
+  from any goal/tracker `fields[]` stamps in occurrence creation.
+  Keep `dateFieldId` on the underlying tracker SOURCE occurrences
+  (water/steps/etc.) — only goal/tracker DISPLAY occurrences lose
+  it. Re-seed required.
+
+### 🟡 Small / structural fixes
+
+- **Blue field text color.** Dark blue text on light blue background
+  is unreadable. Either white text or a lighter blue (~`rgb(180,210,255)`).
+  Hits the field display chips + bound-header dropdowns + any other
+  blue-tinted UI. Likely `ui/Field.jsx` and `index.css` blue tokens.
+- **Board container padding +2px top + bottom.** Too squished.
+  Inspect `modules/Container.jsx` board-kind branch or CSS class
+  `.container-board` for the inner padding.
+- **Schedule canvas + the other canvas should be the SAME page.**
+  **Answered 2026-05-21**: KEEP the Schedule Canvas, DELETE the
+  standalone Canvas page. Schedule Canvas is the canonical home
+  for the mind-map demo content (see big-feature #6).
+- **Local tree default-open main folder node.** Local tree (panel
+  sidebar) should have a single top-level folder labelled `Local`
+  (or similar) that's expanded by default and contains `Interfaces`
+  + `Day Pages` as children. Currently those crumbs are flat in the
+  local tree with no parent grouping. Two-part change:
+  1. **Seed**: create a new `Local` folder per panel in
+     `createLiveData.js`, set as parent of `Interfaces` + `Day
+     Pages` (and any other panel-local folders).
+  2. **Panel default page**: each panel should default to opening
+     the `Local` folder-page (which renders Interfaces + Day Pages
+     as folder-preview cards inside it). Mint a folder-page
+     occurrence for the Local folder per `FolderNode.handleFolderClick`
+     / `LocalFolderGroup.openFolderAsPage` and set the panel's
+     view to `activeOccurrenceId: <localFolderPageOccId>` on
+     seed.
+
+### 🟢 Big features (in priority order — implement in this order)
+
+#### 1. Module type icons everywhere
+Find/curate a stable set of lucide icons for every module type so
+they read consistently across the UI:
+- **page** — `FileText` or `LayoutPanelLeft`
+- **container** (list / doc / board / canvas / table) — distinct per
+  kind: `List`, `FileText`, `Kanban` or `LayoutGrid`, `PenTool`,
+  `Table`
+- **instance** — `Box`
+- **textblock** — `Type` or `AlignLeft`
+- **artifact** (image / pdf / audio / video / md / code) — `Image`,
+  `FileText` (pdf), `Music`, `Video`, `FileCode`
+- **field** — `Hash` (number), `Type` (text), `ToggleLeft` (boolean),
+  `ChevronDown` (select), `Link2` (occurrence), `Calendar` (date)
+- **operation** — `Zap`
+- **template** — `Stamp`
+- **folder** — `Folder`
+
+Single shared helper `getModuleTypeIcon(role, kind, type?) → LucideIcon`
++ constant `MODULE_TYPE_COLORS` map. Consume from: `CategoryPathPicker`
+tiles + closed-state chips, `QuickAddMenu` add-menu tiles,
+`ValueBuilder` row cards (the breadcrumb card spec'd above), the
+mind-map representation nodes, and anywhere else an occurrence
+type is shown.
+
+#### 2. Representation module / view-toggle for occurrences
+Each occurrence rendered as a "node" elsewhere (mind-map canvas,
+folder preview, value-builder card, search results, etc.) needs a
+THREE-WAY view-toggle:
+- **Preview** — current folder-page-preview rendering (small
+  thumbnail / first-N-fields).
+- **Representation** — just the **label + module type icon** (from
+  the curated icon set above). Compact, ~24px tall, no field
+  values. The "node-in-a-graph" view.
+- **Actual** — the full occurrence render (whatever the parent
+  context normally shows — full ModuleInstance / ModuleContainer
+  / page board / etc.).
+The view choice is per-occurrence-PLACEMENT (not per-template) — so
+the same instance can render Preview in one spot and Actual in
+another. Store as `occurrence.viewMode: "preview" | "representation"
+| "actual"` (default `"actual"` everywhere except mind-map nodes
+which default to `"representation"`). Switcher is a small 3-button
+segmented control in the occurrence's radial menu / header.
+
+#### 3. Clickable representation → jump-to + highlight
+When the user clicks a Representation node, the app:
+- Opens the page the source occurrence lives on (in the current
+  panel — switch active page if needed, OR switch tab if it's in a
+  different panel).
+- Scrolls to the occurrence within that page.
+- Briefly highlights the occurrence using the SAME highlight
+  treatment that ManifestTree drilldown uses when you click a
+  granular anchor (existing mechanism — find it, extract as shared
+  `flashOccurrence(occId, { highlightMs: 1200 })` helper).
+This uniform "jump + highlight" pattern should be used by every
+representation node, every breadcrumb crumb in the value-builder
+card that resolves to an occurrence, and ManifestTree drilldown.
+
+#### 4. Multi-select shift+drag with Q-modifier (cross-panel)
+Extend the existing shift-click multi-select to support
+**shift-click+drag rectangle** spanning multiple panels.
+- **Drag rectangle**: dynamic (NOT aspect-ratio-locked) — same as
+  the canvas square/circle DRAWING tools should also become
+  (drawing-tool rectangle/circle currently aspect-locked — fix).
+- **Rule with just Shift**: selects every CONTAINER whose bounding
+  box is FULLY inside the rectangle, PLUS every INSTANCE inside
+  those containers. Containers partially outside the rect are NOT
+  selected.
+- **Rule with Shift+Q**: selects only INSTANCES whose bounding box
+  is at least 1/3 inside the rectangle. Containers excluded.
+- **Q is a momentary modifier (the "light switch" metaphor)** —
+  during an in-flight drag, pressing Q toggles instance-only mode
+  ON, releasing Q toggles it OFF. So the user can switch rules
+  mid-drag without restarting. Also works when starting:
+  Shift-drag → press Q (instances-only) → release Q (containers
+  back in). The rectangle's selection updates live.
+- **Scope**: cross-panel — instances/containers inside any panel
+  on the grid count. Pages and panels themselves are NEVER
+  selected by this — they're scaffolding, not data.
+- Wire into `state/SelectionContext.js` clipboard so the existing
+  copy / move / copy-link / paste-here works on the rectangle
+  selection too.
+- **Visual**: dashed-line rectangle during drag (similar to the
+  canvas drawing tools' preview), live-tinting included
+  containers/instances as the rect is dragged.
+
+#### 5. Mind-map / link tools for canvas
+Mind map is NOT a separate page kind — it's the **linked variant of
+the existing canvas drawing tools**. The system never knows "this
+is a mind map", it's just a canvas with link tools.
+- **Drawing toolbar additions**: each existing drawing tool (line /
+  square / circle / pen) gets a **link variant** alongside it.
+  Icon: same shape with a small chain-link badge in the corner.
+  The plain drawing version is purely visual (no occurrence
+  semantics); the link version creates draggable/grabbable nodes
+  with occurrence-semantic behavior.
+- **Drag-handle reposition**: move the Select/Hand tool to the
+  **right side of the toolbar next to the center** (per user spec).
+- **Link line behavior**:
+  - Two endpoint balls (snap to occurrences on the canvas).
+  - Draggable along its length to reposition.
+  - Endpoint balls draggable to snap to a different occurrence.
+  - Drag-handle radial menu (shown on hover with select tool only)
+    — contains Delete + any future actions.
+- **Link circle / link square**:
+  - Same primitive shape as drawing variants BUT dynamic (not
+    aspect-locked).
+  - **Everything geometrically inside** the linked shape becomes
+    its "children" — auto-connect each child to the shape with
+    fainter connection lines.
+  - Slight tint in the middle of the linked shape so the author
+    sees it's the linked variant.
+  - **Group-drag**: dragging the linked shape moves its children
+    with it (like a multi-select).
+  - Other link-line endpoint balls can snap onto a linked shape's
+    perimeter (not just onto occurrences).
+- **Drawing-mode shapes (non-link variant)**:
+  - Erase-only (no drag-handle, no radial menu, no grab).
+  - Eraser tool removes them.
+- **Delete-from-select**: with the select tool, drawn lines + shapes
+  on the grid are selectable; selected ones can be deleted.
+- **Data semantics**: at this phase, link lines/shapes do nothing
+  data-wise — they're just visual links between modules + the
+  grouped-linked tools (square/circle + their auto-children). Data
+  options later (see "After AI" below).
+
+#### 6. Schedule canvas mind-map seed (operation)
+Once #1–#5 land, seed the Schedule canvas with a demo mind map via
+operation:
+- **Canvas-toolbar shortcut for "new textblock"** — add it. Click
+  the shortcut → drop a textblock at the canvas center.
+- **Operation seeds**:
+  1. A textblock at the top with `# Mindmap` heading (H1).
+  2. Underneath (NOT connected to the textblock): a **preview**
+     node of today's Schedule container (the column/day).
+  3. From the day container: link-lines to a **representation**
+     node of each timeslot.
+  4. From each timeslot representation: **linked circles** that
+     contain the timeslot's child containers inside (so each
+     timeslot circle group-drags as a unit).
+- Demonstrates that the canvas, the representation toggle, and
+  the link tools all compose into a working mind-map editor
+  without the system ever calling it a "mind map".
+- **Per-day + bidirectional with Schedule** (added 2026-05-21):
+  - **Remove the canvas's `filterOverride: {}`** so it joins the
+    date-filter cascade (currently the Schedule Canvas page opts
+    OUT of the date filter; for per-day canvases it must opt IN).
+  - **Schedule Canvas template** — a `meta.templateName:"Schedule
+    Canvas Daily"` subtree saved in the Templates manifest. Mirrors
+    Daily Routine: a root canvas occurrence carrying the seeded
+    mindmap layout (textblock heading + day-container preview node
+    + per-slot representation crumbs + per-slot linked circles).
+    Identity signatures on every node so re-apply on a date nav
+    doesn't duplicate.
+  - **`Schedule Canvas: Build Day` op** — mirror of `Schedule:
+    Build Day`. Triggers: onLoad / onFilterChange (ancestorLabel:
+    "Schedule Canvas") / onAdd / onDelete. `$canvasDate` resolves
+    via `$trigger.date` → `$canvasPage._effectiveFilter.<dateFid>`
+    → `$today`. APPLY_TEMPLATE the Schedule Canvas Daily template
+    onto the canvas page, then stamp `$canvasDate` on the cloned
+    nodes' date field bindings.
+  - **Bidirectional flow with the Schedule** — every canvas node
+    representing a Schedule task is COPY_LINKed to the Schedule
+    page's task occurrence (same `linkedGroupId`). Drag a task in
+    the Schedule → its representation node on the canvas updates;
+    edit on the canvas → reflects on the Schedule. Same mechanism
+    as the kanban + Todo List bidirectional pattern (item #7),
+    reused. Server's `update_occurrence` linked-group fan-out
+    already handles propagation.
+  - **Position deltas stay canvas-local** — `meta.x/y` only writes
+    to the canvas's copy, NOT to the Schedule's copy (the canvas
+    is the layout owner; Schedule doesn't care about x/y). Done by
+    excluding `meta.x` and `meta.y` from the linked-group fan-out
+    allowlist on the server (need a tiny server-side check —
+    `socketHandlers/occurrences.js:91-124`).
+
+#### 7. Project kanban example in live data
+A made-up example project to demonstrate kanban + cross-page
+linked tasks + bidirectional state ops. Lives in the live-data
+seed.
+- **New "project" page** (doc kind) titled something like
+  *"Project: Moduli v1 Launch"* (made-up). Layout, top-to-bottom:
+  1. **Kanban container** — a board-kind container with **6 columns**
+     (confirmed 2026-05-21):
+     `Backburner` · `Docket` · `Working On` · `In Review` ·
+     `Test` · `Complete`.
+  2. **Project scope** (BELOW the kanban container, per user
+     follow-up) — a long-form textblock with a detailed scope:
+     overview, goals, milestones, risks, success criteria. Make
+     up plausible content for the made-up project (e.g. "v1
+     Launch: ship the assistant drawer to all users by EOQ, with
+     ≥99% uptime on the /api/v1/operations/:id/run endpoint…").
+- **Make the project page a template** so the user can spin up
+  new project pages with the same kanban-scope layout.
+- **Example task instances** seeded across the 6 columns (so the
+  kanban isn't empty on first load).
+- **Cross-page copy-link** — each kanban task is COPY_LINKed to a
+  task occurrence in the Todo List page's Backburner + Docket
+  containers. **Direction confirmed 2026-05-21: BIDIRECTIONAL** —
+  edits on either side propagate. Use the existing `linkedGroupId`
+  fan-out (already bidirectional via server's `update_occurrence`
+  handler at `socketHandlers/occurrences.js:91-124`).
+- **Project select field on every kanban task** (confirmed
+  2026-05-21). Add a new `project` field — type:
+  `occurrence` with `meta.optionsSource = find` mode scoped to
+  `_ancestors HAS_ANCESTOR <project-page-id>` (or simpler: scoped
+  to all instances whose label matches project-page labels). Every
+  kanban task instance gets this field STAMPED at seed time with
+  the example project's name (or id). The select picker lets the
+  user re-assign a task to a different project later. Operations
+  that need to filter to "this project's tasks only" check this
+  field instead of relying on container ancestry. Lets a single
+  Todo List page show tasks across multiple projects without
+  ambiguity.
+- **Status field** — every kanban task gets a **select-type
+  `Status` field** with 6 options matching the 6 kanban columns.
+  Hidden binding on the source so it doesn't render inline (the
+  column placement IS the visual indicator). Editable via the
+  task's radial / header.
+- **Day-filter field stamps** — every container in the project's
+  schedule-bound spots gets a hidden `Date` input field (same
+  pattern as the rest of pages/ops) so the day filter cascade
+  works.
+- **Operations** (status-driven movement, bidirectional):
+  - User drags task → Schedule slot → **moves the kanban copy to
+    `Working On`** AND stamps Date/timeslot. Schedule slot
+    placement is canonical "you're doing it now".
+  - User changes a task's Status field → `Backburner` → kanban
+    copy lands in Backburner column AND the schedule/todo-page
+    copy moves into the **Backburner container** on Todo List
+    (mirror in both places).
+  - Status → `Docket` → same pattern, into Todo List Docket
+    container.
+  - Status → `Working On` → moves into Schedule's Due (no
+    timeslot) OR keeps the existing slot if one is already set
+    on the task.
+  - Status → `In Review` / `Test` / `Complete` → stays in
+    Schedule, kanban copy moves to the matching column.
+  - Implement as a single `Project: Status Router` op that fires
+    on Status field change (onChange), reads `$trigger.value`,
+    and routes the kanban copy + the schedule/todo copy via
+    MOVE_OCCURRENCE / LINK_OCCURRENCE_TO_PARENT effects.
+- Open question: where does the `Date` field live for kanban
+  tasks (on the task instance or on a wrapping container)? And
+  what's the project's name so I can write the scope textblock?
+
+### Existing docket — DO NOT IMPLEMENT until the above ship
 
 - **Author more `$displayRules` in live data.** Six trackers now
   rule-decorated: Water (target met/notMet), Pages (Pages-style
@@ -256,6 +621,32 @@ authoring and integration passes remain:
     `[type ▼] [key (if obj)] [value chip / picker]  [−] [+]`,
     container has a trailing `[ + add row ]`. Nested objects/arrays
     collapse/expand with the existing chevrons.
+
+### 🔵 AI assistant work (LAST on docket — do these only after the
+### above are done)
+The Jarvis assistant drawer + REST API + tool catalog is merged into
+master (commits `41f35175`, `33ab8222`, `cb2bc474`, `48b15832`,
+`a3f533dc`, `0c18352f`). Open items:
+- Plan + spec the in-app assistant per `docs/aispecs.md` — offline
+  LLM stack (Ollama + qwen2.5-coder), tool router, sandboxed
+  command executor, OCR, "frog Jeeves" persona, etc. See item 10
+  in the Session 2026-05-20 handoff at the top of this file.
+- The API layer (already started in `server/routes/apiV1.js`) should
+  be first-class — each Jarvis tool maps to a `/api/v1/*` endpoint
+  that wraps the corresponding CommitHelpers / operation-action
+  call so the LLM has no special privileges.
+- Confirmation UX before destructive actions.
+- Prompt caching on the static system prompt + tool catalog.
+
+### 🟣 LATER docket (after AI ships)
+
+- **Link data semantics.** The mind-map link tools (line / linked
+  shapes) currently carry no data — they're purely visual. Future
+  work: give each link a typed data payload (e.g. "depends on",
+  "blocks", "spawned by", "rolls up to") and surface those as
+  predicates in operations + filterable in the canvas + queryable
+  in the value-builder picker. Out of scope for now — comes after
+  the AI assistant lands.
 
 ## Recent Changes (2026-05-21 — Display-rules system + filter pill + canvas TDZ + recursion cap + AM/PM)
 - **NEW `helpers/displayRules.js`** — Pure rule evaluator. Operation

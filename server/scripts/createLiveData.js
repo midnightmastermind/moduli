@@ -2782,13 +2782,13 @@ export async function createLiveData(userId, options = {}) {
   // below) writes each goal's _effectiveFilter date into this field on
   // every filter change so the pill always reflects what the user is
   // currently filtering on.
-  for (const key of [...Object.keys(goalInstances), ...Object.keys(accountInstances)]) {
-    const inst = allInstances[key];
-    if (!inst.fieldBindings) inst.fieldBindings = [];
-    if (!inst.fieldBindings.some(b => b.fieldId === dateFieldId)) {
-      inst.fieldBindings.unshift({ fieldId: dateFieldId, role: "display", order: -1 });
-    }
-  }
+  // (Removed 2026-05-21) — Date field auto-binding on goal + account
+  // instances. The Date display showed up as a stamp on every goal
+  // row but the value was never reliably set (the seed "Stamp Filter
+  // Date" op didn't resolve $effectiveFilter for goals whose parent
+  // chain links via occurrences[] without parentId). User decision:
+  // the date filter in the page header covers the same intent — the
+  // inline Date row was redundant.
 
   // Persist instance modules (parallel insertMany in batches)
   const instanceDocs = Object.values(allInstances).map(inst => ({
@@ -4145,17 +4145,12 @@ export async function createLiveData(userId, options = {}) {
     filters: buildScheduleFilters({ schedFilterId, timeslotFilterId, dateFieldId, timeslotFieldId, timeslotLabels }),
   });
 
-  const canvasPageModId = uid(); const canvasPageOccId = uid();
-  await new Module({ id: canvasPageModId, userId, gridId, role: "page", kind: "canvas", label: "Canvas" }).save();
-  await mkOcc({
-    id: canvasPageOccId, moduleId: canvasPageModId,
-    parentId: interfacesFolderId, sortOrder: 1,
-    occurrences: [], // empty scratchpad — drag-to-canvas drop zone
-    iteration: { mode: "persistent" }, fields: {},
-    // Canvas is a scratchpad — explicit `{}` override blocks the grid's daily
-    // date filter cascade so dragged-in notes don't vanish on date nav.
-    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
-  });
+  // (Removed 2026-05-21) Standalone "Canvas" scratchpad page deleted —
+  // user consolidated to a single canvas (Schedule Canvas) as the
+  // canonical home for the mind-map demo. Keep these vars defined as
+  // null sentinels so downstream `Object.assign` / panel-pin lookups
+  // don't ReferenceError before they get filtered out.
+  const canvasPageModId = null; const canvasPageOccId = null;
 
   // Library page — pinned to manifest Library folder only; no grid panel (grid is 2×3 full).
   // filterOverride:{} so the library is always visible regardless of the active date filter.
@@ -4441,7 +4436,7 @@ export async function createLiveData(userId, options = {}) {
   // pages (Task 11) are NOT pinned — they live only under notesFolderId.
   await Occurrence.findOneAndUpdate({ id: panelOccIds.toolkit },  { $set: { occurrences: [toolkitFolderPageOccId, ...wellnessPageOccList] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.todo },     { $set: { occurrences: [todoPageOccId] } });
-  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [notebookFolderPageOccId, schedPageOccId, canvasPageOccId, schedCanvasPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [notebookFolderPageOccId, schedPageOccId, schedCanvasPageOccId].filter(Boolean) } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.goals },    { $set: { occurrences: [goalsPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.accounts }, { $set: { occurrences: [accountsPageOccId] } });
 
@@ -5660,16 +5655,12 @@ export async function createLiveData(userId, options = {}) {
   }).save();
 
   // ── Tracker: Stamp Filter Date ─────────────────────────────────────────────
-  // Task #5 — writes each goal/account instance's _effectiveFilter date into
-  // its dateFieldId so the display pill (newly bound on every goal+account)
-  // always reflects what the user is currently filtering on. Replaces the
-  // legacy custom filter-date badge.
-  //
-  // Triggers: onLoad + onFilterChange anywhere. Runs at priority 2 (before
-  // the trackers at p3-6 read $goalDate via _effectiveFilter — the trackers
-  // ALREADY use the effective filter directly, so the field write here is
-  // purely for display, not for tracker correctness). High-priority so the
-  // value lands before downstream renders.
+  // **Disabled 2026-05-21** — the Date field is no longer bound to goal /
+  // account instances (see the loop removal earlier in the seed). Without
+  // a binding to display the stamped value, this op is now dead weight on
+  // every load + filter change. Kept seeded but disabled so the op record
+  // exists if we ever re-bind the Date field; flip `enabled: true` to
+  // resurrect.
   await new Operation({
     id: uid(), userId, gridId, priority: 2,
     name: "Stamp Filter Date",
@@ -5713,7 +5704,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     folderId: opCategoryIds.trackers,
-    enabled: true,
+    enabled: false,
   }).save();
 
   // ── Tracker: Net Worth ─────────────────────────────────────────────────────
