@@ -102,6 +102,7 @@ function makeLogger() {
 const _SNAPSHOT_SKIP = new Set([
   "_log", "_occurrencesById", "_fieldsById",
   "$allItems", "$allOccurrences", "$allContainers", "$allPages", "$allPanels", "$allInstances",
+  "$allItemsById", "$allOccurrencesById",
   "$allTemplates", "$allFields", "$allOperations", "$grid",
 ]);
 // Actions whose `cfg.name` is the target $var to mutate (vs CREATE where
@@ -1006,6 +1007,14 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     $allPages: allItems.filter(i => i.role === "page"),
     $allPanels: allItems.filter(i => i.role === "panel"),
     $allInstances: allItems.filter(i => i.role === "instance"),
+    // Id-keyed lookup maps — let an op resolve a known occurrence id
+    // without LOOPing or FINDing. Path resolver splits on "." only, so
+    // UUIDs with dashes work as keys: `$allItemsById.<uuid>` walks to the
+    // value directly. Lets CategoryPathPicker emit stable id paths
+    // (e.g. for tracker `$goalItem = $allItemsById.<goalId>`) without
+    // bottling the id into the predicate's right side.
+    $allItemsById: Object.fromEntries(allItems.map(i => [i.id, i])),
+    $allOccurrencesById: Object.fromEntries(allItems.map(i => [i.id, i])),
     $allTemplates: allTemplates,
     $allFields: Object.values(fieldsById),
     $allOperations: (() => {
