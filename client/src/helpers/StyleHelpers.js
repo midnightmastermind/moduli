@@ -88,6 +88,138 @@ export function resolveInstanceStyle(instance, container, panel) {
 }
 
 /**
+ * Style fields each entity kind exposes. The editor reads this map to
+ * decide which controls to render — Grid-level defaults touch every
+ * field, while a textblock might only meaningfully use fonts + text
+ * color. Fields not listed for a kind still resolve through the
+ * cascade (so a Grid `bg` reaches an instance via the merge chain)
+ * but the editor won't surface them as inputs at that level.
+ *
+ * NOTE: kept as a permissive whitelist. The cascade itself is fully
+ * generic; this just shapes the editor UX so it's tailored per the
+ * user's per-type spec.
+ */
+export const STYLE_FIELDS_BY_KIND = {
+  grid:      ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "borderColor", "borderWidth", "borderStyle", "borderRadius", "padding", "opacity"],
+  panel:     ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "border", "borderColor", "borderWidth", "borderStyle", "borderRadius", "padding", "opacity"],
+  page:      ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "borderColor", "borderRadius", "padding", "opacity"],
+  container: ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "border", "borderColor", "borderWidth", "borderStyle", "borderRadius", "padding", "opacity"],
+  instance:  ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "borderColor", "borderRadius", "padding", "opacity"],
+  textblock: ["textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "padding", "opacity"],
+  artifact:  ["bg", "borderColor", "borderRadius", "padding", "opacity"],
+};
+
+/**
+ * Walk the cascade Grid → Panel → Page → Container → (Instance) and
+ * return the ordered ancestor list along with the merged effective
+ * style. Lets the editor render a row per ancestor showing what each
+ * contributes, plus the final resolved style.
+ *
+ * Inputs are passed loosely — any ancestor that's null is skipped so
+ * callers can use this from a partial chain (e.g. a Grid-level style
+ * editor passes only `{ grid }`).
+ *
+ *   ctx: {
+ *     grid:      Grid record (`grid.meta.defaultStyle` is the grid root)
+ *     panel:     Module of role:"panel"
+ *     panelOcc:  Occurrence of the panel
+ *     page:      Module of role:"page"
+ *     pageOcc:   Occurrence of the page
+ *     container: Module of role:"container"
+ *     containerOcc: Occurrence of the container
+ *     instance:  Module of role:"instance"
+ *     instanceOcc: Occurrence of the instance (per-placement override)
+ *   }
+ *
+ *   leafKind: which ancestor is the leaf (used to short-circuit the
+ *             walk so a Page editor doesn't include Container/Instance
+ *             rows that don't exist in its chain).
+ *
+ * For each level, the cascade considers TWO contributions:
+ *   - module.ownStyle (when styleMode === "own") — the "what this
+ *     entity looks like" style
+ *   - module.childContainerStyle / module.childInstanceStyle — defaults
+ *     this entity pushes DOWN to its children
+ *   - occurrence.ownStyle — per-placement overlay (final say at each
+ *     level)
+ *
+ * Returns:
+ *   {
+ *     levels: [{ kind, label, contribution: styleObj, source }],
+ *     resolved: styleObj      // merged top-down (closer ancestor wins)
+ *   }
+ */
+export function resolveStyleCascade(ctx, leafKind = "instance") {
+  const levels = [];
+  let resolved = null;
+
+  function pushLevel(kind, label, contribution, source) {
+    if (!contribution) return;
+    levels.push({ kind, label, contribution, source });
+    resolved = mergeStyles(resolved, contribution);
+  }
+
+  // Grid root — `grid.meta.defaultStyle` is the system-wide default
+  // pushed down from the Grid settings tab. Optional; null when the
+  // user hasn't set one.
+  if (ctx?.grid?.meta?.defaultStyle) {
+    pushLevel("grid", "Grid default", ctx.grid.meta.defaultStyle, "grid.meta.defaultStyle");
+  }
+
+  // Panel level — push panel's ownStyle, then its child-defaults the
+  // children will inherit further down.
+  if (ctx?.panel && (leafKind === "panel" || leafKind === "page" || leafKind === "container" || leafKind === "instance" || leafKind === "textblock" || leafKind === "artifact")) {
+    if (ctx.panel.styleMode === "own" && ctx.panel.ownStyle) {
+      pushLevel("panel", "Panel", ctx.panel.ownStyle, "panel.ownStyle");
+    }
+    if (ctx.panelOcc?.ownStyle) {
+      pushLevel("panel", "Panel (placement)", ctx.panelOcc.ownStyle, "panelOcc.ownStyle");
+    }
+    if (leafKind !== "panel" && ctx.panel.childContainerStyle) {
+      pushLevel("panel-child", "Panel → children", ctx.panel.childContainerStyle, "panel.childContainerStyle");
+    }
+  }
+
+  // Page level
+  if (ctx?.page && (leafKind === "page" || leafKind === "container" || leafKind === "instance" || leafKind === "textblock" || leafKind === "artifact")) {
+    if (ctx.page.styleMode === "own" && ctx.page.ownStyle) {
+      pushLevel("page", "Page", ctx.page.ownStyle, "page.ownStyle");
+    }
+    if (ctx.pageOcc?.ownStyle) {
+      pushLevel("page", "Page (placement)", ctx.pageOcc.ownStyle, "pageOcc.ownStyle");
+    }
+    if (leafKind !== "page" && ctx.page.childContainerStyle) {
+      pushLevel("page-child", "Page → children", ctx.page.childContainerStyle, "page.childContainerStyle");
+    }
+  }
+
+  // Container level
+  if (ctx?.container && (leafKind === "container" || leafKind === "instance" || leafKind === "textblock" || leafKind === "artifact")) {
+    if (ctx.container.styleMode === "own" && ctx.container.ownStyle) {
+      pushLevel("container", "Container", ctx.container.ownStyle, "container.ownStyle");
+    }
+    if (ctx.containerOcc?.ownStyle) {
+      pushLevel("container", "Container (placement)", ctx.containerOcc.ownStyle, "containerOcc.ownStyle");
+    }
+    if (leafKind !== "container" && ctx.container.childInstanceStyle) {
+      pushLevel("container-child", "Container → children", ctx.container.childInstanceStyle, "container.childInstanceStyle");
+    }
+  }
+
+  // Instance / textblock / artifact leaf
+  if (ctx?.instance && (leafKind === "instance" || leafKind === "textblock" || leafKind === "artifact")) {
+    if (ctx.instance.styleMode === "own" && ctx.instance.ownStyle) {
+      pushLevel(leafKind, "This entity", ctx.instance.ownStyle, "instance.ownStyle");
+    }
+    if (ctx.instanceOcc?.ownStyle) {
+      pushLevel(leafKind, "This placement", ctx.instanceOcc.ownStyle, "instanceOcc.ownStyle");
+    }
+  }
+
+  return { levels, resolved };
+}
+
+/**
  * Convert a resolved style object into React inline styles.
  * Only includes non-null properties. The granular border trio is
  * applied AFTER the legacy `border` shorthand so a partial override
