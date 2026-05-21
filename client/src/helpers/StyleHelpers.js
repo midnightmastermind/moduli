@@ -228,47 +228,72 @@ export function resolveStyleCascade(ctx, leafKind = "instance") {
     pushLevel("grid", "Grid default", ctx.grid.meta.defaultStyle, "grid.meta.defaultStyle");
   }
 
-  // Panel level — push panel's ownStyle, then its child-defaults the
-  // children will inherit further down.
-  if (ctx?.panel && (leafKind === "panel" || leafKind === "page" || leafKind === "container" || leafKind === "instance" || leafKind === "textblock" || leafKind === "artifact")) {
-    if (ctx.panel.styleMode === "own" && ctx.panel.ownStyle) {
-      pushLevel("panel", "Panel", ctx.panel.ownStyle, "panel.ownStyle");
-    }
-    if (ctx.panelOcc?.ownStyle) {
-      pushLevel("panel", "Panel (placement)", ctx.panelOcc.ownStyle, "panelOcc.ownStyle");
-    }
-    if (leafKind !== "panel" && ctx.panel.childContainerStyle) {
-      pushLevel("panel-child", "Panel → children", ctx.panel.childContainerStyle, "panel.childContainerStyle");
+  // ── Semantic rule (matches the legacy resolveContainerStyle /
+  //    resolveInstanceStyle walkers) ─────────────────────────────
+  // ownStyle (and its per-placement overlay) describes how THIS
+  // entity looks — it does NOT flow down to descendants. Only the
+  // per-level push-down keys (childContainerStyle /
+  // childInstanceStyle) cascade. Therefore each level emits:
+  //   - its ownStyle + occ.ownStyle    ONLY when it IS the leaf
+  //   - its childXxxStyle              ONLY when the leaf is below
+  //
+  // Both rows still surface in the editor's "Inherited cascade"
+  // view (read-only) so the user can see what's contributing.
+
+  // Panel level
+  if (ctx?.panel) {
+    if (leafKind === "panel") {
+      if (ctx.panel.styleMode === "own" && ctx.panel.ownStyle) {
+        pushLevel("panel", "Panel", ctx.panel.ownStyle, "panel.ownStyle");
+      }
+      if (ctx.panelOcc?.ownStyle) {
+        pushLevel("panel", "Panel (placement)", ctx.panelOcc.ownStyle, "panelOcc.ownStyle");
+      }
+    } else if (ctx.panel.childContainerStyle || ctx.panel.childInstanceStyle) {
+      // Descendant resolution — choose the push-down key that matches
+      // the leaf chain. Pages / containers inherit panel.childContainerStyle;
+      // instances / textblocks / artifacts inherit panel.childInstanceStyle.
+      const key = (leafKind === "instance" || leafKind === "textblock" || leafKind === "artifact")
+        ? (ctx.panel.childInstanceStyle ? "childInstanceStyle" : "childContainerStyle")
+        : "childContainerStyle";
+      const contribution = ctx.panel[key];
+      if (contribution) pushLevel("panel-child", `Panel → ${key === "childInstanceStyle" ? "instances" : "containers"}`, contribution, `panel.${key}`);
     }
   }
 
   // Page level
-  if (ctx?.page && (leafKind === "page" || leafKind === "container" || leafKind === "instance" || leafKind === "textblock" || leafKind === "artifact")) {
-    if (ctx.page.styleMode === "own" && ctx.page.ownStyle) {
-      pushLevel("page", "Page", ctx.page.ownStyle, "page.ownStyle");
-    }
-    if (ctx.pageOcc?.ownStyle) {
-      pushLevel("page", "Page (placement)", ctx.pageOcc.ownStyle, "pageOcc.ownStyle");
-    }
-    if (leafKind !== "page" && ctx.page.childContainerStyle) {
-      pushLevel("page-child", "Page → children", ctx.page.childContainerStyle, "page.childContainerStyle");
+  if (ctx?.page) {
+    if (leafKind === "page") {
+      if (ctx.page.styleMode === "own" && ctx.page.ownStyle) {
+        pushLevel("page", "Page", ctx.page.ownStyle, "page.ownStyle");
+      }
+      if (ctx.pageOcc?.ownStyle) {
+        pushLevel("page", "Page (placement)", ctx.pageOcc.ownStyle, "pageOcc.ownStyle");
+      }
+    } else {
+      const key = (leafKind === "instance" || leafKind === "textblock" || leafKind === "artifact")
+        ? (ctx.page.childInstanceStyle ? "childInstanceStyle" : "childContainerStyle")
+        : "childContainerStyle";
+      const contribution = ctx.page?.[key];
+      if (contribution) pushLevel("page-child", `Page → ${key === "childInstanceStyle" ? "instances" : "containers"}`, contribution, `page.${key}`);
     }
   }
 
   // Container level
-  if (ctx?.container && (leafKind === "container" || leafKind === "instance" || leafKind === "textblock" || leafKind === "artifact")) {
-    if (ctx.container.styleMode === "own" && ctx.container.ownStyle) {
-      pushLevel("container", "Container", ctx.container.ownStyle, "container.ownStyle");
-    }
-    if (ctx.containerOcc?.ownStyle) {
-      pushLevel("container", "Container (placement)", ctx.containerOcc.ownStyle, "containerOcc.ownStyle");
-    }
-    if (leafKind !== "container" && ctx.container.childInstanceStyle) {
-      pushLevel("container-child", "Container → children", ctx.container.childInstanceStyle, "container.childInstanceStyle");
+  if (ctx?.container) {
+    if (leafKind === "container") {
+      if (ctx.container.styleMode === "own" && ctx.container.ownStyle) {
+        pushLevel("container", "Container", ctx.container.ownStyle, "container.ownStyle");
+      }
+      if (ctx.containerOcc?.ownStyle) {
+        pushLevel("container", "Container (placement)", ctx.containerOcc.ownStyle, "containerOcc.ownStyle");
+      }
+    } else if (ctx.container.childInstanceStyle && (leafKind === "instance" || leafKind === "textblock" || leafKind === "artifact")) {
+      pushLevel("container-child", "Container → instances", ctx.container.childInstanceStyle, "container.childInstanceStyle");
     }
   }
 
-  // Instance / textblock / artifact leaf
+  // Instance / textblock / artifact leaf — only contributes at its own level
   if (ctx?.instance && (leafKind === "instance" || leafKind === "textblock" || leafKind === "artifact")) {
     if (ctx.instance.styleMode === "own" && ctx.instance.ownStyle) {
       pushLevel(leafKind, "This entity", ctx.instance.ownStyle, "instance.ownStyle");
