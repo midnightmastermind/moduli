@@ -10,6 +10,8 @@ import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { uid } from "../../uid";
 import { COMPARATOR_OPTIONS } from "../../helpers/comparators";
 import SortSection from "../SortSection";
+import StyleEditor from "../StyleEditor";
+import { resolveStyleCascade } from "../../helpers/StyleHelpers";
 
 const TIME_UNIT_OPTIONS = [
   { value: "day",   label: "Day" },
@@ -163,6 +165,37 @@ export function GridSettingsTab() {
             onKeyDown={e => { if (e.key === "Enter") commitCols(e.currentTarget.value); }}
           />
         </div>
+      </div>
+
+      <Separator className="mb-3" />
+
+      {/* ── Grid-wide default style — root of the cascade ───────────
+          Writes to `grid.meta.defaultStyle`. Panels / pages / containers
+          / instances inherit this and may override at their own level
+          via their respective StyleEditors. The kind="grid" field set
+          tailors the surfaced controls to grid-wide defaults (text
+          color, fonts, borders, padding, opacity — not per-placement
+          backgrounds, since the grid itself has no background slot
+          users typically style directly). */}
+      <div className="mb-3">
+        <StyleEditor
+          kind="grid"
+          label="Grid default style"
+          inheritLabel="(none — this is the cascade root)"
+          styleMode={grid?.meta?.defaultStyle ? "own" : "inherit"}
+          ownStyle={grid?.meta?.defaultStyle || null}
+          onStyleModeChange={(mode) => {
+            if (mode === "inherit") {
+              const nextMeta = { ...(grid?.meta || {}) };
+              delete nextMeta.defaultStyle;
+              CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta: nextMeta }, emit: true });
+            }
+          }}
+          onOwnStyleChange={(style) => {
+            const nextMeta = { ...(grid?.meta || {}), defaultStyle: style };
+            CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta: nextMeta }, emit: true });
+          }}
+        />
       </div>
 
       <Separator className="mb-3" />

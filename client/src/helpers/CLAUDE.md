@@ -1,6 +1,20 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-05-20. Check this file before re-reading source._
+_Updated: 2026-05-21. Check this file before re-reading source._
+
+## Recent Changes (2026-05-21 — StyleHelpers cascade walker)
+- **`StyleHelpers.js`** — Added `STYLE_FIELDS_BY_KIND` (per-entity-type
+  field whitelist driving the editor's kind-aware UI),
+  `resolveStyleCascade(ctx, leafKind)` (Grid → Panel → Page →
+  Container → Instance walker returning ordered ancestor levels +
+  merged resolved style), and `buildStyleCascadeContext({
+  leafOccurrence, occurrencesById, modulesById, grid })` (parent-
+  chain bucketer that fills the `ctx` shape `resolveStyleCascade`
+  expects via the shared `buildParentMap`). Used by
+  `ui/StyleEditor.jsx`'s new cascade-view + by ContainerForm /
+  InstanceForm / LayoutForm / GridSettingsTab to render kind-aware
+  controls per entity. Granular border + font fields added to
+  DEFAULT_ENTITY_STYLE in an earlier commit this session.
 
 ## Recent Changes (2026-05-21 — CALL_API + SHOW_VALUE + suspend-aware onPipelineDone)
 - **`operationActions.js` new action `CALL_API`** — outbound HTTP from

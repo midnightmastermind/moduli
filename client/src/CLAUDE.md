@@ -2,6 +2,48 @@
 
 _Updated: 2026-05-21. Check this file before re-reading source._
 
+## Recent Changes (2026-05-21 — CSS cascade editor extends to Grid + per-kind controls)
+- **`helpers/StyleHelpers.js`** — Added `STYLE_FIELDS_BY_KIND`
+  whitelist (grid / panel / page / container / instance / textblock /
+  artifact) telling the editor which controls to surface per entity
+  type. Added `resolveStyleCascade(ctx, leafKind)` — walks Grid →
+  Panel → Page → Container → Instance and returns
+  `{ levels: [{kind,label,contribution,source}], resolved }` so the
+  editor can render every ancestor's contribution as a read-only
+  inheritance row. Added `buildStyleCascadeContext({leafOccurrence,
+  occurrencesById, modulesById, grid})` — walks an occurrence's
+  parent chain via the shared `buildParentMap` reverse map and
+  buckets ancestors by role, returning the `ctx` shape
+  `resolveStyleCascade` expects. Pure data layer; no React deps.
+- **`ui/StyleEditor.jsx`** — Now kind-aware. New props `kind`
+  (drives field filter) + `cascade` (the `resolveStyleCascade`
+  output, renders as "Inherited cascade" read-only row stack at the
+  top). Granular border controls (`borderColor` / `borderWidth` /
+  `borderStyle`) and full font family / weight / line-height
+  controls added; legacy `border` shorthand kept for back-compat
+  seeds. Each control renders only when its key is in the kind's
+  field whitelist.
+- **`ui/commandCenter/GridSettingsTab.jsx`** — New "Grid default
+  style" section (between dimensions and Sort panels) using a
+  `kind="grid"` StyleEditor that writes to `grid.meta.defaultStyle`.
+  This is the cascade root that panels / pages / containers /
+  instances inherit from. `inherit` mode = no default; `own` mode
+  persists the style object onto `grid.meta`.
+- **`ui/LayoutForm.jsx`** — Panel "Container Defaults" and "Instance
+  Defaults" StyleEditors now pass `kind="panel"` / `kind="instance"`
+  + clarified inherit labels ("Grid default").
+- **`ui/ContainerForm.jsx`** — Both container-level StyleEditors
+  (container style, child-instance defaults, per-placement
+  occurrence overlay) now pass `kind` + a memoized
+  `resolveStyleCascade` output via the new `cascade` prop. The
+  child-instance editor includes the container itself in the chain
+  so the user sees what an instance dropped into this container
+  would inherit.
+- **`ui/InstanceForm.jsx`** — Instance StyleEditor: `kind` derives
+  from the instance role (`textblock` / `artifact` / `instance`)
+  and a memoized cascade walks all the way from this occurrence up
+  through Container → Page → Panel → Grid.
+
 ## Recent Changes (2026-05-21 — Multi-date filter cascade wiring)
 - **`helpers/operationActions.js` (`evalRule DATE_IN_PERIOD`)** — new
   short-circuit branch BEFORE the period/span path: if rightVal is an
@@ -48,6 +90,35 @@ _Updated: 2026-05-21. Check this file before re-reading source._
 ## Open docket (work still pending — handed off 2026-05-21)
 
 ### 🔴 BUGS — fix soon
+
+- **Canvas occurrence snap-back on drag-across.** 2026-05-21 — user
+  reports moving a card across the canvas can result in the card
+  jumping back to its original `meta.x/y` position. Likely cause
+  zones: (a) `CanvasContent.jsx` writes `meta.x/y` optimistically on
+  drag end but a server echo with stale meta (a NavigationOp /
+  filter rebuild fired during the drag, e.g. `Schedule Canvas:
+  Build Day` running on filter onLoad) overwrites the position, OR
+  (b) the drop handler in `dropHandlers.js` re-stamps meta from the
+  source occurrence on a canvas-to-canvas move. Repro: drag a card
+  on a canvas page that has an `onLoad` op stamping `meta`. Fix
+  direction: (1) verify `meta.x/y` is on the linked-group
+  meta-fanout DENYLIST in `server/socketHandlers/occurrences.js`
+  (the prior session noted this needed adding for the Schedule
+  Canvas's bidirectional sync), and (2) audit any canvas op that
+  writes `meta` for idempotency on existing-positioned cards
+  (probe `IS_NOT_EMPTY meta.x` before stamping).
+- **Bring back the full-screen button on panels (next to the radial
+  menu).** 2026-05-21 — the maximize/expand button used to sit
+  next to the panel's RadialMenu and toggle the panel into
+  `forceFullscreen` mode. `ModulePanel.jsx` still respects
+  `forceFullscreen` + `fullscreenPanelId` (see lines 275, 505,
+  704-716), so only the UI affordance is missing. Add a `Maximize2`
+  button (lucide) in the panel header — next to the QuickAddMenu
+  `+` / RadialMenu handle — that toggles
+  `fullscreenPanelId === module.id` via the existing
+  `onToggleFullscreen` prop (or wires a new one). The fullscreen
+  state container already exists at the Grid level (App.jsx exposes
+  it via context); just plumb the toggle back to the panel chrome.
 
 - **~~Slow initial connection / app freezes during load.~~** PARTIAL
   FIX 2026-05-21 (commit `b3446c48`): folder-page preview was the

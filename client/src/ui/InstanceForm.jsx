@@ -12,6 +12,7 @@ import EditorBindingSection from "./EditorBindingSection.jsx";
 import StyleEditor from "./StyleEditor";
 import { GridActionsContext } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
+import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   Select,
@@ -41,7 +42,27 @@ export default function InstanceForm({
   dispatch,
   socket,
 }) {
-  const { fieldsById, containersById, panelsById, occurrencesById, modulesById } = useContext(GridActionsContext);
+  const { fieldsById, containersById, panelsById, occurrencesById, modulesById, state } = useContext(GridActionsContext);
+
+  // Cascade context — walks from THIS instance occurrence up through
+  // Container → Page → Panel → Grid so the StyleEditor's "Inherited
+  // cascade" view shows what every ancestor is contributing before the
+  // user picks an override at the instance level.
+  const cascadeForInstance = useMemo(() => {
+    if (!occurrence) return null;
+    const ctx = buildStyleCascadeContext({
+      leafOccurrence: occurrence,
+      occurrencesById,
+      modulesById,
+      grid: state?.grid,
+    });
+    // The walker buckets ancestors by role — the instance itself is
+    // surfaced as `ctx.instance` so leaf rules fire correctly.
+    const leafKind = instance?.role === "textblock" ? "textblock"
+      : instance?.role === "artifact" ? "artifact"
+      : "instance";
+    return resolveStyleCascade(ctx, leafKind);
+  }, [occurrence, instance?.role, occurrencesById, modulesById, state?.grid]);
 
   const handleOccurrenceUpdate = useCallback((updates) => {
     if (!occurrence?.id) return;
@@ -239,6 +260,8 @@ export default function InstanceForm({
         {/* STYLE TAB */}
         <TabsContent value="style" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1">
           <StyleEditor
+            kind={instance?.role === "textblock" ? "textblock" : instance?.role === "artifact" ? "artifact" : "instance"}
+            cascade={cascadeForInstance}
             styleMode={instance?.styleMode || "inherit"}
             ownStyle={instance?.ownStyle}
             onStyleModeChange={(mode) => {
@@ -262,7 +285,7 @@ export default function InstanceForm({
               }
             }}
             label="Instance Style"
-            inheritLabel="Container / Panel"
+            inheritLabel="Container / Page / Panel / Grid"
           />
         </TabsContent>
 

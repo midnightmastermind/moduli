@@ -783,14 +783,15 @@ export default function LayoutForm({
         {/* STYLE TAB: Child Container Defaults, Child Instance Defaults, Insets/Padding/Variant */}
         <TabsContent value="style" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1 space-y-2">
           <StyleEditor
+            kind="panel"
             styleMode={panel?.childContainerStyle ? "own" : "inherit"}
             ownStyle={panel?.childContainerStyle}
             onStyleModeChange={(mode) => {
               if (mode === "inherit") onPanelStyleUpdate?.({ childContainerStyle: null });
             }}
             onOwnStyleChange={(style) => onPanelStyleUpdate?.({ childContainerStyle: style })}
-            label="Container Defaults"
-            inheritLabel="Theme"
+            label="Container Defaults (pushed down)"
+            inheritLabel="Grid default"
             customCss={panel?.customCss || ""}
             onCustomCssChange={(css) => onPanelStyleUpdate?.({ customCss: css })}
             moduleId={panelId}
@@ -799,14 +800,15 @@ export default function LayoutForm({
           <Separator />
 
           <StyleEditor
+            kind="instance"
             styleMode={panel?.childInstanceStyle ? "own" : "inherit"}
             ownStyle={panel?.childInstanceStyle}
             onStyleModeChange={(mode) => {
               if (mode === "inherit") onPanelStyleUpdate?.({ childInstanceStyle: null });
             }}
             onOwnStyleChange={(style) => onPanelStyleUpdate?.({ childInstanceStyle: style })}
-            label="Instance Defaults"
-            inheritLabel="Theme"
+            label="Instance Defaults (pushed down)"
+            inheritLabel="Grid default"
           />
 
           <Separator />

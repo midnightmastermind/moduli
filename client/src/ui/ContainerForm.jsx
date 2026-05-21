@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { GridActionsContext } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
 import EditorBindingSection from "./EditorBindingSection.jsx";
+import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
 
 const DRAG_MODE_OPTIONS = [
   { value: "move", label: "Move (relocate occurrence)" },
@@ -32,7 +33,41 @@ export default function ContainerForm({
   onOccurrenceStyleChange, // (style|null) => void — writes occurrence.ownStyle
 }) {
   const iter = iteration || { mode: "inherit", timeFilter: "daily" };
-  const { occurrencesById, modulesById, fieldsById } = useContext(GridActionsContext);
+  const { occurrencesById, modulesById, fieldsById, state } = useContext(GridActionsContext);
+
+  // Cascade context for the StyleEditor — shows what every ancestor
+  // (Grid → Panel → Page) is pushing down so the user can see WHY this
+  // container looks the way it does before overriding. The walk starts
+  // from THIS container occurrence and buckets ancestors by role.
+  const cascadeForContainer = useMemo(() => {
+    if (!occurrence) return null;
+    const ctx = buildStyleCascadeContext({
+      leafOccurrence: occurrencesById?.[occurrence.parentId] || occurrencesById?.[occurrence.id],
+      occurrencesById,
+      modulesById,
+      grid: state?.grid,
+    });
+    return resolveStyleCascade(ctx, "container");
+  }, [occurrence, occurrencesById, modulesById, state?.grid]);
+
+  // Cascade for the child-instance defaults — same chain but leaf is
+  // an instance so the editor shows what an instance dropped INTO this
+  // container would inherit from Grid/Panel/Page/Container.
+  const cascadeForChildInstance = useMemo(() => {
+    if (!occurrence) return null;
+    const ctx = buildStyleCascadeContext({
+      leafOccurrence: occurrencesById?.[occurrence.id],
+      occurrencesById,
+      modulesById,
+      grid: state?.grid,
+    });
+    // Include the container itself's contribution at the bottom.
+    if (container) {
+      ctx.container = container;
+      ctx.containerOcc = occurrence;
+    }
+    return resolveStyleCascade(ctx, "instance");
+  }, [occurrence, container, occurrencesById, modulesById, state?.grid]);
 
   // All markdown fields available for attaching
   const markdownFieldOptions = useMemo(() => {
@@ -258,12 +293,14 @@ export default function ContainerForm({
         {/* STYLE TAB */}
         <TabsContent value="style" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1">
           <StyleEditor
+            kind="container"
+            cascade={cascadeForContainer}
             styleMode={container?.styleMode || "inherit"}
             ownStyle={container?.ownStyle}
             onStyleModeChange={(mode) => onContainerUpdate?.({ styleMode: mode })}
             onOwnStyleChange={(style) => onContainerUpdate?.({ ownStyle: style })}
             label="Container Style"
-            inheritLabel="Panel"
+            inheritLabel="Page / Panel / Grid"
             customCss={container?.customCss || ""}
             onCustomCssChange={(css) => onContainerUpdate?.({ customCss: css })}
             moduleId={containerId}
@@ -272,14 +309,16 @@ export default function ContainerForm({
           <Separator />
 
           <StyleEditor
+            kind="instance"
+            cascade={cascadeForChildInstance}
             styleMode={container?.childInstanceStyle ? "own" : "inherit"}
             ownStyle={container?.childInstanceStyle}
             onStyleModeChange={(mode) => {
               if (mode === "inherit") onContainerUpdate?.({ childInstanceStyle: null });
             }}
             onOwnStyleChange={(style) => onContainerUpdate?.({ childInstanceStyle: style })}
-            label="Child Instance Defaults"
-            inheritLabel="Panel"
+            label="Child Instance Defaults (pushed down)"
+            inheritLabel="Page / Panel / Grid"
           />
 
           {occurrence && (
@@ -291,13 +330,14 @@ export default function ContainerForm({
                   UPDATE $occ.ownStyle.<key>, so user edits here and op
                   writes interleave cleanly. */}
               <StyleEditor
+                kind="container"
                 styleMode={occurrence?.ownStyle ? "own" : "inherit"}
                 ownStyle={occurrence?.ownStyle}
                 onStyleModeChange={(mode) => {
                   if (mode === "inherit") onOccurrenceStyleChange?.(null);
                 }}
                 onOwnStyleChange={(style) => onOccurrenceStyleChange?.(style)}
-                label="This Occurrence (overrides module)"
+                label="This Placement (overrides module)"
                 inheritLabel="Module"
               />
             </>

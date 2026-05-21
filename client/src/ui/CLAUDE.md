@@ -2,6 +2,39 @@
 
 _Updated: 2026-05-21. Check this file before re-reading source._
 
+## Recent Changes (2026-05-21 — StyleEditor kind-aware + grid-default cascade root)
+- **`StyleEditor.jsx`** — Now accepts `kind`
+  (`"grid"|"panel"|"page"|"container"|"instance"|"textblock"|
+  "artifact"`) and conditionally renders only the controls listed in
+  `STYLE_FIELDS_BY_KIND` for that kind. New `cascade` prop accepts
+  the output of `resolveStyleCascade` and renders a read-only
+  "Inherited cascade" stack at the top of the form showing every
+  ancestor's contribution (one row per Grid / Panel / Page /
+  Container / Instance level that touched the style). Added
+  granular border (`borderColor` / `borderWidth` / `borderStyle`),
+  `fontFamily`, `fontWeight`, `lineHeight` controls; legacy `border`
+  shorthand kept for back-compat. Default `kind="container"` so
+  existing callers that don't opt in keep their current control
+  set.
+- **`commandCenter/GridSettingsTab.jsx`** — Added new section "Grid
+  default style" (right under the rows/cols grid, before Sort
+  panels). `kind="grid"` StyleEditor writes to
+  `grid.meta.defaultStyle` — the root of the cascade that pushes
+  down to every panel / page / container / instance unless
+  overridden at a lower level. `inherit` mode deletes the meta key;
+  `own` mode persists the style object via `CommitHelpers.updateGrid`.
+- **`LayoutForm.jsx`** — Panel "Container Defaults" + "Instance
+  Defaults" StyleEditors now pass `kind="panel"` / `kind="instance"`
+  + clarified inherit labels.
+- **`ContainerForm.jsx`** — All three StyleEditors (container,
+  child-instance defaults, per-placement overlay) now pass `kind` +
+  a memoized `cascade` from `resolveStyleCascade`. Child-instance
+  editor includes the container itself in the chain.
+- **`InstanceForm.jsx`** — Instance StyleEditor: `kind` derives from
+  instance role (textblock / artifact / instance); cascade walks all
+  the way from this occurrence up through Container → Page → Panel
+  → Grid.
+
 ## Recent Changes (2026-05-21 — Drilldown date picker + filter pill + value-direction display colors + Now AM/PM)
 - **`DrilldownDatePicker.jsx` (NEW)** — Calendar-style multi-select
   picker with four-level zoom (day → week → month → year). Self-

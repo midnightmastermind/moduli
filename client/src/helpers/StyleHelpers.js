@@ -1,9 +1,11 @@
 // StyleHelpers.js — Cascading style resolution
 // ============================================================
 // Mirrors resolveEffectiveIteration pattern:
-//   Panel → Container → Instance
+//   Grid → Panel → Page → Container → Instance
 // Each level can "inherit" (use parent defaults) or "own" (override).
 // ============================================================
+
+import { buildParentMap } from "./dragHitTesting";
 
 // Default shape — all null means "inherit everything".
 // Granular border + font fields let the cascade override pieces
@@ -99,6 +101,56 @@ export function resolveInstanceStyle(instance, container, panel) {
  * generic; this just shapes the editor UX so it's tailored per the
  * user's per-type spec.
  */
+/**
+ * Walk up `leafOccurrence`'s parent chain via the shared
+ * `buildParentMap` reverse map and bucket each ancestor's module by
+ * role, returning a `ctx` shaped for `resolveStyleCascade`. Use this
+ * from the form code (ContainerForm / InstanceForm) so the editor's
+ * cascade view shows what every ancestor is pushing down before the
+ * user picks an override.
+ *
+ *   buildStyleCascadeContext({
+ *     leafOccurrence,
+ *     occurrencesById,
+ *     modulesById,
+ *     grid,
+ *   }) → { grid, panel, panelOcc, page, pageOcc, container, containerOcc, instance, instanceOcc }
+ *
+ * Buckets resolve closest-to-leaf-wins (first match per role kept).
+ * Safety-capped at 32 hops in case of a malformed `occurrences[]` ring.
+ */
+export function buildStyleCascadeContext({ leafOccurrence, occurrencesById, modulesById, grid }) {
+  const ctx = { grid };
+  if (!leafOccurrence || !occurrencesById || !modulesById) return ctx;
+  const parentByChildId = buildParentMap(occurrencesById);
+  let cur = leafOccurrence;
+  let safety = 32;
+  const seen = new Set();
+  while (cur && safety-- > 0) {
+    if (seen.has(cur.id)) break;
+    seen.add(cur.id);
+    const mod = modulesById[cur.targetId];
+    if (mod) {
+      if (mod.role === "container" && !ctx.container) {
+        ctx.container = mod;
+        ctx.containerOcc = cur;
+      } else if (mod.role === "page" && !ctx.page) {
+        ctx.page = mod;
+        ctx.pageOcc = cur;
+      } else if (mod.role === "panel" && !ctx.panel) {
+        ctx.panel = mod;
+        ctx.panelOcc = cur;
+      } else if ((mod.role === "instance" || mod.role === "textblock" || mod.role === "artifact") && !ctx.instance) {
+        ctx.instance = mod;
+        ctx.instanceOcc = cur;
+      }
+    }
+    const parentId = parentByChildId[cur.id];
+    cur = parentId ? occurrencesById[parentId] : null;
+  }
+  return ctx;
+}
+
 export const STYLE_FIELDS_BY_KIND = {
   grid:      ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "borderColor", "borderWidth", "borderStyle", "borderRadius", "padding", "opacity"],
   panel:     ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "border", "borderColor", "borderWidth", "borderStyle", "borderRadius", "padding", "opacity"],
