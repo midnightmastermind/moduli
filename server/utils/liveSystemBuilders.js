@@ -1351,35 +1351,94 @@ export function makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolder
 }
 
 // ── Project: Create ──────────────────────────────────────────────────────────
-// User-triggered op (triggerType: "manual" — fires only when invoked
-// explicitly) that APPLY_TEMPLATEs the Project Page template into the
-// Projects folder. Two caller-supplied vars:
-//   - $projectName  → fills the {ProjectName} token in the page label
-//                     and scope heading
-//   - $projectScope → fills the {ProjectScope} placeholder paragraph
-// Both default to deterministic strings if absent, so a no-arg invoke
-// from the in-app run button still mints a usable scaffold.
+// APPLY_TEMPLATEs the Project Page template into the Projects folder,
+// swapping {ProjectName} + {ProjectScope} tokens at instantiation
+// (same bracket-replacement technique Day Page uses for {Date}).
 //
-// Mirrors Day Page: Build's idempotency-by-label pattern — checks for an
-// existing page named "Project: {ProjectName}" before APPLY_TEMPLATE so
-// repeated invocations don't dupe.
+// Dual-trigger behavior:
+//   - onLoad → seeds an EXAMPLE project ("Moduli v1 Launch") with a
+//     long-form demo scope. Idempotent — only mints if no project page
+//     of that label exists yet. Gives every fresh user a populated
+//     Projects folder on first load.
+//   - manual → GET_USER_INPUT prompts for the project name first, then
+//     the project scope description. Both bound to $projectName /
+//     $projectScope and passed into APPLY_TEMPLATE's replacements.
+//
+// Both paths converge on the same APPLY_TEMPLATE branch — the template
+// (with its kanban + 6 columns + scope skeleton) is preserved; only the
+// name + scope-paragraph text get filled in.
 export function makeProjectCreateOp({ userId, gridId, projectsFolderId }) {
+  // Demo scope text — used on onLoad. Single paragraph string that
+  // fills the {ProjectScope} token in the template's Overview section.
+  // The rest of the scope skeleton (Goals / Milestones / Risks / Success
+  // Criteria) is structural and lives in the template.
+  const DEMO_PROJECT_SCOPE = "Ship the Moduli v1 release: assistant drawer in every workspace, public REST API at /api/v1, drilldown date picker, display rules system, project kanban demo. The launch is a deliverable, not a moment — every feature has to survive the hard edges of real day-to-day use before it counts as shipped.";
+
   return {
     id: uid(), userId, gridId, name: "Project: Create",
-    description: "Mint a new project page from the Project Page template into the Projects folder. Args: $projectName (default 'Untitled'), $projectScope (default '—'). Idempotent by label.",
+    description: "Mint a new project page from the Project Page template. onLoad → seeds an example 'Moduli v1 Launch' project (idempotent). Manual → GET_USER_INPUT prompts for name + scope, then APPLY_TEMPLATEs with those replacements. Same {token} replacement technique as Day Page.",
     triggerType: "manual",
-    triggerTypes: ["manual"],
-    triggerObjects: [],
+    triggerTypes: ["manual", "onLoad"],
+    triggerObjects: [
+      { eventType: "onLoad", subjectType: "grid", targetId: "", priority: 5 },
+    ],
     enabled: true,
     pipeline: {
       sources: [],
       steps: [
-        // Default args if the caller didn't supply them.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectName",  expr: "$projectName",  fallback: "literal:Untitled" } },
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectScope", expr: "$projectScope", fallback: "literal:—" } },
-        // Deterministic page name (idempotency key).
+        // ── Branch on trigger type ─────────────────────────────────────────
+        // onLoad → hardcoded demo values. Manual → prompt the user.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerType", expr: "$trigger.type" } },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$triggerType", comparator: "IS", right: "onLoad" },
+          ]},
+          then: [
+            // onLoad path — stamp the demo values directly.
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectName",  expr: "literal:Moduli v1 Launch" } },
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectScope", expr: `literal:${DEMO_PROJECT_SCOPE}` } },
+          ],
+          else: [
+            // Manual path — prompt for name, then scope. Each
+            // GET_USER_INPUT suspends the pipeline until the user
+            // submits the modal; the response binds to resultVar and
+            // the next step runs.
+            { id: uid(), type: "action", config: {
+                type: "GET_USER_INPUT",
+                title: "Create Project",
+                question: "What's the project name?",
+                inputType: "text",
+                defaultValue: "Untitled",
+                resultVar: "$projectName",
+            }},
+            { id: uid(), type: "action", config: {
+                type: "GET_USER_INPUT",
+                title: "Create Project",
+                question: "Brief scope / overview (one paragraph)?",
+                inputType: "text",
+                defaultValue: "—",
+                resultVar: "$projectScope",
+            }},
+          ],
+        },
+        // Defensive fallbacks if either var ended up empty (e.g. the
+        // user cancelled a modal). Use the literal: prefix so the
+        // resolveExpr fallback path doesn't try to look up a $-var.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$projectName", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectName", expr: "literal:Untitled" } }],
+          else: [],
+        },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$projectScope", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectScope", expr: "literal:—" } }],
+          else: [],
+        },
+
+        // ── Idempotency-by-label gate ──────────────────────────────────────
+        // Same pattern as Day Page: Build — never dupe.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectPageName", expr: "Project: ${$projectName}" } },
-        // Already minted for this name?
         { id: uid(), type: "action", config: {
             type: "FIND", over: "$allPages",
             predicate: { operator: "AND", rules: [
