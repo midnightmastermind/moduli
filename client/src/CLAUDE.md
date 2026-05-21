@@ -171,9 +171,30 @@ _Updated: 2026-05-21. Check this file before re-reading source._
 
 ### 🟢 Big features (in priority order — implement in this order)
 
-#### 1. Module type icons everywhere
-Find/curate a stable set of lucide icons for every module type so
-they read consistently across the UI:
+#### 1. Module type icons everywhere — **LANDED 2026-05-21**
+Shared helper at `client/src/helpers/moduleIcons.js`. Exports:
+`getModuleTypeIcon(module, field?) → LucideIcon`,
+`getModuleTypeColor(module, field?) → string`,
+`getModuleTypeBadge(module, field?) → {Icon, color}`, plus the raw
+maps `KIND_ICONS / ROLE_ICONS / FIELD_TYPE_ICONS / KIND_COLORS /
+ROLE_COLORS`. Resolution order: `field.type` → `module.kind` →
+`module.role` → File catch-all.
+
+Migrated consumers (2026-05-21):
+- `modules/NodePill.jsx` — was a local KIND_ICON + ROLE_ICON map.
+- `modules/PreviewNode.jsx` — same.
+- `modules/ModulePage.jsx` — KIND_ICONS now re-exports from shared.
+- `modules/ManifestTree.jsx` — PAGE_KIND_ICON now re-exports from
+  shared.
+
+Future consumers (still TODO — add when those features land):
+- `CategoryPathPicker` tiles + closed-state chips
+- `QuickAddMenu` add-menu tiles
+- `ValueBuilder` row breadcrumb cards (the spec'd value-builder)
+- Mind-map representation nodes (big feature #5–#6)
+- AssistantDrawer when surfacing entities
+
+Spec for the original curated icon set:
 - **page** — `FileText` or `LayoutPanelLeft`
 - **container** (list / doc / board / canvas / table) — distinct per
   kind: `List`, `FileText`, `Kanban` or `LayoutGrid`, `PenTool`,

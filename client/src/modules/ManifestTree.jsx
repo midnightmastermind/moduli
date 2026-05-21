@@ -6,7 +6,7 @@
 import { useContext, useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { GridActionsContext } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
-import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Monitor, Folder, Table, Pencil, Trash2, X } from "lucide-react";
+import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Folder, Table, Pencil, Trash2, X } from "lucide-react";
 import ContextMenu from "../ui/ContextMenu.jsx";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 
@@ -26,8 +26,9 @@ const PILL_ACTIVE = (color = "rgba(100,180,255,0.5)") => ({
   background: `${color.replace(/[\d.]+\)$/, "0.08)")}`,
 });
 
-// Kind → lucide icon for pages
-const PAGE_KIND_ICON = { board: Layout, canvas: Paintbrush, doc: FileText, display: Monitor, folder: Folder };
+// Kind → lucide icon for pages — delegates to the shared
+// helpers/moduleIcons.js helper so add/edit happens in one place.
+import { KIND_ICONS as PAGE_KIND_ICON } from "../helpers/moduleIcons";
 import RadialMenu from "../ui/RadialMenu.jsx";
 import NodePill from "./NodePill.jsx";
 

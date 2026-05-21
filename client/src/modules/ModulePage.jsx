@@ -9,7 +9,7 @@ import RadialMenu from "../ui/RadialMenu";
 import ContextMenu from "../ui/ContextMenu";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { Trash2, Copy, FileText, Layout, Paintbrush, Monitor, Folder, ArrowLeft, ChevronLeft, ChevronRight, ClipboardPaste } from "lucide-react";
+import { Trash2, Copy, FileText, ArrowLeft, ChevronLeft, ChevronRight, ClipboardPaste } from "lucide-react";
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
@@ -48,14 +48,11 @@ import {
 } from "../helpers/dragSystem";
 import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getLocalFilterConditions } from "../state/selectors";
 
-// Kind icon mapping
-const KIND_ICONS = {
-  board: Layout,
-  canvas: Paintbrush,
-  doc: FileText,
-  display: Monitor,
-  folder: Folder,
-};
+// Kind icon mapping — now delegates to the shared helpers/moduleIcons.js
+// helper. Kept as a thin re-export to avoid churn on the consumer that
+// does `KIND_ICONS[kind] || FileText` below.
+import { KIND_ICONS as SHARED_KIND_ICONS } from "../helpers/moduleIcons";
+const KIND_ICONS = SHARED_KIND_ICONS;
 
 
 function Page({

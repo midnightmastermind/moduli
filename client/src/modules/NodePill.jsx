@@ -3,37 +3,23 @@
 // Two variants: "compact" (tight tree sidebar) and "entity" (DraggableEntityRow style).
 
 import React, { useRef, useEffect } from "react";
-import { FileText, Layout, Paintbrush, Monitor, Folder, Hash, File, GripVertical } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
 
-const KIND_ICON = {
-  board: Layout,
-  canvas: Paintbrush,
-  doc: FileText,
-  display: Monitor,
-  folder: Folder,
-  artifact: FileText,
-};
-
-const ROLE_ICON = {
-  page: Layout,
-  container: Hash,
-  instance: File,
-};
-
-function getIcon(module) {
-  if (!module) return File;
-  return KIND_ICON[module.kind] || ROLE_ICON[module.role] || File;
-}
-
+// Pulls the shared icon + color from helpers/moduleIcons. The local
+// getColor wrapper preserves the legacy active/inactive dim: inactive
+// rows render the shared color with reduced opacity so the active row
+// pops. The shared color is returned at full opacity by default.
 function getColor(module, isActive) {
-  if (!module) return "var(--text-secondary)";
-  const role = module.role;
-  const kind = module.kind;
-  if (kind === "folder") return isActive ? "#f59e0b" : "rgba(245,158,11,0.7)";
-  if (role === "page") return isActive ? "#06b6d4" : "rgba(6,182,212,0.7)";
-  if (role === "container") return isActive ? "rgba(134,239,172,1)" : "rgba(134,239,172,0.7)";
-  return isActive ? "rgba(100,180,255,1)" : "rgba(100,180,255,0.7)";
+  const baseColor = getModuleTypeColor(module);
+  if (isActive) return baseColor;
+  // Inactive: dim by appending or substituting 0.7 alpha. Works for
+  // rgba(...) strings and hex (fallback to opacity wrapper for hex).
+  if (typeof baseColor === "string" && baseColor.startsWith("rgba(")) {
+    return baseColor.replace(/[\d.]+\)$/, "0.7)");
+  }
+  return baseColor;
 }
 
 export default function NodePill({
@@ -51,7 +37,7 @@ export default function NodePill({
   leadingSlot,
 }) {
   const ref = useRef(null);
-  const Icon = getIcon(module);
+  const Icon = getModuleTypeIcon(module);
   const color = getColor(module, isActive);
   const label = module?.label || "Untitled";
 

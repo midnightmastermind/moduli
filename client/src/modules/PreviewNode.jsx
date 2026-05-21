@@ -8,39 +8,10 @@
 // occurrence subtree needed.
 
 import React, { useRef, useEffect, useContext, useState } from "react";
-import { FileText, Layout, Paintbrush, Monitor, Folder, Hash, File } from "lucide-react";
+import { File } from "lucide-react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { GridActionsContext } from "../GridActionsContext.js";
-
-const KIND_ICON = {
-  board: Layout,
-  canvas: Paintbrush,
-  doc: FileText,
-  display: Monitor,
-  folder: Folder,
-  artifact: FileText,
-};
-
-const ROLE_ICON = {
-  page: Layout,
-  container: Hash,
-  instance: File,
-};
-
-function getIcon(module) {
-  if (!module) return File;
-  return KIND_ICON[module.kind] || ROLE_ICON[module.role] || File;
-}
-
-function getColor(module) {
-  if (!module) return "var(--text-secondary)";
-  const kind = module.kind;
-  const role = module.role;
-  if (kind === "folder") return "#f59e0b";
-  if (role === "page") return "#06b6d4";
-  if (role === "container") return "rgba(134,239,172,0.9)";
-  return "rgba(100,180,255,0.9)";
-}
+import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
 
 // Iframe preview — loads /?previewOcc=<occId> which renders PagePreviewApp
 function IframePreview({ occurrenceId, landscape = false }) {
@@ -113,8 +84,8 @@ export default function PreviewNode({
   className = "",
 }) {
   const ref = useRef(null);
-  const Icon = getIcon(module);
-  const color = getColor(module);
+  const Icon = getModuleTypeIcon(module);
+  const color = getModuleTypeColor(module);
   const label = module?.label || "Untitled";
   const kind = module?.kind;
   const role = module?.role;
