@@ -4602,6 +4602,20 @@ export async function createLiveData(userId, options = {}) {
     pipeline: {
       sources: [],
       steps: [
+        // $displayRules — countdown semantic: any positive value reads as
+        // "still work to do" (red), zero reads as "complete" (green +
+        // checkmark). Null = goal not yet evaluated (blue). Targets the
+        // Physical Wellness occurrence label since taskCountdown lives
+        // on that instance — Water + Tasks Completed trackers run their
+        // own $displayRules in their own pipeline frames, so this rule
+        // only decorates writes from THIS op.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$displayRules", expr: `json:${JSON.stringify({
+          "Physical Wellness": [
+            { when: { value: "null" },     color: "rgb(96,165,250)" },
+            { when: { value: "zero" },     color: "rgb(134,239,172)", icon: "Check" },
+            { when: { value: "positive" }, color: "rgb(252,165,165)", icon: "ArrowDown", suffix: "left" },
+          ],
+        })}` } },
         // 1. Find Physical Wellness goal instance.
         { id: uid(), type: "action", config: {
           type: "FIND",
