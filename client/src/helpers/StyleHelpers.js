@@ -55,10 +55,14 @@ export function mergeStyles(parent, child) {
  * Passed Timeslots" op affects only that day's occurrence, not the shared
  * module).
  */
-export function resolveContainerStyle(container, panel, occurrence) {
-  const panelDefault = panel?.childContainerStyle || null;
-
-  let result = panelDefault;
+export function resolveContainerStyle(container, panel, occurrence, grid = null) {
+  // Cascade root — Grid default first (when present). Optional 4th
+  // arg so legacy call sites that don't pass it stay byte-identical
+  // (no grid → no contribution → previous behavior).
+  let result = grid?.meta?.defaultStyle || null;
+  if (panel?.childContainerStyle) {
+    result = mergeStyles(result, panel.childContainerStyle);
+  }
   if (container?.styleMode === "own" && container?.ownStyle) {
     result = mergeStyles(result, container.ownStyle);
   }
@@ -72,9 +76,15 @@ export function resolveContainerStyle(container, panel, occurrence) {
  * Resolve effective instance style.
  * Walk: panel.childInstanceStyle → container.childInstanceStyle → instance.ownStyle (if mode=own)
  */
-export function resolveInstanceStyle(instance, container, panel) {
-  // Start with panel-level defaults for instances
-  let base = panel?.childInstanceStyle || null;
+export function resolveInstanceStyle(instance, container, panel, grid = null) {
+  // Cascade root — Grid default first when present (optional 4th
+  // arg keeps legacy callers byte-identical).
+  let base = grid?.meta?.defaultStyle || null;
+
+  // Panel-level defaults for instances
+  if (panel?.childInstanceStyle) {
+    base = mergeStyles(base, panel.childInstanceStyle);
+  }
 
   // Layer container-level defaults for instances
   if (container?.childInstanceStyle) {

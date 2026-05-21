@@ -342,8 +342,8 @@ function Container({
   }, [containerOccurrence, dispatch, socket]);
 
   const resolvedContainerCSS = useMemo(
-    () => styleToCSS(resolveContainerStyle(module, panel, containerOccurrence)),
-    [module, panel, containerOccurrence]
+    () => styleToCSS(resolveContainerStyle(module, panel, containerOccurrence, ctxState?.grid)),
+    [module, panel, containerOccurrence, ctxState?.grid]
   );
 
   // Embedded doc card styles — used when this container is rendered inside Artifact.jsx (not a panel child)

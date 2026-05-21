@@ -384,10 +384,13 @@ function InstanceInner({
     };
   }, [occurrence?.gridId, occurrence?.parentId, state?.grid]);
 
-  // Resolved cascading style for this instance
+  // Resolved cascading style for this instance — passes state?.grid
+  // as the 4th arg so grid.meta.defaultStyle (the Grid-level cascade
+  // root) flows through panel/container defaults into the instance.
+  // Per-occurrence overrides still win (handled inside the helper).
   const resolvedInstanceCSS = useMemo(
-    () => styleToCSS(resolveInstanceStyle(instance, container, panel)),
-    [instance, container, panel]
+    () => styleToCSS(resolveInstanceStyle(instance, container, panel, state?.grid)),
+    [instance, container, panel, state?.grid]
   );
 
   // Build radial menu items - include Break Link when occurrence is linked
