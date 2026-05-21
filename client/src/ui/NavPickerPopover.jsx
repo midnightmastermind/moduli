@@ -19,9 +19,7 @@
 // folds that into the persisted filter value shape.
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Calendar } from "lucide-react";
-import DatePicker, { DateObject } from "react-multi-date-picker";
-import DatePanel from "react-multi-date-picker/plugins/date_panel";
-import Toolbar from "react-multi-date-picker/plugins/toolbar";
+import DrilldownDatePicker from "./DrilldownDatePicker";
 
 const UNIT_LABELS = { day: "D", week: "W", month: "M", year: "Y" };
 const UNIT_ORDER = ["day", "week", "month", "year"];
@@ -150,9 +148,7 @@ function formatSummary({ kind, value, span, dates }) {
 
 export default function NavPickerPopover({ value, onCommit, constraints }) {
   const [open, setOpen] = useState(false);
-  const [zoom, setZoom] = useState("day"); // day | month | year
   const wrapRef = useRef(null);
-  const datePickerRef = useRef(null);
 
   // Read shape
   const shape = useMemo(() => {
@@ -169,11 +165,9 @@ export default function NavPickerPopover({ value, onCommit, constraints }) {
   }, [value]);
 
   const summary = formatSummary(shape);
-  const initialSelection = useMemo(() => hydrateSelection(shape), [shape]);
 
   // Constraint reads — cascade is resolved by the caller; we just consume.
   const maxDays = constraints?.maxDays ?? null;
-  const minDays = constraints?.minDays ?? 1;
   const allowedUnits = Array.isArray(constraints?.allowedUnits) && constraints.allowedUnits.length
     ? constraints.allowedUnits
     : UNIT_ORDER;
@@ -191,21 +185,23 @@ export default function NavPickerPopover({ value, onCommit, constraints }) {
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  const handleChange = (nextDates) => {
-    if (!nextDates) return;
-    const arr = Array.isArray(nextDates) ? nextDates : [nextDates];
-    const jsDates = arr.map(d => (d?.toDate ? d.toDate() : new Date(d)));
+  // DrilldownDatePicker emits a sorted array of "YYYY-MM-DD" strings.
+  // Convert to Date[] for classifySelection (the shared classifier
+  // detects single / range / multi / week / month / year and emits the
+  // persisted filter shape).
+  const handleChange = (isoStrings) => {
+    if (!Array.isArray(isoStrings) || isoStrings.length === 0) return;
+    const jsDates = isoStrings.map(s => {
+      const [y, m, d] = s.split("-").map(Number);
+      return new Date(y, (m || 1) - 1, d || 1);
+    });
     // Enforce maxDays: trim oldest if exceeded.
-    let trimmed = jsDates;
-    if (maxDays && jsDates.length > maxDays) {
-      trimmed = jsDates.slice(-maxDays);
-    }
+    const trimmed = maxDays && jsDates.length > maxDays ? jsDates.slice(-maxDays) : jsDates;
     const next = classifySelection(trimmed);
     if (!next) return;
     // Suppress disallowed kinds — fall back to range/single if multi disallowed.
     if (allowedKinds && !allowedKinds.includes(next.kind)) {
       if (next.kind === "multi" && allowedKinds.includes("range")) {
-        // pick first contiguous run starting from the first date
         next.kind = "range";
       } else if (!allowedKinds.includes("single")) {
         return;
@@ -214,19 +210,14 @@ export default function NavPickerPopover({ value, onCommit, constraints }) {
     onCommit?.(next);
   };
 
-  // Disable picker days that would exceed maxDays once selected.
-  // (Only relevant for multi-select; range selection naturally extends.)
-  const mapDays = useMemo(() => {
-    if (!maxDays) return undefined;
-    return ({ date }) => {
-      // We can't access current selection from inside mapDays cleanly without
-      // hoisting state. The trim-on-change in handleChange covers the cap.
-      return {};
-    };
-  }, [maxDays]);
-
-  const onlyMonthPicker = zoom === "month";
-  const onlyYearPicker = zoom === "year";
+  // The DrilldownDatePicker is controlled — feed it the current
+  // selection as an ISO string array. Maps from the shape's `dates`
+  // (preferred), else the single `value`, else empty.
+  const pickerValue = useMemo(() => {
+    if (Array.isArray(shape.dates) && shape.dates.length) return shape.dates;
+    if (shape.value) return [shape.value];
+    return [];
+  }, [shape.dates, shape.value]);
 
   return (
     <span ref={wrapRef} style={{ position: "relative", display: "inline-flex" }}>
@@ -250,45 +241,14 @@ export default function NavPickerPopover({ value, onCommit, constraints }) {
           style={{
             position: "absolute", top: "100%", left: 0, marginTop: 4,
             zIndex: 50,
-            background: "var(--surface, #1f2125)",
-            border: "1px solid var(--border-default, #374151)",
-            borderRadius: 6,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-            padding: 8,
-            minWidth: 280,
           }}
         >
-          {/* Zoom toolbar — D / M / Y (W not implemented as a zoom view; week
-              is detected when 7 consecutive days span Sun–Sat). */}
-          <div style={{ display: "flex", gap: 4, marginBottom: 6, justifyContent: "center" }}>
-            {UNIT_ORDER.filter(u => u !== "week" && allowedUnits.includes(u)).map(u => (
-              <button
-                key={u}
-                onClick={() => setZoom(u === "day" ? "day" : u)}
-                style={{
-                  padding: "2px 8px", fontSize: 10, lineHeight: "14px",
-                  borderRadius: 4,
-                  border: "1px solid var(--panel-border, #374151)",
-                  background: zoom === u ? "var(--accent, #14b8a6)" : "transparent",
-                  color: "inherit", cursor: "pointer",
-                }}
-              >{UNIT_LABELS[u]}</button>
-            ))}
-          </div>
-          <DatePicker
-            ref={datePickerRef}
-            multiple
-            value={initialSelection}
+          {/* The DrilldownDatePicker has its own header chrome (zoom
+              chevrons, increment-shift arrows, level title). No outer
+              zoom toolbar needed. */}
+          <DrilldownDatePicker
+            value={pickerValue}
             onChange={handleChange}
-            onlyMonthPicker={onlyMonthPicker}
-            onlyYearPicker={onlyYearPicker}
-            numberOfMonths={1}
-            format="YYYY-MM-DD"
-            plugins={[
-              <DatePanel key="panel" />,
-              <Toolbar key="toolbar" position="bottom" sort={["deselect", "close"]} />,
-            ]}
-            style={{ background: "transparent" }}
           />
           {maxDays && (
             <div style={{ fontSize: 9, opacity: 0.6, marginTop: 4, textAlign: "center" }}>

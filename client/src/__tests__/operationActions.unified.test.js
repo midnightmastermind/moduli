@@ -135,6 +135,33 @@ describe("evalRule — DATE_IN_PERIOD", () => {
       right: { value: "2026-05-17", unit: "day" },
     }, {})).toBe(false);
   });
+
+  // Multi-date OR-match — drilldown picker's non-consecutive selection.
+  it("multi: matches when left equals any date in dates[]", () => {
+    const right = { kind: "multi", unit: "day", value: "2026-05-13",
+      dates: ["2026-05-13", "2026-05-17", "2026-05-21"] };
+    expect(evalRule({ left: "2026-05-13", comparator: "DATE_IN_PERIOD", right }, {})).toBe(true);
+    expect(evalRule({ left: "2026-05-17", comparator: "DATE_IN_PERIOD", right }, {})).toBe(true);
+    expect(evalRule({ left: "2026-05-21", comparator: "DATE_IN_PERIOD", right }, {})).toBe(true);
+  });
+  it("multi: fails when left matches no date in dates[]", () => {
+    const right = { kind: "multi", unit: "day", value: "2026-05-13",
+      dates: ["2026-05-13", "2026-05-17"] };
+    expect(evalRule({ left: "2026-05-14", comparator: "DATE_IN_PERIOD", right }, {})).toBe(false);
+    expect(evalRule({ left: "2026-05-20", comparator: "DATE_IN_PERIOD", right }, {})).toBe(false);
+  });
+  it("multi: normalizes ISO timestamps to day-keys on both sides", () => {
+    const right = { kind: "multi", unit: "day", value: "2026-05-17",
+      dates: ["2026-05-17"] };
+    expect(evalRule({
+      left: "2026-05-17T15:34:56.789Z",
+      comparator: "DATE_IN_PERIOD", right,
+    }, {})).toBe(true);
+  });
+  it("multi: empty dates[] never matches", () => {
+    const right = { kind: "multi", unit: "day", value: "2026-05-17", dates: [] };
+    expect(evalRule({ left: "2026-05-17", comparator: "DATE_IN_PERIOD", right }, {})).toBe(false);
+  });
 });
 
 // ============================================================

@@ -368,15 +368,15 @@ describe("Computed Values", () => {
         { fieldId: "f2", occurrenceId: "occ1", value: 42 },
       ],
     });
-    expect(s.computedValues["f1"]).toEqual({ value: 100, target: null });
-    expect(s.computedValues["f2:occ1"]).toEqual({ value: 42, target: null });
+    expect(s.computedValues["f1"]).toEqual({ value: 100, target: null, color: null, icon: null, suffix: null, replaceValue: null });
+    expect(s.computedValues["f2:occ1"]).toEqual({ value: 42, target: null, color: null, icon: null, suffix: null, replaceValue: null });
   });
 
   test("SET_COMPUTED_VALUES stores target alongside value", () => {
     const s = dispatch(makeState(), ActionTypes.SET_COMPUTED_VALUES, {
       updates: [{ fieldId: "f1", value: 7500, target: { value: 10000, period: "daily" } }],
     });
-    expect(s.computedValues["f1"]).toEqual({ value: 7500, target: { value: 10000, period: "daily" } });
+    expect(s.computedValues["f1"]).toEqual({ value: 7500, target: { value: 10000, period: "daily" }, color: null, icon: null, suffix: null, replaceValue: null });
   });
 
   test("SET_COMPUTED_VALUES merges without wiping existing values", () => {
@@ -385,7 +385,7 @@ describe("Computed Values", () => {
       updates: [{ fieldId: "f2", value: 50 }],
     });
     expect(s.computedValues["f1"]).toEqual({ value: 99, target: null });
-    expect(s.computedValues["f2"]).toEqual({ value: 50, target: null });
+    expect(s.computedValues["f2"]).toEqual({ value: 50, target: null, color: null, icon: null, suffix: null, replaceValue: null });
   });
 });
 
@@ -667,7 +667,7 @@ describe("Full example-data hydration (all entity types in one FULL_STATE)", () 
     s = dispatch(s, ActionTypes.SET_COMPUTED_VALUES, {
       updates: [{ fieldId: "f_display", value: 30, target: { value: 60, period: "daily" } }],
     });
-    expect(s.computedValues["f_display"]).toEqual({ value: 30, target: { value: 60, period: "daily" } });
+    expect(s.computedValues["f_display"]).toEqual({ value: 30, target: { value: 60, period: "daily" }, color: null, icon: null, suffix: null, replaceValue: null });
   });
 
   test("computedValues per-occurrence key: fieldId:occurrenceId", () => {
@@ -678,8 +678,8 @@ describe("Full example-data hydration (all entity types in one FULL_STATE)", () 
         { fieldId: "f_duration", occurrenceId: "instOcc2", value: 10 },
       ],
     });
-    expect(s.computedValues["f_duration:instOcc1"]).toEqual({ value: 5, target: null });
-    expect(s.computedValues["f_duration:instOcc2"]).toEqual({ value: 10, target: null });
+    expect(s.computedValues["f_duration:instOcc1"]).toEqual({ value: 5, target: null, color: null, icon: null, suffix: null, replaceValue: null });
+    expect(s.computedValues["f_duration:instOcc2"]).toEqual({ value: 10, target: null, color: null, icon: null, suffix: null, replaceValue: null });
   });
 
   test("FULL_STATE resets computedValues from previous run before re-hydrating", () => {

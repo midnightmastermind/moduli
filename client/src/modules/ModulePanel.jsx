@@ -610,6 +610,32 @@ function Panel({
     setRootTreeOpen(false);
   }, [openPage]);
 
+  // Breadcrumb click — opens a folder as a page. Crumb.id is a folder.id
+  // (from `pageBreadcrumbs`'s parentId-walk through `foldersById`). Mirrors
+  // ManifestTree's openFolderAsPage: find an existing folder-page occurrence
+  // under this folder, otherwise mint module + occurrence and navigate to it.
+  const openFolderCrumb = useCallback((folderId) => {
+    if (!folderId) return;
+    const existingFolderPage = Object.values(occurrencesById || {}).find(occ => {
+      if (occ.parentId !== folderId) return false;
+      const mod = modulesById?.[occ.moduleId];
+      return mod?.kind === "folder" && mod?.role === "page";
+    });
+    if (existingFolderPage) {
+      openPage(existingFolderPage.id);
+      return;
+    }
+    const userId = state?.userId;
+    const gridId = state?.grid?._id || state?.gridId;
+    const folder = foldersById?.[folderId];
+    if (!dispatch || !socket || !userId || !gridId || !folder) return;
+    const modId = crypto.randomUUID();
+    const occId = crypto.randomUUID();
+    CommitHelpers.createModule({ dispatch, socket, module: { id: modId, userId, gridId, role: "page", kind: "folder", label: folder.name }, emit: true });
+    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module", parentId: folderId, sortOrder: -1, iteration: { mode: "persistent" }, fields: {}, meta: {} }, emit: true });
+    openPage(occId);
+  }, [openPage, occurrencesById, modulesById, foldersById, dispatch, socket, state]);
+
   const closePage = useCallback((occId) => {
     if (!occId || !panelOccurrence?.id) return;
     CommitHelpers.unpinPageFromPanel({ dispatch, socket, pageOccurrenceId: occId, panelOccurrenceId: panelOccurrence.id });
@@ -921,18 +947,21 @@ function Panel({
               <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 3, overflow: "hidden", minWidth: 0 }}>
                 {!activeFolderKind && pageBreadcrumbs.length > 1 && pageBreadcrumbs.map((crumb, i) => {
                   const isLast = i === pageBreadcrumbs.length - 1;
+                  const clickable = !isLast && crumb.isFolder;
                   return (
                     <React.Fragment key={crumb.id}>
                       {i > 0 && <span style={{ color: "var(--text-faint)", fontSize: 9, flexShrink: 0 }}>›</span>}
                       <span
+                        onClick={clickable ? (e) => { e.stopPropagation(); openFolderCrumb(crumb.id); } : undefined}
+                        onPointerDown={clickable ? (e) => e.stopPropagation() : undefined}
                         style={{
                           fontSize: 10, fontFamily: "var(--font-mono)",
                           color: isLast ? "var(--text-primary)" : "var(--text-muted)",
-                          cursor: isLast ? "default" : "pointer",
+                          cursor: clickable ? "pointer" : "default",
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80,
                           flexShrink: crumb.isPage ? 0 : 1,
                         }}
-                        title={crumb.label}
+                        title={clickable ? `Open ${crumb.label}` : crumb.label}
                       >
                         {crumb.label}
                       </span>

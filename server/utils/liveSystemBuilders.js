@@ -1423,6 +1423,15 @@ export function makeTrackerOp({
   // carries this folderId so the Trackers column groups it without
   // relying on name-prefix regex post-processing.
   folderId,
+  // Optional $displayRules object — when set, an INIT_VAR step is
+  // prepended to the pipeline so the executor's display-rules
+  // post-processor (helpers/displayRules.js) picks it up. Shape:
+  // `{ "<occurrence label>": [{ when, color?, icon?, suffix?, replaceValue? }, ...] }`
+  // Rules are evaluated in order; first match wins. `when` accessors
+  // are short semantic names — `value`, `target`, or any sibling
+  // field's name on the occurrence (case-insensitive). See the
+  // helpers/displayRules.js header for the full predicate language.
+  displayRules,
 }) {
   // ── Fail-fast argument guards ──
   // Task 13 calls this ~20× with varying agg types; silent-zero goals are hard
@@ -1714,6 +1723,14 @@ export function makeTrackerOp({
     enabled: true,
     pipeline: {
       steps: [
+        // Optional $displayRules — when authored at the call site,
+        // prepended here so the executor's post-process step in
+        // executePipeline can read it from $vars after the writes.
+        ...(displayRules ? [{
+          id: uid(),
+          type: "action",
+          config: { type: "INIT_VAR", name: "$displayRules", expr: `json:${JSON.stringify(displayRules)}` },
+        }] : []),
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: accVar, value: 0 } },
 
         // The scope page is where the data lives — used for the HAS_ANCESTOR

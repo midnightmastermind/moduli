@@ -451,8 +451,12 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
       if (rightVal == null) continue;
       // Period-shape `{value, unit}` filter values broaden the match window to
       // week/month/year — route through DATE_IN_PERIOD regardless of the
-      // condition's static comparator (e.g. SAME_DAY).
-      const hasPeriod = rightVal && typeof rightVal === "object" && rightVal.unit && rightVal.unit !== "day";
+      // condition's static comparator (e.g. SAME_DAY). Multi-shape
+      // `{kind:"multi", dates:[...]}` also routes through DATE_IN_PERIOD so
+      // the OR-match across the selected dates applies.
+      const hasPeriod = rightVal && typeof rightVal === "object" &&
+        ((rightVal.unit && rightVal.unit !== "day") ||
+         (rightVal.kind === "multi" && Array.isArray(rightVal.dates)));
       const comparator = hasPeriod ? "DATE_IN_PERIOD" : String(cond.comparator || "IS").toUpperCase();
       const ok = evalRule({ left: leftVal, comparator, right: rightVal }, {});
       if (!ok) return false;
@@ -472,7 +476,10 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
     if (val == null) continue;
     // Period-shape `{value, unit}` filter values broaden the match window —
     // route through DATE_IN_PERIOD which handles week/month/year correctly.
-    if (required && typeof required === "object" && required.unit) {
+    // Multi-shape `{kind:"multi", dates:[...]}` also routes through
+    // DATE_IN_PERIOD for the OR-match across selected dates.
+    if (required && typeof required === "object" &&
+        (required.unit || (required.kind === "multi" && Array.isArray(required.dates)))) {
       if (!evalRule({ left: val, comparator: "DATE_IN_PERIOD", right: required }, {})) return false;
       continue;
     }

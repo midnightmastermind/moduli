@@ -312,20 +312,32 @@ export function evalRule(rule, $vars) {
       //   { value: "YYYY-MM-DD", unit: "day"|"week"|"month"|"year", span?: N } →
       //     period match. `span > 1` is supported for unit:"day" only and
       //     widens the match to a rolling window of N days starting at value.
+      //   { kind: "multi", dates: ["YYYY-MM-DD", ...] } → OR-match: leftVal
+      //     passes if its day-key equals ANY date in the array.
       if (rightVal == null || rightVal === "") return true;
       if (leftVal == null || leftVal === "") return false;
       const isObj = typeof rightVal === "object" && !Array.isArray(rightVal);
-      const anchor = isObj ? rightVal.value : rightVal;
-      const unit = isObj ? (rightVal.unit || "day") : "day";
-      const spanRaw = isObj ? Number(rightVal.span) : 1;
-      const span = Number.isFinite(spanRaw) && spanRaw > 1 ? Math.floor(spanRaw) : 1;
-      if (anchor == null || anchor === "") return true;
       const dayKey = (v) => {
         if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
         const d = new Date(v);
         if (isNaN(d.getTime())) return null;
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       };
+      // Multi-date OR-match short-circuit.
+      if (isObj && rightVal.kind === "multi" && Array.isArray(rightVal.dates)) {
+        const lk = dayKey(leftVal);
+        if (lk == null) return false;
+        for (const ds of rightVal.dates) {
+          const rk = dayKey(ds);
+          if (rk != null && rk === lk) return true;
+        }
+        return false;
+      }
+      const anchor = isObj ? rightVal.value : rightVal;
+      const unit = isObj ? (rightVal.unit || "day") : "day";
+      const spanRaw = isObj ? Number(rightVal.span) : 1;
+      const span = Number.isFinite(spanRaw) && spanRaw > 1 ? Math.floor(spanRaw) : 1;
+      if (anchor == null || anchor === "") return true;
       if (unit === "day") {
         const lk = dayKey(leftVal); const rk = dayKey(anchor);
         if (lk == null || rk == null) return false;

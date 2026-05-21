@@ -16,6 +16,7 @@ import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-
 import { GripVertical } from "lucide-react";
 import { arrayMove } from "../helpers/LayoutHelpers";
 import CategoryPathPicker from "../ui/CategoryPathPicker";
+import JsonStructureEditor from "../ui/JsonStructureEditor";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig, TEMPLATE_PICKER_CONFIG } from "../ui/categoryRegistry";
 import ConditionGroup from "./ConditionGroup";
 
@@ -611,12 +612,17 @@ function ExprInput({ value, onChange, placeholder, width = 120, title }) {
 // the value shape backwards-compatible by writing JSON for arrays.
 function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], fields = [], fieldsById, modulesById, occurrencesById, inLoop = true, localVars = [] }) {
   const v = String(value ?? "").trim();
+  const isJsonValue = v.startsWith("json:");
   const isArrayValue = v.startsWith("json:[");
   const isNullValue = value === null || v === "literal:null";
+  // Default any `json:` payload (object OR array) to the structured
+  // editor — friendlier than raw JSON. The "array" mode is still
+  // available via the dropdown for power users who want to type JSON
+  // by hand.
   const initialMode = isNullValue
     ? "null"
-    : isArrayValue
-    ? "array"
+    : isJsonValue
+    ? "structured"
     : (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
   const [mode, setMode] = useState(initialMode);
 
@@ -631,11 +637,20 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
     // would be invalid for the new mode (path expects $-prefixed, array expects json:[).
     if (next === "path" && v && !v.startsWith("$")) onChange("");
     else if (next === "array" && !v.startsWith("json:[")) onChange("json:[]");
-    else if (next === "text" && (v.startsWith("json:[") || isNullValue)) onChange("");
+    else if (next === "structured" && !v.startsWith("json:")) onChange("json:{}");
+    else if (next === "text" && (v.startsWith("json:") || isNullValue)) onChange("");
     else if (next === "null") onChange(null);
   };
 
   const arrayValue = isArrayValue ? v.slice(5) : "[]";
+
+  // Parse the `json:` payload for the structured editor. Failed parses
+  // fall back to null so the editor still renders rather than crashing
+  // on a partially-typed value (the editor lets the user fix it).
+  const structuredValue = useMemo(() => {
+    if (!isJsonValue) return null;
+    try { return JSON.parse(v.slice(5)); } catch { return null; }
+  }, [v, isJsonValue]);
 
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 3, flexWrap: "wrap" }}>
@@ -647,6 +662,7 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
       >
         <option value="path">path</option>
         <option value="text">text</option>
+        <option value="structured">structured</option>
         <option value="array">array</option>
         <option value="null">null</option>
       </select>
@@ -676,6 +692,14 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
           placeholder='[1, 2, 3]   or   [{"a": 1}]'
           style={{ fontSize: 10, padding: "3px 5px", border: "1px solid var(--input-border)", borderRadius: 3, background: "var(--input-bg)", color: "var(--text-primary)", fontFamily: "monospace", width: Math.max(width, 220), minHeight: 60 }}
         />
+      )}
+      {mode === "structured" && (
+        <div style={{ width: Math.max(width, 280), flex: "1 1 auto", minWidth: 240 }}>
+          <JsonStructureEditor
+            value={structuredValue}
+            onChange={(next) => onChange("json:" + JSON.stringify(next))}
+          />
+        </div>
       )}
       {mode === "null" && (
         <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-faint)", padding: "3px 5px", border: "1px dashed var(--border-subtle)", borderRadius: 3 }}>

@@ -22,7 +22,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, Equal, Shuffle, Link2 } from "lucide-react";
+import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Equal, Shuffle, Link2, Pause, Play, Square, Star, Minus, AlertCircle, AlertTriangle } from "lucide-react";
+
+// Icon-name → lucide component lookup for display rules.
+// Authored values are short names (e.g. "ArrowUp", "Pause"); resolved
+// at render time. Unknown names render no icon (silent — keeps a typo
+// from breaking the display).
+const RULE_ICONS = {
+  ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
+  Check, X, Pause, Play, Square, Star,
+  Minus, Plus, Equal, AlertCircle, AlertTriangle,
+};
 import {
   checkTarget,
   getScaledTargetValue,
@@ -163,10 +173,12 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
 // stored field value is irrelevant (display-only).
 const _pad2 = (n) => String(n).padStart(2, "0");
 function formatTimeOfDay(d, granularity) {
-  const h = _pad2(d.getHours());
+  const h24 = d.getHours();
+  const period = h24 >= 12 ? "PM" : "AM";
+  const h12 = ((h24 + 11) % 12) + 1; // 0→12, 13→1, etc.
   const m = _pad2(d.getMinutes());
-  if (granularity === "minutes") return `${h}:${m}`;
-  return `${h}:${m}:${_pad2(d.getSeconds())}`;
+  if (granularity === "minutes") return `${h12}:${m} ${period}`;
+  return `${h12}:${m}:${_pad2(d.getSeconds())} ${period}`;
 }
 function formatDurationMs(ms, granularity) {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
@@ -254,6 +266,53 @@ function useFlowDelta(value, holdMs = 1500) {
   }, [value, holdMs]);
   return delta;
 }
+// valueSignColor — picks a color from the field's stored value, used
+// when the field has NO target (trackers / unbound numeric fields).
+//   red   → negative numeric
+//   blue  → null / 0 / empty (the "unfilled / zero" state)
+//   green → positive numeric, or any non-empty value (filled)
+// Fields that DO have a target use the target-met / target-not-met
+// colors instead (see targetMet checks at the call sites).
+function valueSignColor(value) {
+  if (value == null || value === "" || value === 0) {
+    return "var(--accent-blue, #60a5fa)";
+  }
+  if (typeof value === "number") {
+    return value < 0 ? "var(--danger-text)" : "var(--accent-green-text)";
+  }
+  if (typeof value === "boolean") {
+    return value ? "var(--accent-green-text)" : "var(--accent-blue, #60a5fa)";
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0 ? "var(--accent-green-text)" : "var(--accent-blue, #60a5fa)";
+  }
+  return "var(--accent-green-text)";
+}
+
+// Same scheme as valueSignColor but tuned for translucent pill
+// backgrounds (used by the compact display variant).
+function valueSignPillTint(value) {
+  if (value == null || value === "" || value === 0) {
+    return { bg: "rgba(96,165,250,0.18)", border: "rgba(96,165,250,0.35)" };
+  }
+  if (typeof value === "number") {
+    return value < 0
+      ? { bg: "rgba(248,113,113,0.2)", border: "rgba(248,113,113,0.35)" }
+      : { bg: "rgba(34,197,94,0.2)",  border: "rgba(34,197,94,0.35)" };
+  }
+  if (typeof value === "boolean") {
+    return value
+      ? { bg: "rgba(34,197,94,0.2)",  border: "rgba(34,197,94,0.35)" }
+      : { bg: "rgba(96,165,250,0.18)", border: "rgba(96,165,250,0.35)" };
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0
+      ? { bg: "rgba(34,197,94,0.2)",  border: "rgba(34,197,94,0.35)" }
+      : { bg: "rgba(96,165,250,0.18)", border: "rgba(96,165,250,0.35)" };
+  }
+  return { bg: "rgba(34,197,94,0.2)", border: "rgba(34,197,94,0.35)" };
+}
+
 function flowDeltaColor(delta, flow) {
   if (delta == null) return null;
   const goodDirection = (flow === "out" && delta < 0) || (flow !== "out" && delta > 0);
@@ -396,6 +455,12 @@ function Field({
   target: targetProp,
   state,
   context,
+  // Display rule output ({ color, icon, suffix, replaceValue } | null)
+  // emitted by the operation executor when $displayRules matched this
+  // occurrence. When set, the rule's color overrides the value-sign /
+  // target-met defaults below; icon renders before the value; suffix
+  // appends after; replaceValue substitutes the value entirely.
+  displayRule = null,
   // Input (omit for display-only)
   flow,
   onCommit,
@@ -576,30 +641,23 @@ function Field({
     const useClickToEdit = compact && (type === "number" || type === "text" || type === "duration");
 
     if (useClickToEdit) {
-      const flowIcons = { in: ArrowUp, out: ArrowDown, replace: Equal };
-      const flowLabels = { in: "In (+)", out: "Out (−)", replace: "Replace" };
-      const currentFlow = flow || "in";
-      const FlowIcon = flowIcons[currentFlow] || ArrowUp;
-      const flowColor = currentFlow === "out"
-        ? "bg-red-500/20 text-red-300 border-red-500/30"
-        : currentFlow === "replace"
-        ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
-        : "bg-green-500/20 text-green-300 border-green-500/30";
-      const handleFlowCycle = (e) => {
-        e.stopPropagation();
-        const cycle = ["in", "out", "replace"];
-        onFlowChange?.(cycle[(cycle.indexOf(currentFlow) + 1) % cycle.length]);
-      };
       const displayNum = localValue ?? (type === "number" ? 0 : "");
       const formattedDisplay = `${prefix}${displayNum}${postfix}`;
+      // Pill tint:
+      //   - target present  → target-met (green) / not-met (red)
+      //   - no target       → value-direction colors (red <0, blue 0/null, green >0)
+      const pillTint = hasTarget
+        ? (targetMet
+            ? { bg: "rgba(34,197,94,0.2)",  border: "rgba(34,197,94,0.35)",  text: "rgb(134,239,172)" }
+            : { bg: "rgba(248,113,113,0.2)", border: "rgba(248,113,113,0.35)", text: "rgb(252,165,165)" })
+        : (() => {
+            const t = valueSignPillTint(localValue);
+            return { ...t, text: valueSignColor(localValue) };
+          })();
 
       if (isClickEditing) {
         return (
           <div className="field-input editing inline-flex items-center gap-0.5">
-            <button type="button" onClick={handleFlowCycle} title={`Flow: ${flowLabels[currentFlow]}`}
-              className={`inline-flex items-center justify-center rounded border w-5 h-5 flex-shrink-0 transition-colors ${flowColor}`}>
-              <FlowIcon className="w-3 h-3" />
-            </button>
             {prefix && <span className="text-[10px] text-muted-foreground">{prefix}</span>}
             <Input ref={inputRef} type={type === "number" ? "number" : "text"}
               value={localValue ?? ""}
@@ -618,13 +676,10 @@ function Field({
           className={`field-input inline-flex items-center gap-1
             ${compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1 text-xs"}
             rounded-full border transition-all
-            ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}
-            ${flowColor}`}
-          title={`${name ? name + ": " : ""}${flowLabels[currentFlow]} — Click to edit`}
+            ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
+          style={{ background: pillTint.bg, borderColor: pillTint.border, color: pillTint.text }}
+          title={`${name ? name + ": " : ""}Click to edit`}
         >
-          <span onClick={handleFlowCycle} className="inline-flex items-center opacity-70 hover:opacity-100">
-            <FlowIcon className="w-2.5 h-2.5" />
-          </span>
           {!hideName && name && <span className="opacity-70">{name}:</span>}
           <span>{formattedDisplay}</span>
         </button>
@@ -1209,7 +1264,20 @@ function Field({
     : `${prefix}${formattedValue}${postfix}`;
 
   // Shared style for read-only "input-like" boxes
-  const valueColor = hasTarget ? (targetMet ? "var(--accent-green-text)" : "var(--danger-text)") : "var(--text-primary)";
+  // Non-compact value color precedence:
+  //   1. displayRule.color (rule from $displayRules in pipeline)
+  //   2. target-met / not-met (when field has a target)
+  //   3. value-direction colors (red <0, blue 0/null, green >0/filled)
+  const valueColor = displayRule?.color
+    ? displayRule.color
+    : hasTarget
+    ? (targetMet ? "var(--accent-green-text)" : "var(--danger-text)")
+    : valueSignColor(rawDisplayValue);
+  const RuleIconNC = displayRule?.icon ? RULE_ICONS[displayRule.icon] : null;
+  const ruleSuffixNC = displayRule?.suffix || null;
+  const ruleDisplayNC = displayRule?.replaceValue != null
+    ? String(displayRule.replaceValue)
+    : null;
   const roBox = {
     display: "inline-flex", alignItems: "center",
     height: 28, minWidth: 52, padding: "0 8px",
@@ -1223,16 +1291,31 @@ function Field({
   const labelStyle = { fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginBottom: 2 };
 
   if (compact) {
-    // Compact display — same pill shape + color as input pills, just not clickable
-    // Use target colors (green=met, red=not met) or neutral green tint for display fields
-    const hasMet = hasTarget ? targetMet : null;
-    const pillColor = hasMet === true
-      ? "rgba(34,197,94,0.2)" : hasMet === false
-      ? "rgba(248,113,113,0.2)" : "rgba(134,239,172,0.1)";
-    const pillBorder = hasMet === true
-      ? "rgba(34,197,94,0.35)" : hasMet === false
-      ? "rgba(248,113,113,0.35)" : "rgba(134,239,172,0.2)";
-    const pillText = hasMet === true ? "var(--accent-green-text)" : hasMet === false ? "var(--danger-text)" : "var(--text-muted)";
+    // Compact display pill color precedence:
+    //   1. displayRule.color (rule from $displayRules in pipeline)
+    //   2. target-met / not-met (when field has a target)
+    //   3. value-direction colors (red <0, blue 0/null, green >0/filled)
+    let pillColor, pillBorder, pillText;
+    if (displayRule?.color) {
+      pillText   = displayRule.color;
+      pillColor  = "transparent";
+      pillBorder = "transparent";
+    } else if (hasTarget) {
+      pillColor  = targetMet ? "rgba(34,197,94,0.2)"  : "rgba(248,113,113,0.2)";
+      pillBorder = targetMet ? "rgba(34,197,94,0.35)" : "rgba(248,113,113,0.35)";
+      pillText   = targetMet ? "var(--accent-green-text)" : "var(--danger-text)";
+    } else {
+      const tint = valueSignPillTint(rawDisplayValue);
+      pillColor  = tint.bg;
+      pillBorder = tint.border;
+      pillText   = valueSignColor(rawDisplayValue);
+    }
+    const RuleIcon = displayRule?.icon ? RULE_ICONS[displayRule.icon] : null;
+    const ruleSuffix = displayRule?.suffix || null;
+    // replaceValue overrides the formatted display string entirely.
+    const ruleDisplay = displayRule?.replaceValue != null
+      ? String(displayRule.replaceValue)
+      : null;
     const pillBase = {
       display: "inline-flex", alignItems: "center", gap: 3,
       padding: "2px 6px", borderRadius: 999,
@@ -1292,7 +1375,9 @@ function Field({
     return (
       <div className="field-display field-display-compact" style={{ ...pillBase }}>
         {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
-        <span>{valueDisplay}</span>
+        {RuleIcon && <RuleIcon size={10} style={{ flexShrink: 0, opacity: 0.85 }} />}
+        <span>{ruleDisplay ?? valueDisplay}</span>
+        {ruleSuffix && <span style={{ opacity: 0.7, marginLeft: 2 }}>{ruleSuffix}</span>}
         {showUnit && <span style={{ opacity: 0.5 }}>{unit}</span>}
         {valueDelta != null && (
           <span style={{ marginLeft: 2, color: deltaColorVal, fontWeight: 600 }}>
@@ -1416,8 +1501,10 @@ function Field({
     <div className="field-display" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
       {showLabel && <span style={labelStyle}>{name}</span>}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {RuleIconNC && <RuleIconNC size={12} style={{ flexShrink: 0, color: valueColor }} />}
         <div style={{ ...roBox, flex: type === "text" || type === "date" ? 1 : undefined }}>
-          {valueDisplay}
+          {ruleDisplayNC ?? valueDisplay}
+          {ruleSuffixNC && <span style={{ marginLeft: 4, opacity: 0.7 }}>{ruleSuffixNC}</span>}
         </div>
         {showUnit && <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{unit}</span>}
         {valueDelta != null && (
