@@ -93,32 +93,36 @@ _Updated: 2026-05-21. Check this file before re-reading source._
 
 - **Canvas occurrence snap-back on drag-across.** 2026-05-21 — user
   reports moving a card across the canvas can result in the card
-  jumping back to its original `meta.x/y` position. Likely cause
-  zones: (a) `CanvasContent.jsx` writes `meta.x/y` optimistically on
-  drag end but a server echo with stale meta (a NavigationOp /
-  filter rebuild fired during the drag, e.g. `Schedule Canvas:
-  Build Day` running on filter onLoad) overwrites the position, OR
-  (b) the drop handler in `dropHandlers.js` re-stamps meta from the
-  source occurrence on a canvas-to-canvas move. Repro: drag a card
-  on a canvas page that has an `onLoad` op stamping `meta`. Fix
-  direction: (1) verify `meta.x/y` is on the linked-group
-  meta-fanout DENYLIST in `server/socketHandlers/occurrences.js`
-  (the prior session noted this needed adding for the Schedule
-  Canvas's bidirectional sync), and (2) audit any canvas op that
-  writes `meta` for idempotency on existing-positioned cards
-  (probe `IS_NOT_EMPTY meta.x` before stamping).
-- **Bring back the full-screen button on panels (next to the radial
-  menu).** 2026-05-21 — the maximize/expand button used to sit
-  next to the panel's RadialMenu and toggle the panel into
-  `forceFullscreen` mode. `ModulePanel.jsx` still respects
-  `forceFullscreen` + `fullscreenPanelId` (see lines 275, 505,
-  704-716), so only the UI affordance is missing. Add a `Maximize2`
-  button (lucide) in the panel header — next to the QuickAddMenu
-  `+` / RadialMenu handle — that toggles
+  jumping back to its original `meta.x/y` position. Code-inspection
+  rules out the linked-group fanout: `server/socketHandlers/occurrences.js:91-124`
+  propagates `fields` + `textmap` only — `meta` is NOT in the
+  patch, so a sibling's write can't overwrite this canvas card's
+  position. The same-canvas move path in `dropHandlers.js:850-857`
+  cleanly writes `meta: { ...(movedOcc.meta || {}), x: cx, y: cy }`
+  with the new pointer coords, so the write itself looks correct.
+  Most likely cause: a canvas auto-build op (e.g. `Schedule Canvas:
+  Build Day` from createLiveData.js) firing on `onLoad` /
+  `onFilterChange` mid-drag and re-stamping seed positions. Prior
+  session (commit `3a991fbd`) added an idempotency probe that
+  short-circuits when ANY descendant already has `meta.y`, but the
+  probe runs once at op start — if the op fires AFTER the drag-end
+  write committed, the new position is in the cache but the op's
+  own UPDATEs still re-stamp the cards it touches. Fix directions:
+  (a) add `meta.pinned: true` on every manual drag write, gate the
+  Build op to skip cards with `pinned`; (b) make the Build op's
+  UPDATE_OCCURRENCE on each card guard with `IS_EMPTY meta.x` per
+  card (not a one-shot probe), so already-positioned cards survive;
+  (c) audit which ops fire on filter changes for canvas pages and
+  ensure they don't unconditionally write `meta.x/y`. Repro: drag a
+  card on a canvas that has an auto-build op, then immediately
+  change the date filter to retrigger the op.
+- **~~Bring back the full-screen button on panels.~~** DONE
+  2026-05-21 (commit `102a96c6`). `ModulePanel.jsx` page-header
+  action cluster (right of QuickAddMenu + stack cycler) now hosts
+  a `Maximize2`/`Minimize2` toggle that flips
   `fullscreenPanelId === module.id` via the existing
-  `onToggleFullscreen` prop (or wires a new one). The fullscreen
-  state container already exists at the Grid level (App.jsx exposes
-  it via context); just plumb the toggle back to the panel chrome.
+  `setFullscreenPanelId` prop. Renderer-side fullscreen plumbing
+  (lines 275, 505, 704-716) was unchanged.
 
 - **~~Slow initial connection / app freezes during load.~~** PARTIAL
   FIX 2026-05-21 (commit `b3446c48`): folder-page preview was the

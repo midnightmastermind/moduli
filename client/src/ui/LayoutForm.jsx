@@ -1,10 +1,12 @@
 // LayoutForm.jsx
-import React from "react";
+import React, { useContext, useMemo } from "react";
 import { Separator } from "@/components/ui/separator";
 import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import StyleEditor from "./StyleEditor";
+import { GridActionsContext } from "../GridActionsContext";
+import { resolveStyleCascade } from "../helpers/StyleHelpers";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 import { TooltipProvider, TooltipHelp } from "@/components/ui/tooltip";
@@ -283,6 +285,24 @@ export default function LayoutForm({
 }) {
   const v = ensureLockDefaults(value);
   const iter = iteration || { mode: "inherit", timeFilter: "daily" };
+  const { state } = useContext(GridActionsContext);
+
+  // Cascade for panel's own style — just Grid → Panel (no page /
+  // container / instance below since this editor is at the panel
+  // level). The walker is generic but we only pass `grid` + `panel`
+  // so the resolved levels show grid-default first then this panel.
+  const cascadeForPanelOwn = useMemo(
+    () => resolveStyleCascade({ grid: state?.grid, panel, panelOcc: occurrence }, "panel"),
+    [state?.grid, panel, occurrence]
+  );
+
+  // Cascade for child-defaults: shows what an instance/container
+  // dropped INTO this panel would inherit from Grid → Panel chain
+  // (the panel's own ownStyle + its existing child-defaults push-down).
+  const cascadeForPanelChildren = useMemo(
+    () => resolveStyleCascade({ grid: state?.grid, panel, panelOcc: occurrence }, "instance"),
+    [state?.grid, panel, occurrence]
+  );
 
   const display = v?.display ?? "grid";
   const flow = v?.flow ?? "row";
@@ -793,6 +813,7 @@ export default function LayoutForm({
         <TabsContent value="style" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1 space-y-2">
           <StyleEditor
             kind="panel"
+            cascade={cascadeForPanelOwn}
             styleMode={panel?.styleMode || "inherit"}
             ownStyle={panel?.ownStyle}
             onStyleModeChange={(mode) => onPanelStyleUpdate?.({ styleMode: mode })}
@@ -805,6 +826,7 @@ export default function LayoutForm({
 
           <StyleEditor
             kind="panel"
+            cascade={cascadeForPanelChildren}
             styleMode={panel?.childContainerStyle ? "own" : "inherit"}
             ownStyle={panel?.childContainerStyle}
             onStyleModeChange={(mode) => {
@@ -822,6 +844,7 @@ export default function LayoutForm({
 
           <StyleEditor
             kind="instance"
+            cascade={cascadeForPanelChildren}
             styleMode={panel?.childInstanceStyle ? "own" : "inherit"}
             ownStyle={panel?.childInstanceStyle}
             onStyleModeChange={(mode) => {

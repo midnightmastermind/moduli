@@ -2,6 +2,17 @@
 
 _Updated: 2026-05-21. Check this file before re-reading source._
 
+## Recent Changes (2026-05-21 — Panel own-style + cascade wiring on LayoutForm)
+- **`LayoutForm.jsx`** — pulls `state` from GridActionsContext and
+  memoizes two cascades via `resolveStyleCascade`:
+  `cascadeForPanelOwn` (Grid → Panel chain ending at panel) and
+  `cascadeForPanelChildren` (Grid → Panel chain ending at instance,
+  shared by both child-default editors). All three StyleEditors
+  in the Style tab now receive the cascade prop so the user sees
+  what's pushing down before overriding. New "Panel Style"
+  editor (`kind="panel"`) added at the top writing
+  `panel.styleMode` + `panel.ownStyle` — was missing.
+
 ## Recent Changes (2026-05-21 — StyleEditor kind-aware + grid-default cascade root)
 - **`StyleEditor.jsx`** — Now accepts `kind`
   (`"grid"|"panel"|"page"|"container"|"instance"|"textblock"|
