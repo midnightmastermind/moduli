@@ -22,6 +22,7 @@ import { isEventCompatible } from "./triggerTypes";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { analyzeAllOperations } from "./operationIntrospection";
+import { applyDisplayRules } from "./displayRules";
 
 // ============================================================
 // RUN LOG — per-operation run history for the editor's log panel
@@ -1250,6 +1251,83 @@ export function executePipeline(operation, context, transaction, extraVars, exte
 
   // ---- Execute steps (top-down code flow) ----
   const result = executeSteps(steps, $vars, contextWithExecutors, transaction);
+
+  // ---- Apply $displayRules ----
+  // The pipeline opts in to rule-driven display by INIT_VAR'ing a
+  // `$displayRules` object keyed by occurrence label. Each entry is an
+  // array of `{ when, color?, icon?, suffix?, replaceValue?, ... }`
+  // rules; the first match wins. We post-process two kinds of writes:
+  //
+  // (a) Computed-value updates (no `_effect`, has `fieldId` +
+  //     `occurrenceId`) — merge the matched rule body in-place so the
+  //     bridge / reducer / Field.jsx see the resolved
+  //     `{ color, icon, suffix, replaceValue }` alongside the raw value.
+  //
+  // (b) `UPDATE_ITEM_FIELD` value effects — trackers/goal ops write
+  //     directly to the occurrence's field via `applyUpdate`. Field.jsx
+  //     reads computedValues FIRST and falls back to occurrence.fields,
+  //     so if a rule matches we also emit a parallel computed-value
+  //     update carrying the value + rule outputs. The persistent write
+  //     still lands on the occurrence; the computed-value just decorates
+  //     the display path with the rule outputs.
+  //
+  // Updates / effects with no rule match pass through untouched —
+  // legacy ops that don't author $displayRules see no change.
+  const displayRules = $vars["$displayRules"];
+  if (displayRules && Array.isArray(result)) {
+    const occsForRules = context.occurrencesById || {};
+    const fieldsForRules = context.fieldsById || {};
+    // Resolve a field's static target shape from its displayConfig so
+    // rules with `when: { target: "met" }` can evaluate against the
+    // configured target value. Returns null when the field has no
+    // numeric target (rules referencing target collapse to "none").
+    const targetForField = (fieldId, explicit) => {
+      if (explicit != null) return explicit;
+      const tv = fieldsForRules[fieldId]?.displayConfig?.targetValue;
+      return typeof tv === "number" ? { value: tv } : null;
+    };
+    const extraUpdates = [];
+    for (let i = 0; i < result.length; i++) {
+      const u = result[i];
+      if (!u) continue;
+      // (a) inline-decorate computed-value updates
+      if (!u._effect && u.occurrenceId && u.fieldId) {
+        const occ = occsForRules[u.occurrenceId];
+        if (!occ) continue;
+        const body = applyDisplayRules({
+          displayRules,
+          value: u.value,
+          target: targetForField(u.fieldId, u.target),
+          occurrence: occ,
+          fieldsById: fieldsForRules,
+        });
+        if (body) result[i] = { ...u, ...body };
+        continue;
+      }
+      // (b) shadow-decorate UPDATE_ITEM_FIELD value writes
+      if (u._effect === "UPDATE_ITEM_FIELD" && u.subKind === "value" && u.itemId && u.fieldId) {
+        const occ = occsForRules[u.itemId];
+        if (!occ) continue;
+        const body = applyDisplayRules({
+          displayRules,
+          value: u.value,
+          target: targetForField(u.fieldId, null),
+          occurrence: occ,
+          fieldsById: fieldsForRules,
+        });
+        if (body) {
+          extraUpdates.push({
+            fieldId: u.fieldId,
+            occurrenceId: u.itemId,
+            value: u.value,
+            ...body,
+          });
+        }
+      }
+    }
+    if (extraUpdates.length) result.push(...extraUpdates);
+  }
+
   // _onPipelineDone callback (used by the /api/v1/operations/:id/run
   // bridge) fires once the pipeline truly finishes — for suspending
   // pipelines that means after every CALL_API / GET_USER_INPUT resume

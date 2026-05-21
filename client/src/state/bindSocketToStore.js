@@ -945,7 +945,36 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   let _cachedBaseOccsById = null, _lastOccurrences = null;
   let _cachedModulesById = null, _lastModules = null;
 
+  // Defensive cap on synchronous fire→effect→fire recursion. A pipeline
+  // can write a field via UPDATE_ITEM_FIELD, which lands in CommitHelpers'
+  // setOccurrenceFieldValue, which calls operationsBridge.fireOperations
+  // ("MeasureOp",…) again — if another op listens on that same field, the
+  // chain becomes self-feeding and blows the stack ("too much recursion").
+  // Real op chains should converge well under this limit; a higher number
+  // here just hides the bug longer. 8 is plenty for legitimate cascades.
+  let _fireDepth = 0;
+  const _FIRE_DEPTH_LIMIT = 8;
+
   function fireOperations(transactionType, transaction, { occurrencesOverride } = {}) {
+    if (_fireDepth >= _FIRE_DEPTH_LIMIT) {
+      // Skip recursive fires past the cap. Surface once per breach so the
+      // user can find the op-loop without the page hard-crashing.
+      console.warn(
+        `[operations] fire depth cap hit (${_FIRE_DEPTH_LIMIT}) — skipping ${transactionType}. ` +
+        `An operation is triggering itself (or a cycle). Check trigger predicates / fields_written vs allowedFields.`,
+        { transactionType, transaction }
+      );
+      return;
+    }
+    _fireDepth++;
+    try {
+      return _fireOperationsInner(transactionType, transaction, { occurrencesOverride });
+    } finally {
+      _fireDepth--;
+    }
+  }
+
+  function _fireOperationsInner(transactionType, transaction, { occurrencesOverride } = {}) {
     const state = stateRef.current || {};
     const operations = state.operations || [];
     const fields = state.fields || [];

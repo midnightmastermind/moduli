@@ -674,6 +674,100 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   });
 
   // ====================================================================
+  // RESEARCH — Wikipedia tools for Jarvis. See docs/assistant-guide.md.
+  // ====================================================================
+
+  router.get("/research/wikipedia/search", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const { search } = await import("../services/wikipediaTools.js");
+      const hits = await search(req.query.q, { limit: Math.min(20, Number(req.query.limit) || 5) });
+      res.json({ ok: true, query: req.query.q, hits });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  router.get("/research/wikipedia/summary", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const { summary } = await import("../services/wikipediaTools.js");
+      const result = await summary(req.query.title);
+      if (!result) return err(res, 404, "not_found", "No Wikipedia article with that title");
+      res.json({ ok: true, ...result });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  router.get("/research/wikipedia/full", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const { fullMarkdown } = await import("../services/wikipediaTools.js");
+      const result = await fullMarkdown(req.query.title);
+      if (!result) return err(res, 404, "not_found", "No Wikipedia article with that title");
+      res.json({ ok: true, ...result });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // Composite "research → page": one HTTP call does search → full →
+  // import. Returns { rootOccurrenceId, stats, source: { title, url } }.
+  router.post("/research/wikipedia/import", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { search, fullMarkdown } = await import("../services/wikipediaTools.js");
+      const { markdownToModuli } = await import("../services/markdownImporter.js");
+      const { gridId, parentId = null, query, title: explicitTitle, dryRun = false } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      if (!query && !explicitTitle) return err(res, 400, "validation_error", "query or title required");
+
+      // Pick the article: explicit title wins; else top search hit.
+      let pickedTitle = explicitTitle;
+      let searchHit = null;
+      if (!pickedTitle) {
+        const hits = await search(query, { limit: 1 });
+        if (!hits.length) return err(res, 404, "not_found", "No Wikipedia matches for that query");
+        searchHit = hits[0];
+        pickedTitle = searchHit.title;
+      }
+
+      const full = await fullMarkdown(pickedTitle);
+      if (!full) return err(res, 404, "not_found", "Article not found");
+
+      const importResult = await markdownToModuli({
+        gridId, parentId, userId: req.userId,
+        markdown: full.markdown, title: pickedTitle, dryRun,
+      });
+
+      // Broadcast so connected tabs sync.
+      if (!dryRun) {
+        for (const m of importResult.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
+        for (const o of importResult.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
+      }
+
+      res.json({
+        ok: true,
+        source: { title: pickedTitle, url: full.url, matchedFrom: explicitTitle ? "title" : "search" },
+        searchHit,
+        rootOccurrenceId: importResult.rootOccurrenceId,
+        stats: importResult.stats,
+        dryRun,
+      });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ====================================================================
+  // ASSISTANT — Jarvis chat endpoint. See docs/assistant-guide.md.
+  // ====================================================================
+
+  router.post("/assistant/chat", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { assistantChat } = await import("../services/assistantAgent.js");
+      const { messages = [], gridId } = req.body || {};
+      const result = await assistantChat({
+        messages,
+        userId: req.userId,
+        gridId,
+        baseUrl: `${req.protocol}://${req.get("host")}`,
+        apiToken: req.headers.authorization?.replace(/^Bearer /, ""),
+      });
+      res.json(result);
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ====================================================================
   // OPENAPI — machine-readable spec served at /api/v1/openapi.json
   // ====================================================================
 

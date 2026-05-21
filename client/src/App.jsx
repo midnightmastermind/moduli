@@ -19,6 +19,7 @@ import { useBoardState } from "./state/useBoardState";
 import Toolbar from "./Toolbar";
 import TransactionHistory from "./ui/TransactionHistory";
 import CommandCenter from "./ui/CommandCenter";
+import AssistantDrawer from "./ui/AssistantDrawer";
 import { Spinner } from "./components/ui/spinner";
 import { Toaster } from "./components/ui/sonner";
 import UserInputModal from "./ui/UserInputModal";
@@ -831,6 +832,9 @@ export default function App() {
           onOpenChange={setHistoryOpen}
           gridId={state.gridId}
         />
+
+        {/* Jarvis — bottom-right floating chat. See docs/assistant-guide.md. */}
+        <AssistantDrawer />
 
         <div data-testid="app-root" className={`app-root grid-frame bg-background2 shadow-inner ${isMobile ? 'p-0 border-0 rounded-none ring-0' : 'p-3 ring-1 ring-black/40 rounded-xl border border-border'}`}
           style={{ position: "relative" }}

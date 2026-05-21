@@ -4663,16 +4663,45 @@ export async function createLiveData(userId, options = {}) {
     ...trackerArgs, name: "Water",
     goalLabel: "Physical Wellness", goalFieldId: fields.totalWater.id,
     sourceFieldId: fields.water.id, agg: "sum", timeFilter: "daily",
+    // Goal-with-target rules: green ArrowUp when hitting target, red
+    // ArrowUp when not. The arrow direction is the SAME (up = good for
+    // water) — color carries the met/notMet signal. Rule keys off the
+    // Physical Wellness container label since that's where the
+    // totalWater display field lives.
+    displayRules: {
+      "Physical Wellness": [
+        { when: { target: "met" },    color: "rgb(134,239,172)", icon: "ArrowUp" },
+        { when: { target: "notMet" }, color: "rgb(252,165,165)", icon: "ArrowUp" },
+      ],
+    },
   })).save();
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Time Spent",
     goalLabel: "Intellectual Growth", goalFieldId: fields.totalDuration.id,
     sourceFieldId: fields.duration.id, agg: "sum", timeFilter: "daily",
+    // Pages-style neutral counter — more is good but less isn't bad.
+    displayRules: {
+      "Intellectual Growth": [
+        { when: { value: "null" },     color: "rgb(96,165,250)" },
+        { when: { value: "zero" },     color: "rgb(96,165,250)" },
+        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+      ],
+    },
   })).save();
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Pages",
     goalLabel: "Intellectual Growth", goalFieldId: fields.totalPages.id,
     sourceFieldId: fields.pages.id, agg: "sum", timeFilter: "daily",
+    // Untargeted counter rule (no positive/negative connotation per
+    // user spec): blue at 0/null, green when filled. No icon — pages
+    // read has no "good direction" because not reading is neutral.
+    displayRules: {
+      "Intellectual Growth": [
+        { when: { value: "null" },     color: "rgb(96,165,250)" },
+        { when: { value: "zero" },     color: "rgb(96,165,250)" },
+        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+      ],
+    },
   })).save();
   // Pomodoro daily aggregations — both write into the Intellectual Growth
   // goal alongside Time Spent + Pages. Source data: Pomodoro session
@@ -4684,11 +4713,32 @@ export async function createLiveData(userId, options = {}) {
     ...trackerArgs, name: "Pomodoros Today",
     goalLabel: "Intellectual Growth", goalFieldId: fields.pomoCount.id,
     agg: "countTrue", timeFilter: "daily", isTaskFieldId,
+    // Pomodoros has a daily target (3) on its display field — apply
+    // the Water pattern: green ArrowUp on met, red ArrowUp on notMet.
+    displayRules: {
+      "Intellectual Growth": [
+        { when: { target: "met" },    color: "rgb(134,239,172)", icon: "ArrowUp" },
+        { when: { target: "notMet" }, color: "rgb(252,165,165)", icon: "ArrowUp" },
+      ],
+    },
   })).save();
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Pomodoro Time",
     goalLabel: "Intellectual Growth", goalFieldId: fields.pomoTime.id,
     sourceFieldId: fields.pomodoroMinutes.id, agg: "sum", timeFilter: "daily",
+    // Pages-style neutral counter — no target. (The docket's
+    // state-based rule scheme — red on "paused" / green on "running"
+    // — requires a sibling `state` field that doesn't exist; the
+    // Pomodoro instance has `pomodoroPhase` with "work"/"break"
+    // values, not a running/paused state. Switching to neutral rule
+    // until / unless that shape is added.)
+    displayRules: {
+      "Intellectual Growth": [
+        { when: { value: "null" },     color: "rgb(96,165,250)" },
+        { when: { value: "zero" },     color: "rgb(96,165,250)" },
+        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+      ],
+    },
   })).save();
 
   // ── DAILY FINANCE ──
@@ -4696,11 +4746,32 @@ export async function createLiveData(userId, options = {}) {
     ...trackerArgs, name: "Spent",
     goalLabel: "Financial Health", goalFieldId: fields.totalSpent.id,
     sourceFieldId: fields.amount.id, agg: "sum", flow: "out", timeFilter: "daily",
+    // Money OUT — "negative connotation" per user spec: any positive
+    // amount spent reads red regardless of sign. 0/null is blue.
+    displayRules: {
+      "Financial Health": [
+        { when: { value: "null" },     color: "rgb(96,165,250)" },
+        { when: { value: "zero" },     color: "rgb(96,165,250)" },
+        { when: { value: "positive" }, color: "rgb(252,165,165)", icon: "ArrowDown" },
+      ],
+    },
   })).save();
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Earned",
     goalLabel: "Financial Health", goalFieldId: fields.totalIncome.id,
     sourceFieldId: fields.income.id, agg: "sum", flow: "in", timeFilter: "daily",
+    // Money IN — positive complement to Spent. null/zero blue (no
+    // income, no signal), positive green with ArrowUp ("money flowing
+    // in is good"). Mirrors Spent's structure (red + ArrowDown) so
+    // the two trackers on the Financial Health goal read as a paired
+    // signal.
+    displayRules: {
+      "Financial Health": [
+        { when: { value: "null" },     color: "rgb(96,165,250)" },
+        { when: { value: "zero" },     color: "rgb(96,165,250)" },
+        { when: { value: "positive" }, color: "rgb(134,239,172)", icon: "ArrowUp" },
+      ],
+    },
   })).save();
 
   // ── DAILY NUTRITION ──

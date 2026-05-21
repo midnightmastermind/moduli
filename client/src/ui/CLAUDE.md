@@ -1,6 +1,87 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-05-19. Check this file before re-reading source._
+_Updated: 2026-05-21. Check this file before re-reading source._
+
+## Recent Changes (2026-05-21 — Drilldown date picker + filter pill + value-direction display colors + Now AM/PM)
+- **`DrilldownDatePicker.jsx` (NEW)** — Calendar-style multi-select
+  picker with four-level zoom (day → week → month → year). Self-
+  contained; no library deps. Header has chevron-up (zoom out) /
+  chevron-down (zoom in) + clickable title. Nav row has ◀ / ▶
+  arrows + a `step` integer input (only rendered at day & week
+  levels; months and years always step ±1). When ≥1 dates are
+  selected, arrows shift each selected date by `step` days
+  (consecutive AND non-consecutive — same operation per-date). With
+  no selection, arrows just step the anchor month. Multi-select via
+  click-toggle at day level; Shift+click range-selects. Week level
+  is a stack of 7-day strips with N/7 counts; clicking a strip
+  toggles all 7 days. Month/year levels are 4×3 grids that drill
+  DOWN on click. Emits `onChange(["YYYY-MM-DD", ...])` (sorted).
+  Replaces the prior `react-multi-date-picker`-based UX per the
+  earlier "(c) Picker redesign" handoff item.
+- **`NavPickerPopover.jsx`** — swapped `react-multi-date-picker` →
+  `DrilldownDatePicker`. The outer D/M/Y zoom toolbar is gone (the
+  new picker has its own zoom chevrons). `handleChange` rewrote to
+  convert ISO string arrays → Date[] for `classifySelection`. New
+  `pickerValue` memo flattens the persisted shape (dates[] →
+  value-array). Removed unused `zoom` state, `datePickerRef`,
+  `initialSelection`, `mapDays`. `classifySelection` /
+  `formatSummary` / `hydrateSelection` exports retained (callers
+  still consume the same `{ kind, value, span, dates, unit }` shape).
+- **`HeaderChevron.jsx`** — filter button in occurrence headers now
+  ALSO renders a small inline pill per active filter entry showing
+  the currently-applied value (e.g. `Thu, May 21` for day-unit
+  dates, `wk May 19` for week unit, `May 2026` for month, `2026`
+  for year). Multi-select → "N selected". Only renders when the
+  filter is effectively ACTIVE on the occurrence (no pill on
+  deactivated/none states). Clicking the pill opens the same
+  HeaderDropdown as the icon. Pills consume `fieldsById` from
+  GridActionsContext to type-dispatch the formatter. The inline
+  LocalFilterNav arrows were already removed from headers in an
+  earlier session; the pill + chevron pair completes the
+  "filter button + applied filters, no nav" look.
+- **`Field.jsx` — display rule rendering**:
+  - New `displayRule` prop (default `null`) carries the operation-
+    authored `{ color, icon, suffix, replaceValue }` output of
+    `helpers/displayRules.js`. When set:
+    - `color` overrides the value-sign / target-met defaults
+    - `icon` (lucide name) renders before the value
+    - `suffix` appends after the value (`10 left`)
+    - `replaceValue` substitutes the value entirely (Pomodoro
+      "paused" instead of a number)
+  - Compact display pill and non-compact display box both honor it.
+  - Curated lucide icon map `RULE_ICONS`: ArrowUp/Down/Left/Right,
+    Check, X, Pause, Play, Square, Star, Minus, Plus, Equal,
+    AlertCircle, AlertTriangle. Unknown names render no icon.
+- **`Field.jsx` — value-direction colors (fallback under rules)**:
+  - New helpers `valueSignColor(value)` + `valueSignPillTint(value)`
+    return red (negative), blue (null/0/empty), green (positive /
+    filled). Used as the default in compact display pill +
+    non-compact roBox + Amount input click-to-edit pill WHEN there's
+    no target and no `displayRule.color`. Goals with a target keep
+    the target-met (green) / not-met (red) colors. The Amount
+    input's prior flow-arrow button + flow-cycling click handler
+    are removed entirely.
+- **`Field.jsx` — Now field shows AM/PM** — `formatTimeOfDay` no
+  longer outputs 24-hour clock. `3:45 PM` (minute granularity) or
+  `3:45:22 PM` (seconds granularity).
+- **`JsonStructureEditor.jsx` (NEW)** — Generic recursive editor
+  for arbitrary JS values. Each node has a type pill
+  (str / num / bool / null / [ ] / { }) that swaps types with a
+  click-cycle dropdown; primitive editors per type; object keys
+  rename inline with key-order preservation; array indices have ↑↓
+  arrows (disabled at boundaries) and indexed prefix. Add/remove
+  buttons per container. Collapsible chevrons with count badges.
+  No knowledge of operations / rules / fields — reusable
+  wherever structured cfg data needs editing. Used by
+  `OperationsBuilder.jsx` as the new `structured` mode in
+  `ExprOrPath`.
+- **`Toolbar.jsx`** — moved `SocketStatusBanner` out of the left
+  section (next to the logo) and into a center-of-toolbar
+  absolutely-positioned wrapper so the disconnected pill sits in
+  the middle of the header regardless of left/right section
+  widths. `pointer-events-none` on the wrapper + `pointer-events-
+  auto` on the pill so it doesn't block clicks elsewhere when
+  showing.
 
 ## Recent Changes (May 19 2026 — Selected chip display config + resolver regression coverage)
 - **Field.jsx**: `resolveOccCard(occId, maps, chipDisplay = null)` honors

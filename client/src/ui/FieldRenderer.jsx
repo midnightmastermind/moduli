@@ -87,6 +87,15 @@ function FieldRenderer({
     ? computedResult.value : computedResult;
   const computedTarget = computedResult != null && typeof computedResult === "object"
     ? computedResult.target : null;
+  // Display-rule outputs (color / icon / suffix / replaceValue) ride
+  // alongside the value on the computed-value slot when the pipeline
+  // had a $displayRules match for this occurrence. All nullable.
+  const computedDisplayRule = useMemo(() => {
+    if (!computedResult || typeof computedResult !== "object") return null;
+    const { color, icon, suffix, replaceValue } = computedResult;
+    if (color == null && icon == null && suffix == null && replaceValue == null) return null;
+    return { color, icon, suffix, replaceValue };
+  }, [computedResult]);
 
   const displayValue = displayEnabled ? (computedValue ?? inputValue) : inputValue;
 
@@ -189,6 +198,7 @@ function FieldRenderer({
             binding={binding}
             value={displayValue}
             target={computedTarget}
+            displayRule={computedDisplayRule}
             state={state}
             context={context}
             compact={compact}
@@ -228,6 +238,7 @@ function FieldRenderer({
         field={effectiveField}
         binding={binding}
         value={inputValue}
+        displayRule={computedDisplayRule}
         compact={compact}
         hideName={hideName}
         hidePrefix={hidePrefix}
@@ -247,6 +258,7 @@ function FieldRenderer({
           binding={binding}
           value={displayValue}
           target={computedTarget}
+          displayRule={computedDisplayRule}
           compact={compact}
           hideName={hideName}
           hidePrefix={hidePrefix}

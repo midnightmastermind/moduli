@@ -1,6 +1,373 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-05-20. Check this file before re-reading source._
+_Updated: 2026-05-21. Check this file before re-reading source._
+
+## Recent Changes (2026-05-21 — Multi-date filter cascade wiring)
+- **`helpers/operationActions.js` (`evalRule DATE_IN_PERIOD`)** — new
+  short-circuit branch BEFORE the period/span path: if rightVal is an
+  object with `kind:"multi"` + `Array.isArray(dates)`, normalize
+  leftVal to a day-key and OR-match against each entry. Empty
+  `dates[]` always fails. Existing day/week/month/year/span paths
+  unchanged. Driven by the `DrilldownDatePicker`'s non-consecutive
+  selection now landing in `grid.activeFilterValues[fid]` as
+  `{kind:"multi", unit:"day", value:firstISO, dates:[...]}`.
+- **`state/selectors.js` (`isOccurrenceVisible`)** — `hasPeriod`
+  detection in the condition-based path AND the legacy direct-equality
+  path widened to also match `(rightVal.kind === "multi" &&
+  Array.isArray(rightVal.dates))`. Without this, multi-shape values
+  (whose `unit === "day"`) were falling through to bare SAME_DAY,
+  passing an object as rightVal and silently failing every match.
+  Both paths now route multi shapes through `evalRule
+  DATE_IN_PERIOD`, which OR-matches across `dates[]`.
+- **`ui/HeaderChevron.jsx` (`formatFilterValue`)** — multi-shape
+  detection added BEFORE the period branch: a value with
+  `kind:"multi"` and `Array.isArray(dates)` renders as
+  `"N day" / "N days"`. Was previously falling into the period branch
+  (since `"value" in object` is true) and rendering only the FIRST
+  date. Empty `dates[]` returns null (no pill).
+- **`$activePeriodDates` already enumerates multi shapes** — the
+  executor's `expandPeriod` (operationExecutor.js ~line 935) already
+  short-circuits on `kind:"multi"` and returns the flat dates list, so
+  trackers / Build-Schedule ops that consume `$activePeriodDates`
+  ingest multi-day selections without any changes here. `$activeDate`
+  still resolves to the anchor (first date) for ops that want one
+  representative day.
+- **`NavPickerPopover.formatSummary`** already handles multi via its
+  `kind === "multi"` branch ("Date1, Date2, Date3" / "FirstDate +N");
+  no change needed for the trigger-button summary.
+- **Regression coverage** — 4 new cases in
+  `__tests__/operationActions.unified.test.js` (evalRule multi OR-
+  match across dates / non-match / ISO normalization / empty dates[])
+  + 3 new cases in `__tests__/filterCascade.test.js` (visibility on
+  match / non-match / legacy direct-equality path with multi shape).
+  108/108 in the two relevant suites; 733/738 client-wide (the 5
+  unrelated failures are masterReducer's pre-existing
+  `SET_COMPUTED_VALUES` test drift from the prior session's
+  `color/icon/suffix/replaceValue` defaults — not touched here).
+
+## Open docket (work still pending — handed off 2026-05-21)
+This session built the rules / picker / pill scaffolding. The data-
+authoring and integration passes remain:
+
+- **Author more `$displayRules` in live data.** Six trackers now
+  rule-decorated: Water (target met/notMet), Pages (Pages-style
+  neutral), Spent (negative-money red ArrowDown), **Time Spent**
+  (Pages-style neutral), **Pomodoros Today** (target met/notMet —
+  daily target 3), **Earned** (positive complement to Spent —
+  null/zero blue, positive green ArrowUp), **Pomodoro Time**
+  (Pages-style neutral; see note below). Remaining per the user's
+  spec:
+  - **Pomodoro Time state-based rules deferred.** The docket spec'd
+    blue-on-null / red-on-`state:"paused"` / green-on-`state:"running"`,
+    but the Pomodoro instance carries `pomodoroPhase` with `"work"`/
+    `"break"` values, not a `state: "running"|"paused"` sibling field.
+    Authored a Pages-style neutral rule instead so the tracker still
+    decorates. Adding the state-based rule needs either a new
+    `pomodoroState` field on the Pomodoro template (and Pomodoro:
+    Start / Pause / Resume ops to write it) OR rewiring the rule
+    predicate to read `pomodoroPhase` with different colour
+    semantics.
+  - **Bills / negative-connotation money** — red on any positive,
+    blue at 0/null. No standalone bills tracker exists yet — when
+    one is added (e.g. "Total Bills Due"), use the Spent rule
+    shape verbatim minus the ArrowDown icon (bills are owed amounts,
+    not outflows yet).
+  - **Countdowns to 0** — red while > 0 (`{ when: { value: "positive" },
+    color: "rgb(252,165,165)", icon: "ArrowDown", suffix: "left" }`),
+    green when `value: "zero"` with `icon: "Check"`. No countdown
+    trackers exist yet (was on the docket as a template).
+  - **Percentages without targets** — single catch-all rule
+    `{ when: {}, color: "rgb(96,165,250)" }`. No percentage trackers
+    exist yet.
+  - **Books Read / Movies Watched / Podcasts / Courses** — these
+    are PUSH_TO_ARRAY row-builders that write an array of
+    `{label, date}` objects to a multi-column display field, NOT a
+    numeric scalar. Display rules only meaningfully decorate
+    scalar values (color/icon ride on the value); array writes
+    have no "value: zero" semantic at the rule layer. If the user
+    wants per-row colour coding, that's a different mechanism
+    (column-level styling on the display field's
+    `displayConfig.columns`, not `$displayRules`).
+- **Date-stamp bug on goals/trackers.** The "Stamp Filter Date" op
+  exists at `createLiveData.js:5634` and fires on filter changes +
+  onLoad. Symptom: Date field on goal occurrences shows the literal
+  field name "Date" because the value is null. Plausible causes
+  (need run-log to confirm): goal occurrence's parent chain doesn't
+  connect via `occurrences[]` so `_effectiveFilter` can't resolve;
+  OR `onLoad` fires before `$allInstances` is populated. Open the
+  op's run log in Command Center to see which.
+- **Goals restructure Stage 2 (handoff item from 2026-05-20).**
+  Split the single-occurrence-with-many-display-fields into per-goal
+  occurrences with stable refs. Per the prior handoff, option (a) is
+  to add `$allItemsById` to the executor (`operationExecutor.js`
+  ~line 1172 area), verify the path resolver handles UUIDs via
+  bracket notation `$allItemsById["abc-123-def"]`, then split goal
+  instances + update tracker call sites in `createLiveData.js`.
+- **Folder page renders no instances.** Separate from the breadcrumb
+  click fix this session. Folder-page kind renders via
+  `modules/pages/PageFolder.jsx`, which derives child cards from
+  occurrences with `parentId === occurrence.parentId`. Newly minted
+  folder pages come up empty — likely PageFolder's child-lookup
+  filtering them (template flags / role-kind exclusions / `parentId`
+  mismatch). Needs a focused trace through PageFolder.
+- **Value builder — typed array/object editor with CategoryPathPicker per row.**
+  The current `ui/JsonStructureEditor.jsx` is a generic JSON editor
+  (str / num / bool / null / [ ] / { } cycle). Grow it into a **value
+  builder** where each row's "type" dropdown ALSO includes
+  occurrence / template / field / module / operation / category path
+  — picked via the same `CategoryPathPicker` that the operations
+  editor already uses. The picked id becomes the row's stored value;
+  the row chrome displays the resolved **label + breadcrumb / spot +
+  type icon** so the author isn't staring at raw UUIDs. Distinct from
+  the JSON primitive types — primitives stay as today; the new types
+  store an id (or a dotted path like `$allItems.<id>.fields.<fid>.value`)
+  and render a chip.
+  - Replaces label-based matching everywhere. Today
+    `helpers/displayRules.js` keys rules by occurrence **label**; many
+    seed ops similarly FIND-by-label. Authoring against ids via the
+    picker makes those comparisons stable across renames and
+    duplicates. Migration is a one-pass — existing label-keyed rule
+    objects keep working until rewritten.
+  - **Row "card" display when the value is an id-path** (not a JSON
+    primitive): resolve the id and render a *small two-line card*,
+    not the raw type. Same card whether the picked thing is the
+    whole occurrence (id) or a sub-path on it (e.g. `id`,
+    `fields.<fid>.value`, `label`, `meta.X`). Anatomy:
+    The entire card IS one continuous breadcrumb whose sections
+    are a 1:1 visual representation of the **CategoryPathPicker's
+    drilldown chain** — same levels the user walked to commit the
+    pick, rendered after the fact so they can read back what
+    they picked. Each picker level becomes one card crumb,
+    separated by `›` glyphs. The crumb's rendering varies by what
+    kind of thing the picker drilled into at that level (category
+    badge / source pill / occurrence box / field crumb / sub-path
+    crumb). The middle level that lands on an OCCURRENCE is the
+    focal/expanded one (multi-row box with title + fields) because
+    that's where the meat lives; surrounding levels are thinner
+    inline crumbs. Reading the card left-to-right replays the
+    picker's chain.
+
+    **Crumb rendering, by picker-level type** (one section per
+    level; separators `›` between them):
+    - **Category crumb** (level 1 of picker — `Occurrences /
+      Sources / Fields / Local Variables / Built-ins`): a small
+      coloured pill with the category name and its icon. Matches
+      the colour the picker tile uses.
+      e.g. `[● Occurrences]`.
+    - **Source / variable crumb** (level 2 — `$allItems` /
+      `$schedPage` / etc.): plain text crumb showing the variable
+      name (and friendly subtitle when there is one — e.g.
+      `$schedPage  (Source: Schedule page)`).
+    - **Ancestor crumbs** (any number of levels — picker walks
+      `parent › grandparent › …`): plain text labels for each
+      ancestor occurrence with its role/kind chip prefix.
+      e.g. `[panel] Daily Toolkit › [container] Physical`.
+    - **Occurrence crumb (the focal box)** — the level where the
+      picker lands ON the target occurrence. Multi-row block with
+      a thin border:
+      - **Title (bold)**: occurrence label. e.g. `Drink Water`.
+      - **Fields list UNDER the title** (rows, binding order, no
+        highlight):
+        ```
+        water → 2
+        completed → false
+        timeslot → 6:00am
+        date → May 21
+        ```
+      Date/datetime via `Field.jsx` formatters; arrays show
+      `N selected`; nulls render as `—`. Caps at 8 fields with
+      `+N more` tail. Hidden bindings excluded. NO field is
+      highlighted here — the "you picked X" callout is the next
+      crumb.
+    - **Sub-path crumb** (final level — `fields › <fid> › value`
+      / `_ancestors` / `meta.X` / `id`): rendered as a single
+      `name → value` crumb. For the common
+      `fields.<fid>.value` pattern, just `fieldName → value`.
+      For `id`, `id → <shortId>`. For deeper paths like
+      `meta.scheduleSlot`, `meta.scheduleSlot → true`. Slightly
+      bolder than ancestor crumbs so it reads as the destination.
+    - **More than one sub-path level** (rare — e.g. `fields ›
+      <fid> › value` shows as ONE sub-path crumb collapsing the
+      `fields › <fid> › value` chain into `fieldName → value`).
+      The picker exposes the intermediate `fields` / value
+      drilldown for navigation only; the card collapses them
+      back into a meaningful single crumb.
+
+    Whole-card flow example for picker chain
+    `Occurrences › $allItems › <occId> › fields › <fid> › value`:
+    ```
+    [● Occurrences] › $allItems › [panel] Daily Toolkit › [container] Physical › ┌──────────────┐ › water → 2
+                                                                                 │ Drink Water  │
+                                                                                 │ water → 2    │
+                                                                                 │ completed → … │
+                                                                                 │ timeslot → … │
+                                                                                 │ date → May 21│
+                                                                                 └──────────────┘
+    ```
+
+    Card chrome: thin border around the occurrence box only — all
+    other crumbs are inline. Whole row wraps if the parent context
+    is narrow (< 320px); on wrap, each crumb sits on its own row
+    with `›` preserved as a leading glyph (`› water → 2` for the
+    bottom crumb).
+
+    **Implementation hook**: the shared `resolvePickedRef(path,
+    maps)` helper returns the level breakdown as
+    `{ levels: [{ kind, label, sublabel?, role?, occurrence?,
+    field?, value? }, ...] }` so the card just iterates. The
+    picker's existing `CategoryPathPicker.segmentDisplay` already
+    derives most of this — extract + return the structured form
+    instead of a flat string.
+    - **Leading swatch (12×12)**: type icon — page / container /
+      instance / textblock / artifact / field — color matches the
+      manifest tree's iconography so authors recognize it
+      immediately.
+    - Card chrome: thin border, rounded corners, ~2px vertical
+      padding. Compact enough to live inside a ValueBuilder row
+      (~320px wide max — bumped from 280 to fit the field strip).
+      Wraps to extra lines if narrow.
+    - Raw id + full resolved path stay in the `title` attribute for
+      debug-hover.
+    - Same resolution logic already exists in
+      `CategoryPathPicker.segmentDisplay` for path segments —
+      extract into a shared `resolvePickedRef({maps, path}) →
+      {label, breadcrumb, role, kind, fieldName, value, icon}`
+      helper consumed by both the picker's closed-state chip AND
+      ValueBuilder row cards. One source of truth for "how a picked
+      reference renders."
+  - **Per-row controls**: `+` and `−` on every row. `+` underneath
+    the container adds a new sibling at the end. The `+` opens a
+    small menu: **"Insert one"** (single row, picks type + value as
+    today) and **"Insert many via FIND"** (opens a mini-Find editor
+    — pick collection + predicate via the existing
+    `COLLECTION_PICKER_CONFIG` + `buildRecordKeyPickerConfig` shapes
+    — and fans the matches out into N rows, one per match).
+  - **Renames**: rename `JsonStructureEditor` →
+    `ValueBuilder.jsx`. The `OperationsBuilder.jsx` `structured`
+    mode in `ExprOrPath` now drives the ValueBuilder instead of the
+    JSON-only editor. Wherever else an operation cfg accepts an
+    array or object today (PUSH_TO_ARRAY's `value`, CREATE's
+    `fields`, FIND's predicate rule lists, APPLY_TEMPLATE's
+    `replacements`, every UPDATE object cfg, $displayRules), surface
+    the same ValueBuilder. Where the cfg expects a SPECIFIC
+    collection (e.g. `fields:{[fid]:val}`), seed the type dropdown
+    to that picker scope so the author can't pick the wrong thing.
+  - **Mongo-style feel** is the target: each row reads as
+    `[type ▼] [key (if obj)] [value chip / picker]  [−] [+]`,
+    container has a trailing `[ + add row ]`. Nested objects/arrays
+    collapse/expand with the existing chevrons.
+
+## Recent Changes (2026-05-21 — Display-rules system + filter pill + canvas TDZ + recursion cap + AM/PM)
+- **NEW `helpers/displayRules.js`** — Pure rule evaluator. Operation
+  pipelines INIT_VAR `$displayRules` (an object keyed by occurrence
+  label, each value an array of `{ when, color?, icon?, suffix?,
+  replaceValue? }` rules). `executePipeline` post-processes every
+  computed-value update AND `UPDATE_ITEM_FIELD` value effect: looks
+  up rules for the occurrence's label, evaluates the first-matching
+  `when` clause against the value + target + sibling fields,
+  attaches the rule body to the update. Predicate keys: `value`,
+  `target` (`met`/`notMet`/`none`), or any sibling field's short
+  name (case-insensitive). Expected value: keyword (`negative` /
+  `zero` / `positive` / `null` / `met` / `notMet` / `filled` /
+  `empty`) OR literal scalar (equality) OR `{comp:LT|LTE|GT|GTE|EQ|NEQ|CONTAINS, right}`.
+- **`helpers/operationExecutor.js`** — imports `applyDisplayRules`;
+  post-process pass right after `executeSteps`. Handles both write
+  paths: (a) inline-decorates computed-value updates; (b) emits a
+  parallel computed-value update alongside each
+  `UPDATE_ITEM_FIELD` (the path trackers use) so Field.jsx's
+  computedValues-first preference picks up the rule decorations
+  while the persistent occurrence field write still lands. Targets
+  for rule matching are resolved from the field's `displayConfig.targetValue`
+  when not on the update.
+- **`state/masterReducer.js`** — `SET_COMPUTED_VALUES` now carries
+  `color / icon / suffix / replaceValue` on each computed-value
+  slot. Always overwrites with explicit `?? null` defaults so a
+  rule that no longer matches clears prior decorations.
+- **`ui/FieldRenderer.jsx`** — extracts `computedDisplayRule` from
+  the computed slot; threaded as `displayRule` prop to all three
+  `<Field>` render sites (display-only, role=="display", both-mode
+  display half).
+- **`state/bindSocketToStore.js`** — **defensive recursion cap** on
+  `fireOperations`. `_FIRE_DEPTH_LIMIT = 8`; past that the next
+  recursive fire logs a `console.warn` and bails instead of
+  blowing the stack. Triggered by op chains where an
+  `UPDATE_ITEM_FIELD` effect calls `setOccurrenceFieldValue`,
+  which fires `MeasureOp`, which re-matches the same op, etc.
+  Surfaces the transactionType in the warning so cycles can be
+  identified without a hard crash.
+- **`modules/CanvasContent.jsx`** — fixed TDZ crash
+  (`can't access lexical declaration 'ce' before initialization`):
+  the stale-edge cleanup `useEffect` referenced `saveEdges` in its
+  deps array before `saveEdges` was declared. Moved the
+  `useEffect` to right after `saveEdges`'s declaration. Existing
+  `classifyEdges` comment at line ~387 already documented this
+  exact pattern — same trap, different hook.
+- **`modules/ModulePanel.jsx`** — folder breadcrumb crumbs are now
+  clickable. New `openFolderCrumb(folderId)` callback finds-or-
+  mints a folder-page occurrence under the folder (mirrors
+  `ManifestTree.openFolderAsPage`) and calls `openPage(occId)`.
+  Wired onto the non-last folder breadcrumb spans. Resolves the
+  prior "breadcrumb pointer cursor with no handler" dead-end.
+- **`hooks/useSocketStatus.js`** — fixed a boot-race where the
+  hook's `useState` initializer read `socket.connected === false`
+  and seeded status="disconnected", then the `connect` event
+  fired BEFORE the `useEffect` attached its listener (no one
+  heard it), leaving the pill stuck on red forever. Now re-reads
+  `socket.connected` inside the effect after attaching listeners
+  and reconciles to `connected` if it became true in the gap.
+- **NEW `ui/JsonStructureEditor.jsx`** + **`blocks/OperationsBuilder.jsx`**
+  — generic recursive array/object/primitive editor wired into
+  `ExprOrPath` as a new `structured` mode (alongside path / text /
+  array / null). Any `INIT_VAR` (or other pipeline cfg) holding
+  a `json:{...}` value defaults to the visual editor on open.
+  The `array` raw-textarea mode is still in the dropdown for
+  power users who want to type JSON by hand. Used for authoring
+  `$displayRules` in tracker ops.
+- **`ui/Field.jsx`** — Now field display switched from 24-hour to
+  12-hour with AM/PM suffix. Compact / non-compact value colors
+  now follow the rule: target-met colors when there's a target,
+  value-direction colors (red <0 / blue 0/null / green >0/filled)
+  when there's no target. Amount input's prior flow-arrow button
+  is removed. New `displayRule` prop renders rule color (overrides
+  default), lucide icon (before value), suffix (after), and
+  replaceValue (substitute) when a tracker authored
+  `$displayRules` and the post-processor matched.
+- **`ui/HeaderChevron.jsx`** — inline filter-value pill next to the
+  filter button in occurrence headers. Shows currently-applied
+  filter values; formatted per unit (Thu, May 21 / wk May 19 /
+  May 2026 / 2026). Multi-day shows "N selected". Click opens the
+  same dropdown the filter icon does.
+- **`ui/DrilldownDatePicker.jsx` (NEW)** + **`ui/NavPickerPopover.jsx`**
+  — Calendar drilldown picker (day/week/month/year zoom, multi-
+  select, step-shift arrows, increment input at day/week levels)
+  replaces the prior `react-multi-date-picker` UI inside
+  `NavPickerPopover`. The shared `classifySelection` /
+  `formatSummary` exports + persisted shape (`{kind, value, span,
+  dates, unit}`) are unchanged — only the picker chrome swapped.
+- **`Toolbar.jsx`** — `SocketStatusBanner` moved from the left
+  section to a center-of-toolbar absolutely-positioned overlay so
+  the disconnected pill sits visually centered when shown.
+
+## Recent Changes (2026-05-21 — Jarvis assistant drawer + socket retry countdown (branch: assistant-jarvis))
+- **`ui/AssistantDrawer.jsx` (NEW)** — bottom-right floating "J"
+  button, click → 380×560 slide-in chat drawer. State all local:
+  `token` (Bearer, in localStorage `moduli_api_token`), `messages`
+  (chat history, in localStorage `moduli_assistant_history`), `input`.
+  POSTs `{ messages, gridId }` to `/api/v1/assistant/chat` and
+  renders assistant + tool transcript bubbles. Settings (⚙) panel
+  in the header for pasting the API token. Mounted in `App.jsx`
+  alongside `<TransactionHistory>`.
+- **`hooks/useSocketStatus.js`** now exposes `retryInMs` — a live
+  countdown to the next socket.io reconnect attempt. Decremented
+  every 100ms by an internal ticker. Reset to the predicted backoff
+  delay on every `connect_error`; parked at 0 while an attempt is
+  actively in flight (`reconnect_attempt` event); cleared on success.
+  Computed from `socket.io.opts.reconnectionDelay` /
+  `reconnectionDelayMax` (matches socket.io's actual backoff formula,
+  minus jitter).
+- **`ui/SocketStatusBanner.jsx`** label updated to show
+  `"Disconnected — retry in 2s (attempt 3)"` while waiting, and
+  `"Disconnected — trying now (attempt N)"` during an active attempt.
 
 ## Recent Changes (2026-05-20 — Removed temporary [BUILD-DAY]/[SCHED-TABLE]/[FILTER-DIAG]/[VIS-DIAG] console logs)
 - Six files were emitting tagged diagnostic `console.log`s on every load,

@@ -234,6 +234,42 @@ describe("Schedule-cascaded date filter hides cross-day routine instances", () =
   // isOccurrenceVisible reads via the cascade). Until the user clicked an
   // arrow, no real filter value existed. Fix in bindSocketToStore.onFullState
   // bootstraps activeFilterValues for nav-driven grid filters.
+  // Drilldown picker emits {kind:"multi", dates:[...]} when the user picks
+  // non-consecutive days. The cascade must route those through
+  // DATE_IN_PERIOD (NOT bare SAME_DAY) and OR-match across the array.
+  describe("multi-date filter shape (drilldown picker)", () => {
+    const inst = (date) => ({
+      id: "x", parentId: "slot",
+      fields: { scheduledDate: { value: date, flow: "in" } },
+    });
+    const multiFilter = {
+      scheduledDate: {
+        kind: "multi", unit: "day", value: "2026-05-13",
+        dates: ["2026-05-13", "2026-05-17", "2026-05-21"],
+      },
+    };
+
+    it("shows an instance whose date matches any selected day", () => {
+      expect(isOccurrenceVisible(inst("2026-05-13"), multiFilter, dailyFilterConditions)).toBe(true);
+      expect(isOccurrenceVisible(inst("2026-05-17"), multiFilter, dailyFilterConditions)).toBe(true);
+      expect(isOccurrenceVisible(inst("2026-05-21"), multiFilter, dailyFilterConditions)).toBe(true);
+    });
+
+    it("hides an instance whose date isn't in the selected set", () => {
+      expect(isOccurrenceVisible(inst("2026-05-14"), multiFilter, dailyFilterConditions)).toBe(false);
+      expect(isOccurrenceVisible(inst("2026-05-20"), multiFilter, dailyFilterConditions)).toBe(false);
+    });
+
+    it("works on the legacy direct-equality path (no conditions array)", () => {
+      // The other code path — when no `filterConditions` is passed, the
+      // function falls back to direct field/value matching against
+      // effectiveFilters. Multi-shape must still route through
+      // DATE_IN_PERIOD here, not stringify to "[object Object]".
+      expect(isOccurrenceVisible(inst("2026-05-17"), multiFilter)).toBe(true);
+      expect(isOccurrenceVisible(inst("2026-05-20"), multiFilter)).toBe(false);
+    });
+  });
+
   it("undefined filter rightVal makes isOccurrenceVisible pass everything (the bug)", () => {
     const noFilterState = {
       grid: { activeFilterValues: {} },

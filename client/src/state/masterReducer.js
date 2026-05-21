@@ -432,10 +432,21 @@ export function masterReducer(state, action) {
             if (!Array.isArray(updates) || updates.length === 0) return state;
 
             const next = { ...(state.computedValues || {}) };
-            for (const { fieldId, occurrenceId, value, target } of updates) {
+            for (const { fieldId, occurrenceId, value, target, color, icon, suffix, replaceValue } of updates) {
                 if (!fieldId) continue;
                 const key = occurrenceId ? `${fieldId}:${occurrenceId}` : fieldId;
-                next[key] = { value, target: target ?? null };
+                // Always overwrite the slot — null defaults explicitly
+                // clear any prior rule outputs when no rule matches on
+                // a re-run, so a removed/edited rule doesn't leave
+                // stale color/icon on the field.
+                next[key] = {
+                    value,
+                    target:       target       ?? null,
+                    color:        color        ?? null,
+                    icon:         icon         ?? null,
+                    suffix:       suffix       ?? null,
+                    replaceValue: replaceValue ?? null,
+                };
             }
             return { ...state, computedValues: next };
         }
