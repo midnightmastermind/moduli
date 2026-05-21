@@ -1636,11 +1636,13 @@ export function makeDayPageBuildTasksCompletedOp({
     description: "Rewrite the Tasks Completed container on the active day's Day Page with moduleEmbed nodes for every completed schedule task on that date.",
     // Priority 4 — runs AFTER Build Day (1), Stamp (2), trackers (3) so the
     // completion state it reads is fully settled.
-    // onAdd / onDelete on container subjects added 2026-05-21 — when
-    // Build Day mints/clears schedule task occurrences, this op MUST
-    // rerun so its moduleEmbed array doesn't reference stale ids that
-    // no longer exist (root cause of "Tasks Completed has broken
-    // links" — the rebuild was orphaning embeds at fresh task ids).
+    // onAdd / onDelete on BOTH container AND instance subjects.
+    // Container subjects catch slot-container churn from Schedule:
+    // Build Day's APPLY_TEMPLATE; instance subjects catch task-level
+    // adds/removes (drag in/out of Schedule, manual deletion). Both
+    // are needed — root cause of stale moduleEmbed refs was that the
+    // prior trigger set only covered containers, leaving instance-
+    // level deletions to orphan embeds at ids no longer in the store.
     triggerTypes: ["onLoad", "onFilterChange", "onChange", "onAdd", "onDelete"],
     triggerObjects: [
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 4 },
@@ -1649,6 +1651,8 @@ export function makeDayPageBuildTasksCompletedOp({
       { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId, priority: 4 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 4 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 4 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 4 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 4 },
     ],
     enabled: true,
     pipeline: {

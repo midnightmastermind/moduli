@@ -4228,12 +4228,12 @@ export async function createLiveData(userId, options = {}) {
     filters: buildScheduleFilters({ schedFilterId, timeslotFilterId, dateFieldId, timeslotFieldId, timeslotLabels }),
   });
 
-  // (Removed 2026-05-21) Standalone "Canvas" scratchpad page deleted —
-  // user consolidated to a single canvas (Schedule Canvas) as the
-  // canonical home for the mind-map demo. Keep these vars defined as
-  // null sentinels so downstream `Object.assign` / panel-pin lookups
-  // don't ReferenceError before they get filtered out.
-  const canvasPageModId = null; const canvasPageOccId = null;
+  // (Removed 2026-05-21) Standalone "Canvas" scratchpad page deleted
+  // — user consolidated to a single canvas (Schedule Canvas) as the
+  // canonical home for the mind-map demo. No consumers in
+  // `liveSystemBuilders.js` reference the legacy variables, so the
+  // null sentinels are gone too. If a future op needs a generic
+  // canvas page, mint a new one — don't reintroduce the standalone.
 
   // Project kanban template + Project: Create op are wired in STEP 7b
   // (template manifest build). See `buildProjectTemplate` in
@@ -7134,7 +7134,6 @@ export async function createLiveData(userId, options = {}) {
     panelModuleIds,
     // Page occurrence ids — consumed by Task 13 ops
     schedPageOccId,
-    canvasPageOccId,
     toolkitPageOccId,
     todoPageOccId,
     goalsPageOccId,

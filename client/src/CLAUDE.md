@@ -200,13 +200,18 @@ _Updated: 2026-05-21. Check this file before re-reading source._
   3. If options resolve, the dropdown should render — if it
      doesn't, the binding lookup is failing somewhere.
   Until verified in-browser, this stays open.
-- **"Tasks Completed" on day page has broken links.** The Day Page
-  Build Tasks Completed op (`makeDayPageBuildTasksCompletedOp`)
-  writes `moduleEmbed` doc entries referencing completed-task
-  occurrence ids. Once those tasks are deleted/rebuilt, the embeds
-  point at stale ids → broken-link rendering. Either re-run the op
-  on every Schedule rebuild (already triggers on filterChange?) or
-  switch to COPY_LINK so the embed source survives independently.
+- **~~"Tasks Completed" on day page has broken links.~~** FIXED
+  2026-05-21 (in `server/utils/liveSystemBuilders.js`
+  `makeDayPageBuildTasksCompletedOp`). Trigger surface widened from
+  `onAdd/onDelete subjectRole:"container"` only → also
+  `subjectRole:"instance"`. The prior session only added container
+  triggers, but the actual task occurrences Build Day mints/clears
+  are instance-role — so any instance-level deletion (drag out of
+  Schedule, manual remove) left moduleEmbed refs orphaned at ids no
+  longer in the store. The op now rebuilds the moduleEmbed array
+  whenever Schedule's instances change, so stale ids self-heal on
+  the next op fire. Re-seed required:
+  `node --env-file=.env server/scripts/createLiveData.js`.
 - **Schedule on load doesn't seed instances — just shows "daycontainer".**
   After re-seed, Schedule page renders only a container labelled
   "daycontainer" with no children. Code-inspection (2026-05-21):
