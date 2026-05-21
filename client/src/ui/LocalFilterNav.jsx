@@ -65,14 +65,6 @@ export default function LocalFilterNav({ occurrence, compact = false }) {
   const makeOnNav = (fieldId) => (value) => {
     if (!fieldId) return;
     const nextOverride = { ...overrides, [fieldId]: value };
-    console.log("[BUILD-DAY] LocalFilterNav onNav fired", {
-      occurrenceId: occurrence.id,
-      occurrenceLabel: occurrence.label || null,
-      fieldId,
-      newValue: value,
-      prevOverride: overrides,
-      nextOverride,
-    });
     CommitHelpers.updateOccurrenceFilterOverride({
       dispatch, socket,
       id: occurrence.id,

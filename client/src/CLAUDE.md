@@ -2,6 +2,23 @@
 
 _Updated: 2026-05-20. Check this file before re-reading source._
 
+## Recent Changes (2026-05-20 — Removed temporary [BUILD-DAY]/[SCHED-TABLE]/[FILTER-DIAG]/[VIS-DIAG] console logs)
+- Six files were emitting tagged diagnostic `console.log`s on every load,
+  NavigationOp, filter change, and Schedule render (~50 lines per debug
+  run, often firing many times per user interaction). They've been
+  excised:
+  - `helpers/operationExecutor.js` (~150 lines in `runMatchingOperations`)
+  - `helpers/CommitHelpers.js` (`updateOccurrenceFilterOverride`)
+  - `state/bindSocketToStore.js` (`onGridUpdated`)
+  - `App.jsx` (`filterNavState` useEffect)
+  - `ui/LocalFilterNav.jsx` (`makeOnNav`)
+  - `modules/ModuleContainer.jsx` (slot-filter pass)
+- All real instrumentation stays — the `logger.add()` calls in the
+  executor still capture every step into the persisted `OperationRunLog`
+  + the in-memory `runHistory` ring buffer, surfaced by
+  `commandCenter/OperationLogPanel.jsx`. The console.logs were redundant
+  with that pipeline.
+
 ## Recent Changes (2026-05-20 — Socket status pill in toolbar)
 - **NEW `hooks/useSocketStatus.js`** — subscribes to `socket.on("connect"
   / "disconnect" / "connect_error")` and `socket.io.on("reconnect_attempt")`,

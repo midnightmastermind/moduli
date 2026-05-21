@@ -418,47 +418,8 @@ function Container({
   }, [activeNamedFilter, containerOccurrence]);
 
   const itemsWithOccurrences = useMemo(
-    () => {
-      const filtered = allItemsWithOccurrences.filter(item => isOccurrenceVisible(item.occurrence, effectiveFilters, activeFilterConditions));
-      // [VIS-DIAG] TEMP — remove after diagnosing the Schedule cross-day
-      // visibility bug. Logs once per slot container's filter pass: the
-      // slot's effective filter (what date Schedule's cascade resolved to),
-      // the active conditions, and the per-item left/right values for the
-      // date condition. Lets the user (or me, via the user's console)
-      // confirm whether the cascade actually has dateFieldId, whether the
-      // new instances have a date field, and whether the SAME_DAY check
-      // produced the wrong result. Scope: only logs containers whose
-      // module label looks like a slot (e.g. "6:00 AM") — keeps the
-      // console signal-to-noise sane.
-      const slotLabel = module?.label || "";
-      const looksLikeSlot = /\d.*[ap]m/i.test(slotLabel);
-      if (looksLikeSlot && allItemsWithOccurrences.length) {
-        const dateCond = (activeFilterConditions || []).find(c => c?.fieldId && c?.comparator);
-        const fid = dateCond?.fieldId || null;
-        const breakdown = allItemsWithOccurrences.map(({ occurrence, instance }) => {
-          const leftVal = fid ? occurrence?.fields?.[fid]?.value : null;
-          const passed = filtered.some(f => f.occurrence?.id === occurrence?.id);
-          return {
-            instLabel: instance?.label || occurrence?.label || "?",
-            occId: occurrence?.id,
-            leftVal,
-            passed,
-          };
-        });
-        console.log("[VIS-DIAG] slot filter pass", {
-          slotLabel,
-          slotOccId: containerOccurrence?.id,
-          effectiveFilters,
-          conditionFieldId: fid,
-          conditionRightVal: fid ? effectiveFilters?.[fid] : null,
-          itemCount: allItemsWithOccurrences.length,
-          shownCount: filtered.length,
-          items: breakdown,
-        });
-      }
-      return filtered;
-    },
-    [allItemsWithOccurrences, effectiveFilters, activeFilterConditions, module?.label, containerOccurrence?.id]
+    () => allItemsWithOccurrences.filter(item => isOccurrenceVisible(item.occurrence, effectiveFilters, activeFilterConditions)),
+    [allItemsWithOccurrences, effectiveFilters, activeFilterConditions]
   );
 
   const items = useMemo(() => itemsWithOccurrences.map(item => item.instance), [itemsWithOccurrences]);

@@ -674,59 +674,10 @@ export function runMatchingOperations(operations, transactionType, transaction, 
   // triggers can carry different priorities for each, and the matching one wins.
   // Tiebreaker: sortOrder. Ops that don't match are filtered out before sort.
   const matched = [];
-  const buildDayOp = operations.find(o => o?.name === "Schedule: Build Day");
-  const schedTableOp = operations.find(o => o?.name === "Schedule Table: Build");
-  if (transactionType === "NavigationOp" || transactionType == null) {
-    console.log("[BUILD-DAY] runMatchingOperations called", {
-      transactionType,
-      transaction,
-      buildDayPresent: !!buildDayOp,
-      buildDayTriggerObjects: buildDayOp?.triggerObjects,
-      buildDayTriggerTypes: buildDayOp?.triggerTypes,
-      operationCount: operations.length,
-    });
-    console.log("[SCHED-TABLE] runMatchingOperations called", {
-      transactionType,
-      schedTablePresent: !!schedTableOp,
-      schedTableTriggerObjects: schedTableOp?.triggerObjects,
-      schedTableTriggerTypes: schedTableOp?.triggerTypes,
-      allOpNames: operations.map(o => o?.name).sort(),
-    });
-  }
   for (const op of operations) {
     const m = computeTriggerMatch(op, transactionType, transaction);
-    // op-did-not-match logs were firing on every MeasureOp (every keystroke
-    // in any field) and tanked browser perf to the point the dev tools
-    // couldn't expand entries. Only log when transactionType is null/NavigationOp
-    // (the loading + filter-change passes) — that's all we care about for ops debug.
-    if (!m && (transactionType == null || transactionType === "NavigationOp")) {
-      if (op?.name === "Schedule: Build Day") {
-        console.log("[BUILD-DAY] op did NOT match", { transactionType, transaction, triggerTypes: op.triggerTypes, triggerObjects: op.triggerObjects });
-      }
-      if (op?.name === "Schedule Table: Build") {
-        console.log("[SCHED-TABLE] op did NOT match", { transactionType, transaction, triggerTypes: op.triggerTypes, triggerObjects: op.triggerObjects });
-      }
-    }
     if (!m) continue;
     matched.push({ op, match: m });
-  }
-  // [FILTER-DIAG] TEMP — remove after diagnosing the goal/schedule filter bug.
-  // On a NavigationOp (a filter change) show which ops matched and what
-  // ancestor scope the NavigationOp carried. Tells us if Build Day is firing
-  // when it shouldn't (it should NOT match a Physical-container filter change).
-  if (transactionType === "NavigationOp") {
-    console.log("[FILTER-DIAG] NavigationOp →", {
-      sourceOccurrenceId: transaction?.sourceOccurrenceId ?? transaction?.occurrenceId,
-      fieldId: transaction?.fieldId,
-      date: transaction?.date,
-      _ancestorLabels: transaction?._ancestorLabels,
-      _ancestorIds: transaction?._ancestorIds,
-      matchedOps: matched.map(x => ({
-        name: x.op.name,
-        viaAncestorLabel: x.match.triggerObject?.ancestorLabel ?? null,
-        eventType: x.match.triggerObject?.eventType ?? null,
-      })),
-    });
   }
   matched.sort((a, b) => {
     const pa = a.match.triggerObject?.priority ?? 5;
@@ -754,22 +705,6 @@ export function runMatchingOperations(operations, transactionType, transaction, 
       trigger: transaction ? { ...transaction } : null,
       matchedTriggerObject: match.triggerObject,
     });
-    const _isBuildDay = op?.name === "Schedule: Build Day";
-    const _isSchedTable = op?.name === "Schedule Table: Build";
-    if (_isBuildDay) {
-      console.log("[BUILD-DAY] op matched, about to run pipeline", {
-        transactionType,
-        matchedTriggerObject: match.triggerObject,
-        trigger: transaction,
-      });
-    }
-    if (_isSchedTable) {
-      console.log("[SCHED-TABLE] op matched, about to run pipeline", {
-        transactionType,
-        matchedTriggerObject: match.triggerObject,
-        trigger: transaction,
-      });
-    }
     try {
       let results;
       if (op.pipeline) {
@@ -780,111 +715,6 @@ export function runMatchingOperations(operations, transactionType, transaction, 
       applyEffectsToLiveOccs(liveOccs, results);
       updates.push(...results);
       logger.add("end", { updates: results, durationMs: Date.now() - startedAt });
-      if (_isSchedTable) {
-        const creates = results.filter(r => r._effect === "CREATE_ITEM");
-        const updates_ = results.filter(r => r._effect === "UPDATE_OCCURRENCE");
-        // Roll up branch counts so we don't have to scroll past 204 loop_iters.
-        let outerThen = 0, outerElse = 0, innerThen = 0, innerElse = 0;
-        let copyLinkCount = 0, cellUpdateCount = 0;
-        // Capture the top-level var bindings so we can read $tblId / $schedPageId / $schedDate inline.
-        let resolved = {};
-        // Sample the first 3 loop items to see what we're iterating + what their _ancestors look like.
-        const sampleTasks = [];
-        for (const e of logger.entries) {
-          if (e.kind === "if") {
-            const ruleCount = e.condition?.rules?.length ?? 0;
-            if (ruleCount >= 2) {
-              if (e.branch === "then") outerThen++; else outerElse++;
-            } else {
-              if (e.branch === "then") innerThen++; else innerElse++;
-            }
-          } else if (e.kind === "action") {
-            if (e.actionType === "COPY_LINK") copyLinkCount++;
-            if (e.actionType === "UPDATE" && /cells/.test(e.config?.path || "")) cellUpdateCount++;
-            // Top-level FIND/INIT_VAR bind vars we care about.
-            const bv = e.boundVars || {};
-            for (const k of ["$tblId", "$schedPageId", "$schedDate", "$goalOccId", "$goalTpl", "$cg", "$r"]) {
-              if (bv[k] !== undefined && resolved[k] === undefined) resolved[k] = bv[k];
-            }
-          } else if (e.kind === "loop_iter" && e.as === "$task" && sampleTasks.length < 3) {
-            // Inline all field values into a single string so the dev tools
-            // don't need to expand objects (the user's session is too laggy
-            // to interact with the console).
-            const fieldsStr = Object.entries(e.item?.fields || {})
-              .map(([fid, v]) => `${fid.slice(0, 6)}=${JSON.stringify(v?.value ?? v)}`)
-              .join(" ");
-            sampleTasks.push(`${e.item?.label || "(no label)"} | ${fieldsStr}`);
-          }
-        }
-        console.log("[SCHED-TABLE] resolved", resolved);
-        // sampleTasks is string[] — each line is "label | fid=val fid=val …"
-        // so the user can read field values without expanding dev-tool objects.
-        for (let i = 0; i < sampleTasks.length; i++) {
-          console.log(`[SCHED-TABLE] task ${i}:`, sampleTasks[i]);
-        }
-        console.log("[SCHED-TABLE] pipeline complete", {
-          totalEffects: results.length,
-          createItems: creates.length,
-          updateOccurrence: updates_.length,
-          outerIfThen: outerThen, outerIfElse: outerElse,
-          innerIfThen: innerThen, innerIfElse: innerElse,
-          copyLinkActions: copyLinkCount,
-          cellUpdates: cellUpdateCount,
-          durationMs: Date.now() - startedAt,
-        });
-        // Per-step logs disabled by default — the 50+ step lines per run were
-        // freezing devtools (couldn't expand any object). Set
-        // `window.__schedTableSteps = true` in the console to re-enable.
-        if (typeof window !== "undefined" && window.__schedTableSteps) {
-          for (const e of logger.entries) {
-            if (e.kind !== "action") continue;
-            const isCriticalAction = ["FIND", "INIT_VAR", "UPDATE", "COPY_LINK"].includes(e.actionType);
-            const isTopLevel = e.config?.itemIdVar === "$tblId" || e.config?.itemIdVar === "$schedPageId"
-              || e.config?.itemIdVar === "$goalOccId" || e.config?.itemIdVar === "$cg"
-              || e.config?.name === "$schedDate" || e.config?.name === "$r" || e.config?.name === "$goalTpl";
-            if (isCriticalAction && (isTopLevel || e.actionType === "COPY_LINK" || (e.actionType === "UPDATE" && /cells|rowCount/.test(e.config?.path || "")))) {
-              console.log("[SCHED-TABLE] step", { actionType: e.actionType, config: e.config, boundVars: e.boundVars, resolvedConfig: e.resolvedConfig, resultCount: e.resultCount });
-            }
-          }
-        }
-      }
-      if (_isBuildDay) {
-        const creates = results.filter(r => r._effect === "CREATE_ITEM");
-        const fieldUpdates = results.filter(r => r._effect === "UPDATE_ITEM_FIELD");
-        console.log("[BUILD-DAY] pipeline complete", {
-          totalEffects: results.length,
-          createItems: creates.length,
-          fieldUpdates: fieldUpdates.length,
-          durationMs: Date.now() - startedAt,
-        });
-        // Find the relevant action-log entries for $schedDate, $existingRoutineId, APPLY_TEMPLATE
-        const relevantEntries = logger.entries.filter(e =>
-          e.kind === "action" &&
-          (e.config?.name === "$schedDate" ||
-           e.config?.itemIdVar === "$existingRoutineId" ||
-           e.config?.itemIdVar === "$dailyRoutineTplId" ||
-           e.config?.itemIdVar === "$schedPageId" ||
-           e.actionType === "APPLY_TEMPLATE")
-        );
-        for (const entry of relevantEntries) {
-          console.log("[BUILD-DAY] step", {
-            actionType: entry.actionType,
-            config: entry.config,
-            boundVars: entry.boundVars,
-            resolvedConfig: entry.resolvedConfig,
-            resultCount: entry.resultCount,
-          });
-        }
-        // Also log the trigger snapshot — useful for verifying $parentFilter inputs
-        const startEntry = logger.entries.find(e => e.kind === "start");
-        if (startEntry) {
-          console.log("[BUILD-DAY] trigger snapshot", {
-            transactionType: startEntry.transactionType,
-            trigger: startEntry.trigger,
-            matchedTriggerObject: startEntry.matchedTriggerObject,
-          });
-        }
-      }
     } catch (err) {
       console.warn(`[operationExecutor] error in operation "${op.name}":`, err);
       logger.add("error", { message: String(err?.message || err), stack: err?.stack });

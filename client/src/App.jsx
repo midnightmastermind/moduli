@@ -379,7 +379,6 @@ export default function App() {
     if (!filterNavInitializedRef.current) {
       if (Object.keys(curr).length > 0) filterNavInitializedRef.current = true;
       prevFilterNavRef.current = curr;
-      console.log("[BUILD-DAY] filterNavState useEffect (init skip)", { curr });
       return;
     }
 
@@ -389,16 +388,8 @@ export default function App() {
       return val !== prev[id];
     });
 
-    console.log("[BUILD-DAY] filterNavState useEffect", {
-      prev,
-      curr,
-      changedKeys: changed.map(([id]) => id),
-      changedValues: changed.map(([id, v]) => ({ id, v })),
-    });
-
     if (changed.length > 0) {
       const date = changed[0][1];
-      console.log("[BUILD-DAY] filterNavState firing NavigationOp", { date, activeFilterValues: curr });
       operationsBridge.fireOperations?.("NavigationOp", {
         type: "NavigationOp",
         activeFilterValues: curr,

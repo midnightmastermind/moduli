@@ -262,16 +262,6 @@ export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOve
   const prevOcc = occurrencesById?.[id];
   const prevOverride = prevOcc?.filterOverride;
   const changedKeys = _changedFilterKeys(prevOverride, filterOverride);
-  console.log("[BUILD-DAY] updateOccurrenceFilterOverride called", {
-    id,
-    prevOverride,
-    nextOverride: filterOverride,
-    changedKeys,
-    navFieldId,
-    date,
-    hasOccurrencesById: !!occurrencesById,
-    hasModulesById: !!modulesById,
-  });
 
   dispatch?.(updateOccurrenceAction({ id, filterOverride }));
   safeEmit(socket, "update_occurrence", { occurrence: { id, filterOverride } });
@@ -291,13 +281,6 @@ export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOve
   // triggers configured with ancestorId/ancestorLabel use the source's ancestor
   // chain to decide scope.
   const sourceChain = _ancestorChain(id, occurrencesById, modulesById);
-  console.log("[BUILD-DAY] firing NavigationOp for source", {
-    id,
-    ancestorIds: sourceChain.ids,
-    ancestorLabels: sourceChain.labels,
-    navFieldId,
-    date,
-  });
   operationsBridge.fireOperations?.("NavigationOp", {
     type: "NavigationOp",
     sourceOccurrenceId: id,
@@ -317,20 +300,6 @@ export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOve
   // ops would never run when a parent's filter moves.
   if (changedKeys.length) {
     const affected = _walkInheritingDescendants(id, changedKeys, occurrencesById);
-    // [FILTER-DIAG] TEMP — remove after diagnosing. Shows the source +
-    // every descendant NavigationOp the filter change fans out to, with the
-    // ancestor labels each carries (so we can see whether any of them carries
-    // "Schedule" and would wrongly fire Build Day).
-    console.log("[FILTER-DIAG] filterOverride change fan-out", {
-      sourceId: id,
-      changedKeys,
-      sourceAncestorLabels: sourceChain.labels,
-      descendantCount: affected.length,
-      descendants: affected.map(d => ({
-        id: d.id,
-        labels: _ancestorChain(d.id, occurrencesById, modulesById).labels,
-      })),
-    });
     for (const desc of affected) {
       const chain = _ancestorChain(desc.id, occurrencesById, modulesById);
       operationsBridge.fireOperations?.("NavigationOp", {

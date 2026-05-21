@@ -408,11 +408,6 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         const d = new Date(v);
         return !isNaN(d);
       });
-      console.log("[BUILD-DAY] onGridUpdated firing NavigationOp (grid-level, no ancestors)", {
-        gridId,
-        activeFilterValues: patch.activeFilterValues,
-        filterDate,
-      });
       fireOperations("NavigationOp", { type: "NavigationOp", activeFilterValues: patch.activeFilterValues, date: filterDate || null });
     }
   }
