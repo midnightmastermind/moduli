@@ -30,6 +30,9 @@ import PageDisplay from "./pages/PageDisplay.jsx";
 import PageFolder from "./pages/PageFolder.jsx";
 import ContainerTable from "./containers/ContainerTable.jsx";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
+import RepresentationView from "../ui/RepresentationView";
+import { getEffectiveViewMode } from "../helpers/viewMode";
+import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 
 import { GridActionsContext } from "../GridActionsContext";
 import { GridDataContext } from "../GridDataContext";
@@ -384,6 +387,29 @@ function Page({
         isMobile={isMobile}
         fullStateLoaded={fullStateLoaded}
       />
+    );
+  }
+
+  // Per-occurrence view-mode handling. Pages default to Actual (the full
+  // page-shell render below). Representation mode swaps in a compact
+  // chip — useful for surfacing a page reference in a mind-map / value-
+  // builder context without rendering its full content. Preview mode is
+  // the folder-page PreviewNode pattern (separate component) and doesn't
+  // apply at the page-render entry point — falls through to Actual.
+  const pageViewMode = getEffectiveViewMode(occurrence, "default");
+  if (pageViewMode === "representation") {
+    return (
+      <div
+        data-page-occ-id={occurrence?.id}
+        style={{ padding: "6px 8px" }}
+      >
+        <RepresentationView
+          occurrence={occurrence}
+          size="md"
+          showBreadcrumb={false}
+          onJump={() => jumpToOccurrence(occurrence?.id)}
+        />
+      </div>
     );
   }
 

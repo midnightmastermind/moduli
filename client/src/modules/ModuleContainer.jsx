@@ -34,6 +34,9 @@ import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
+import RepresentationView from "../ui/RepresentationView";
+import { getEffectiveViewMode } from "../helpers/viewMode";
+import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import TemplatesSection from "../ui/TemplatesSection";
@@ -518,6 +521,30 @@ function Container({
     );
   }, [dispatch, socket, containerOccurrence]);
 
+
+  // Per-occurrence view-mode handling. Default is Actual (full container
+  // render below). Representation mode swaps in a single compact chip so
+  // mind-map nodes / value-builder cards can reference a container
+  // without expanding all its descendants. Preview mode is the folder-
+  // page PreviewNode pattern and doesn't apply at the inline container
+  // level — falls through to Actual here.
+  const containerViewMode = getEffectiveViewMode(containerOccurrence, "default");
+  if (containerViewMode === "representation") {
+    return (
+      <div
+        data-container-id={module.id}
+        data-occ-id={containerOccurrence?.id}
+        style={{ padding: "4px 6px" }}
+      >
+        <RepresentationView
+          occurrence={containerOccurrence}
+          size="md"
+          showBreadcrumb={false}
+          onJump={() => jumpToOccurrence(containerOccurrence?.id)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div
