@@ -49,29 +49,33 @@ _Updated: 2026-05-21. Check this file before re-reading source._
 
 ### 🔴 BUGS — fix soon
 
-- **Slow initial connection / app freezes during load.** First load is
-  fast; subsequent reloads take forever (whole app frozen) UNLESS the
-  server is killed + rebuilt + restarted. Symptom timing: long delay
-  for initial connection → frozen UI → folder-page previews finally
-  paint → app responsive again. Clicking around AFTER the freeze
-  doesn't lag. Suspect: socket reconnection backoff is over-long when
-  the server-side cache is stale, OR folder-preview render is doing
-  synchronous DOM work that blocks the main thread. Try the
-  `useSocketStatus` retryInMs path + check `loadUserIntoCache`'s
-  warm-up timing.
-- **Folder page preview — instances don't render inside containers.**
-  Containers eventually appear (after a long delay) but instances
-  inside the previewed containers don't render — empty shells.
-  Limited to **board** containers and possibly **doc** containers.
-  Other kinds may be fine. Likely `PageFolder.jsx` is rendering a
-  preview shell that doesn't recurse into instance children, OR the
-  preview's render-context doesn't include `occurrencesById` deeply
-  enough to resolve grandchildren.
-- **Canvas occurrences overlapping** (latest canvas screenshot). All
-  the canvas cards land on top of each other. Probably the default
-  `meta.x/y` placement is `(0,0)` for new occurrences and nothing
-  spreads them. Either auto-grid on creation or set spread-defaults
-  in the seed.
+- **~~Slow initial connection / app freezes during load.~~** PARTIAL
+  FIX 2026-05-21 (commit `b3446c48`): folder-page preview was the
+  main culprit — every PreviewNode mounted an iframe immediately on
+  page open, freezing the parent app for several seconds while 20+
+  iframes polled state in parallel. PreviewNode now lazy-mounts
+  iframes via IntersectionObserver (200px rootMargin). The pure-
+  socket reconnection delay is a separate concern; if reload is
+  still slow after this fix, investigate `useSocketStatus.retryInMs`
+  + server-side `loadUserIntoCache` warm-up.
+- **~~Folder page preview — instances don't render inside containers.~~**
+  FIXED 2026-05-21 (commit `b3446c48`). Root cause: `PagePreviewApp`
+  built `instancesById` from `parentState.modules.filter(m => m.role
+  === "instance")` (too narrow — the new architecture infers role
+  from hierarchy) AND never built `leafModulesById` (which the
+  current `ModuleContainer` reads from context to look up children
+  via `getContainerItems`). Fixed by rebuilding the lookup maps with
+  the correct role filters + merging instances/artifacts/textblocks
+  into `leafModulesById` + exposing it on the preview's
+  `actionsValue`.
+- **~~Canvas occurrences overlapping~~** PARTIAL FIX 2026-05-21
+  (commit `3a991fbd`). The `Schedule Canvas: Build` op already
+  positioned cards in a tidy column (meta.x=60, y=$r*80+60) but its
+  idempotency guard would short-circuit on bulk onLoad even when
+  existing cards lacked meta.y stamps (from older versions of the
+  op). Added a probe loop that counts descendants with IS_EMPTY
+  meta.y; if any are present, the full rebuild fires. Re-seed will
+  also clean things up via the existing DELETE-orphans phase.
 - **Daily Question header chevron `<>` doesn't open question picker.**
   Code inspection (2026-05-21) shows the wiring IS correct:
   - Template's Daily Question container module carries
