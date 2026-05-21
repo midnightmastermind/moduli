@@ -142,32 +142,24 @@ _Updated: 2026-05-21. Check this file before re-reading source._
 
 ### 🟡 Small / structural fixes
 
-- **Blue field text color.** Dark blue text on light blue background
-  is unreadable. Either white text or a lighter blue (~`rgb(180,210,255)`).
-  Hits the field display chips + bound-header dropdowns + any other
-  blue-tinted UI. Likely `ui/Field.jsx` and `index.css` blue tokens.
-- **Board container padding +2px top + bottom.** Too squished.
-  Inspect `modules/Container.jsx` board-kind branch or CSS class
-  `.container-board` for the inner padding.
+- **~~Blue field text color.~~** DONE 2026-05-21 (commit `4d397445`).
+  `rgb(103,232,249)` → `rgb(180,225,245)` in Field.jsx, dark theme
+  `--accent-blue-text` → `rgb(190,215,255)`.
+- **~~Board container padding +2px top + bottom.~~** DONE 2026-05-21
+  (commit `4d397445`). `5/5/7/5` → `7/5/9/5` in ModuleContainer.jsx
+  board-kind branch.
 - **Schedule canvas + the other canvas should be the SAME page.**
   **Answered 2026-05-21**: KEEP the Schedule Canvas, DELETE the
   standalone Canvas page. Schedule Canvas is the canonical home
   for the mind-map demo content (see big-feature #6).
-- **Local tree default-open main folder node.** Local tree (panel
-  sidebar) should have a single top-level folder labelled `Local`
-  (or similar) that's expanded by default and contains `Interfaces`
-  + `Day Pages` as children. Currently those crumbs are flat in the
-  local tree with no parent grouping. Two-part change:
-  1. **Seed**: create a new `Local` folder per panel in
-     `createLiveData.js`, set as parent of `Interfaces` + `Day
-     Pages` (and any other panel-local folders).
-  2. **Panel default page**: each panel should default to opening
-     the `Local` folder-page (which renders Interfaces + Day Pages
-     as folder-preview cards inside it). Mint a folder-page
-     occurrence for the Local folder per `FolderNode.handleFolderClick`
-     / `LocalFolderGroup.openFolderAsPage` and set the panel's
-     view to `activeOccurrenceId: <localFolderPageOccId>` on
-     seed.
+- **~~Local tree default-open main folder node.~~** PARTIAL 2026-05-21
+  (commit `aeca989d`). Took the simpler render-only path: synthetic
+  `Local` chevron + pill wrapper around the existing folder groups
+  + root pages in `ManifestTree.jsx`'s local tree (no seed change,
+  no folder record). Pure visual grouping; collapses defaults open.
+  The seed-based variant (real `Local` folder per panel + panel
+  default-page wiring) is still queued if/when the user wants the
+  folder to back a folder-page card grid.
 
 ### 🟢 Big features (in priority order — implement in this order)
 
@@ -239,16 +231,18 @@ Foundation landed this session:
   patching `meta.viewMode`.
 - 14 regression tests in `__tests__/viewMode.test.js`.
 
-Still TODO:
-- Wire ModuleInstance / ModuleContainer / ModulePage to honor
-  `meta.viewMode` in non-folder-page contexts (right now the switcher
-  only exists on folder-page cards via PreviewNode). The other
-  surfaces still default-to-Actual everywhere.
-- The clickable-jump helper (#3) — RepresentationView already takes
-  `onJump`, but the underlying scroll-to-and-highlight implementation
-  needs to be extracted into a shared helper (likely
-  `helpers/jumpToOccurrence.js`) consuming the existing ManifestTree
-  drilldown highlight (`.anchor-highlight` CSS animation).
+Status — feature is functionally complete 2026-05-21:
+- ✅ ModuleInstance / ModuleContainer / ModulePage all honor
+  `meta.viewMode === "representation"` and render a compact
+  RepresentationView chip with a jumpToOccurrence onJump handler
+  (commits `51a6267e`, `8b5fa12d`).
+- ✅ Switcher exposed in container + page HeaderDropdowns via the
+  new `ui/ViewModeSection` component (commit `f25006bc`) — wraps
+  ViewModeSwitcher with the CommitHelpers.updateOccurrence(
+  {meta.viewMode}) write. PreviewNode's inline switcher stays for
+  folder-page cards.
+- ✅ Clickable-jump helper landed earlier (`helpers/jumpToOccurrence.js`,
+  commit `c822e2c0`).
 
 Original spec retained below:
 Each occurrence rendered as a "node" elsewhere (mind-map canvas,
@@ -491,21 +485,25 @@ Foundation landed (commit pending):
     Lets the Todo List page surface project-scoped tasks
     unambiguously.
 
+Status:
+- ✅ **GET_USER_INPUT integration** (commit `56a78368`) — Project:
+  Create now branches on trigger type. onLoad seeds the "Moduli v1
+  Launch" example project (idempotent); manual invoke chains two
+  GET_USER_INPUT prompts (name then scope) before APPLY_TEMPLATE.
+- ✅ **Project: Status Router op** (commit `0c907e9a`) — onChange
+  statusFieldId trigger; walks task → currentColumn → kanbanBoard,
+  FINDs the sibling column whose label matches the new status, and
+  MOVE_OCCURRENCEs the task there. Same-project guarantee via the
+  anchored kanban-board parent. Idempotent + silent on misses.
+
 Still TODO (next session):
-- **Status Router op** — onChange statusFieldId trigger; moves the
-  canonical task occurrence between kanban columns AND
-  bidirectionally syncs to the Todo List page's Backburner +
-  Docket containers via linkedGroupId. Uses the existing server
-  `update_occurrence` linked-group fan-out.
 - **Cross-page COPY_LINK** from kanban tasks to Todo List
   Backburner/Docket containers (so tasks show up in both places
-  with shared state). Likely a `Project: Sync To Todo` op or a
-  drop-handler hook.
-- **GET_USER_INPUT integration** so `Project: Create` can prompt
-  for the project name inline instead of always defaulting to
-  "Untitled". Currently the user has to manually edit the page
-  title post-mint. (GET_USER_INPUT is already on the original
-  docket — see below.)
+  with shared state). Likely a `Project: Sync To Todo` op that
+  COPY_LINKs the task on creation when status is Backburner/Docket
+  and the Status Router fans the move via the shared
+  linkedGroupId. Cross-page bidirectional sync is the missing piece
+  — the kanban-internal move now works.
 
 Original spec retained below:
 A made-up example project to demonstrate kanban + cross-page
@@ -579,13 +577,15 @@ seed.
 
 ### Existing docket — DO NOT IMPLEMENT until the above ship
 
-- **Author more `$displayRules` in live data.** Six trackers now
-  rule-decorated: Water (target met/notMet), Pages (Pages-style
-  neutral), Spent (negative-money red ArrowDown), **Time Spent**
-  (Pages-style neutral), **Pomodoros Today** (target met/notMet —
-  daily target 3), **Earned** (positive complement to Spent —
-  null/zero blue, positive green ArrowUp), **Pomodoro Time**
-  (Pages-style neutral; see note below). Remaining per the user's
+- **Author more `$displayRules` in live data.** Ten trackers now
+  rule-decorated. Original six (Water / Pages / Spent / Time Spent
+  / Pomodoros Today / Earned / Pomodoro Time) plus four added
+  2026-05-21: **Monthly Bills** (red on positive, blue at 0/null —
+  commit `b2b02277`), **Net Worth** (red ArrowDown negative, blue
+  at 0/null, green ArrowUp positive — same commit), **Task
+  Countdown** (red ArrowDown positive with "left" suffix, green
+  Check at zero — commit `1a3d2c3d`), **Total Subscriptions**
+  (mirrors Bills — commit `3b80e03c`). Remaining per the user's
   spec:
   - **Pomodoro Time state-based rules deferred.** The docket spec'd
     blue-on-null / red-on-`state:"paused"` / green-on-`state:"running"`,
@@ -597,15 +597,6 @@ seed.
     Start / Pause / Resume ops to write it) OR rewiring the rule
     predicate to read `pomodoroPhase` with different colour
     semantics.
-  - **Bills / negative-connotation money** — red on any positive,
-    blue at 0/null. No standalone bills tracker exists yet — when
-    one is added (e.g. "Total Bills Due"), use the Spent rule
-    shape verbatim minus the ArrowDown icon (bills are owed amounts,
-    not outflows yet).
-  - **Countdowns to 0** — red while > 0 (`{ when: { value: "positive" },
-    color: "rgb(252,165,165)", icon: "ArrowDown", suffix: "left" }`),
-    green when `value: "zero"` with `icon: "Check"`. No countdown
-    trackers exist yet (was on the docket as a template).
   - **Percentages without targets** — single catch-all rule
     `{ when: {}, color: "rgb(96,165,250)" }`. No percentage trackers
     exist yet.
@@ -627,12 +618,18 @@ seed.
   OR `onLoad` fires before `$allInstances` is populated. Open the
   op's run log in Command Center to see which.
 - **Goals restructure Stage 2 (handoff item from 2026-05-20).**
-  Split the single-occurrence-with-many-display-fields into per-goal
-  occurrences with stable refs. Per the prior handoff, option (a) is
-  to add `$allItemsById` to the executor (`operationExecutor.js`
-  ~line 1172 area), verify the path resolver handles UUIDs via
-  bracket notation `$allItemsById["abc-123-def"]`, then split goal
-  instances + update tracker call sites in `createLiveData.js`.
+  ✅ Executor + picker work landed 2026-05-21 (commits `7c8e336e`,
+  `f1c087c7`): `$allItemsById` and `$allOccurrencesById` are now
+  $vars (id-keyed maps), and CategoryPathPicker surfaces them under
+  Built-ins with an `occurrenceMap` shape that lists occurrences by
+  label and commits the id as the path segment. The path resolver
+  walks UUIDs as single keys via `.`-split — no bracket-notation
+  hack needed.
+  Still pending: actually splitting the single
+  "Physical Wellness" / "Intellectual Growth" / etc. instances
+  into per-goal occurrences and updating tracker call sites in
+  `createLiveData.js` to reference each via
+  `$allItemsById.<goalOccId>` (or via the picker).
 - **Folder page renders no instances.** Separate from the breadcrumb
   click fix this session. Folder-page kind renders via
   `modules/pages/PageFolder.jsx`, which derives child cards from
