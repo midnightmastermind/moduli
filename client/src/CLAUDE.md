@@ -210,6 +210,22 @@ another. Store as `occurrence.viewMode: "preview" | "representation"
 which default to `"representation"`). Switcher is a small 3-button
 segmented control in the occurrence's radial menu / header.
 
+**Context constraint**: the **Actual** view is NOT offered on the
+**folder page** (PageFolder.jsx). Folder pages exist to give a
+grid-of-cards drilldown — rendering the full occurrence inline
+would defeat the purpose. The switcher on a folder-page card
+shows only `Preview / Representation`. The user can drill in
+(click the card) to see Actual at its native page. Any other
+container that's structurally a "preview grid" should follow the
+same rule (mind-map canvas cards: Preview / Representation only;
+schedule slot row: all three).
+**Folder page default**: when a card lands on a folder page,
+**auto-set its viewMode to `"preview"`** (override the global
+`"actual"` default). The author can flip to `"representation"`
+via the switcher, but never to `"actual"` from inside the folder
+page. Same auto-set rule for mind-map canvas cards but defaulting
+to `"representation"` (per #5).
+
 #### 3. Clickable representation → jump-to + highlight
 When the user clicks a Representation node, the app:
 - Opens the page the source occurrence lives on (in the current
