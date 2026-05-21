@@ -5815,6 +5815,18 @@ export async function createLiveData(userId, options = {}) {
     pipeline: {
       sources: [],
       steps: [
+        // $displayRules — net worth is positive-connotation money. Green
+        // ArrowUp when positive, red ArrowDown when negative (overdrawn),
+        // blue at 0/null. Mirrors the Earned tracker's value-direction
+        // semantics from the existing rule pool.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$displayRules", expr: `json:${JSON.stringify({
+          "Net Worth": [
+            { when: { value: "negative" }, color: "rgb(252,165,165)", icon: "ArrowDown" },
+            { when: { value: "null" },     color: "rgb(96,165,250)" },
+            { when: { value: "zero" },     color: "rgb(96,165,250)" },
+            { when: { value: "positive" }, color: "rgb(134,239,172)", icon: "ArrowUp" },
+          ],
+        })}` } },
         { id: uid(), type: "action", config: {
           type: "FIND",
           over: "$allInstances",
@@ -5935,6 +5947,17 @@ export async function createLiveData(userId, options = {}) {
     pipeline: {
       sources: [],
       steps: [
+        // $displayRules — bills are owed money, so any positive value is a
+        // bad signal (red). Zero/null reads neutral (blue). No icon — the
+        // value itself is the indicator. Targets the "Monthly Bills"
+        // occurrence label since that's where the amount display lives.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$displayRules", expr: `json:${JSON.stringify({
+          "Monthly Bills": [
+            { when: { value: "null" },     color: "rgb(96,165,250)" },
+            { when: { value: "zero" },     color: "rgb(96,165,250)" },
+            { when: { value: "positive" }, color: "rgb(252,165,165)" },
+          ],
+        })}` } },
         { id: uid(), type: "action", config: {
           type: "FIND",
           over: "$allInstances",
