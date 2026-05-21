@@ -125,6 +125,13 @@ export default function RubberBandSelector() {
   const [drag, setDrag] = useState(null); // { startX, startY, x, y, qMode }
   const dragRef = useRef(null);
   const candidatesRef = useRef(new Set());
+  // When pointerup commits a drag, the browser still fires the
+  // subsequent `click` event on the original pointerdown target. If
+  // that target was an instance/container, its shift+click toggle
+  // would re-toggle (typically deselecting) the item — undoing what
+  // the rubber-band just added. This flag tells a capture-phase click
+  // listener to swallow the next click after a drag commit.
+  const suppressNextClickRef = useRef(false);
 
   // Live-preview class for highlighted candidates during the drag.
   // Stored ref so we can clear it on pointerup / cancel without
@@ -202,11 +209,23 @@ export default function RubberBandSelector() {
       clearHighlight();
       setDrag(null);
       if (!d.active) return; // sub-threshold — defer to shift+click handler
+      // Drag past threshold — swallow the upcoming click so the
+      // pointerdown target's shift+click toggle doesn't fire and undo
+      // a just-added item.
+      suppressNextClickRef.current = true;
       const cands = candidatesRef.current;
       candidatesRef.current = new Set();
       if (cands.size === 0) return;
       if (d.replaceMode) selection.clear();
       for (const id of cands) selection.add(id);
+    }
+
+    function onClickCapture(e) {
+      if (suppressNextClickRef.current) {
+        suppressNextClickRef.current = false;
+        e.stopPropagation();
+        e.preventDefault();
+      }
     }
 
     function onKeyDown(e) {
@@ -222,12 +241,14 @@ export default function RubberBandSelector() {
     document.addEventListener("pointermove", onPointerMove);
     document.addEventListener("pointerup", onPointerUp);
     document.addEventListener("pointercancel", onPointerUp);
+    document.addEventListener("click", onClickCapture, true);
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("pointerup", onPointerUp);
       document.removeEventListener("pointercancel", onPointerUp);
+      document.removeEventListener("click", onClickCapture, true);
       document.removeEventListener("keydown", onKeyDown);
       clearHighlight();
     };
