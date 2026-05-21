@@ -12,6 +12,9 @@ import ContextMenu from "../ui/ContextMenu";
 import InstanceForm from "../ui/InstanceForm";
 import FieldRenderer from "../ui/FieldRenderer";
 import RadialMenu from "../ui/RadialMenu";
+import RepresentationView from "../ui/RepresentationView";
+import { getEffectiveViewMode } from "../helpers/viewMode";
+import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import {
   Popover,
   PopoverContent,
@@ -406,6 +409,34 @@ function InstanceInner({
 
   const hasLabel = !!label;
   const hasFields = instanceFields.length > 0;
+
+  // Per-occurrence view-mode handling. Most instances render as Actual
+  // (the full row below). Representation mode replaces the row with a
+  // compact RepresentationView chip — used by mind-map nodes, value-
+  // builder cards, and anywhere an instance is referenced without its
+  // content. Preview mode is currently not distinct from Actual at the
+  // instance level (instances are already compact rows); the
+  // PreviewNode iframe pattern is for page-level previews. If/when a
+  // preview-style "miniature instance card" is wanted, branch here.
+  const instanceViewMode = getEffectiveViewMode(occurrence, "default");
+  if (instanceViewMode === "representation") {
+    return (
+      <div
+        role="listitem"
+        aria-label={label || "Untitled instance"}
+        data-occ-id={occurrence?.id}
+        className="font-mono instance-row instance-row-representation"
+        style={{ padding: "2px 4px" }}
+      >
+        <RepresentationView
+          occurrence={occurrence}
+          size="md"
+          showBreadcrumb={false}
+          onJump={() => jumpToOccurrence(occurrence?.id)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div
