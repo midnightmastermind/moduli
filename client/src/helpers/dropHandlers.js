@@ -1409,18 +1409,66 @@ export function handleExternalDrop(dropContext, ctx) {
   const { y } = pointer || { x: 0, y: 0 };
   const { containerId, dropTarget } = dropView(dropContext, ctx);
 
-  let label = "Untitled";
-  if (payload.payloadType === DragType.TEXT) label = (payload.data?.text || "").slice(0, 80) || "Text";
-  else if (payload.payloadType === DragType.URL) label = payload.data?.url || "Link";
-
   const container = baseContainers.find(c => c.id === containerId);
   if (!container) { clearSession(); return; }
 
   const containerOcc = Object.values(occurrencesById).find(o => o.moduleId === container.id);
+  const gridId = state?.gridId || state?.grid?._id;
+
+  // ── Drag-to-import pathway (docket #6.5) ────────────────────────
+  // When the dropped content is HTML or non-trivial multi-paragraph
+  // text, fan it through the server-side importer instead of minting
+  // a single instance with the raw text as the label. Detection:
+  //   - dataTransfer carries `text/html` with substantial content, OR
+  //   - the plain text has at least one paragraph break or a markdown
+  //     structural marker (heading / list / code-fence / image)
+  //
+  // The socket handler (server/socketHandlers/import.js) materializes
+  // the subtree, broadcasts module_created + occurrence_created (the
+  // existing store handlers absorb them), then ack-callbacks the new
+  // root id so we can append it under the drop container.
+  const htmlFromDt = (() => {
+    try { return dataTransfer?.getData?.("text/html") || ""; } catch { return ""; }
+  })();
+  const textFromDt = (() => {
+    if (payload?.data?.text) return String(payload.data.text);
+    try { return dataTransfer?.getData?.("text/plain") || ""; } catch { return ""; }
+  })();
+  const wantsImport = (() => {
+    if (htmlFromDt && htmlFromDt.trim().length > 12) return { format: "html", content: htmlFromDt };
+    const t = textFromDt;
+    if (!t) return null;
+    // Multi-paragraph plain text, or text with any markdown structural
+    // marker, routes through the importer. Single short sentences fall
+    // through to the legacy "one instance with this as a label" path.
+    const hasStructure = /\n\s*\n/.test(t) || /(^|\n)\s*(?:#{1,6} |[-*] |\d+\. |```|!\[)/.test(t);
+    if (hasStructure || t.length > 200) return { format: "auto", content: t };
+    return null;
+  })();
+
+  if (wantsImport && containerOcc && gridId && socket?.emit) {
+    socket.emit("import_text", {
+      content: wantsImport.content,
+      format: wantsImport.format,
+      gridId,
+      // parentId == containerOcc.id so the imported subtree's root is
+      // appended under THIS container's occurrences[] on the server.
+      parentId: containerOcc.id,
+      title: container?.label || "Imported",
+      requestId: makeUUID(),
+    });
+    return;
+  }
+
+  // ── Legacy fallback — short text / URL drops become a single
+  //     instance using the dropped value as the label. ─────────────
+  let label = "Untitled";
+  if (payload.payloadType === DragType.TEXT) label = (payload.data?.text || "").slice(0, 80) || "Text";
+  else if (payload.payloadType === DragType.URL) label = payload.data?.url || "Link";
+
   let toIndex = dropTarget.context?.insertAt ?? null;
   if (toIndex === null) toIndex = resolveNearestIndex(containerOcc, occurrencesById, y);
 
-  const gridId = state?.gridId || state?.grid?._id;
   LayoutHelpers.createInstanceInContainer({
     dispatch, socket, gridId, container, containerOccurrence: containerOcc || null,
     instance: { id: makeUUID(), label }, userId: state?.userId, index: toIndex, emit: true,

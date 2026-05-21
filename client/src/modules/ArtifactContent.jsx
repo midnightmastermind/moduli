@@ -10,6 +10,7 @@ import Editor from "../ui/Editor.jsx";
 import { hexToRgba } from "../helpers/colorHelpers.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import RadialMenu from "../ui/RadialMenu.jsx";
+import { resolveFileRef } from "../helpers/fileRef.js";
 import { Settings } from "lucide-react";
 
 function CodeViewer({ fileRef, label }) {
@@ -18,7 +19,7 @@ function CodeViewer({ fileRef, label }) {
   useEffect(() => {
     if (!fileRef) return;
     let mounted = true;
-    fetch(`/uploads/${fileRef}`)
+    fetch(resolveFileRef(fileRef))
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(text => { if (mounted) setCode(text); })
       .catch(() => { if (mounted) setError("Failed to load file"); });
@@ -214,7 +215,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", overflow: "auto", padding: 16 }}>
         <img
-          src={`/uploads/${fileRef}`}
+          src={resolveFileRef(fileRef)}
           alt={module?.label || fileRef}
           style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
         />
@@ -225,7 +226,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
   if (normalizedArtifactType === "pdf" && fileRef) {
     return (
       <iframe
-        src={`/uploads/${fileRef}`}
+        src={resolveFileRef(fileRef)}
         style={{ width: "100%", height: "100%", border: "none" }}
         title={module?.label}
       />
@@ -235,7 +236,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
   if (normalizedArtifactType === "audio" && fileRef) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: 24 }}>
-        <audio src={`/uploads/${fileRef}`} controls style={{ width: "100%", maxWidth: 480 }} />
+        <audio src={resolveFileRef(fileRef)} controls style={{ width: "100%", maxWidth: 480 }} />
       </div>
     );
   }
@@ -244,7 +245,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", overflow: "hidden", padding: 16 }}>
         <video
-          src={`/uploads/${fileRef}`}
+          src={resolveFileRef(fileRef)}
           controls
           style={{ maxWidth: "100%", maxHeight: "100%" }}
         />

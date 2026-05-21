@@ -6,13 +6,16 @@
 import React, { useState, useCallback } from "react";
 import { X, Maximize2, AlertCircle } from "lucide-react";
 import { Spinner } from "../components/ui/spinner.jsx";
+import { resolveFileRef } from "../helpers/fileRef";
 
 export default function ArtifactCard({ module, label }) {
   const [expanded, setExpanded] = useState(false);
   const fileRef = module?.fileRef;
   const kind = module?.kind;
   const status = module?.meta?.uploadStatus;
-  const src = fileRef ? `/uploads/${fileRef}` : null;
+  // Shared resolver — handles absolute URLs (Wikipedia drops) +
+  // relative `/uploads/` refs (local uploads) uniformly.
+  const src = resolveFileRef(fileRef);
 
   const toggle = useCallback((e) => {
     e?.stopPropagation();

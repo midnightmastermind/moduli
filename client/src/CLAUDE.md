@@ -550,12 +550,15 @@ operation:
     allowlist on the server (need a tiny server-side check —
     `socketHandlers/occurrences.js:91-124`).
 
-#### 6.5. Drag-to-import: paste/drop text → native doc tree (Wikipedia smoke test) — **PARTIAL 2026-05-21**
-**Phase A converter + REST endpoint landed.** Still missing: client
-drop handler + markdownImporter image/table extensions (image
-`![alt](src)` → artifact-role module; pipe-table markdown → kind:"table"
-container or fast-path fenced textblock). Until those land the drop
-flow falls back to text-only conversion.
+#### 6.5. Drag-to-import: paste/drop text → native doc tree (Wikipedia smoke test) — **PHASE A SHIPPED 2026-05-21**
+**End-to-end drop pipeline now wired.** Drag selected HTML / markdown
+/ plain text from another tab into ANY container in the grid →
+server materializes the subtree → entities broadcast to all
+connected tabs. Wikipedia article smoke test (drag a full article
+selection into a container) should now produce a Moduli subtree
+with headings as containers, paragraphs as textblocks, images as
+artifact modules, lists as instances, and tables as raw-HTML
+preview textblocks.
 
 **Landed 2026-05-21:**
 - **`server/services/wikipediaTools.js` `htmlToMarkdown` is now
@@ -587,28 +590,45 @@ flow falls back to text-only conversion.
   property, custom `stripClasses`, and the combined Wikipedia-shape
   document smoke test.
 
-**Still ahead (in order):**
-1. **markdownImporter image handling** — recognise the
-   `![alt](src)` markdown emitted by htmlToMarkdown and mint a
-   `role:"artifact"` module with `kind: "image"` + `fileRef: <src>`
-   (for `http(s)://` URLs the renderer just uses the absolute src;
-   no upload yet). Parent the artifact occurrence under the
-   surrounding container so the layout reads top-to-bottom.
-2. **markdownImporter table handling** — fast path: recognize the
-   `` ```html `` fenced block htmlToMarkdown emits and route the
-   raw HTML into a textblock codeBlock node that renders as-is.
-   Phase B promotes to a real `kind:"table"` container.
-3. **Client drop entry point** — extend
-   `client/src/helpers/dropHandlers.js` external/file drop branch
-   to also process `dataTransfer.types` containing `text/html`.
-   Browsers expose the highlighted content's `outerHTML` on
-   drag from another tab — that's the only way to capture
-   structure. POST to `/api/v1/import/html` with the user's
-   Bearer token. Fall back to `text/plain` when HTML is absent.
-4. **Drop UX** — preview pill ("Convert → Doc tree"), conflict
-   handling when dropping onto a container vs an empty grid cell,
-   undo-friendly commit.
-5. **AI refinement hook** — see the original docket entry above
+**Still ahead (Phase B, in order):**
+1. ✅ **markdownImporter image handling** — DONE 2026-05-21
+   (commit `3209e151`). Block-level `![alt](src)` mints a
+   `role:"artifact" kind:"image"` module with `fileRef:<src>`.
+   Inline images inside prose stay as alt text for Phase B.
+2. ✅ **markdownImporter table fast-path** — DONE 2026-05-21
+   (same commit). `` ```html ``` fenced blocks become textblocks
+   with `meta.htmlPreview:true` + a TipTap codeBlock node holding
+   the raw HTML. Phase B promotes to a real `kind:"table"` container.
+3. ✅ **Client drop entry point** — DONE 2026-05-21 (this commit).
+   `handleExternalDrop` in `dropHandlers.js` detects substantial
+   HTML / multi-paragraph text / markdown-structured plain text
+   and emits an `import_text` socket event with the dropped
+   content + the destination container as `parentId`. The server
+   handler at `server/socketHandlers/import.js` runs the converter
+   + importer and broadcasts the resulting entities via the
+   existing `module_created` / `occurrence_created` events. Short
+   single-line text drops still fall through to the legacy
+   "one instance with this label" path.
+4. ✅ **Remote image rendering** — DONE 2026-05-21 (same commit).
+   New `client/src/helpers/fileRef.js` `resolveFileRef(fileRef)`
+   passes absolute URLs (`http(s)`/`data:`/`blob:`/leading `/`)
+   through verbatim; relative refs prepend `/uploads/`. Wired into
+   `ArtifactCard`, `ArtifactContent`, `Field.jsx`. Wikipedia
+   images now render via plain `<img src>` without upload.
+5. **Drop UX polish (Phase B)** — preview pill ("Convert → Doc tree"),
+   conflict handling when dropping onto a container vs an empty
+   grid cell, drop on the GRID (no container) → mint a new page +
+   container in that cell, undo-friendly commit, loading toast
+   while the server materializes a large import.
+6. **markdownImporter table → kind:"table" container (Phase B)** —
+   parse pipe-table markdown into real `meta.table.columns` +
+   `meta.table.cells` instead of leaving as raw-HTML preview. The
+   user / AI can also one-click promote a preview textblock to a
+   real table container.
+7. **Inline image marks (Phase B)** — handle `![alt](src)` inside
+   prose paragraphs via TipTap image nodes (instead of just alt
+   text). Phase A intentionally only handles block-level images.
+8. **AI refinement hook** — see the original docket entry above
    for the registry of element handlers + site adapters the AI
    plugs into.
 

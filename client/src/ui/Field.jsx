@@ -39,6 +39,7 @@ import {
   calculateProgress,
 } from "../helpers/CalculationHelpers";
 import { createLeafInstanceInParent } from "../helpers/CommitHelpers";
+import { resolveFileRef } from "../helpers/fileRef";
 import { GridActionsContext } from "../GridActionsContext";
 
 // ─── FlowToggle (popover with 3 flow options) ─────────────────
@@ -403,7 +404,7 @@ function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null }) {
         <div style={{ width: 34, height: 46, flexShrink: 0, borderRadius: 4, overflow: "hidden",
           background: "var(--input-bg, rgba(255,255,255,0.04))", display: "flex", alignItems: "center", justifyContent: "center" }}>
           {mediaVal && isImg
-            ? <img src={`/uploads/${mediaVal}`} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ? <img src={resolveFileRef(mediaVal)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             : <Link2 style={{ width: 12, height: 12, opacity: 0.4 }} />}
         </div>
       )}
