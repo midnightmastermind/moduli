@@ -5,15 +5,27 @@
 // Each level can "inherit" (use parent defaults) or "own" (override).
 // ============================================================
 
-// Default shape — all null means "inherit everything"
+// Default shape — all null means "inherit everything".
+// Granular border + font fields let the cascade override pieces
+// independently (a parent's borderColor can be replaced without
+// also re-specifying borderWidth / borderStyle, etc.).
 export const DEFAULT_ENTITY_STYLE = {
-  bg: null,           // CSS color string
-  textColor: null,    // CSS color string
-  border: null,       // e.g. "1px solid #444"
-  borderRadius: null, // e.g. "8px"
-  opacity: null,      // 0-1
-  fontSize: null,     // e.g. "14px"
-  padding: null,      // e.g. "8px"
+  bg: null,            // CSS color string
+  textColor: null,     // CSS color string
+  // Legacy single-string border (e.g. "1px solid #444"). Still honored
+  // for back-compat — present rows in the seed use it. New writes
+  // should prefer the granular trio below.
+  border: null,
+  borderColor: null,   // e.g. "#444" — overrides the color part of `border` when both set
+  borderWidth: null,   // e.g. "1px"
+  borderStyle: null,   // "solid" | "dashed" | "dotted" | "double" | "none"
+  borderRadius: null,  // e.g. "8px"
+  opacity: null,       // 0-1
+  fontFamily: null,    // e.g. "var(--font-mono)" or "Inter, sans-serif"
+  fontSize: null,      // e.g. "14px"
+  fontWeight: null,    // 100-900 or "normal" / "bold"
+  lineHeight: null,    // e.g. "1.4" or "20px"
+  padding: null,       // e.g. "8px"
 };
 
 /**
@@ -77,17 +89,26 @@ export function resolveInstanceStyle(instance, container, panel) {
 
 /**
  * Convert a resolved style object into React inline styles.
- * Only includes non-null properties.
+ * Only includes non-null properties. The granular border trio is
+ * applied AFTER the legacy `border` shorthand so a partial override
+ * (e.g. just borderColor) replaces only that one piece while the rest
+ * of the parent's shorthand sticks.
  */
 export function styleToCSS(style) {
   if (!style) return {};
   const css = {};
-  if (style.bg != null) css.backgroundColor = style.bg;
-  if (style.textColor != null) css.color = style.textColor;
-  if (style.border != null) css.border = style.border;
+  if (style.bg != null)         css.backgroundColor = style.bg;
+  if (style.textColor != null)  css.color = style.textColor;
+  if (style.border != null)     css.border = style.border;
+  if (style.borderColor != null) css.borderColor = style.borderColor;
+  if (style.borderWidth != null) css.borderWidth = style.borderWidth;
+  if (style.borderStyle != null) css.borderStyle = style.borderStyle;
   if (style.borderRadius != null) css.borderRadius = style.borderRadius;
-  if (style.opacity != null) css.opacity = style.opacity;
-  if (style.fontSize != null) css.fontSize = style.fontSize;
-  if (style.padding != null) css.padding = style.padding;
+  if (style.opacity != null)    css.opacity = style.opacity;
+  if (style.fontFamily != null) css.fontFamily = style.fontFamily;
+  if (style.fontSize != null)   css.fontSize = style.fontSize;
+  if (style.fontWeight != null) css.fontWeight = style.fontWeight;
+  if (style.lineHeight != null) css.lineHeight = style.lineHeight;
+  if (style.padding != null)    css.padding = style.padding;
   return css;
 }
