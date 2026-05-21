@@ -32,10 +32,21 @@ const SHORTCUT_GROUPS = [
   {
     group: "Multi-select",
     items: [
-      { keys: ["Shift+click"],           action: "Add/remove instance or container from selection" },
-      { keys: ["Right-click selected"],  action: "Bulk Copy / Move / Copy-link / Delete N items" },
-      { keys: ["Right-click destination"], action: "Paste / Move / Paste-linked N items" },
-      { keys: ["Right-click anywhere"],  action: "Clear clipboard" },
+      { keys: ["Shift+click"],            action: "Add/remove instance or container from selection" },
+      { keys: ["Right-click selected"],   action: "Bulk Copy / Move / Copy-link / Delete N items" },
+      { keys: ["Right-click destination"], action: "Paste / Move / Paste-linked N items (alternate to hover-drop)" },
+    ],
+  },
+
+  // ── Clipboard hover-drop mode (active while clipboard non-empty) ─
+  {
+    group: "Clipboard (after Copy / Move / Copy-link)",
+    items: [
+      { keys: ["Hover"],          action: "Mouse anywhere on grid highlights the hovered container/page in blue" },
+      { keys: ["Click target"],   action: "Paste / Move / Paste-linked N items there" },
+      { keys: ["Esc"],            action: "Clear clipboard + exit hover-drop mode" },
+      { keys: ["Right-click anywhere"], action: "Clear clipboard" },
+      { keys: ["Toolbar ✕"],     action: "Clear via the clipboard pill in the toolbar" },
     ],
   },
 
