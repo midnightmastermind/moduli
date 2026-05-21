@@ -285,7 +285,39 @@ via the switcher, but never to `"actual"` from inside the folder
 page. Same auto-set rule for mind-map canvas cards but defaulting
 to `"representation"` (per #5).
 
-#### 3. Clickable representation → jump-to + highlight
+#### 3. Clickable representation → jump-to + highlight — **PARTIAL 2026-05-21**
+Foundation landed:
+- `helpers/jumpToOccurrence.js` (NEW) — shared `jumpToOccurrence(id,
+  {onActivatePage?})` helper. If the target's DOM element is already
+  mounted (queried via `[data-occ-id]` with `[data-occurrence-id]`
+  fallback), it scrolls + flashes the `.anchor-highlight` CSS
+  animation. If not mounted, calls `onActivatePage` to swap the
+  active page, then retries after a 220ms grace window. Exports
+  `findOccurrenceElement` + `scrollAndFlash` as primitives.
+- `modules/ManifestTree.jsx` `AnchorChip.onClick` — refactored from
+  ~20 lines of inline scroll/flash code to a single
+  `jumpToOccurrence(contOcc.id, { onActivatePage: () => onOpenPage?.(pageOccId) })`
+  call. Behavior-preserving.
+- 12 regression tests covering canonical/legacy DOM marker lookup,
+  UUID hyphen escaping, scroll/flash class toggling, retry-after-
+  activation, and null-safe paths.
+
+Still TODO:
+- Wire `RepresentationView.onJump` to use the helper when the chip
+  lives OFF the source's page (mind-map nodes, value-builder cards,
+  search results). For folder-page `PreviewNode` cards in
+  representation mode, the existing `onDrillDown` is the right
+  action (the user IS inside the folder context) — those don't need
+  the helper. The other surfaces don't exist yet (mind-map, value-
+  builder); when they do, pass `jumpToOccurrence` as the onJump
+  callback.
+- Activate-page wiring needs to know which panel hosts the target.
+  Today's `onActivatePage` is generic — the consumer decides what
+  "activate" means. ManifestTree consumers know `onOpenPage`
+  already; mind-map consumers will need a per-occurrence page
+  resolver.
+
+Original spec retained below:
 When the user clicks a Representation node, the app:
 - Opens the page the source occurrence lives on (in the current
   panel — switch active page if needed, OR switch tab if it's in a

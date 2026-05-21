@@ -29,6 +29,7 @@ const PILL_ACTIVE = (color = "rgba(100,180,255,0.5)") => ({
 // Kind → lucide icon for pages — delegates to the shared
 // helpers/moduleIcons.js helper so add/edit happens in one place.
 import { KIND_ICONS as PAGE_KIND_ICON } from "../helpers/moduleIcons";
+import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import RadialMenu from "../ui/RadialMenu.jsx";
 import NodePill from "./NodePill.jsx";
 
@@ -793,21 +794,11 @@ function AnchorChip({ contOcc, modulesById, onOpenPage, pageOccId }) {
       occurrence={contOcc}
       module={{ ...contMod, role: "container" }}
       onClick={() => {
-        onOpenPage?.(pageOccId);
-        setTimeout(() => {
-          const el = document.querySelector(`[data-occ-id="${contOcc.id}"]`);
-          if (!el) return;
-          const sc = el.closest(".artifact-markdown");
-          if (sc) {
-            sc.scrollTo({ top: sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top, behavior: "smooth" });
-          } else {
-            el.scrollIntoView({ behavior: "smooth", block: "start" });
-          }
-          el.classList.remove("anchor-highlight");
-          void el.offsetWidth;
-          el.classList.add("anchor-highlight");
-          setTimeout(() => el.classList.remove("anchor-highlight"), 1200);
-        }, 150);
+        // jumpToOccurrence opens the host page (via onActivatePage) and
+        // then retries the scroll-and-flash after the page mounts.
+        jumpToOccurrence(contOcc.id, {
+          onActivatePage: () => onOpenPage?.(pageOccId),
+        });
       }}
       dragData={{
         type: "module", sourceType: "tree-anchor", role: "container",
