@@ -51,6 +51,12 @@ const OperationSchema = new mongoose.Schema(
     // Category folder — references a Folder with folderType "category"
     folderId: { type: String, default: null },
     meta: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+    // Optional shared secret for /api/webhooks/:operationId HMAC
+    // verification. When set, incoming webhook requests must carry
+    // X-Moduli-Signature: sha256=<hex(hmacSha256(secret, rawBody))>.
+    // Unset → endpoint accepts any request (back-compat / public hooks).
+    webhookSecret: { type: String, default: null },
   },
   { timestamps: true }
 );

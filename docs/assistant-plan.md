@@ -1,369 +1,449 @@
 # Assistant LLM Chatbox — Implementation Plan
 
-_Draft 2026-05-20. Two grounding docs: `docs/aispecs.md` (offline LLM
-architecture / Jeeves persona) and `docs/api-plan.md` (the REST + CALL_API
+_Draft 2026-05-21. Two grounding docs: `docs/aispecs.md` (offline LLM
+architecture / persona notes) and `docs/api-plan.md` (the REST + CALL_API
 surface this plan reuses as its action layer). The API plan is a peer
 deliverable, not a sub-task of this one — it ships and is useful on its
 own. The assistant just happens to be its biggest internal consumer._
 
-_**Sequencing**: the API needs to exist before Phase 2 of this plan
-(creates) lands. Phase 1 (read-only chat) can run against an earlier API
-phase or even directly against the REST stubs. Don't block the assistant
-work on the entire API surface being complete._
+_**Sequencing**: API Phases 1–3 already shipped. The assistant can start
+on top of what's there today; Phase 4 (assistant tool catalog, persona,
+import pipeline) is what this doc covers._
 
-The goal: a conversational chatbox embedded in Moduli that can DO things —
-create operations, occurrences, modules, attach fields, navigate filters,
-save templates, run ops on demand, explain why an op didn't fire, etc. The
-user types natural language; the assistant emits structured tool calls;
-those tool calls land as the same kinds of effects our pipeline already
-emits (`CREATE_ITEM`, `UPDATE_OCCURRENCE`, `APPLY_TEMPLATE`, `RUN_OPERATION`,
-etc.). The user sees a confirmation step for anything destructive, then
-the live data updates the same way it does for a manual edit.
+## The pitch
 
-This doc is **the plan**. `docs/aispecs.md` is the **architecture
-philosophy** — Ollama, tool router, persona separation, no raw shell, etc.
-Everything below stays consistent with that philosophy.
+A conversational butler-style assistant — **think Jarvis / Alfred /
+classic English manservant** — that helps the user run their grid. The
+user types natural language in a chatbox; the assistant takes structured
+actions through the existing API surface and reports back like a
+competent aide: dry, efficient, never folksy, but always helpful.
 
----
+Two characters make it more than a chatbox:
 
-## 1. Why this is feasible in Moduli specifically
+1. **It can look things up.** First-class Wikipedia search + summary
+   tools, plus generic CALL_API for any other public source. The user
+   asks "what's the population of Lisbon" and gets an answer cached
+   into a Moduli page they can keep.
 
-Moduli's mutation surface is already shaped exactly the way an LLM agent
-wants to consume it — and with the API plan in place, the assistant's
-"hands" are just HTTP calls:
+2. **It can build pages from research.** A "research → page" workflow:
+   ask about a topic, the assistant fetches sources, summarizes, then
+   produces a structured Moduli subtree (headings → containers,
+   bullets → instances, prose → textblocks).
 
-- **The API IS the action surface** — once `docs/api-plan.md` ships, every
-  CRUD operation is a documented REST endpoint with a JSON schema (the
-  OpenAPI doc at `/api/v1/openapi.json`). The assistant's tool catalog is
-  a curated subset of those endpoints. No need to wire each tool
-  individually to CommitHelpers.
-- **`POST /api/v1/operations/:id/run`** with `wait: true` lets the
-  assistant invoke any user-defined operation and get the result vars
-  back synchronously. This is how complex compound actions work — the
-  user (or Jeeves) can define an op, then call it from chat.
-- **`CALL_API` pipeline action** means the assistant can also live INSIDE
-  an op if we want it to: a "talk to Jeeves" op could `CALL_API` out to
-  Ollama, parse the response, and dispatch follow-up effects — no
-  separate assistant server needed for the simple case.
-- **State is already serializable** — Redux-shaped maps (`modulesById`,
-  `occurrencesById`, `fieldsById`, `operationsById`, etc.) — easy to
-  snapshot via `GET /api/v1/grids/:id/state`, easy to diff, easy to feed
-  into a prompt.
-- **Operation introspection exists** — `helpers/operationIntrospection.js`
-  analyzes every operation and emits ten sets (`fields_written`,
-  `fields_read`, `triggered_by_fields`, `invokes_operations`,
-  `created_modules`, ...). The "explain why op X didn't fire" use case
-  is already solvable; the LLM just needs to read the introspection record.
+3. **It can import documents.** Drop a markdown / text / URL into the
+   chat; it parses into containers + instances + textblocks. Phase A
+   (deterministic markdown) is **already implemented** —
+   `POST /api/v1/import/markdown`. Phase B (LLM-powered import of
+   arbitrary prose) goes through the same endpoint with an LLM
+   pre-processor.
 
-The hard parts elsewhere — wrangling DOM state, parsing free-form code,
-auditing what changed — are already solved by our architecture.
+UI is a side drawer with a small avatar floating bottom-right of the
+grid. Click → drawer opens.
 
 ---
 
-## 2. Where it lives
+## 1. Why this is feasible
+
+The API plan (Phases 1–3 shipped) gives the assistant a complete
+action surface:
+
+- Every CRUD verb on every entity, REST-shaped, scope-protected
+- `POST /api/v1/operations/:id/run` lets the assistant invoke any
+  user-defined op with `vars` and get effects + final `$vars` back
+- `CALL_API` action lets pipelines themselves hit external endpoints
+- **Server-side executor** (Phase 3) means the assistant doesn't need
+  a browser tab to run ops — important for the headless research loop
+- **Secrets store** lets the assistant carry API keys (e.g. an
+  OpenWeather key, a paid Wikipedia mirror, etc.) without leaking
+  them client-side
+- **`POST /api/v1/import/markdown`** (this session) turns text into a
+  Moduli subtree — the assistant generates markdown, hits this
+  endpoint, and the user sees a structured page appear
+
+Plus the operation-introspection layer (already in place) means the
+assistant can answer "why didn't op X fire?" without a special tool —
+`helpers/operationIntrospection.js` already produces the ten-set
+record that explains every op's behavior.
+
+---
+
+## 2. Architecture
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  Frontend (client/src/ui/AssistantPanel.jsx)                │
-│  ├─ Chat input + transcript                                 │
-│  ├─ Frog (Jeeves) animation states                          │
-│  ├─ Render markdown responses                               │
-│  ├─ Render proposed tool calls as confirmation cards        │
-│  └─ Show diff previews for destructive actions              │
-└────────────┬────────────────────────────────────────────────┘
-             │  POST /api/assistant/chat
+│  Frontend: client/src/ui/AssistantDrawer.jsx (NEW)         │
+│  ├─ Bottom-right floating avatar button (32×32)            │
+│  ├─ Click → side drawer slides in from right               │
+│  ├─ Chat transcript w/ Jarvis avatar on assistant turns    │
+│  ├─ Input box + send button                                │
+│  └─ Confirmation cards for destructive tool calls          │
+└────────────┬───────────────────────────────────────────────┘
+             │  POST /api/v1/assistant/chat
              ↓
 ┌────────────────────────────────────────────────────────────┐
-│  Server route: server/services/assistantAgent.js            │
-│  ├─ Loads system prompt + tool catalog (static, cached)     │
-│  ├─ Loads state snapshot via GET /api/v1/grids/:id/state    │
-│  ├─ Calls Ollama (or Anthropic SDK as hosted fallback)      │
-│  ├─ Validates tool output against JSON schema               │
-│  ├─ For non-destructive tools: calls the REST endpoint       │
-│  │   directly (internal HTTP, same auth as the user)         │
-│  └─ For destructive tools: returns "proposed action" payload │
-│      to the frontend for confirmation                        │
-└────────────┬────────────────────────────────────────────────┘
-             │  Internal HTTP — /api/v1/* (Section 1)
+│  Server: routes/assistant.js + services/assistantAgent.js  │
+│  ├─ Loads system prompt + tool catalog (static, cached)    │
+│  ├─ Loads state snapshot via existing /api/v1/grids/:id    │
+│  ├─ Calls Ollama (local) or Anthropic SDK (hosted)         │
+│  ├─ Validates tool output against the OpenAPI schemas      │
+│  ├─ Routes safe tools (reads / wikipedia_search /          │
+│  │   import_markdown / run_operation) through the same     │
+│  │   REST endpoints any external integration would use     │
+│  └─ Destructive tools return a "proposed action" card      │
+│      to the frontend for user approval                     │
+└────────────┬───────────────────────────────────────────────┘
+             │  All actions go through /api/v1/* — same auth
+             │  + rate-limit + idempotency as Zapier or curl.
              ↓
 ┌────────────────────────────────────────────────────────────┐
-│  Existing REST API (see docs/api-plan.md)                   │
-│  └─ All CRUD + operation execution lives here. The          │
-│     assistant has no special privileges — uses the same      │
-│     tokens and scope checks any other integration uses.      │
+│  /api/v1/* (already shipped) + new tool endpoints:         │
+│  ├─ /api/v1/research/wikipedia (NEW thin wrapper)          │
+│  ├─ /api/v1/import/markdown    (shipped)                   │
+│  └─ /api/v1/operations/:id/run (shipped, server-side)      │
 └────────────────────────────────────────────────────────────┘
 ```
 
-Side panel, not modal — same drawer pattern as the existing Command Center
-(`client/src/ui/CommandCenter.jsx`). Toggles from a button in the Toolbar.
-
-**Why route through the public API instead of internal function calls:**
-the assistant is just another integration. If the REST surface is good
-enough for Zapier and the user's own scripts, it's good enough for Jeeves.
-This forces us to dogfood our own API and makes the assistant's
-permissions explicit (it has a token, with scopes, that the user can
-revoke).
+The assistant has **no special privileges**. It authenticates with the
+same Bearer-token + scopes any other integration uses. The user can
+revoke its access by deleting the token. This forces the assistant to
+dogfood the public API.
 
 ---
 
-## 3. LLM choice & runtime
+## 3. The persona — Jarvis / Alfred
 
-Follow `docs/aispecs.md`:
+Replaces the early "frog Jeeves" idea with a more useful tone. The
+assistant should read as a **competent English manservant**:
 
-| Mode | Model | When |
-|------|-------|------|
-| Offline (preferred) | `qwen2.5-coder:7b` via Ollama at `http://localhost:11434/api/generate` | Default. User runs `ollama serve` locally; the assistant talks to it. |
-| Hosted fallback | `claude-haiku-4-5-20251001` via Anthropic SDK | Optional. User pastes their API key in CommandCenter → UserSettings. Falls back to this when Ollama isn't reachable. |
+| Trait | Style |
+|---|---|
+| Tone | Dry, efficient, faintly formal. Never folksy. |
+| Verbosity | Short by default. Long only when answering a research query. |
+| Confidence | High but qualified. "Likely Lisbon, sir — though the source from 2019. Shall I update?" |
+| Initiative | Proposes follow-ups. "Imported. Shall I tag it Geography as well?" |
+| Errors | Owns them. "I made a mess of that — let me try the other endpoint." |
 
-The runtime is **swappable behind one interface** — `assistantAgent.js`
-exposes `generate({ messages, tools })` and dispatches internally. Both
-backends emit the same JSON tool-call envelope, so the rest of the system
-doesn't care which one ran.
+System-prompt skeleton:
+
+```
+You are an assistant for the Moduli workspace. Your style is a quiet,
+competent English manservant — think Jarvis or Alfred. Be brief.
+
+Capabilities:
+- Look up information (Wikipedia first; other sources via CALL_API)
+- Read and write entities in the user's grid via the /api/v1 REST surface
+- Import documents (markdown, plain text, fetched URLs) as Moduli pages
+- Run user-defined operations with vars
+- Explain why an operation did or did not fire
+
+Discipline:
+- ALWAYS emit a JSON tool call when an action is required. Never
+  pretend to take an action.
+- For destructive tools (delete_*, update_operation, etc.), describe
+  the change and ASK before proposing the tool call.
+- When uncertain, say so plainly and ask one question — not three.
+
+[TOOL_CATALOG]
+[GRID_SNAPSHOT]
+```
+
+Personality lives in the system prompt and the UI affordances (avatar,
+animations). Tool layer is impersonal — Jarvis on top of Zapier, not
+Jarvis sprinkled through it.
+
+**Avatar.** A small floating circular button (32×32) bottom-right of
+the grid, rendered as a stylized portrait — gentleman-butler in a
+silhouette. Sprite states:
+
+- Idle: portrait, faint blink every few seconds
+- Thinking: portrait with a small "..." badge
+- Acting: portrait rotates 90° / spinner overlay
+- Awaiting confirmation: portrait + small clipboard icon
+
+UI state is purely client-side — not driven by the LLM. The drawer
+itself is the same side-panel pattern Command Center uses.
 
 ---
 
 ## 4. Tool catalog
 
-Tools are the **action surface area** of the assistant. Each tool maps
-1:1 to a CommitHelpers function or a pipeline-action effect. Each has a
-JSON schema, a `destructive: boolean` flag, and a `requires_confirm` flag.
+Each tool is a curated subset of an existing `/api/v1/*` endpoint
+with a JSON schema + `destructive: bool` + `requires_confirm: bool`.
+At call time the server validates against the schema, then dispatches
+to the matching REST handler in-process (no extra HTTP hop).
 
-Initial catalog (v1):
+### Research tools (always safe)
 
-### Reads (always safe, no confirm)
+| Tool | Description | Backed by |
+|---|---|---|
+| `wikipedia_search` | Search Wikipedia, return top matches w/ title + snippet + URL | New: `GET /api/v1/research/wikipedia/search?q=...` |
+| `wikipedia_summary` | Fetch the lede of a Wikipedia article | New: `GET /api/v1/research/wikipedia/summary?title=...` |
+| `wikipedia_full` | Fetch the full article body as markdown (for import) | New: same path, `?format=markdown` |
+| `fetch_url` | Fetch any public URL + return text (rate-limited per token) | Existing CALL_API path |
 
-| Tool | Maps to | Returns |
-|------|---------|---------|
-| `list_modules` | `state.modulesById` filtered by role | Array of `{id, label, role, kind}` |
-| `list_occurrences` | `state.occurrencesById` filtered by `parentId` / `gridId` | Array of `{id, moduleId, parentId, fields}` |
-| `list_fields` | `state.fieldsById` | Array of field definitions |
-| `list_operations` | `state.operationsById` | Array of operation definitions |
-| `get_operation_introspection` | `helpers/operationIntrospection.analyzeOperation(opId)` | The 10-set record (fields_written, triggered_by_fields, etc.) — used for "why didn't op X fire" |
-| `get_effective_filter` | `state/selectors.getEffectiveFilterForOccurrence(occId)` | The cascaded filter map for that occurrence |
+### Read tools (always safe)
 
-### Creates (low-risk, no confirm)
+| Tool | Backed by |
+|---|---|
+| `list_modules` | `GET /api/v1/modules?gridId=...` |
+| `list_occurrences` | `GET /api/v1/occurrences?gridId=...` |
+| `list_fields` | `GET /api/v1/fields?gridId=...` |
+| `list_operations` | `GET /api/v1/operations?gridId=...&runnable=true` |
+| `explain_operation` | wraps `analyzeOperation` (introspection) |
+| `get_grid_state` | `GET /api/v1/grids/:id/state` |
 
-| Tool | Maps to |
-|------|---------|
-| `create_module` | `CommitHelpers.createModule` (`role`, `kind`, `label`, `fieldBindings`) |
-| `create_occurrence` | `CommitHelpers.createOccurrence` (`moduleId`, `parentId`, `fields`) |
-| `create_field` | `CommitHelpers.createField` (`name`, `type`, `meta.optionsSource`, ...) |
-| `attach_field_to_module` | Mutates `module.fieldBindings` |
-| `add_to_pool` | The `ADD_TO_POOL` effect |
+### Write tools (require confirm for destructive)
 
-### Mutations (require confirm if writing existing entities)
+| Tool | Confirm | Backed by |
+|---|---|---|
+| `create_module` | — | `POST /api/v1/modules` |
+| `create_occurrence` | — | `POST /api/v1/occurrences` |
+| `update_occurrence_field` | — | `PUT /api/v1/occurrences/:id/fields/:fid` |
+| `bulk_update_fields` | ⚠️ | `POST /api/v1/fields/bulk` |
+| `import_markdown` | ⚠️ | `POST /api/v1/import/markdown` (mints many entities) |
+| `update_module` | ⚠️ | `PATCH /api/v1/modules/:id` |
+| `delete_occurrence` | ✅ | `DELETE /api/v1/occurrences/:id` |
+| `delete_module` | ✅ | `DELETE /api/v1/modules/:id` |
+| `update_operation` | ✅ | `PATCH /api/v1/operations/:id` (pipeline edits!) |
 
-| Tool | Confirm | Notes |
-|------|---------|-------|
-| `update_module` | ✅ | Renames, kind changes, fieldBindings edits |
-| `update_occurrence` | ✅ | Field writes, meta writes |
-| `update_field` | ✅ | Type changes, optionsSource edits |
-| `update_operation` | ✅ | Pipeline edits — most destructive of all |
-| `apply_template` | ✅ | Mints a subtree; preview = list of nodes to be created |
+### Action tools
 
-### Deletes (always confirm, always with preview)
-
-| Tool | Confirm | Notes |
-|------|---------|-------|
-| `delete_module` | ✅✅ | Lists all occurrences that will be orphaned |
-| `delete_occurrence` | ✅ | Lists children that will go with it |
-| `delete_field` | ✅✅ | Lists every module/occurrence binding |
-| `delete_operation` | ✅✅ | Lists any RUN_OPERATION callers |
-
-### Triggers (cheap, but log them)
-
-| Tool | Confirm | Notes |
-|------|---------|-------|
-| `run_operation` | ⚠️ | Lists side effects from `operationIntrospection.fields_written` first |
-| `set_active_filter` | — | Toolbar nav |
-| `nav_filter_value` | — | Date-arrow nav |
-
-Each tool ships with:
-1. **JSON schema** — fed into the LLM's tool-use prompt.
-2. **Server handler** — validates args, calls the CommitHelpers equivalent.
-3. **Preview function** — for destructive tools, computes what would
-   change (used by the frontend confirmation UI).
-4. **Telemetry hook** — logs `{tool, args, success, durationMs}` per call.
+| Tool | Confirm | Backed by |
+|---|---|---|
+| `run_operation` | ⚠️ | `POST /api/v1/operations/:id/run` |
+| `dry_run_operation` | — | same, with `dryRun: true` |
+| `make_research_page` | — | composite: `wikipedia_full` → `import_markdown` |
 
 ---
 
-## 5. State snapshot strategy
+## 5. The "research → page" workflow
 
-The LLM needs to **see** the grid before it can reason about it. Three
-levels of context:
+User: "Look up giraffes and make me a page on it."
 
-### Lazy snapshot (default)
-Per-turn snapshot fed into the system prompt:
-```js
+Internally:
+
+1. `wikipedia_search` with `q: "giraffe"` → top hit "Giraffe"
+2. `wikipedia_full` with `title: "Giraffe"` → markdown
+3. `import_markdown` with `gridId, parentId, markdown, title: "Giraffe"`
+4. Returns `{ rootOccurrenceId, stats }`
+5. Assistant: "Done — added a Giraffe page under your Library folder.
+   Five sections, 23 instances, 8 textblocks. Open it?"
+
+The user sees a single chat message + a Wikipedia-shaped page appear
+in their grid. Every step goes through the public API — testable
+without the assistant.
+
+Composite tool `make_research_page` bundles steps 1–3 so the LLM only
+emits one tool call. Internally it's three API calls.
+
+---
+
+## 6. The doc import pipeline
+
+Three phases, increasing in capability:
+
+### Phase A — deterministic markdown (✅ SHIPPED)
+
+`POST /api/v1/import/markdown` — `services/markdownImporter.js`.
+Handles structured markdown directly:
+
+- `#` / `##` / `###` headings → container (role:container, kind:list),
+  nested by depth
+- `* / -` / `1.` list items → instance (role:instance, kind:list)
+- prose paragraphs → textblock with TipTap JSON
+- fenced code blocks → textblock with codeBlock node
+- inline `**bold**`, `*italic*`, `` `code` ``, `[text](url)` → TipTap marks
+
+Idempotent caller pattern: pass `Idempotency-Key` header to dedup
+retries. `dryRun: true` returns the planned tree without minting.
+
+### Phase B — LLM-powered prose import (NEXT)
+
+Same endpoint, new shape: `{ text, gridId, parentId, useLLM: true }`.
+For each chunk:
+
+1. Send to the model with a "plan a Moduli tree" system prompt
+2. Model returns markdown (using the conventions Phase A understands)
+3. Re-enter `markdownToModuli()` with the LLM output
+
+The LLM's output is JUST markdown. Phase A then deterministically
+converts. Means the LLM only has to produce markdown — a well-studied
+task — instead of inventing entity shapes.
+
+### Phase C — fetched-source import (NEXT)
+
+Same endpoint, `{ url, gridId, parentId }`:
+
+1. Server fetches the URL
+2. Sniffs content type — HTML → readability extraction (mozilla/readability),
+   PDF → server-side pdf-parse, plain text → as-is
+3. Hands the extracted text to Phase B (LLM-powered) for structuring
+4. Mints entities via Phase A
+
+The whole pipeline is one HTTP request from the user's POV.
+
+### Phase D — bidirectional sync (FUTURE)
+
+Edit the imported page in the UI → on save, regenerate markdown and
+diff against the original source. Useful for "I'm tracking a Wikipedia
+article and want to know when it changes."
+
+---
+
+## 7. LLM choice & runtime
+
+Per `docs/aispecs.md`:
+
+| Mode | Model | When |
+|---|---|---|
+| Offline (preferred) | `qwen2.5-coder:7b` via Ollama at `http://localhost:11434/api/generate` | Default. User runs `ollama serve` locally. |
+| Hosted fallback | `claude-haiku-4-5-20251001` via Anthropic SDK | Optional. User pastes API key in CommandCenter → UserSettings. Fallback when Ollama is unreachable. |
+
+Swappable behind `assistantAgent.generate({ messages, tools })`. Both
+backends emit the same JSON tool-call envelope.
+
+For the import-pipeline Phase B specifically: a smaller/cheaper model
+is fine (markdown generation is well within capability). For research:
+the same model handles fine-tuning the Wikipedia summary.
+
+---
+
+## 8. State snapshot strategy
+
+The LLM needs to **see** the grid:
+
+### Lazy snapshot (default, cached)
+
+Per-conversation snapshot in the system prompt:
+
+```json
 {
-  grid: { id, name, rows, cols, activeFilterId, activeFilterValues },
-  active_view: { panelId, pageId, kind },
-  modules: modules.map(m => ({ id, label, role, kind })),  // names only
-  fields: fields.map(f => ({ id, name, type })),
-  operations: operations.map(o => ({ id, name, triggerObjects, priority })),
+  "grid": { "id", "name", "rows", "cols", "activeFilterId" },
+  "modules": [{ "id", "label", "role", "kind" }],   // names only
+  "fields": [{ "id", "name", "type" }],
+  "operations": [{ "id", "name", "triggerObjects", "priority" }]
 }
 ```
-~5KB compressed for a medium grid. **Cached against
-`prompt_caching` cache_control breakpoint** — only changes when the grid
-schema changes, not every turn.
+
+~5KB compressed. Cached against the model's prompt-cache breakpoint
+(both Anthropic and Ollama keep KV cache warm across turns).
 
 ### Deep snapshot (on demand)
-When the LLM asks for a specific entity (`list_occurrences` etc.), the
-tool returns the full shape. Stays out of the cached prefix.
+
+When the LLM asks for a specific entity via `list_occurrences` etc.,
+the tool returns the full shape. Stays out of the cached prefix.
 
 ### Operation introspection (on demand)
-When the user says "why didn't tracker X fire", call
-`get_operation_introspection(opId)` and feed the 10-set result into the
-conversation. Already exists; no new code.
+
+When the user says "why didn't op X fire", call `explain_operation`
+→ returns the 10-set record from `operationIntrospection.js`. Already
+exists; no new code.
 
 ---
 
-## 6. Confirmation UX
+## 9. Confirmation UX
 
-For any tool with `destructive: true` or `requires_confirm: true`, the
-flow is:
+For any tool with `destructive: true` or `requires_confirm: true`:
 
-1. LLM emits tool call.
+1. LLM emits tool call
 2. Server validates schema, computes a **preview** (e.g. "this will
-   delete 3 occurrences and orphan 1 module"), but does NOT execute.
-3. Server returns the proposed action + preview to the frontend.
-4. Frontend renders a **proposal card** in the chat transcript:
+   delete 3 occurrences and orphan 1 module"), does NOT execute
+3. Server returns the proposed action + preview to the frontend
+4. Frontend renders a confirmation card in the chat:
+
    ```
-   ┌──────────────────────────────────────────────┐
-   │ 🐸 Jeeves wants to:                          │
-   │    Delete module "Old Habit Tracker"         │
-   │                                              │
-   │ This will:                                   │
-   │   • Remove 1 module                          │
-   │   • Orphan 14 occurrences (in 3 containers)  │
-   │   • Break 2 operations that reference it     │
-   │                                              │
-   │ [ Approve ]  [ Reject ]  [ Show diff ]       │
-   └──────────────────────────────────────────────┘
+   ┌──────────────────────────────────────────┐
+   │ Proposed action: import_markdown          │
+   │   Would create 13 entities under         │
+   │   "Library / Giraffe"                    │
+   │     - 5 containers                       │
+   │     - 5 instances                        │
+   │     - 3 textblocks                       │
+   │                                          │
+   │ [ Approve ]  [ Reject ]  [ Edit ]        │
+   └──────────────────────────────────────────┘
    ```
-5. On Approve, the frontend emits a `assistant_confirm` socket event with
-   the proposal id. Server executes. Result fed back to LLM.
-6. On Reject, fed back to LLM as a tool error so it can revise.
 
-Reads, creates of new entities, and trigger calls (`run_operation`)
-execute immediately with a small notice card.
+5. On Approve → frontend emits a `assistant_confirm` event → server
+   executes → result fed back to LLM
+6. On Reject → fed back to LLM as a tool error so it can revise
 
----
-
-## 7. Persona layer (Frog Jeeves)
-
-Per `docs/aispecs.md` §6 — personality is system-prompt + UI, never baked
-into tool logic. Two-part system prompt:
-
-```
-[SYSTEM_BASE]
-You are Jeeves, a frog assistant for Moduli. You help the user manage
-their grid, modules, fields, and operations through structured tool
-calls. You speak briefly and clearly. You ALWAYS emit JSON tool calls
-when an action is required; you NEVER attempt to execute commands
-yourself.
-
-[TOOL_CATALOG]
-<JSON schemas for all available tools>
-
-[GRID_SNAPSHOT]
-<lazy snapshot, cached>
-```
-
-The frog character lives in the UI:
-- Idle: blinking sprite
-- Typing: waving sprite
-- Executing tool: spinning sprite + "Doing the thing..." caption
-- Confirming: holding up a sign sprite
-
-Animation states are driven entirely by client-side message state, not
-by the LLM's output. Single source of truth.
+Reads, lookups, creates, and run_operation execute immediately with a
+small notice card (no approval). The "make_research_page" tool is
+non-confirm (creates new content, doesn't destroy anything).
 
 ---
 
-## 8. Prompt caching
+## 10. Phased rollout
 
-Anthropic SDK and Ollama both support a form of prefix caching. The
-static portion of every request is:
-- System prompt (~1KB)
-- Tool catalog JSON schemas (~10KB)
-- Lazy state snapshot (~5KB)
+### Phase 1 — Read-only chat + research tools (1-2 sessions)
 
-Total ~16KB cached. Per-turn input is just the user message + recent
-transcript (~2-3KB). For Anthropic, this means **a single `cache_control:
-{type: "ephemeral"}` breakpoint** at the end of the tool catalog gets us
-cache hits on every subsequent turn within the 5-min TTL.
+- `services/assistantAgent.js` (Ollama integration, no hosted fallback)
+- `routes/assistant.js` + `POST /api/v1/assistant/chat`
+- Tool catalog: reads only + `wikipedia_search` + `wikipedia_summary`
+  + `wikipedia_full` + `import_markdown` + `make_research_page`
+- UI: floating avatar + drawer + chat transcript
+- "Ask Jarvis": "look up giraffes and make me a page" works end-to-end
 
-For Ollama there's no formal cache API but the model's KV cache stays
-warm across turns in a session as long as the prefix doesn't change.
+### Phase 2 — Write tools (1-2 sessions)
 
----
-
-## 9. Phased rollout
-
-### Phase 1 — Read-only (1-2 sessions of work)
-- Server route `server/services/assistantAgent.js`
-- Ollama integration only (no hosted fallback yet)
-- Tool catalog: reads only (`list_*`, `get_*`)
-- UI: drawer panel, chat transcript, no confirmation cards
-- "Ask Jeeves" works for "what fields does X have?" / "why isn't op Y firing?"
-
-### Phase 2 — Creates (1-2 sessions)
 - Add create tools (no confirms)
 - Add "show diff" notice cards
-- User can say "make a new tracker for water with a number field" and
-  watch the modules + fields land
+- User can say "make a tracker for water with a number field"
+  and watch entities land
 
 ### Phase 3 — Mutations + confirms (2-3 sessions)
-- Add update/delete tools with the proposal/approve flow
+
+- Add update/delete tools with proposal/approve flow
 - Diff previews via `helpers/operationIntrospection`
 - All destructive actions show counts
 
-### Phase 4 — Operations (largest unknown)
-- Tool: `create_operation` that takes a natural-language description and
-  emits a full pipeline (triggers + steps)
-- Probably needs few-shot examples in the system prompt (existing ops
-  serialized as before/after pairs)
+### Phase 4 — Operations + import polish
+
+- Tool: `create_operation` from natural-language description
+  (few-shot examples of existing ops in the system prompt)
+- LLM-powered import (Phase B of the import pipeline)
+- Fetched-source import (Phase C)
 
 ### Phase 5 — Polish
-- Hosted Anthropic fallback
-- Frog animation polish
+
+- Hosted Anthropic fallback (paste API key in UI)
+- Avatar animation polish
 - OCR for image inputs (tesseract.js)
-- Local SQLite memory for "remember that I like to track water in oz"
+- Local SQLite memory for "remember that I track water in oz"
 
 ---
 
-## 10. Open questions
+## 11. Open questions
 
-- **Where does Ollama run on shared deploys?** Local dev: fine. Server
-  deploy: probably ship an Anthropic-only build for hosted users and let
-  power users wire their own Ollama for offline.
-- **How do we sandbox `create_operation`?** A bad pipeline can fire-loop.
-  Probably gate operation-create behind an "advanced mode" toggle for v1.
-- **Multi-user sessions** — does Jeeves see other users' edits in-context?
-  Probably yes (the snapshot is per-grid, not per-session), but each user
-  has their own chat transcript.
-- **Cost** — even with caching, hosted Anthropic at ~100 calls/day per
-  active user is ~$0.10/day. Manageable. Ollama is free per call.
-
----
-
-## 11. What this plan does NOT cover (yet)
-
-- **Voice input** (defer)
-- **Multi-step agentic tasks** (e.g. "set up my whole morning routine") —
-  v2; would need a planner/executor split
-- **Code-mode** — Jeeves shouldn't write JSX directly. The codebase has a
-  pipeline-action layer that's much safer; the assistant stays in that
-  layer.
+- **Where does Ollama run on shared deploys?** Local dev fine. Shared
+  deploy: ship Anthropic-only build, let power users wire their own
+  Ollama for offline.
+- **How do we sandbox `create_operation`?** A bad pipeline can fire-
+  loop. Gate behind an "advanced mode" toggle for v1.
+- **Multi-user sessions** — Jarvis sees the grid per-user. Each user
+  has their own transcript.
+- **Cost** — Hosted Anthropic at ~100 calls/day per user ≈ $0.10/day
+  with caching. Ollama is free per call.
 
 ---
 
-## 12. Refs
+## 12. What this plan does NOT cover
+
+- **Voice input** — defer
+- **Multi-step agentic tasks** ("set up my whole morning routine") —
+  Phase 5+. Would need a planner/executor split.
+- **Code-mode** — Jarvis doesn't write JSX. The codebase has a
+  pipeline-action layer that's much safer; the assistant stays there.
+
+---
+
+## 13. Refs
 
 - `docs/aispecs.md` — the philosophy this plan is grounded in
-- `client/src/helpers/CommitHelpers.js` — the mutation contract
-- `client/src/helpers/operationActions.js` — pipeline-action shapes
-- `client/src/helpers/operationIntrospection.js` — the analyze-an-op helper
-- `client/src/state/selectors.js` — read-side helpers
-- `CLAUDE.md` handoff item 10 — the trigger for this plan
+- `docs/api-plan.md` — REST + CALL_API surface (all consumed by tools)
+- `docs/api-testing.md` — how to verify the API surface works
+- `client/src/helpers/operationActions.js` — pipeline action shapes
+- `client/src/helpers/operationIntrospection.js` — analyze-an-op helper
+- `server/services/markdownImporter.js` — Phase A import (shipped)
+- `CLAUDE.md` handoff item 10 — the original trigger for this plan

@@ -2,6 +2,41 @@
 
 _Updated: 2026-05-20. Check this file before re-reading source._
 
+## Recent Changes (2026-05-21 — Phase 4: webhook HMAC + idempotency keys + markdown import)
+- **`models/Operation.js`** — added `webhookSecret: String | null`.
+  When set, `/api/webhooks/:operationId` requires
+  `X-Moduli-Signature: sha256=<hex>` matching `HMAC-SHA256(secret, rawBody)`.
+  Unset → endpoint accepts any request (back-compat / public hooks).
+- **`server.js`** — global `express.json()` now skipped for
+  `/api/webhooks/*` so the raw body bytes survive for HMAC verification.
+  Webhook handler uses `express.raw({ type: "*/*", limit: "1mb" })`,
+  verifies signature with `crypto.timingSafeEqual`, then parses JSON
+  itself for the trigger payload.
+- **`routes/apiV1.js`** — added `POST/DELETE /operations/:id/webhook-secret`
+  to mint/rotate/disable the HMAC secret. Mint response includes the
+  raw secret exactly once (caller must store it).
+- **`middleware/idempotency.js` (NEW)** — `Idempotency-Key` header
+  support on mutating verbs. Cache keyed by
+  `(tokenId, method, path, idemKey)`, 24h TTL, cap 10k entries.
+  Replays return cached body with `X-Idempotent-Replay: true`. First
+  call gets `X-Idempotent-Stored: true`.
+- **`services/markdownImporter.js` (NEW)** — Phase A of the doc
+  import pipeline. Deterministic markdown → Moduli entities:
+  - `#/##/###` headings → container (kind:list), nested by depth
+  - `*/-`/`1.` list items → instance (kind:list)
+  - prose paragraphs → textblock (kind:doc) with TipTap JSON
+  - fenced code blocks → textblock with codeBlock node
+  - inline `**bold**`/`*italic*`/`` `code` ``/`[text](url)` → TipTap marks
+  Verified live: 4-heading doc produces 5 containers + 5 instances +
+  3 textblocks.
+- **`routes/apiV1.js`** — added `POST /import/markdown` exposing the
+  importer. `dryRun: true` returns the planned tree without minting.
+  Real imports broadcast `module_created` + `occurrence_created` to
+  the user's socket room. Idempotency middleware applies, so a
+  repeated `Idempotency-Key` won't double-import.
+- **`docs/api-testing.md`** — new section 12 with webhook HMAC, idempotency,
+  and markdown import recipes + verified-live examples.
+
 ## Recent Changes (2026-05-21 night — /api/v1 Phase 3: server executor + secrets + OpenAPI + rate limit)
 - **`services/serverExecutor.js` (NEW)** — headless executor for
   `/api/v1/operations/:id/run` when no browser tab is connected.

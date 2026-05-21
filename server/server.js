@@ -9,6 +9,7 @@ import { Server } from "socket.io";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 import "dotenv/config";
 import { nanoid } from "nanoid";
@@ -92,7 +93,12 @@ function serializeTipTapToMarkdown(tipTapJson) {
 // ========================================================
 const app = express();
 app.use(cors());
-app.use(express.json());
+// JSON body parser for all routes EXCEPT /api/webhooks/* — those need
+// the raw bytes for HMAC verification and parse JSON themselves after.
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/webhooks/")) return next();
+  return express.json()(req, res, next);
+});
 
 app.get("/health", async (req, res) => {
   const dbState = mongoose.connection.readyState; // 1 = connected
@@ -556,16 +562,48 @@ app.use("/api/v1", makeApiV1Router({
   opRunBridge,
 }));
 
-app.post("/api/webhooks/:operationId", async (req, res) => {
-  try {
-    const { operationId } = req.params;
-    const op = await Operation.findOne({ id: operationId });
-    if (!op) return res.status(404).json({ error: "Operation not found" });
-    const syntheticTx = { type: "WebhookOp", operationId, timestamp: new Date().toISOString(), ...(req.body || {}) };
-    io.to(userRoom(op.userId)).emit("trigger_operation", { operationId, transactionType: "WebhookOp", transaction: syntheticTx });
-    res.json({ ok: true, operationId });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
+// HMAC verification needs the raw body bytes — use express.raw on this
+// route only, then parse JSON ourselves after signature check passes.
+app.post(
+  "/api/webhooks/:operationId",
+  express.raw({ type: "*/*", limit: "1mb" }),
+  async (req, res) => {
+    try {
+      const { operationId } = req.params;
+      const op = await Operation.findOne({ id: operationId });
+      if (!op) return res.status(404).json({ error: "Operation not found" });
+
+      // If the op has a secret, every request must carry a valid
+      // X-Moduli-Signature header. Format: "sha256=<hex>".
+      if (op.webhookSecret) {
+        const sigHeader = req.headers["x-moduli-signature"] || "";
+        const sigMatch = /^sha256=([a-f0-9]+)$/i.exec(String(sigHeader));
+        if (!sigMatch) {
+          return res.status(401).json({ error: "invalid_signature", message: "Missing or malformed X-Moduli-Signature header" });
+        }
+        const expected = crypto.createHmac("sha256", op.webhookSecret)
+          .update(req.body)
+          .digest("hex");
+        const given = sigMatch[1];
+        const a = Buffer.from(expected, "hex");
+        const b = Buffer.from(given, "hex");
+        if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+          return res.status(401).json({ error: "invalid_signature", message: "Signature mismatch" });
+        }
+      }
+
+      // Parse body as JSON (best-effort). The raw bytes were preserved
+      // above for the HMAC check; this just gives the pipeline a usable
+      // object for $trigger.*.
+      let body = {};
+      try { body = req.body && req.body.length > 0 ? JSON.parse(req.body.toString("utf8")) : {}; } catch { body = {}; }
+
+      const syntheticTx = { type: "WebhookOp", operationId, timestamp: new Date().toISOString(), ...body };
+      io.to(userRoom(op.userId)).emit("trigger_operation", { operationId, transactionType: "WebhookOp", transaction: syntheticTx });
+      res.json({ ok: true, operationId });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  }
+);
 
 // ========================================================
 // SCHEDULE CRON — fires onSchedule operations every minute

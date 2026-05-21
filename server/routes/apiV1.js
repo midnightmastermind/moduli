@@ -25,6 +25,7 @@ import Secret, { encryptValue, isSecretsKeyConfigured } from "../models/Secret.j
 
 import { apiAuth } from "../middleware/apiAuth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
+import { idempotency } from "../middleware/idempotency.js";
 import { runOperationServerSide } from "../services/serverExecutor.js";
 import { buildOpenApiDoc } from "./apiV1OpenApi.js";
 
@@ -56,11 +57,12 @@ function paginate(items, { limit, cursor }) {
 export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   const router = express.Router();
 
-  // Per-token rate limit (600 req/min). Composed with apiAuth so it
-  // runs AFTER auth has set req.apiToken. Each route below that needs
-  // limiting uses `authAndLimit(...)` instead of bare `apiAuth(...)`.
+  // Per-token rate limit (600 req/min) + Idempotency-Key support.
+  // Composed with apiAuth so they run AFTER auth has set req.apiToken.
+  // Each protected route uses `authAndLimit(...)` instead of bare auth.
   const limiter = rateLimit();
-  const authAndLimit = (opts) => [apiAuth(opts), limiter];
+  const idem = idempotency();
+  const authAndLimit = (opts) => [apiAuth(opts), limiter, idem];
 
   // ====================================================================
   // GRIDS
@@ -607,6 +609,67 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       const doomed = await Secret.findOneAndDelete({ userId: req.userId, key: req.params.key });
       if (!doomed) return err(res, 404, "not_found", "Secret not found");
       res.json({ ok: true });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ====================================================================
+  // WEBHOOK SECRET — mint/rotate the HMAC secret for an operation's webhook
+  // ====================================================================
+
+  router.post("/operations/:id/webhook-secret", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const op = await Operation.findOne({ id: req.params.id, userId: req.userId });
+      if (!op) return err(res, 404, "not_found", "Operation not found");
+      const newSecret = crypto.randomBytes(32).toString("base64url");
+      op.webhookSecret = newSecret;
+      await op.save();
+      io.to(userRoom(req.userId)).emit("operation_updated", {
+        operation: { id: op.id, webhookSecret: "***" }, // never echo the real value
+      });
+      // Returned ONCE — caller must store it. Compute signatures with:
+      //   sig = "sha256=" + crypto.createHmac("sha256", secret).update(rawBody).digest("hex")
+      // Send as X-Moduli-Signature header on POST /api/webhooks/<opId>.
+      res.json({
+        operationId: op.id,
+        webhookUrl: `/api/webhooks/${op.id}`,
+        secret: newSecret,
+        instructions: "POST raw JSON to webhookUrl with X-Moduli-Signature: sha256=<hex(hmacSha256(secret, body))>",
+      });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  router.delete("/operations/:id/webhook-secret", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const next = await Operation.findOneAndUpdate(
+        { id: req.params.id, userId: req.userId },
+        { $set: { webhookSecret: null } },
+        { new: true, lean: true },
+      );
+      if (!next) return err(res, 404, "not_found", "Operation not found");
+      res.json({ ok: true, operationId: req.params.id });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ====================================================================
+  // IMPORT — convert a doc/text into Moduli entities (textblocks /
+  //          containers / instances). See docs/assistant-plan.md.
+  // ====================================================================
+
+  router.post("/import/markdown", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { markdownToModuli } = await import("../services/markdownImporter.js");
+      const { gridId, parentId = null, markdown, dryRun = false, title } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      if (typeof markdown !== "string") return err(res, 400, "validation_error", "markdown (string) required");
+      const result = await markdownToModuli({
+        gridId, parentId, userId: req.userId, markdown, dryRun, title,
+      });
+      // Broadcast each created entity so connected tabs sync.
+      if (!dryRun) {
+        for (const m of result.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
+        for (const o of result.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
+      }
+      res.json(result);
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 

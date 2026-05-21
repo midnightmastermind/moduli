@@ -676,15 +676,142 @@ view:
 
 ---
 
-## 12. Phase 4+ still deferred
+## 12. Phase 4 — webhook HMAC + idempotency + markdown import
 
-- **Webhook signing** — HMAC-SHA256 over `/api/webhooks/:opId`.
-- **Idempotency keys** — `Idempotency-Key` header for retry-safe POSTs.
+Shipped after Phase 3.
+
+### 12.1 Webhook HMAC signing
+
+`/api/webhooks/:operationId` now optionally verifies an HMAC-SHA256
+signature when the operation has a secret configured. Mint one:
+
+```bash
+# Mint (or rotate) the secret — returned exactly once.
+curl -X POST -H "$AUTH" "$BASE/api/v1/operations/<opId>/webhook-secret"
+# → { "operationId":"...", "webhookUrl":"/api/webhooks/...",
+#     "secret":"<base64url>", "instructions":"..." }
+
+# Disable the requirement (anyone can post to the webhook again):
+curl -X DELETE -H "$AUTH" "$BASE/api/v1/operations/<opId>/webhook-secret"
+```
+
+Calling the webhook:
+
+```bash
+BODY='{"foo":"bar"}'
+SIG=$(node -e "console.log(require('crypto').createHmac('sha256','<SECRET>').update('$BODY').digest('hex'))")
+curl -X POST -H "Content-Type: application/json" \
+  -H "X-Moduli-Signature: sha256=$SIG" \
+  -d "$BODY" \
+  "$BASE/api/webhooks/<opId>"
+```
+
+| Result | Status |
+|---|---|
+| Missing or malformed header | 401 `invalid_signature` |
+| Wrong signature | 401 `invalid_signature` |
+| Correct signature | 200 `{ ok:true, operationId }` |
+| Op has no secret configured | 200 (no verification, back-compat) |
+
+The signature is computed over the **raw request body bytes**, not a
+canonical re-serialization. Match what your tooling sends literally.
+
+### 12.2 Idempotency keys
+
+Any POST/PATCH/PUT/DELETE on `/api/v1/*` accepts an `Idempotency-Key`
+header. A replay of the same key within 24h returns the cached
+response with `X-Idempotent-Replay: true`:
+
+```bash
+KEY="my-op-$(uuidgen)"
+
+# First call — creates the module
+curl -i -X POST -H "$AUTH" -H "$CT" -H "Idempotency-Key: $KEY" \
+  -d '{"gridId":"<g>","label":"Test","role":"container","kind":"list"}' \
+  "$BASE/api/v1/modules"
+# → X-Idempotent-Stored: true
+
+# Second call with same key — returns cached body, doesn't create another
+curl -i -X POST -H "$AUTH" -H "$CT" -H "Idempotency-Key: $KEY" \
+  -d '{"gridId":"<g>","label":"Test","role":"container","kind":"list"}' \
+  "$BASE/api/v1/modules"
+# → X-Idempotent-Replay: true
+# → X-Idempotent-Replay-Count: 1
+```
+
+Cache key includes `(tokenId, method, path, idempotencyKey)` so
+different verbs to the same path don't collide. In-memory TTL 24h,
+cap 10,000 entries (oldest dropped).
+
+### 12.3 Document import — `POST /api/v1/import/markdown`
+
+The "Phase A" half of the document import pipeline (see
+`docs/assistant-plan.md` §6). Turns markdown into a Moduli subtree:
+
+| Markdown | → Moduli |
+|---|---|
+| `# heading` / `## heading` etc | container (role:container, kind:list), nested by depth |
+| `* item` / `- item` / `1. item` | instance (role:instance, kind:list) |
+| Prose paragraph | textblock (role:textblock, kind:doc) with TipTap JSON |
+| Fenced code block | textblock with codeBlock node |
+| `**bold**` / `*italic*` / `` `code` `` / `[text](url)` | inline TipTap marks |
+
+```bash
+# Preview first (dry run)
+curl -X POST -H "$AUTH" -H "$CT" \
+  -d '{
+    "gridId":"<g>",
+    "title":"Photosynthesis",
+    "dryRun":true,
+    "markdown":"# Photosynthesis\n\nPlants convert light.\n\n## Inputs\n\n- CO2\n- Water"
+  }' \
+  "$BASE/api/v1/import/markdown"
+# → { ok:true, dryRun:true, rootOccurrenceId:"...",
+#     stats: { modules:6, occurrences:6, containers:2, instances:2, textblocks:1 },
+#     modules: [...], occurrences: [...] }
+
+# Real import — same body without dryRun
+curl -X POST -H "$AUTH" -H "$CT" \
+  -d '{ "gridId":"<g>", "parentId":"<folderOccId>", "markdown":"..." }' \
+  "$BASE/api/v1/import/markdown"
+# → mints entities, broadcasts module_created + occurrence_created to
+#   the user's socket room, returns the same shape (dryRun:false)
+```
+
+If `parentId` is set, the new subtree's root is appended to that
+occurrence's `occurrences[]` — shows up in the UI tree immediately
+via the broadcast.
+
+**Verified live**: a 4-heading doc with bullets, prose, and a code
+block produced 5 containers + 5 instances + 3 textblocks in one call,
+all visible in `GET /api/v1/occurrences/<rootId>` after.
+
+### 12.4 Operation webhook secret rotation
+
+```bash
+# Mint
+curl -X POST -H "$AUTH" "$BASE/api/v1/operations/<id>/webhook-secret"
+# Rotate (same endpoint — replaces the old secret)
+curl -X POST -H "$AUTH" "$BASE/api/v1/operations/<id>/webhook-secret"
+# Delete
+curl -X DELETE -H "$AUTH" "$BASE/api/v1/operations/<id>/webhook-secret"
+```
+
+Once rotated, any old signatures stop working immediately (the new
+secret is the only valid HMAC key).
+
+---
+
+## 13. Phase 5+ still deferred
+
+- **LLM-powered import (Phase B/C of the import pipeline)** — feed
+  arbitrary prose / URL, LLM converts to markdown, Phase A converts
+  to entities. Lives in `docs/assistant-plan.md` §6.
 - **Per-token request log endpoint** — `GET /api/v1/tokens/me/requests`.
-- **Shared rate-limit backend** for multi-instance deploys.
+- **Shared rate-limit + idempotency backend** for multi-instance deploys.
 - **Push the full client executor server-side** for parity. Requires
   splitting the executor out of its React/Redux deps (`sonner`,
-  `bindSocketToStore`). Current Phase-3 mini-executor covers the
-  common integration case.
+  `bindSocketToStore`). Current Phase-3 mini-executor covers
+  CALL_API / INIT_VAR / SHOW_VALUE / IF / LOOP — most integration ops.
 
 See `docs/api-plan.md` §3 (Phased rollout) for the full sequence.
