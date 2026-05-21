@@ -58,6 +58,7 @@ import { CanvasDrawSection } from "./CanvasContent.jsx";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import AutoMarquee from "../ui/AutoMarquee.jsx";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import TemplatesSection from "../ui/TemplatesSection";
@@ -832,10 +833,10 @@ function Panel({
               <span style={{
                 flex: 1, minWidth: 0,
                 fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)",
-                letterSpacing: "0.03em", overflow: "hidden", textOverflow: "ellipsis",
-                whiteSpace: "nowrap", userSelect: "none",
+                letterSpacing: "0.03em", overflow: "hidden",
+                userSelect: "none",
               }}>
-                {activePageLabel}
+                <AutoMarquee>{activePageLabel}</AutoMarquee>
               </span>
 
               {/* QuickAdd + header dropdown + grid cell switcher.

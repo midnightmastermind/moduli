@@ -33,6 +33,7 @@ import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getLocalFilterCon
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import AutoMarquee from "../ui/AutoMarquee.jsx";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import TemplatesSection from "../ui/TemplatesSection";
@@ -707,14 +708,16 @@ function Container({
               {headerBinding ? (
                 <span
                   onPointerDown={(e) => e.stopPropagation()}
-                  style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: embeddedAccent, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}
+                  style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: embeddedAccent, lineHeight: 1.2, flex: 1, minWidth: 0, overflow: "hidden" }}
                 >
-                  <BoundHeader
-                    hostOccurrence={containerOccurrence}
-                    binding={headerBinding}
-                    markdownPrefix=""
-                    label={module.label || "Container"}
-                  />
+                  <AutoMarquee>
+                    <BoundHeader
+                      hostOccurrence={containerOccurrence}
+                      binding={headerBinding}
+                      markdownPrefix=""
+                      label={module.label || "Container"}
+                    />
+                  </AutoMarquee>
                 </span>
               ) : (
                 <span
@@ -745,17 +748,18 @@ function Container({
             {containerFields.length > 0 && !isBodyCollapsed && (
               <div style={{ padding: "0px 12px 4px 28px", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }} onPointerDown={(e) => e.stopPropagation()}>
                 {containerFields.map(({ field, binding }) => (
-                  <FieldRenderer
-                    key={field.id}
-                    field={field}
-                    binding={binding}
-                    occurrence={containerOccurrence}
-                    instance={module}
-                    state={ctxState}
-                    dispatch={dispatch}
-                    socket={socket}
-                    compact={true}
-                  />
+                  <AutoMarquee key={field.id} className="instance-field-mq">
+                    <FieldRenderer
+                      field={field}
+                      binding={binding}
+                      occurrence={containerOccurrence}
+                      instance={module}
+                      state={ctxState}
+                      dispatch={dispatch}
+                      socket={socket}
+                      compact={true}
+                    />
+                  </AutoMarquee>
                 ))}
               </div>
             )}
@@ -824,19 +828,21 @@ function Container({
                 />
               </div>
             ) : (
-              <span className="truncate" style={{ fontSize: module.kind === "board" ? "0.95rem" : "0.75rem", fontWeight: module.kind === "board" ? 600 : 500 }}>
-                {headerBinding ? (
-                  <BoundHeader
-                    hostOccurrence={containerOccurrence}
-                    binding={headerBinding}
-                    markdownPrefix=""
-                    label={module.label || "Container"}
-                  />
-                ) : (
-                  module.label || "Container"
-                )}
+              <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", fontSize: module.kind === "board" ? "0.95rem" : "0.75rem", fontWeight: module.kind === "board" ? 600 : 500, display: "flex", alignItems: "center", gap: 4 }}>
+                <AutoMarquee>
+                  {headerBinding ? (
+                    <BoundHeader
+                      hostOccurrence={containerOccurrence}
+                      binding={headerBinding}
+                      markdownPrefix=""
+                      label={module.label || "Container"}
+                    />
+                  ) : (
+                    module.label || "Container"
+                  )}
+                </AutoMarquee>
                 {containerOccurrence?.linkedGroupId && (
-                  <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0 inline ml-1" title="Linked" />
+                  <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0 inline" title="Linked" />
                 )}
               </span>
             )}

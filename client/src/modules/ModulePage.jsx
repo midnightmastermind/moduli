@@ -29,6 +29,7 @@ import PageCanvas from "./pages/PageCanvas.jsx";
 import PageDisplay from "./pages/PageDisplay.jsx";
 import PageFolder from "./pages/PageFolder.jsx";
 import ContainerTable from "./containers/ContainerTable.jsx";
+import AutoMarquee from "../ui/AutoMarquee.jsx";
 
 import { GridActionsContext } from "../GridActionsContext";
 import { GridDataContext } from "../GridDataContext";
@@ -475,10 +476,10 @@ function Page({
               />
             ) : (
               <span
-                style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, color: "var(--text-faint)", fontFamily: "var(--font-mono)", letterSpacing: "0.03em", cursor: "text", userSelect: "none" }}
+                style={{ flex: 1, minWidth: 0, overflow: "hidden", fontSize: 11, color: "var(--text-faint)", fontFamily: "var(--font-mono)", letterSpacing: "0.03em", cursor: "text", userSelect: "none" }}
                 onDoubleClick={startEdit}
               >
-                {pageModule.label || "Untitled"}
+                <AutoMarquee>{pageModule.label || "Untitled"}</AutoMarquee>
               </span>
             )}
 
