@@ -6943,25 +6943,70 @@ export async function createLiveData(userId, options = {}) {
                 // Already built + bulk onLoad + all cards have positions → no-op.
               ],
               else: [
-                // 5a. Clean: delete every existing copy parented under $canvas.
+                // DIFF MODE (2026-05-21) — replaces clean-then-rebuild.
+                // Preserves user-drag positions: cards already on the
+                // canvas keep their meta.x/y across op fires; only
+                // missing cards get added, only orphaned cards get
+                // removed.
+                //
+                // 5a. Orphan sweep — delete only canvas copies whose
+                //     source task is gone (deleted from Schedule OR
+                //     dated outside $schedDate). Manually-dragged cards
+                //     whose source task IS still present on $schedDate
+                //     survive untouched.
                 {
-                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$orphan",
+                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$existing",
                   body: [
                     { id: uid(), type: "if",
                       condition: { operator: "AND", rules: [
-                        { id: uid(), left: "$orphan._ancestors", comparator: "HAS_ANCESTOR", right: "$canvasId" },
+                        { id: uid(), left: "$existing._ancestors", comparator: "HAS_ANCESTOR", right: "$canvasId" },
+                        { id: uid(), left: "$existing.linkedGroupId", comparator: "IS_NOT_EMPTY", right: "" },
                       ] },
                       then: [
-                        { id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$orphan.id" } },
+                        // Walk $allInstances for a task on Schedule whose
+                        // linkedGroupId matches this canvas copy's. If
+                        // none found, the source is gone → orphan.
+                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$srcFound", expr: "literal:0" } },
+                        {
+                          id: uid(), type: "loop", overExpr: "$allInstances", as: "$srcProbe",
+                          body: [
+                            { id: uid(), type: "if",
+                              condition: { operator: "AND", rules: [
+                                { id: uid(), left: "$srcProbe._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                                { id: uid(), left: "$srcProbe.linkedGroupId", comparator: "IS", right: "$existing.linkedGroupId" },
+                                { id: uid(), left: `$srcProbe.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+                              ] },
+                              then: [
+                                { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$srcFound" } },
+                              ],
+                              else: [],
+                            },
+                          ],
+                        },
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: "$srcFound", comparator: "IS", right: 0 },
+                          ] },
+                          then: [
+                            { id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$existing.id" } },
+                          ],
+                          else: [],
+                        },
                       ],
                       else: [],
                     },
                   ],
                 },
-                // 5b. Reset row counter.
+                // 5b. Reset row counter — used for seed positions of
+                //     newly-COPY_LINKed cards. Existing cards keep
+                //     their drag positions.
                 { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$r", expr: "literal:0" } },
-                // 6. One copy per schedule task on $schedDate under the Schedule page.
-                //    Stamp meta.x/y so cards stack vertically (60px column + 80px row stride).
+                // 6. One copy per schedule task on $schedDate under the
+                //    Schedule page — IFF a canvas copy doesn't already
+                //    exist (existence checked via linkedGroupId match).
+                //    Stamps meta.x/y at the seed column ONLY when
+                //    minting a brand-new card; existing cards' drag
+                //    positions are left alone.
                 {
                   id: uid(), type: "loop", overExpr: "$allInstances", as: "$task",
                   body: [
@@ -6973,14 +7018,52 @@ export async function createLiveData(userId, options = {}) {
                         { id: uid(), left: "$task.label", comparator: "IS_NOT_EMPTY", right: "" },
                       ] },
                       then: [
-                        { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$canvasId", itemVar: "$copy", itemIdVar: "$copyId" } },
-                        // Compute y = $r * 80 + 60 via INIT_VAR + MULTIPLY_VAR + ADD_TO_VAR.
-                        { id: uid(), type: "action", config: { type: "INIT_VAR",     name: "$y", expr: "$r" } },
-                        { id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$y", by: 80 } },
-                        { id: uid(), type: "action", config: { type: "ADD_TO_VAR",   name: "$y", expr: "literal:60" } },
-                        { id: uid(), type: "action", config: { type: "UPDATE", path: "$copy.meta.x", value: 60 } },
-                        { id: uid(), type: "action", config: { type: "UPDATE", path: "$copy.meta.y", value: "$y" } },
-                        { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$r" } },
+                        // Existence check — does a canvas copy with
+                        // matching linkedGroupId already exist? Count
+                        // matches via inner loop (PUSH_TO_VAR int).
+                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$copyExists", expr: "literal:0" } },
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: "$task.linkedGroupId", comparator: "IS_NOT_EMPTY", right: "" },
+                          ] },
+                          then: [
+                            {
+                              id: uid(), type: "loop", overExpr: "$allInstances", as: "$copyProbe",
+                              body: [
+                                { id: uid(), type: "if",
+                                  condition: { operator: "AND", rules: [
+                                    { id: uid(), left: "$copyProbe._ancestors", comparator: "HAS_ANCESTOR", right: "$canvasId" },
+                                    { id: uid(), left: "$copyProbe.linkedGroupId", comparator: "IS", right: "$task.linkedGroupId" },
+                                  ] },
+                                  then: [
+                                    { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$copyExists" } },
+                                  ],
+                                  else: [],
+                                },
+                              ],
+                            },
+                          ],
+                          else: [],
+                        },
+                        // Only COPY_LINK + stamp position when no
+                        // existing canvas copy was found. Preserves
+                        // every drag-positioned card across op fires.
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: "$copyExists", comparator: "IS", right: 0 },
+                          ] },
+                          then: [
+                            { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$canvasId", itemVar: "$copy", itemIdVar: "$copyId" } },
+                            // Compute y = $r * 80 + 60 via INIT_VAR + MULTIPLY_VAR + ADD_TO_VAR.
+                            { id: uid(), type: "action", config: { type: "INIT_VAR",     name: "$y", expr: "$r" } },
+                            { id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$y", by: 80 } },
+                            { id: uid(), type: "action", config: { type: "ADD_TO_VAR",   name: "$y", expr: "literal:60" } },
+                            { id: uid(), type: "action", config: { type: "UPDATE", path: "$copy.meta.x", value: 60 } },
+                            { id: uid(), type: "action", config: { type: "UPDATE", path: "$copy.meta.y", value: "$y" } },
+                            { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$r" } },
+                          ],
+                          else: [],
+                        },
                       ],
                       else: [],
                     },

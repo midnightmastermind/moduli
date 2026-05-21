@@ -91,31 +91,55 @@ _Updated: 2026-05-21. Check this file before re-reading source._
 
 ### 🔴 BUGS — fix soon
 
-- **Canvas occurrence snap-back on drag-across.** 2026-05-21 — user
-  reports moving a card across the canvas can result in the card
-  jumping back to its original `meta.x/y` position. Code-inspection
-  rules out the linked-group fanout: `server/socketHandlers/occurrences.js:91-124`
-  propagates `fields` + `textmap` only — `meta` is NOT in the
-  patch, so a sibling's write can't overwrite this canvas card's
-  position. The same-canvas move path in `dropHandlers.js:850-857`
-  cleanly writes `meta: { ...(movedOcc.meta || {}), x: cx, y: cy }`
-  with the new pointer coords, so the write itself looks correct.
-  Most likely cause: a canvas auto-build op (e.g. `Schedule Canvas:
-  Build Day` from createLiveData.js) firing on `onLoad` /
-  `onFilterChange` mid-drag and re-stamping seed positions. Prior
-  session (commit `3a991fbd`) added an idempotency probe that
-  short-circuits when ANY descendant already has `meta.y`, but the
-  probe runs once at op start — if the op fires AFTER the drag-end
-  write committed, the new position is in the cache but the op's
-  own UPDATEs still re-stamp the cards it touches. Fix directions:
-  (a) add `meta.pinned: true` on every manual drag write, gate the
-  Build op to skip cards with `pinned`; (b) make the Build op's
-  UPDATE_OCCURRENCE on each card guard with `IS_EMPTY meta.x` per
-  card (not a one-shot probe), so already-positioned cards survive;
-  (c) audit which ops fire on filter changes for canvas pages and
-  ensure they don't unconditionally write `meta.x/y`. Repro: drag a
-  card on a canvas that has an auto-build op, then immediately
-  change the date filter to retrigger the op.
+- **~~Canvas occurrence snap-back on drag-across.~~** FIXED
+  2026-05-21 by rewriting the `Canvas: Build` op's ELSE branch in
+  `server/scripts/createLiveData.js:6948` from clean-then-rebuild
+  to a true diff: orphan sweep (delete only canvas copies whose
+  source task is gone from Schedule for `$schedDate`) + per-task
+  existence check via `linkedGroupId IS $task.linkedGroupId`
+  (skip COPY_LINK + stamp when copy already exists). Manually-
+  dragged cards retain their `meta.x/y` across every op fire;
+  add/remove from Schedule still propagates. Re-seed required to
+  apply: `node --env-file=.env server/scripts/createLiveData.js`.
+
+  Diagnostic notes from the inspection that drove the fix
+  (kept in case a related regression appears):
+  Root cause was at `server/scripts/createLiveData.js:6936`.
+  Idempotency gate:
+  ```
+  if children > 0 AND triggerType IS_EMPTY AND missingPositions IS 0
+    then no-op
+    else delete-all + rebuild-all
+  ```
+  The `triggerType IS_EMPTY` clause only matches bulk onLoad (no
+  transaction). Every explicit trigger (onAdd / onDelete / onChange
+  / onFilterChange) sets `$trigger.type`, bypasses the gate, and
+  runs the ELSE branch — which is `5a. delete every existing copy
+  parented under $canvas` (line 6948) followed by `5b/6. COPY_LINK
+  + stamp meta.x/y at column (60, $r*80+60)`. Result: any
+  date-filter change OR schedule task add/remove silently wipes the
+  user's drag positions across the entire canvas. Linked-group
+  fanout was ruled out — server doesn't propagate `meta`. Same
+  pattern is in `Schedule Table: Build` at ~line 6790 but it only
+  positions cells, not free-form x/y, so it's less visible.
+
+  **Fix direction (proper diff, requires careful test):** rewrite
+  ELSE branch to a true diff:
+    1. For each task on `$schedDate` under Schedule: FIND existing
+       canvas copy via `linkedGroupId IS lg-$task.id` (deterministic
+       group id per COPY_LINK contract). If MISSING → COPY_LINK +
+       stamp seed position. If PRESENT → skip (preserve drag).
+    2. For each existing canvas copy: FIND source task; if source
+       gone → DELETE; if present → keep.
+  Keeps drag-positioned cards intact while still propagating
+  add/remove from Schedule. Same `Schedule Table: Build` clean-
+  rebuild flow is acceptable there (cells are positional, not
+  free-form), so leave it.
+
+  **Quick non-fix:** dropping the `triggerType IS_EMPTY` clause
+  ALONE is tempting but sticky-skips: once `missingPositions == 0`
+  the op never rebuilds, so new schedule tasks never appear on
+  canvas. Diff approach is the right fix; reseed required.
 - **~~Bring back the full-screen button on panels.~~** DONE
   2026-05-21 (commit `102a96c6`). `ModulePanel.jsx` page-header
   action cluster (right of QuickAddMenu + stack cycler) now hosts
@@ -203,17 +227,20 @@ _Updated: 2026-05-21. Check this file before re-reading source._
   inspect the op's run log for `ADD_CHILD` effects and check
   what the `scheduleFormat` field value is on the day-col
   occurrence.
-- **Date-stamp bug on goal/tracker occurrences — RESOLVE BY REMOVING.**
-  The Date field on goal/tracker occurrences was never reliably
-  getting stamped (was a deferred docket item). User decision:
-  **just remove the Date field from goal/tracker occurrences
-  entirely.** Filters in the header cover what the Date field was
-  there for. Edit `server/scripts/createLiveData.js` — drop the
-  `dateFieldId` binding from goal container `fieldBindings` AND
-  from any goal/tracker `fields[]` stamps in occurrence creation.
-  Keep `dateFieldId` on the underlying tracker SOURCE occurrences
-  (water/steps/etc.) — only goal/tracker DISPLAY occurrences lose
-  it. Re-seed required.
+- **~~Date-stamp bug on goal/tracker occurrences — RESOLVE BY
+  REMOVING.~~** ALREADY DONE in `server/scripts/createLiveData.js`
+  (confirmed 2026-05-21). Goal containers (`goalContainerMods`) have
+  no `fieldBindings` at all (just styling). Goal display instances
+  (`goalInstances`) never had `dateFieldId` in their bindings —
+  only display-role bindings on totals fields. The "Stamp Filter
+  Date" op at line 5760 is already `enabled: false` with the
+  in-file comment "Date field is no longer bound to goal / account
+  instances." `ensureDateBinding` is only called on
+  `nutritionInstances.scrambledEggs/greekSaladChicken` — task
+  sources, not goals. No further code change needed; if a live grid
+  still shows stale state, a re-seed
+  (`node --env-file=.env server/scripts/createLiveData.js`) will
+  push the cleaned shape.
 
 ### 🟡 Small / structural fixes
 
