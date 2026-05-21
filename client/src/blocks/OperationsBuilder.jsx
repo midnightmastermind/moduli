@@ -1022,6 +1022,14 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
       // Object-shaped value carries fromTemplate/tokens — render as JSON for now.
       const valueIsObject = cfg.value !== null && typeof cfg.value === "object" && !Array.isArray(cfg.value);
       const updatePickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars };
+      // Color-shaped paths: trigger an inline native color picker so the
+      // user can pick a hex/rgba without typing it. Detects ownStyle.bg /
+      // ownStyle.color / ownStyle.textColor / .border (last segment of path
+      // ends in a known color key).
+      const COLOR_KEYS = new Set(["bg", "color", "textColor", "border", "borderColor"]);
+      const pathSegs = typeof cfg.path === "string" ? cfg.path.split(".") : [];
+      const isColorPath = pathSegs.length >= 2 && COLOR_KEYS.has(pathSegs[pathSegs.length - 1]);
+      const colorVal = typeof cfg.value === "string" && /^#[0-9a-fA-F]{6}$/.test(cfg.value) ? cfg.value : "#222428";
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={rowStyle}>
@@ -1043,10 +1051,21 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
                 style={{ ...inputSt, width: 320, fontFamily: "monospace", height: 60 }}
               />
             ) : (
-              <ExprOrPath value={cfg.value ?? ""} onChange={v => setCfg({ value: v })} placeholder='"$expr"   or   literal:42   or   null' width={240} {...exprProps} />
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <ExprOrPath value={cfg.value ?? ""} onChange={v => setCfg({ value: v })} placeholder='"$expr"   or   literal:42   or   null' width={isColorPath ? 200 : 240} {...exprProps} />
+                {isColorPath && (
+                  <input
+                    type="color"
+                    value={colorVal}
+                    onChange={(e) => setCfg({ value: e.target.value })}
+                    title="Pick color — writes #rrggbb. Paste rgba(...) into the value box for alpha."
+                    style={{ width: 28, height: 22, padding: 0, border: "1px solid var(--border-default)", borderRadius: 4, background: "transparent", cursor: "pointer" }}
+                  />
+                )}
+              </div>
             )}
           </div>
-          
+
         </div>
       );
     }

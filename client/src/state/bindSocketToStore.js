@@ -27,7 +27,7 @@ import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptions
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLinkedOccs: null };
+export const operationsBridge = { fireOperations: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLinkedOccs: null, applyEffect: null, requestUserInput: null };
 
 export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) {
   // Wrap dispatch to tag all socket-originated actions
@@ -702,6 +702,20 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         break;
       }
 
+      case "UPDATE_ITEM_OWN_STYLE": {
+        // Single-key write into occurrence.ownStyle — same shape as the
+        // settings menu's StyleEditor produces (which writes the whole
+        // ownStyle object on the module). Here we write per-occurrence,
+        // partial-merge so writing `.bg` doesn't clobber `.opacity` etc.
+        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occ = occOverlay[effect.itemId];
+        if (!occ || !effect.styleKey) break;
+        const nextOwnStyle = { ...(occ.ownStyle || {}), [effect.styleKey]: effect.value };
+        localOccsById[effect.itemId] = { ...occ, ownStyle: nextOwnStyle };
+        updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, ownStyle: nextOwnStyle } });
+        break;
+      }
+
       case "UPDATE_DISPLAY_VALUE": {
         if (!effect.fieldId) break;
         socketDispatch(setComputedValuesAction([
@@ -1020,6 +1034,16 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }
     return out;
   };
+  // Scheduler path: apply a single pipeline effect (UPDATE_ITEM_FIELD,
+  // CREATE_ITEM, NOTIFY, etc.) without going through runMatchingOperations.
+  // Used by useScheduler for hour+ scheduled ops that fire on cadence
+  // without an event trigger. Sub-hour scheduled ops skip persistent
+  // effects entirely (display-only rule enforced at the caller).
+  operationsBridge.applyEffect = (effect) => {
+    if (!effect) return;
+    const stateNow = stateRef?.current || {};
+    applyOperationEffect(effect, stateNow);
+  };
 
   // On transaction_created: fire operations + toast notification
   function onTransactionCreated({ transaction } = {}) {
@@ -1154,6 +1178,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     operationsBridge.removeLocalOcc = null;
     operationsBridge.getLocalOcc = null;
     operationsBridge.getLinkedOccs = null;
+    operationsBridge.applyEffect = null;
     clearInterval(scheduleInterval);
     if (bc) { bc.close(); bc = null; }
     socket.off("full_state", onFullState);

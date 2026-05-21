@@ -8,7 +8,7 @@ import RadialMenu from "../ui/RadialMenu";
 import ContextMenu from "../ui/ContextMenu";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { Trash2, Copy, FileText, Layout, Paintbrush, Monitor, Folder, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { Trash2, Copy, FileText, Layout, Paintbrush, Monitor, Folder, ArrowLeft, ChevronLeft, ChevronRight, ClipboardPaste } from "lucide-react";
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
@@ -32,11 +32,13 @@ import ContainerTable from "./containers/ContainerTable.jsx";
 import { GridActionsContext } from "../GridActionsContext";
 import { GridDataContext } from "../GridDataContext";
 import { GridLiveContext } from "../GridLiveContext";
+import { SelectionContext } from "../state/SelectionContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   getPageChildrenModules,
   applyLocalSort,
 } from "../helpers/LayoutHelpers";
+import { runPasteClipboard } from "../helpers/pasteClipboard";
 import {
   useDragDrop,
   useDroppable,
@@ -69,6 +71,7 @@ function Page({
   const { occurrencesById, modulesById, containersById, viewsById, foldersById, childrenByParentId } = useContext(GridActionsContext);
   const { state } = useContext(GridDataContext);
   const { isMobile, fullStateLoaded } = useContext(GridLiveContext);
+  const selection = useContext(SelectionContext);
 
   const pageModule = occurrence?.moduleId ? modulesById[occurrence.moduleId] : null;
   const pageView = occurrence?.viewId ? viewsById[occurrence.viewId] : null;
@@ -245,16 +248,47 @@ function Page({
     if ("ontouchstart" in window) return;
     e.preventDefault();
     e.stopPropagation();
+    // Paste-here surfaces when the multi-select clipboard is non-empty.
+    // Destination is this page occurrence; pasted children land in
+    // occurrence.occurrences[] (same shape as a container).
+    const clip = selection.clipboard;
+    const pasteLabel = clip
+      ? clip.mode === "move"
+        ? `Move ${clip.ids.length} here`
+        : clip.mode === "copylink"
+          ? `Paste linked ${clip.ids.length} here`
+          : `Paste ${clip.ids.length} here`
+      : null;
     setCtxMenu({
       x: e.clientX, y: e.clientY,
       items: [
+        clip && {
+          label: pasteLabel,
+          icon: ClipboardPaste,
+          onClick: () => {
+            runPasteClipboard({
+              mode: clip.mode,
+              ids: clip.ids,
+              destinationOccurrence: occurrence,
+              destinationModule: pageModule,
+              occurrencesById,
+              dispatch, socket,
+              gridId: pageModule?.gridId || state?.grid?._id,
+              userId: pageModule?.userId || state?.userId,
+              panelId,
+            });
+            selection.clearClipboard();
+            selection.clear();
+          },
+        },
+        clip && { separator: true },
         { label: showHeader ? "Hide header" : "Show header", onClick: () => setShowHeader(v => !v) },
         { label: "Rename", onClick: startEdit },
         { separator: true },
         { label: "Remove page", icon: Trash2, danger: true, onClick: handleDelete },
-      ],
+      ].filter(Boolean),
     });
-  }, [showHeader, startEdit, handleDelete]);
+  }, [showHeader, startEdit, handleDelete, selection, occurrence, pageModule, occurrencesById, dispatch, socket, state, panelId]);
 
   // Quick-add container inside this page
   const handleQuickAddContainer = useCallback((containerModule) => {

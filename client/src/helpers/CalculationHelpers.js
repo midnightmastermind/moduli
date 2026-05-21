@@ -490,13 +490,19 @@ export function getScaledTargetValue(target, currentTimeFilter, opts = {}) {
 /**
  * Calculate progress towards a target (0-100%)
  *
+ * Supports both counters (start < target, value rises) and countdowns
+ * (start > target, value falls). Formula: `(value - start) / (target - start) * 100`
+ * — works in both directions because the denominator flips sign. When `target.start`
+ * is undefined, defaults to 0 (backwards-compatible with the legacy "rises from
+ * zero" assumption).
+ *
  * @param {number} value - The calculated value
- * @param {Object} target - Target config { value, op, timeFilter }
+ * @param {Object} target - Target config { value, start?, op, timeFilter }
  * @param {string} currentTimeFilter - The current viewing time filter (for scaling)
- * @returns {number|null} Progress percentage, or null if no target
+ * @returns {number|null} Progress percentage, or null if no target / start === target
  */
 export function calculateProgress(value, target, currentTimeFilter = null, opts = {}) {
-  if (!target || target.value === undefined || target.value === 0) return null;
+  if (!target || target.value === undefined) return null;
 
   // Scale the target if viewing in a different time period
   let scaledTarget = target.value;
@@ -506,9 +512,11 @@ export function calculateProgress(value, target, currentTimeFilter = null, opts 
     scaledTarget = target.value * Math.floor(opts.span);
   }
 
-  if (scaledTarget === 0) return null;
+  const start = typeof target.start === "number" ? target.start : 0;
+  const range = scaledTarget - start;
+  if (range === 0) return null;
 
-  const progress = (value / scaledTarget) * 100;
+  const progress = ((value - start) / range) * 100;
   return Math.min(Math.max(progress, 0), 100);
 }
 

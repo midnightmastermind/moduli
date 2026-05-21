@@ -120,7 +120,7 @@ export default function StyleEditor({
           {/* Background Color */}
           <div>
             <Label className="text-[10px] text-muted-foreground">Background</Label>
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="flex flex-wrap gap-1 mt-1 items-center">
               {PRESET_COLORS.map((c) => (
                 <button
                   key={c.label}
@@ -135,6 +135,15 @@ export default function StyleEditor({
                   onClick={() => updateField("bg", c.value)}
                 />
               ))}
+              {/* Native color picker — same data path as the presets + text
+                  input. Writes #rrggbb directly. */}
+              <input
+                type="color"
+                value={(typeof style.bg === "string" && /^#[0-9a-fA-F]{6}$/.test(style.bg)) ? style.bg : "#222428"}
+                onChange={(e) => updateField("bg", e.target.value)}
+                title="Pick custom color"
+                style={{ width: 22, height: 22, padding: 0, border: "1px solid var(--border-default)", borderRadius: 4, background: "transparent", cursor: "pointer" }}
+              />
             </div>
             <Input
               type="text"

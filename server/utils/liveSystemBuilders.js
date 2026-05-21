@@ -95,6 +95,11 @@ export async function buildDailyRoutineTemplate({
   userId, gridId, timeSlots, timeslotFieldId, routineBySlot,
   tplManifestRootFolderId, mkOcc, Module, findModule,
   completedFieldId, waterFieldId, isTaskFieldId,
+  // When set, every slot container is stamped scheduleFormat="slot" via the
+  // module's fieldBindings + the occurrence's fields. Live data passes this;
+  // test grid leaves it null and relies on the legacy meta.scheduleSlot
+  // marker. Same dual-mode pattern as makeScheduleBuildScheduleOp.
+  scheduleFormatFieldId = null,
 }) {
   const tplRoutineRootModId = uid();
   await new Module({
@@ -116,11 +121,16 @@ export async function buildDailyRoutineTemplate({
       label: slot.label,
       meta: {
         templateModule: true,
-        scheduleSlot: true,
+        // Legacy meta marker — kept only when scheduleFormatFieldId isn't
+        // passed (test grid path). Live data uses the field-based identity.
+        ...(scheduleFormatFieldId ? {} : { scheduleSlot: true }),
         slotHour: slot.hour,
         slotMinute: slot.minute,
         slotLabel: slot.label,
       },
+      fieldBindings: scheduleFormatFieldId
+        ? [{ fieldId: scheduleFormatFieldId, role: "input", hidden: true, order: 0 }]
+        : [],
     }).save();
 
     // Mint routine instances for this slot (if any)
@@ -161,9 +171,15 @@ export async function buildDailyRoutineTemplate({
       moduleId: tplSlotModId,
       targetId: tplSlotModId, targetType: "module",
       parentId: tplRoutineRootOccId,
-      fields: { [timeslotFieldId]: { value: slot.label, flow: "in" } },
+      fields: {
+        [timeslotFieldId]: { value: slot.label, flow: "in" },
+        ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: { value: "slot", flow: "in" } } : {}),
+      },
       occurrences: slotChildOccIds,
-      meta: { scheduleSlot: true, slotLabel: slot.label },
+      meta: {
+        ...(scheduleFormatFieldId ? {} : { scheduleSlot: true }),
+        slotLabel: slot.label,
+      },
       identitySignature: `slot:${slot.label}`,
     });
     tplSlotOccIds.push(tplSlotOccId);
@@ -390,17 +406,225 @@ export async function buildDayPageTemplate({
 //   makeStampDateTimeSlotOp   — { userId, gridId, timeslotFieldId, hubPanelModuleId }
 //   makeClearDateOnMoveOutOp  — { userId, gridId, dateFieldId, timeslotFieldId }
 
-// ── Operation: Schedule Build Day (priority 1) ──
+// ── Operation: Schedule Build Day (priority 1) — ORIGINAL, used by createTestGrid ──
 // Two responsibilities:
 //   1. Ensure the schedule shell exists (Due + 48 timeslot containers, created ONCE).
 //   2. Seed the Daily Routine instances for the active date via APPLY_TEMPLATE
 //      (idempotent: skips if routine instances for that date already exist).
 // Also sweeps todos whose dueDate matches the active date into Due.
-// "Schedule: Seed Daily Routine" has been removed; this op now owns both jobs.
+// Kept intact for the test grid (single-day Schedule). See
+// `makeScheduleBuildScheduleOp` below for the multi-day day-column version
+// used by createLiveData.
 export function makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, completedTrackerName = "Tracker: Tasks Completed" }) {
   return {
     id: uid(), userId, gridId, name: "Schedule: Build Day",
     description: "Ensure Due + 48 timeslot containers exist, seed Daily Routine via APPLY_TEMPLATE, and sweep matching todos into Due.",
+    triggerTypes: ["onLoad", "onFilterChange"],
+    triggerObjects: [
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 1 },
+      { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 1 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule",    priority: 1 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 1 },
+    ],
+    enabled: true,
+    pipeline: {
+      steps: [
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            over: "$allPages",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "label", comparator: "IS", right: "Schedule" },
+            ]},
+            itemIdVar: "$schedPageId",
+            itemVar: "$schedPage",
+        }},
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$trigger.date" } },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } }],
+          else: [],
+        },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
+          else: [],
+        },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            { id: uid(), type: "action", config: {
+                type: "FIND",
+                over: "$allContainers",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "label", comparator: "IS", right: "Due" },
+                ]},
+                itemIdVar: "$dueId",
+            }},
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$dueId", comparator: "IS_EMPTY", right: "" }] },
+              then: [
+                { id: uid(), type: "action", config: {
+                    type: "CREATE",
+                    name: "Due",
+                    role: "container",
+                    kind: "list",
+                    meta: { scheduleDueContainer: true },
+                    parent: "$schedPageId",
+                    fields: { [timeslotFieldId]: "literal:Due" },
+                    fieldHidden: { [timeslotFieldId]: true },
+                    insertAtIndex: 0,
+                    itemIdVar: "$dueId",
+                }},
+              ],
+              else: [],
+            },
+            { id: uid(), type: "action", config: {
+                type: "FIND",
+                over: "$allOccurrences",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "meta.templateName", comparator: "IS", right: "Daily Routine" },
+                ]},
+                itemIdVar: "$dailyRoutineTplId",
+            }},
+            { id: uid(), type: "action", config: {
+                type: "FIND",
+                over: "$allInstances",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "_ancestors",                  comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY",     right: "$schedDate" },
+                ]},
+                itemIdVar: "$existingRoutineId",
+            }},
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$dailyRoutineTplId", comparator: "IS_NOT_EMPTY", right: "" },
+                { id: uid(), left: "$existingRoutineId", comparator: "IS_EMPTY",     right: "" },
+              ]},
+              then: [
+                { id: uid(), type: "action", config: {
+                    type: "APPLY_TEMPLATE",
+                    templateRef: "$dailyRoutineTplId",
+                    targetOccurrenceVar: "$schedPageId",
+                    mode: "merge",
+                    unwrapRoot: true,
+                    resultVar: "$newScheduleOccs",
+                    defaultFields: {
+                      [dateFieldId]: "$schedDate",
+                      [dueFieldId]:  "$schedDate",
+                    },
+                }},
+              ],
+              else: [],
+            },
+            { id: uid(), type: "action", config: {
+                type: "FIND",
+                over: "$allContainers",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "meta.todoListContainer", comparator: "IS", right: true },
+                ]},
+                itemIdVar: "$todoContId",
+            }},
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$todoContId", comparator: "IS_NOT_EMPTY", right: "" }] },
+              then: [{
+                id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
+                body: [{
+                  id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$todoContId" },
+                    { id: uid(), left: `$item.fields.${dueFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+                  ]},
+                  then: [
+                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$todoTemplateId", expr: "$item.templateId" } },
+                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$todoLabel",      expr: "$item.label" } },
+                    { id: uid(), type: "action", config: {
+                        type: "FIND",
+                        over: "$allInstances",
+                        predicate: { operator: "AND", rules: [
+                          { id: uid(), left: "templateId", comparator: "IS",           right: "$todoTemplateId" },
+                          { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$dueId" },
+                          { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+                        ]},
+                        itemIdVar: "$existingCopyId",
+                    }},
+                    {
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$existingCopyId", comparator: "IS_EMPTY", right: "" }] },
+                      then: [{
+                        id: uid(), type: "action", config: {
+                          type: "COPY_LINK",
+                          sourceId: "$item.id",
+                          parent: "$dueId",
+                          fields: {
+                            [dateFieldId]: "$schedDate",
+                            [dueFieldId]:  "$schedDate",
+                          },
+                        },
+                      }],
+                      else: [{
+                        id: uid(), type: "action", config: {
+                          type: "COPY_LINK",
+                          sourceId: "$item.id",
+                          targetId: "$existingCopyId",
+                        },
+                      }],
+                    },
+                  ],
+                  else: [],
+                }],
+              }],
+              else: [],
+            },
+            { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: "Tracker: Water Today" } },
+            { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: completedTrackerName } },
+          ],
+          else: [],
+        },
+      ],
+    },
+  };
+}
+
+// ── Operation: Schedule Build Schedule (priority 1) — NEW, used by createLiveData ──
+// HYBRID architecture: shared slots + ephemeral day-col wrappers.
+//
+//   Schedule page
+//     occurrences[] = [day-col-mon, day-col-tue, day-col-wed, ...slot1..slot48, Due]
+//                     ↑ wrappers live here (active period only) — slots also remain
+//                       in the list (multi-parented) so the cascade still finds them
+//                       on direct ancestor walks.
+//
+//   shared slots + Due  (parentId = Schedule, never deleted)
+//     Routine instances accumulate inside the shared slots, one per (date, slot).
+//     Visibility cascade filters per render context (day-col's filterOverride).
+//
+//   day-col-<date>
+//     occurrences[] = [Due, slot1, slot2, ..., slot48]   ← multi-parent refs
+//     filterOverride.dateField = <date>                  ← scopes cascade for this column
+//     meta.dayDate = <date>, meta.scheduleDayColumn = true
+//
+// Tear-down semantics: day-col wrappers whose meta.dayDate is NOT in the active
+// $activePeriodDates list get DELETEd. This is safe — slots have parentId =
+// Schedule (still rooted) AND are multi-parented into the surviving day-cols,
+// so DELETE on a wrapper does NOT cascade into the shared slot subtree.
+// Instances inside slots persist regardless. Zero data loss.
+//
+// Day-col MODULE is shared: CREATE's find-by-label-and-reuse mints "Day Column"
+// once and every day's day-col OCCURRENCE points at that one module.
+//
+// Idempotency: per-day FIND checks gate creation; APPLY_TEMPLATE's identitySig
+// merge skips already-cloned slots; ADD_CHILD's includes-check skips duplicate
+// multi-parent refs.
+export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId = null, completedTrackerName = "Tracker: Tasks Completed", waterTrackerName = "Tracker: Water Today" }) {
+  return {
+    id: uid(), userId, gridId, name: "Schedule: Build Schedule",
+    description: "Build one day-column per visible day in the active filter period. ≤7 days: full slot structure per day-col. >7 days: flat day-cols. Persistent — day-cols never deleted, visibility cascade hides out-of-period ones.",
     // priority 1 so the shell (slots) + routine seeding finish before goal
     // aggregations (priority 3) read the data. Four onFilterChange triggers:
     //   - grid: toolbar date arrows write grid.activeFilterValues — fires a
@@ -430,253 +654,391 @@ export function makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId
     enabled: true,
     pipeline: {
       steps: [
-        // Locate the Schedule page first — we want to drive $schedDate off its
-        // effective filter (page override → grid filter → ...). Without this,
-        // onLoad ran with $schedDate = $today even when the user was viewing a
-        // different date, so newly-created copies were dated today and stayed
-        // hidden by the page's date filter — looked like the op did nothing.
+        // ── Top-level lookups (one-time per run) ────────────────────────────
         { id: uid(), type: "action", config: {
-            type: "FIND",
-            over: "$allPages",
+            type: "FIND", over: "$allPages",
             predicate: { operator: "AND", rules: [
               { id: uid(), left: "label", comparator: "IS", right: "Schedule" },
             ]},
-            itemIdVar: "$schedPageId",
-            itemVar: "$schedPage",
+            itemIdVar: "$schedPageId", itemVar: "$schedPage",
+        }},
+        { id: uid(), type: "action", config: {
+            type: "FIND", over: "$allOccurrences",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "meta.templateName", comparator: "IS", right: "Daily Routine" },
+            ]},
+            itemIdVar: "$dailyRoutineTplId",
+        }},
+        { id: uid(), type: "action", config: {
+            type: "FIND", over: "$allContainers",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "meta.todoListContainer", comparator: "IS", right: true },
+            ]},
+            itemIdVar: "$todoContId",
         }},
 
-        // $schedDate resolution — $trigger.date wins. Build Day's triggers
-        // are all explicit user-action sources that carry the intended date:
-        //   - Schedule LocalFilterNav → $trigger.date = Schedule's new override
-        //   - Daily Goals LocalFilterNav (also Physical/sub-container) →
-        //     $trigger.date = goals' new override (the user clarified: when
-        //     fired from goals, USE the goals filter date, even though
-        //     $schedPage._effectiveFilter would resolve to Schedule's own
-        //     filter — possibly a different day).
-        //   - Toolbar grid filter change → $trigger.date = toolbar value
-        // Only onLoad has no $trigger.date; we fall through to the page's
-        // effective filter (Schedule's current view) for that case.
-        // $parentFilter (the trigger occurrence's own ancestor-merged filter)
-        // is intentionally NOT used — it'd anchor on the trigger source and
-        // pull in irrelevant filter overrides further down the chain.
-        //   1. $trigger.date
-        //   2. $schedPage._effectiveFilter.<dateFieldId> (onLoad fallback)
-        //   3. $today (cold-start last resort)
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$trigger.date" } },
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } }],
-          else: [],
-        },
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
-          else: [],
-        },
         {
           id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
           then: [
-            // Ensure the Due container exists. Created ONCE — not per day.
-            // Date filtering is handled by the page's filter cascade walking
-            // down to the per-day instance copies inside Due, not by stamping
-            // a date on the container itself.
+            // ── PHASE 1: shared Due ─────────────────────────────────────────
+            // One Due container per Schedule page. parentId = Schedule;
+            // multi-parented into every day-col via ADD_CHILD below.
+            // Identity: scheduleFormat="due" field (live data path) or
+            // meta.scheduleDueContainer (test grid fallback when the field
+            // id wasn't passed).
             { id: uid(), type: "action", config: {
-                type: "FIND",
-                over: "$allContainers",
+                type: "FIND", over: "$allContainers",
                 predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "label", comparator: "IS", right: "Due" },
+                  { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  scheduleFormatFieldId
+                    ? { id: uid(), left: `fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "due" }
+                    : { id: uid(), left: "meta.scheduleDueContainer", comparator: "IS", right: true },
                 ]},
-                itemIdVar: "$dueId",
+                itemIdVar: "$sharedDueId",
             }},
             {
               id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$dueId", comparator: "IS_EMPTY", right: "" }] },
-              then: [
-                { id: uid(), type: "action", config: {
-                    type: "CREATE",
-                    name: "Due",
-                    role: "container",
-                    kind: "list",
-                    meta: { scheduleDueContainer: true },
-                    parent: "$schedPageId",
-                    fields: { [timeslotFieldId]: "literal:Due" },
-                    fieldHidden: { [timeslotFieldId]: true },
-                    insertAtIndex: 0,
-                    itemIdVar: "$dueId",
-                }},
-              ],
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$sharedDueId", comparator: "IS_EMPTY", right: "" }] },
+              then: [{ id: uid(), type: "action", config: {
+                  type: "CREATE", name: "Due", role: "container", kind: "list",
+                  meta: scheduleFormatFieldId ? {} : { scheduleDueContainer: true },
+                  parent: "$schedPageId",
+                  fields: {
+                    [timeslotFieldId]: "literal:Due",
+                    ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: "literal:due" } : {}),
+                  },
+                  fieldHidden: {
+                    [timeslotFieldId]: true,
+                    ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: true } : {}),
+                  },
+                  insertAtIndex: 0,
+                  itemIdVar: "$sharedDueId",
+              }}],
               else: [],
             },
 
-            // Apply the "Daily Routine" template in MERGE mode. The template
-            // captures the full schedule subtree (48 slot containers with
-            // routine instances pre-placed). Merge semantics:
-            //   - Existing slot (matched by identitySignature "slot:<label>")
-            //     → skip cloning the slot, recurse into its template children.
-            //   - Routine instance templates carry NO identitySignature, so
-            //     merge falls through to a fresh clone on every apply.
-            // To keep per-date routine instances idempotent across reloads /
-            // filter changes, gate the whole apply on a FIND for any existing
-            // instance under $schedPage already stamped with $schedDate. If
-            // one exists, the date has been seeded — skip.
+            // ── PHASE 2: shared 48 slots (one-time setup) ───────────────────
+            // Check if any slot exists under Schedule. If none, APPLY_TEMPLATE
+            // the Daily Routine template; identitySig "slot:<label>" makes
+            // re-runs no-ops once slots exist. defaultFields here stamps the
+            // first $activePeriodDates day so the first routine instances are
+            // dated. Subsequent days top up in PHASE 3.
             { id: uid(), type: "action", config: {
-                type: "FIND",
-                over: "$allOccurrences",
+                type: "FIND", over: "$allContainers",
                 predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "meta.templateName", comparator: "IS", right: "Daily Routine" },
+                  { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  scheduleFormatFieldId
+                    ? { id: uid(), left: `fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "slot" }
+                    : { id: uid(), left: "meta.scheduleSlot", comparator: "IS", right: true },
                 ]},
-                itemIdVar: "$dailyRoutineTplId",
+                itemIdVar: "$anySlotId",
             }},
-            { id: uid(), type: "action", config: {
-                type: "FIND",
-                over: "$allInstances",
-                predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "_ancestors",                  comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                  { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY",     right: "$schedDate" },
-                ]},
-                itemIdVar: "$existingRoutineId",
-            }},
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$firstDay", expr: "$activePeriodDates.0" } },
             {
               id: uid(), type: "if",
               condition: { operator: "AND", rules: [
                 { id: uid(), left: "$dailyRoutineTplId", comparator: "IS_NOT_EMPTY", right: "" },
-                { id: uid(), left: "$existingRoutineId", comparator: "IS_EMPTY",     right: "" },
+                { id: uid(), left: "$anySlotId",         comparator: "IS_EMPTY",     right: "" },
               ]},
-              then: [
-                // defaultFields stamps the date/due directly into each cloned
-                // routine instance's `fields` map at CREATE_ITEM time. The
-                // previous LOOP+UPDATE pattern emitted a separate
-                // update_occurrence per clone, which raced the create on the
-                // server (update can upsert before create drains the queue,
-                // then create's $set clobbers the date). Baking the date in
-                // makes it a single socket emit per clone.
-                { id: uid(), type: "action", config: {
-                    type: "APPLY_TEMPLATE",
-                    templateRef: "$dailyRoutineTplId",
-                    targetOccurrenceVar: "$schedPageId",
-                    mode: "merge",
-                    unwrapRoot: true,
-                    resultVar: "$newScheduleOccs",
-                    defaultFields: {
-                      [dateFieldId]: "$schedDate",
-                      [dueFieldId]:  "$schedDate",
-                    },
-                }},
-              ],
+              then: [{ id: uid(), type: "action", config: {
+                  type: "APPLY_TEMPLATE",
+                  templateRef: "$dailyRoutineTplId",
+                  targetOccurrenceVar: "$schedPageId",
+                  mode: "merge", unwrapRoot: true,
+                  defaultFields: {
+                    [dateFieldId]: "$firstDay",
+                    [dueFieldId]:  "$firstDay",
+                  },
+              }}],
               else: [],
             },
 
-            // Sweep todos whose due-date matches the active date into Due.
-            // CREATE a copy of the todo into Due — independent occurrence so the
-            // user can mark the schedule copy complete without affecting the
-            // original todo. Idempotent via a per-todo FIND scoped to $schedDate
-            // matching the source todo's templateId.
-            { id: uid(), type: "action", config: {
-                type: "FIND",
-                over: "$allContainers",
-                predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "meta.todoListContainer", comparator: "IS", right: true },
+            // ── PHASE 3: per-day routine seeding ────────────────────────────
+            // For each $day in the active period, ensure routine instances
+            // dated to $day exist under the shared slots. APPLY_TEMPLATE in
+            // merge mode skips slot containers (identitySig dedup) and only
+            // clones the routine instances stamped with $day.
+            {
+              id: uid(), type: "loop", overExpr: "$activePeriodDates", as: "$day",
+              body: [
+                { id: uid(), type: "action", config: {
+                    type: "FIND", over: "$allInstances",
+                    predicate: { operator: "AND", rules: [
+                      { id: uid(), left: "_ancestors",                  comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                      { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY",     right: "$day" },
+                    ]},
+                    itemIdVar: "$existingRoutineId",
+                }},
+                {
+                  id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$dailyRoutineTplId", comparator: "IS_NOT_EMPTY", right: "" },
+                    { id: uid(), left: "$existingRoutineId", comparator: "IS_EMPTY",     right: "" },
+                  ]},
+                  then: [{ id: uid(), type: "action", config: {
+                      type: "APPLY_TEMPLATE",
+                      templateRef: "$dailyRoutineTplId",
+                      targetOccurrenceVar: "$schedPageId",
+                      mode: "merge", unwrapRoot: true,
+                      defaultFields: {
+                        [dateFieldId]: "$day",
+                        [dueFieldId]:  "$day",
+                      },
+                  }}],
+                  else: [],
+                },
+              ],
+            },
+
+            // ── PHASE 4a: pre-compute slot ID list ──────────────────────────
+            // Walk $allContainers ONCE up-front and push every shared-slot id
+            // into $slotIds. Phase 4b's per-day loop then iterates $slotIds
+            // instead of re-scanning $allContainers per day. Cuts perf from
+            // O(days × containers) to O(containers + days × slots).
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$slotIds", expr: "json:[]" } },
+            {
+              id: uid(), type: "loop", overExpr: "$allContainers", as: "$cont",
+              body: [{
+                id: uid(), type: "if",
+                condition: { operator: "AND", rules: [
+                  { id: uid(), left: "$cont._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  scheduleFormatFieldId
+                    ? { id: uid(), left: `$cont.fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "slot" }
+                    : { id: uid(), left: "$cont.meta.scheduleSlot", comparator: "IS", right: true },
                 ]},
-                itemIdVar: "$todoContId",
-            }},
+                then: [{ id: uid(), type: "action", config: { type: "PUSH_TO_VAR", name: "$slotIds", expr: "$cont.id" } }],
+                else: [],
+              }],
+            },
+
+            // ── PHASE 4b: per-day TIMESLOT day-col creation + multi-parent ───
+            // Gated on $activePeriodCount ≤ 7. For each $day, ensure a
+            // timeslot day-col wrapper exists with all shared slots + Due
+            // multi-parented in. ADD_CHILD is idempotent so re-runs are
+            // no-ops. Above 7 days, PHASE 4c creates shortened day-cols
+            // instead (flat, no slots).
+            //
+            // Day-col identity is field-based: a container with the
+            // scheduleFormat field stamped (any value) is a day-col. Date
+            // comes from the dateFieldId stamp. No meta markers.
             {
               id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$todoContId", comparator: "IS_NOT_EMPTY", right: "" }] },
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$activePeriodCount", comparator: "LESS_OR_EQUAL", right: 7 }] },
               then: [{
-                id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
+                id: uid(), type: "loop", overExpr: "$activePeriodDates", as: "$day",
+                body: [
+                  { id: uid(), type: "action", config: {
+                      type: "FIND", over: "$allContainers",
+                      predicate: { operator: "AND", rules: [
+                        { id: uid(), left: "_ancestors",                                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                        ...(scheduleFormatFieldId ? [{ id: uid(), left: `fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "timeslot" }] : []),
+                        { id: uid(), left: `fields.${dateFieldId}.value`,                      comparator: "SAME_DAY",    right: "$day" },
+                      ]},
+                      itemIdVar: "$dayColId",
+                  }},
+                  {
+                    id: uid(), type: "if",
+                    condition: { operator: "AND", rules: [{ id: uid(), left: "$dayColId", comparator: "IS_EMPTY", right: "" }] },
+                    then: [
+                      { id: uid(), type: "action", config: {
+                          type: "CREATE",
+                          name: "Day Column",
+                          role: "container", kind: "list",
+                          meta: { allowChildContainers: true },
+                          parent: "$schedPageId",
+                          filterOverride: { [dateFieldId]: "$day" },
+                          fields: {
+                            [dateFieldId]: "$day",
+                            ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: "literal:timeslot" } : {}),
+                          },
+                          fieldHidden: {
+                            [dateFieldId]: true,
+                            ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: true } : {}),
+                          },
+                          itemIdVar: "$dayColId",
+                      }},
+                      // Iterate the precomputed slot list and ADD_CHILD each.
+                      {
+                        id: uid(), type: "loop", overExpr: "$slotIds", as: "$slotId",
+                        body: [
+                          { id: uid(), type: "action", config: {
+                              type: "ADD_CHILD",
+                              parentId: "$dayColId",
+                              childId: "$slotId",
+                          }},
+                        ],
+                      },
+                      // Multi-parent the shared Due too.
+                      {
+                        id: uid(), type: "if",
+                        condition: { operator: "AND", rules: [{ id: uid(), left: "$sharedDueId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                        then: [{ id: uid(), type: "action", config: {
+                            type: "ADD_CHILD",
+                            parentId: "$dayColId",
+                            childId: "$sharedDueId",
+                        }}],
+                        else: [],
+                      },
+                    ],
+                    else: [],
+                  },
+                ],
+              }],
+              else: [],
+            },
+
+            // ── PHASE 4c: per-day SHORTENED day-col creation ────────────────
+            // Gated on $activePeriodCount > 7. Each shortened day-col is a
+            // flat container (no slots inside) — Schedule's day-grouped
+            // calendar view for long periods. Field-based identity (no
+            // meta markers): scheduleFormat="shortened" + date field = $day.
+            ...(scheduleFormatFieldId ? [{
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$activePeriodCount", comparator: "GREATER", right: 7 }] },
+              then: [{
+                id: uid(), type: "loop", overExpr: "$activePeriodDates", as: "$day",
+                body: [
+                  { id: uid(), type: "action", config: {
+                      type: "FIND", over: "$allContainers",
+                      predicate: { operator: "AND", rules: [
+                        { id: uid(), left: "_ancestors",                                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                        { id: uid(), left: `fields.${scheduleFormatFieldId}.value`,            comparator: "IS",           right: "shortened" },
+                        { id: uid(), left: `fields.${dateFieldId}.value`,                      comparator: "SAME_DAY",     right: "$day" },
+                      ]},
+                      itemIdVar: "$shortColId",
+                  }},
+                  {
+                    id: uid(), type: "if",
+                    condition: { operator: "AND", rules: [{ id: uid(), left: "$shortColId", comparator: "IS_EMPTY", right: "" }] },
+                    then: [
+                      { id: uid(), type: "action", config: {
+                          type: "CREATE",
+                          name: "Day",
+                          role: "container", kind: "list",
+                          meta: { allowChildContainers: true },
+                          parent: "$schedPageId",
+                          filterOverride: { [dateFieldId]: "$day" },
+                          fields: {
+                            [dateFieldId]: "$day",
+                            [scheduleFormatFieldId]: "literal:shortened",
+                          },
+                          fieldHidden: {
+                            [dateFieldId]: true,
+                            [scheduleFormatFieldId]: true,
+                          },
+                          itemIdVar: "$shortColId",
+                      }},
+                    ],
+                    else: [],
+                  },
+                ],
+              }],
+              else: [],
+            }] : []),
+
+            // ── PHASE 5: teardown out-of-period / wrong-format day-cols ─────
+            // Loop every container under Schedule that has the scheduleFormat
+            // field stamped (i.e. is a day-col). DELETE if EITHER:
+            // (a) its date field is NOT in $activePeriodDates, OR
+            // (b) its scheduleFormat doesn't match the current mode
+            //     (timeslot when ≤7, shortened when >7).
+            // Slots aren't touched — they don't carry scheduleFormat, so the
+            // outer `IS_NOT_EMPTY` gate skips them. Slots are multi-parented
+            // into surviving day-cols, so DELETE doesn't cascade.
+            ...(scheduleFormatFieldId ? [
+              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$expectedFormat", expr: "literal:timeslot" } },
+              {
+                id: uid(), type: "if",
+                condition: { operator: "AND", rules: [{ id: uid(), left: "$activePeriodCount", comparator: "GREATER", right: 7 }] },
+                then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$expectedFormat", expr: "literal:shortened" } }],
+                else: [],
+              },
+              {
+                id: uid(), type: "loop", overExpr: "$allContainers", as: "$cont",
                 body: [{
                   id: uid(), type: "if",
                   condition: { operator: "AND", rules: [
-                    { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$todoContId" },
-                    { id: uid(), left: `$item.fields.${dueFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+                    { id: uid(), left: "$cont._ancestors",                                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                    { id: uid(), left: `$cont.fields.${scheduleFormatFieldId}.value`,            comparator: "IS_NOT_EMPTY", right: "" },
                   ]},
-                  then: [
-                    // Capture the source todo's templateId + label before we
-                    // start the copy guard so $item references stay stable.
-                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$todoTemplateId", expr: "$item.templateId" } },
-                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$todoLabel",      expr: "$item.label" } },
-                    // Has a copy of this todo already been swept into the active
-                    // date's Due? Date filtering must live in the predicate —
-                    // FIND no longer reads cfg.scope.dateFieldId. Without the
-                    // SAME_DAY rule, a copy from any past day matches and the
-                    // sweep silently skips creation for the date being viewed.
-                    // FIND predicate paths are bare record paths (no $item. prefix).
-                    { id: uid(), type: "action", config: {
-                        type: "FIND",
-                        over: "$allInstances",
-                        predicate: { operator: "AND", rules: [
-                          { id: uid(), left: "templateId", comparator: "IS",           right: "$todoTemplateId" },
-                          { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$dueId" },
-                          { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
-                        ]},
-                        itemIdVar: "$existingCopyId",
-                    }},
-                    {
-                      id: uid(), type: "if",
-                      condition: { operator: "AND", rules: [{ id: uid(), left: "$existingCopyId", comparator: "IS_EMPTY", right: "" }] },
-                      then: [{
-                        id: uid(), type: "action", config: {
-                          // COPY_LINK (not CREATE): the swept Due copy shares
-                          // a linkedGroupId with the source todo, so marking
-                          // either complete propagates via the server's
-                          // update_occurrence linked-group fan-out
-                          // (server/socketHandlers/occurrences.js:91-124).
-                          // Reuses source.moduleId, so no template mint and
-                          // the source's existing fieldBindings (incl. the
-                          // already-hidden date binding) carry through —
-                          // hence no fieldHidden here, unlike a fresh CREATE.
-                          type: "COPY_LINK",
-                          sourceId: "$item.id",
-                          parent: "$dueId",
-                          // Stamp both date fields so the schedule cascade
-                          // matches AND the visible "Due" field renders the
-                          // active date. copyFields default true seeds the
-                          // copy's other fields from the source so the visual
-                          // states match before the first propagated write.
-                          fields: {
-                            [dateFieldId]: "$schedDate",
-                            [dueFieldId]:  "$schedDate",
-                          },
-                        },
-                      }],
-                      // A copy already exists for this date. If it predates
-                      // COPY_LINK (or was a plain CREATE), it shares NO
-                      // linkedGroupId with the source todo — so marking either
-                      // complete does nothing to the other. Call COPY_LINK in
-                      // migration mode (sourceId + targetId, no new occurrence)
-                      // to retroactively join them via a shared linkedGroupId.
-                      // Idempotent: once linked, the IS check inside COPY_LINK
-                      // no-ops (no UPDATE emitted when both already match).
-                      else: [{
-                        id: uid(), type: "action", config: {
-                          type: "COPY_LINK",
-                          sourceId: "$item.id",
-                          targetId: "$existingCopyId",
-                        },
-                      }],
-                    },
-                  ],
+                  then: [{
+                    id: uid(), type: "if",
+                    condition: { operator: "AND", rules: [
+                      { id: uid(), left: "$activePeriodDates",                                   comparator: "ARRAY_INCLUDES", right: `$cont.fields.${dateFieldId}.value` },
+                      { id: uid(), left: `$cont.fields.${scheduleFormatFieldId}.value`,          comparator: "IS",             right: "$expectedFormat" },
+                    ]},
+                    then: [],
+                    else: [{ id: uid(), type: "action", config: {
+                        type: "DELETE",
+                        itemIdExpr: "$cont.id",
+                    }}],
+                  }],
                   else: [],
+                }],
+              },
+            ] : []),
+
+            // ── PHASE 6: per-day todo sweep into shared Due ─────────────────
+            // For each $day, sweep matching todos into the shared Due via
+            // COPY_LINK (so completion fan-out works). All swept copies live
+            // under the shared Due — visibility cascade filters them per
+            // day-col render via the day-col's filterOverride.
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$todoContId",  comparator: "IS_NOT_EMPTY", right: "" },
+                { id: uid(), left: "$sharedDueId", comparator: "IS_NOT_EMPTY", right: "" },
+              ]},
+              then: [{
+                id: uid(), type: "loop", overExpr: "$activePeriodDates", as: "$day",
+                body: [{
+                  id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
+                  body: [{
+                    id: uid(), type: "if",
+                    condition: { operator: "AND", rules: [
+                      { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$todoContId" },
+                      { id: uid(), left: `$item.fields.${dueFieldId}.value`, comparator: "SAME_DAY", right: "$day" },
+                    ]},
+                    then: [
+                      { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$todoTemplateId", expr: "$item.templateId" } },
+                      { id: uid(), type: "action", config: {
+                          type: "FIND", over: "$allInstances",
+                          predicate: { operator: "AND", rules: [
+                            { id: uid(), left: "templateId", comparator: "IS",           right: "$todoTemplateId" },
+                            { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$sharedDueId" },
+                            { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$day" },
+                          ]},
+                          itemIdVar: "$existingCopyId",
+                      }},
+                      {
+                        id: uid(), type: "if",
+                        condition: { operator: "AND", rules: [{ id: uid(), left: "$existingCopyId", comparator: "IS_EMPTY", right: "" }] },
+                        then: [{ id: uid(), type: "action", config: {
+                            type: "COPY_LINK",
+                            sourceId: "$item.id",
+                            parent: "$sharedDueId",
+                            fields: { [dateFieldId]: "$day", [dueFieldId]: "$day" },
+                        }}],
+                        else: [{ id: uid(), type: "action", config: {
+                            type: "COPY_LINK",
+                            sourceId: "$item.id",
+                            targetId: "$existingCopyId",
+                        }}],
+                      },
+                    ],
+                    else: [],
+                  }],
                 }],
               }],
               else: [],
             },
 
-            // Tail: re-aggregate the goal trackers so any newly-seeded routine
-            // OR newly-swept Due copy immediately ticks goal totals — without
-            // this, Schedule nav created tasks but Goals stayed at its old
-            // count until the user re-triggered the trackers (filter nav).
-            // Trackers' onFilterChange is ancestor-scoped to "Daily Goals", so
-            // a Schedule-page filter change does NOT naturally re-fire them.
-            // The in-batch `liveOccs` overlay (operationExecutor.runMatching
-            // Operations) means trackers see this op's CREATE_ITEM effects.
-            // When Build Day was itself called by a Goals nav, the trackers
-            // also fire naturally at priority 3 — these tail invocations are
-            // a redundant-but-idempotent recompute (aggregations are pure).
-            { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: "Tracker: Water Today" } },
+            // Tail: re-aggregate trackers so newly-seeded routine + swept
+            // todos tick goal totals immediately. Names parameterized so
+            // live data ("Tracker: Water") and test grid ("Tracker: Water Today")
+            // each point at the right ops.
+            { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: waterTrackerName } },
             { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: completedTrackerName } },
           ],
           else: [],
@@ -1045,6 +1407,11 @@ export function makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPa
 export function makeTrackerOp({
   userId, gridId, name,
   goalLabel, goalFieldId, dateFieldId, completedFieldId,
+  // Direct occurrence ID — preferred over goalLabel. When provided, the
+  // goal-lookup step binds $goalId from this literal and FINDs $goalItem
+  // by id match. Zero label-collision risk. Used by per-metric goal
+  // restructure where many goals share field names like "Tasks Completed".
+  goalOccurrenceId,
   sourceFieldId, sourceFieldIds, incomeFieldId, spentFieldId,
   agg, flow = "any", timeFilter = "daily", scopeLabel = "Schedule",
   description,
@@ -1052,6 +1419,10 @@ export function makeTrackerOp({
   // Used by Tracker: Tasks Completed to filter out non-task items dragged
   // into Schedule (mood checks, water logs, etc. that don't have isTask=true).
   isTaskFieldId,
+  // Optional Command Center folder routing. When set, the returned op
+  // carries this folderId so the Trackers column groups it without
+  // relying on name-prefix regex post-processing.
+  folderId,
 }) {
   // ── Fail-fast argument guards ──
   // Task 13 calls this ~20× with varying agg types; silent-zero goals are hard
@@ -1326,6 +1697,7 @@ export function makeTrackerOp({
 
   return {
     id: uid(), userId, gridId, name,
+    ...(folderId ? { folderId } : {}),
     description: description || `${agg} aggregation into "${goalLabel}" scoped under the "${scopeLabel}" page${dateGated ? ` for the ${timeFilter} window the goal page is showing` : " (lifetime)"}.`,
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     // Per-trigger priority 3: runs AFTER seed (priority 2) on the same Daily
@@ -1359,15 +1731,38 @@ export function makeTrackerOp({
         // driven off its OWN _effectiveFilter (instance → goal container →
         // goal page → grid), NOT $parentFilter (which is anchored on the
         // trigger occurrence and would resolve to the wrong day).
-        { id: uid(), type: "action", config: {
-            type: "FIND",
-            over: "$allInstances",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "label", comparator: "IS", right: goalLabel },
-            ]},
-            itemIdVar: "$goalId",
-            itemVar: "$goalItem",
-        }},
+        //
+        // Two lookup modes:
+        //   - goalOccurrenceId provided: bind $goalId from the literal seed-
+        //     time ID, then FIND $goalItem by id match. Zero collision risk;
+        //     use this for any goal restructure where labels collide across
+        //     containers.
+        //   - goalLabel only: legacy path, FIND by label across $allInstances.
+        //     Used by the test grid + any goals whose label is globally unique.
+        ...(goalOccurrenceId
+          ? [
+              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalId", expr: `literal:${goalOccurrenceId}` } },
+              { id: uid(), type: "action", config: {
+                  type: "FIND",
+                  over: "$allItems",
+                  predicate: { operator: "AND", rules: [
+                    { id: uid(), left: "id", comparator: "IS", right: "$goalId" },
+                  ]},
+                  itemVar: "$goalItem",
+              }},
+            ]
+          : [
+              { id: uid(), type: "action", config: {
+                  type: "FIND",
+                  over: "$allInstances",
+                  predicate: { operator: "AND", rules: [
+                    { id: uid(), left: "label", comparator: "IS", right: goalLabel },
+                  ]},
+                  itemIdVar: "$goalId",
+                  itemVar: "$goalItem",
+              }},
+            ]
+        ),
 
         ...goalDateSteps,
 

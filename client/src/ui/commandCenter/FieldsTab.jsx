@@ -297,6 +297,21 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
       {local.displayEnabled === true && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={labelStyle}>Start</span>
+            <input
+              type="number"
+              value={local.displayConfig?.startValue ?? ""}
+              onChange={(e) => {
+                const raw = e.target.value;
+                const v = raw === "" ? null : Number(raw);
+                setLocal((p) => ({ ...p, displayConfig: { ...(p.displayConfig || {}), startValue: Number.isNaN(v) ? null : v } }));
+              }}
+              placeholder="0"
+              style={{ ...inputStyle, width: 70 }}
+              title="0% progress anchor. Counters: 0 (start low, rise to target). Countdowns: same as target's high end (e.g. 10 if you start with 10 tasks). Defaults to 0."
+            />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={labelStyle}>Target</span>
             <input
               type="number"
@@ -309,6 +324,21 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
               placeholder="e.g. 64"
               style={{ ...inputStyle, width: 90 }}
             />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={labelStyle}>Op</span>
+            <select
+              value={local.displayConfig?.targetOp || ">="}
+              onChange={(e) => setLocal((p) => ({ ...p, displayConfig: { ...(p.displayConfig || {}), targetOp: e.target.value } }))}
+              style={{ ...inputStyle, width: "auto", minWidth: 70 }}
+              title="≥ for counters (met when value ≥ target). ≤ for countdowns (met when value ≤ target)."
+            >
+              <option value=">=">≥</option>
+              <option value="<=">≤</option>
+              <option value=">">&gt;</option>
+              <option value="<">&lt;</option>
+              <option value="==">=</option>
+            </select>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={labelStyle}>Period</span>

@@ -617,6 +617,17 @@ select:disabled { cursor: not-allowed; }
   pointer-events: none;
 }
 
+/* ── Multi-select visual indicator ────────────────────────────────────────
+   Shared by .instance-wrap and .container-shell. Solid accent outline with
+   a subtle tint so the selected set reads as a group at a glance. ESC at
+   App level clears the selection. */
+.instance-wrap.is-selected > .instance-row,
+.container-shell.is-selected {
+  outline: 2px solid var(--accent-blue, #3b82f6);
+  outline-offset: 1px;
+  background-color: rgba(59, 130, 246, 0.08);
+}
+
 /* Instance card raised in a well — only the instance row, not lip or body */
 .instance-wrap > .instance-row {
   width: 100%;
@@ -2244,22 +2255,6 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .table-remove-row-btn:hover { color: #e05c5c; background: rgba(224,92,92,0.12); opacity: 1 !important; }
 .table-remove-row-btn[disabled] { cursor: not-allowed; opacity: 0 !important; }
 
-/* Filter-date badge — shown inline on goal/tracker instance labels so the
-   user sees what date range they're filtering on. Hover-darkens to read it
-   more clearly when needed. */
-.instance-filter-date-badge {
-  display: inline-block;
-  margin-top: 2px;
-  padding: 1px 6px;
-  font-size: 9px; line-height: 1.3;
-  font-family: var(--font-mono);
-  color: var(--text-faint);
-  background: var(--input-bg, rgba(255,255,255,0.04));
-  border: 1px solid var(--border-subtle);
-  border-radius: 3px;
-  white-space: nowrap;
-}
-
 /* Instance media section — image/video/audio block under label + fields on
    board/list instances. Also an artifact drop target (dashed when empty). */
 .instance-media {
@@ -2390,4 +2385,10 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   background: rgba(59, 130, 246, 0.12) !important;
   outline: 1px solid var(--accent-blue);
   outline-offset: -1px;
+}
+
+/* ── Socket status pill (ui/SocketStatusBanner.jsx) ───────────────────── */
+@keyframes socket-status-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.7); }
 }

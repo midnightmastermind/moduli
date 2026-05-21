@@ -88,6 +88,13 @@ const OccurrenceSchema = new mongoose.Schema(
     // Per-occurrence drag mode override (overrides module.defaultDragMode when set)
     dragMode: { type: String, enum: ["move", "copy", "copylink"], default: null },
 
+    // Per-occurrence style overlay — overlays module.ownStyle at render time
+    // (see helpers/StyleHelpers.resolveContainerStyle/resolveInstanceStyle).
+    // Settable via the occurrence settings menu OR by operations writing to
+    // path `$occ.ownStyle.<key>` (UPDATE_ITEM_OWN_STYLE effect). Same shape
+    // as module.ownStyle: { bg, textColor, border, borderRadius, opacity, ... }.
+    ownStyle: { type: mongoose.Schema.Types.Mixed, default: null },
+
     // Optional metadata
     meta: { type: mongoose.Schema.Types.Mixed, default: {} },
   },

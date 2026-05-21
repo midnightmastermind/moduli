@@ -1,6 +1,17 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-05-19. Check this file before re-reading source._
+_Updated: 2026-05-20. Check this file before re-reading source._
+
+## Recent Changes (2026-05-20 — SelectionContext clipboard)
+- **`SelectionContext.js`**: Added `clipboard` state + `setClipboard(mode, ids)`
+  + `clearClipboard()` to the context value. Clipboard shape `{ mode:
+  "copy"|"move"|"copylink", ids: [occId,...] }`. Staged by the bulk
+  right-click items on `modules/ModuleInstance.jsx` (Copy N selected /
+  Move N selected / Copy-link N selected). Replayed by Paste-here on
+  container + page right-click menus (`helpers/pasteClipboard.js` →
+  `runPasteClipboard`). Move keeps the originals until paste lands;
+  copy/copylink mint fresh occurrences each paste. Clipboard cleared
+  by the paste handler after fan-out.
 
 ## Recent Changes (2026-05-19 — editorBindings.js)
 - **NEW `editorBindings.js`**: `resolveEditorBinding({ occurrence, module, slot })`

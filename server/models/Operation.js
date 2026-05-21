@@ -32,6 +32,18 @@ const OperationSchema = new mongoose.Schema(
     // Optional interval (ms) for onInterval trigger
     intervalMs: { type: Number, default: null },
 
+    // Time-based schedule (separate from triggerObjects). When set, this op
+    // runs on a cadence instead of in response to events. Sub-hour cadences
+    // are restricted to display-only effects (no socket writes) — enforced
+    // at op-save time client-side. `lastFiredAt` is the authoritative cross-
+    // device coordinator: any client that fires the op writes this back and
+    // other clients skip until cadence elapses again.
+    // Shape:
+    //   { kind: "interval", every: N, unit: "second"|"minute"|"hour"|"day",
+    //     suppressNotifications?, lastFiredAt? }
+    //   { kind: "atTimes", times: ["09:00", "12:00"], lastFiredAt? }
+    schedule: { type: mongoose.Schema.Types.Mixed, default: null },
+
     // Whether this operation is active
     enabled: { type: Boolean, default: true },
 

@@ -302,6 +302,171 @@ export function TriggerDataHint({ eventType, subjectType }) {
 }
 
 // ============================================================
+// SCHEDULE EDITOR — cadence config for time-based ops
+// ============================================================
+const SCHEDULE_UNITS = [
+  { value: "second", label: "second(s)" },
+  { value: "minute", label: "minute(s)" },
+  { value: "hour",   label: "hour(s)" },
+  { value: "day",    label: "day(s)" },
+];
+
+export function ScheduleEditor({ schedule, onChange }) {
+  const labelSt = { fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", display: "block", marginBottom: 3 };
+  const inputSt = { fontSize: 11, fontFamily: "monospace", padding: "3px 6px", border: "1px solid var(--border-default)", background: "var(--input-bg)", color: "var(--text-primary)", borderRadius: 4 };
+  const kind = schedule?.kind || "interval";
+  const setKind = (k) => onChange({ ...(schedule || {}), kind: k });
+
+  // Cost hint: extrapolate the cadence into fires/hour to guide the author.
+  const cadenceHint = useMemo(() => {
+    if (!schedule) return null;
+    if (kind === "interval") {
+      const unitMs = { second: 1000, minute: 60000, hour: 3600000, day: 86400000 }[schedule.unit] || 60000;
+      const cms = Math.max(1000, (Number(schedule.every) || 1) * unitMs);
+      const firesPerHour = 3_600_000 / cms;
+      const subMinute = cms < 60_000;
+      return { cms, firesPerHour, subMinute };
+    }
+    if (kind === "atTimes") {
+      const n = Array.isArray(schedule.times) ? schedule.times.length : 0;
+      return { firesPerHour: n / 24, subMinute: false, atTimesCount: n };
+    }
+    return null;
+  }, [schedule, kind]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 10, border: "1px solid var(--accent-blue-border, var(--border-default))", borderRadius: 6, background: "var(--accent-blue-bg, var(--input-bg))" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 11, fontFamily: "monospace", fontWeight: 600, color: "var(--accent-blue-text)" }}>⏱ Schedule</span>
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          style={{ marginLeft: "auto", fontSize: 9, fontFamily: "monospace", padding: "2px 7px", borderRadius: 4, border: "1px solid var(--border-default)", background: "transparent", color: "var(--text-faint)", cursor: "pointer" }}
+          title="Convert back to event-triggered op"
+        >
+          Remove schedule
+        </button>
+      </div>
+
+      {/* Kind switcher */}
+      <div style={{ display: "flex", gap: 4 }}>
+        {[{ k: "interval", label: "Every N" }, { k: "atTimes", label: "At specific times" }].map(({ k, label }) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setKind(k)}
+            style={{
+              fontSize: 10, fontFamily: "monospace", padding: "3px 9px", borderRadius: 4, cursor: "pointer",
+              border: `1px solid ${kind === k ? "var(--accent-blue)" : "var(--border-default)"}`,
+              background: kind === k ? "var(--accent-blue-bg)" : "transparent",
+              color: kind === k ? "var(--accent-blue-text)" : "var(--text-muted)",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {kind === "interval" && (
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+          <div>
+            <span style={labelSt}>Every</span>
+            <input
+              type="number"
+              min="1"
+              value={schedule?.every ?? 1}
+              onChange={(e) => onChange({ ...(schedule || {}), kind: "interval", every: Number(e.target.value) || 1 })}
+              style={{ ...inputSt, width: 70 }}
+            />
+          </div>
+          <div>
+            <span style={labelSt}>Unit</span>
+            <select
+              value={schedule?.unit || "minute"}
+              onChange={(e) => onChange({ ...(schedule || {}), kind: "interval", unit: e.target.value })}
+              style={{ ...inputSt, minWidth: 120 }}
+            >
+              {SCHEDULE_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {kind === "atTimes" && (
+        <div>
+          <span style={labelSt}>Times of day (HH:MM)</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {(schedule?.times || []).map((t, i) => (
+              <div key={i} style={{ display: "flex", gap: 4 }}>
+                <input
+                  type="time"
+                  value={t}
+                  onChange={(e) => {
+                    const next = [...(schedule.times || [])];
+                    next[i] = e.target.value;
+                    onChange({ ...schedule, kind: "atTimes", times: next });
+                  }}
+                  style={{ ...inputSt, width: 110 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = (schedule.times || []).filter((_, j) => j !== i);
+                    onChange({ ...schedule, kind: "atTimes", times: next });
+                  }}
+                  style={{ fontSize: 10, padding: "2px 7px", border: "1px solid var(--border-default)", borderRadius: 4, background: "transparent", color: "var(--text-faint)", cursor: "pointer" }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => onChange({ ...(schedule || {}), kind: "atTimes", times: [...(schedule?.times || []), "09:00"] })}
+              style={{ alignSelf: "flex-start", fontSize: 10, fontFamily: "monospace", padding: "3px 8px", borderRadius: 4, border: "1px dashed var(--border-default)", background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}
+            >
+              + Add time
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Notification suppression */}
+      <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)", cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={!!schedule?.suppressNotifications}
+          onChange={(e) => onChange({ ...(schedule || {}), suppressNotifications: e.target.checked })}
+        />
+        Suppress notifications
+      </label>
+
+      {/* Cost surface */}
+      {cadenceHint && (
+        <div style={{ fontSize: 9, fontFamily: "monospace", color: cadenceHint.subMinute ? "var(--danger-text)" : "var(--text-faint)", lineHeight: 1.4 }}>
+          {kind === "interval" && (
+            <>
+              ≈ {cadenceHint.firesPerHour < 1 ? `1 fire / ${Math.round(1 / cadenceHint.firesPerHour)} hours` : `${cadenceHint.firesPerHour.toFixed(1)} fires/hour`}
+              {cadenceHint.subMinute && (
+                <span> · ⚠ sub-minute cadence — only display-only effects will run (no socket writes).</span>
+              )}
+            </>
+          )}
+          {kind === "atTimes" && (
+            <>{cadenceHint.atTimesCount} time{cadenceHint.atTimesCount === 1 ? "" : "s"} per day</>
+          )}
+        </div>
+      )}
+
+      {/* Trigger conflict warning */}
+      <div style={{ fontSize: 9, fontFamily: "monospace", color: "var(--text-faint)", lineHeight: 1.4 }}>
+        Scheduled ops are time-only — event triggers (onChange / onAdd / etc.) are ignored when a schedule is set.
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // OPERATION EDITOR
 // ============================================================
 export function OperationEditor({ operation, fields, onSave, onDelete, onRun, categoryFolders = [], isDuplicate = false }) {
@@ -402,7 +567,41 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
         )}
       </div>
 
-      {/* ── Triggers ── */}
+      {/* ── Schedule (time-based) ── */}
+      {local.schedule ? (
+        <ScheduleEditor
+          schedule={local.schedule}
+          onChange={(next) => {
+            if (next === null) {
+              // Remove schedule → revert to event-trigger op shape.
+              setLocal((p) => {
+                const { schedule, ...rest } = p;
+                return { ...rest, schedule: null };
+              });
+            } else {
+              setLocal((p) => ({ ...p, schedule: next }));
+            }
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setLocal((p) => ({
+            ...p,
+            schedule: { kind: "interval", every: 1, unit: "hour", suppressNotifications: false, lastFiredAt: null },
+            // Scheduled ops have no event triggers — clear them.
+            triggerObjects: [],
+            triggerTypes: [],
+            triggerType: "manual",
+          }))}
+          style={{ alignSelf: "flex-start", fontSize: 10, fontFamily: "monospace", padding: "4px 10px", borderRadius: 4, border: "1px dashed var(--border-default)", background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}
+        >
+          ⏱ Convert to scheduled op
+        </button>
+      )}
+
+      {/* ── Triggers (hidden when schedule is set) ── */}
+      {!local.schedule && (
       <div>
         <span style={labelStyle}>Triggers</span>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -573,6 +772,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
           </button>
         </div>
       </div>
+      )}
 
       {/* Pipeline editor (Sources + Steps) */}
       <PipelineEditor
@@ -584,6 +784,49 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
         occurrencesById={occurrencesById || {}}
         operationsById={operationsById || {}}
       />
+
+      {/* Save-time validation warnings (soft — don't block save, just surface) */}
+      {(() => {
+        if (!local.schedule) return null;
+        const issues = [];
+        if (Array.isArray(local.triggerObjects) && local.triggerObjects.length > 0) {
+          issues.push("Scheduled ops can't have event triggers — they'll be ignored at runtime.");
+        }
+        // Cadence cost check: extrapolate writes/hour against the persistent-effect floor.
+        if (local.schedule.kind === "interval") {
+          const unitMs = { second: 1000, minute: 60000, hour: 3600000, day: 86400000 }[local.schedule.unit] || 60000;
+          const cms = Math.max(1000, (Number(local.schedule.every) || 1) * unitMs);
+          if (cms < 60_000) {
+            // Scan pipeline for non-display effects. Display actions write to
+            // computedValues; UPDATE/CREATE/COPY_LINK/NOTIFY/DELETE/APPLY_TEMPLATE
+            // emit socket-writing effects.
+            const persistentTypes = new Set(["UPDATE", "CREATE", "COPY_LINK", "NOTIFY", "DELETE", "APPLY_TEMPLATE", "ADD_CHILD", "DATE_ADD"]);
+            const walkSteps = (steps = []) => {
+              for (const s of steps) {
+                if (s?.type === "action") {
+                  const t = s.config?.type || s.actionType;
+                  if (persistentTypes.has(t)) return true;
+                } else if (s?.type === "if") {
+                  if (walkSteps(s.then || [])) return true;
+                  if (walkSteps(s.else || [])) return true;
+                } else if (s?.type === "loop") {
+                  if (walkSteps(s.body || [])) return true;
+                }
+              }
+              return false;
+            };
+            if (walkSteps(local.pipeline?.steps || [])) {
+              issues.push(`Sub-minute cadence: persistent-effect actions in this pipeline won't run. Move to minute+ cadence or remove the persistent actions.`);
+            }
+          }
+        }
+        if (!issues.length) return null;
+        return (
+          <div style={{ padding: "6px 10px", borderRadius: 5, background: "rgba(251,146,60,0.12)", border: "1px solid rgba(251,146,60,0.3)", fontSize: 10, fontFamily: "monospace", color: "rgba(251,146,60,0.9)" }}>
+            {issues.map((m, i) => <div key={i}>⚠ {m}</div>)}
+          </div>
+        );
+      })()}
 
       <div style={{ display: "flex", gap: 8 }}>
         <button
@@ -656,12 +899,13 @@ export function OperationsTab() {
   const opsByFolder = useMemo(() => {
     const groups = { uncategorized: [] };
     for (const f of categoryFolders) groups[f.id] = [];
-    for (const op of gridOperations) {
+    // Action ops only — scheduled ops live in a separate sub-tab.
+    for (const op of actionOps) {
       const key = op.folderId && groups[op.folderId] !== undefined ? op.folderId : "uncategorized";
       groups[key].push(op);
     }
     return groups;
-  }, [gridOperations, categoryFolders]);
+  }, [actionOps, categoryFolders]);
 
   // Detect duplicate operations: same triggerType + same display-field write target.
   // Display writes are now `UPDATE { path: "$display.<fieldId>.<itemId>" }` — the
@@ -690,6 +934,14 @@ export function OperationsTab() {
   const [dragOpId, setDragOpId] = useState(null);
   const [overColumn, setOverColumn] = useState(null);
   const [previewOp, setPreviewOp] = useState(null);
+  // Sub-tab: Actions (event-triggered ops) vs Schedules (time-triggered ops).
+  // Same op records; the only difference is `op.schedule != null`.
+  const [subTab, setSubTab] = useState("actions");
+
+  // Split ops by schedule presence. Action ops include legacy ops with
+  // schedule undefined; scheduled ops are those with op.schedule != null.
+  const actionOps = useMemo(() => gridOperations.filter(o => !o.schedule), [gridOperations]);
+  const scheduledOps = useMemo(() => gridOperations.filter(o => !!o.schedule), [gridOperations]);
 
   // Track Pragmatic DnD op drags so column HTML5 onDrop can read the dragged op
   useEffect(() => {
@@ -703,6 +955,21 @@ export function OperationsTab() {
 
   const handleCreate = (folderId = null) => {
     const newOp = { id: uid(), gridId, name: "New Operation", description: "", pipeline: { sources: [], steps: [] }, triggerObjects: [{ eventType: "onLoad", subjectType: "grid", targetId: "", priority: 5 }], triggerTypes: ["onLoad"], triggerType: "onLoad", enabled: true, sortOrder: gridOperations.length, folderId };
+    CommitHelpers.createOperation({ dispatch, socket, operation: newOp });
+    setSelectedOpId(newOp.id);
+  };
+
+  const handleCreateSchedule = () => {
+    // New scheduled op: hour cadence + no triggers (enforced — schedule and
+    // triggerObjects are mutually exclusive). Author opens the editor to set
+    // pipeline + adjust cadence.
+    const newOp = {
+      id: uid(), gridId, name: "New Schedule", description: "",
+      pipeline: { sources: [], steps: [] },
+      triggerObjects: [], triggerTypes: [], triggerType: "manual",
+      schedule: { kind: "interval", every: 1, unit: "hour", suppressNotifications: false, lastFiredAt: null },
+      enabled: true, sortOrder: gridOperations.length, folderId: null,
+    };
     CommitHelpers.createOperation({ dispatch, socket, operation: newOp });
     setSelectedOpId(newOp.id);
   };
@@ -823,16 +1090,40 @@ export function OperationsTab() {
     );
   }
 
+  const subTabBtnStyle = (active) => ({
+    fontSize: 11, fontFamily: "monospace", padding: "4px 14px", borderRadius: 999, cursor: "pointer",
+    border: `1px solid ${active ? "var(--accent-blue)" : "var(--border-default)"}`,
+    background: active ? "var(--accent-blue-bg)" : "transparent",
+    color: active ? "var(--accent-blue-text)" : "var(--text-muted)",
+  });
+
   return (
     <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* Toolbar */}
+      {/* Sub-tab switcher: Actions vs Schedules */}
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <button
-          onClick={handleCreateCategory}
-          style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 999, fontSize: 11, fontFamily: "monospace", background: "var(--input-bg)", border: "1px dashed var(--border-default)", color: "var(--text-muted)", cursor: "pointer" }}
-        >
-          <FolderPlus style={{ width: 10, height: 10 }} /> Category
+        <button onClick={() => setSubTab("actions")} style={subTabBtnStyle(subTab === "actions")}>
+          Actions ({actionOps.length})
         </button>
+        <button onClick={() => setSubTab("schedules")} style={subTabBtnStyle(subTab === "schedules")}>
+          ⏱ Schedules ({scheduledOps.length})
+        </button>
+        <div style={{ marginLeft: "auto" }}>
+          {subTab === "actions" ? (
+            <button
+              onClick={handleCreateCategory}
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 999, fontSize: 11, fontFamily: "monospace", background: "var(--input-bg)", border: "1px dashed var(--border-default)", color: "var(--text-muted)", cursor: "pointer" }}
+            >
+              <FolderPlus style={{ width: 10, height: 10 }} /> Category
+            </button>
+          ) : (
+            <button
+              onClick={handleCreateSchedule}
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 999, fontSize: 11, fontFamily: "monospace", background: "var(--accent-blue-bg)", border: "1px solid var(--accent-blue-border, var(--border-default))", color: "var(--accent-blue-text)", cursor: "pointer" }}
+            >
+              <Plus style={{ width: 10, height: 10 }} /> New Schedule
+            </button>
+          )}
+        </div>
       </div>
       {/* Preview panel — shown when Run is clicked */}
       {previewOp && (() => {
@@ -879,13 +1170,63 @@ export function OperationsTab() {
           </div>
         );
       })()}
-      {/* Category columns */}
-      <div style={{ display: "flex", gap: 8, overflowX: "auto", alignItems: "flex-start", paddingBottom: 4 }}>
-        {renderOpColumn("uncategorized", "Uncategorized", opsByFolder.uncategorized)}
-        {categoryFolders.map((folder) =>
-          renderOpColumn(folder.id, folder.name, opsByFolder[folder.id] || [])
-        )}
-      </div>
+      {/* Category columns (Actions sub-tab) */}
+      {subTab === "actions" && (
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", alignItems: "flex-start", paddingBottom: 4 }}>
+          {renderOpColumn("uncategorized", "Uncategorized", opsByFolder.uncategorized)}
+          {categoryFolders.map((folder) =>
+            renderOpColumn(folder.id, folder.name, opsByFolder[folder.id] || [])
+          )}
+        </div>
+      )}
+
+      {/* Schedules list (Schedules sub-tab) — flat list with cadence preview */}
+      {subTab === "schedules" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {scheduledOps.length === 0 && (
+            <div style={{ fontSize: 11, fontFamily: "monospace", color: "var(--text-faint)", fontStyle: "italic", padding: "20px 6px" }}>
+              No scheduled operations yet. Click "+ New Schedule" to create one.
+            </div>
+          )}
+          {scheduledOps.map((op) => {
+            const sched = op.schedule || {};
+            let cadenceLabel = "—";
+            if (sched.kind === "interval") cadenceLabel = `every ${sched.every || 1} ${sched.unit || "minute"}${(sched.every || 1) === 1 ? "" : "s"}`;
+            else if (sched.kind === "atTimes") cadenceLabel = `at ${(sched.times || []).join(", ") || "(no times)"}`;
+            const lastFired = sched.lastFiredAt ? new Date(sched.lastFiredAt).toLocaleString() : "never";
+            return (
+              <div
+                key={op.id}
+                onClick={() => toggleSelect(op.id)}
+                style={{
+                  display: "flex", flexDirection: "column", gap: 3,
+                  padding: "8px 12px", borderRadius: 6,
+                  border: `1px solid ${selectedOpId === op.id ? "var(--accent-blue)" : "var(--border-subtle)"}`,
+                  background: selectedOpId === op.id ? "var(--accent-blue-bg)" : "var(--input-bg)",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, fontFamily: "monospace", fontWeight: 600, color: "var(--text-primary)" }}>
+                    {op.enabled === false ? "⏸ " : "⏱ "}{op.name}
+                  </span>
+                  <span style={{ marginLeft: "auto", fontSize: 10, fontFamily: "monospace", color: "var(--accent-blue-text)" }}>
+                    {cadenceLabel}
+                  </span>
+                </div>
+                {op.description && (
+                  <span style={{ fontSize: 9, fontFamily: "monospace", color: "var(--text-muted)", lineHeight: 1.4 }}>
+                    {op.description}
+                  </span>
+                )}
+                <span style={{ fontSize: 9, fontFamily: "monospace", color: "var(--text-faint)" }}>
+                  last fired: {lastFired}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

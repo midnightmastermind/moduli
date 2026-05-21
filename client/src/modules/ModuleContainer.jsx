@@ -13,11 +13,13 @@ import TransactionHistory from "../ui/TransactionHistory";
 import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 
 import { GridActionsContext } from "../GridActionsContext";
+import { SelectionContext } from "../state/SelectionContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   getContainerItems,
   getContainerItemsWithOccurrences,
 } from "../helpers/LayoutHelpers";
+import { runPasteClipboard } from "../helpers/pasteClipboard";
 import {
   useDragDrop,
   useDroppable,
@@ -44,6 +46,7 @@ import {
   Trash2,
   ArrowLeft,
   X,
+  ClipboardPaste,
 } from "lucide-react";
 
 import { CanvasDrawSection } from "./CanvasContent.jsx";
@@ -134,6 +137,7 @@ function Container({
   const { occurrencesById, instancesById, leafModulesById, modulesById, viewsById, fieldsById, state: ctxState } = useContext(GridActionsContext);
   const dragCtx = useDragContext();
   const { isContainerDrag, isInstanceDrag, isExternalDrag, isPanelDrag } = dragCtx;
+  const selection = useContext(SelectionContext);
 
   const [draft, setDraft] = useState(() => ({ label: module.label ?? "" }));
 
@@ -318,8 +322,8 @@ function Container({
   }, [containerOccurrence, dispatch, socket]);
 
   const resolvedContainerCSS = useMemo(
-    () => styleToCSS(resolveContainerStyle(module, panel)),
-    [module, panel]
+    () => styleToCSS(resolveContainerStyle(module, panel, containerOccurrence)),
+    [module, panel, containerOccurrence]
   );
 
   // Embedded doc card styles — used when this container is rendered inside Artifact.jsx (not a panel child)
@@ -376,10 +380,15 @@ function Container({
     disabled: isContainerDrag,
   });
 
-  // Occurrence controls order — pass containerOccurrence so ordering reads from occurrence.occurrences
+  // Occurrence controls order — pass containerOccurrence so ordering reads from occurrence.occurrences.
+  // When `module.meta.allowChildContainers` is set, fall back to the full modulesById lookup so
+  // role:"container" children are not filtered out (leafModulesById only contains instance/artifact/
+  // textblock). The render loop below then branches by child role to mount <Container> vs <ModuleInstance>.
+  const allowChildContainers = !!module?.meta?.allowChildContainers;
+  const childModuleLookup = allowChildContainers ? modulesById : leafModulesById;
   const allItemsWithOccurrences = useMemo(
-    () => getContainerItemsWithOccurrences(module, occurrencesById, leafModulesById, undefined, containerOccurrence),
-    [module, occurrencesById, leafModulesById, containerOccurrence]
+    () => getContainerItemsWithOccurrences(module, occurrencesById, childModuleLookup, undefined, containerOccurrence),
+    [module, occurrencesById, childModuleLookup, containerOccurrence]
   );
 
   // Apply active filter: hide occurrences that don't match the effective filter values
@@ -539,7 +548,7 @@ function Container({
       data-container-id={module.id}
       data-occ-id={containerOccurrence?.id}
       data-testid="container-shell"
-      className={`container-shell bg-background2 rounded-md border border-border shadow-inner mod-${module.id}`}
+      className={`container-shell bg-background2 rounded-md border border-border shadow-inner mod-${module.id}${containerOccurrence?.id && selection.isSelected(containerOccurrence.id) ? " is-selected" : ""}`}
       style={{
         display: "flex", flexDirection: "column", minHeight: 0, overflow: "visible",
         borderRadius: 10,
@@ -550,6 +559,15 @@ function Container({
         ...(embedded ? embeddedCardStyle : resolvedContainerCSS),
       }}
       {...containerProps}
+      onClickCapture={(e) => {
+        // Shift+click anywhere on the container shell toggles selection.
+        // Capture phase so inner contentEditable / inputs don't swallow it.
+        if (e.shiftKey && containerOccurrence?.id) {
+          e.preventDefault();
+          e.stopPropagation();
+          selection.toggle(containerOccurrence.id);
+        }
+      }}
     >
       {/* Drop Indicators */}
       {isContainerOver && closestEdge === "top" && <div className="drop-indicator drop-indicator-top" />}
@@ -598,6 +616,7 @@ function Container({
               onDragModeChange={commitDragMode}
               occurrence={containerOccurrence}
               onOccurrenceUpdate={commitOccurrenceUpdate}
+              onOccurrenceStyleChange={(style) => commitOccurrenceUpdate({ ownStyle: style })}
             />
           </PopoverContent>
         </Popover>
@@ -616,9 +635,40 @@ function Container({
           if ("ontouchstart" in window) return;
           e.preventDefault();
           e.stopPropagation();
+          // Paste-here surfaces when there's a non-empty clipboard. The
+          // verb adapts to mode: Move N here / Paste N here / Paste
+          // linked N here. Destination is this container.
+          const clip = selection.clipboard;
+          const pasteLabel = clip
+            ? clip.mode === "move"
+              ? `Move ${clip.ids.length} here`
+              : clip.mode === "copylink"
+                ? `Paste linked ${clip.ids.length} here`
+                : `Paste ${clip.ids.length} here`
+            : null;
           setCtxMenu({
             x: e.clientX, y: e.clientY,
             items: [
+              clip && {
+                label: pasteLabel,
+                icon: ClipboardPaste,
+                onClick: () => {
+                  runPasteClipboard({
+                    mode: clip.mode,
+                    ids: clip.ids,
+                    destinationOccurrence: containerOccurrence,
+                    destinationModule: module,
+                    occurrencesById,
+                    dispatch, socket,
+                    gridId: ctxState?.gridId || ctxState?.grid?._id,
+                    userId: ctxState?.userId,
+                    panelId,
+                  });
+                  selection.clearClipboard();
+                  selection.clear();
+                },
+              },
+              clip && { separator: true },
               {
                 label: "Copy container", icon: Copy, onClick: () => {
                   const newM = { ...module, id: crypto.randomUUID(), label: `${module.label} (Copy)` };
@@ -1117,6 +1167,24 @@ function Container({
           >
             {itemsWithOccurrences.map(({ instance, occurrence }) => {
               const role = instance?.role;
+              // Container-in-container: when the parent has allowChildContainers,
+              // a role:"container" child mounts its own <Container> instead of a
+              // <ModuleInstance>. occurrenceOverride pins the child to the
+              // specific occurrence this parent links (multi-parent-safe).
+              if (role === "container" && allowChildContainers) {
+                return (
+                  <Container
+                    key={occurrence.id}
+                    module={instance}
+                    occurrenceOverride={occurrence}
+                    panelId={panelId}
+                    pageOccurrenceId={pageOccurrenceId || null}
+                    dispatch={dispatch}
+                    socket={socket}
+                    gapPx={6}
+                  />
+                );
+              }
               let renderBody = null;
               if (role === "artifact") {
                 renderBody = () => <ArtifactCard module={instance} label={instance.label} />;

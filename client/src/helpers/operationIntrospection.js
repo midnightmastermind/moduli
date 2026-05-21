@@ -230,6 +230,13 @@ const ACTION_HANDLERS = {
     }
   },
 
+  DATE_ADD(cfg, sets) {
+    if (cfg.targetFieldId) add(sets.fields_written, cfg.targetFieldId);
+    for (const k of ["targetOccurrenceId", "targetOccurrenceIdExpr"]) {
+      if (looksLikeOccurrenceRef(cfg[k])) add(sets.occurrences_written, cfg[k]);
+    }
+  },
+
   ADD_TO_POOL(cfg, sets) {
     if (looksLikeOccurrenceRef(cfg.poolContainerId)) add(sets.occurrences_written, cfg.poolContainerId);
   },

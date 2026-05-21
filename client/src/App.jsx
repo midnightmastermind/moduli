@@ -21,10 +21,13 @@ import TransactionHistory from "./ui/TransactionHistory";
 import CommandCenter from "./ui/CommandCenter";
 import { Spinner } from "./components/ui/spinner";
 import { Toaster } from "./components/ui/sonner";
+import UserInputModal from "./ui/UserInputModal";
+import { SelectionContext, useSelectionProvider } from "./state/SelectionContext";
 
 import { useUndoRedo } from "./hooks/useUndoRedo";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useAnimations } from "./hooks/useAnimations";
+import { useScheduler } from "./state/useScheduler";
 import { useTheme } from "./helpers/useTheme";
 import { useMobileDetect } from "./hooks/useMobileDetect";
 
@@ -179,6 +182,15 @@ export default function App() {
     [state.operations]
   );
 
+  // Scheduler: runs time-based ops (Operation.schedule != null) on a shared
+  // 1s tick. Sub-hour cadences are display-only; hour+ schedules can run the
+  // full pipeline. lastFiredAt sync via update_operation handles cross-device
+  // coordination (whichever device fires first wins).
+  useScheduler({
+    state, dispatch, socket,
+    fieldsById, operationsById, occurrencesById, modulesById,
+  });
+
   // Undo/Redo state (lifted from Grid so Toolbar can access it)
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commandCenterOpen, setCommandCenterOpen] = useState(false);
@@ -223,6 +235,56 @@ export default function App() {
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
   const [zoomedOut, setZoomedOut] = useState(false);
   const [gridSwitchRetrying, setGridSwitchRetrying] = useState(false);
+
+  // Multi-select state (shift+click selection, bulk actions). Lives at App
+  // level so it persists across panel re-renders + is reachable from any
+  // descendant via SelectionContext.
+  const selection = useSelectionProvider();
+  // ESC clears the multi-select set FIRST when something is selected, so
+  // existing ESC consumers (CommandCenter, history dialog, RadialMenu)
+  // still fire when there's no selection in flight.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (selection.count === 0) return;
+      const tgt = e.target;
+      const tag = tgt?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tgt?.isContentEditable) return;
+      e.preventDefault();
+      e.stopPropagation();
+      selection.clear();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [selection]);
+
+  // GET_USER_INPUT modal — operationsBridge.requestUserInput resolves to a
+  // Promise that the user satisfies via this modal. Chained inputs queue:
+  // each pending entry is { request, resolve, reject }. We always show the
+  // head of the queue.
+  const [inputQueue, setInputQueue] = useState([]);
+  useEffect(() => {
+    operationsBridge.requestUserInput = (request) =>
+      new Promise((resolve, reject) => {
+        setInputQueue((q) => [...q, { request, resolve, reject }]);
+      });
+    return () => { operationsBridge.requestUserInput = null; };
+  }, []);
+  const currentInput = inputQueue[0] || null;
+  const handleInputSubmit = useCallback((value) => {
+    setInputQueue((q) => {
+      const [head, ...rest] = q;
+      head?.resolve?.(value);
+      return rest;
+    });
+  }, []);
+  const handleInputCancel = useCallback(() => {
+    setInputQueue((q) => {
+      const [head, ...rest] = q;
+      head?.reject?.(new Error("USER_INPUT_CANCELLED"));
+      return rest;
+    });
+  }, []);
 
   // CS6b — Load persisted CSS token overrides on mount
   useEffect(() => {
@@ -737,6 +799,7 @@ export default function App() {
     <GridActionsContext.Provider value={actionsValue}>
       <GridLiveContext.Provider value={liveValue}>
       <GridDataContext.Provider value={dataValue}>
+      <SelectionContext.Provider value={selection}>
         {/* ── Header wrapper — relative so CommandCenter can overlay grid below ── */}
         <div style={{ position: "relative", flexShrink: 0, zIndex: 1050 }}>
         <Toolbar
@@ -830,6 +893,16 @@ export default function App() {
         {/* Toast notifications — slim (≤24px tall) and tucked into the toolbar
             band so they never spill down over the grid. */}
         <Toaster position="top-center" offset={3} />
+
+        {/* GET_USER_INPUT modal — only mounts when an op pipeline suspends
+            via operationsBridge.requestUserInput. Chained questions render
+            sequentially from the queue. */}
+        <UserInputModal
+          request={currentInput?.request}
+          onSubmit={handleInputSubmit}
+          onCancel={handleInputCancel}
+        />
+      </SelectionContext.Provider>
       </GridDataContext.Provider>
       </GridLiveContext.Provider>
     </GridActionsContext.Provider>

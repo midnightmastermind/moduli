@@ -42,6 +42,9 @@ export const EVENT_TYPES = [
   { value: "onWebhook",      label: "On Webhook",       desc: "Fires via HTTP POST to the webhook URL",                              transactionType: "WebhookOp" },
   { value: "onSchedule",     label: "On Schedule",      desc: "Fires at a specific time (cron)",                                     transactionType: "ScheduleOp" },
   { value: "manual",         label: "Manual",           desc: "Only runs when manually triggered from UI",                           transactionType: "__manual__" },
+  { value: "onPomoStart",    label: "On Pomo Start",    desc: "Fires when the user starts a Pomodoro work phase",                    transactionType: "PomoStartOp",    hidden: true },
+  { value: "onPomoComplete", label: "On Pomo Complete", desc: "Fires when a Pomodoro work phase reaches 00:00 naturally",            transactionType: "PomoCompleteOp", hidden: true },
+  { value: "onPomoStop",     label: "On Pomo Stop",     desc: "Fires when the user resets or skips a Pomodoro mid-phase",            transactionType: "PomoStopOp",     hidden: true },
 ];
 
 const _byValue = new Map(EVENT_TYPES.map((e) => [e.value, e]));

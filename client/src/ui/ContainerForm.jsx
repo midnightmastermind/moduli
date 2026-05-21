@@ -29,6 +29,7 @@ export default function ContainerForm({
   onDragModeChange,  // (mode) => void
   occurrence,        // The occurrence for this container (for persistence settings)
   onOccurrenceUpdate, // (updates) => void
+  onOccurrenceStyleChange, // (style|null) => void — writes occurrence.ownStyle
 }) {
   const iter = iteration || { mode: "inherit", timeFilter: "daily" };
   const { occurrencesById, modulesById, fieldsById } = useContext(GridActionsContext);
@@ -280,6 +281,27 @@ export default function ContainerForm({
             label="Child Instance Defaults"
             inheritLabel="Panel"
           />
+
+          {occurrence && (
+            <>
+              <Separator />
+              {/* Per-occurrence style overlay. Writes occurrence.ownStyle —
+                  resolveContainerStyle layers this on top of module.ownStyle
+                  at render time. Same data path operations write to via
+                  UPDATE $occ.ownStyle.<key>, so user edits here and op
+                  writes interleave cleanly. */}
+              <StyleEditor
+                styleMode={occurrence?.ownStyle ? "own" : "inherit"}
+                ownStyle={occurrence?.ownStyle}
+                onStyleModeChange={(mode) => {
+                  if (mode === "inherit") onOccurrenceStyleChange?.(null);
+                }}
+                onOwnStyleChange={(style) => onOccurrenceStyleChange?.(style)}
+                label="This Occurrence (overrides module)"
+                inheritLabel="Module"
+              />
+            </>
+          )}
         </TabsContent>
 
       </Tabs>

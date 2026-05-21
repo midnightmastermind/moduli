@@ -381,9 +381,29 @@ export function registerCrudHandlers(socket, {
       const uc = await getUc();
       const id = operation?.id;
       if (!id) return;
+
+      // Cross-device scheduler guard: if this update is bumping
+      // `schedule.lastFiredAt`, reject when the stored timestamp is
+      // already >= incoming. This is the lock that prevents two clients
+      // from both firing the same scheduled op in the same window —
+      // whichever socket reaches the server first wins, the other is
+      // a no-op. Broadcast still goes out so the loser's local cache
+      // catches up.
+      const incomingLastFired = operation?.schedule?.lastFiredAt;
+      if (incomingLastFired) {
+        const stored = uc.operationsById[id]?.schedule?.lastFiredAt;
+        if (stored && new Date(stored).getTime() >= new Date(incomingLastFired).getTime()) {
+          // Echo current state so the late client syncs up.
+          socket.emit("operation_updated", { operation: uc.operationsById[id] });
+          return;
+        }
+      }
+
       const next = { ...(uc.operationsById[id] || {}), ...operation, id, userId };
       uc.operationsById[id] = next;
       await Operation.findOneAndUpdate({ id, userId }, next, { upsert: true });
+      // Broadcast to other sockets in the user room. Originator already has
+      // the update applied locally (optimistic write before socket emit).
       socket.to(userRoom(userId)).emit("operation_updated", { operation: next });
     } catch (err) {
       console.error("update_operation error:", err);

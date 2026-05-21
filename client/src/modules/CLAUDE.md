@@ -2,6 +2,39 @@
 
 _Updated: 2026-05-20. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-05-20 — Canvas connect tool + edge persistence)
+- **`CanvasContent.jsx`**: Added a `connect` tool to `DRAW_TOOLS`
+  (Link2 lucide icon). When active, pointer-press on a card starts an
+  in-progress edge, pointer-move drags a dashed bezier to the cursor,
+  and pointer-up on a different card persists a new edge entry. State:
+  - `edges` (hydrated from `containerOccurrence.meta.edges`, re-synced
+    on occurrence change) — array of `{ id, from: occurrenceId, to:
+    occurrenceId }`.
+  - `connectDrag` (`{ fromOccId, startX, startY, x, y }` in world
+    coords) — the in-flight drag; null when not dragging.
+  - `cardPosTick` — bumps when any card's `meta.x/y` changes (derived
+    from `itemsKey`) so the SVG edge layer re-derives card centers
+    without measuring the DOM.
+- **Hit-test**: `hitTestOccId(clientX, clientY)` uses
+  `document.elementFromPoint` + `.closest("[data-occurrence-id],
+  [data-occ-id]")` to handle both instance and container card markers
+  uniformly.
+- **Persistence**: `saveEdges(next)` mirrors the existing `saveStrokes`
+  pattern — sets local state and emits `update_occurrence` with the
+  new `meta.edges` array. Dedup at write-time prevents the same edge
+  in either direction.
+- **Render**: New SVG layer inside the world (`zIndex: 2`, between
+  the drawing canvas and the floating cards). Each edge draws a wide
+  invisible hit path + a thin visible bezier; `pointer-events: stroke`
+  on the hit path only when `drawTool === "connect"`, so edges
+  intercept clicks only in connect mode. Clicking an edge in connect
+  mode removes it. The in-flight drag renders as a dashed line.
+- **Cursor**: `crosshair` for connect mode (matches the draw tools).
+- **Cards stay pointer-active in connect mode** so `elementFromPoint`
+  can find them; the world's pointer handlers run on bubble and
+  short-circuit for `data-dnd-handle` targets so radial menus and drag
+  handles still work in every tool.
+
 ## Recent Changes (2026-05-20 — BoundHeader + BoundBody (editor↔field binding))
 - **NEW `BoundHeader.jsx`** — replaces container's static header label when the
   host occurrence (or its module) carries `meta.headerLink = { selfField, link }`.

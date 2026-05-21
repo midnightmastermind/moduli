@@ -1,24 +1,10 @@
-
-> dndkittest2@0.1.0 test
-> vitest run
-
 [1m[43m DEPRECATED [49m[22m [33m"cache.dir" is deprecated, use Vite's "cacheDir" instead if you want to change the cache director. Note caches will be written to "cacheDir/vitest"[39m
 
 [1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/home/joshpoms/moduli/client[39m
 
- [32m✓[39m src/__tests__/dragHitTesting.test.js [2m([22m[2m30 tests[22m[2m)[22m[32m 11[2mms[22m[39m
- [32m✓[39m src/__tests__/masterReducer.test.js [2m([22m[2m55 tests[22m[2m)[22m[32m 21[2mms[22m[39m
- [32m✓[39m src/__tests__/CalculationHelpers.test.js [2m([22m[2m58 tests[22m[2m)[22m[32m 10[2mms[22m[39m
- [32m✓[39m src/__tests__/LayoutHelpers.test.js [2m([22m[2m30 tests[22m[2m)[22m[32m 9[2mms[22m[39m
- [32m✓[39m src/__tests__/filterCascade.test.js [2m([22m[2m17 tests[22m[2m)[22m[32m 20[2mms[22m[39m
- [32m✓[39m src/__tests__/operationActions.unified.test.js [2m([22m[2m62 tests[22m[2m)[22m[32m 52[2mms[22m[39m
-[90mstderr[2m | src/__tests__/runOperation.test.js[2m > [22m[2mRUN_OPERATION action[2m > [22m[2mcaps recursion at depth 4 (no infinite loop on A→A)
-[22m[39m[RUN_OPERATION] recursion depth cap hit, skipping
-
-[90mstderr[2m | src/__tests__/runOperation.test.js[2m > [22m[2mRUN_OPERATION action[2m > [22m[2mreturns no-op (and warns) when operation lookup fails
-[22m[39m[RUN_OPERATION] operation not found: Nonexistent Op
-
- [32m✓[39m src/__tests__/runOperation.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/__tests__/operationIntrospection.test.js [2m([22m[2m15 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/__tests__/dragHitTesting.test.js [2m([22m[2m30 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/__tests__/operationActions.unified.test.js [2m([22m[2m84 tests[22m[2m)[22m[32m 75[2mms[22m[39m
 [90mstdout[2m | src/__tests__/bindSocketToStore.test.js[2m > [22m[2mfull_state[2m > [22m[2mdispatches FULL_STATE action with payload
 [22m[39m[socket] full_state received: {
   gridId: [32m'g1'[39m,
@@ -37,76 +23,8 @@
   operations: []
 }
 
- [32m✓[39m src/__tests__/CommitHelpers.test.js [2m([22m[2m28 tests[22m[2m)[22m[32m 34[2mms[22m[39m
 [90mstdout[2m | src/__tests__/bindSocketToStore.test.js[2m > [22m[2mfull_state[2m > [22m[2mdoes not crash when payload is empty
 [22m[39m[socket] full_state received: {}
-
-[90mstderr[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mexecutePipeline[2m > [22m[2mmissing RUN_OPERATION operationId is a no-op
-[22m[39m[RUN_OPERATION] operation not found: nonexistent
-
-[90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations[2m > [22m[2mmanual ops never fire automatically
-[22m[39m[BUILD-DAY] runMatchingOperations called {
-  transactionType: [1mnull[22m,
-  transaction: {},
-  buildDayPresent: [33mfalse[39m,
-  buildDayTriggerObjects: [90mundefined[39m,
-  buildDayTriggerTypes: [90mundefined[39m,
-  operationCount: [33m1[39m
-}
-
-[90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations[2m > [22m[2monLoad (null txType) fires onLoad ops
-[22m[39m[BUILD-DAY] runMatchingOperations called {
-  transactionType: [1mnull[22m,
-  transaction: [1mnull[22m,
-  buildDayPresent: [33mfalse[39m,
-  buildDayTriggerObjects: [90mundefined[39m,
-  buildDayTriggerTypes: [90mundefined[39m,
-  operationCount: [33m1[39m
-}
-
-[90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations[2m > [22m[2mpipeline ops fire alongside block ops
-[22m[39m[BUILD-DAY] runMatchingOperations called {
-  transactionType: [1mnull[22m,
-  transaction: [1mnull[22m,
-  buildDayPresent: [33mfalse[39m,
-  buildDayTriggerObjects: [90mundefined[39m,
-  buildDayTriggerTypes: [90mundefined[39m,
-  operationCount: [33m2[39m
-}
-
-[90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations[2m > [22m[2merrors in one op don't crash other ops
-[22m[39m[BUILD-DAY] runMatchingOperations called {
-  transactionType: [1mnull[22m,
-  transaction: [1mnull[22m,
-  buildDayPresent: [33mfalse[39m,
-  buildDayTriggerObjects: [90mundefined[39m,
-  buildDayTriggerTypes: [90mundefined[39m,
-  operationCount: [33m2[39m
-}
-
-[90mstderr[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations[2m > [22m[2merrors in one op don't crash other ops
-[22m[39mUnknown block type: bad_block_type
-Unknown block type: bad_block_type
-
-[90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations — per-trigger priority sort[2m > [22m[2msorts by matched triggerObject.priority (lower runs first)
-[22m[39m[BUILD-DAY] runMatchingOperations called {
-  transactionType: [1mnull[22m,
-  transaction: [1mnull[22m,
-  buildDayPresent: [33mfalse[39m,
-  buildDayTriggerObjects: [90mundefined[39m,
-  buildDayTriggerTypes: [90mundefined[39m,
-  operationCount: [33m2[39m
-}
-
-[90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations — per-trigger priority sort[2m > [22m[2mop with two triggerObjects uses the matched one's priority
-[22m[39m[BUILD-DAY] runMatchingOperations called {
-  transactionType: [1mnull[22m,
-  transaction: [1mnull[22m,
-  buildDayPresent: [33mfalse[39m,
-  buildDayTriggerObjects: [90mundefined[39m,
-  buildDayTriggerTypes: [90mundefined[39m,
-  operationCount: [33m2[39m
-}
 
 [90mstdout[2m | src/__tests__/bindSocketToStore.test.js[2m > [22m[2mgrid_updated / deleted / created[2m > [22m[2mgrid_updated with activeFilterValues fires NavigationOp (no crash)
 [22m[39m[BUILD-DAY] onGridUpdated firing NavigationOp (grid-level, no ancestors) {
@@ -126,6 +44,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m0[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: []
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -133,6 +58,131 @@ Unknown block type: bad_block_type
   _ancestorLabels: [90mundefined[39m,
   _ancestorIds: [90mundefined[39m,
   matchedOps: []
+}
+
+[90mstderr[2m | src/__tests__/runOperation.test.js[2m > [22m[2mRUN_OPERATION action[2m > [22m[2mcaps recursion at depth 4 (no infinite loop on A→A)
+[22m[39m[RUN_OPERATION] recursion depth cap hit, skipping
+
+[90mstderr[2m | src/__tests__/runOperation.test.js[2m > [22m[2mRUN_OPERATION action[2m > [22m[2mreturns no-op (and warns) when operation lookup fails
+[22m[39m[RUN_OPERATION] operation not found: Nonexistent Op
+
+ [32m✓[39m src/__tests__/bindSocketToStore.test.js [2m([22m[2m24 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m src/__tests__/parentFilterResolution.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/__tests__/runOperation.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+[90mstderr[2m | src/__tests__/getUserInput.test.js[2m > [22m[2mGET_USER_INPUT — pipeline suspend / resume[2m > [22m[2mfalls back gracefully (returns pre-suspend effects) when requestUserInput isn't wired
+[22m[39m[GET_USER_INPUT] operationsBridge.requestUserInput not set — dropping the rest of the pipeline.
+
+ [32m✓[39m src/__tests__/MobileGridNav.test.jsx [2m([22m[2m5 tests[22m[2m)[22m[32m 161[2mms[22m[39m
+ [32m✓[39m src/__tests__/mobile-fixes.test.jsx [2m([22m[2m18 tests[22m[2m)[22m[32m 155[2mms[22m[39m
+ [32m✓[39m src/__tests__/getUserInput.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m src/__tests__/CommitHelpers.test.js [2m([22m[2m28 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+[90mstderr[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mexecutePipeline[2m > [22m[2mmissing RUN_OPERATION operationId is a no-op
+[22m[39m[RUN_OPERATION] operation not found: nonexistent
+
+[90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations[2m > [22m[2mmanual ops never fire automatically
+[22m[39m[BUILD-DAY] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  transaction: {},
+  buildDayPresent: [33mfalse[39m,
+  buildDayTriggerObjects: [90mundefined[39m,
+  buildDayTriggerTypes: [90mundefined[39m,
+  operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
+
+[90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations[2m > [22m[2monLoad (null txType) fires onLoad ops
+[22m[39m[BUILD-DAY] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  transaction: [1mnull[22m,
+  buildDayPresent: [33mfalse[39m,
+  buildDayTriggerObjects: [90mundefined[39m,
+  buildDayTriggerTypes: [90mundefined[39m,
+  operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
+
+[90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations[2m > [22m[2mpipeline ops fire alongside block ops
+[22m[39m[BUILD-DAY] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  transaction: [1mnull[22m,
+  buildDayPresent: [33mfalse[39m,
+  buildDayTriggerObjects: [90mundefined[39m,
+  buildDayTriggerTypes: [90mundefined[39m,
+  operationCount: [33m2[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m ]
+}
+
+[90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations[2m > [22m[2merrors in one op don't crash other ops
+[22m[39m[BUILD-DAY] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  transaction: [1mnull[22m,
+  buildDayPresent: [33mfalse[39m,
+  buildDayTriggerObjects: [90mundefined[39m,
+  buildDayTriggerTypes: [90mundefined[39m,
+  operationCount: [33m2[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m ]
+}
+
+[90mstderr[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations[2m > [22m[2merrors in one op don't crash other ops
+[22m[39mUnknown block type: bad_block_type
+Unknown block type: bad_block_type
+
+[90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations — per-trigger priority sort[2m > [22m[2msorts by matched triggerObject.priority (lower runs first)
+[22m[39m[BUILD-DAY] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  transaction: [1mnull[22m,
+  buildDayPresent: [33mfalse[39m,
+  buildDayTriggerObjects: [90mundefined[39m,
+  buildDayTriggerTypes: [90mundefined[39m,
+  operationCount: [33m2[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m ]
+}
+
+[90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations — per-trigger priority sort[2m > [22m[2mop with two triggerObjects uses the matched one's priority
+[22m[39m[BUILD-DAY] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  transaction: [1mnull[22m,
+  buildDayPresent: [33mfalse[39m,
+  buildDayTriggerObjects: [90mundefined[39m,
+  buildDayTriggerTypes: [90mundefined[39m,
+  operationCount: [33m2[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m ]
 }
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations — per-trigger priority sort[2m > [22m[2mmissing priority defaults to 5
@@ -144,6 +194,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m3[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m, [32m'Test Op'[39m ]
+}
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations — per-trigger priority sort[2m > [22m[2msortOrder breaks priority ties
 [22m[39m[BUILD-DAY] runMatchingOperations called {
@@ -154,9 +211,14 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m2[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m ]
+}
 
- [32m✓[39m src/__tests__/bindSocketToStore.test.js [2m([22m[2m24 tests[22m[2m)[22m[32m 49[2mms[22m[39m
- [32m✓[39m src/__tests__/parentFilterResolution.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 39[2mms[22m[39m
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations — integration with triggerTypes + triggerObjects[2m > [22m[2mAGGREGATE op fires on onFilterChange and returns correct sum
 [22m[39m[BUILD-DAY] runMatchingOperations called {
   transactionType: [32m'NavigationOp'[39m,
@@ -165,6 +227,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -183,6 +252,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m3[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m, [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -205,6 +281,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -222,6 +305,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -241,6 +331,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -258,6 +355,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -277,6 +381,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -294,6 +405,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -313,6 +431,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -320,32 +445,6 @@ Unknown block type: bad_block_type
   _ancestorLabels: [90mundefined[39m,
   _ancestorIds: [90mundefined[39m,
   matchedOps: [ { name: [32m'Test Op'[39m, viaAncestorLabel: [1mnull[22m, eventType: [1mnull[22m } ]
-}
-
-[90mstdout[2m | runMatchingOperations (/home/joshpoms/moduli/client/src/helpers/operationExecutor.js:678:13)
-[22m[39m[BUILD-DAY] runMatchingOperations called {
-  transactionType: [1mnull[22m,
-  transaction: [1mnull[22m,
-  buildDayPresent: [33mfalse[39m,
-  buildDayTriggerObjects: [90mundefined[39m,
-  buildDayTriggerTypes: [90mundefined[39m,
-  operationCount: [33m0[39m
-}
-[BUILD-DAY] runMatchingOperations called {
-  transactionType: [1mnull[22m,
-  transaction: [1mnull[22m,
-  buildDayPresent: [33mfalse[39m,
-  buildDayTriggerObjects: [90mundefined[39m,
-  buildDayTriggerTypes: [90mundefined[39m,
-  operationCount: [33m0[39m
-}
-[BUILD-DAY] runMatchingOperations called {
-  transactionType: [1mnull[22m,
-  transaction: [1mnull[22m,
-  buildDayPresent: [33mfalse[39m,
-  buildDayTriggerObjects: [90mundefined[39m,
-  buildDayTriggerTypes: [90mundefined[39m,
-  operationCount: [33m0[39m
 }
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mDate comparators in IF conditions[2m > [22m[2mDATE_BEFORE_TODAY: true when date is in the past
@@ -357,6 +456,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -372,6 +478,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -391,6 +504,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -406,6 +526,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -425,6 +552,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -441,6 +575,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -456,6 +597,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -475,6 +623,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mresolveExpr — bug fixes[2m > [22m[2m$var = false returns false, not null
 [22m[39m[BUILD-DAY] runMatchingOperations called {
@@ -484,6 +639,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mresolveExpr — bug fixes[2m > [22m[2mMULTIPLY_VAR with numeric expr (-1) does not crash
@@ -495,6 +657,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mresolveExpr — bug fixes[2m > [22m[2mIS comparator with boolean right: true does not crash
 [22m[39m[BUILD-DAY] runMatchingOperations called {
@@ -504,6 +673,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mresolveExpr — bug fixes[2m > [22m[2mLOOP sum with 0 items returns 0 (not null)
@@ -515,6 +691,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mresolveExpr — bug fixes[2m > [22m[2mLOOP sum accumulates values from today's occurrences
 [22m[39m[BUILD-DAY] runMatchingOperations called {
@@ -524,6 +707,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mresolveExpr — bug fixes[2m > [22m[2mUPDATE display effect carries fieldId/itemId/value (no target on the effect)
@@ -535,6 +725,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mReal-world example data operations (workout, nutrition, goals)[2m > [22m[2mworkout total duration: LOOP sum of today's durations with target
 [22m[39m[BUILD-DAY] runMatchingOperations called {
@@ -544,6 +741,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -563,6 +767,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -580,6 +791,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -599,6 +817,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -616,6 +841,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -635,6 +867,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -653,6 +892,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -668,6 +914,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -687,6 +940,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mReal-world example data operations (workout, nutrition, goals)[2m > [22m[2monLoad trigger does NOT fire for MeasureOp or NavigationOp
 [22m[39m[BUILD-DAY] runMatchingOperations called {
@@ -697,6 +957,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -706,7 +973,6 @@ Unknown block type: bad_block_type
   matchedOps: []
 }
 
- [32m✓[39m src/__tests__/MobileGridNav.test.jsx [2m([22m[2m5 tests[22m[2m)[22m[32m 114[2mms[22m[39m
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mReal-world example data operations (workout, nutrition, goals)[2m > [22m[2mmultiple ops (workout + nutrition + completion) all fire and return independent results
 [22m[39m[BUILD-DAY] runMatchingOperations called {
   transactionType: [32m'NavigationOp'[39m,
@@ -715,6 +981,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m2[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -737,6 +1010,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
+}
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
   fieldId: [90mundefined[39m,
@@ -754,6 +1034,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m1[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [32m'NavigationOp'[39m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m ]
 }
 [FILTER-DIAG] NavigationOp → {
   sourceOccurrenceId: [90mundefined[39m,
@@ -773,6 +1060,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m3[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m, [32m'Test Op'[39m ]
+}
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations — sortOrder priority[2m > [22m[2mops without sortOrder default to 50 (interleave with explicit values)
 [22m[39m[BUILD-DAY] runMatchingOperations called {
@@ -782,6 +1076,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m3[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m, [32m'Test Op'[39m ]
 }
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations — sortOrder priority[2m > [22m[2msortOrder ties preserve original input order (stable sort)
@@ -793,6 +1094,13 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m3[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m, [32m'Test Op'[39m ]
+}
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations — sortOrder priority[2m > [22m[2msorting does not mutate the input array
 [22m[39m[BUILD-DAY] runMatchingOperations called {
@@ -802,6 +1110,13 @@ Unknown block type: bad_block_type
   buildDayTriggerObjects: [90mundefined[39m,
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m2[39m
+}
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m ]
 }
 
 [90mstdout[2m | src/__tests__/operationExecutor.test.js[2m > [22m[2mrunMatchingOperations — sortOrder priority[2m > [22m[2mnon-matching ops still respect sort but don't produce updates
@@ -813,27 +1128,50 @@ Unknown block type: bad_block_type
   buildDayTriggerTypes: [90mundefined[39m,
   operationCount: [33m3[39m
 }
+[SCHED-TABLE] runMatchingOperations called {
+  transactionType: [1mnull[22m,
+  schedTablePresent: [33mfalse[39m,
+  schedTableTriggerObjects: [90mundefined[39m,
+  schedTableTriggerTypes: [90mundefined[39m,
+  allOpNames: [ [32m'Test Op'[39m, [32m'Test Op'[39m, [32m'Test Op'[39m ]
+}
 
- [32m✓[39m src/__tests__/mobile-fixes.test.jsx [2m([22m[2m18 tests[22m[2m)[22m[32m 112[2mms[22m[39m
- [32m✓[39m src/__tests__/operationExecutor.test.js [2m([22m[2m170 tests[22m[2m)[22m[32m 241[2mms[22m[39m
- [32m✓[39m src/__tests__/dropHandlers.routing.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 17[2mms[22m[39m
- [32m✓[39m src/__tests__/applyUpdate.test.js [2m([22m[2m14 tests[22m[2m)[22m[32m 17[2mms[22m[39m
- [32m✓[39m src/__tests__/DragProvider.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 14[2mms[22m[39m
- [32m✓[39m src/__tests__/applyUpdate.varRecord.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 8[2mms[22m[39m
- [32m✓[39m src/__tests__/CategoryPathPicker.test.jsx [2m([22m[2m7 tests[22m[2m)[22m[33m 1042[2mms[22m[39m
-     [33m[2m✓[22m[39m renders an empty placeholder when no value [33m 363[2mms[22m[39m
- [32m✓[39m src/__tests__/optionsResolver.test.js [2m([22m[2m17 tests[22m[2m)[22m[32m 14[2mms[22m[39m
- [32m✓[39m src/__tests__/migrateFieldOptionsSource.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/__tests__/operationExecutor.test.js [2m([22m[2m170 tests[22m[2m)[22m[33m 422[2mms[22m[39m
+ [32m✓[39m src/__tests__/BoundBody.test.jsx [2m([22m[2m7 tests[22m[2m)[22m[33m 384[2mms[22m[39m
+     [33m[2m✓[22m[39m renders the host's own selfField TipTap content [33m 308[2mms[22m[39m
+ [32m✓[39m src/__tests__/EditorBindingSection.test.jsx [2m([22m[2m7 tests[22m[2m)[22m[33m 1312[2mms[22m[39m
+     [33m[2m✓[22m[39m calls onChange(null) when the Clear button is clicked [33m 516[2mms[22m[39m
+ [32m✓[39m src/__tests__/BoundHeader.test.jsx [2m([22m[2m4 tests[22m[2m)[22m[33m 628[2mms[22m[39m
+     [33m[2m✓[22m[39m writes to the HOST occurrence (not a linked one) on dropdown change [33m 457[2mms[22m[39m
+ [32m✓[39m src/__tests__/DragProvider.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/__tests__/CategoryPathPicker.test.jsx [2m([22m[2m7 tests[22m[2m)[22m[33m 1990[2mms[22m[39m
+     [33m[2m✓[22m[39m renders an empty placeholder when no value [33m 636[2mms[22m[39m
+     [33m[2m✓[22m[39m opens the level-1 category menu on click and shows all five categories [33m 468[2mms[22m[39m
+     [33m[2m✓[22m[39m commits a chosen built-in scalar on click (level 2 leaf) [33m 313[2mms[22m[39m
+ [32m✓[39m src/__tests__/LayoutHelpers.test.js [2m([22m[2m31 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m src/__tests__/masterReducer.test.js [2m([22m[2m55 tests[22m[2m)[22m[32m 60[2mms[22m[39m
+ [32m✓[39m src/__tests__/migrateFieldOptionsSource.test.js [2m([22m[2m15 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/__tests__/applyUpdate.varRecord.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/__tests__/optionsResolver.test.js [2m([22m[2m28 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/__tests__/tableCells.test.js [2m([22m[2m14 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/__tests__/editorBindings.test.js [2m([22m[2m13 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/__tests__/applyUpdate.test.js [2m([22m[2m15 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/__tests__/CalculationHelpers.test.js [2m([22m[2m58 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/__tests__/filterCascade.test.js [2m([22m[2m17 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/__tests__/occurrenceChipDisplay.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/__tests__/dropHandlers.routing.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/__tests__/categoryRegistry.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/__tests__/operationActions.nullLiteral.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/__tests__/fieldVisibilityCascade.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/__tests__/assignLinkedGroup.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
  [32m✓[39m src/__tests__/mobile-fixes.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
- [32m✓[39m src/__tests__/operationActions.nullLiteral.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
- [32m✓[39m src/__tests__/MobileGridNav.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
- [32m✓[39m src/__tests__/categoryRegistry.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 6[2mms[22m[39m
- [32m✓[39m src/__tests__/RadialMenu.test.js [2m([22m[2m10 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/__tests__/MobileGridNav.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/__tests__/RadialMenu.test.js [2m([22m[2m10 tests[22m[2m)[22m[32m 6[2mms[22m[39m
  [32m✓[39m src/__tests__/operationsSmoke.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 2[2mms[22m[39m
  [32m✓[39m src/__tests__/stampPageFilterFields.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 3[2mms[22m[39m
 
-[2m Test Files [22m [1m[32m27 passed[39m[22m[90m (27)[39m
-[2m      Tests [22m [1m[32m600 passed[39m[22m[90m (600)[39m
-[2m   Start at [22m 21:34:24
-[2m   Duration [22m 3.70s[2m (transform 3.33s, setup 2.31s, import 9.60s, tests 1.91s, environment 28.37s)[22m
+[2m Test Files [22m [1m[32m37 passed[39m[22m[90m (37)[39m
+[2m      Tests [22m [1m[32m731 passed[39m[22m[90m (731)[39m
+[2m   Start at [22m 19:44:10
+[2m   Duration [22m 7.62s[2m (transform 5.60s, setup 4.98s, import 18.18s, tests 5.81s, environment 57.35s)[22m
 

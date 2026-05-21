@@ -220,6 +220,29 @@ function routeRecordPath(path, segments, value, { item, occurrencesById }) {
     };
   }
 
+  // $slot.ownStyle.bg / .opacity / .borderRadius / etc.
+  // Same shape as meta — writes a partial merge into occurrence.ownStyle.
+  // Lets operations set per-occurrence visual properties (color, opacity,
+  // basic non-layout styles) the same way the settings menu does, via the
+  // existing operationsBridge.applyEffect path.
+  if (segments[1] === "ownStyle") {
+    const styleKey = segments[2];
+    if (!styleKey) {
+      throw new Error(`unknown path head: ${path}`);
+    }
+    return {
+      effects: [
+        {
+          _effect: "UPDATE_ITEM_OWN_STYLE",
+          itemId,
+          styleKey,
+          value,
+        },
+      ],
+      varWrites: {},
+    };
+  }
+
   if (segments[1] === "textmap" && segments.length === 2) {
     let textmap = value;
     if (

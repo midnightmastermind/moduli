@@ -1,6 +1,6 @@
 // server/__tests__/liveSystemBuilders.test.js
 import { describe, it, expect } from "vitest";
-import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeDayPageBuildOp, makeStampDateTimeSlotOp, makeClearDateOnMoveOutOp, makeTrackerOp } from "../utils/liveSystemBuilders.js";
+import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeScheduleBuildScheduleOp, makeDayPageBuildOp, makeStampDateTimeSlotOp, makeClearDateOnMoveOutOp, makeTrackerOp } from "../utils/liveSystemBuilders.js";
 
 describe("buildGridDoc", () => {
   it("creates a Daily namedFilter on dateFieldId with empty activeFilterValues", () => {
@@ -43,9 +43,18 @@ describe("buildDailyRoutineTemplate", () => {
 });
 
 describe("schedule ops", () => {
-  it("Build Day op is priority-1, onLoad+onFilterChange, references date/due/timeslot fields", () => {
+  it("Build Day op (test grid) is priority-1, onLoad+onFilterChange, references date/due/timeslot fields", () => {
     const op = makeScheduleBuildDayOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS" });
     expect(op.name).toBe("Schedule: Build Day");
+    expect(op.triggerTypes).toEqual(["onLoad", "onFilterChange"]);
+    expect(op.triggerObjects.every(t => t.priority === 1)).toBe(true);
+    expect(JSON.stringify(op.pipeline)).toContain("DF");
+    expect(JSON.stringify(op.pipeline)).toContain("DUE");
+    expect(JSON.stringify(op.pipeline)).toContain("TS");
+  });
+  it("Build Schedule op (live data) loops over $activePeriodDates and creates Day Columns", () => {
+    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS" });
+    expect(op.name).toBe("Schedule: Build Schedule");
     expect(op.triggerTypes).toEqual(["onLoad", "onFilterChange"]);
     expect(op.triggerObjects.every(t => t.priority === 1)).toBe(true);
     expect(JSON.stringify(op.pipeline)).toContain("DF");

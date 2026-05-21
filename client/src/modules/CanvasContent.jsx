@@ -12,7 +12,7 @@
 // inside the dropdown panel.
 
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect } from "react";
-import { MousePointer2, Hand, Pencil, Square, Circle, Minus, Eraser, Undo2, Redo2, ChevronUp, ChevronDown, Crosshair } from "lucide-react";
+import { MousePointer2, Hand, Pencil, Square, Circle, Minus, Eraser, Undo2, Redo2, ChevronUp, ChevronDown, Crosshair, Link2 } from "lucide-react";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useMobileDetect } from "../hooks/useMobileDetect";
 
@@ -26,6 +26,7 @@ const CANVAS_WORLD_SIZE = 4000;
 const DRAW_TOOLS = [
   { id: "select",  icon: MousePointer2, title: "Select / move cards" },
   { id: "grab",    icon: Hand,          title: "Grab to pan" },
+  { id: "connect", icon: Link2,         title: "Connect cards (drag card → card)" },
   { id: "pen",     icon: Pencil,        title: "Freehand pen" },
   { id: "line",    icon: Minus,         title: "Straight line" },
   { id: "rect",    icon: Square,        title: "Rectangle" },
@@ -85,6 +86,18 @@ export const CanvasContent = React.memo(function CanvasContent({
   const [drawSize, setDrawSize] = useState(2);
   const [strokes, setStrokes] = useState(() => containerOccurrence?.meta?.drawData || []);
   const [redoStack, setRedoStack] = useState([]);
+  // Connection edges between cards. Persisted on the page occurrence's
+  // meta.edges array. Each entry: { id, from: occurrenceId, to:
+  // occurrenceId }. Rendered as bezier curves in an SVG layer inside
+  // the world; pointer hit-tested for delete-on-click in connect mode.
+  const [edges, setEdges] = useState(() => containerOccurrence?.meta?.edges || []);
+  // In-progress connection drag (connect tool only): { fromOccId,
+  // startX, startY, x, y } in world coords. Null when not dragging.
+  const [connectDrag, setConnectDrag] = useState(null);
+  // Tick that bumps when a card position changes so the SVG edge layer
+  // re-reads card center coords. Cheap (a number); no DOM measurement
+  // until render time.
+  const [cardPosTick, setCardPosTick] = useState(0);
   // Local override — once user hides the toolbar with the in-toolbar button,
   // we collapse to a small "show" pill until they click it. Defaults to the
   // parent-passed showToolbar so this is opt-in.
@@ -215,6 +228,13 @@ export const CanvasContent = React.memo(function CanvasContent({
     setRedoStack([]);
   }, [containerOccurrence?.id]);
 
+  // Sync edges when occurrence changes externally (page switch, sibling
+  // session edit). Skipped for in-flight connect drags so we don't snap
+  // the user's drag back to the persisted state mid-drag.
+  useEffect(() => {
+    setEdges(containerOccurrence?.meta?.edges || []);
+  }, [containerOccurrence?.id, containerOccurrence?.meta?.edges]);
+
   // Size the drawing canvas to the world size once on mount.
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -264,6 +284,38 @@ export const CanvasContent = React.memo(function CanvasContent({
       return r.slice(0, -1);
     });
   }, [saveStrokes]);
+
+  const saveEdges = useCallback((nextEdges) => {
+    setEdges(nextEdges);
+    if (containerOccurrence?.id) {
+      CommitHelpers.updateOccurrence({ dispatch, socket,
+        occurrence: { ...containerOccurrence, meta: { ...(containerOccurrence.meta || {}), edges: nextEdges } },
+        emit: true });
+    }
+  }, [containerOccurrence, dispatch, socket]);
+
+  // Hit-test: given a world-space pointer event, return the occurrence
+  // id of the card under the pointer (or null). Uses document.elementFromPoint
+  // so the routine works regardless of whether the card is an instance
+  // (data-occurrence-id) or a container (data-occ-id). Crucially we
+  // temporarily hide the SVG overlay during the test so its pointer-
+  // events don't shadow the cards — but it's already pointer-events:none
+  // in the render, so this is just defense.
+  const hitTestOccId = useCallback((clientX, clientY) => {
+    const el = document.elementFromPoint(clientX, clientY);
+    if (!el) return null;
+    const card = el.closest("[data-occurrence-id], [data-occ-id]");
+    if (!card) return null;
+    return card.getAttribute("data-occurrence-id") || card.getAttribute("data-occ-id") || null;
+  }, []);
+
+  // Force the SVG edge layer to refresh card centers when an occurrence
+  // moves (drag-release writes meta.x/y → re-read on next tick). This
+  // useEffect keys on the meta.x/y of any occurrence that's an edge
+  // endpoint, so connecting two cards and moving one updates the curve.
+  // Triggered by parent re-renders too — cheap when nothing has changed.
+  const itemsKey = (itemsWithOccurrences || []).map(it => `${it.occurrence?.id}:${it.occurrence?.meta?.x}:${it.occurrence?.meta?.y}`).join("|");
+  useEffect(() => { setCardPosTick(t => t + 1); }, [itemsKey]);
 
   // ─── Edge autoscroll state + classifier — declared BEFORE the pointer
   // handlers that depend on them. `onSurfacePointerMove` lists
@@ -406,13 +458,32 @@ export const CanvasContent = React.memo(function CanvasContent({
   const onWorldPointerDown = useCallback((e) => {
     if (drawTool === "select" || drawTool === "grab") return;
     if (e.target?.closest?.("[data-dnd-handle]")) return;
+    // Connect tool: begin an edge from the card under the pointer. If
+    // no card is hit, do nothing (clicking empty space in connect mode
+    // is a no-op so the user doesn't accidentally start a draw).
+    if (drawTool === "connect") {
+      const fromOccId = hitTestOccId(e.clientX, e.clientY);
+      if (!fromOccId) return;
+      e.stopPropagation();
+      const pos = getPos(e);
+      setConnectDrag({ fromOccId, startX: pos.x, startY: pos.y, x: pos.x, y: pos.y });
+      e.currentTarget.setPointerCapture(e.pointerId);
+      return;
+    }
     e.stopPropagation();
     isDrawing.current = true;
     currentPath.current = [getPos(e)];
     e.currentTarget.setPointerCapture(e.pointerId);
-  }, [drawTool, getPos]);
+  }, [drawTool, getPos, hitTestOccId]);
 
   const onWorldPointerMove = useCallback((e) => {
+    // Connect tool: update the in-flight edge endpoint to the current
+    // pointer. Render runs inline in the SVG layer so we just patch state.
+    if (drawTool === "connect" && connectDrag) {
+      const pos = getPos(e);
+      setConnectDrag(d => d ? { ...d, x: pos.x, y: pos.y } : d);
+      return;
+    }
     if (!isDrawing.current) return;
     const pos = getPos(e);
     const canvas = canvasRef.current;
@@ -447,9 +518,29 @@ export const CanvasContent = React.memo(function CanvasContent({
       }
     }
     ctx.globalCompositeOperation = "source-over";
-  }, [drawTool, drawColor, drawSize, getPos]);
+  }, [drawTool, drawColor, drawSize, getPos, connectDrag]);
 
   const onWorldPointerUp = useCallback((e) => {
+    // Connect tool: drop endpoint on the target card. If the drop lands
+    // on a different card, persist a new edge. Same-card drops + drops
+    // on empty space discard the drag silently.
+    if (drawTool === "connect" && connectDrag) {
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      const toOccId = hitTestOccId(e.clientX, e.clientY);
+      if (toOccId && toOccId !== connectDrag.fromOccId) {
+        // Dedup — don't add the same edge twice in either direction.
+        const exists = edges.some(ed =>
+          (ed.from === connectDrag.fromOccId && ed.to === toOccId) ||
+          (ed.from === toOccId && ed.to === connectDrag.fromOccId)
+        );
+        if (!exists) {
+          const newEdge = { id: `e-${connectDrag.fromOccId}-${toOccId}-${Date.now()}`, from: connectDrag.fromOccId, to: toOccId };
+          saveEdges([...edges, newEdge]);
+        }
+      }
+      setConnectDrag(null);
+      return;
+    }
     if (!isDrawing.current) return;
     isDrawing.current = false;
     e.currentTarget.releasePointerCapture(e.pointerId);
@@ -471,7 +562,7 @@ export const CanvasContent = React.memo(function CanvasContent({
       setRedoStack([]);
       saveStrokes([...strokesRef.current, newStroke]);
     }
-  }, [drawTool, drawColor, drawSize, getPos, saveStrokes]);
+  }, [drawTool, drawColor, drawSize, getPos, saveStrokes, connectDrag, edges, hitTestOccId, saveEdges]);
 
   // dragover fires continuously while an item is being dragged over the
   // surface. When the pointer is within EDGE px of an edge we kick off a
@@ -565,6 +656,7 @@ export const CanvasContent = React.memo(function CanvasContent({
   const surfaceCursor = drawTool === "grab"
     ? (panStateRef.current ? "grabbing" : "grab")
     : drawTool === "select" ? "default"
+    : drawTool === "connect" ? "crosshair"
     : drawTool === "eraser" ? "cell"
     : "crosshair";
 
@@ -652,6 +744,39 @@ export const CanvasContent = React.memo(function CanvasContent({
   );
 
   const sep = <div style={{ width: 1, height: 18, background: "var(--border-subtle)", margin: "0 2px" }} />;
+
+  // ─── Edge geometry ─────────────────────────────────────────────────────
+  // Approximate card-center as `meta.x + halfW, meta.y + halfH` using a
+  // fixed (CARD_W, CARD_H) since cards are sized to a typical card shape
+  // (matches the CanvasSlot 160-300px width). The real DOM rect would be
+  // more accurate but would force a measurement pass every render; the
+  // fixed offset reads cleanly in 95% of cases and avoids that cost.
+  const CARD_W = 180;
+  const CARD_H = 60;
+  const cardCenterFor = (occId) => {
+    if (!occId) return null;
+    const it = (itemsWithOccurrences || []).find(x => x.occurrence?.id === occId);
+    if (!it) return null;
+    const m = it.occurrence?.meta || {};
+    const x = typeof m.x === "number" ? m.x : 40;
+    const y = typeof m.y === "number" ? m.y : 40;
+    return { x: x + CARD_W / 2, y: y + CARD_H / 2 };
+  };
+  // Bezier path between two world points — gentle horizontal control
+  // points so curves feel like wires, not straight lines.
+  const edgePath = (a, b) => {
+    if (!a || !b) return "";
+    const dx = Math.abs(b.x - a.x);
+    const offset = Math.max(40, dx * 0.4);
+    return `M ${a.x} ${a.y} C ${a.x + offset} ${a.y}, ${b.x - offset} ${b.y}, ${b.x} ${b.y}`;
+  };
+  const handleEdgeClick = (edgeId) => {
+    if (drawTool !== "connect") return;
+    saveEdges(edges.filter(e => e.id !== edgeId));
+  };
+  // Suppress the lint warning about cardPosTick — its purpose is to
+  // force a re-render of the SVG layer when an upstream card moves.
+  void cardPosTick;
 
   return (
     <div
@@ -803,6 +928,58 @@ export const CanvasContent = React.memo(function CanvasContent({
               zIndex: drawTool === "select" || drawTool === "grab" ? 0 : 10,
             }}
           />
+          {/* Edge overlay — SVG sized to the world. Sits BETWEEN the
+              drawing canvas and the floating cards (zIndex 2). Pointer
+              events are off by default; individual edge paths re-enable
+              them so they can be clicked for deletion in connect mode. */}
+          <svg
+            style={{
+              position: "absolute", inset: 0, width: CANVAS_WORLD_SIZE, height: CANVAS_WORLD_SIZE,
+              pointerEvents: "none", zIndex: 2,
+            }}
+          >
+            {edges.map((ed) => {
+              const a = cardCenterFor(ed.from);
+              const b = cardCenterFor(ed.to);
+              if (!a || !b) return null;
+              const isHot = drawTool === "connect";
+              return (
+                <g key={ed.id}>
+                  {/* Wide invisible hit path so click targeting is forgiving */}
+                  <path
+                    d={edgePath(a, b)}
+                    stroke="transparent"
+                    strokeWidth={16}
+                    fill="none"
+                    style={{ pointerEvents: isHot ? "stroke" : "none", cursor: isHot ? "pointer" : "default" }}
+                    onClick={(e) => { e.stopPropagation(); handleEdgeClick(ed.id); }}
+                  />
+                  <path
+                    d={edgePath(a, b)}
+                    stroke="rgba(129,140,248,0.85)"
+                    strokeWidth={2}
+                    fill="none"
+                    style={{ pointerEvents: "none" }}
+                  />
+                </g>
+              );
+            })}
+            {/* In-progress connect drag — light, dashed feedback line */}
+            {connectDrag && (() => {
+              const a = cardCenterFor(connectDrag.fromOccId);
+              if (!a) return null;
+              return (
+                <path
+                  d={edgePath(a, { x: connectDrag.x, y: connectDrag.y })}
+                  stroke="rgba(129,140,248,0.7)"
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                  fill="none"
+                  style={{ pointerEvents: "none" }}
+                />
+              );
+            })()}
+          </svg>
           {/* Floating module cards (instances or embedded containers) */}
           {itemsWithOccurrences.map(({ module: mod, occurrence: occ }) =>
             renderCard && renderCard({
@@ -810,7 +987,14 @@ export const CanvasContent = React.memo(function CanvasContent({
               occurrence: occ,
               style: {
                 zIndex: drawTool === "select" || drawTool === "grab" ? 1 : 5,
-                pointerEvents: drawTool === "select" || drawTool === "grab" ? "all" : "none",
+                // Connect mode keeps cards pointer-active so elementFromPoint
+                // hit-tests find them on press / release; the cards' own
+                // event handlers are still inert because the world's
+                // pointer handlers stopPropagation in connect mode.
+                pointerEvents:
+                  drawTool === "select" || drawTool === "grab" || drawTool === "connect"
+                    ? "all"
+                    : "none",
               },
               containerId,
               panelId,

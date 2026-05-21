@@ -1,6 +1,26 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-05-19. Check this file before re-reading source._
+_Updated: 2026-05-20. Check this file before re-reading source._
+
+## Recent Changes (2026-05-20 — Socket status pill in toolbar)
+- **NEW `hooks/useSocketStatus.js`** — subscribes to `socket.on("connect"
+  / "disconnect" / "connect_error")` and `socket.io.on("reconnect_attempt")`,
+  returning `{ status: "connected" | "disconnected" | "recovered", attempts }`.
+  Initial status mirrors `socket.connected` so first paint reflects reality
+  for a tab restored offline. The "recovered" state holds for 3s after a
+  successful reconnect, then flips to "connected".
+- **NEW `ui/SocketStatusBanner.jsx`** — small inline pill rendered only when
+  status ≠ "connected". Red w/ pulsing dot + WifiOff icon while disconnected
+  (label includes the retry attempt count when ≥1), green + Wifi icon for
+  the 3s recovered window. Tooltip on the red pill explains that writes are
+  being buffered locally (the offline queue handles this — the pill is just
+  visibility).
+- **`Toolbar.jsx`** — imports `SocketStatusBanner` and renders it
+  immediately to the right of the logo block (still inside the left-side
+  shrink-0 group), so it's the first thing the user sees when their
+  connection drops on either desktop or mobile.
+- **`index.css`** — added `@keyframes socket-status-pulse` (opacity +
+  scale dip every 1.2s) used by the red-state dot.
 
 ## Recent Changes (2026-05-19 — Editor↔field binding (self-field + sync))
 - **NEW**: `state/editorBindings.js` — `resolveEditorBinding({ occurrence, module, slot })`

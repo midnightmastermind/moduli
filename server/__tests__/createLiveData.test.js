@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import mongoose from "mongoose";
 
 let createLiveData;
-let Grid, Module, Occurrence, View, Operation;
+let Grid, Module, Occurrence, View, Operation, Folder;
 let connected = false;
 
 beforeAll(async () => {
@@ -40,6 +40,7 @@ beforeAll(async () => {
   Occurrence = (await import("../models/Occurrence.js")).default;
   View      = (await import("../models/View.js")).default;
   Operation = (await import("../models/Operation.js")).default;
+  Folder    = (await import("../models/Folder.js")).default;
 });
 
 afterAll(async () => {
@@ -170,10 +171,16 @@ describe("createLiveData — structural assertions", () => {
   });
 
   // ── 6. Tracker op count (recommended, high-value) ────────────────────────────
-  it("at least 19 'Tracker:' operations exist for the grid", async () => {
+  // Tracker ops are routed into the per-grid "Trackers" folder (Command
+  // Center category) via makeTrackerOp's folderId arg and inline folderId
+  // on the muscle/meal trackers. Count by folderId, not name-prefix —
+  // names were stripped of the "Tracker:" prefix once the folder existed.
+  it("at least 19 tracker operations exist in the Trackers folder", async () => {
     if (!connected) return;
     const { gridId } = result;
-    const trackerOps = await Operation.find({ gridId, name: /^Tracker:/ });
+    const trackersFolder = await Folder.findOne({ gridId, name: "Trackers", folderType: "category" });
+    expect(trackersFolder, "Missing Trackers category folder").toBeTruthy();
+    const trackerOps = await Operation.find({ gridId, folderId: trackersFolder.id });
     expect(trackerOps.length).toBeGreaterThanOrEqual(19);
   });
 

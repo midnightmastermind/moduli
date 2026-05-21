@@ -9,6 +9,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, SkipForward } from "lucide-react";
 import { toast } from "sonner";
+import { operationsBridge } from "../state/bindSocketToStore";
 
 const PHASES = [
   { label: "Work",       duration: 25 * 60, color: "#ef4444" },
@@ -25,6 +26,18 @@ function fmt(seconds) {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+// Slot label in the format Schedule: Build Day mints (e.g. "9:00am",
+// "12:00pm"). Hour-rounded; minutes ignored — sessions land in the
+// hour-slot they're started in. Schedule slot containers carry
+// meta.slotLabel matching this exact format so the Pomodoro: Start op's
+// FIND resolves by string equality.
+function currentSlotLabel(now = new Date()) {
+  const h24 = now.getHours();
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  const ampm = h24 < 12 ? "am" : "pm";
+  return `${h12}:00${ampm}`;
 }
 
 export default function PomodoroTimer() {
@@ -48,6 +61,15 @@ export default function PomodoroTimer() {
           setRunning(false);
           const nextIdx = (phaseIndex + 1) % PHASES.length;
           const nextPhase = PHASES[nextIdx];
+          // Natural completion of a work phase → fire Pomodoro: Complete.
+          // Break phases naturally completing is a no-op (nothing to mark
+          // done in the schedule).
+          if (phase.label === "Work") {
+            operationsBridge.fireOperations?.("PomoCompleteOp", {
+              type: "PomoCompleteOp",
+              minutes: Math.round(phase.duration / 60),
+            });
+          }
           toast.success(`${phase.label} complete! Up next: ${nextPhase.label}`, { duration: 6000 });
           setPhaseIndex(nextIdx);
           setRemaining(nextPhase.duration);
@@ -57,16 +79,43 @@ export default function PomodoroTimer() {
       });
     }, 1000);
     return () => clearInterval(intervalRef.current);
-  }, [running, phaseIndex, phase.label]);
+  }, [running, phaseIndex, phase.label, phase.duration]);
 
-  const toggleRun = useCallback(() => setRunning(r => !r), []);
-  const reset = useCallback(() => { setRunning(false); setRemaining(phase.duration); }, [phase.duration]);
+  const toggleRun = useCallback(() => {
+    setRunning(prev => {
+      const next = !prev;
+      // Transition paused → running on a work phase → fire Pomodoro: Start.
+      // Break phases are local-only (no Schedule occurrence).
+      if (next && phase.label === "Work") {
+        const pomoNumber = (phaseIndex / 2 | 0) + 1; // 1..4 within the cycle
+        operationsBridge.fireOperations?.("PomoStartOp", {
+          type: "PomoStartOp",
+          slotLabel: currentSlotLabel(),
+          minutes: Math.round(phase.duration / 60),
+          pomoNumber,
+          phase: "work",
+        });
+      }
+      return next;
+    });
+  }, [phase.label, phase.duration, phaseIndex]);
+  const reset = useCallback(() => {
+    // Abandoning a running work phase → delete the open Schedule session.
+    if (running && phase.label === "Work") {
+      operationsBridge.fireOperations?.("PomoStopOp", { type: "PomoStopOp" });
+    }
+    setRunning(false);
+    setRemaining(phase.duration);
+  }, [running, phase.label, phase.duration]);
   const skip = useCallback(() => {
+    if (running && phase.label === "Work") {
+      operationsBridge.fireOperations?.("PomoStopOp", { type: "PomoStopOp" });
+    }
     setRunning(false);
     const nextIdx = (phaseIndex + 1) % PHASES.length;
     setPhaseIndex(nextIdx);
     setRemaining(PHASES[nextIdx].duration);
-  }, [phaseIndex]);
+  }, [phaseIndex, running, phase.label]);
 
   // Close on outside click
   useEffect(() => {

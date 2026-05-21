@@ -1204,6 +1204,39 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
+    case "GET_USER_INPUT": {
+      // Suspend sentinel — executeSteps detects this, captures the remaining
+      // steps as a continuation, and dispatches the request to
+      // operationsBridge.requestUserInput. When the user submits, the
+      // continuation resumes with the answer placed at $vars[resultVar]
+      // (default "$userInput"). Downstream steps can resolveExpr against it
+      // for chained question flows.
+      //
+      // cfg:
+      //   question      — string with $var interpolation ("How long? $foo")
+      //   inputType     — "text" | "number" | "select" | "boolean" | "date"
+      //   options       — array of {value,label} or strings (for select)
+      //   defaultValue  — initial value in the modal
+      //   resultVar     — name of the $var to bind on resume (default "$userInput")
+      //   title         — optional modal title
+      const question = resolveExpr(cfg.question, $vars);
+      const defaultValue = resolveExpr(cfg.defaultValue, $vars);
+      const options = Array.isArray(cfg.options)
+        ? cfg.options.map((o) => (typeof o === "string" ? { value: o, label: o } : o))
+        : null;
+      return [{
+        _suspend: true,
+        request: {
+          question: question == null ? "" : String(question),
+          inputType: cfg.inputType || "text",
+          options,
+          defaultValue,
+          title: cfg.title || null,
+        },
+        resultVar: cfg.resultVar || "$userInput",
+      }];
+    }
+
     case "AGGREGATE": {
       const occurrences = Object.values(occurrencesById);
       let allValues = [];
@@ -1366,6 +1399,68 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           if (diffDays >= 0 && (minDiff === null || diffDays < minDiff)) minDiff = diffDays;
         }
         if (minDiff !== null) updates.push({ fieldId: targetFieldId, value: minDiff });
+      }
+      break;
+    }
+
+    // ---- DATE_ADD: add an amount of time to a base date ----
+    // cfg: {
+    //   base?: expr        — base date (default "$today"). ISO string, Date, or $expr.
+    //   amount?: expr      — number of units to add (default 1).
+    //   unit?: "day"|"week"|"month"|"year"  — default "day". Can be an expr.
+    //   setDay?: expr      — optional. For month/year units: snap day-of-month BEFORE adding.
+    //                          For week units: snap forward to that day-of-week (1=Mon..7=Sun).
+    //   advanceUntil?: expr — optional date expr. While result <= advanceUntil, keep adding.
+    //                          Lets a single step roll a cycle anchor to the next future date.
+    //   resultVar?: string  — bind the resulting ISO date to $vars[resultVar].
+    //   targetFieldId?: string         — also emit a field write effect.
+    //   targetOccurrenceIdExpr?: expr  — required with targetFieldId.
+    case "DATE_ADD": {
+      const baseRaw = resolveExpr(cfg.base ?? "$today", $vars);
+      if (!baseRaw) break;
+      const result = new Date(baseRaw);
+      if (isNaN(result.getTime())) break;
+      result.setHours(12, 0, 0, 0);
+
+      const amount = Number(resolveExpr(cfg.amount ?? 1, $vars));
+      if (!Number.isFinite(amount)) break;
+      const unit = String(resolveExpr(cfg.unit ?? "day", $vars) ?? "day");
+
+      const setDay = cfg.setDay !== undefined ? Number(resolveExpr(cfg.setDay, $vars)) : NaN;
+      if (Number.isFinite(setDay) && (unit === "month" || unit === "year")) {
+        result.setDate(setDay);
+      } else if (Number.isFinite(setDay) && unit === "week") {
+        // 1=Mon..7=Sun -> JS getDay (0=Sun..6=Sat) normalized to Mon=0..Sun=6
+        const targetDow = ((setDay - 1) % 7 + 7) % 7;
+        const currentDow = (result.getDay() + 6) % 7;
+        result.setDate(result.getDate() + ((targetDow - currentDow + 7) % 7));
+      }
+
+      const advance = (d) => {
+        if (unit === "day")        d.setDate(d.getDate() + amount);
+        else if (unit === "week")  d.setDate(d.getDate() + amount * 7);
+        else if (unit === "month") d.setMonth(d.getMonth() + amount);
+        else if (unit === "year")  d.setFullYear(d.getFullYear() + amount);
+      };
+      advance(result);
+
+      if (cfg.advanceUntil !== undefined) {
+        const limitRaw = resolveExpr(cfg.advanceUntil, $vars);
+        if (limitRaw) {
+          const limit = new Date(limitRaw);
+          if (!isNaN(limit.getTime())) {
+            limit.setHours(12, 0, 0, 0);
+            let safety = 600;
+            while (result <= limit && safety-- > 0) advance(result);
+          }
+        }
+      }
+
+      const resultIso = result.toISOString();
+      if (cfg.resultVar) $vars[cfg.resultVar] = resultIso;
+      if (cfg.targetFieldId) {
+        const occId = resolveExpr(cfg.targetOccurrenceIdExpr ?? cfg.targetOccurrenceId, $vars);
+        if (occId) updates.push({ fieldId: cfg.targetFieldId, occurrenceId: occId, value: resultIso });
       }
       break;
     }

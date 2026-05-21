@@ -1,16 +1,24 @@
 // client/src/ui/FilterNavWidgets.jsx
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
-import { DayPicker } from "react-day-picker";
-import "react-day-picker/style.css";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { setFilterNavAction } from "../state/actions";
 import { resolveOptions } from "../helpers/optionsResolver";
+import NavPickerPopover from "./NavPickerPopover.jsx";
 
 // Period units exposed in the D/W/M/Y toggle. Stepping uses Date#setDate /
 // setMonth / setFullYear (NOT fixed ms deltas — month/year vary in length).
 const UNIT_LABELS = { day: "D", week: "W", month: "M", year: "Y" };
 const UNIT_ORDER = ["day", "week", "month", "year"];
 
+// Filter value shape: { value, unit, span?, kind?, dates? }
+//   value: ISO date string (YYYY-MM-DD) — the anchor / start
+//   unit:  "day" | "week" | "month" | "year"
+//   span:  number of days covered (>=1)
+//   kind:  "single" | "range" | "multi" | "week" | "month" | "year"
+//          Drives downstream rendering branch (Schedule op reads day count;
+//          kind preserves intent for richer display).
+//   dates: ISO[] — only set when kind === "multi" (non-consecutive). When set,
+//          dates wins over value+span in the cascade.
 function readValueShape(v) {
   if (v && typeof v === "object" && !Array.isArray(v)) {
     const span = Number(v.span);
@@ -18,9 +26,11 @@ function readValueShape(v) {
       value: v.value ?? null,
       unit: v.unit || "day",
       span: Number.isFinite(span) && span > 1 ? Math.floor(span) : 1,
+      kind: v.kind || (Number.isFinite(span) && span > 1 ? "range" : "single"),
+      dates: Array.isArray(v.dates) ? v.dates : null,
     };
   }
-  return { value: v ?? null, unit: "day", span: 1 };
+  return { value: v ?? null, unit: "day", span: 1, kind: "single", dates: null };
 }
 
 function stepByUnit(date, unit, direction) {
@@ -72,91 +82,29 @@ function localDayISO(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// React-Day-Picker popover in range mode. Single click commits a 1-day range;
-// click-drag (or click + click-on-end) commits a multi-day range with span =
-// days inclusive. Writes back via `onCommit(YYYY-MM-DD, span)` so the parent
-// can fold it into the value shape.
-function DateRangePickerPopover({ anchor, span, onCommit }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-  // Close on outside click.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
+// DateRangePickerPopover removed — replaced by NavPickerPopover which supports
+// single/range/multi/week/month/year selection in one component.
 
-  const from = anchor ? parseDateValue(anchor) : null;
-  const to = from && span > 1
-    ? (() => { const d = new Date(from); d.setDate(d.getDate() + span - 1); return d; })()
-    : from;
-
-  const handleSelect = (range) => {
-    if (!range || !range.from) return;
-    const newFrom = range.from;
-    const newTo = range.to || range.from;
-    const dayMs = 24 * 60 * 60 * 1000;
-    const startMs = new Date(newFrom.getFullYear(), newFrom.getMonth(), newFrom.getDate()).getTime();
-    const endMs = new Date(newTo.getFullYear(), newTo.getMonth(), newTo.getDate()).getTime();
-    const nextSpan = Math.max(1, Math.round((endMs - startMs) / dayMs) + 1);
-    onCommit(localDayISO(newFrom), nextSpan);
-    // Auto-close once the user picks a complete range. Single-day picks (no
-    // `to`) keep the popover open so the user can drag out a range.
-    if (range.to) setOpen(false);
+// Resolve nav-arrow behavior. Cascade priority (per design):
+//   1. kind === "multi" (non-consecutive days) → arrows DISABLED
+//   2. span > 1 (range / week / month / year)  → arrows shift by span (in days)
+//   3. single                                  → arrows shift by step.n of step.unit
+//                                                (step from navConfig override, then filter, defaults to 1 day)
+function resolveArrowBehavior(shape, navConfig, filter) {
+  if (shape.kind === "multi") return { disabled: true, stepUnit: "day", stepN: 0 };
+  const step = navConfig?.step || filter?.step || null;
+  if (shape.span > 1) {
+    // Range / week / month / year — step by the period itself.
+    return { disabled: false, stepUnit: "day", stepN: shape.span };
+  }
+  return {
+    disabled: false,
+    stepUnit: step?.unit || shape.unit || filter?.timeUnit || "day",
+    stepN: Number.isFinite(step?.n) && step.n > 0 ? step.n : 1,
   };
-
-  const summary = from
-    ? (span > 1
-        ? `${from.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${(to || from).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
-        : from.toLocaleDateString(undefined, { month: "short", day: "numeric" }))
-    : "Pick";
-
-  return (
-    <span ref={wrapRef} style={{ position: "relative", display: "inline-flex" }}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        title="Pick date or range"
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 3,
-          padding: "1px 6px", fontSize: 10,
-          background: "transparent", color: "inherit",
-          border: "1px solid var(--panel-border, #374151)", borderRadius: 4,
-          cursor: "pointer",
-        }}
-      >
-        <Calendar size={11} />
-        <span>{summary}</span>
-      </button>
-      {open && (
-        <div
-          className="filter-daypicker-popover"
-          style={{
-            position: "absolute", top: "100%", left: 0, marginTop: 4,
-            zIndex: 50,
-            background: "hsl(var(--popover-1, 220 13% 12%))",
-            border: "1px solid var(--border-default, #374151)",
-            borderRadius: 6,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-            padding: 6,
-          }}
-        >
-          <DayPicker
-            mode="range"
-            selected={from ? { from, to: to || from } : undefined}
-            onSelect={handleSelect}
-            numberOfMonths={1}
-            showOutsideDays
-          />
-        </div>
-      )}
-    </span>
-  );
 }
 
-function ArrowsWidget({ filter, value, dispatch, onNav }) {
+function ArrowsWidget({ filter, navConfig, value, dispatch, onNav }) {
   const shape = readValueShape(value);
   // Unit precedence: the value's own unit (object form) wins over the filter's
   // static timeUnit. Lets users pick D/W/M/Y per-occurrence without rewriting
@@ -166,52 +114,102 @@ function ArrowsWidget({ filter, value, dispatch, onNav }) {
   const allowedUnits = Array.isArray(filter?.units) && filter.units.length
     ? filter.units.filter(u => UNIT_ORDER.includes(u))
     : null;
+  // Cascaded constraints — occurrence's navConfig.constraints wins, then filter's.
+  const constraints = navConfig?.constraints || filter?.constraints || null;
   const write = makeWriter(filter, onNav, dispatch);
+
   // Object shape is required as soon as the value carries unit != "day" OR a
-  // span > 1 — otherwise trackers / visibility predicates would lose the
-  // period. Day-unit + span=1 preserves the bare-string form for byte-identical
-  // legacy serialization.
+  // span > 1 OR a discrete dates[] OR a non-default kind. Day-unit + span=1 +
+  // single kind preserves the bare-string form for byte-identical legacy
+  // serialization.
   const wasObjectShape = value && typeof value === "object" && !Array.isArray(value);
-  const writeNext = (dateStr, nextUnit, nextSpan = span) => {
-    if (wasObjectShape || nextUnit !== "day" || nextSpan > 1) {
+  const writeNext = (dateStr, nextUnit, nextSpan = span, extras = null) => {
+    const needsObject = wasObjectShape || nextUnit !== "day" || nextSpan > 1 || extras;
+    if (needsObject) {
       const out = { value: dateStr, unit: nextUnit };
       if (nextSpan > 1) out.span = nextSpan;
+      if (extras?.kind) out.kind = extras.kind;
+      if (extras?.dates) out.dates = extras.dates;
       write(out);
     } else {
       write(dateStr);
     }
   };
+
+  const arrow = resolveArrowBehavior(shape, navConfig, filter);
   const onPrev = () => {
-    const next = stepByUnit(parseDateValue(shape.value || new Date()), unit, -1);
-    writeNext(localDayISO(next), unit);
+    if (arrow.disabled) return;
+    const anchor = parseDateValue(shape.value || new Date());
+    const d = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+    if (arrow.stepUnit === "week")       d.setDate(d.getDate() - arrow.stepN * 7);
+    else if (arrow.stepUnit === "month") d.setMonth(d.getMonth() - arrow.stepN);
+    else if (arrow.stepUnit === "year")  d.setFullYear(d.getFullYear() - arrow.stepN);
+    else                                  d.setDate(d.getDate() - arrow.stepN);
+    writeNext(localDayISO(d), unit, span);
   };
   const onNext = () => {
-    const next = stepByUnit(parseDateValue(shape.value || new Date()), unit, +1);
-    writeNext(localDayISO(next), unit);
+    if (arrow.disabled) return;
+    const anchor = parseDateValue(shape.value || new Date());
+    const d = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+    if (arrow.stepUnit === "week")       d.setDate(d.getDate() + arrow.stepN * 7);
+    else if (arrow.stepUnit === "month") d.setMonth(d.getMonth() + arrow.stepN);
+    else if (arrow.stepUnit === "year")  d.setFullYear(d.getFullYear() + arrow.stepN);
+    else                                  d.setDate(d.getDate() + arrow.stepN);
+    writeNext(localDayISO(d), unit, span);
   };
   const onUnitChange = (u) => {
     const dateStr = shape.value ? localDayISO(parseDateValue(shape.value)) : localDayISO(new Date());
     // Switching off day-unit clears the span (day-only feature for now).
     writeNext(dateStr, u, u === "day" ? span : 1);
   };
-  // When span > 1 the label reads "Mon May 18 + 2 days" so the user knows the
-  // window. Single-day still shows the regular formatted period label.
+
+  // Label reads from the persisted shape's kind for richer display.
   const baseLabel = shape.value ? formatPeriodLabel(parseDateValue(shape.value), unit) : "—";
-  const label = unit === "day" && span > 1 ? `${baseLabel} + ${span - 1} day${span === 2 ? "" : "s"}` : baseLabel;
-  const inputDate = shape.value ? localDayISO(parseDateValue(shape.value)) : "";
+  const label = (() => {
+    if (shape.kind === "multi" && Array.isArray(shape.dates)) return `${shape.dates.length} days`;
+    if (unit === "day" && span > 1) return `${baseLabel} + ${span - 1} day${span === 2 ? "" : "s"}`;
+    return baseLabel;
+  })();
   const showToggle = !allowedUnits || allowedUnits.length > 1;
+
+  // NavPicker emits { kind, value, span, dates, unit } — fold into our shape.
+  const onPickerCommit = (next) => {
+    const extras = {};
+    if (next.kind) extras.kind = next.kind;
+    if (next.kind === "multi" && Array.isArray(next.dates)) extras.dates = next.dates;
+    writeNext(next.value, next.unit || "day", next.span || 1, extras);
+  };
+
   return (
     <div style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-      <button onClick={onPrev} title="Prev" style={{ background: "transparent", border: 0, color: "inherit", cursor: "pointer" }}><ChevronLeft size={14} /></button>
+      <button
+        onClick={onPrev}
+        disabled={arrow.disabled}
+        title={arrow.disabled ? "Arrows disabled — discrete days selected" : "Prev"}
+        style={{
+          background: "transparent", border: 0,
+          color: arrow.disabled ? "var(--text-faint, #666)" : "inherit",
+          cursor: arrow.disabled ? "not-allowed" : "pointer",
+          opacity: arrow.disabled ? 0.4 : 1,
+        }}
+      ><ChevronLeft size={14} /></button>
       <span style={{ minWidth: 96, textAlign: "center", fontSize: 12 }}>{label}</span>
-      <button onClick={onNext} title="Next" style={{ background: "transparent", border: 0, color: "inherit", cursor: "pointer" }}><ChevronRight size={14} /></button>
-      {unit === "day" && (
-        <DateRangePickerPopover
-          anchor={inputDate}
-          span={span}
-          onCommit={(dateStr, nextSpan) => writeNext(dateStr, "day", nextSpan)}
-        />
-      )}
+      <button
+        onClick={onNext}
+        disabled={arrow.disabled}
+        title={arrow.disabled ? "Arrows disabled — discrete days selected" : "Next"}
+        style={{
+          background: "transparent", border: 0,
+          color: arrow.disabled ? "var(--text-faint, #666)" : "inherit",
+          cursor: arrow.disabled ? "not-allowed" : "pointer",
+          opacity: arrow.disabled ? 0.4 : 1,
+        }}
+      ><ChevronRight size={14} /></button>
+      <NavPickerPopover
+        value={value}
+        constraints={constraints}
+        onCommit={onPickerCommit}
+      />
       {showToggle && (
         <div style={{ display: "inline-flex", gap: 2, marginLeft: 4 }}>
           {(allowedUnits || UNIT_ORDER).map(u => (
@@ -306,7 +304,7 @@ export default function FilterNavWidget({ filter, navConfig, value, fieldsById, 
   const style = navConfig?.style || defaultStyleForFilter(filter, fieldsById);
   const ctx = { occurrencesById, modulesById, foldersById };
   const options = navConfig?.options || derivedOptionsForFilter(filter, fieldsById, ctx);
-  if (style === "arrows") return <ArrowsWidget filter={filter} value={value} dispatch={dispatch} onNav={onNav} />;
+  if (style === "arrows") return <ArrowsWidget filter={filter} navConfig={navConfig} value={value} dispatch={dispatch} onNav={onNav} />;
   if (style === "pills" || style === "custom") return <PillsWidget filter={filter} value={value} options={options} dispatch={dispatch} onNav={onNav} />;
   if (style === "select") return <SelectWidget filter={filter} value={value} options={options} dispatch={dispatch} onNav={onNav} />;
   if (style === "input") return <InputWidget filter={filter} value={value} dispatch={dispatch} onNav={onNav} />;

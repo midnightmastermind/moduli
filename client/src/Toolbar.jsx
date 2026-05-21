@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/popover";
 import { PlusSquare, Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
 import ToolbarFilterDropdown from "./ui/ToolbarFilterDropdown";
+import SocketStatusBanner from "./ui/SocketStatusBanner";
 
 export default function Toolbar({
   gridId,
@@ -132,6 +133,11 @@ const gridOptions = useMemo(
             <img src="/moduli_logo.png" alt="Moduli" style={{ height: 18, width: "auto", display: "block" }} />
             {!isMobile && <span className="text-[10px] px-1 text-text-muted font-mono whitespace-nowrap">+moduli+</span>}
           </div>
+
+          {/* Socket connection status — renders only when offline / just
+              reconnected. Sits flush against the logo so it's the first
+              thing the user sees if their connection drops. */}
+          <SocketStatusBanner />
 
           {/* Add Panel button */}
           <Button

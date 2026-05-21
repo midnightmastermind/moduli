@@ -34,15 +34,24 @@ export function mergeStyles(parent, child) {
 /**
  * Resolve effective container style.
  * Walk: panel.childContainerStyle → container.ownStyle (if mode=own)
+ *       → occurrence.ownStyle (per-placement override, overlays everything).
+ *
+ * Per-occurrence override lets the same container module render differently
+ * in different placements (e.g. a Schedule slot stamped red by the "Mark
+ * Passed Timeslots" op affects only that day's occurrence, not the shared
+ * module).
  */
-export function resolveContainerStyle(container, panel) {
+export function resolveContainerStyle(container, panel, occurrence) {
   const panelDefault = panel?.childContainerStyle || null;
 
+  let result = panelDefault;
   if (container?.styleMode === "own" && container?.ownStyle) {
-    return mergeStyles(panelDefault, container.ownStyle);
+    result = mergeStyles(result, container.ownStyle);
   }
-
-  return panelDefault;
+  if (occurrence?.ownStyle) {
+    result = mergeStyles(result, occurrence.ownStyle);
+  }
+  return result;
 }
 
 /**

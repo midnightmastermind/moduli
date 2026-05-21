@@ -156,6 +156,110 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
   );
 }
 
+// ─── Live-value helpers ────────────────────────────────────────
+// Fields with meta.liveSource = "currentTime" | "endOfDayCountdown"
+// self-update on a setInterval — no operation/socket churn. Granularity
+// is "seconds" (default) or "minutes". The interval lives in React; the
+// stored field value is irrelevant (display-only).
+const _pad2 = (n) => String(n).padStart(2, "0");
+function formatTimeOfDay(d, granularity) {
+  const h = _pad2(d.getHours());
+  const m = _pad2(d.getMinutes());
+  if (granularity === "minutes") return `${h}:${m}`;
+  return `${h}:${m}:${_pad2(d.getSeconds())}`;
+}
+function formatDurationMs(ms, granularity) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (granularity === "minutes") return `${_pad2(h)}:${_pad2(m)}`;
+  return `${_pad2(h)}:${_pad2(m)}:${_pad2(s)}`;
+}
+// Parse "HH:MM" into a Date at today's wall clock with hours/minutes set.
+// Returns null for unparseable. Accepts "24:00" as "next midnight" shorthand.
+function _parseHHMM(now, str) {
+  if (typeof str !== "string") return null;
+  const [hStr, mStr = "0"] = str.split(":");
+  const h = Number(hStr); const m = Number(mStr);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  const d = new Date(now);
+  if (h === 24) {
+    d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 1);
+  } else {
+    d.setHours(h, m, 0, 0);
+  }
+  return d;
+}
+function useLiveFieldValue(field) {
+  const source = field?.meta?.liveSource || null;
+  const granularity = field?.meta?.liveGranularity || "seconds";
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!source) return;
+    const ms = granularity === "minutes" ? 30_000 : 1_000;
+    const id = setInterval(() => setTick((t) => t + 1), ms);
+    return () => clearInterval(id);
+  }, [source, granularity]);
+  // Tick reads `Date.now()` at render so the value reflects the latest
+  // wall clock without holding stale state.
+  if (!source) return null;
+  void tick;
+  const now = new Date();
+  if (source === "currentTime") return formatTimeOfDay(now, granularity);
+  if (source === "endOfDayCountdown") {
+    // Configurable start/target window. `liveStartTime` ("HH:MM") sets when
+    // the countdown should be at full value; `liveTargetTime` ("HH:MM") sets
+    // when it should reach zero. Defaults: midnight → next midnight (24:00).
+    // Outside the window: clamped to full or zero so the field always
+    // displays a sensible duration.
+    const targetStr = field?.meta?.liveTargetTime || "24:00";
+    const startStr  = field?.meta?.liveStartTime  || null;
+    let target = _parseHHMM(now, targetStr);
+    if (!target) {
+      target = new Date(now); target.setHours(24, 0, 0, 0);
+    } else if (target <= now) {
+      target.setDate(target.getDate() + 1);
+    }
+    const start = startStr ? _parseHHMM(now, startStr) : null;
+    // Clamp: before start window, show full duration; after target, show 0.
+    if (start && now < start) {
+      const total = target - start;
+      return formatDurationMs(Math.max(0, total), granularity);
+    }
+    return formatDurationMs(Math.max(0, target - now), granularity);
+  }
+  return null;
+}
+
+// ─── Flow-aware delta indicator ────────────────────────────────
+// Tracks the last numeric value and surfaces a transient +N / -N badge
+// whenever it changes. Color uses the field's `meta.flow` to mark the
+// "good direction" — flow:"in" treats positive deltas as green, flow:"out"
+// treats negative deltas as green (so a countdown -1 is positive feedback).
+function useFlowDelta(value, holdMs = 1500) {
+  const prevRef = useRef(null);
+  const [delta, setDelta] = useState(null);
+  const timerRef = useRef(null);
+  useEffect(() => {
+    const prev = prevRef.current;
+    const numNow = typeof value === "number" ? value : Number(value);
+    if (Number.isFinite(numNow) && Number.isFinite(prev) && numNow !== prev) {
+      setDelta(numNow - prev);
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setDelta(null), holdMs);
+    }
+    if (Number.isFinite(numNow)) prevRef.current = numNow;
+    return () => clearTimeout(timerRef.current);
+  }, [value, holdMs]);
+  return delta;
+}
+function flowDeltaColor(delta, flow) {
+  if (delta == null) return null;
+  const goodDirection = (flow === "out" && delta < 0) || (flow !== "out" && delta > 0);
+  return goodDirection ? "var(--accent-green-text)" : "var(--danger-text)";
+}
+
 // ─── Star renderer ─────────────────────────────────────────────
 function Stars({ rating, max = 5, size = "w-4 h-4" }) {
   // Parse pixel size from tailwind class (w-3→12, w-4→16, w-5→20)
@@ -308,19 +412,55 @@ function Field({
   const displayConfigTarget = useMemo(() => {
     const dc = field?.displayConfig;
     if (!dc || dc.targetValue == null) return null;
-    return { value: dc.targetValue, period: dc.targetPeriod || "daily" };
+    // targetOp lets a field flip "met" semantics — countdown fields use "<="
+    // so green = at-or-below 0 (target reached). Default ">=" keeps existing
+    // counter fields (Tasks Completed etc.) green-at-or-above-target.
+    //
+    // startValue defines the "0% progress" anchor. Counters use start=0,
+    // target=10 (default behavior — 0%→100% as value rises). Countdowns
+    // use start=10, target=0 with op="<=" (0%→100% as value falls).
+    // calculateProgress handles either direction by sign of (target - start).
+    return {
+      value: dc.targetValue,
+      start: typeof dc.startValue === "number" ? dc.startValue : undefined,
+      op: dc.targetOp || ">=",
+      period: dc.targetPeriod || "daily",
+    };
   }, [field?.displayConfig]);
   const target = targetProp || displayConfigTarget || null;
   const hasTarget = target?.value !== undefined && target?.value !== null;
 
+  // Live-value override (currentTime / endOfDayCountdown). When set, the
+  // field self-updates via setInterval — `rawDisplayValue` ignores the
+  // stored field value and reflects the live tick. No operation or socket
+  // emit is involved; the cost is one React re-render per interval on
+  // mounted instances of this field. Seconds is cheap; minutes is even
+  // cheaper.
+  const liveDisplayValue = useLiveFieldValue(field);
+
+  // Flow-aware change indicator. Only tracks numeric stored values
+  // (skipped for live fields since the time string isn't a comparable
+  // numeric quantity). +N / -N badge auto-clears after 1.5s; color
+  // depends on whether the change matches the field's "good direction"
+  // per meta.flow (in = up is good; out = down is good).
+  const rawNumericValue = useMemo(() => {
+    if (liveDisplayValue != null) return null;
+    const v = value && typeof value === "object" && "value" in value ? value.value : value;
+    return typeof v === "number" ? v : (typeof v === "string" && v !== "" ? Number(v) : null);
+  }, [value, liveDisplayValue]);
+  const fieldFlow = field?.meta?.flow || "in";
+  const valueDelta = useFlowDelta(rawNumericValue);
+  const deltaColorVal = flowDeltaColor(valueDelta, fieldFlow);
+
   // ─── Value resolution (display) ─────────────────────────────
   const rawDisplayValue = useMemo(() => {
+    if (liveDisplayValue != null) return liveDisplayValue;
     if (value && typeof value === "object") {
       if ("value" in value) return value.value;
       return undefined;
     }
     return value;
-  }, [value]);
+  }, [value, liveDisplayValue]);
 
   // ─── Input state ─────────────────────────────────────────────
   const extractValue = (v) => (v && typeof v === "object" ? ("value" in v ? v.value : undefined) : v);
@@ -1154,6 +1294,11 @@ function Field({
         {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
         <span>{valueDisplay}</span>
         {showUnit && <span style={{ opacity: 0.5 }}>{unit}</span>}
+        {valueDelta != null && (
+          <span style={{ marginLeft: 2, color: deltaColorVal, fontWeight: 600 }}>
+            {valueDelta > 0 ? `+${valueDelta}` : valueDelta}
+          </span>
+        )}
       </div>
     );
   }
@@ -1275,6 +1420,11 @@ function Field({
           {valueDisplay}
         </div>
         {showUnit && <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{unit}</span>}
+        {valueDelta != null && (
+          <span style={{ fontSize: 11, color: deltaColorVal, fontWeight: 600, fontFamily: "var(--font-mono)" }}>
+            {valueDelta > 0 ? `+${valueDelta}` : valueDelta}
+          </span>
+        )}
       </div>
       {targetProgress && (
         <div style={{ marginTop: 3 }}>

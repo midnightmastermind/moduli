@@ -43,7 +43,7 @@ import {
   buildTemplatesManifest,
   buildDailyRoutineTemplate,
   buildDayPageTemplate,
-  makeScheduleBuildDayOp,
+  makeScheduleBuildScheduleOp,
   makeDayPageBuildOp,
   makeDayPageBuildTasksCompletedOp,
   makeStampDateTimeSlotOp,
@@ -109,6 +109,13 @@ export async function createLiveData(userId, options = {}) {
   // Completed filters on `isTask IS true` so non-task items in Schedule
   // (mood logs, water logs, etc.) don't pad the count.
   const isTaskFieldId    = uid();
+  // scheduleFormat: stamped on every Schedule day-column container. Values
+  // "timeslot" (≤7-day view — slot containers visible inside the day-col)
+  // and "shortened" (>7-day view — flat day-col with no slots, laid out in
+  // a wrapped horizontal grid). Build Schedule inflates/deflates each
+  // format based on $activePeriodCount; PageBoard reads this field to
+  // pick the layout.
+  const scheduleFormatFieldId = uid();
   // Bill schedule fields — used by bill instances in the new Bills page.
   // billCadence is a select; billDay/billCadenceN are numeric; billAnchor
   // is a date used as the cycle origin; billNextDue is the op-computed
@@ -489,6 +496,22 @@ export async function createLiveData(userId, options = {}) {
       type: "boolean",
       inputEnabled: true,
       displayEnabled: false,
+      folderId: fieldCategoryIds.scheduling,
+    },
+    // scheduleFormat: stamped on every Schedule day-column container.
+    // "timeslot" = ≤7-day view (slot containers visible inside); "shortened" =
+    // >7-day view (flat day-col, no slots, wrapped horizontal layout).
+    // PageBoard reads this field to pick the layout; Build Schedule
+    // inflates/deflates each format based on $activePeriodCount.
+    scheduleFormat: {
+      id: scheduleFormatFieldId,
+      name: "Schedule Format",
+      type: "select",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: {
+        optionsSource: { mode: "manual", options: ["timeslot", "shortened"] },
+      },
       folderId: fieldCategoryIds.scheduling,
     },
     // ── BILL SCHEDULE FIELDS ──────────────────────────────────────────────────
@@ -1080,7 +1103,48 @@ export async function createLiveData(userId, options = {}) {
       type: "number",
       inputEnabled: false,
       displayEnabled: true,
-      meta: { prefix: "", postfix: " done" },
+      // flow:"in" — counting UP toward target is the "good" direction. Field
+      // renders red until value >= targetValue, green at/above. Paired with
+      // taskCountdown below (which is the same fact viewed from the other
+      // end — flow:"out", target 0, "<=", start 10).
+      meta: { prefix: "", postfix: " done", flow: "in" },
+      displayConfig: { startValue: 0, targetValue: 10, targetOp: ">=", targetPeriod: "daily" },
+    },
+    taskCountdown: {
+      id: uid(),
+      name: "Tasks Left",
+      type: "number",
+      inputEnabled: false,
+      displayEnabled: true,
+      // flow:"out" — the "good" direction is DOWN. UI indicators treat a -1
+      // delta as positive (green) for this field. start=10/target=0 makes
+      // the progress bar go 0%→100% as the value falls from 10 to 0; same
+      // fact as totalCompleted, viewed from the other end.
+      meta: { prefix: "", postfix: " left", flow: "out" },
+      displayConfig: { startValue: 10, targetValue: 0, targetOp: "<=", targetPeriod: "daily" },
+    },
+    // Live clock fields — self-update via client-side setInterval in
+    // Field.jsx (`useLiveFieldValue`). NO operation, NO socket emit, NO
+    // server write per tick — only a local React re-render of mounted
+    // instances. Seconds granularity is cheap (one rAF-equivalent per
+    // second per mounted pill); switch to "minutes" via meta.liveGranularity
+    // if it ever becomes a concern.
+    currentTime: {
+      id: uid(),
+      name: "Now",
+      type: "text",
+      inputEnabled: false,
+      displayEnabled: true,
+      meta: { liveSource: "currentTime", liveGranularity: "seconds", flow: "in" },
+      displayConfig: {},
+    },
+    timeCountdown: {
+      id: uid(),
+      name: "Time Left",
+      type: "text",
+      inputEnabled: false,
+      displayEnabled: true,
+      meta: { liveSource: "endOfDayCountdown", liveGranularity: "seconds", flow: "out" },
       displayConfig: {},
     },
     totalDuration: {
@@ -1161,6 +1225,67 @@ export async function createLiveData(userId, options = {}) {
       displayEnabled: true,
       meta: { prefix: "", postfix: " tasks" },
       displayConfig: {},
+    },
+
+    // ── POMODORO FIELDS ───────────────────────────────────────────────────────
+    // Input fields on the Pomodoro Session template instance — copy-linked into
+    // a Schedule slot by Pomodoro: Start. pomodoroPhase distinguishes work
+    // sessions (which the goal counts) from break sessions (which it ignores).
+    pomodoroMinutes: {
+      id: uid(),
+      name: "Pomodoro Minutes",
+      type: "number",
+      inputEnabled: true, displayEnabled: false,
+      meta: { postfix: " min" },
+      displayConfig: {},
+    },
+    pomodoroNumber: {
+      id: uid(),
+      name: "Pomodoro #",
+      type: "number",
+      inputEnabled: true, displayEnabled: false,
+      meta: {},
+      displayConfig: {},
+    },
+    pomodoroPhase: {
+      id: uid(),
+      name: "Pomodoro Phase",
+      type: "text",
+      inputEnabled: true, displayEnabled: false,
+      meta: {},
+      displayConfig: {},
+    },
+    // Display fields on the Pomodoro goal — aggregations from completed
+    // pomodoro work sessions.
+    pomoCount: {
+      id: uid(),
+      name: "Pomodoros Today",
+      type: "number",
+      inputEnabled: false, displayEnabled: true,
+      meta: { postfix: " pomos" },
+      displayConfig: { targetValue: 3, targetPeriod: "daily", showArrows: true },
+    },
+    pomoTime: {
+      id: uid(),
+      name: "Pomodoro Time",
+      type: "number",
+      inputEnabled: false, displayEnabled: true,
+      meta: { postfix: " min" },
+      displayConfig: {},
+    },
+    pomoHistory: {
+      id: uid(),
+      name: "Pomodoro History",
+      type: "text",
+      inputEnabled: false, displayEnabled: true,
+      meta: {},
+      displayConfig: {
+        columns: [
+          { path: "when",    header: "When" },
+          { path: "minutes", header: "Min" },
+          { path: "label",   header: "Note" },
+        ],
+      },
     },
 
     // ── ACCOUNT DISPLAY FIELDS (all-time aggregations) ────────────────────────
@@ -1562,6 +1687,26 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.journalQuestion.id, role: "display", order: 1 },
         { fieldId: fields.journalAnswer.id, role: "input", order: 2 },
         { fieldId: fields.duration.id, role: "input", order: 3 },
+      ],
+    },
+
+    // Pomodoro Session template — sits in the Intellectual wellness page as
+    // a normal task, AND is the COPY_LINK source for Pomodoro: Start (which
+    // mints a session occurrence under the current Schedule slot every time
+    // the toolbar timer starts a work phase). isTask=true so the trackers'
+    // isTask filter picks it up; date+timeslot are hidden bindings stamped
+    // by the Start op (kept hidden via fieldHidden in CREATE/COPY_LINK).
+    pomodoro: {
+      id: uid(), label: "Pomodoro", kind: "list",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id,        role: "input", order: 0 },
+        { fieldId: fields.pomodoroMinutes.id,  role: "input", order: 1 },
+        { fieldId: fields.pomodoroNumber.id,   role: "input", order: 2 },
+        { fieldId: fields.pomodoroPhase.id,    role: "input", order: 3 },
+        { fieldId: dateFieldId,                role: "input", order: 4, hidden: true },
+        { fieldId: timeslotFieldId,            role: "input", order: 5, hidden: true },
+        { fieldId: isTaskFieldId,              role: "input", order: 6, hidden: true },
       ],
     },
 
@@ -2365,8 +2510,11 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
-        { fieldId: fields.totalSteps.id, role: "display", order: 1 },
-        { fieldId: fields.totalWater.id, role: "display", order: 2 },
+        { fieldId: fields.taskCountdown.id,  role: "display", order: 1 },
+        { fieldId: fields.currentTime.id,    role: "display", order: 2 },
+        { fieldId: fields.timeCountdown.id,  role: "display", order: 3 },
+        { fieldId: fields.totalSteps.id,     role: "display", order: 4 },
+        { fieldId: fields.totalWater.id,     role: "display", order: 5 },
       ],
     },
     intellectualSummary: {
@@ -2376,6 +2524,9 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
         { fieldId: fields.totalPages.id, role: "display", order: 1 },
         { fieldId: fields.totalDuration.id, role: "display", order: 2 },
+        { fieldId: fields.pomoCount.id,      role: "display", order: 3 },
+        { fieldId: fields.pomoTime.id,       role: "display", order: 4 },
+        { fieldId: fields.pomoHistory.id,    role: "display", order: 5 },
       ],
     },
     emotionalSummary: {
@@ -2452,6 +2603,34 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.totalSteps.id, role: "display", order: 1 },
       ],
     },
+    // Per-muscle volume goals (B7 Deep). Each tracks the daily sum of
+    // set1+set2+set3 reps across workouts whose `muscleGroup` field matches.
+    // All share the existing `totalRepsToday` display field — the per-goal
+    // value lives on the occurrence, not the field.
+    chestVolumeGoal:    { id: uid(), label: "Chest Volume",    kind: "list", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
+    backVolumeGoal:     { id: uid(), label: "Back Volume",     kind: "list", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
+    legsVolumeGoal:     { id: uid(), label: "Legs Volume",     kind: "list", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
+    shouldersVolumeGoal:{ id: uid(), label: "Shoulders Volume",kind: "list", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
+    armsVolumeGoal:     { id: uid(), label: "Arms Volume",     kind: "list", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
+    cardioVolumeGoal:   { id: uid(), label: "Cardio Volume",   kind: "list", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
+    // Per-meal nutrition goals (B7 Deep). Each tracks the daily sum of
+    // protein across nutrition instances whose `mealCategory` matches.
+    // Shares the `totalProtein` display field — per-goal value lives on
+    // the occurrence.
+    breakfastNutritionGoal: { id: uid(), label: "Breakfast Nutrition", kind: "list", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
+    lunchNutritionGoal:     { id: uid(), label: "Lunch Nutrition",     kind: "list", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
+    dinnerNutritionGoal:    { id: uid(), label: "Dinner Nutrition",    kind: "list", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
+    snackNutritionGoal:     { id: uid(), label: "Snack Nutrition",     kind: "list", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
     nutritionGoal: {
       id: uid(), label: "Nutrition", kind: "list",
       defaultDragMode: "move",
@@ -2593,6 +2772,21 @@ export async function createLiveData(userId, options = {}) {
     if (!hasCat) {
       const maxOrder = inst.fieldBindings.reduce((m, b) => Math.max(m, b.order ?? 0), 0);
       inst.fieldBindings.push({ fieldId: fields.category.id, role: "input", hidden: true, order: maxOrder + 1 });
+    }
+  }
+
+  // Task #5 — Filter-date as a field binding on every goal/tracker + account.
+  // Replaces the now-deleted custom badge. Each goal/account instance binds
+  // dateFieldId as a display-only field pill (hidden as input — user can't
+  // type into it). The "Stamp Filter Date" op (seeded with the trackers
+  // below) writes each goal's _effectiveFilter date into this field on
+  // every filter change so the pill always reflects what the user is
+  // currently filtering on.
+  for (const key of [...Object.keys(goalInstances), ...Object.keys(accountInstances)]) {
+    const inst = allInstances[key];
+    if (!inst.fieldBindings) inst.fieldBindings = [];
+    if (!inst.fieldBindings.some(b => b.fieldId === dateFieldId)) {
+      inst.fieldBindings.unshift({ fieldId: dateFieldId, role: "display", order: -1 });
     }
   }
 
@@ -2896,7 +3090,7 @@ export async function createLiveData(userId, options = {}) {
     mealIngredients:  { contOccId: mealIngredientsContOccId, contModKey: "mealIngredients", instKeys: ["oliveOil", "chickpeas", "lemonGarlic", "wholeGrainBread", "greekOlives"] },
 
     // Remaining wellness pages — single container each
-    intellectual:  { contOccId: intellectualContOccId, contModKey: "intellectual",  instKeys: ["reading", "podcast", "watchMovie", "onlineCourse", "brainGames", "journaling", "answeredDailyQuestion"] },
+    intellectual:  { contOccId: intellectualContOccId, contModKey: "intellectual",  instKeys: ["reading", "podcast", "watchMovie", "onlineCourse", "brainGames", "journaling", "answeredDailyQuestion", "pomodoro"] },
     emotional:     { contOccId: emotionalContOccId,    contModKey: "emotional",     instKeys: ["gratitude", "meditation", "breathing", "moodCheck", "selfCare"] },
     social:        { contOccId: socialContOccId,       contModKey: "social",        instKeys: ["callFriend", "familyTime", "socialEvent", "helpSomeone"] },
     spiritual:     { contOccId: spiritualContOccId,    contModKey: "spiritual",     instKeys: ["prayer", "natureWalk", "spiritualReading", "mindfulness"] },
@@ -3072,8 +3266,8 @@ export async function createLiveData(userId, options = {}) {
     financialGoal:     { contOccId: financialGoalContOccId,     contModKey: "financialGoal",     instKeys: ["financialSummary"] },
     environmentalGoal: { contOccId: environmentalGoalContOccId, contModKey: "environmentalGoal", instKeys: ["environmentalSummary"] },
     creativeGoal:      { contOccId: creativeGoalContOccId,      contModKey: "creativeGoal",      instKeys: ["creativeSummary"] },
-    workoutGoal:       { contOccId: workoutGoalContOccId,       contModKey: "workoutGoal",       instKeys: ["workoutGoal"] },
-    nutritionGoal:     { contOccId: nutritionGoalContOccId,     contModKey: "nutritionGoal",     instKeys: ["nutritionGoal"] },
+    workoutGoal:       { contOccId: workoutGoalContOccId,       contModKey: "workoutGoal",       instKeys: ["workoutGoal", "chestVolumeGoal", "backVolumeGoal", "legsVolumeGoal", "shouldersVolumeGoal", "armsVolumeGoal", "cardioVolumeGoal"] },
+    nutritionGoal:     { contOccId: nutritionGoalContOccId,     contModKey: "nutritionGoal",     instKeys: ["nutritionGoal", "breakfastNutritionGoal", "lunchNutritionGoal", "dinnerNutritionGoal", "snackNutritionGoal"] },
     planningGoal:      { contOccId: planningGoalContOccId,      contModKey: "planningGoal",      instKeys: ["planningSummary"] },
     moviesWatchedGoal:    { contOccId: moviesWatchedGoalContOccId,    contModKey: "moviesWatchedGoal",    instKeys: ["moviesWatchedGoal"] },
     booksReadGoal:        { contOccId: booksReadGoalContOccId,        contModKey: "booksReadGoal",        instKeys: ["booksReadGoal"] },
@@ -3552,6 +3746,7 @@ export async function createLiveData(userId, options = {}) {
     userId, gridId, timeSlots, timeslotFieldId, routineBySlot,
     tplManifestRootFolderId, mkOcc, Module,
     findModule: (q) => Module.findOne(q).lean(),
+    scheduleFormatFieldId,
   });
 
   await buildDayPageTemplate({
@@ -4151,13 +4346,46 @@ export async function createLiveData(userId, options = {}) {
     filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
   });
 
-  // Notebook hub View — Schedule is the default active tab.
-  const notebookHubViewId = uid();
-  await new View({ id: notebookHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: schedPageOccId }).save();
+  // ── Folder-page defaults (card-grid landing tabs) ──────────────────────────
+  // Each hub panel opens to a folder-page (role:"page" kind:"folder") that
+  // renders a PreviewNode card grid of every sibling occurrence parented in
+  // the same folder (PageFolder filters `occurrencesById` by parentId ===
+  // folder-page.parentId, excludes self/templates/other folder-pages).
+  // ManifestTree's FolderNode also resolves these on click — pre-creating
+  // them gives us stable IDs to pin + a deterministic seed instead of the
+  // lazy on-demand mint.
+  const toolkitFolderPageModId  = uid();
+  const toolkitFolderPageOccId  = uid();
+  await new Module({ id: toolkitFolderPageModId,  userId, gridId, role: "page", kind: "folder", label: "Daily Toolkit" }).save();
+  await mkOcc({
+    id: toolkitFolderPageOccId, moduleId: toolkitFolderPageModId,
+    parentId: dailyToolkitFolderId, sortOrder: -1,
+    occurrences: [],
+    iteration: { mode: "persistent" }, fields: {},
+    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+  });
 
-  // Daily Toolkit View — Physical is the default active tab (first wellness page).
+  const notebookFolderPageModId = uid();
+  const notebookFolderPageOccId = uid();
+  await new Module({ id: notebookFolderPageModId, userId, gridId, role: "page", kind: "folder", label: "Interfaces" }).save();
+  await mkOcc({
+    id: notebookFolderPageOccId, moduleId: notebookFolderPageModId,
+    parentId: interfacesFolderId, sortOrder: -1,
+    occurrences: [],
+    iteration: { mode: "persistent" }, fields: {},
+    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+  });
+
+  // Notebook hub View — folder-page (card grid of Interfaces folder) is the
+  // default active tab; Schedule/Canvas/Schedule Table/Schedule Canvas tabs
+  // remain pinned and reachable via tab strip + drilldown.
+  const notebookHubViewId = uid();
+  await new View({ id: notebookHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: notebookFolderPageOccId }).save();
+
+  // Daily Toolkit View — folder-page (card grid of all 11 wellness pages) is
+  // the default active tab; per-wellness pages remain pinned as tabs.
   const toolkitHubViewId = uid();
-  await new View({ id: toolkitHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: wellnessPageOccs.physical }).save();
+  await new View({ id: toolkitHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: toolkitFolderPageOccId }).save();
 
   // ── STEP 9: Panel modules + panel occurrences (grid placements) ─────────────
   // Layout (2 rows × 3 cols per buildGridDoc):
@@ -4211,9 +4439,9 @@ export async function createLiveData(userId, options = {}) {
   // Notebook hub pins Schedule + Canvas. The Day Page tab is NOT pinned here —
   // Day Page: Build adds it via ADD_CHILD at runtime (Task 13). Notebook DOC
   // pages (Task 11) are NOT pinned — they live only under notesFolderId.
-  await Occurrence.findOneAndUpdate({ id: panelOccIds.toolkit },  { $set: { occurrences: wellnessPageOccList } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.toolkit },  { $set: { occurrences: [toolkitFolderPageOccId, ...wellnessPageOccList] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.todo },     { $set: { occurrences: [todoPageOccId] } });
-  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [schedPageOccId, canvasPageOccId, schedCanvasPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [notebookFolderPageOccId, schedPageOccId, canvasPageOccId, schedCanvasPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.goals },    { $set: { occurrences: [goalsPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.accounts }, { $set: { occurrences: [accountsPageOccId] } });
 
@@ -4259,14 +4487,89 @@ export async function createLiveData(userId, options = {}) {
   //   which the task rules forbid. Their display fields are not surfaced
   //   anywhere in the live grid, so no UI value is lost.
 
-  const trackerArgs = { userId, gridId, dateFieldId, completedFieldId };
+  const trackerArgs = { userId, gridId, dateFieldId, completedFieldId, folderId: opCategoryIds.trackers };
 
   // ── DAILY TASK / WELLNESS ──
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Completed",
+    ...trackerArgs, name: "Completed",
     goalLabel: "Physical Wellness", goalFieldId: fields.totalCompleted.id,
     agg: "countTrue", timeFilter: "daily",
   })).save();
+
+  // ── Tracker: Task Countdown ────────────────────────────────────────────────
+  // Same loop as "Tracker: Completed" (countTrue completed tasks under
+  // Schedule for the active day) but writes (10 - count) into the
+  // taskCountdown display field on Physical Wellness. Pairs with
+  // Tracker: Completed: completing a task fires both — totalCompleted goes
+  // +1, taskCountdown goes -1. Custom pipeline (makeTrackerOp can't write a
+  // derived value to a different goalFieldId).
+  await new Operation({
+    id: uid(), userId, gridId, priority: 3,
+    name: "Task Countdown",
+    description: "Count completed tasks under Schedule for the active day; write (10 - count) to Physical Wellness's taskCountdown display.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field", targetId: completedFieldId, priority: 3 },
+      { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid", targetId: "", priority: 3 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find Physical Wellness goal instance.
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allInstances",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Physical Wellness" }] },
+          itemVar: "$goalItem", itemIdVar: "$goalItemId",
+        } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$goalItemId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            // 2. Find Schedule page (HAS_ANCESTOR scope).
+            { id: uid(), type: "action", config: {
+              type: "FIND",
+              over: "$allPages",
+              predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule" }] },
+              itemVar: "$schedPage", itemIdVar: "$schedPageId",
+            } },
+            // 3. Resolve goal-period date.
+            { id: uid(), type: "action", config: {
+              type: "INIT_VAR", name: "$goalPeriod",
+              expr: `$goalItem._effectiveFilter.${dateFieldId}`,
+              fallback: "$trigger.date", fallback2: "$today",
+            } },
+            // 4. Init countdown at 10 (the target / starting value).
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$countdown", value: 10 } },
+            // 5. Loop completed tasks today under Schedule; decrement $countdown each.
+            { id: uid(), type: "loop", overExpr: "$allInstances", as: "$item",
+              body: [
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS", right: true },
+                    { id: uid(), left: `$item.fields.${isTaskFieldId}.value`, comparator: "IS", right: true },
+                    { id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+                    { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  ] },
+                  then: [
+                    { id: uid(), type: "action", config: { type: "DECREMENT_VAR", name: "$countdown", by: 1 } },
+                  ],
+                  else: [],
+                },
+              ],
+            },
+            // 6. Write countdown value to taskCountdown field on Physical Wellness.
+            { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.taskCountdown.id}.value`, value: "$countdown" } },
+          ],
+          else: [],
+        },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
   // Tracker: Today's Moods — replaces the prior "Latest Mood" agg:"last".
   // Builds an array of {mood, date} rows for every mood-bearing occurrence
   // in $goalPeriod (day/week/month/year — broader windows return multiple
@@ -4274,7 +4577,7 @@ export async function createLiveData(userId, options = {}) {
   // onChange / onAdd / onDelete all re-aggregate.
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
-    name: "Tracker: Moods",
+    name: "Moods",
     description: "Build a [{mood, date}] row list for every mood-bearing item in the goal's selected period and write it to Emotional Balance's Moods display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
@@ -4352,87 +4655,250 @@ export async function createLiveData(userId, options = {}) {
 
   // ── DAILY ACTIVITY ──
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Steps",
+    ...trackerArgs, name: "Steps",
     goalLabel: "Physical Wellness", goalFieldId: fields.totalSteps.id,
     sourceFieldId: fields.steps.id, agg: "sum", timeFilter: "daily",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Water",
+    ...trackerArgs, name: "Water",
     goalLabel: "Physical Wellness", goalFieldId: fields.totalWater.id,
     sourceFieldId: fields.water.id, agg: "sum", timeFilter: "daily",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Time Spent",
+    ...trackerArgs, name: "Time Spent",
     goalLabel: "Intellectual Growth", goalFieldId: fields.totalDuration.id,
     sourceFieldId: fields.duration.id, agg: "sum", timeFilter: "daily",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Pages",
+    ...trackerArgs, name: "Pages",
     goalLabel: "Intellectual Growth", goalFieldId: fields.totalPages.id,
     sourceFieldId: fields.pages.id, agg: "sum", timeFilter: "daily",
+  })).save();
+  // Pomodoro daily aggregations — both write into the Intellectual Growth
+  // goal alongside Time Spent + Pages. Source data: Pomodoro session
+  // occurrences COPY_LINKed into Schedule slots by Pomodoro: Start (then
+  // marked completed by Pomodoro: Complete). Pomodoro History is a
+  // row-builder (custom pipeline) and lives further down with the other
+  // PUSH_TO_ARRAY trackers (Moods / Movies / Books).
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Pomodoros Today",
+    goalLabel: "Intellectual Growth", goalFieldId: fields.pomoCount.id,
+    agg: "countTrue", timeFilter: "daily", isTaskFieldId,
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Pomodoro Time",
+    goalLabel: "Intellectual Growth", goalFieldId: fields.pomoTime.id,
+    sourceFieldId: fields.pomodoroMinutes.id, agg: "sum", timeFilter: "daily",
   })).save();
 
   // ── DAILY FINANCE ──
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Spent",
+    ...trackerArgs, name: "Spent",
     goalLabel: "Financial Health", goalFieldId: fields.totalSpent.id,
     sourceFieldId: fields.amount.id, agg: "sum", flow: "out", timeFilter: "daily",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Earned",
+    ...trackerArgs, name: "Earned",
     goalLabel: "Financial Health", goalFieldId: fields.totalIncome.id,
     sourceFieldId: fields.income.id, agg: "sum", flow: "in", timeFilter: "daily",
   })).save();
 
   // ── DAILY NUTRITION ──
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Protein",
+    ...trackerArgs, name: "Protein",
     goalLabel: "Nutrition", goalFieldId: fields.totalProtein.id,
     sourceFieldId: fields.protein.id, agg: "sum", timeFilter: "daily",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Carbs",
+    ...trackerArgs, name: "Carbs",
     goalLabel: "Nutrition", goalFieldId: fields.totalCarbs.id,
     sourceFieldId: fields.carbs.id, agg: "sum", timeFilter: "daily",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Fats",
+    ...trackerArgs, name: "Fats",
     goalLabel: "Nutrition", goalFieldId: fields.totalFats.id,
     sourceFieldId: fields.fats.id, agg: "sum", timeFilter: "daily",
   })).save();
 
   // ── DAILY WORKOUT (multi-source roll-up) ──
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Total Reps",
+    ...trackerArgs, name: "Total Reps",
     goalLabel: "Workout", goalFieldId: fields.totalRepsToday.id,
     sourceFieldIds: [fields.set1Reps.id, fields.set2Reps.id, fields.set3Reps.id],
     agg: "multiSum", timeFilter: "daily",
   })).save();
 
+  // ── PER-MUSCLE VOLUME (B7 Deep) ─────────────────────────────────────────────
+  // One tracker per muscle group: sums set1+set2+set3 reps across workouts
+  // whose `muscleGroup` field matches, scoped to today. Writes the sum into
+  // the muscle-specific goal instance's `totalRepsToday` display field.
+  // Custom pipeline (makeTrackerOp doesn't take a muscle-filter param).
+  const MUSCLE_GROUPS = [
+    { key: "chest",     goalLabel: "Chest Volume" },
+    { key: "back",      goalLabel: "Back Volume" },
+    { key: "legs",      goalLabel: "Legs Volume" },
+    { key: "shoulders", goalLabel: "Shoulders Volume" },
+    { key: "arms",      goalLabel: "Arms Volume" },
+    { key: "cardio",    goalLabel: "Cardio Volume" },
+  ];
+  for (const { key, goalLabel } of MUSCLE_GROUPS) {
+    await new Operation({
+      id: uid(), userId, gridId, priority: 3,
+      name: goalLabel,
+      description: `Sum set1+set2+set3 reps across workouts with muscleGroup="${key}" on the active day; write to the "${goalLabel}" goal's totalRepsToday.`,
+      triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+      triggerObjects: [
+        { eventType: "onChange",       subjectType: "field", targetId: fields.set1Reps.id,    priority: 3 },
+        { eventType: "onChange",       subjectType: "field", targetId: fields.set2Reps.id,    priority: 3 },
+        { eventType: "onChange",       subjectType: "field", targetId: fields.set3Reps.id,    priority: 3 },
+        { eventType: "onChange",       subjectType: "field", targetId: fields.muscleGroup.id, priority: 3 },
+        { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
+        { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
+        { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+        { eventType: "onLoad",         subjectType: "grid", targetId: "", priority: 3 },
+      ],
+      pipeline: {
+        sources: [],
+        steps: [
+          // 1. Find the per-muscle goal instance.
+          { id: uid(), type: "action", config: {
+            type: "FIND",
+            over: "$allInstances",
+            predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: goalLabel }] },
+            itemVar: "$goalItem", itemIdVar: "$goalItemId",
+          } },
+          // 2. Bail if goal missing.
+          { id: uid(), type: "if",
+            condition: { operator: "AND", rules: [{ id: uid(), left: "$goalItemId", comparator: "IS_NOT_EMPTY", right: "" }] },
+            then: [
+              // 3. Resolve the active goal-period date (matches other trackers).
+              { id: uid(), type: "action", config: {
+                type: "INIT_VAR", name: "$goalPeriod",
+                expr: `$goalItem._effectiveFilter.${dateFieldId}`,
+                fallback: "$trigger.date", fallback2: "$today",
+              } },
+              // 4. Init accumulator.
+              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$acc", value: 0 } },
+              // 5. Loop workouts; for each matching muscle + date, add reps.
+              { id: uid(), type: "loop", overExpr: "$allInstances", as: "$item",
+                body: [
+                  { id: uid(), type: "if",
+                    condition: { operator: "AND", rules: [
+                      { id: uid(), left: `$item.fields.${fields.muscleGroup.id}.value`, comparator: "IS", right: key },
+                      { id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+                    ] },
+                    then: [
+                      { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.set1Reps.id}.value` } },
+                      { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.set2Reps.id}.value` } },
+                      { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.set3Reps.id}.value` } },
+                    ],
+                    else: [],
+                  },
+                ],
+              },
+              // 6. Write total to the goal's totalRepsToday display.
+              { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.totalRepsToday.id}.value`, value: "$acc" } },
+            ],
+            else: [],
+          },
+        ],
+      },
+      folderId: opCategoryIds.trackers,
+      enabled: true,
+    }).save();
+  }
+
+  // ── PER-MEAL NUTRITION (B7 Deep) ────────────────────────────────────────────
+  // One tracker per meal category. Sums `protein` across nutrition instances
+  // whose `mealCategory` matches, scoped to today. Writes the sum into the
+  // per-meal goal's totalProtein display.
+  const MEAL_CATEGORIES = [
+    { key: "Breakfast", goalLabel: "Breakfast Nutrition" },
+    { key: "Lunch",     goalLabel: "Lunch Nutrition" },
+    { key: "Dinner",    goalLabel: "Dinner Nutrition" },
+    { key: "Snack",     goalLabel: "Snack Nutrition" },
+  ];
+  for (const { key, goalLabel } of MEAL_CATEGORIES) {
+    await new Operation({
+      id: uid(), userId, gridId, priority: 3,
+      name: goalLabel,
+      description: `Sum protein across nutrition instances with mealCategory="${key}" on the active day; write to the "${goalLabel}" goal's totalProtein.`,
+      triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+      triggerObjects: [
+        { eventType: "onChange",       subjectType: "field", targetId: fields.protein.id,       priority: 3 },
+        { eventType: "onChange",       subjectType: "field", targetId: fields.mealCategory.id,  priority: 3 },
+        { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
+        { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
+        { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+        { eventType: "onLoad",         subjectType: "grid", targetId: "", priority: 3 },
+      ],
+      pipeline: {
+        sources: [],
+        steps: [
+          { id: uid(), type: "action", config: {
+            type: "FIND",
+            over: "$allInstances",
+            predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: goalLabel }] },
+            itemVar: "$goalItem", itemIdVar: "$goalItemId",
+          } },
+          { id: uid(), type: "if",
+            condition: { operator: "AND", rules: [{ id: uid(), left: "$goalItemId", comparator: "IS_NOT_EMPTY", right: "" }] },
+            then: [
+              { id: uid(), type: "action", config: {
+                type: "INIT_VAR", name: "$goalPeriod",
+                expr: `$goalItem._effectiveFilter.${dateFieldId}`,
+                fallback: "$trigger.date", fallback2: "$today",
+              } },
+              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$acc", value: 0 } },
+              { id: uid(), type: "loop", overExpr: "$allInstances", as: "$item",
+                body: [
+                  { id: uid(), type: "if",
+                    condition: { operator: "AND", rules: [
+                      { id: uid(), left: `$item.fields.${fields.mealCategory.id}.value`, comparator: "IS", right: key },
+                      { id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+                    ] },
+                    then: [
+                      { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.protein.id}.value` } },
+                    ],
+                    else: [],
+                  },
+                ],
+              },
+              { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.totalProtein.id}.value`, value: "$acc" } },
+            ],
+            else: [],
+          },
+        ],
+      },
+      folderId: opCategoryIds.trackers,
+      enabled: true,
+    }).save();
+  }
+
   // ── ALL-TIME / ACCOUNT AGGREGATIONS ──
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Net Balance",
+    ...trackerArgs, name: "Net Balance",
     goalLabel: "Checking Account", goalFieldId: fields.netBalance.id,
     incomeFieldId: fields.income.id, spentFieldId: fields.amount.id,
     agg: "net", timeFilter: "all",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Mom's Account Balance",
+    ...trackerArgs, name: "Mom's Account Balance",
     goalLabel: "Mom's Account", goalFieldId: fields.momsAccountBalance.id,
     sourceFieldId: fields.amount.id, agg: "sum", timeFilter: "all",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Total Workouts",
+    ...trackerArgs, name: "Total Workouts",
     goalLabel: "Fitness Stats", goalFieldId: fields.totalWorkouts.id,
     agg: "countTrue", timeFilter: "all",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Total Reading Time",
+    ...trackerArgs, name: "Total Reading Time",
     goalLabel: "Reading Stats", goalFieldId: fields.totalReadingTime.id,
     sourceFieldId: fields.duration.id, agg: "sum", timeFilter: "all",
   })).save();
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Completion Rate",
+    ...trackerArgs, name: "Completion Rate",
     goalLabel: "Productivity", goalFieldId: fields.completionRate.id,
     agg: "completionRate", timeFilter: "all",
   })).save();
@@ -4446,7 +4912,7 @@ export async function createLiveData(userId, options = {}) {
   // makeTrackerOp's weekly loop gate uses real SAME_WEEK, but the per-event
   // trigger date sub-rule stays SAME_DAY — onLoad/Nav bulk triggers self-heal.
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Tracker: Time Spent This Week",
+    ...trackerArgs, name: "Time Spent This Week",
     goalLabel: "Productivity", goalFieldId: fields.totalDuration.id,
     sourceFieldId: fields.duration.id, agg: "sum", timeFilter: "weekly",
   })).save();
@@ -4463,7 +4929,7 @@ export async function createLiveData(userId, options = {}) {
   // label → concat to $output → UPDATE display field on the goal item.
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
-    name: "Tracker: Movies Watched",
+    name: "Movies Watched",
     description: "Build a label list of movies watched today and update the Movies Watched goal display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
@@ -4607,7 +5073,7 @@ export async function createLiveData(userId, options = {}) {
   // Trigger gate added to match makeTrackerOp surface.
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
-    name: "Tracker: Books Read",
+    name: "Books Read",
     description: "Build a label list of books read today and update the Books Read goal display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
@@ -4749,7 +5215,7 @@ export async function createLiveData(userId, options = {}) {
   // Trigger gate added to match makeTrackerOp surface.
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
-    name: "Tracker: Podcasts Listened",
+    name: "Podcasts Listened",
     description: "Build a label list of podcasts listened today and update the Podcasts Listened goal display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
@@ -4890,7 +5356,7 @@ export async function createLiveData(userId, options = {}) {
   // Trigger gate added to match makeTrackerOp surface.
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
-    name: "Tracker: Courses Taken",
+    name: "Courses Taken",
     description: "Build a label list of courses taken today and update the Courses Taken goal display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
@@ -5122,11 +5588,846 @@ export async function createLiveData(userId, options = {}) {
     enabled: true,
   }).save();
 
+  // ── Tracker: Stamp Filter Date ─────────────────────────────────────────────
+  // Task #5 — writes each goal/account instance's _effectiveFilter date into
+  // its dateFieldId so the display pill (newly bound on every goal+account)
+  // always reflects what the user is currently filtering on. Replaces the
+  // legacy custom filter-date badge.
+  //
+  // Triggers: onLoad + onFilterChange anywhere. Runs at priority 2 (before
+  // the trackers at p3-6 read $goalDate via _effectiveFilter — the trackers
+  // ALREADY use the effective filter directly, so the field write here is
+  // purely for display, not for tracker correctness). High-priority so the
+  // value lands before downstream renders.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 2,
+    name: "Stamp Filter Date",
+    description: "Stamp each goal/account instance's _effectiveFilter date into its dateFieldId so the bound display pill reflects the active filter date. Replaces the legacy filter-date badge.",
+    triggerTypes: ["onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals",    priority: 2 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Accounts", priority: 2 },
+      { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 2 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 2 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        {
+          id: uid(), type: "loop", overExpr: "$allInstances", as: "$goal",
+          body: [
+            {
+              id: uid(), type: "if",
+              condition: { operator: "OR", rules: [
+                { id: uid(), left: "$goal._ancestors", comparator: "HAS_ANCESTOR", right: goalsPageOccId },
+                { id: uid(), left: "$goal._ancestors", comparator: "HAS_ANCESTOR", right: accountsPageOccId },
+              ] },
+              then: [
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$gd", expr: `$goal._effectiveFilter.${dateFieldId}` } },
+                {
+                  id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$gd", comparator: "IS_NOT_EMPTY", right: "" },
+                  ] },
+                  then: [
+                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$goal.fields.${dateFieldId}.value`, value: "$gd" } },
+                  ],
+                  else: [],
+                },
+              ],
+              else: [],
+            },
+          ],
+        },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
+
+  // ── Tracker: Net Worth ─────────────────────────────────────────────────────
+  // Sum of Checking + Savings (netBalance field) + Mom's Account
+  // (momsAccountBalance field) under the Accounts page. Net Worth itself
+  // sits on the same page; the loop predicate excludes it by label so the
+  // aggregate is non-circular.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 6,
+    name: "Net Worth",
+    description: "Sum Checking + Savings (netBalance) + Mom's Account (momsAccountBalance) into the Net Worth instance's netBalance display.",
+    triggerTypes: ["onChange", "onLoad", "onFilterChange"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field", targetId: fields.netBalance.id,         priority: 6 },
+      { eventType: "onChange",       subjectType: "field", targetId: fields.momsAccountBalance.id, priority: 6 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Accounts", priority: 6 },
+      { eventType: "onLoad",         subjectType: "grid", targetId: "", priority: 6 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allInstances",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Net Worth" }] },
+          itemVar: "$goalItem", itemIdVar: "$goalItemId",
+        } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$goalItemId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$acc", value: 0 } },
+            // Checking + Savings: read netBalance.
+            { id: uid(), type: "loop", overExpr: "$allInstances", as: "$item",
+              body: [
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: accountsPageOccId },
+                    { operator: "OR", rules: [
+                      { id: uid(), left: "$item.label", comparator: "IS", right: "Checking Account" },
+                      { id: uid(), left: "$item.label", comparator: "IS", right: "Savings Account" },
+                    ] },
+                    { id: uid(), left: `$item.fields.${fields.netBalance.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+                  ] },
+                  then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.netBalance.id}.value` } }],
+                  else: [],
+                },
+              ],
+            },
+            // Mom's Account: read momsAccountBalance.
+            { id: uid(), type: "loop", overExpr: "$allInstances", as: "$item",
+              body: [
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: accountsPageOccId },
+                    { id: uid(), left: "$item.label", comparator: "IS", right: "Mom's Account" },
+                    { id: uid(), left: `$item.fields.${fields.momsAccountBalance.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+                  ] },
+                  then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.momsAccountBalance.id}.value` } }],
+                  else: [],
+                },
+              ],
+            },
+            { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.netBalance.id}.value`, value: "$acc" } },
+          ],
+          else: [],
+        },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
+
+  // ── Tracker: Total Subscriptions ───────────────────────────────────────────
+  // Sum of `amount` across every bill under the Subscriptions container.
+  // Writes to the Total Subscriptions account's amount display field.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 6,
+    name: "Total Subscriptions",
+    description: "Sum the amount field of every bill under the Subscriptions container into the Total Subscriptions account display.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onLoad", "onFilterChange"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field", targetId: fields.amount.id, priority: 6 },
+      { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 6 },
+      { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 6 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Accounts", priority: 6 },
+      { eventType: "onLoad",         subjectType: "grid", targetId: "", priority: 6 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allInstances",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Total Subscriptions" }] },
+          itemVar: "$goalItem", itemIdVar: "$goalItemId",
+        } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$goalItemId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$acc", value: 0 } },
+            { id: uid(), type: "loop", overExpr: "$allInstances", as: "$item",
+              body: [
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: billSubscriptionsContOccId },
+                    { id: uid(), left: `$item.fields.${fields.amount.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+                  ] },
+                  then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.amount.id}.value` } }],
+                  else: [],
+                },
+              ],
+            },
+            { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.amount.id}.value`, value: "$acc" } },
+          ],
+          else: [],
+        },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
+
+  // ── Tracker: Monthly Bills ─────────────────────────────────────────────────
+  // Sum of `amount` across every bill under the Bills page with cadence
+  // "monthly". Writes to Monthly Bills account display field.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 6,
+    name: "Monthly Bills",
+    description: "Sum the amount field of every monthly-cadence bill under the Bills page into the Monthly Bills account display.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onLoad", "onFilterChange"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field", targetId: fields.amount.id,         priority: 6 },
+      { eventType: "onChange",       subjectType: "field", targetId: billCadenceFieldId,       priority: 6 },
+      { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 6 },
+      { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 6 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Accounts", priority: 6 },
+      { eventType: "onLoad",         subjectType: "grid", targetId: "", priority: 6 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allInstances",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Monthly Bills" }] },
+          itemVar: "$goalItem", itemIdVar: "$goalItemId",
+        } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$goalItemId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$acc", value: 0 } },
+            { id: uid(), type: "loop", overExpr: "$allInstances", as: "$item",
+              body: [
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: billsPageOccId },
+                    { id: uid(), left: `$item.fields.${billCadenceFieldId}.value`, comparator: "IS", right: "monthly" },
+                    { id: uid(), left: `$item.fields.${fields.amount.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+                  ] },
+                  then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.amount.id}.value` } }],
+                  else: [],
+                },
+              ],
+            },
+            { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.amount.id}.value`, value: "$acc" } },
+          ],
+          else: [],
+        },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
+
+  // ── Bill: Compute Next Due ─────────────────────────────────────────────────
+  // For each bill in the Bills page, derive the next due date from its cadence
+  // shape and write it to billNextDue. Mirrors the JS-side seed computeNextDue
+  // but runs as a live pipeline so user edits to cadence/day/anchor (or
+  // marking a Pay Bill task complete + rolling the cycle) recompute the field.
+  //
+  // Cadence map (uses DATE_ADD with advanceUntil:$today):
+  //   monthly      → base:$today,  setDay:billDay,        unit:month, amount:1, advanceUntil:$today
+  //   quarterly    → base:$today,  setDay:billDay,        unit:month, amount:3, advanceUntil:$today
+  //   yearly       → base:$today,  setDay:billDay,        unit:year,  amount:1, advanceUntil:$today
+  //   weekly       → base:$today,  setDay:billDay (1-7),  unit:week,  amount:1, advanceUntil:$today
+  //   biweekly     → base:$today,  setDay:billDay (1-7),  unit:week,  amount:2, advanceUntil:$today
+  //   every-n-days → base:billAnchor, amount:billCadenceN, unit:day,             advanceUntil:$today
+  //
+  // Gate: only recompute when billNextDue is empty OR already past, OR the
+  // trigger names a bill-cadence field change. Keeps the op idle on most
+  // re-renders. LOOPs over $allInstances scoped by HAS_ANCESTOR billsPageOccId
+  // so only bill instances are visited.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 4,
+    name: "Compute Next Due",
+    description: "Derive the next due date for each bill from its cadence shape and write it to the billNextDue field.",
+    triggerTypes: ["onChange", "onAdd", "onLoad", "onFilterChange"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: billCadenceFieldId,  priority: 4 },
+      { eventType: "onChange",       subjectType: "field",     targetId: billDayFieldId,      priority: 4 },
+      { eventType: "onChange",       subjectType: "field",     targetId: billCadenceNFieldId, priority: 4 },
+      { eventType: "onChange",       subjectType: "field",     targetId: billAnchorFieldId,   priority: 4 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",       targetId: "", priority: 4 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Bills", priority: 4 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 4 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        {
+          id: uid(), type: "loop", overExpr: "$allInstances", as: "$bill",
+          body: [
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$bill._ancestors", comparator: "HAS_ANCESTOR", right: billsPageOccId },
+                { id: uid(), left: `$bill.fields.${billCadenceFieldId}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+              ] },
+              then: [
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$cadence",    expr: `$bill.fields.${billCadenceFieldId}.value` } },
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$existingDue", expr: `$bill.fields.${billNextDueFieldId}.value` } },
+                // Recompute gate: empty / past existing due OR trigger is a
+                // cadence-shape MeasureOp / OccurrenceCreateOp. Skip on
+                // unrelated onLoad fires when billNextDue is still future.
+                {
+                  id: uid(), type: "if",
+                  condition: { operator: "OR", rules: [
+                    { id: uid(), left: "$existingDue", comparator: "IS_EMPTY", right: "" },
+                    { id: uid(), left: "$existingDue", comparator: "DATE_BEFORE_TODAY", right: "" },
+                    { id: uid(), left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
+                    { id: uid(), left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
+                  ] },
+                  then: [
+                    // monthly
+                    {
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$cadence", comparator: "IS", right: "monthly" }] },
+                      then: [{ id: uid(), type: "action", config: {
+                        type: "DATE_ADD",
+                        base: "$today", setDay: `$bill.fields.${billDayFieldId}.value`,
+                        unit: "month", amount: 1, advanceUntil: "$today",
+                        targetFieldId: billNextDueFieldId, targetOccurrenceIdExpr: "$bill.id",
+                      } }],
+                      else: [],
+                    },
+                    // quarterly
+                    {
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$cadence", comparator: "IS", right: "quarterly" }] },
+                      then: [{ id: uid(), type: "action", config: {
+                        type: "DATE_ADD",
+                        base: "$today", setDay: `$bill.fields.${billDayFieldId}.value`,
+                        unit: "month", amount: 3, advanceUntil: "$today",
+                        targetFieldId: billNextDueFieldId, targetOccurrenceIdExpr: "$bill.id",
+                      } }],
+                      else: [],
+                    },
+                    // yearly
+                    {
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$cadence", comparator: "IS", right: "yearly" }] },
+                      then: [{ id: uid(), type: "action", config: {
+                        type: "DATE_ADD",
+                        base: "$today", setDay: `$bill.fields.${billDayFieldId}.value`,
+                        unit: "year", amount: 1, advanceUntil: "$today",
+                        targetFieldId: billNextDueFieldId, targetOccurrenceIdExpr: "$bill.id",
+                      } }],
+                      else: [],
+                    },
+                    // weekly
+                    {
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$cadence", comparator: "IS", right: "weekly" }] },
+                      then: [{ id: uid(), type: "action", config: {
+                        type: "DATE_ADD",
+                        base: "$today", setDay: `$bill.fields.${billDayFieldId}.value`,
+                        unit: "week", amount: 1, advanceUntil: "$today",
+                        targetFieldId: billNextDueFieldId, targetOccurrenceIdExpr: "$bill.id",
+                      } }],
+                      else: [],
+                    },
+                    // biweekly
+                    {
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$cadence", comparator: "IS", right: "biweekly" }] },
+                      then: [{ id: uid(), type: "action", config: {
+                        type: "DATE_ADD",
+                        base: "$today", setDay: `$bill.fields.${billDayFieldId}.value`,
+                        unit: "week", amount: 2, advanceUntil: "$today",
+                        targetFieldId: billNextDueFieldId, targetOccurrenceIdExpr: "$bill.id",
+                      } }],
+                      else: [],
+                    },
+                    // every-n-days
+                    {
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$cadence", comparator: "IS", right: "every-n-days" }] },
+                      then: [{ id: uid(), type: "action", config: {
+                        type: "DATE_ADD",
+                        base: `$bill.fields.${billAnchorFieldId}.value`,
+                        amount: `$bill.fields.${billCadenceNFieldId}.value`,
+                        unit: "day", advanceUntil: "$today",
+                        targetFieldId: billNextDueFieldId, targetOccurrenceIdExpr: "$bill.id",
+                      } }],
+                      else: [],
+                    },
+                  ],
+                  else: [],
+                },
+              ],
+              else: [],
+            },
+          ],
+        },
+      ],
+    },
+    folderId: opCategoryIds.bills,
+    enabled: true,
+  }).save();
+
+  // ── Schedule Due: Seed ─────────────────────────────────────────────────────
+  // For every bill whose billNextDue lands on the active Schedule date,
+  // COPY_LINK the canonical "Pay Bill" task into Schedule's Due container so
+  // the user sees a "Pay Bill (Netflix)" / "Pay Bill (Rent)" row dated to the
+  // bill. linkedGroupId from the source Pay Bill carries through, so completing
+  // any copy bubbles to siblings via the server's update_occurrence fan-out.
+  //
+  // Idempotency: dedup-FIND existing copy with the same templateId AND billRef
+  // value AND scheduled for the same day under Due — skip if present.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 5,
+    name: "Due: Seed",
+    description: "Copy-link the Pay Bill task into Schedule's Due container for every bill whose billNextDue lands on the active Schedule date.",
+    triggerTypes: ["onChange", "onAdd", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: billNextDueFieldId,  priority: 5 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",       targetId: "", priority: 5 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule", priority: 5 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 5 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find the Schedule page (HAS_ANCESTOR scope + filter date source).
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allPages",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule" }] },
+          itemVar: "$schedPage", itemIdVar: "$schedPageId",
+        } },
+        // 2. Resolve the active schedule date — trigger → page filter → today.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$trigger.date" } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } }],
+          else: [],
+        },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
+          else: [],
+        },
+        // 3. Find the canonical Pay Bill source (lives in Financial wellness).
+        //    COPY_LINKs reuse this occurrence's moduleId / templateId.
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allInstances",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Pay Bill" }] },
+          itemVar: "$payBillSrc", itemIdVar: "$payBillSrcId",
+        } },
+        // 4. Find the Due container for $schedDate under the Schedule page.
+        //    Schedule: Build Day mints this per-day; if Build Day hasn't run
+        //    yet for this date, bail (rebuilding it here would race with p1).
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allContainers",
+          predicate: { operator: "AND", rules: [
+            { id: uid(), left: "label", comparator: "IS", right: "Due" },
+            { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+          ] },
+          itemVar: "$due", itemIdVar: "$dueId",
+        } },
+        // 5. Proceed only when both Pay Bill source AND Due container exist.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$payBillSrcId", comparator: "IS_NOT_EMPTY", right: "" },
+            { id: uid(), left: "$dueId",        comparator: "IS_NOT_EMPTY", right: "" },
+          ] },
+          then: [
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$payBillTpl", expr: "$payBillSrc.templateId" } },
+            // 6. Loop bills under the Bills page; seed a Pay Bill copy for
+            //    each whose billNextDue lands on $schedDate (no copy yet).
+            {
+              id: uid(), type: "loop", overExpr: "$allInstances", as: "$bill",
+              body: [
+                {
+                  id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$bill._ancestors", comparator: "HAS_ANCESTOR", right: billsPageOccId },
+                    { id: uid(), left: `$bill.fields.${billNextDueFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+                  ] },
+                  then: [
+                    // Dedup: existing copy with templateId IS $payBillTpl AND
+                    // billRef IS $bill.id AND _ancestors HAS_ANCESTOR $dueId.
+                    { id: uid(), type: "action", config: {
+                      type: "FIND",
+                      over: "$allInstances",
+                      predicate: { operator: "AND", rules: [
+                        { id: uid(), left: "templateId", comparator: "IS", right: "$payBillTpl" },
+                        { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$dueId" },
+                        { id: uid(), left: `fields.${billRefFieldId}.value`, comparator: "IS", right: "$bill.id" },
+                      ] },
+                      itemIdVar: "$existingCopy",
+                    } },
+                    { id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$existingCopy", comparator: "IS_EMPTY", right: "" }] },
+                      then: [
+                        // COPY_LINK with stamped billRef + accountRef + amount + date.
+                        // copyFields default true brings completed=false; the
+                        // stamped values override.
+                        { id: uid(), type: "action", config: {
+                          type: "COPY_LINK",
+                          sourceId: "$payBillSrcId",
+                          parent: "$dueId",
+                          fields: {
+                            [billRefFieldId]:     "$bill.id",
+                            [dateFieldId]:        "$schedDate",
+                            [accountRefFieldId]:  `$bill.fields.${accountRefFieldId}.value`,
+                            [fields.amount.id]:   `$bill.fields.${fields.amount.id}.value`,
+                          },
+                          fieldHidden: { [dateFieldId]: true },
+                        } },
+                      ],
+                      else: [],
+                    },
+                  ],
+                  else: [],
+                },
+              ],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+    folderId: opCategoryIds.bills,
+    enabled: true,
+  }).save();
+
+  // ── Mark Passed Timeslots (time-based / scheduled) ─────────────────────────
+  // Every 30 min, walks Schedule slot containers and stamps a red bg on
+  // any whose timeslot is in the past. Writes to `occurrence.ownStyle.bg`
+  // — the SAME field the occurrence settings menu writes to. The IF guard
+  // inside the loop keeps each fire to ~1 write (only the slot that
+  // crossed since last fire); ownStyle.bg is checked so already-stamped
+  // slots are skipped. UI reads occurrence.ownStyle via the standard
+  // resolveContainerStyle cascade — no CSS rule, no data-attribute hack.
+  const PASSED_TIMESLOT_BG = "rgba(248, 113, 113, 0.12)";
+  await new Operation({
+    id: uid(), userId, gridId, priority: 4,
+    name: "Mark Passed Timeslots",
+    description: "Every 30 min: walk Schedule slot containers; for each whose timeslot has passed AND isn't already tinted, write a red bg onto occurrence.ownStyle.bg. Same path the occurrence settings menu writes to.",
+    triggerTypes: [],
+    triggerObjects: [],
+    schedule: {
+      kind: "interval",
+      every: 30,
+      unit: "minute",
+      suppressNotifications: true,
+      lastFiredAt: null,
+    },
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find the Schedule page (HAS_ANCESTOR scope).
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allPages",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule" }] },
+          itemVar: "$schedPage", itemIdVar: "$schedPageId",
+        } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            // 2. Loop slot containers under Schedule. Predicate guards:
+            //    (a) is a slot (scheduleFormat field = "slot"),
+            //    (b) timeslot < $now,
+            //    (c) NOT already tinted — keeps each fire to only the
+            //        slots that newly crossed.
+            { id: uid(), type: "loop", overExpr: "$allContainers", as: "$slot",
+              body: [
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$slot._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                    { id: uid(), left: `$slot.fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "slot" },
+                    { id: uid(), left: `$slot.fields.${timeslotFieldId}.value`, comparator: "DATE_BEFORE_TODAY", right: "" },
+                    { id: uid(), left: "$slot.ownStyle.bg", comparator: "IS_NOT", right: PASSED_TIMESLOT_BG },
+                  ] },
+                  then: [
+                    { id: uid(), type: "action", config: { type: "UPDATE", path: "$slot.ownStyle.bg", value: PASSED_TIMESLOT_BG } },
+                  ],
+                  else: [],
+                },
+              ],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
+
+  // ── Hourly chime (DISABLED — was firing every second) ──────────────────────
+  // The lastFiredAt sync between scheduler and Redux isn't holding up under
+  // a fresh seed; op fires on every 1s tick because op.schedule.lastFiredAt
+  // stays null in local state until the server echo arrives, then the
+  // inFlight 2s timeout clears and it re-fires. Disabling until the scheduler
+  // sync race is investigated separately.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 5,
+    name: "Hourly chime",
+    description: "DISABLED — was firing every second due to lastFiredAt sync race. Re-enable after scheduler debug.",
+    triggerTypes: [],
+    triggerObjects: [],
+    schedule: {
+      kind: "interval",
+      every: 1,
+      unit: "hour",
+      suppressNotifications: false,
+      lastFiredAt: null,
+    },
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: { type: "NOTIFY", message: "🕒 It's the top of the hour." } },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: false,
+  }).save();
+
+  // ── POMODORO: Start ─────────────────────────────────────────────────────────
+  // Fired by PomodoroTimer.jsx on each new WORK phase. Trigger payload:
+  //   { slotLabel: "9:00am", minutes: 25, pomoNumber: 1-4, phase: "work" }
+  // Finds today's Schedule slot whose meta.slotLabel matches, then COPY_LINKs
+  // the "Pomodoro" template instance into it, stamping date/timeslot/minutes/
+  // number/phase. If no matching slot exists (Schedule not built, or user
+  // starts outside the schedule's hours), the op no-ops — the timer still
+  // runs locally; only the persisted session is skipped.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 4,
+    name: "Pomodoro: Start",
+    description: "On each work phase start, COPY_LINK the Pomodoro template into the current Schedule slot (matched by $trigger.slotLabel) and stamp today's date + minutes + phase + pomo number.",
+    triggerTypes: ["onPomoStart"],
+    triggerObjects: [
+      { eventType: "onPomoStart", subjectType: "grid", targetId: "", priority: 4 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find Schedule page (scope).
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allPages",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule" }] },
+          itemIdVar: "$schedPageId",
+        } },
+        // 2. Find Pomodoro template instance (the COPY_LINK source).
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allInstances",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Pomodoro" }] },
+          itemVar: "$pomoSrc", itemIdVar: "$pomoSrcId",
+        } },
+        // 3. Find slot container under Schedule whose timeslot field matches
+        //    the timer-supplied label (e.g. "9:00am"). Identity is field-based:
+        //    scheduleFormat="slot" + timeslot field value = $trigger.slotLabel.
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allContainers",
+          predicate: { operator: "AND", rules: [
+            { id: uid(), left: "_ancestors",                                   comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+            { id: uid(), left: `fields.${scheduleFormatFieldId}.value`,        comparator: "IS",           right: "slot" },
+            { id: uid(), left: `fields.${timeslotFieldId}.value`,              comparator: "IS",           right: "$trigger.slotLabel" },
+          ] },
+          itemIdVar: "$slotId",
+        } },
+        // 4. Guard: only COPY_LINK if all three resolved.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$pomoSrcId", comparator: "IS_NOT_EMPTY", right: "" },
+            { id: uid(), left: "$slotId",    comparator: "IS_NOT_EMPTY", right: "" },
+          ] },
+          then: [
+            { id: uid(), type: "action", config: {
+              type: "COPY_LINK",
+              sourceId: "$pomoSrcId",
+              parent: "$slotId",
+              fields: {
+                [dateFieldId]:             "$today",
+                [timeslotFieldId]:         "$trigger.slotLabel",
+                [fields.pomodoroMinutes.id]: "$trigger.minutes",
+                [fields.pomodoroNumber.id]:  "$trigger.pomoNumber",
+                [fields.pomodoroPhase.id]:   "$trigger.phase",
+                [completedFieldId]:        false,
+                [isTaskFieldId]:           true,
+              },
+              fieldHidden: { [dateFieldId]: true, [timeslotFieldId]: true, [isTaskFieldId]: true },
+            } },
+          ],
+          else: [],
+        },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
+
+  // ── POMODORO: Complete ──────────────────────────────────────────────────────
+  // Fired by PomodoroTimer.jsx when a work phase reaches 00:00. Finds the
+  // latest open Pomodoro copy under Schedule today (completed:false) and
+  // marks it completed. The MeasureOp from completed→true fans out to the
+  // Pomodoros Today / Pomodoro Time / Pomodoro History trackers.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 4,
+    name: "Pomodoro: Complete",
+    description: "Find the latest open Pomodoro copy under Schedule for today and mark it completed. Fires the standard MeasureOp burst so trackers re-aggregate.",
+    triggerTypes: ["onPomoComplete"],
+    triggerObjects: [
+      { eventType: "onPomoComplete", subjectType: "grid", targetId: "", priority: 4 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allPages",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule" }] },
+          itemIdVar: "$schedPageId",
+        } },
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allInstances",
+          predicate: { operator: "AND", rules: [
+            { id: uid(), left: "label",                                          comparator: "IS",           right: "Pomodoro" },
+            { id: uid(), left: "_ancestors",                                     comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+            { id: uid(), left: `fields.${dateFieldId}.value`,                    comparator: "SAME_DAY",     right: "$today" },
+            { id: uid(), left: `fields.${completedFieldId}.value`,               comparator: "IS_NOT",       right: true },
+          ] },
+          itemVar: "$openPomo", itemIdVar: "$openPomoId",
+        } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$openPomoId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            { id: uid(), type: "action", config: { type: "UPDATE", path: `$openPomo.fields.${completedFieldId}.value`, value: true } },
+          ],
+          else: [],
+        },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
+
+  // ── POMODORO: Stop ──────────────────────────────────────────────────────────
+  // Fired by PomodoroTimer.jsx when the user resets/skips mid-work. Deletes
+  // the open Pomodoro copy so it doesn't count toward today's totals.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 4,
+    name: "Pomodoro: Stop",
+    description: "Find the latest open Pomodoro copy under Schedule for today and delete it (abandoned).",
+    triggerTypes: ["onPomoStop"],
+    triggerObjects: [
+      { eventType: "onPomoStop", subjectType: "grid", targetId: "", priority: 4 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allPages",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule" }] },
+          itemIdVar: "$schedPageId",
+        } },
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allInstances",
+          predicate: { operator: "AND", rules: [
+            { id: uid(), left: "label",                                          comparator: "IS",           right: "Pomodoro" },
+            { id: uid(), left: "_ancestors",                                     comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+            { id: uid(), left: `fields.${dateFieldId}.value`,                    comparator: "SAME_DAY",     right: "$today" },
+            { id: uid(), left: `fields.${completedFieldId}.value`,               comparator: "IS_NOT",       right: true },
+          ] },
+          itemIdVar: "$openPomoId",
+        } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$openPomoId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            { id: uid(), type: "action", config: { type: "DELETE", path: "$openPomoId" } },
+          ],
+          else: [],
+        },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
+
+  // ── POMODORO: History tracker ───────────────────────────────────────────────
+  // Builds a [{when, minutes, label}] row list for every completed Pomodoro
+  // under Schedule in the goal's selected period (D/W/M/Y) and writes it to
+  // Intellectual Growth's pomoHistory display. Custom because makeTrackerOp
+  // is numeric — this is a row-builder (same shape as Today's Moods).
+  await new Operation({
+    id: uid(), userId, gridId, priority: 3,
+    name: "Pomodoro History",
+    description: "Build a [{when, minutes, label}] row list for every completed Pomodoro under Schedule in the active period and write it to Intellectual Growth's pomoHistory display.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: fields.pomodoroMinutes.id, priority: 3 },
+      { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId,         priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allInstances",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Intellectual Growth" }] },
+          itemVar: "$goalItem", itemIdVar: "$goalItemId",
+        } },
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allPages",
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule" }] },
+          itemIdVar: "$schedPageId",
+        } },
+        { id: uid(), type: "action", config: {
+          type: "INIT_VAR", name: "$goalPeriod",
+          expr: `$goalItem._effectiveFilter.${dateFieldId}`,
+          fallback: "$trigger.date", fallback2: "$today",
+        } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$rows", value: [] } },
+        { id: uid(), type: "loop", overExpr: "$allInstances", as: "$inst",
+          body: [
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "label",                                    comparator: "IS",           right: "Pomodoro" },
+                { id: uid(), left: "$inst._ancestors",                         comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: `$inst.fields.${completedFieldId}.value`,   comparator: "IS",           right: true },
+                { id: uid(), left: `$inst.fields.${dateFieldId}.value`,        comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+              ] },
+              then: [
+                { id: uid(), type: "action", config: {
+                  type: "PUSH_TO_ARRAY",
+                  name: "$rows",
+                  value: {
+                    when:    `$inst.fields.${timeslotFieldId}.value`,
+                    minutes: `$inst.fields.${fields.pomodoroMinutes.id}.value`,
+                    label:   `$inst.fields.${fields.pomodoroPhase.id}.value`,
+                  },
+                } },
+              ],
+              else: [],
+            },
+          ],
+        },
+        { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.pomoHistory.id}.value`, value: "$rows" } },
+      ],
+    },
+  }).save();
+
   // ── Shared schedule + day-page operations (delegated to liveSystemBuilders) ──
   // createLiveData seeds the trackers as "Tracker: Completed Today" (not the
   // longer "Tracker: Tasks Completed Today" used by createTestGrid). Pass the
   // matching name so Build Day's tail RUN_OPERATION resolves it.
-  await new Operation(makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, completedTrackerName: "Tracker: Completed" })).save();
+  await new Operation(makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId, completedTrackerName: "Completed", waterTrackerName: "Water" })).save();
   // Extend Stamp Date & Time Slot to also stamp lastSeen on every dropped occurrence.
   await new Operation(makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar: panelOccIds.notebook })).save();
   // Body-seeds the Tasks Completed container minted by buildDayPageTemplate.
@@ -5167,7 +6468,7 @@ export async function createLiveData(userId, options = {}) {
   const stCellDoc = (occVar) => ({ type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: occVar } }] });
   await new Operation({
     id: uid(), userId, gridId, priority: 8,
-    name: "Schedule Table: Build",
+    name: "Table: Build",
     description: "Mirror the Schedule into the Schedule Table page. Per task on the active day: 3 copy-linked occurrences parented under the table (col0 main w/ date+timeslot hidden via the column's fieldVisibility, col1 date-only projection, col2 timeslot-only projection) + a shared copy-linked Physical Wellness goal (col3, all fields). Row-level existence dedup using Schedule: Build Day's exact predicate (templateId IS task AND _ancestors HAS_ANCESTOR table AND fields.<date> SAME_DAY schedDate) — row present → skip, absent → create. $r appends from the table's current rowCount. Idempotent + per-date + self-healing, no flags, no stamped markers.",
     triggerTypes: ["onAdd", "onDelete", "onChange", "onFilterChange", "onLoad"],
     triggerObjects: [
@@ -5354,7 +6655,7 @@ export async function createLiveData(userId, options = {}) {
   // skip when canvas already populated + no explicit trigger (onLoad bulk).
   await new Operation({
     id: uid(), userId, gridId, priority: 8,
-    name: "Schedule Canvas: Build",
+    name: "Canvas: Build",
     description: "Mirror Schedule tasks for the active day onto the Schedule Canvas page. Each task → one copy-linked occurrence stamped with meta.x/y so cards stack vertically on the canvas. Idempotent + per-date + self-healing.",
     triggerTypes: ["onAdd", "onDelete", "onChange", "onFilterChange", "onLoad"],
     triggerObjects: [
@@ -5465,13 +6766,11 @@ export async function createLiveData(userId, options = {}) {
   }).save();
 
   // ── Categorize operations (post-save bulk patch) ───────────────────────────
-  // Same name-pattern routing as fields. Lets the existing 28 Operation
-  // records (each defined inline above) land in a sensible Command Center
-  // column without touching every definition. Run AFTER every save above.
-  await Operation.updateMany(
-    { userId, gridId, name: /^Tracker:/i, folderId: { $in: [null, undefined] } },
-    { $set: { folderId: opCategoryIds.trackers } },
-  );
+  // Same name-pattern routing as fields. Lets Operation records defined
+  // inline above land in a sensible Command Center column without touching
+  // every definition. Run AFTER every save above. Trackers route via
+  // makeTrackerOp's folderId arg + inline folderId on the muscle/meal ops,
+  // so they're not regex-routed here.
   await Operation.updateMany(
     { userId, gridId, name: /^Schedule(?: Table)?:/i, folderId: { $in: [null, undefined] } },
     { $set: { folderId: opCategoryIds.schedule } },
@@ -5527,7 +6826,10 @@ export async function createLiveData(userId, options = {}) {
     todoPageOccId,
     goalsPageOccId,
     accountsPageOccId,
-    // Notebook hub View id (activeOccurrenceId = schedPageOccId)
+    // Folder-page default tabs (card-grid landing for each hub panel)
+    toolkitFolderPageOccId,
+    notebookFolderPageOccId,
+    // Notebook hub View id (activeOccurrenceId = notebookFolderPageOccId)
     notebookHubViewId,
   };
 }
@@ -5575,7 +6877,8 @@ async function main() {
     console.log(`   Operations:     26 (19 trackers + 1 daily question rotator + 4 schedule/day-page + Schedule Table: Build + Schedule Canvas: Build)`);
     console.log(`   Panels:         ${Object.keys(result.panelOccIds || {}).join(", ")}`);
     console.log(`   Pages:          Daily Toolkit folder (11 wellness pages: Physical, Phys-Fitness, Phys-Nutrition, Intellectual, Emotional, Social, Spiritual, Occupational, Financial, Environmental, Creative) + Todo List + Goals + Accounts + Schedule + Canvas + Schedule Table + Library + Daily Journal Questions + Bills`);
-    console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Schedule (${result.schedPageOccId}); tabs=[Schedule, Canvas]`);
+    console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Interfaces folder-page (${result.notebookFolderPageOccId}); tabs=[Interfaces, Schedule, Canvas, Schedule Table, Schedule Canvas]`);
+    console.log(`   Toolkit hub:    active=Daily Toolkit folder-page (${result.toolkitFolderPageOccId}); tabs=[Daily Toolkit, ...11 wellness pages]`);
     console.log("=".repeat(50));
   } catch (err) {
     console.error("❌ Failed:", err);

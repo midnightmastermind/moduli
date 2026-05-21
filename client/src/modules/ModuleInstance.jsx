@@ -7,6 +7,7 @@ import React, { useContext, useEffect, useState, useCallback, useRef, useMemo } 
 import { GridDataContext } from "../GridDataContext";
 import { GridActionsContext } from "../GridActionsContext";
 import { GridLiveContext } from "../GridLiveContext";
+import { SelectionContext } from "../state/SelectionContext";
 import ContextMenu from "../ui/ContextMenu";
 import InstanceForm from "../ui/InstanceForm";
 import FieldRenderer from "../ui/FieldRenderer";
@@ -17,7 +18,7 @@ import {
   PopoverTrigger,
   PopoverAnchor,
 } from "@/components/ui/popover";
-import { Link2, Unlink, Settings, Copy, Move, Play, Zap, ArrowBigDown, Eye, EyeOff, ChevronRight, ChevronDown, X, Trash2, Focus } from "lucide-react";
+import { Link2, Unlink, Settings, Copy, Move, Play, Zap, ArrowBigDown, Eye, EyeOff, ChevronRight, ChevronDown, X, Trash2, Focus, ClipboardCopy, ClipboardPaste, MoveRight } from "lucide-react";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   useDragDrop,
@@ -405,13 +406,6 @@ function InstanceInner({
 
   const hasLabel = !!label;
   const hasFields = instanceFields.length > 0;
-  // Tracker/goal heuristic: at least one display-type field (binding.role
-  // "display" OR field.displayEnabled === true). The filter-date badge only
-  // renders for these — non-tracker instances (regular tasks) skip it.
-  const hasDisplayField = useMemo(
-    () => instanceFields.some(({ field, binding }) => binding?.role === "display" || field?.displayEnabled === true),
-    [instanceFields]
-  );
 
   return (
     <div
@@ -518,14 +512,6 @@ function InstanceInner({
                 space it has; otherwise renders static. Applies to every module
                 label (per user request), not just table cells. */}
             <AutoMarquee>{label}</AutoMarquee>
-            {/* Filter-date badge — only on goal/tracker instances (has a
-                display-typed field). Shows the active filter date/range so
-                the user can confirm what they're filtering on at a glance. */}
-            {hasDisplayField && filterDateLabel && (
-              <div className="instance-filter-date-badge" title="Active filter">
-                {filterDateLabel}
-              </div>
-            )}
           </div>
           )}
         </div>{/* end label+radial wrapper */}
@@ -678,14 +664,63 @@ function ModuleInstance({
 }) {
   const dragCtx = useDragContext();
   const { isContainerDrag } = dragCtx;
+  const selection = useContext(SelectionContext);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [showDoc, setShowDoc] = useState(false);
+
+  const occId = occurrence?.id;
+  const isSelected = occId ? selection.isSelected(occId) : false;
+
+  const handleWrapperClick = useCallback((e) => {
+    if (e.shiftKey && occId) {
+      e.preventDefault();
+      e.stopPropagation();
+      selection.toggle(occId);
+    }
+  }, [occId, selection]);
 
   const handleContextMenu = useCallback((e) => {
     if ("ontouchstart" in window) return;
     e.preventDefault();
     e.stopPropagation();
+    // Bulk-action items appear on top when >1 occurrence is selected — keeps
+    // the muscle memory of right-click → operate on selection without
+    // forcing the user to right-click each item individually. Copy/Move/
+    // Copy-link stage the selection into the SelectionContext clipboard;
+    // Paste-here on a container or page replays them in the target.
+    const bulkItems = selection.count > 1 ? [
+      {
+        label: `Copy ${selection.count} selected`,
+        icon: ClipboardCopy,
+        onClick: () => selection.setClipboard("copy", [...selection.selectedIds]),
+      },
+      {
+        label: `Move ${selection.count} selected`,
+        icon: MoveRight,
+        onClick: () => selection.setClipboard("move", [...selection.selectedIds]),
+      },
+      {
+        label: `Copy-link ${selection.count} selected`,
+        icon: Link2,
+        onClick: () => selection.setClipboard("copylink", [...selection.selectedIds]),
+      },
+      { separator: true },
+      {
+        label: `Delete ${selection.count} selected`,
+        icon: Trash2, danger: true,
+        onClick: () => {
+          const ids = [...selection.selectedIds];
+          selection.clear();
+          for (const id of ids) {
+            CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: id, emit: true });
+          }
+        },
+      },
+      { label: "Clear selection", icon: X, onClick: () => selection.clear() },
+      { separator: true },
+    ] : [];
     const items = [
+      ...bulkItems,
       onInstanceFocus && { label: "Focus", icon: Focus, onClick: () => onInstanceFocus(module, occurrence) },
       onInstanceFocus && { separator: true },
       {
@@ -705,7 +740,7 @@ function ModuleInstance({
       },
     ].filter(Boolean);
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
-  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket]);
+  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection]);
 
   const handleRef = useRef(null);
 
@@ -729,7 +764,7 @@ function ModuleInstance({
       data-instance-id={module.id}
       data-occurrence-id={occurrence?.id}
       data-testid="instance-wrap"
-      className="instance-wrap"
+      className={`instance-wrap${isSelected ? " is-selected" : ""}`}
       style={{
         touchAction: "manipulation",
         opacity: isDragging ? 0.4 : 1,
@@ -737,6 +772,7 @@ function ModuleInstance({
         transition: "opacity 0.1s", marginBottom: 2, position: "relative",
       }}
       {...props}
+      onClick={handleWrapperClick}
       onContextMenu={handleContextMenu}
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />

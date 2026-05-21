@@ -1,6 +1,32 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-05-19. Check this file before re-reading source._
+_Updated: 2026-05-20. Check this file before re-reading source._
+
+## Recent Changes (2026-05-20 — pasteClipboard.js)
+- **`pasteClipboard.js` (NEW)** — `runPasteClipboard({ mode, ids,
+  destinationOccurrence, destinationModule, occurrencesById, dispatch,
+  socket, gridId, userId, panelId })` replays the multi-select
+  clipboard (`state/SelectionContext.js`) into a destination occurrence
+  (container or page). Mode dispatch:
+  - `copy` → `LayoutHelpers.copyInstanceToContainer` per id (fresh
+    occurrences with deep-copied fields; no `linkedGroupId`).
+  - `copylink` → `LayoutHelpers.copylinkInstanceToContainer` per id
+    (mints fresh occurrences sharing `moduleId` + `linkedGroupId`;
+    assigns a group to the source if it had none — server fan-out
+    propagates writes across the group thereafter).
+  - `move` → finds the current parent via `occurrences[]` reverse scan
+    (parentId fallback), calls `LayoutHelpers.moveInstanceBetweenContainers`,
+    then updates `src.parentId` so ancestor walks see the move.
+  Skips self-paste (`occId === destinationOccurrence.id`) and same-parent
+  moves. Build shim `{ id, label, _occurrence }` for the destination is
+  built locally so we can reuse the LayoutHelpers add/copy primitives
+  unchanged.
+- **Wired from**: `modules/ModuleContainer.jsx` (container right-click
+  → "Paste N here" / "Move N here" / "Paste linked N here" — top of
+  menu when `selection.clipboard` is set) and `modules/ModulePage.jsx`
+  (page right-click — same labels). Both call
+  `selection.clearClipboard()` + `selection.clear()` after pasting so
+  the selection state matches what the user sees.
 
 ## Recent Changes (2026-05-19 — boundFieldSync)
 - **`boundFieldSync.js` (NEW)** — `propagateBoundFieldWrite({ hostOccurrence,

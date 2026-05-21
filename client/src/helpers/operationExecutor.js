@@ -1087,7 +1087,8 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       const targetOcc = targetOccId ? occurrencesById[targetOccId] : null;
       const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById, parentByChildId });
       // Accept both bare-string `YYYY-MM-DD` filter values and the
-      // object form `{value, unit}` used by the date-range nav.
+      // object form `{value, unit, span?, kind?, dates?}` used by the
+      // date-range nav.
       const isDateStr = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v);
       const periodVal = Object.values(efv).find(v => {
         if (isDateStr(v)) return true;
@@ -1096,10 +1097,63 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       const dateStr = periodVal && typeof periodVal === "object" ? periodVal.value : periodVal;
       const dayKey = dateStr ? dateStr.slice(0, 10) : null;
       const d = dateStr ? new Date(dateStr + "T00:00:00") : _nowDate;
+      // Expand the period into a flat ISO day list. The Schedule: Build
+      // Schedule op consumes this to mint one day-column per visible day.
+      // Falls back to [$today] when the page has no active date filter
+      // (cold load with no nav state).
+      const expandPeriod = (p) => {
+        if (p == null) return [];
+        if (typeof p === "string") return isDateStr(p) ? [p.slice(0, 10)] : [];
+        if (typeof p !== "object") return [];
+        const { value, unit = "day", span = 1, kind, dates } = p;
+        if (kind === "multi" && Array.isArray(dates)) {
+          const out = [];
+          const seen = new Set();
+          for (const ds of dates) {
+            if (!isDateStr(ds)) continue;
+            const k = ds.slice(0, 10);
+            if (!seen.has(k)) { seen.add(k); out.push(k); }
+          }
+          return out;
+        }
+        if (!isDateStr(value)) return [];
+        const start = new Date(value + "T00:00:00");
+        const enumerateDays = (from, count) => {
+          const out = [];
+          for (let i = 0; i < count; i++) {
+            const dd = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i);
+            out.push(_localDayString(dd));
+          }
+          return out;
+        };
+        if (unit === "week") {
+          // Anchor week to its start (Mon). Value is treated as any day in the week.
+          const dow = start.getDay();
+          const offset = dow === 0 ? -6 : 1 - dow;
+          const wkStart = new Date(start.getFullYear(), start.getMonth(), start.getDate() + offset);
+          return enumerateDays(wkStart, 7);
+        }
+        if (unit === "month") {
+          const monthStart = new Date(start.getFullYear(), start.getMonth(), 1);
+          const lastDay = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+          return enumerateDays(monthStart, lastDay);
+        }
+        if (unit === "year") {
+          const yearStart = new Date(start.getFullYear(), 0, 1);
+          const isLeap = (start.getFullYear() % 4 === 0 && start.getFullYear() % 100 !== 0) || (start.getFullYear() % 400 === 0);
+          return enumerateDays(yearStart, isLeap ? 366 : 365);
+        }
+        // Default: day unit, honor span
+        return enumerateDays(start, Math.max(1, Number(span) || 1));
+      };
+      const periodDates = expandPeriod(periodVal);
+      const periodDatesOrToday = periodDates.length ? periodDates : [_todayLocal];
       return {
         $activeDate: dayKey,
         $filterDate: dayKey,
         $activePeriod: periodVal || null,
+        $activePeriodDates: periodDatesOrToday,
+        $activePeriodCount: periodDatesOrToday.length,
         $activeDateLabel: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
         $activeDayOfWeek: d.toLocaleDateString("en-US", { weekday: "long" }),
       };
@@ -1353,7 +1407,65 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   logger.add("sources", { vars: sourceSummary });
 
   // ---- Execute steps (top-down code flow) ----
-  return executeSteps(steps, $vars, contextWithExecutors, transaction);
+  const result = executeSteps(steps, $vars, contextWithExecutors, transaction);
+  return _handleSuspend(result);
+}
+
+// If the steps returned a suspend continuation as the LAST entry, hand the
+// request to operationsBridge.requestUserInput and re-enter the executor on
+// resolve. Pre-suspend effects (`pre`) are returned to the caller and applied
+// through the normal path. Post-resume effects are applied via
+// operationsBridge.applyEffect since they materialize after the original
+// fireOperations call already returned.
+function _handleSuspend(result) {
+  if (!Array.isArray(result) || result.length === 0) return result;
+  const last = result[result.length - 1];
+  if (!last || last._suspend !== true) return result;
+  const pre = result.slice(0, -1);
+  const ask = operationsBridge.requestUserInput;
+  if (typeof ask !== "function") {
+    console.warn("[GET_USER_INPUT] operationsBridge.requestUserInput not set — dropping the rest of the pipeline.");
+    return pre;
+  }
+  // Fire-and-forget — the caller gets pre-suspend effects synchronously.
+  // When the user submits, the remaining steps run + their effects apply
+  // via operationsBridge.applyEffect (same channel the optimistic-publish
+  // path uses for fan-out).
+  Promise.resolve(ask(last.request)).then((value) => {
+    resumeContinuation(last.continuation, last.resultVar || "$userInput", value);
+  }).catch(() => {
+    // Cancelled / closed — pipeline ends gracefully.
+  });
+  return pre;
+}
+
+/**
+ * Resume a suspended pipeline with the user's input value. Merges value into
+ * the captured $vars under resultVar, runs the remaining top-level steps,
+ * then applies any new effects via operationsBridge.applyEffect. If the
+ * resumed steps suspend again (chained GET_USER_INPUTs), the handler recurses
+ * — each step's value lands in $vars for downstream steps as designed.
+ */
+export function resumeContinuation(continuation, resultVar, value) {
+  if (!continuation) return [];
+  continuation.$vars[resultVar] = value;
+  const next = executeSteps(
+    continuation.remainingSteps,
+    continuation.$vars,
+    continuation.context,
+    continuation.transaction,
+  );
+  const handled = _handleSuspend(next);
+  // Effects already applied during fireOperations for the pre-suspend chunk;
+  // these are the post-resume effects so apply them now.
+  const apply = operationsBridge.applyEffect;
+  if (typeof apply === "function") {
+    for (const eff of handled) {
+      if (eff && eff._suspend) continue;
+      apply(eff);
+    }
+  }
+  return handled;
 }
 
 // ============================================================
@@ -1368,7 +1480,9 @@ export function executePipeline(operation, context, transaction, extraVars, exte
 function executeSteps(steps, $vars, context, transaction) {
   const log = $vars._log;
   const updates = [];
-  for (const step of steps || []) {
+  const stepsArr = steps || [];
+  for (let stepIdx = 0; stepIdx < stepsArr.length; stepIdx++) {
+    const step = stepsArr[stepIdx];
     if (step.type === "action") {
       const actionType = step.config?.type || step.actionType;
       const cfg = step.config || {};
@@ -1441,6 +1555,31 @@ function executeSteps(steps, $vars, context, transaction) {
         ...(boundVars ? { boundVars } : {}),
         ...(candidates ? { candidates } : {}),
       });
+      // Suspend sentinel: an action (currently only GET_USER_INPUT) can return
+      // [{ _suspend: true, request, resultVar }] to halt the pipeline. We
+      // capture the remaining top-level steps + current $vars + executor
+      // context as a continuation. The caller (executePipeline) detects the
+      // suspend, invokes operationsBridge.requestUserInput(request), and on
+      // resolve calls resumeContinuation(cont, value) to re-enter from here.
+      // MVP limitation: only fires at the TOP level of pipeline.steps. Nested
+      // suspends inside IF/LOOP bodies aren't supported yet — would need
+      // bubbling through the recursive executeSteps calls below.
+      if (result.length === 1 && result[0] && result[0]._suspend === true) {
+        return [
+          ...updates,
+          {
+            _suspend: true,
+            request: result[0].request,
+            resultVar: result[0].resultVar,
+            continuation: {
+              remainingSteps: stepsArr.slice(stepIdx + 1),
+              $vars,
+              context,
+              transaction,
+            },
+          },
+        ];
+      }
       updates.push(...result);
     } else if (step.type === "if") {
       const group = step.condition || { operator: "AND", rules: step.rules || [] };
