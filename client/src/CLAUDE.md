@@ -216,7 +216,41 @@ tiles + closed-state chips, `QuickAddMenu` add-menu tiles,
 mind-map representation nodes, and anywhere else an occurrence
 type is shown.
 
-#### 2. Representation module / view-toggle for occurrences
+#### 2. Representation module / view-toggle for occurrences — **PARTIAL 2026-05-21**
+Foundation landed this session:
+- `helpers/viewMode.js` — pure resolver. `getEffectiveViewMode(occ,
+  contextTag)` reads `occ.meta.viewMode` and falls back to context
+  defaults. Contexts: `default` (allows all three), `folderPage`
+  (no Actual — per spec), `mindMap` (defaults to representation),
+  `valueBuilder` (representation only). `isViewModeIllegal(occ,
+  contextTag)` lets callers detect + coerce stale modes.
+- `ui/RepresentationView.jsx` — compact `[Icon] Label` chip using
+  the shared `helpers/moduleIcons`. Three sizes (sm/md/lg).
+  `onJump(occId)` callback hook for the clickable-jump pattern
+  (the jump-to-source helper itself still pending — see #3).
+- `ui/ViewModeSwitcher.jsx` — 3-button segmented control. Reads
+  the allowed list from the context tag so disallowed modes never
+  render. Two sizes (sm/md).
+- `modules/PreviewNode.jsx` — wired to both: representation mode
+  renders a single `RepresentationView` chip + switcher; preview
+  mode keeps the existing iframe + adds the switcher inline in the
+  title row. Folder-page constraint enforced — Actual button is
+  never shown. Writes mode changes via `CommitHelpers.updateOccurrence`
+  patching `meta.viewMode`.
+- 14 regression tests in `__tests__/viewMode.test.js`.
+
+Still TODO:
+- Wire ModuleInstance / ModuleContainer / ModulePage to honor
+  `meta.viewMode` in non-folder-page contexts (right now the switcher
+  only exists on folder-page cards via PreviewNode). The other
+  surfaces still default-to-Actual everywhere.
+- The clickable-jump helper (#3) — RepresentationView already takes
+  `onJump`, but the underlying scroll-to-and-highlight implementation
+  needs to be extracted into a shared helper (likely
+  `helpers/jumpToOccurrence.js`) consuming the existing ManifestTree
+  drilldown highlight (`.anchor-highlight` CSS animation).
+
+Original spec retained below:
 Each occurrence rendered as a "node" elsewhere (mind-map canvas,
 folder preview, value-builder card, search results, etc.) needs a
 THREE-WAY view-toggle:

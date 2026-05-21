@@ -7,11 +7,15 @@
 // app that connects via socket with previewOcc param to get only the
 // occurrence subtree needed.
 
-import React, { useRef, useEffect, useContext, useState } from "react";
+import React, { useRef, useEffect, useContext, useState, useCallback } from "react";
 import { File } from "lucide-react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { GridActionsContext } from "../GridActionsContext.js";
 import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
+import { getEffectiveViewMode } from "../helpers/viewMode";
+import ViewModeSwitcher from "../ui/ViewModeSwitcher";
+import RepresentationView from "../ui/RepresentationView";
+import * as CommitHelpers from "../helpers/CommitHelpers";
 
 // Iframe preview — loads /?previewOcc=<occId> which renders PagePreviewApp
 function IframePreview({ occurrenceId, landscape = false }) {
@@ -90,6 +94,26 @@ export default function PreviewNode({
   const kind = module?.kind;
   const role = module?.role;
 
+  // Folder-page card context — Actual mode is intentionally NOT offered
+  // here per the user spec (Folder pages exist to give a grid-of-cards
+  // drilldown; rendering full Actual would defeat the purpose). The
+  // ViewModeSwitcher's folderPage contextTag filters Actual out.
+  const ctxActions = useContext(GridActionsContext) || {};
+  const dispatch = ctxActions.dispatch;
+  const socket = ctxActions.socket;
+  const viewMode = getEffectiveViewMode(occurrence, "folderPage");
+  const handleViewModeChange = useCallback((nextMode) => {
+    if (!occurrence?.id) return;
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: {
+        id: occurrence.id,
+        meta: { ...(occurrence.meta || {}), viewMode: nextMode },
+      },
+      emit: true,
+    });
+  }, [occurrence?.id, occurrence?.meta, dispatch, socket]);
+
   // Lazy-load the iframe only when the card is in (or near) the viewport.
   // Without this, every PreviewNode on a folder page (potentially 20+ cards)
   // mounts an iframe immediately and the parent app freezes for several
@@ -132,6 +156,39 @@ export default function PreviewNode({
   const isLandscape = kind === "folder";
   const shouldLoadIframe = loadPreview && hasBeenVisible;
 
+  // Representation mode renders a single chip (no iframe, no preview
+  // body) — the user can still drill in by clicking it.
+  if (viewMode === "representation") {
+    return (
+      <div
+        ref={ref}
+        className={`preview-node-card preview-node-card-representation ${className}`}
+        data-preview-node-id={occurrence?.id}
+        data-occurrence-id={occurrence?.id}
+        style={{
+          display: "flex", flexDirection: "column", gap: 4,
+          padding: 6, ...extraStyle,
+        }}
+      >
+        <RepresentationView
+          occurrence={occurrence}
+          size="lg"
+          onJump={canDrillDown ? () => onDrillDown?.(occurrence?.id, ref.current) : null}
+        />
+        <ViewModeSwitcher
+          occurrence={occurrence}
+          contextTag="folderPage"
+          onChange={handleViewModeChange}
+          size="sm"
+          className="preview-node-mode-switcher"
+        />
+      </div>
+    );
+  }
+
+  // Preview mode — the existing iframe path with the switcher overlaid
+  // in a corner so authors can flip to representation without leaving
+  // the folder page.
   return (
     <div
       ref={ref}
@@ -142,7 +199,7 @@ export default function PreviewNode({
         if (isAnimating || !canDrillDown) return;
         onDrillDown?.(occurrence?.id, ref.current);
       }}
-      style={extraStyle}
+      style={{ position: "relative", ...extraStyle }}
     >
       <div className="preview-node-preview" style={isLandscape ? { aspectRatio: "4 / 3" } : undefined}>
         {shouldLoadIframe
@@ -157,6 +214,13 @@ export default function PreviewNode({
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {label}
         </span>
+        <ViewModeSwitcher
+          occurrence={occurrence}
+          contextTag="folderPage"
+          onChange={handleViewModeChange}
+          size="sm"
+          className="preview-node-mode-switcher"
+        />
       </div>
     </div>
   );
