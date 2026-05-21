@@ -716,6 +716,125 @@ and the UX feedback loop (dropzone overlay, conflict resolution
 when dropping onto an existing container vs. a page) needs to be
 designed alongside. Land in a dedicated session.
 
+#### 6.55. IMPORT_TEXT / IMPORT_HTML operation actions
+**Added 2026-05-21.** Mirror the `/api/v1/import/markdown` +
+`/api/v1/import/html` REST endpoints as new pipeline action types
+so operations can feed arbitrary text or HTML through the importer
+and route the resulting subtree wherever they want.
+
+**Why:** the AI assistant + future op-driven workflows want to
+take a chunk of content (from `$trigger.value`, from `CALL_API`'s
+response body, from a `GET_USER_INPUT` paste field, etc.) and
+materialize it as a real Moduli subtree without going through the
+REST round-trip. Same Phase A importer; just exposed inside the
+pipeline language.
+
+**Action shapes:**
+- `IMPORT_HTML` —
+  cfg: `{ html, parentExpr?, title?, keepImages?, keepTables?,
+  keepFigures?, stripClasses?, resultVar? }`
+  Runs `htmlToMarkdown(html, ...) → markdownToModuli(...)`. Pushes
+  one CREATE_ITEM effect per minted module + one UPDATE_OCCURRENCE
+  per occurrence wire-up (mirrors how APPLY_TEMPLATE already fans
+  out). Binds `cfg.resultVar` to
+  `{ rootOccurrenceId, stats, markdown }` so downstream steps can
+  MOVE the root under a destination, set a field on it, etc.
+- `IMPORT_MARKDOWN` —
+  cfg: `{ markdown, parentExpr?, title?, resultVar? }`
+  Same effect emission, just skips the HTML conversion stage.
+
+**Wiring:**
+1. New cases in
+   `client/src/helpers/operationActions.js executeActionItem` —
+   route to a thin client wrapper that calls
+   `services/markdownImporter.js`'s logic in-process (it's pure
+   JS, no Mongoose dependency at the planning layer) and emits
+   CREATE_ITEM effects. Alternative: send a `RUN_OPERATION_IMPORT`
+   socket event to the server which calls the real REST handler
+   and broadcasts on the user room. The pure-client path is
+   simpler + side-steps the socket roundtrip; verify the
+   markdownImporter module is importable from the client bundle.
+2. New cases in `executor`'s effect handler to apply the imports
+   atomically.
+3. New IDs visible in `$vars.$allItems` overlay so the SAME
+   pipeline can do `MOVE_OCCURRENCE` on the rootOccurrenceId
+   right after.
+
+**Caller patterns:**
+- AI: `CALL_API` to an LLM that returns a markdown response →
+  `IMPORT_MARKDOWN markdown:$llmResp.text resultVar:$page` →
+  `MOVE_OCCURRENCE id:$page.rootOccurrenceId to:<projects folder>`.
+- Drag-to-import flow: client posts `/import/html` directly (faster),
+  but the SAME content can be hand-fed through an op via this
+  action when triggered from a different surface.
+
+**Status:** scoped for next session — landing alongside Phase B of
+the drag-to-import work. Tests + dry-run mode mirror what
+markdownToModuli already exposes.
+
+#### 6.6. Word-level draggable textblocks (magnetic-poetry primitive)
+**Added 2026-05-21.** A new ultra-fine textblock variant where each
+WORD (or short chunk) renders as its own draggable token rather than
+flowing as continuous prose. Dragging rearranges word order;
+right-click on a word opens the existing radial menu (edit / delete
+/ duplicate / wrap-in-link); selecting multiple tokens and
+shift-dragging moves the whole group.
+
+**Why:** several user flows want word-granularity manipulation
+that the current TipTap textblock doesn't expose well:
+- magnetic-poetry composition (UI primitive)
+- sentence re-ordering for editing / outlining drills
+- AI prompt building (drag tokens from a pool into a slot)
+- learning aids (vocabulary, language drills, sentence diagrams)
+
+**Shape:**
+- A new module `kind: "word-token"` under role:"textblock" (or a new
+  role "word-token" if we want to bucket separately — TBD).
+- Each word is its own `kind:"word-token"` occurrence so it can be
+  dragged independently. Parent container groups them into a flowing
+  row.
+- The parent container would be a new `kind: "word-flow"` (or just a
+  list container with a horizontal-wrap layout — re-use existing
+  list with `display: flex; flexWrap: wrap; gap`) so dragging
+  reorders within `occurrences[]`.
+- An `auto-tokenize` action on a regular textblock that splits its
+  textmap into word-token children and replaces the textblock with
+  the word-flow container.
+- Reverse `flatten` action that joins word tokens back into a
+  single textblock.
+
+**Acceptance:**
+- Right-click a textblock → "Convert to word tokens" → each word is
+  now an independent draggable chip.
+- Drag a word from one spot to another → order updates in
+  `occurrences[]`.
+- Shift-select multiple words → drag as a group via the existing
+  multi-select clipboard.
+- Right-click a word → radial menu with delete / duplicate /
+  edit-inline / wrap-in-link.
+- Reverse "flatten" rebuilds a textblock from the current word order.
+
+**Implementation sketch:**
+- Word token module shape mirrors textblock but with `kind:"word-token"`.
+  Label IS the word. No textmap. Renders as a compact pill — reuse
+  `.instance-textblock-block` styling at a smaller scale.
+- New container kind `word-flow` registers a flex-row-wrap layout.
+- Auto-tokenize: parse the textmap's text nodes, split on whitespace
+  + punctuation boundary (keep punctuation as its own tokens), mint
+  a token per word, then replace the textblock occurrence with the
+  word-flow container occurrence in the parent's `occurrences[]`.
+- All drag is just the existing instance-drag system (which already
+  handles reorder via `useDragDrop` + `dropHandlers.handleInstanceDrop`).
+  No new drag primitive needed — the only new thing is the rendering
+  shape and the tokenize/flatten ops.
+
+**Out of scope (Phase A):**
+- Cross-textblock word drag (out of one flow into another) — the
+  generic drag-handlers should already cover this, but verify.
+- Semantic grouping (noun phrases, named-entity-recognized chunks).
+  Phase B can offer "Smart tokenize" that uses the AI to chunk by
+  grammatical unit.
+
 #### 7. Project kanban example in live data — **PARTIAL 2026-05-21**
 Foundation landed (commit pending):
 - New **`Projects` folder** under root manifest, sortOrder 6. Starts

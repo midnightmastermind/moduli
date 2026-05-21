@@ -673,6 +673,79 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
+  // POST /import/text — Unified import endpoint with format auto-detect.
+  // Accepts ANY of html / markdown / plain text in the same `content`
+  // field; sniffs the format and routes through the appropriate
+  // converter. Lets callers (drop handlers, AI tools, op actions, raw
+  // curl) feed arbitrary content without knowing its shape in advance.
+  //
+  // Body:
+  //   gridId      — required
+  //   parentId    — optional; appends the new root under this occurrence
+  //   content     — the raw input (html / markdown / plain text)
+  //   format      — "auto" (default) | "html" | "markdown" | "text"
+  //   title       — root container label when input has no leading H1
+  //   dryRun      — plan-only; no persistence + no broadcast
+  //   htmlOpts    — passed to htmlToMarkdown when format resolves to html
+  //                 (keepImages/keepTables/keepFigures/stripClasses).
+  //                 Defaults to keep all three when omitted.
+  //
+  // Detection:
+  //   "html"      — content has BOTH `<` and `>` AND at least one tag
+  //                 pattern `</?[a-z]`. Conservative — markdown with
+  //                 a stray `<x>` won't trigger.
+  //   "markdown"  — leading `#` / `*` / `-` / "```"  / "1." in the
+  //                 first non-empty line, OR multiple paragraph
+  //                 breaks (\n\n).
+  //   "text"      — degenerate markdown (single paragraph, no marks).
+  //                 Same code path as markdown — the importer handles
+  //                 plain text fine.
+  router.post("/import/text", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { htmlToMarkdown } = await import("../services/wikipediaTools.js");
+      const { markdownToModuli } = await import("../services/markdownImporter.js");
+      const {
+        gridId, parentId = null, content, format: rawFormat = "auto",
+        title = "", dryRun = false, htmlOpts = {},
+      } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      if (typeof content !== "string" || !content.trim()) {
+        return err(res, 400, "validation_error", "content (non-empty string) required");
+      }
+
+      // Resolve format.
+      let format = rawFormat;
+      if (format === "auto") {
+        const looksHtml = /<\/?[a-z][\s\S]*?>/i.test(content);
+        format = looksHtml ? "html" : "markdown";
+      }
+
+      // Convert to markdown if needed.
+      let markdown;
+      if (format === "html") {
+        markdown = htmlToMarkdown(content, title, {
+          keepImages: true, keepTables: true, keepFigures: true,
+          ...htmlOpts,
+        });
+      } else {
+        // markdown OR text — both go through the importer directly.
+        // Plain text is a degenerate markdown (paragraphs work, no marks).
+        markdown = content;
+      }
+
+      const result = await markdownToModuli({
+        gridId, parentId, userId: req.userId, markdown, dryRun, title,
+      });
+
+      if (!dryRun) {
+        for (const m of result.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
+        for (const o of result.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
+      }
+
+      res.json({ ...result, detectedFormat: format, markdown });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   // POST /import/html — Phase A of the drag-to-import pipeline (see
   // client/src/CLAUDE.md big-feature #6.5). Two stages chained:
   //   1. htmlToMarkdown(html, { keepImages, keepTables, keepFigures })

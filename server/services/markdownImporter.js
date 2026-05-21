@@ -6,6 +6,13 @@
 //   # / ## / ### headings  → container (role:container, kind:list)
 //                            nested by heading depth
 //   * / - / 1. list items  → instance (role:instance, kind:list)
+//   ![alt](src)             → artifact (role:artifact, kind:image)
+//                            with fileRef:<src>. Block-level images
+//                            mint an artifact; inline images stay as
+//                            TipTap image marks inside the textblock.
+//   ```html ... ```         → textblock with raw HTML preview (htmlBlock).
+//                            Used by the drag-to-import HTML pipeline to
+//                            preserve <table> structure verbatim.
 //   ```code``` blocks       → textblock containing a code block
 //   prose paragraphs        → textblock (role:textblock, kind:doc)
 //                            with TipTap JSON in textmap
@@ -106,7 +113,25 @@ function parseBlocks(markdown) {
       i++;
       while (i < lines.length && !/^```/.test(lines[i])) { codeLines.push(lines[i]); i++; }
       i++; // skip closing ```
-      blocks.push({ kind: "codeBlock", lang, text: codeLines.join("\n") });
+      // Special case: ```html ... ``` is the table-passthrough format
+      // the drag-to-import HTML pipeline emits (htmlToMarkdown stashes
+      // raw <table> markup here). Tag it so mintEntities can route to
+      // a textblock that renders the HTML as a raw-preview chunk.
+      if (lang === "html") {
+        blocks.push({ kind: "htmlBlock", html: codeLines.join("\n") });
+      } else {
+        blocks.push({ kind: "codeBlock", lang, text: codeLines.join("\n") });
+      }
+      continue;
+    }
+    // Block-level image — a line whose entire content is `![alt](src)`.
+    // Mint an artifact module so the importer produces a real media
+    // node, not just an inline alt-text reference. Inline images
+    // inside a prose paragraph stay handled by parseInline (Phase B).
+    const blockImg = /^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$/.exec(line);
+    if (blockImg) {
+      blocks.push({ kind: "image", alt: blockImg[1], src: blockImg[2] });
+      i++;
       continue;
     }
     // List (unordered or ordered) — collect contiguous lines
@@ -199,6 +224,57 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
     return occurrenceId;
   }
 
+  // Artifact leaf — a real role:"artifact" module with kind:"image"
+  // (the dispatched renderer in modules/ArtifactCard.jsx). `fileRef`
+  // holds the absolute URL for now; a future upload step can mirror
+  // remote URLs into the user's /uploads dir, but the renderer
+  // already serves absolute http(s):// urls via plain <img src>.
+  function buildArtifactImage({ alt, src }) {
+    const moduleId = uid();
+    const occurrenceId = uid();
+    modules.push({
+      id: moduleId, userId, gridId,
+      role: "artifact", kind: "image",
+      label: alt || "",
+      fileRef: src,
+    });
+    occurrences.push({
+      id: occurrenceId, userId, gridId,
+      moduleId, parentId: null,
+      fields: {},
+    });
+    return occurrenceId;
+  }
+
+  // Raw-HTML preview textblock. The drag-to-import HTML pipeline
+  // routes <table> chunks through this so the imported page can
+  // show the table content verbatim until the user/AI promotes it
+  // to a kind:"table" container. Stored as a single text node so
+  // the existing textblock renderer doesn't try to interpret tags.
+  function buildHtmlPreviewBlock(html) {
+    const moduleId = uid();
+    const occurrenceId = uid();
+    modules.push({
+      id: moduleId, userId, gridId,
+      role: "textblock", kind: "doc",
+      label: "",
+      meta: { htmlPreview: true },
+    });
+    occurrences.push({
+      id: occurrenceId, userId, gridId,
+      moduleId, parentId: null,
+      textmap: {
+        type: "doc",
+        content: [{
+          type: "codeBlock",
+          attrs: { language: "html" },
+          content: [{ type: "text", text: html }],
+        }],
+      },
+    });
+    return occurrenceId;
+  }
+
   function buildContainer(node, parentOccId) {
     const moduleId = uid();
     const occurrenceId = uid();
@@ -223,6 +299,10 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
           attrs: c.lang ? { language: c.lang } : {},
           content: [{ type: "text", text: c.text }],
         }]));
+      } else if (c.kind === "htmlBlock") {
+        childIds.push(buildHtmlPreviewBlock(c.html));
+      } else if (c.kind === "image") {
+        childIds.push(buildArtifactImage({ alt: c.alt, src: c.src }));
       }
     }
     occurrences.push({
@@ -281,6 +361,7 @@ export async function markdownToModuli({ gridId, parentId = null, userId, markdo
       containers: planned.modules.filter(m => m.role === "container").length,
       instances: planned.modules.filter(m => m.role === "instance").length,
       textblocks: planned.modules.filter(m => m.role === "textblock").length,
+      artifacts: planned.modules.filter(m => m.role === "artifact").length,
     },
   };
 }
