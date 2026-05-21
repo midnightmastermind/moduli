@@ -5910,6 +5910,16 @@ export async function createLiveData(userId, options = {}) {
     pipeline: {
       sources: [],
       steps: [
+        // $displayRules — subscriptions are recurring expenses (negative
+        // money). Same shape as Monthly Bills: red on any positive,
+        // neutral blue at 0/null.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$displayRules", expr: `json:${JSON.stringify({
+          "Total Subscriptions": [
+            { when: { value: "null" },     color: "rgb(96,165,250)" },
+            { when: { value: "zero" },     color: "rgb(96,165,250)" },
+            { when: { value: "positive" }, color: "rgb(252,165,165)" },
+          ],
+        })}` } },
         { id: uid(), type: "action", config: {
           type: "FIND",
           over: "$allInstances",
