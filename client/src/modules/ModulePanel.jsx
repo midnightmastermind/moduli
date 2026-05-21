@@ -8,6 +8,7 @@ import ResizeHandle from "../ResizeHandle";
 import RadialMenu from "../ui/RadialMenu";
 import ContainerKindSelector from "../ui/ContainerKindSelector";
 import ContextMenu from "../ui/ContextMenu";
+import { buildStyleCascadeContext, resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
 
 import Artifact from "./ArtifactContent";
 import ManifestTree from "./ManifestTree";
@@ -357,6 +358,19 @@ function Panel({
   const panelOccurrence = useMemo(() => {
     return Object.values(occurrencesById).find(occ => occ.moduleId === module.id);
   }, [occurrencesById, module.id]);
+
+  // Panel cascade — Grid → Panel chain. Reads pass-down style from
+  // grid.meta.defaultStyle, then panel.ownStyle if module.styleMode === "own".
+  // Spread onto the panel-shell inline style so the user's choices in
+  // LayoutForm's "Panel Style" editor actually take effect at render time.
+  const panelCascade = useMemo(
+    () => resolveStyleCascade({ grid: state?.grid, panel: module, panelOcc: panelOccurrence }, "panel"),
+    [state?.grid, module, panelOccurrence]
+  );
+  const panelCascadeCss = useMemo(
+    () => (panelCascade?.resolved ? styleToCSS(panelCascade.resolved) : null),
+    [panelCascade]
+  );
 
   const commitOccurrenceUpdate = useCallback((updates) => {
     if (!panelOccurrence?.id) return;
@@ -720,6 +734,13 @@ function Panel({
           top: 16, left: 16, right: 16, bottom: 16,
           zIndex: 1000,
         }),
+        // Cascade-resolved panel style (Grid → Panel ownStyle). Spread
+        // LAST so any key the user explicitly set in LayoutForm's
+        // "Panel Style" editor wins over the static defaults above
+        // (background, border color, fonts, padding, opacity). Only
+        // keys with non-null values are emitted by styleToCSS, so the
+        // baseline shell chrome stays intact for keys left at default.
+        ...(panelCascadeCss || {}),
       }}
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />

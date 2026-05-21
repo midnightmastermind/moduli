@@ -18,7 +18,7 @@ import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import ViewModeSection from "../ui/ViewModeSection";
 import TemplatesSection from "../ui/TemplatesSection";
 import StyleEditor from "../ui/StyleEditor";
-import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
+import { buildStyleCascadeContext, resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
 import NodePill from "./NodePill.jsx";
 import PreviewNode from "./PreviewNode.jsx";
 
@@ -448,6 +448,14 @@ function Page({
         border: "1px solid var(--border-default)",
         borderRadius: 6,
         background: "var(--surface-card)",
+        // Cascade-resolved page style — Grid default → Panel pushdown
+        // → this page's own ownStyle (last write wins). Spread AFTER
+        // the static defaults so any key the user set in the Page
+        // Settings popover (background, border color, fonts, padding,
+        // opacity) overrides the matching default. Per-key opt-in:
+        // styleToCSS returns only keys the cascade explicitly set;
+        // nothing else is touched.
+        ...(pageCascade?.resolved ? styleToCSS(pageCascade.resolved) : {}),
       }}
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
