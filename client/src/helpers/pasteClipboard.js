@@ -106,11 +106,12 @@ function buildLinkedSubtree(srcOcc, occurrencesById, parentOccId, gridId, userId
   if (!srcOcc || depth > 24) return null;
   const newId = crypto.randomUUID();
 
-  // Pair-wise link group: existing source group wins; else source id;
-  // else a fresh UUID. Tag the source if it had no group so future
-  // edits on the source fan out to the new clone.
+  // Pair-wise link group: existing source group wins; else source id
+  // (srcOcc is null-guarded at the top of the function, so .id is safe).
+  // Tag the source if it had no group so future edits on the source fan
+  // out to the new clone.
   const existingGroup = srcOcc.linkedGroupId || null;
-  const linkedGroupId = existingGroup || srcOcc.id || crypto.randomUUID();
+  const linkedGroupId = existingGroup || srcOcc.id;
   if (!existingGroup && srcOcc.id) {
     CommitHelpers.updateOccurrence({
       dispatch, socket,

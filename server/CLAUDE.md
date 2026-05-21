@@ -1,6 +1,19 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-05-19. Check this file before re-reading source._
+_Updated: 2026-05-20. Check this file before re-reading source._
+
+## Recent Changes (2026-05-20 — delete_occurrence cascade respects multi-parenting)
+- **`socketHandlers/crud.js delete_occurrence`** — `collectDescendants`
+  now only recurses through a child when `child.parentId === id` (i.e.
+  the node being deleted is the child's CANONICAL parent). Multi-parented
+  children (in `parent.occurrences[]` but with a different `parentId`)
+  survive — the existing cleanup loop just detaches them from the
+  cascading parent. Fixes a latent bug in
+  `makeScheduleBuildScheduleOp` PHASE 5: deleting an out-of-period
+  day-col would have wiped every multi-parented slot + the shared Due,
+  forcing a full Schedule rebuild via PHASE 2/3 on every period change.
+  Single-parent cascades (test grid, every other op) byte-identical to
+  before.
 
 ## Recent Changes (May 19 2026 — Daily Journal Questions page)
 - **scripts/createLiveData.js**: New "Daily Journal Questions" page

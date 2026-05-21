@@ -158,13 +158,22 @@ export function registerCrudHandlers(socket, {
       if (!userId || !occurrenceId) return;
       const uc = await getUc();
 
-      // Recursively collect all descendant occurrence IDs
+      // Recursively collect all descendant occurrence IDs.
+      // Only cascade through children whose canonical parentId matches the
+      // node being deleted — multi-parented children (referenced via
+      // occurrences[] but with a different parentId) survive and get
+      // detached by the cleanup loop below. Without this guard, deleting a
+      // day-col in the multi-day Schedule would wipe the shared slots/Due
+      // that are also pinned to the Schedule page itself.
       const toDelete = new Set();
       function collectDescendants(id) {
         toDelete.add(id);
         const occ = uc.occurrencesById?.[id];
         if (occ?.occurrences) {
-          for (const childId of occ.occurrences) collectDescendants(childId);
+          for (const childId of occ.occurrences) {
+            const child = uc.occurrencesById?.[childId];
+            if (child && child.parentId === id) collectDescendants(childId);
+          }
         }
       }
       collectDescendants(occurrenceId);

@@ -1433,8 +1433,12 @@ function _handleSuspend(result) {
   // path uses for fan-out).
   Promise.resolve(ask(last.request)).then((value) => {
     resumeContinuation(last.continuation, last.resultVar || "$userInput", value);
-  }).catch(() => {
-    // Cancelled / closed — pipeline ends gracefully.
+  }).catch((err) => {
+    // Cancellation is the common case (user closed the modal) and should
+    // stay silent. Anything else is a real bug we'd want to see.
+    if (err && err.message && !/cancel/i.test(err.message)) {
+      console.warn("[GET_USER_INPUT] continuation failed:", err);
+    }
   });
   return pre;
 }

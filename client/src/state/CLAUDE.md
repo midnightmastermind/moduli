@@ -2,6 +2,13 @@
 
 _Updated: 2026-05-20. Check this file before re-reading source._
 
+## Recent Changes (2026-05-20 — useScheduler timer cleanup)
+- **`useScheduler.js`**: The 2s in-flight clear timer
+  (`setTimeout(() => inFlight.delete(opId), 2_000)`) is now tracked in
+  `inFlightTimersRef` so the useEffect cleanup can cancel pending
+  timers on unmount. Was a harmless-but-leaky `Set.delete` on a
+  defunct Set before.
+
 ## Recent Changes (2026-05-20 — SelectionContext clipboard)
 - **`SelectionContext.js`**: Added `clipboard` state + `setClipboard(mode, ids)`
   + `clearClipboard()` to the context value. Clipboard shape `{ mode:

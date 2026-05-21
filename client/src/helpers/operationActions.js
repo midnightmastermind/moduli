@@ -1450,8 +1450,16 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           const limit = new Date(limitRaw);
           if (!isNaN(limit.getTime())) {
             limit.setHours(12, 0, 0, 0);
-            let safety = 600;
-            while (result <= limit && safety-- > 0) advance(result);
+            // Bail when an iteration doesn't move the result (amount === 0
+            // or any degenerate input) instead of grinding through the
+            // safety counter. Cap raised to 5000 so a multi-year daily
+            // advance can finish (730 iters for 2 years, etc.).
+            let safety = 5000;
+            while (result <= limit && safety-- > 0) {
+              const prevTime = result.getTime();
+              advance(result);
+              if (result.getTime() === prevTime) break;
+            }
           }
         }
       }

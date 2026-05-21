@@ -78,6 +78,10 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
   // socket round-trip via update_operation; until then we treat the op
   // as "in flight" locally.
   const inFlightRef = useRef(new Set());
+  // Track pending in-flight clear timers so we can cancel them on unmount —
+  // otherwise the harmless-but-leaky setTimeout would still fire after the
+  // hook has torn down.
+  const inFlightTimersRef = useRef(new Set());
 
   useEffect(() => {
     if (!operationsById || !socket) return;
@@ -144,8 +148,13 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
           const nextSchedule = { ...sched, lastFiredAt: now.toISOString() };
           safeEmit(socket, "update_operation", { ...op, schedule: nextSchedule });
           // Clear in-flight on next tick once the echo lands (or fail-safe
-          // 2s later in case the server is offline).
-          setTimeout(() => inFlight.delete(opId), 2_000);
+          // 2s later in case the server is offline). Timer id tracked so
+          // unmount can cancel it.
+          const t = setTimeout(() => {
+            inFlight.delete(opId);
+            inFlightTimersRef.current.delete(t);
+          }, 2_000);
+          inFlightTimersRef.current.add(t);
         } catch (err) {
           inFlight.delete(opId);
           console.error(`[scheduler] op "${op.name}" failed:`, err);
@@ -154,6 +163,11 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
     };
 
     const id = setInterval(tick, 1_000);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      // Cancel any pending in-flight clear timers on unmount.
+      for (const t of inFlightTimersRef.current) clearTimeout(t);
+      inFlightTimersRef.current.clear();
+    };
   }, [operationsById, state, fieldsById, occurrencesById, modulesById, dispatch, socket]);
 }

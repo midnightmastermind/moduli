@@ -2,6 +2,23 @@
 
 _Updated: 2026-05-20. Check this file before re-reading source._
 
+## Recent Changes (2026-05-20 — operations review fixups)
+- **`operationActions.js` (`DATE_ADD` advanceUntil loop)**: The loop
+  ran a fixed `safety = 600` and silently bailed when `amount === 0`
+  (advance is a no-op so `result <= limit` stays true forever — wasted
+  600 iters and returned an underadvanced date). Now snapshots
+  `prevTime` each iter and breaks when `result.getTime() === prevTime`.
+  Safety bumped to 5000 so multi-year daily advances finish (730 iters
+  for 2 years).
+- **`operationExecutor.js` (`_handleSuspend` Promise.catch)**: Was
+  unconditionally silent — masked any error inside the resume chain.
+  Now keeps cancel silent (`/cancel/i` match) but `console.warn`s
+  anything else so a broken modal can't disappear without a trace.
+- **`pasteClipboard.js` `buildLinkedSubtree`**: Removed dead
+  `|| crypto.randomUUID()` fallback in the `linkedGroupId` chain —
+  `srcOcc` is null-guarded at function entry so `srcOcc.id` is
+  unconditionally truthy at that point.
+
 ## Recent Changes (2026-05-20 — pasteClipboard.js)
 - **`pasteClipboard.js` (NEW)** — `runPasteClipboard({ mode, ids,
   destinationOccurrence, destinationModule, occurrencesById, dispatch,
@@ -25,11 +42,10 @@ _Updated: 2026-05-20. Check this file before re-reading source._
     server's `update_occurrence` linked-group fan-out propagates
     writes pairwise between source and clone at every level. Leaf-
     only sources still call `LayoutHelpers.copylinkInstanceToContainer`
-    with iterationMode passed through.
-  - `copylink` → `LayoutHelpers.copylinkInstanceToContainer` per id
-    (mints fresh occurrences sharing `moduleId` + `linkedGroupId`;
-    assigns a group to the source if it had none — server fan-out
-    propagates writes across the group thereafter).
+    with iterationMode passed through (mints fresh occurrences sharing
+    `moduleId` + `linkedGroupId`; assigns a group to the source if it
+    had none — server fan-out propagates writes across the group
+    thereafter).
   - `move` → finds the current parent via `occurrences[]` reverse scan
     (parentId fallback), calls `LayoutHelpers.moveInstanceBetweenContainers`,
     then updates `src.parentId` so ancestor walks see the move.
