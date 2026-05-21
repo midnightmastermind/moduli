@@ -745,6 +745,12 @@ function ModuleInstance({
 
   const occId = occurrence?.id;
   const isSelected = occId ? selection.isSelected(occId) : false;
+  // Clipboard-staged class — applied when this occurrence is currently in
+  // the clipboard (post Copy / Move / Copy-link from the right-click menu).
+  // Distinct dashed-marching-ants treatment per mode so the user can tell
+  // at a glance what kind of paste is queued.
+  const clipMode = selection.clipboard?.mode;
+  const isClipboardStaged = !!(occId && clipMode && selection.clipboard.ids.includes(occId));
 
   const handleWrapperClick = useCallback((e) => {
     if (e.shiftKey && occId) {
@@ -875,7 +881,7 @@ function ModuleInstance({
       data-instance-id={module.id}
       data-occurrence-id={occurrence?.id}
       data-testid="instance-wrap"
-      className={`instance-wrap${isSelected ? " is-selected" : ""}`}
+      className={`instance-wrap${isSelected ? " is-selected" : ""}${isClipboardStaged ? ` is-clipboard-staged clipboard-${clipMode}` : ""}`}
       style={{
         touchAction: "manipulation",
         opacity: isDragging ? 0.4 : 1,

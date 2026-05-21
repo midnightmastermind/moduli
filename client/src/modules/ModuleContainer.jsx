@@ -553,7 +553,14 @@ function Container({
       data-container-id={module.id}
       data-occ-id={containerOccurrence?.id}
       data-testid="container-shell"
-      className={`container-shell bg-background2 rounded-md border border-border shadow-inner mod-${module.id}${containerOccurrence?.id && selection.isSelected(containerOccurrence.id) ? " is-selected" : ""}`}
+      className={(() => {
+        const base = `container-shell bg-background2 rounded-md border border-border shadow-inner mod-${module.id}`;
+        const occId = containerOccurrence?.id;
+        const sel = occId && selection.isSelected(occId) ? " is-selected" : "";
+        const clipMode = selection.clipboard?.mode;
+        const staged = occId && clipMode && selection.clipboard.ids.includes(occId) ? ` is-clipboard-staged clipboard-${clipMode}` : "";
+        return base + sel + staged;
+      })()}
       style={{
         display: "flex", flexDirection: "column", minHeight: 0, overflow: "visible",
         borderRadius: 10,

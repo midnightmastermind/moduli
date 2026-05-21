@@ -18,6 +18,7 @@ import {
 import { PlusSquare, Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
 import ToolbarFilterDropdown from "./ui/ToolbarFilterDropdown";
 import SocketStatusBanner from "./ui/SocketStatusBanner";
+import ClipboardStatusBanner from "./ui/ClipboardStatusBanner";
 
 export default function Toolbar({
   gridId,
@@ -130,11 +131,18 @@ const gridOptions = useMemo(
           Only renders when offline / just reconnected (null otherwise),
           so it doesn't visually interfere with normal toolbar UI. */}
       <div
-        className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center"
+        className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center gap-2"
         style={{ zIndex: 5 }}
       >
         <div className="pointer-events-auto">
           <SocketStatusBanner />
+        </div>
+        {/* Clipboard pill — only renders while the multi-select clipboard
+            is non-empty. Shows mode + count + a Clear button. Pasting
+            happens by clicking any container/page on the grid (handled
+            by ClipboardDropOverlay in App.jsx). */}
+        <div className="pointer-events-auto">
+          <ClipboardStatusBanner />
         </div>
       </div>
 

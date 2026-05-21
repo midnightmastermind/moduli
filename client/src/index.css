@@ -628,6 +628,53 @@ select:disabled { cursor: not-allowed; }
   background-color: rgba(59, 130, 246, 0.08);
 }
 
+/* ── Clipboard-staged indicator ───────────────────────────────────────────
+   Applied to items that are CURRENTLY in the clipboard (post-Copy /
+   Move / Copy-link from the right-click menu). Distinct treatment from
+   plain multi-select so the user can tell at a glance that the items
+   are "in flight" waiting to be pasted. Mode-specific tint:
+   - copy:     soft green       (mints fresh occurrences)
+   - copylink: soft purple      (shares linkedGroupId; bidirectional)
+   - move:     soft amber       (originals re-parent on paste) */
+.instance-wrap.is-clipboard-staged > .instance-row,
+.container-shell.is-clipboard-staged {
+  outline-style: dashed !important;
+  outline-width: 2px !important;
+  outline-offset: 2px !important;
+  animation: clipboard-marching 0.9s linear infinite;
+}
+.instance-wrap.is-clipboard-staged.clipboard-copy > .instance-row,
+.container-shell.is-clipboard-staged.clipboard-copy {
+  outline-color: rgba(134, 239, 172, 0.85);
+  background-color: rgba(134, 239, 172, 0.10);
+}
+.instance-wrap.is-clipboard-staged.clipboard-copylink > .instance-row,
+.container-shell.is-clipboard-staged.clipboard-copylink {
+  outline-color: rgba(196, 181, 253, 0.85);
+  background-color: rgba(196, 181, 253, 0.10);
+}
+.instance-wrap.is-clipboard-staged.clipboard-move > .instance-row,
+.container-shell.is-clipboard-staged.clipboard-move {
+  outline-color: rgba(252, 211, 77, 0.85);
+  background-color: rgba(252, 211, 77, 0.10);
+}
+@keyframes clipboard-marching {
+  to { outline-offset: 4px; }
+}
+
+/* Hovered drop target while clipboard-active (anywhere on the grid).
+   Driven by data-clipboard-hover="true" on the hovered container/page
+   element — set by the ClipboardDropOverlay's mousemove tracking. */
+[data-clipboard-hover="true"] {
+  outline: 2px solid rgba(59, 130, 246, 0.9) !important;
+  outline-offset: 2px !important;
+  background-color: rgba(59, 130, 246, 0.10) !important;
+  cursor: copy !important;
+}
+body[data-clipboard-active="true"] {
+  cursor: copy;
+}
+
 /* Instance card raised in a well — only the instance row, not lip or body */
 .instance-wrap > .instance-row {
   width: 100%;
