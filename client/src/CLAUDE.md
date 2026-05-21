@@ -550,6 +550,111 @@ operation:
     allowlist on the server (need a tiny server-side check —
     `socketHandlers/occurrences.js:91-124`).
 
+#### 6.5. Drag-to-import: paste/drop text → native doc tree (Wikipedia smoke test)
+**Added 2026-05-21.** First-class drop-target conversion of arbitrary
+external content into our `container / instance / textblock`
+hierarchy. The AI assistant will lean on this same pipeline later
+for document refinement; this is the deterministic starting point
+the AI can incrementally improve.
+
+**Acceptance smoke test:** open a Wikipedia article in another
+window, select all body content (headings, paragraphs, lists,
+images, infobox, tables), drag the selection into the grid. The
+result should be a Moduli page that visually replicates the
+article's layout using our modules — headings become nested
+containers, prose paragraphs become textblocks, list items become
+list-kind instances, embedded images become artifact occurrences
+parented inline, and tables become a table-kind container (or, if
+that's heavy, a textblock with a TipTap table node — fall back per
+the importer's existing capability surface).
+
+**Why this is tractable now:** the deterministic half already
+exists server-side and just needs a client-side drop entry point.
+What's built:
+- `server/services/markdownImporter.js` (Phase A) — markdown →
+  containers (kind:list, nested by heading depth) + instances
+  (kind:list per `*`/`-`/numbered list item) + textblocks (kind:doc
+  for prose with TipTap JSON, codeBlock node for fenced blocks).
+  Inline `**bold**` / `*italic*` / `` `code` `` / `[text](url)`
+  preserved as TipTap marks. Verified live: a 4-heading doc lands
+  as 5 containers + 5 instances + 3 textblocks.
+- `server/services/wikipediaTools.js` — HTML→markdown converter
+  tuned for Wikipedia output (currently strips
+  infobox / navbox / refs / images; keeps headings, paragraphs,
+  lists, inline marks). The strip-by-default is intentional for
+  AI research summaries; the drop-import flow wants the OPPOSITE
+  — keep images + tables.
+- `POST /api/v1/import/markdown` — already exposes the importer
+  with `dryRun` support. Broadcasts `module_created` +
+  `occurrence_created` to the user's socket room on real imports.
+  Idempotency-Key middleware applies, so a repeated drop won't
+  double-import.
+- `DragType.TEXT` + `DragType.URL` are already in the enum
+  (`client/src/helpers/dragSystem.js:83-84`) so the drag detection
+  is in place; the handler branch is missing.
+
+**Pipeline (deterministic Phase A — the starting point):**
+1. **Drop entry point** — extend `handleFileDrop`/external drop in
+   `client/src/helpers/dropHandlers.js` to ALSO process
+   `dataTransfer.types` containing `text/html` (richer than
+   `text/plain`). Browsers expose the highlighted content's
+   `outerHTML` in `text/html` on drag from another tab — that's
+   the only way to capture structure (headings, image src, table
+   markup). Fall back to `text/plain` when HTML is absent (plain
+   selection drop).
+2. **HTML → intermediate markdown** — extract a new
+   `convertHtmlToMarkdown(html, { keepImages: true, keepTables: true })`
+   from `wikipediaTools.js`'s converter, configurable to KEEP
+   images and tables (the AI-summary variant strips them). Image
+   tags become `![alt](src)`; tables become pipe-table markdown
+   or, if the converter can't produce clean markdown, a raw
+   `<table>` chunk wrapped in a literal textblock for now.
+3. **markdownImporter (Phase A) — extend** to handle:
+   - `![alt](src)` image markdown → mint an `artifact`-role module
+     with `kind: "image"` and `fileRef: <src>` (or, for absolute
+     URLs, a hosted-image module that displays via `<img src>`
+     without uploading). Place inline as an instance occurrence
+     parented under the surrounding container.
+   - markdown tables (`|...|`) → either a `kind:"table"` container
+     with one `meta.table.columns` per column + cell embeds (the
+     full thing) OR a textblock with a TipTap `table` node (the
+     fast path). Pick fast path for Phase A.
+4. **Drop UX** — same overlay behavior as native file drop: when
+   `text/html` + a parsable selection is detected, light the
+   highlighted-cell drop zone, show a preview pill ("Convert →
+   Doc tree"), commit on drop. Empty grid cell → mint a new
+   page+container. Existing container → append as siblings.
+
+**Capacity for the AI to refine over time:**
+- Pluggable `siteAdapter(html, hostname)` step BEFORE markdown
+  conversion — site-specific HTML cleanup (Wikipedia: strip
+  reference superscripts + edit buttons; New York Times: pull
+  out paywalled markup; etc.). The AI fills these adapters in
+  per-host as it observes drop sources.
+- `convertHtmlToMarkdown` becomes a registry of element handlers
+  (`<table>`, `<figure>`, `<blockquote>`, etc.) that the AI can
+  extend by writing more handlers without touching the core
+  pipeline.
+- A post-import "Refine" prompt — the AI sees the imported
+  subtree + the original HTML, suggests structural improvements
+  (merging short textblocks, splitting heading levels differently,
+  promoting a textblock to a container, etc.) which the user can
+  one-click apply.
+
+**Out of scope for Phase A:** semantic understanding ("this article
+is about a person — turn the infobox into a Person instance with
+fields"), cross-article linking, image upload to local storage
+(use external `<img src>` for now), JavaScript-rendered SPA
+content (Wikipedia is static HTML so the smoke test is safe).
+
+**Why this docket is here, not just done now:** the HTML→markdown
+extension + the image / table importer additions are each a
+focused chunk of code — not impossible, but they need the test
+fixture (a known Wikipedia article snapshot) to validate against,
+and the UX feedback loop (dropzone overlay, conflict resolution
+when dropping onto an existing container vs. a page) needs to be
+designed alongside. Land in a dedicated session.
+
 #### 7. Project kanban example in live data — **PARTIAL 2026-05-21**
 Foundation landed (commit pending):
 - New **`Projects` folder** under root manifest, sortOrder 6. Starts
