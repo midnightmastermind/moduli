@@ -33,6 +33,10 @@ const SHORTCUT_GROUPS = [
     group: "Multi-select",
     items: [
       { keys: ["Shift+click"],            action: "Add/remove instance or container from selection" },
+      { keys: ["Shift+drag"],             action: "Rubber-band selects every CONTAINER fully inside the rectangle (+ their instances)" },
+      { keys: ["Shift+Q (held)"],         action: "While rubber-banding: instance-only mode (≥ 1/3 overlap, containers excluded)" },
+      { keys: ["Shift+Alt+drag"],         action: "Rubber-band REPLACES current selection (default adds)" },
+      { keys: ["Esc"],                    action: "Cancel in-flight rubber-band drag (keeps existing selection)" },
       { keys: ["Right-click selected"],   action: "Bulk Copy / Move / Copy-link / Delete N items" },
       { keys: ["Right-click destination"], action: "Paste / Move / Paste-linked N items (alternate to hover-drop)" },
     ],

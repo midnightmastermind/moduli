@@ -675,6 +675,16 @@ body[data-clipboard-active="true"] {
   cursor: copy;
 }
 
+/* Rubber-band live preview — items the in-flight shift+drag rectangle
+   currently covers. Distinct from .is-selected so the user can tell
+   "would-be selected" apart from "currently selected" until they
+   release. */
+[data-rubber-band-preview="true"] {
+  outline: 1.5px dashed rgba(59,130,246,0.75) !important;
+  outline-offset: 2px !important;
+  background-color: rgba(59,130,246,0.06) !important;
+}
+
 /* Instance card raised in a well — only the instance row, not lip or body */
 .instance-wrap > .instance-row {
   width: 100%;

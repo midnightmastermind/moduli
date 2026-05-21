@@ -21,6 +21,7 @@ import TransactionHistory from "./ui/TransactionHistory";
 import CommandCenter from "./ui/CommandCenter";
 import AssistantDrawer from "./ui/AssistantDrawer";
 import ClipboardDropOverlay from "./ui/ClipboardDropOverlay";
+import RubberBandSelector from "./ui/RubberBandSelector";
 import { Spinner } from "./components/ui/spinner";
 import { Toaster } from "./components/ui/sonner";
 import UserInputModal from "./ui/UserInputModal";
@@ -842,6 +843,13 @@ export default function App() {
             container/page on the grid to paste, or Escape / right-click
             to clear. */}
         <ClipboardDropOverlay />
+
+        {/* Shift+drag rubber-band multi-select. Document-level pointer
+            listener; activates only past a 4-pixel threshold so a
+            sub-threshold shift+click still goes to the existing toggle.
+            Q key held = instance-only mode (≥ 1/3 overlap, containers
+            excluded). Alt held = replace selection on release. */}
+        <RubberBandSelector />
 
         <div data-testid="app-root" className={`app-root grid-frame bg-background2 shadow-inner ${isMobile ? 'p-0 border-0 rounded-none ring-0' : 'p-3 ring-1 ring-black/40 rounded-xl border border-border'}`}
           style={{ position: "relative" }}
