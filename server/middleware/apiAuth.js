@@ -9,6 +9,16 @@ import ApiToken from "../models/ApiToken.js";
 export function apiAuth({ requireScope = null } = {}) {
   return async (req, res, next) => {
     try {
+      // Already authenticated (e.g. by a parent /batch handler) — just
+      // re-check the scope and pass through. Avoids per-sub-request
+      // bcrypt overhead inside a batch.
+      if (req.apiToken && req.userId) {
+        if (requireScope && !req.apiToken.scopes.includes(requireScope)) {
+          return res.status(403).json({ error: "forbidden", message: `Token lacks scope: ${requireScope}` });
+        }
+        return next();
+      }
+
       const header = req.headers.authorization || "";
       if (!header.startsWith("Bearer ")) {
         return res.status(401).json({ error: "unauthorized", message: "Missing Bearer token" });

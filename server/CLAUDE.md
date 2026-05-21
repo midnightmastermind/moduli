@@ -2,6 +2,39 @@
 
 _Updated: 2026-05-20. Check this file before re-reading source._
 
+## Recent Changes (2026-05-21 late — /api/v1 Phase 2: full CRUD + bulk + batch)
+- **`routes/apiV1.js` expanded** — added every CRUD verb across the
+  four primary entities + bulk + batch:
+  - Modules: GET (list w/ ?gridId&role&kind&q&limit&cursor), POST,
+    PATCH, DELETE
+  - Occurrences: GET (list + by-id), POST, PATCH, DELETE, plus the
+    Phase-1 single-field PUT and a new bulk PATCH at
+    `/occurrences/:id/fields`
+  - Fields: GET (list w/ ?gridId&q&type), POST, PATCH, DELETE, plus
+    `POST /fields/bulk` (cross-occurrence bulk writes)
+  - Operations: GET (list w/ ?runnable=true filter), POST, PATCH,
+    DELETE, plus the headliner POST /:id/run
+  - Batch: `POST /batch` — packs N sub-requests in one round-trip,
+    each fans through the same router so auth + validation +
+    broadcast guarantees match the direct endpoints. Query-string
+    parsing implemented so sub-paths like
+    `/operations?runnable=true&limit=5` work.
+- **`middleware/apiAuth.js`** — early-exit when `req.apiToken` is
+  already attached (avoids per-sub-request bcrypt cost inside /batch).
+  Scope check still applies.
+- **Cursor-based pagination** — `?limit=N&cursor=<base64>` returns
+  `{ items, nextCursor, total }`. Cursor encodes the last entity id;
+  next page starts after it. Cap 500. Slice-1 implementation iterates
+  in-memory after the DB query; phase-3 will push to mongo.
+- **All write endpoints broadcast** `*_updated` / `*_created` /
+  `*_deleted` to `userRoom(userId)` so connected browser tabs sync
+  the same frame the external write lands. REST behaves identically
+  to internal socket CRUD from the client's POV.
+- **`docs/api-testing.md` (NEW)** — full testing tutorial: prereqs,
+  setup, smoke tests, endpoint recipes, end-to-end demo walkthroughs
+  (both browser-tab and headless modes), troubleshooting, and a
+  "build your own CALL_API op" recipe.
+
 ## Recent Changes (2026-05-21 — /api/v1 REST surface + CALL_API outbound action)
 - **`models/ApiToken.js` (NEW)** — per-user Bearer token. Wire shape:
   `moduli_<tokenId>_<secret>`. `tokenId` is indexed for O(1) lookup;
