@@ -51,6 +51,8 @@ import { registerCrudHandlers } from "./socketHandlers/crud.js";
 import { registerOccurrenceHandlers } from "./socketHandlers/occurrences.js";
 import { registerTransactionHandlers } from "./socketHandlers/transactions.js";
 import { registerTemplateHandlers } from "./socketHandlers/templates.js";
+import { makeApiV1Router } from "./routes/apiV1.js";
+import { createOpRunBridge } from "./utils/opRunBridge.js";
 
 
 // ========================================================
@@ -298,6 +300,21 @@ io.on("connection", (socket) => {
   registerTransactionHandlers(socket, ctx);
   registerTemplateHandlers(socket, ctx);
 
+  // Result of a /api/v1/operations/:id/run request that this socket picked
+  // up — resolves the HTTP response held open by opRunBridge.
+  socket.on("api_op_result", ({ requestId, ok, vars, effects, log, error, durationMs } = {}) => {
+    if (!requestId) return;
+    opRunBridge.resolve(requestId, {
+      ok: ok !== false,
+      operationId: undefined,
+      durationMs,
+      vars: vars || {},
+      effects: effects || [],
+      log: log || [],
+      ...(error ? { error } : {}),
+    });
+  });
+
   socket.on("disconnect", () => {
     console.log("❌ Client disconnected:", socket.id);
     // Cache persists — TTL eviction handles cleanup after 30min inactivity
@@ -519,6 +536,25 @@ app.post("/api/connections/:id/import", async (req, res) => {
     res.json({ module: modObj, fileRef, url: `/uploads/${fileRef}` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// ========================================================
+// /api/v1 — REST surface (see docs/api-plan.md)
+// ========================================================
+const opRunBridge = createOpRunBridge();
+
+async function getUserCache(userId, gridId) {
+  if (!userCacheReady(userId, gridId)) {
+    await loadUserIntoCache(userId, gridId);
+  }
+  return ensureUserCache(userId, gridId);
+}
+
+app.use("/api/v1", makeApiV1Router({
+  getUserCache,
+  io,
+  userRoom,
+  opRunBridge,
+}));
 
 app.post("/api/webhooks/:operationId", async (req, res) => {
   try {

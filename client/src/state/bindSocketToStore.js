@@ -6,7 +6,7 @@
 // =========================================
 
 import { ActionTypes } from "./actions";
-import { runMatchingOperations, executeOperation } from "../helpers/operationExecutor";
+import { runMatchingOperations, executeOperation, executePipeline } from "../helpers/operationExecutor";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, updateOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast } from "sonner";
 import {
@@ -1100,6 +1100,90 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (updates.length > 0) dispatch(setComputedValuesAction(updates));
   }
   socket.on("trigger_operation", onTriggerOperation);
+
+  // ── /api/v1/operations/:id/run bridge ────────────────────────────
+  // Server holds the HTTP response open and emits `run_op_for_api` to
+  // the user's room. First connected client (this one) runs the op,
+  // collects effects + final $vars, and emits `api_op_result` back so
+  // the server can resolve the awaiting Promise.
+  //
+  // CALL_API actions inside the op happen here in the browser — for
+  // dev / same-origin endpoints this is fine. Phase 3 will move
+  // CALL_API to the server-side executor (CORS + secrets).
+  function onRunOpForApi({ requestId, operationId, vars = {}, dryRun = false } = {}) {
+    const startedAt = Date.now();
+    const state = stateRef.current || {};
+    const op = (state.operations || []).find(o => o.id === operationId);
+    if (!op) {
+      if (requestId) safeEmit(socket, "api_op_result", {
+        requestId, ok: false,
+        error: { code: "not_found", message: "Operation not found in client state" },
+        durationMs: Date.now() - startedAt,
+      });
+      return;
+    }
+
+    const fieldsById = {};
+    for (const f of state.fields || []) fieldsById[f.id] = f;
+    const occurrencesById = {};
+    for (const o of state.occurrences || []) occurrencesById[o.id] = o;
+    const modulesById = {};
+    for (const m of state.modules || []) modulesById[m.id] = m;
+    const operationsById = {};
+    for (const o of state.operations || []) operationsById[o.id] = o;
+
+    // Synthetic transaction matching docs/api-plan.md §1.3:
+    //   { type: "ApiCallOp", apiRequestId, ...vars }
+    // so trigger predicates can route on it.
+    const transaction = {
+      type: "ApiCallOp",
+      apiRequestId: requestId,
+      ...vars,
+    };
+
+    // The pipeline can suspend (CALL_API / GET_USER_INPUT) and resume
+    // asynchronously. _onPipelineDone fires once with the FULL effects
+    // array — that's when we emit `api_op_result`.
+    let alreadyEmitted = false;
+    const emit = (effects, error = null) => {
+      if (alreadyEmitted || !requestId) return;
+      alreadyEmitted = true;
+      const finalVars = {};
+      for (const eff of effects || []) {
+        if (eff && eff._effect === "SHOW_VALUE" && eff.name) {
+          finalVars[eff.name] = eff.value;
+        }
+      }
+      if (!dryRun) {
+        // Apply any effects not already applied via the suspend resume
+        // path's operationsBridge.applyEffect. Idempotent enough — the
+        // server-side handlers tolerate same-shape repeats.
+        for (const eff of effects || []) {
+          if (eff && eff._effect && !eff._suspend) applyOperationEffect(eff);
+        }
+      }
+      safeEmit(socket, "api_op_result", {
+        requestId,
+        ok: !error,
+        vars: finalVars,
+        effects: effects || [],
+        log: [],
+        durationMs: Date.now() - startedAt,
+        ...(error ? { error } : {}),
+      });
+    };
+
+    try {
+      const ctx = {
+        state, fieldsById, occurrencesById, modulesById, operationsById,
+        _onPipelineDone: (allEffects) => emit(allEffects, null),
+      };
+      executePipeline(op, ctx, transaction, vars);
+    } catch (err) {
+      emit([], { code: "execution_error", message: String(err?.message || err) });
+    }
+  }
+  socket.on("run_op_for_api", onRunOpForApi);
 
   // ======================================================
   // SERVER ERRORS / MISC

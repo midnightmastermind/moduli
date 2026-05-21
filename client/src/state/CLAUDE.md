@@ -2,6 +2,19 @@
 
 _Updated: 2026-05-20. Check this file before re-reading source._
 
+## Recent Changes (2026-05-21 — bindSocketToStore handles run_op_for_api)
+- **`bindSocketToStore.js` new `onRunOpForApi` handler** — server's
+  `/api/v1/operations/:id/run` route emits `run_op_for_api` over the
+  user's socket room. This handler is the executor for that request.
+  Builds the executor context (state + maps + `_onPipelineDone`
+  callback), folds caller-supplied `vars` into the pipeline (vars are
+  accepted with or without `$` prefix), runs `executePipeline`, then
+  emits `api_op_result` back once `_onPipelineDone` fires (suspend-
+  aware — waits for CALL_API resumes before emitting). Effects that
+  weren't already applied via the suspend resume path get applied
+  here via `applyOperationEffect`. `SHOW_VALUE` effects are
+  harvested into the response's `vars` object.
+
 ## Recent Changes (2026-05-20 — useScheduler timer cleanup)
 - **`useScheduler.js`**: The 2s in-flight clear timer
   (`setTimeout(() => inFlight.delete(opId), 2_000)`) is now tracked in

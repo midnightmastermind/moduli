@@ -1204,6 +1204,21 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
+    case "SHOW_VALUE": {
+      // Stage a named value to return to the caller. Two consumers:
+      //   1. The /api/v1/operations/:id/run bridge surfaces every
+      //      SHOW_VALUE effect under `vars` in the JSON response (see
+      //      bindSocketToStore.js onRunOpForApi).
+      //   2. The OperationLogPanel can render them as "result" rows.
+      // cfg: { name, value } — name auto-prefixes "$" if missing,
+      // value is run through resolveExpr.
+      const rawName = cfg.name || "$result";
+      const name = String(rawName).startsWith("$") ? String(rawName) : `$${rawName}`;
+      const value = resolveExpr(cfg.value, $vars);
+      updates.push({ _effect: "SHOW_VALUE", name, value });
+      break;
+    }
+
     case "GET_USER_INPUT": {
       // Suspend sentinel — executeSteps detects this, captures the remaining
       // steps as a continuation, and dispatches the request to
@@ -1234,6 +1249,93 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           title: cfg.title || null,
         },
         resultVar: cfg.resultVar || "$userInput",
+      }];
+    }
+
+    case "CALL_API": {
+      // Outbound HTTP from a pipeline. Per docs/api-plan.md §2. Suspends
+      // the pipeline (same _suspend pattern GET_USER_INPUT uses), the
+      // executor's _handleSuspend awaits the response, then resumes with
+      // the parsed body bound to `cfg.responseVar` (default "$apiResponse").
+      //
+      // cfg:
+      //   url            — request URL ($var interpolation supported)
+      //   method         — GET / POST / PUT / PATCH / DELETE (default GET)
+      //   headers        — object; values resolved through $vars
+      //   body           — object → JSON.stringify; string → sent as-is
+      //   query          — object → URL-encoded query string
+      //   timeoutMs      — default 10000, max 60000
+      //   responseVar    — pipeline var to bind on resume (default "$apiResponse")
+      //   onError        — "fail" (default; abort pipeline) | "continue" (bind error to errorVar and proceed)
+      //   errorVar       — var to bind the error to when onError === "continue" (default "$apiError")
+      //
+      // Slice 1 lives in the browser. Phase 3 moves it to a server-side
+      // executor for secrets + cross-origin.
+      const url = resolveExpr(cfg.url, $vars);
+      if (!url) break;
+      const method = String(resolveExpr(cfg.method || "GET", $vars) || "GET").toUpperCase();
+      const headers = deepResolveExpr(cfg.headers || {}, $vars);
+      const query = deepResolveExpr(cfg.query || {}, $vars);
+      const body = cfg.body != null ? deepResolveExpr(cfg.body, $vars) : null;
+      const timeoutMs = Math.min(60000, Math.max(1000, Number(cfg.timeoutMs) || 10000));
+      const responseVar = cfg.responseVar || "$apiResponse";
+      const onError = cfg.onError === "continue" ? "continue" : "fail";
+      const errorVar = cfg.errorVar || "$apiError";
+
+      const finalUrl = (() => {
+        const qs = Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== null)
+          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(typeof v === "object" ? JSON.stringify(v) : String(v))}`)
+          .join("&");
+        if (!qs) return String(url);
+        return String(url) + (String(url).includes("?") ? "&" : "?") + qs;
+      })();
+
+      const init = { method, headers: { ...headers } };
+      if (body != null && method !== "GET") {
+        init.body = typeof body === "string" ? body : JSON.stringify(body);
+        if (typeof body !== "string" && !init.headers["Content-Type"]) {
+          init.headers["Content-Type"] = "application/json";
+        }
+      }
+
+      // Suspend sentinel — executor sees this and re-enters with the
+      // resolved value. The Promise this returns is awaited by
+      // _handleSuspend's `ask(last.request)` chain.
+      return [{
+        _suspend: true,
+        _callApi: true,
+        request: {
+          fetch: (() => {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+            return fetch(finalUrl, { ...init, signal: ctrl.signal })
+              .then(async (res) => {
+                clearTimeout(timer);
+                const contentType = res.headers.get("content-type") || "";
+                const parsed = contentType.includes("application/json")
+                  ? await res.json().catch(() => null)
+                  : await res.text();
+                if (!res.ok) {
+                  if (onError === "continue") {
+                    return { __apiError: true, status: res.status, body: parsed };
+                  }
+                  throw new Error(`CALL_API ${method} ${finalUrl} → ${res.status}`);
+                }
+                return parsed;
+              })
+              .catch((err) => {
+                clearTimeout(timer);
+                if (onError === "continue") {
+                  return { __apiError: true, status: 0, message: String(err?.message || err) };
+                }
+                throw err;
+              });
+          })(),
+        },
+        resultVar: responseVar,
+        errorVar,
+        onError,
       }];
     }
 

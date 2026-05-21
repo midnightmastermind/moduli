@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.3",
+    "socket.io-client": "^4.8.3",
     "vitest": "^2.1.9"
   }
 }

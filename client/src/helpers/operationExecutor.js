@@ -1103,6 +1103,18 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     return { ...effective, date: dateVal ? dateVal.slice(0, 10) : null };
   })();
 
+  // Fold caller-supplied vars (from POST /api/v1/operations/:id/run's
+  // `vars` body) directly into $vars. Accepts both "$foo" and "foo"
+  // keys; the leading "$" is stripped if present and re-added to the
+  // pipeline var name. Source rows declared on the op can still
+  // overwrite these with proper-typed values.
+  if (extraVars && typeof extraVars === "object") {
+    for (const [k, v] of Object.entries(extraVars)) {
+      const name = k.startsWith("$") ? k : `$${k}`;
+      $vars[name] = v;
+    }
+  }
+
   for (const source of sources) {
     const { variableName, entityType, entityId, nodeInput, triggerProp } = source;
     if (!variableName) continue;
@@ -1238,37 +1250,75 @@ export function executePipeline(operation, context, transaction, extraVars, exte
 
   // ---- Execute steps (top-down code flow) ----
   const result = executeSteps(steps, $vars, contextWithExecutors, transaction);
-  return _handleSuspend(result);
+  // _onPipelineDone callback (used by the /api/v1/operations/:id/run
+  // bridge) fires once the pipeline truly finishes — for suspending
+  // pipelines that means after every CALL_API / GET_USER_INPUT resume
+  // has run. For synchronous pipelines the caller already has all
+  // effects, so the callback fires immediately with the same array.
+  const onPipelineDone = contextWithExecutors._onPipelineDone;
+  return _handleSuspend(result, { onPipelineDone, accumulated: [] });
 }
 
 // If the steps returned a suspend continuation as the LAST entry, hand the
-// request to operationsBridge.requestUserInput and re-enter the executor on
-// resolve. Pre-suspend effects (`pre`) are returned to the caller and applied
-// through the normal path. Post-resume effects are applied via
-// operationsBridge.applyEffect since they materialize after the original
-// fireOperations call already returned.
-function _handleSuspend(result) {
-  if (!Array.isArray(result) || result.length === 0) return result;
+// request to operationsBridge.requestUserInput (or await the CALL_API fetch)
+// and re-enter the executor on resolve. Pre-suspend effects (`pre`) are
+// returned to the caller and applied through the normal path. Post-resume
+// effects are applied via operationsBridge.applyEffect since they
+// materialize after the original fireOperations call already returned.
+//
+// `onPipelineDone(allEffects)` fires once when the WHOLE pipeline finishes
+// (no more suspends in the chain). `accumulated` is the effects-so-far
+// passed down the resume chain.
+function _handleSuspend(result, { onPipelineDone, accumulated = [] } = {}) {
+  if (!Array.isArray(result) || result.length === 0) {
+    if (onPipelineDone) onPipelineDone(accumulated);
+    return result;
+  }
   const last = result[result.length - 1];
-  if (!last || last._suspend !== true) return result;
+  if (!last || last._suspend !== true) {
+    if (onPipelineDone) onPipelineDone([...accumulated, ...result]);
+    return result;
+  }
   const pre = result.slice(0, -1);
+  const nextAccumulated = [...accumulated, ...pre];
+
+  // CALL_API path: the action attached a ready Promise via request.fetch.
+  // No external bridge needed; we just await it and resume.
+  if (last._callApi && last.request?.fetch) {
+    Promise.resolve(last.request.fetch).then((value) => {
+      // onError === "continue" smuggles an error envelope; route it to errorVar.
+      if (value && value.__apiError) {
+        const errVarName = last.errorVar || "$apiError";
+        const errPayload = { status: value.status, message: value.message || null, body: value.body ?? null };
+        resumeContinuation(last.continuation, errVarName, errPayload, { onPipelineDone, accumulated: nextAccumulated });
+      } else {
+        resumeContinuation(last.continuation, last.resultVar || "$apiResponse", value, { onPipelineDone, accumulated: nextAccumulated });
+      }
+    }).catch((err) => {
+      console.warn("[CALL_API] request failed:", err);
+      if (onPipelineDone) onPipelineDone(nextAccumulated);
+    });
+    return pre;
+  }
+
+  // GET_USER_INPUT path: modal-based suspend that needs the
+  // operationsBridge.requestUserInput function to ferry the question to
+  // the UI.
   const ask = operationsBridge.requestUserInput;
   if (typeof ask !== "function") {
     console.warn("[GET_USER_INPUT] operationsBridge.requestUserInput not set — dropping the rest of the pipeline.");
+    if (onPipelineDone) onPipelineDone(nextAccumulated);
     return pre;
   }
-  // Fire-and-forget — the caller gets pre-suspend effects synchronously.
-  // When the user submits, the remaining steps run + their effects apply
-  // via operationsBridge.applyEffect (same channel the optimistic-publish
-  // path uses for fan-out).
   Promise.resolve(ask(last.request)).then((value) => {
-    resumeContinuation(last.continuation, last.resultVar || "$userInput", value);
+    resumeContinuation(last.continuation, last.resultVar || "$userInput", value, { onPipelineDone, accumulated: nextAccumulated });
   }).catch((err) => {
     // Cancellation is the common case (user closed the modal) and should
     // stay silent. Anything else is a real bug we'd want to see.
     if (err && err.message && !/cancel/i.test(err.message)) {
       console.warn("[GET_USER_INPUT] continuation failed:", err);
     }
+    if (onPipelineDone) onPipelineDone(nextAccumulated);
   });
   return pre;
 }
@@ -1277,11 +1327,14 @@ function _handleSuspend(result) {
  * Resume a suspended pipeline with the user's input value. Merges value into
  * the captured $vars under resultVar, runs the remaining top-level steps,
  * then applies any new effects via operationsBridge.applyEffect. If the
- * resumed steps suspend again (chained GET_USER_INPUTs), the handler recurses
+ * resumed steps suspend again (chained suspends), the handler recurses
  * — each step's value lands in $vars for downstream steps as designed.
  */
-export function resumeContinuation(continuation, resultVar, value) {
-  if (!continuation) return [];
+export function resumeContinuation(continuation, resultVar, value, { onPipelineDone, accumulated = [] } = {}) {
+  if (!continuation) {
+    if (onPipelineDone) onPipelineDone(accumulated);
+    return [];
+  }
   continuation.$vars[resultVar] = value;
   const next = executeSteps(
     continuation.remainingSteps,
@@ -1289,7 +1342,7 @@ export function resumeContinuation(continuation, resultVar, value) {
     continuation.context,
     continuation.transaction,
   );
-  const handled = _handleSuspend(next);
+  const handled = _handleSuspend(next, { onPipelineDone, accumulated });
   // Effects already applied during fireOperations for the pre-suspend chunk;
   // these are the post-resume effects so apply them now.
   const apply = operationsBridge.applyEffect;

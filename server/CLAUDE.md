@@ -2,6 +2,53 @@
 
 _Updated: 2026-05-20. Check this file before re-reading source._
 
+## Recent Changes (2026-05-21 — /api/v1 REST surface + CALL_API outbound action)
+- **`models/ApiToken.js` (NEW)** — per-user Bearer token. Wire shape:
+  `moduli_<tokenId>_<secret>`. `tokenId` is indexed for O(1) lookup;
+  `secret` is bcrypt-hashed. `ApiToken.mint({userId,name,scopes})`,
+  `ApiToken.authenticate(rawToken)`, `ApiToken.parse(rawToken)`.
+  `lastUsedAt` write-debounced to once per 60s.
+- **`middleware/apiAuth.js` (NEW)** — `apiAuth({requireScope})` Express
+  middleware. Sets `req.apiToken` + `req.userId` on success; 401 / 403
+  on auth / scope failure.
+- **`routes/apiV1.js` (NEW)** — Slice-1 REST surface (per
+  `docs/api-plan.md`):
+  - `GET  /api/v1/grids` — list grids
+  - `GET  /api/v1/grids/:id/state` — full snapshot
+  - `PUT  /api/v1/occurrences/:id/fields/:fieldId` — write field value
+    (broadcasts `occurrence_updated` to user room)
+  - `POST /api/v1/operations/:id/run` — synchronous op invocation. The
+    headliner. Emits `run_op_for_api` to the user's socket room, holds
+    the HTTP response open via `opRunBridge` until a connected client
+    emits `api_op_result` back with effects + final `$vars`.
+- **`utils/opRunBridge.js` (NEW)** — `Map<requestId,{resolve,reject,
+  timer}>` holding HTTP responses while clients run ops over socket.
+  Slice-1 mechanism; Phase 3 replaces with a true server-side executor
+  (CALL_API needs it for secrets + CORS).
+- **`server.js`** — mounts the v1 router, instantiates the bridge, and
+  registers the `api_op_result` socket listener that resolves bridge
+  promises.
+- **`scripts/createApiToken.js` (NEW)** — CLI:
+  `node --env-file=.env server/scripts/createApiToken.js <email> [scopes] [name]`
+  → prints raw token exactly once.
+- **`scripts/seedApiDemoOp.js` (NEW)** — mints a `Demo: Weather Lookup`
+  operation that uses `CALL_API` to hit api.open-meteo.com + surfaces
+  the result via `SHOW_VALUE` so it lands in the
+  `POST .../operations/:id/run` response under `vars`.
+- **`scripts/apiDemo.js` (NEW)** — exercises every endpoint
+  end-to-end. Verified live: token auth works, grid state returns
+  ~600 occurrences, op invocation pulls live Chicago weather from
+  open-meteo and returns `{ $temperature: 8.3, $windSpeed: 16.2,
+  $units: "°C" }`.
+- **`scripts/apiDemoClient.js` (NEW)** — headless socket.io client
+  acting as a "fake browser tab" for the demo when there's no real
+  client connected. Production users have a Moduli tab open; this
+  script is only for terminal-only demos.
+- **`socket.io-client`** added to server `package.json` (dev — only
+  used by the demo client script).
+- **`Operation.triggerType`** — new value `manual` honored; the demo
+  op uses it so it doesn't fire on load.
+
 ## Recent Changes (2026-05-20 — delete_occurrence cascade respects multi-parenting)
 - **`socketHandlers/crud.js delete_occurrence`** — `collectDescendants`
   now only recurses through a child when `child.parentId === id` (i.e.

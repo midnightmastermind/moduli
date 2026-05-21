@@ -2,6 +2,35 @@
 
 _Updated: 2026-05-20. Check this file before re-reading source._
 
+## Recent Changes (2026-05-21 — CALL_API + SHOW_VALUE + suspend-aware onPipelineDone)
+- **`operationActions.js` new action `CALL_API`** — outbound HTTP from
+  a pipeline. Same `_suspend` pattern as `GET_USER_INPUT`: returns a
+  sentinel `{_suspend, _callApi, request: {fetch}, resultVar,
+  errorVar, onError}`. cfg: url / method / headers / query / body /
+  timeoutMs / responseVar / onError ("fail" | "continue") / errorVar.
+  Eagerly kicks off the `fetch` so the suspend has a ready Promise
+  for `_handleSuspend` to await. `onError: "continue"` smuggles an
+  error envelope `{__apiError, status, body?, message?}` back through
+  the same pipe (executor routes to errorVar).
+- **`operationActions.js` new action `SHOW_VALUE`** — stages
+  `{_effect: "SHOW_VALUE", name, value}` on the effect list. Two
+  consumers: (1) `POST /api/v1/operations/:id/run` (server) surfaces
+  every SHOW_VALUE under `vars` in the JSON response, (2) the
+  OperationLogPanel can render them as "result" rows. `name` auto-`$`
+  prefixes if missing; `value` runs through `resolveExpr`.
+- **`operationExecutor.js` `_handleSuspend` / `resumeContinuation`** —
+  both now accept `{ onPipelineDone, accumulated }` so a suspend chain
+  can report the FINAL set of effects once the last resume runs. The
+  /api/v1 bridge uses this to know when to emit `api_op_result`.
+  Synchronous pipelines fire `onPipelineDone` immediately with the
+  same effects array the caller already has.
+- **`operationExecutor.js` `executePipeline`** — extraVars (already
+  accepted) are now also folded into `$vars` BEFORE the source loop so
+  caller-supplied vars (e.g. from `/api/v1/operations/:id/run`'s body)
+  are referenced directly via `$name` without needing a Source row on
+  the op. Existing Source-row-declared callers byte-identical to
+  before.
+
 ## Recent Changes (2026-05-20 — operations review fixups)
 - **`operationActions.js` (`DATE_ADD` advanceUntil loop)**: The loop
   ran a fixed `safety = 600` and silently bailed when `amount === 0`
