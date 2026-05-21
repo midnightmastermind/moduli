@@ -17,6 +17,8 @@ import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import ViewModeSection from "../ui/ViewModeSection";
 import TemplatesSection from "../ui/TemplatesSection";
+import StyleEditor from "../ui/StyleEditor";
+import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
 import NodePill from "./NodePill.jsx";
 import PreviewNode from "./PreviewNode.jsx";
 
@@ -96,6 +98,21 @@ function Page({
   const [templatesAnchor, setTemplatesAnchor] = useState(null);
   const openTemplates = useCallback((e) => setTemplatesAnchor(e?.currentTarget?.getBoundingClientRect?.() || null), []);
   const closeTemplates = useCallback(() => setTemplatesAnchor(null), []);
+
+  // Page cascade — walks from THIS page occurrence up through panel
+  // → grid (pages don't have container/instance ancestors). The
+  // StyleEditor's "Inherited cascade" view shows what each ancestor
+  // contributes before the user overrides at the page level.
+  const pageCascade = useMemo(() => {
+    if (!occurrence) return null;
+    const ctx = buildStyleCascadeContext({
+      leafOccurrence: occurrence,
+      occurrencesById,
+      modulesById,
+      grid: state?.grid,
+    });
+    return resolveStyleCascade(ctx, "page");
+  }, [occurrence, occurrencesById, modulesById, state?.grid]);
 
   // Tree view: resolve active occurrence from page view
   const treeActiveOccId = isTreeView ? pageView?.activeOccurrenceId : null;
@@ -448,21 +465,67 @@ function Page({
           borderBottom: "1px solid var(--border-default)",
         }}
       >
-        {/* Handle — leftmost with breathing room */}
-        <div
-          ref={handleRef}
-          className="module-drag-handle module-grab-zone"
-          data-dnd-handle="true"
-          draggable={false}
-          style={{ position: "relative", top: 0, left: 4, transform: "none", flexShrink: 0, marginLeft: 0 }}
-        >
-          <RadialMenu
-            onSettings={() => setSettingsOpen(true)}
-            onTemplate={openTemplates}
-            size="sm"
-            forceDirection="down"
-          />
-        </div>
+        {/* Handle — leftmost with breathing room. Wrapped in a
+            Popover so RadialMenu's settings cog opens a Page Settings
+            panel (kind-aware StyleEditor + cascade view) anchored at
+            the handle. Previously `settingsOpen` toggled but had no
+            consumer — clicking the cog did nothing. */}
+        <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <PopoverAnchor asChild>
+            <div
+              ref={handleRef}
+              className="module-drag-handle module-grab-zone"
+              data-dnd-handle="true"
+              draggable={false}
+              style={{ position: "relative", top: 0, left: 4, transform: "none", flexShrink: 0, marginLeft: 0 }}
+            >
+              <RadialMenu
+                onSettings={() => setSettingsOpen(true)}
+                onTemplate={openTemplates}
+                size="sm"
+                forceDirection="down"
+              />
+            </div>
+          </PopoverAnchor>
+          <PopoverContent
+            side="bottom"
+            align="start"
+            collisionPadding={8}
+            className="p-0 w-72"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <div className="px-3 pt-3 pb-2 border-b border-border flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-foreground/80">Page settings</span>
+              <span className="text-[10px] text-muted-foreground font-mono">{kind}</span>
+            </div>
+            <div className="px-3 py-2 max-h-[60vh] overflow-y-auto">
+              <StyleEditor
+                kind="page"
+                cascade={pageCascade}
+                styleMode={pageModule?.styleMode || "inherit"}
+                ownStyle={pageModule?.ownStyle}
+                onStyleModeChange={(mode) => {
+                  if (!pageModule) return;
+                  CommitHelpers.updateModule({
+                    dispatch, socket,
+                    module: { id: pageModule.id, styleMode: mode },
+                    emit: true,
+                  });
+                }}
+                onOwnStyleChange={(style) => {
+                  if (!pageModule) return;
+                  CommitHelpers.updateModule({
+                    dispatch, socket,
+                    module: { id: pageModule.id, ownStyle: style },
+                    emit: true,
+                  });
+                }}
+                label="Page Style"
+                inheritLabel="Panel / Grid"
+              />
+            </div>
+          </PopoverContent>
+        </Popover>
         {(
           <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 0", marginLeft: "auto" }}>
             {(
