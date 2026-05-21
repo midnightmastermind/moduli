@@ -26,11 +26,12 @@ Test results last refresh: **37 files / 731 tests passing** (see `test-results.t
 ### Multi-select + paste (shipped this session)
 - [ ] Shift+click an instance → selection chip overlay highlights it
 - [ ] Shift+click more instances → count grows; right-click any selected one shows bulk items at top
-- [ ] Choose "Copy N selected" → right-click target container → "Paste N here" mints fresh occurrences with same moduleId
-- [ ] Choose "Move N selected" → right-click target → "Move N here" re-parents (no fresh occurrences; originals move)
-- [ ] Choose "Copy-link N selected" → right-click target → "Paste linked N here" mints fresh occurrences sharing `linkedGroupId`; toggling a field in one ticks the others
+- [ ] Choose "Copy N selected" → right-click target container → "Paste N here" mints fresh occurrences with same moduleId → **toast "Pasted N items"** appears for 2s
+- [ ] Choose "Move N selected" → right-click target → "Move N here" re-parents (no fresh occurrences; originals move) → **toast "Moved N items"** appears
+- [ ] Choose "Copy-link N selected" → right-click target → "Paste linked N here" mints fresh occurrences sharing `linkedGroupId`; toggling a field in one ticks the others → **toast "Linked N items"** appears
 - [ ] Paste-here also surfaces on a page right-click (destination is the page occurrence)
 - [ ] Self-paste (target = source) is silently skipped
+- [ ] **Delete N selected** prompts `confirm(...)` with the count; cancel aborts; confirm deletes
 
 ### Canvas connect tool (shipped this session)
 - [ ] Open any canvas page → toolbar shows new chain-link icon between Hand and Pen
@@ -39,6 +40,7 @@ Test results last refresh: **37 files / 731 tests passing** (see `test-results.t
 - [ ] Reload → connection still there (persisted to `pageOccurrence.meta.edges`)
 - [ ] Move either card → bezier follows
 - [ ] In connect mode, click on an edge → deletes it
+- [ ] **Delete a card connected by an edge** → on the next canvas paint, the orphaned edge is cleaned from `meta.edges` (lazy persist)
 - [ ] Switching to any other tool → edges still render but become click-through (no accidental deletion)
 - [ ] Drawing tools, drop targets, world pan, mobile toolbar, autoscroll still all work in their respective modes
 - [ ] **Undo (Undo button)** undoes both edge additions AND edge deletions (mixed with strokes — most recent action regardless of type)

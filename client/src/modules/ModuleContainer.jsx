@@ -653,7 +653,7 @@ function Container({
                 label: pasteLabel,
                 icon: ClipboardPaste,
                 onClick: () => {
-                  runPasteClipboard({
+                  const { pasted } = runPasteClipboard({
                     mode: clip.mode,
                     ids: clip.ids,
                     destinationOccurrence: containerOccurrence,
@@ -666,6 +666,15 @@ function Container({
                   });
                   selection.clearClipboard();
                   selection.clear();
+                  // Toast feedback so the user knows the paste landed,
+                  // especially for moves where the visual change is in
+                  // both the source and destination.
+                  if (pasted > 0) {
+                    const verb = clip.mode === "move" ? "Moved" : clip.mode === "copylink" ? "Linked" : "Pasted";
+                    toast.success(`${verb} ${pasted} item${pasted === 1 ? "" : "s"}`, { duration: 2000 });
+                  } else {
+                    toast.error("Nothing pasted", { duration: 2500 });
+                  }
                 },
               },
               clip && { separator: true },

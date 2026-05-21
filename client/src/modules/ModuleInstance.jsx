@@ -714,6 +714,16 @@ function ModuleInstance({
         label: `Delete ${selection.count} selected`,
         icon: Trash2, danger: true,
         onClick: () => {
+          // Destructive action with no group-level undo — match the
+          // ModulePage.handleDelete pattern and require explicit
+          // confirmation. Window.confirm is intentionally simple here
+          // (no shadcn AlertDialog wrapper) so the menu close + dialog
+          // ordering doesn't fight with the ContextMenu portal.
+          const n = selection.count;
+          const ok = window.confirm(
+            `Delete ${n} selected item${n === 1 ? "" : "s"}? This cannot be undone.`
+          );
+          if (!ok) return;
           const ids = [...selection.selectedIds];
           selection.clear();
           // Resolve each occurrence + its parent so removeOccurrence

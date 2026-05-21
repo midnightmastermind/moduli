@@ -249,6 +249,26 @@ export const CanvasContent = React.memo(function CanvasContent({
     setEdges(containerOccurrence?.meta?.edges || []);
   }, [containerOccurrence?.id, containerOccurrence?.meta?.edges]);
 
+  // Lazy cleanup of stale edges — drop entries whose endpoints no
+  // longer exist as cards on this canvas. Runs whenever the rendered
+  // card list changes (delete, drag-out, etc.). Persists back through
+  // saveEdges only if something was actually orphaned, so canvases
+  // with no orphans pay zero write cost. Bounded to occurrence-id
+  // mismatches (not e.g. filter-hidden cards) because the canvas
+  // doesn't filter — itemsWithOccurrences IS the full child list.
+  useEffect(() => {
+    if (!containerOccurrence?.id) return;
+    const persisted = containerOccurrence?.meta?.edges || [];
+    if (persisted.length === 0) return;
+    const liveIds = new Set((itemsWithOccurrences || []).map(it => it.occurrence?.id).filter(Boolean));
+    const kept = persisted.filter(ed => liveIds.has(ed.from) && liveIds.has(ed.to));
+    if (kept.length !== persisted.length) {
+      // Skip the history push — this is a passive cleanup, not a
+      // user action, and it shouldn't crowd undo/redo.
+      saveEdges(kept);
+    }
+  }, [containerOccurrence?.id, itemsWithOccurrences, saveEdges]);
+
   // Size the drawing canvas to the world size once on mount.
   useEffect(() => {
     const canvas = canvasRef.current;

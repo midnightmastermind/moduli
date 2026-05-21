@@ -4,6 +4,7 @@
 // Inside: routes to content based on page kind (board, canvas, doc, display).
 
 import React, { useRef, useMemo, useState, useCallback, useContext, useEffect } from "react";
+import { toast } from "sonner";
 import RadialMenu from "../ui/RadialMenu";
 import ContextMenu from "../ui/ContextMenu";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
@@ -266,7 +267,7 @@ function Page({
           label: pasteLabel,
           icon: ClipboardPaste,
           onClick: () => {
-            runPasteClipboard({
+            const { pasted } = runPasteClipboard({
               mode: clip.mode,
               ids: clip.ids,
               destinationOccurrence: occurrence,
@@ -279,6 +280,12 @@ function Page({
             });
             selection.clearClipboard();
             selection.clear();
+            if (pasted > 0) {
+              const verb = clip.mode === "move" ? "Moved" : clip.mode === "copylink" ? "Linked" : "Pasted";
+              toast.success(`${verb} ${pasted} item${pasted === 1 ? "" : "s"}`, { duration: 2000 });
+            } else {
+              toast.error("Nothing pasted", { duration: 2500 });
+            }
           },
         },
         clip && { separator: true },
