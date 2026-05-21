@@ -1509,6 +1509,125 @@ export function makeProjectCreateOp({ userId, gridId, projectsFolderId }) {
 // time-ordered rendering, a future SORT_BY primitive would walk
 // `$schedPage.occurrences` (slot containers in time order) and inner-loop
 // each slot's children. Filed as TODO; the unsorted list is still useful.
+// ── Project: Status Router ───────────────────────────────────────────────────
+// onChange trigger on the statusFieldId. When a task in any project's kanban
+// gets its status field set to one of the 6 column labels (Backburner /
+// Docket / Working On / In Review / Test / Complete), this op MOVE_OCCURRENCEs
+// the task between columns on the same project page.
+//
+// Strategy (no global routing tables — derive everything from the live tree):
+//   1. Resolve $newStatus + $taskId from the trigger.
+//   2. Look up the task in $allInstances so we can read its parentId (current
+//      kanban column).
+//   3. Look up the current column in $allContainers — its parentId is the
+//      kanban board occurrence.
+//   4. FIND the target column under the same kanban board where
+//      label IS $newStatus. The column labels match the status field's
+//      option values verbatim, so no mapping is needed.
+//   5. If the target column exists AND differs from the current column,
+//      MOVE_OCCURRENCE the task to it.
+//
+// Same-project guarantee: by anchoring step 4 on parentId = the task's
+// current kanban board, we never cross over to a different project's
+// kanban (each project page has its own kanban board container).
+//
+// Skipped silently when:
+//   - the task isn't inside a kanban board (parent or grandparent doesn't
+//     match), so changing status on a non-kanban task is a no-op
+//   - the new column doesn't exist (status options out of sync with column
+//     set — e.g. typo) — fail closed rather than create a bad move
+//   - the task is already in the target column (idempotent re-fire)
+export function makeProjectStatusRouterOp({ userId, gridId, statusFieldId }) {
+  return {
+    id: uid(), userId, gridId, name: "Project: Status Router",
+    description: "When a task's status field changes, move the task between kanban columns on the same project page. Column label = status value (Backburner / Docket / Working On / In Review / Test / Complete).",
+    triggerType: "onChange",
+    triggerTypes: ["onChange"],
+    triggerObjects: [
+      { eventType: "onChange", subjectType: "field", targetId: statusFieldId, priority: 5 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // ── Trigger args ──────────────────────────────────────────────────
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$newStatus", expr: "$trigger.value" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$taskId",    expr: "$trigger.occurrenceId" } },
+
+        // ── Resolve the task occurrence (need its parentId) ──────────────
+        { id: uid(), type: "action", config: {
+            type: "FIND", over: "$allInstances",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "id", comparator: "IS", right: "$taskId" },
+            ]},
+            itemVar: "$task", itemIdVar: "$taskFoundId",
+        }},
+
+        // ── Only continue if the task was found and has a parent column ──
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$taskFoundId", comparator: "IS_NOT_EMPTY", right: "" },
+            { id: uid(), left: "$task.parentId", comparator: "IS_NOT_EMPTY", right: "" },
+          ]},
+          then: [
+            // ── Resolve current column (one level up from task) ──────────
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$currentColId", expr: "$task.parentId" } },
+            { id: uid(), type: "action", config: {
+                type: "FIND", over: "$allContainers",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "id", comparator: "IS", right: "$currentColId" },
+                ]},
+                itemVar: "$currentCol", itemIdVar: "$currentColFoundId",
+            }},
+
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$currentColFoundId", comparator: "IS_NOT_EMPTY", right: "" },
+                { id: uid(), left: "$currentCol.parentId", comparator: "IS_NOT_EMPTY", right: "" },
+              ]},
+              then: [
+                // $kanbanBoardId is the parent of the current column. Find the
+                // target column whose label matches $newStatus AND whose parent
+                // is the same kanban board — guarantees we stay within the
+                // same project.
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$kanbanBoardId", expr: "$currentCol.parentId" } },
+                { id: uid(), type: "action", config: {
+                    type: "FIND", over: "$allContainers",
+                    predicate: { operator: "AND", rules: [
+                      { id: uid(), left: "parentId", comparator: "IS", right: "$kanbanBoardId" },
+                      { id: uid(), left: "label",    comparator: "IS", right: "$newStatus"    },
+                    ]},
+                    itemVar: "$targetCol", itemIdVar: "$targetColId",
+                }},
+
+                {
+                  id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$targetColId",  comparator: "IS_NOT_EMPTY", right: "" },
+                    { id: uid(), left: "$targetColId",  comparator: "IS_NOT",       right: "$currentColId" },
+                  ]},
+                  then: [
+                    { id: uid(), type: "action", config: {
+                        type: "MOVE_OCCURRENCE",
+                        occurrenceIdExpr: "$taskId",
+                        toContainerIdExpr: "$targetColId",
+                    }},
+                  ],
+                  else: [],
+                },
+              ],
+              else: [],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+  };
+}
+
 export function makeDayPageBuildTasksCompletedOp({
   userId, gridId, dateFieldId, completedFieldId, isTaskFieldId,
 }) {

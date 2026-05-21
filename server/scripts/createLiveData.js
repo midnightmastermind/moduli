@@ -47,6 +47,7 @@ import {
   makeScheduleBuildScheduleOp,
   makeDayPageBuildOp,
   makeProjectCreateOp,
+  makeProjectStatusRouterOp,
   makeDayPageBuildTasksCompletedOp,
   makeStampDateTimeSlotOp,
   makeClearDateOnMoveOutOp,
@@ -6590,6 +6591,10 @@ export async function createLiveData(userId, options = {}) {
   // it (no spontaneous activity). Mirrors Day Page: Build's
   // idempotency-by-label pattern.
   await new Operation(makeProjectCreateOp({ userId, gridId, projectsFolderId })).save();
+  // Project: Status Router — onChange of statusFieldId moves the task between
+  // kanban columns on the same project page. Idempotent + same-project-only
+  // (anchored on the task's kanban board, not a global routing table).
+  await new Operation(makeProjectStatusRouterOp({ userId, gridId, statusFieldId })).save();
   await new Operation(makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, lastSeenFieldId, hubPanelModuleId: panelModuleIds.notebook })).save();
   await new Operation(makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId })).save();
 
