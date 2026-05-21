@@ -29,6 +29,13 @@ import { useEffect, useRef, useState } from "react";
 import { socket } from "../socket";
 
 const DEFAULT_RECOVERED_MS = 3000;
+// Upper bound for holding the recovered pill open while we wait for
+// the offline queue to drain. Caps the wait so a server that ack's
+// slowly (or never) doesn't pin the indicator forever.
+const RECOVERED_MAX_MS = 10000;
+// Per-queued-item extension. With 100ms per item we hold ~10s for a
+// queue of 100 items, then RECOVERED_MAX_MS clamps it.
+const PER_ITEM_HOLD_MS = 100;
 
 export function useSocketStatus({ recoveredDurationMs = DEFAULT_RECOVERED_MS } = {}) {
   const [status, setStatus] = useState(() => (socket.connected ? "connected" : "disconnected"));
@@ -74,16 +81,37 @@ export function useSocketStatus({ recoveredDurationMs = DEFAULT_RECOVERED_MS } =
       setAttempts(typeof n === "number" ? n : (a) => a + 1);
     };
 
+    // When the offline queue actually flushes, hold the "recovered"
+    // pill longer so the user can see that buffered writes are
+    // replaying. Hold time scales with the flushed count but caps at
+    // RECOVERED_MAX_MS so a server that doesn't ack quickly doesn't
+    // pin the indicator forever. Only meaningful when we're already
+    // in the recovered state — otherwise this is a no-op.
+    const onQueueFlushed = (e) => {
+      const count = e?.detail?.count || 0;
+      if (count <= 0) return;
+      // Hold time = base recovered window + per-item, clamped.
+      const hold = Math.min(RECOVERED_MAX_MS, recoveredDurationMs + count * PER_ITEM_HOLD_MS);
+      if (recoveredTimer) clearTimeout(recoveredTimer);
+      recoveredTimer = setTimeout(() => setStatus("connected"), hold);
+    };
+
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("connect_error", onConnectError);
     socket.io.on("reconnect_attempt", onReconnectAttempt);
+    if (typeof window !== "undefined") {
+      window.addEventListener("offlineQueue:flushed", onQueueFlushed);
+    }
 
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("connect_error", onConnectError);
       socket.io.off("reconnect_attempt", onReconnectAttempt);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("offlineQueue:flushed", onQueueFlushed);
+      }
       if (recoveredTimer) clearTimeout(recoveredTimer);
     };
   }, [recoveredDurationMs]);

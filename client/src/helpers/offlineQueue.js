@@ -53,6 +53,10 @@ export function safeEmit(socket, event, data) {
 /**
  * Flush all queued mutations through the socket. Called after full_state is received
  * on reconnect so mutations are replayed on top of fresh server state.
+ *
+ * Dispatches a window `offlineQueue:flushed` CustomEvent with detail.count when
+ * a non-zero flush happens, so UI consumers (e.g. useSocketStatus) can extend
+ * the "Reconnected" indicator until the server has had time to ack the replay.
  */
 export function flushOfflineQueue(socket) {
   if (!socket?.connected || queue.length === 0) return;
@@ -63,6 +67,13 @@ export function flushOfflineQueue(socket) {
     socket.emit(event, data);
   }
   console.log(`[offlineQueue] flushed ${count} queued mutations`);
+  if (typeof window !== "undefined" && typeof CustomEvent === "function") {
+    try {
+      window.dispatchEvent(new CustomEvent("offlineQueue:flushed", { detail: { count } }));
+    } catch {
+      // Older runtimes / SSR — silently skip; the queue still flushed.
+    }
+  }
 }
 
 /**

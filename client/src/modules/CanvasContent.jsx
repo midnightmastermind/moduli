@@ -296,8 +296,16 @@ export const CanvasContent = React.memo(function CanvasContent({
   const saveStrokes = useCallback((newStrokes) => {
     setStrokes(newStrokes);
     if (containerOccurrence?.id) {
+      // Patch shape is just { id, meta } — the spread-the-whole-
+      // occurrence pattern was wasteful (large socket payload) and
+      // could clobber a stale field on the occurrence if some other
+      // session edited it between renders. updateOccurrence merges
+      // partials so this is safe.
       CommitHelpers.updateOccurrence({ dispatch, socket,
-        occurrence: { ...containerOccurrence, meta: { ...(containerOccurrence.meta || {}), drawData: newStrokes } },
+        occurrence: {
+          id: containerOccurrence.id,
+          meta: { ...(containerOccurrence.meta || {}), drawData: newStrokes },
+        },
         emit: true });
     }
   }, [containerOccurrence, dispatch, socket]);
@@ -305,8 +313,12 @@ export const CanvasContent = React.memo(function CanvasContent({
   const saveEdges = useCallback((nextEdges) => {
     setEdges(nextEdges);
     if (containerOccurrence?.id) {
+      // Same id+meta patch shape as saveStrokes — see comment there.
       CommitHelpers.updateOccurrence({ dispatch, socket,
-        occurrence: { ...containerOccurrence, meta: { ...(containerOccurrence.meta || {}), edges: nextEdges } },
+        occurrence: {
+          id: containerOccurrence.id,
+          meta: { ...(containerOccurrence.meta || {}), edges: nextEdges },
+        },
         emit: true });
     }
   }, [containerOccurrence, dispatch, socket]);
