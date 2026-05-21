@@ -750,7 +750,12 @@ function ModuleInstance({
       onInstanceFocus && { label: "Focus", icon: Focus, onClick: () => onInstanceFocus(module, occurrence) },
       onInstanceFocus && { separator: true },
       {
-        label: "Copy instance",
+        // "Duplicate" not "Copy" — this mints a NEW MODULE (independent
+        // template) with a "(Copy)" label and adds it to the container.
+        // Bulk "Copy N selected" above is different: it shares the
+        // existing module across the new occurrences. Both are useful;
+        // the label disambiguates them so users don't pick the wrong one.
+        label: "Duplicate (new instance)",
         icon: Copy,
         onClick: () => {
           const newInstance = { ...module, id: crypto.randomUUID(), label: `${module.label} (Copy)` };
