@@ -119,6 +119,28 @@ export default function PreviewNode({
   const kind = module?.kind;
   const role = module?.role;
 
+  // Lazy-load the iframe only when the card is in (or near) the viewport.
+  // Without this, every PreviewNode on a folder page (potentially 20+ cards)
+  // mounts an iframe immediately and the parent app freezes for several
+  // seconds while all of them poll the parent state + render full Page
+  // components in parallel. IntersectionObserver with a 200px rootMargin
+  // primes cards just before they scroll into view; cards above the fold
+  // load on first paint thanks to the initial observation tick. Once a
+  // card has been seen, `hasBeenVisible` stays true so unmount-on-scroll
+  // doesn't tear down the iframe.
+  const [hasBeenVisible, setHasBeenVisible] = useState(false);
+  useEffect(() => {
+    if (!ref.current || hasBeenVisible) return;
+    if (typeof IntersectionObserver === "undefined") { setHasBeenVisible(true); return; }
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) { setHasBeenVisible(true); io.disconnect(); break; }
+      }
+    }, { rootMargin: "200px 0px" });
+    io.observe(ref.current);
+    return () => io.disconnect();
+  }, [hasBeenVisible]);
+
   // Drag setup
   useEffect(() => {
     if (!ref.current || !module) return;
@@ -137,6 +159,7 @@ export default function PreviewNode({
 
   const canDrillDown = role === "page" || kind === "folder";
   const isLandscape = kind === "folder";
+  const shouldLoadIframe = loadPreview && hasBeenVisible;
 
   return (
     <div
@@ -151,7 +174,7 @@ export default function PreviewNode({
       style={extraStyle}
     >
       <div className="preview-node-preview" style={isLandscape ? { aspectRatio: "4 / 3" } : undefined}>
-        {loadPreview
+        {shouldLoadIframe
           ? <IframePreview occurrenceId={occurrence?.id} landscape={isLandscape} />
           : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <File size={20} style={{ color: "var(--text-faint)", opacity: 0.3 }} />

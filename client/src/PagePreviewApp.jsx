@@ -37,8 +37,34 @@ export default function PagePreviewApp({ occurrenceId }) {
   const modulesById = useMemo(() => buildLookup(parentState?.modules || []), [parentState?.modules]);
   const viewsById = useMemo(() => buildLookup(parentState?.views || []), [parentState?.views]);
   const fieldsById = useMemo(() => buildLookup(parentState?.fields || []), [parentState?.fields]);
-  const containersById = useMemo(() => buildLookup(parentState?.containers || []), [parentState?.containers]);
-  const instancesById = useMemo(() => buildLookup((parentState?.modules || []).filter(m => m.role === "instance")), [parentState?.modules]);
+  // Role-bucket maps. The previous filter `m.role === "instance"` missed
+  // every leaf module that lacks an explicit role tag (the new architecture
+  // infers role from hierarchy traversal — `computeRoleByModuleId`). So
+  // build the buckets the SAME way App.jsx does: derive from role tags and
+  // merge instances + artifacts + textblocks into a single leafModulesById.
+  // Without leafModulesById, ModuleContainer's `getContainerItems` returns
+  // empty and the preview shows containers with no children — root cause
+  // of the "instances don't render inside folder-page previews" bug.
+  const containersById = useMemo(
+    () => buildLookup((parentState?.modules || []).filter(m => m.role === "container")),
+    [parentState?.modules]
+  );
+  const instancesById = useMemo(
+    () => buildLookup((parentState?.modules || []).filter(m => m.role === "instance" || !m.role)),
+    [parentState?.modules]
+  );
+  const artifactsById = useMemo(
+    () => buildLookup((parentState?.modules || []).filter(m => m.role === "artifact")),
+    [parentState?.modules]
+  );
+  const textblocksById = useMemo(
+    () => buildLookup((parentState?.modules || []).filter(m => m.role === "textblock")),
+    [parentState?.modules]
+  );
+  const leafModulesById = useMemo(
+    () => ({ ...instancesById, ...artifactsById, ...textblocksById }),
+    [instancesById, artifactsById, textblocksById]
+  );
   const foldersById = useMemo(() => buildLookup(parentState?.folders || []), [parentState?.folders]);
   const manifestsById = useMemo(() => buildLookup(parentState?.manifests || []), [parentState?.manifests]);
   const operationsById = useMemo(() => buildLookup(parentState?.operations || []), [parentState?.operations]);
@@ -71,6 +97,9 @@ export default function PagePreviewApp({ occurrenceId }) {
     fieldsById,
     containersById,
     instancesById,
+    artifactsById,
+    textblocksById,
+    leafModulesById,
     panelsById: {},
     manifestsById,
     foldersById,
@@ -78,7 +107,7 @@ export default function PagePreviewApp({ occurrenceId }) {
     roleByModuleId,
     linkedGroupIndex: {},
     childrenByParentId,
-  }), [occurrencesById, modulesById, viewsById, fieldsById, containersById, instancesById, manifestsById, foldersById, operationsById, roleByModuleId, childrenByParentId, noop]);
+  }), [occurrencesById, modulesById, viewsById, fieldsById, containersById, instancesById, artifactsById, textblocksById, leafModulesById, manifestsById, foldersById, operationsById, roleByModuleId, childrenByParentId, noop]);
 
   const dataValue = useMemo(() => ({ state: parentState || {} }), [parentState]);
   const liveValue = useMemo(() => ({
