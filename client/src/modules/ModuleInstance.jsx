@@ -86,6 +86,8 @@ function InstanceInner({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [linksPopoverOpen, setLinksPopoverOpen] = useState(false);
   const [showLabel, setShowLabel] = useState(true);
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState(label ?? "");
   // Effective label visibility: respect the per-instance user toggle UNLESS the
   // embed host forced it off (embedHideLabel from CellEmbedContext). Used
   // throughout the render below in place of the raw `showLabel`.
@@ -111,6 +113,19 @@ function InstanceInner({
       emit: true
     });
   }, [draft?.label, id, dispatch, socket]);
+
+  // Inline label editor — committed independently of the settings-popover draft.
+  // Double-click on the label flips into an <input>; Enter / blur commits to
+  // the module, Escape cancels. Keeps in sync with the live `label` prop so
+  // external renames (settings popover, server echo) propagate.
+  useEffect(() => { setLabelDraft(label ?? ""); }, [label, id]);
+  const commitInlineLabel = useCallback(() => {
+    const next = (labelDraft ?? "").trim();
+    if (next && next !== (label ?? "")) {
+      CommitHelpers.updateModule({ dispatch, socket, module: { id, label: next }, emit: true });
+    }
+    setIsEditingLabel(false);
+  }, [labelDraft, label, id, dispatch, socket]);
 
   const deleteMe = useCallback(() => {
     if (!occurrence?.id) return;
@@ -528,22 +543,46 @@ function InstanceInner({
             </PopoverContent>
           </Popover>
           {effectiveShowLabel && hasLabel && (
-            <div
-              style={{
-                flex: "0 1 auto",
-                minWidth: 0,
-                overflow: "hidden",
-                fontSize: 12,
-                color: "var(--text-primary)",
-                paddingTop: 2,
-                paddingLeft: 2,
-              }}
-            >
-            {/* Auto-marquee: scrolls the label only when it's wider than the
-                space it has; otherwise renders static. Applies to every module
-                label (per user request), not just table cells. */}
-            <AutoMarquee>{label}</AutoMarquee>
-          </div>
+            isEditingLabel ? (
+              <input
+                value={labelDraft}
+                onChange={(e) => setLabelDraft(e.target.value)}
+                onBlur={commitInlineLabel}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); commitInlineLabel(); }
+                  if (e.key === "Escape") { setLabelDraft(label ?? ""); setIsEditingLabel(false); }
+                  e.stopPropagation();
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                autoFocus
+                style={{
+                  flex: "0 1 auto", minWidth: 0,
+                  background: "transparent", border: "none", outline: "none",
+                  fontSize: 12, color: "var(--text-primary)",
+                  paddingTop: 2, paddingLeft: 2,
+                  fontFamily: "inherit",
+                }}
+              />
+            ) : (
+              <div
+                onDoubleClick={(e) => { e.stopPropagation(); setIsEditingLabel(true); }}
+                style={{
+                  flex: "0 1 auto",
+                  minWidth: 0,
+                  overflow: "hidden",
+                  fontSize: 12,
+                  color: "var(--text-primary)",
+                  paddingTop: 2,
+                  paddingLeft: 2,
+                  cursor: "text",
+                }}
+                title="Double-click to rename"
+              >
+                {/* Auto-marquee: scrolls the label only when it's wider than the
+                    space it has; otherwise renders static. */}
+                <AutoMarquee>{label}</AutoMarquee>
+              </div>
+            )
           )}
         </div>{/* end label+radial wrapper */}
 

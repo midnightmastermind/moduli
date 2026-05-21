@@ -206,6 +206,21 @@ function Container({
     CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next }, emit: true });
   }, [draft?.label, module, dispatch, socket]);
 
+  // Inline label editor (standard non-embedded header) — double-click flips
+  // the label span into an <input>; Enter / blur commits, Escape cancels.
+  // The embedded variant uses contentEditable directly; this is only for the
+  // standard variant which renders a plain text span.
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState(module.label ?? "");
+  useEffect(() => { setLabelDraft(module.label ?? ""); }, [module.label, module.id]);
+  const commitInlineLabel = useCallback(() => {
+    const next = (labelDraft ?? "").trim();
+    if (next && next !== (module.label ?? "")) {
+      CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next }, emit: true });
+    }
+    setIsEditingLabel(false);
+  }, [labelDraft, module, dispatch, socket]);
+
   const commitIteration = useCallback((nextIteration) => {
     CommitHelpers.updateModule({ dispatch, socket, module: { ...module, iteration: nextIteration }, emit: true });
   }, [module, dispatch, socket]);
@@ -828,23 +843,49 @@ function Container({
                 />
               </div>
             ) : (
-              <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", fontSize: module.kind === "board" ? "0.95rem" : "0.75rem", fontWeight: module.kind === "board" ? 600 : 500, display: "flex", alignItems: "center", gap: 4 }}>
-                <AutoMarquee>
-                  {headerBinding ? (
-                    <BoundHeader
-                      hostOccurrence={containerOccurrence}
-                      binding={headerBinding}
-                      markdownPrefix=""
-                      label={module.label || "Container"}
-                    />
-                  ) : (
-                    module.label || "Container"
+              {isEditingLabel && !headerBinding ? (
+                <input
+                  value={labelDraft}
+                  onChange={(e) => setLabelDraft(e.target.value)}
+                  onBlur={commitInlineLabel}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); commitInlineLabel(); }
+                    if (e.key === "Escape") { setLabelDraft(module.label ?? ""); setIsEditingLabel(false); }
+                    e.stopPropagation();
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  autoFocus
+                  style={{
+                    flex: "1 1 auto", minWidth: 0,
+                    background: "transparent", border: "none", outline: "none",
+                    fontSize: module.kind === "board" ? "0.95rem" : "0.75rem",
+                    fontWeight: module.kind === "board" ? 600 : 500,
+                    color: "var(--text-primary)", fontFamily: "inherit",
+                  }}
+                />
+              ) : (
+                <span
+                  onDoubleClick={!headerBinding ? (e) => { e.stopPropagation(); setIsEditingLabel(true); } : undefined}
+                  title={!headerBinding ? "Double-click to rename" : undefined}
+                  style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", fontSize: module.kind === "board" ? "0.95rem" : "0.75rem", fontWeight: module.kind === "board" ? 600 : 500, display: "flex", alignItems: "center", gap: 4, cursor: !headerBinding ? "text" : undefined }}
+                >
+                  <AutoMarquee>
+                    {headerBinding ? (
+                      <BoundHeader
+                        hostOccurrence={containerOccurrence}
+                        binding={headerBinding}
+                        markdownPrefix=""
+                        label={module.label || "Container"}
+                      />
+                    ) : (
+                      module.label || "Container"
+                    )}
+                  </AutoMarquee>
+                  {containerOccurrence?.linkedGroupId && (
+                    <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0 inline" title="Linked" />
                   )}
-                </AutoMarquee>
-                {containerOccurrence?.linkedGroupId && (
-                  <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0 inline" title="Linked" />
-                )}
-              </span>
+                </span>
+              )}
             )}
 
             <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
