@@ -815,6 +815,12 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
   const manifest = manifestsById?.[manifestId];
   const rootFolder = manifest?.rootFolderId ? foldersById?.[manifest.rootFolderId] : null;
   const isPagePanel = !!panelOccurrence;
+  // Local-tree single-root toggle. Synthetic "Local" wrapper around the
+  // panel's pinned folder groups + root pages so the tree reads as one
+  // collapsible root instead of N flat top-level entries. Pure render-
+  // only grouping — no seed change, no folder record. Defaults open;
+  // user collapses to hide the whole pinned set.
+  const [localRootOpen, setLocalRootOpen] = useState(true);
 
   // Clicking a doc — opens page (page panels) or sets active doc (artifact panels)
   // Priority: activePageView (tree-view page) > panel view > onOpenPage fallback
@@ -992,11 +998,29 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
           {/* Tree content */}
           <div style={{ flex: 1, overflowY: "auto", padding: "1px 0 4px" }}>
             {isPagePanel ? (
-              /* Local tree — same left-aligned layout as the root tree */
+              /* Local tree — wrapped under a synthetic "Local" root so the
+                 panel sidebar reads as one expandable section instead of N
+                 flat top-level folder headers. Chevron + pill mirrors
+                 LocalFolderGroup/FolderNode chrome. */
               (localTreeData.rootPages.length === 0 && localTreeData.folderGroups.length === 0) ? (
                 <div style={{ fontSize: 11, color: "var(--text-faint)", padding: "0 8px" }}>No pages</div>
               ) : (
                 <div>
+                  <div style={{ display: "flex", alignItems: "center" }} className="manifest-row">
+                    <span
+                      style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: "pointer" }}
+                      onClick={(e) => { e.stopPropagation(); setLocalRootOpen(v => !v); }}
+                    >
+                      <ChevronRight size={8} style={{ opacity: 0.35, transform: localRootOpen ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
+                    </span>
+                    <NodePill
+                      module={{ kind: "folder", label: "Local" }}
+                      onClick={() => setLocalRootOpen(v => !v)}
+                      style={{ flex: 1 }}
+                    />
+                  </div>
+                  {localRootOpen && (
+                  <div style={{ marginLeft: 12 }}>
                   {/* Folder groups — chevron + folder pill, pages indented underneath (same as FolderNode) */}
                   {localTreeData.folderGroups.map(({ folder, pages }) => (
                     <LocalFolderGroup
@@ -1030,6 +1054,8 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                       depth={0}
                     />
                   ))}
+                  </div>
+                  )}
                 </div>
               )
             ) : (
