@@ -74,25 +74,106 @@ export async function fullMarkdown(title) {
   };
 }
 
-// Very small, dependency-free HTML → markdown converter tuned for the
-// shapes Wikipedia's REST html returns. Not a general-purpose tool;
-// strips out infoboxes / nav / references / images by element class.
-// Keeps headings, paragraphs, lists, bold/italic, inline code, and links.
-function htmlToMarkdown(html, fallbackTitle) {
-  // Strip script/style/figure/table/.infobox/.navbox/.references etc.
+// Dependency-free HTML → markdown converter.
+//
+// Originally tuned for the shape Wikipedia's REST endpoint returns;
+// now generalized via an options bag so the drag-to-import pipeline
+// (Phase A of the import docket — see client/src/CLAUDE.md item 6.5)
+// can opt to KEEP images + tables + figures, which the AI-summary
+// path strips by default.
+//
+// Options:
+//   keepImages: true   — emit `![alt](src)` markdown for <img>; absolute
+//                        URLs are preserved verbatim (no upload yet).
+//   keepTables: true   — emit a TipTap-table-style placeholder block per
+//                        <table> so the importer can route them; Phase A
+//                        leaves the raw HTML in a fenced ```html``` block
+//                        (markdownImporter recognises this as a textblock
+//                        codeBlock node — fast path).
+//   keepFigures: true  — preserve <figure> + <figcaption> as image + a
+//                        caption paragraph underneath.
+//   stripClasses: [..] — additional CSS classes whose elements are
+//                        dropped wholesale (defaults to the Wikipedia
+//                        boilerplate set).
+//
+// Defaults match the original Wikipedia-summary stripping behavior so
+// existing callers (fullMarkdown / the assistant tool catalog) stay
+// byte-identical.
+export function htmlToMarkdown(html, fallbackTitle = "", opts = {}) {
+  const {
+    keepImages = false,
+    keepTables = false,
+    keepFigures = false,
+    stripClasses = ["infobox", "navbox", "navbox-styles", "references", "reflist", "metadata", "thumb", "noprint", "mw-editsection"],
+  } = opts;
+
   let s = html;
   s = s.replace(/<script[\s\S]*?<\/script>/gi, "");
   s = s.replace(/<style[\s\S]*?<\/style>/gi, "");
+
   // Drop entire elements with these classes (greedy match within the element).
-  for (const cls of ["infobox", "navbox", "navbox-styles", "references", "reflist", "metadata", "thumb", "noprint", "mw-editsection"]) {
+  for (const cls of stripClasses) {
     const re = new RegExp(`<([a-z]+)([^>]*class=["'][^"']*\\b${cls}\\b[^"']*["'][^>]*)>[\\s\\S]*?<\\/\\1>`, "gi");
     s = s.replace(re, "");
   }
-  // <figure>, <table>, <img>, <sup class="reference"> — drop
-  s = s.replace(/<figure[\s\S]*?<\/figure>/gi, "");
-  s = s.replace(/<table[\s\S]*?<\/table>/gi, "");
-  s = s.replace(/<img[^>]*>/gi, "");
+  // <sup class="reference"> always dropped — citation superscripts add
+  // visual noise and the importer can't do anything useful with them.
   s = s.replace(/<sup[^>]*>[\s\S]*?<\/sup>/gi, "");
+
+  // Figures — convert to `![alt](src)\n\n_caption_\n\n` when keepFigures,
+  // else drop entirely. Done BEFORE the bare <img> handler so figures
+  // contribute their figcaption. The src/alt extraction uses two
+  // independent regexes against the img tag string — attribute order
+  // in HTML is not guaranteed, so doing them as separate matches is
+  // more robust than a single positional regex.
+  if (keepFigures) {
+    s = s.replace(/<figure[^>]*>([\s\S]*?)<\/figure>/gi, (_, inner) => {
+      const imgTagM = inner.match(/<img[^>]*>/i);
+      const imgTag = imgTagM?.[0] || "";
+      const srcM = imgTag.match(/\bsrc=["']([^"']+)["']/i);
+      const altM = imgTag.match(/\balt=["']([^"']*)["']/i);
+      const src = srcM?.[1] || "";
+      const alt = altM?.[1] || "";
+      const capM = inner.match(/<figcaption[^>]*>([\s\S]*?)<\/figcaption>/i);
+      const cap = capM ? stripTags(capM[1]).replace(/\s+/g, " ").trim() : "";
+      if (!src) return cap ? `\n_${cap}_\n\n` : "";
+      return `\n![${alt}](${src})\n\n${cap ? `_${cap}_\n\n` : ""}`;
+    });
+  } else {
+    s = s.replace(/<figure[\s\S]*?<\/figure>/gi, "");
+  }
+
+  // Tables — extracted to a placeholder token BEFORE later inline-mark /
+  // tag-stripping passes (which would otherwise mangle the raw HTML
+  // inside the fence: `<strong>` → `**` etc., `<td>` deleted by
+  // stripTags). The token is swapped back to a fenced ```html block
+  // at the very end. When keepTables is false, tables are dropped.
+  const tableStash = [];
+  if (keepTables) {
+    s = s.replace(/<table[\s\S]*?<\/table>/gi, (m) => {
+      const idx = tableStash.length;
+      tableStash.push(m);
+      return `\n\n__MODULI_TABLE_STASH_${idx}__\n\n`;
+    });
+  } else {
+    s = s.replace(/<table[\s\S]*?<\/table>/gi, "");
+  }
+
+  // Bare <img> — convert when keepImages, else drop. Same independent-
+  // regex trick as the figure case for attribute-order robustness.
+  if (keepImages) {
+    s = s.replace(/<img[^>]*>/gi, (m) => {
+      const srcM = m.match(/\bsrc=["']([^"']+)["']/i);
+      const altM = m.match(/\balt=["']([^"']*)["']/i);
+      const src = srcM?.[1] || "";
+      const alt = altM?.[1] || "";
+      if (!src) return "";
+      return `\n![${alt}](${src})\n\n`;
+    });
+  } else {
+    s = s.replace(/<img[^>]*>/gi, "");
+  }
+
   // Headings
   s = s.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, (_, t) => `\n# ${stripTags(t).trim()}\n\n`);
   s = s.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, (_, t) => `\n## ${stripTags(t).trim()}\n\n`);
@@ -115,8 +196,12 @@ function htmlToMarkdown(html, fallbackTitle) {
   });
   // Paragraphs
   s = s.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, (_, t) => `\n${stripTags(t).replace(/\s+/g, " ").trim()}\n\n`);
-  // Drop remaining tags
+
+  // Drop remaining tags. Tables are still stashed as placeholders at
+  // this point (extracted earlier), so stripTags can run freely over
+  // the entire string without corrupting the raw table HTML.
   s = stripTags(s);
+
   // Decode common entities
   s = s
     .replace(/&nbsp;/g, " ")
@@ -126,10 +211,21 @@ function htmlToMarkdown(html, fallbackTitle) {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+  // Restore table stashes — now safe because tag-stripping is done.
+  // Wrap each in a ```html fenced block; markdownImporter Phase A
+  // recognises the fence as a textblock codeBlock node, preserving
+  // the table as a faithful preview until the user / AI promotes it
+  // to a kind:"table" container.
+  if (tableStash.length) {
+    s = s.replace(/__MODULI_TABLE_STASH_(\d+)__/g, (_, idx) => {
+      const raw = tableStash[Number(idx)] || "";
+      return `\`\`\`html\n${raw}\n\`\`\``;
+    });
+  }
   // Collapse 3+ newlines
   s = s.replace(/\n{3,}/g, "\n\n").trim();
   // Prepend a top-level heading if not present
-  if (!s.startsWith("#")) s = `# ${fallbackTitle}\n\n${s}`;
+  if (fallbackTitle && !s.startsWith("#")) s = `# ${fallbackTitle}\n\n${s}`;
   return s;
 }
 

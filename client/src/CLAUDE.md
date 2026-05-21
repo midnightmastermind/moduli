@@ -550,8 +550,69 @@ operation:
     allowlist on the server (need a tiny server-side check —
     `socketHandlers/occurrences.js:91-124`).
 
-#### 6.5. Drag-to-import: paste/drop text → native doc tree (Wikipedia smoke test)
-**Added 2026-05-21.** First-class drop-target conversion of arbitrary
+#### 6.5. Drag-to-import: paste/drop text → native doc tree (Wikipedia smoke test) — **PARTIAL 2026-05-21**
+**Phase A converter + REST endpoint landed.** Still missing: client
+drop handler + markdownImporter image/table extensions (image
+`![alt](src)` → artifact-role module; pipe-table markdown → kind:"table"
+container or fast-path fenced textblock). Until those land the drop
+flow falls back to text-only conversion.
+
+**Landed 2026-05-21:**
+- **`server/services/wikipediaTools.js` `htmlToMarkdown` is now
+  exported + configurable** via opts: `keepImages` / `keepTables` /
+  `keepFigures` / `stripClasses`. Defaults preserve the existing
+  Wikipedia-summary stripping behavior (legacy callers byte-
+  identical); the drop pipeline opts ALL ON to keep media.
+  - Image conversion: `<img>` → `![alt](src)` with independent
+    attribute regexes (HTML attr order isn't guaranteed).
+  - Figure conversion: `<figure><img><figcaption>` → image markdown
+    + italic caption paragraph.
+  - Table conversion: raw `<table>` HTML stashed as a placeholder
+    BEFORE later inline-mark / tag-stripping passes (which would
+    otherwise mangle the raw HTML inside the fence), then restored
+    as a fenced ```html block at the very end. markdownImporter
+    renders fenced code as a textblock codeBlock node — a faithful
+    preview until the user/AI promotes it to a `kind:"table"` container.
+- **`POST /api/v1/import/html`** wraps the above in a REST endpoint:
+  body `{ gridId, parentId?, html, title?, keepImages?, keepTables?,
+  keepFigures?, stripClasses?, dryRun? }` → runs htmlToMarkdown →
+  markdownToModuli → broadcasts `module_created`/`occurrence_created`
+  to the user's socket room (no broadcast when `dryRun`). Returns
+  `{ rootOccurrenceId, stats, modules, occurrences, markdown }`.
+  Image markdown lands in the importer but currently passes through
+  as inline alt text — see "still ahead" below.
+- **16 regression tests** in `server/__tests__/htmlToMarkdown.test.js`
+  covering default stripping, each option's positive case, image src/alt
+  attribute-order robustness, the table-fence-doesn't-get-stripped
+  property, custom `stripClasses`, and the combined Wikipedia-shape
+  document smoke test.
+
+**Still ahead (in order):**
+1. **markdownImporter image handling** — recognise the
+   `![alt](src)` markdown emitted by htmlToMarkdown and mint a
+   `role:"artifact"` module with `kind: "image"` + `fileRef: <src>`
+   (for `http(s)://` URLs the renderer just uses the absolute src;
+   no upload yet). Parent the artifact occurrence under the
+   surrounding container so the layout reads top-to-bottom.
+2. **markdownImporter table handling** — fast path: recognize the
+   `` ```html `` fenced block htmlToMarkdown emits and route the
+   raw HTML into a textblock codeBlock node that renders as-is.
+   Phase B promotes to a real `kind:"table"` container.
+3. **Client drop entry point** — extend
+   `client/src/helpers/dropHandlers.js` external/file drop branch
+   to also process `dataTransfer.types` containing `text/html`.
+   Browsers expose the highlighted content's `outerHTML` on
+   drag from another tab — that's the only way to capture
+   structure. POST to `/api/v1/import/html` with the user's
+   Bearer token. Fall back to `text/plain` when HTML is absent.
+4. **Drop UX** — preview pill ("Convert → Doc tree"), conflict
+   handling when dropping onto a container vs an empty grid cell,
+   undo-friendly commit.
+5. **AI refinement hook** — see the original docket entry above
+   for the registry of element handlers + site adapters the AI
+   plugs into.
+
+**Original docket text (unchanged below):** First-class drop-target conversion of arbitrary
 external content into our `container / instance / textblock`
 hierarchy. The AI assistant will lean on this same pipeline later
 for document refinement; this is the deterministic starting point

@@ -673,6 +673,40 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
+  // POST /import/html — Phase A of the drag-to-import pipeline (see
+  // client/src/CLAUDE.md big-feature #6.5). Two stages chained:
+  //   1. htmlToMarkdown(html, { keepImages, keepTables, keepFigures })
+  //   2. markdownToModuli(markdown) — re-uses the existing Phase A
+  //      importer so the resulting tree shape matches /import/markdown.
+  // Defaults keep images + tables + figures because the drop pipeline
+  // wants the FULL document including media. Callers that want the
+  // Wikipedia-summary stripping behavior can pass keepImages:false etc.
+  router.post("/import/html", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { htmlToMarkdown } = await import("../services/wikipediaTools.js");
+      const { markdownToModuli } = await import("../services/markdownImporter.js");
+      const {
+        gridId, parentId = null, html, dryRun = false, title = "",
+        keepImages = true, keepTables = true, keepFigures = true,
+        stripClasses,
+      } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      if (typeof html !== "string") return err(res, 400, "validation_error", "html (string) required");
+      const markdown = htmlToMarkdown(html, title, {
+        keepImages, keepTables, keepFigures,
+        ...(stripClasses ? { stripClasses } : {}),
+      });
+      const result = await markdownToModuli({
+        gridId, parentId, userId: req.userId, markdown, dryRun, title,
+      });
+      if (!dryRun) {
+        for (const m of result.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
+        for (const o of result.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
+      }
+      res.json({ ...result, markdown });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   // ====================================================================
   // RESEARCH — Wikipedia tools for Jarvis. See docs/assistant-guide.md.
   // ====================================================================
