@@ -2,6 +2,22 @@
 
 _Updated: 2026-05-20. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-05-20 — Canvas edges: DOM-rect anchors + unified undo)
+- **`CanvasContent.cardCenterFor`** now queries each card's actual
+  DOM rect (via `surfaceRef.current.querySelector("[data-occurrence-id=…],
+  [data-occ-id=…]")` with `CSS.escape`) and translates to world coords
+  by subtracting the world div's bounding rect. Edges anchor at the
+  visual center of tall containers (200+ px) instead of 30px below
+  their top. Falls back to fixed `CARD_W=180, CARD_H=60` when the card
+  isn't in the DOM (mid-paste, off-screen, etc.).
+- **Unified undo stack** — new typed `history` state alongside
+  `redoStack`. Each entry is `{ type: "stroke-add" | "edge-add" |
+  "edge-delete", payload }`. Undo button now rolls back the most
+  recent action regardless of type; redo replays. `canUndo` gate is
+  `history.length > 0` (was `strokes.length > 0`, which left undo
+  grayed-out on canvases with only edge actions). Three sites push:
+  stroke commit, connect-drag completion, connect-mode edge click.
+
 ## Recent Changes (2026-05-20 — Canvas connect tool + edge persistence)
 - **`CanvasContent.jsx`**: Added a `connect` tool to `DRAW_TOOLS`
   (Link2 lucide icon). When active, pointer-press on a card starts an

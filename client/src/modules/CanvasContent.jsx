@@ -789,15 +789,38 @@ export const CanvasContent = React.memo(function CanvasContent({
   const sep = <div style={{ width: 1, height: 18, background: "var(--border-subtle)", margin: "0 2px" }} />;
 
   // ─── Edge geometry ─────────────────────────────────────────────────────
-  // Approximate card-center as `meta.x + halfW, meta.y + halfH` using a
-  // fixed (CARD_W, CARD_H) since cards are sized to a typical card shape
-  // (matches the CanvasSlot 160-300px width). The real DOM rect would be
-  // more accurate but would force a measurement pass every render; the
-  // fixed offset reads cleanly in 95% of cases and avoids that cost.
+  // Card center for edge anchoring. Tries the DOM rect first so tall
+  // containers (200+px) anchor at their visual center, not 30px below
+  // their top. World coords come from subtracting the world div's
+  // viewport rect from the card's — both are bounding-client rects so
+  // scroll cancels out. Falls back to fixed (CARD_W, CARD_H) when the
+  // card isn't in the DOM yet (mid-paste, off-screen render, etc.).
+  //
+  // The query is scoped to surfaceRef so we never accidentally hit a
+  // matching card in another canvas page mounted elsewhere.
+  // `cardPosTick` (bumped by the itemsKey effect) forces this to
+  // recompute when meta.x/y changes on any card.
   const CARD_W = 180;
   const CARD_H = 60;
   const cardCenterFor = (occId) => {
     if (!occId) return null;
+    const surface = surfaceRef.current;
+    const worldEl = surface?.querySelector(".canvas-world");
+    if (worldEl) {
+      // CSS.escape so UUIDs / odd characters don't break the selector.
+      const sel = `[data-occurrence-id="${CSS.escape(occId)}"], [data-occ-id="${CSS.escape(occId)}"]`;
+      const cardEl = worldEl.querySelector(sel);
+      if (cardEl) {
+        const wRect = worldEl.getBoundingClientRect();
+        const cRect = cardEl.getBoundingClientRect();
+        return {
+          x: cRect.left - wRect.left + cRect.width / 2,
+          y: cRect.top - wRect.top + cRect.height / 2,
+        };
+      }
+    }
+    // Fallback: meta-based estimate. Used pre-mount and during DnD
+    // when the card briefly detaches.
     const it = (itemsWithOccurrences || []).find(x => x.occurrence?.id === occId);
     if (!it) return null;
     const m = it.occurrence?.meta || {};

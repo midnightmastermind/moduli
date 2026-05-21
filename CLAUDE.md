@@ -47,7 +47,10 @@ Test results last refresh: **37 files / 731 tests passing** (see `test-results.t
 ### Multi-select deep-paste (added in review fixups)
 - [ ] Shift-select a CONTAINER with children → Copy → paste into another container → new container appears with copies of all its children (not an empty shell)
 - [ ] Pasted children preserve fields + iteration mode from source
+- [ ] **Copy-link a container with children** → paste into another container → toggling a field in the new linked container's child propagates back to the source's matching child (per-pair linked groups)
 - [ ] Move-mode on a container still re-parents the existing container (children come along because they're parented to it)
+- [ ] **Shallow paste preserves iterationMode** — copy a persistent leaf instance; the new occurrence is still persistent (not silently demoted to specific)
+- [ ] **Canvas edges anchor at card center** even for tall containers — edges land mid-card instead of 30px below the top
 
 ### Socket status pill (shipped this session)
 - [ ] Throttle Network → Offline in DevTools → red pulsing pill appears right of logo: "Disconnected — retrying (N)" with N incrementing

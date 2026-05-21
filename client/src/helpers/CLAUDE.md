@@ -13,9 +13,19 @@ _Updated: 2026-05-20. Check this file before re-reading source._
     capped at 24), mints fresh ids at every level, deep-copies fields,
     preserves iteration mode, then `emitCloneSubtree` pushes
     parent-first through `CommitHelpers.createOccurrence`. Leaf-only
-    sources fall back to `LayoutHelpers.copyInstanceToContainer` so
-    they keep firing the existing `OccurrenceCreateOp` + per-field
-    `MeasureOp` triggers.
+    sources fall back to `LayoutHelpers.copyInstanceToContainer` —
+    iterationMode and iterationValue now passed through from
+    `src.iteration` so persistent items don't silently demote to
+    specific.
+  - `copylink` → **deep linked clone** when source has children:
+    `buildLinkedSubtree` is the same shape as `buildCloneSubtree` but
+    each level emits a `linkedGroupId` derived from the source
+    occurrence's id (or any existing group). The source itself gets
+    tagged via `updateOccurrence` when it had no group, so the
+    server's `update_occurrence` linked-group fan-out propagates
+    writes pairwise between source and clone at every level. Leaf-
+    only sources still call `LayoutHelpers.copylinkInstanceToContainer`
+    with iterationMode passed through.
   - `copylink` → `LayoutHelpers.copylinkInstanceToContainer` per id
     (mints fresh occurrences sharing `moduleId` + `linkedGroupId`;
     assigns a group to the source if it had none — server fan-out
