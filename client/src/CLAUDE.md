@@ -449,7 +449,65 @@ operation:
     allowlist on the server (need a tiny server-side check —
     `socketHandlers/occurrences.js:91-124`).
 
-#### 7. Project kanban example in live data
+#### 7. Project kanban example in live data — **PARTIAL 2026-05-21**
+Foundation landed (commit pending):
+- New **`Projects` folder** under root manifest, sortOrder 6. Starts
+  EMPTY in the seed — the user mints projects via the
+  `Project: Create` op (mirrors how Day Pages folder fills up via
+  `Day Page: Build` over time).
+- **Project Page template** in the Templates manifest, built by
+  `buildProjectTemplate(...)` (new helper in `server/utils/
+  liveSystemBuilders.js`). Uses the SAME bracket-token replacement
+  technique as the Day Page template:
+  - Root page module: label `Project: {ProjectName}`,
+    `meta.templateModule: true`, `meta.templateName: "Project Page"`.
+  - Kanban board container (`role:"container" kind:"board"`) holding
+    6 empty column sub-containers in spec'd order: Backburner /
+    Docket / Working On / In Review / Test / Complete. Each column
+    carries `meta.identitySignature: "kanbanCol:<key>"` so
+    APPLY_TEMPLATE merge-mode treats re-apply as identity (no dupe
+    columns).
+  - Project Scope textblock below the kanban with TipTap doc
+    containing skeleton sections (Overview / Goals / Milestones /
+    Risks / Success Criteria). The `{ProjectScope}` token in the
+    Overview paragraph gets replaced at instantiation; the
+    `{ProjectName}` token in the H1 too.
+  - All columns empty — user adds tasks after instantiation. NO
+    hardcoded tasks per user direction.
+- **`Project: Create` op** (`makeProjectCreateOp` in the same file).
+  `triggerType: "manual"` — fires only on explicit user invoke.
+  Takes optional `$projectName` + `$projectScope` vars (defaults
+  `"Untitled"` / `"—"`), then APPLY_TEMPLATEs the Project Page
+  template into the Projects folder with `replacements: {
+  "{ProjectName}": "$projectName", "{ProjectScope}": "$projectScope" }`.
+  Idempotency: skips if a page named `Project: <name>` already
+  exists in `$allPages`.
+- **New fields** (in the regular fields block, available for any
+  module to bind):
+  - `status` — select (6 manual options matching the kanban column
+    labels). Input-enabled, no display.
+  - `project` — occurrence-ref with find-mode optionsSource scoped
+    to `$allPages` filtered by `label STARTS_WITH "Project:"`.
+    Lets the Todo List page surface project-scoped tasks
+    unambiguously.
+
+Still TODO (next session):
+- **Status Router op** — onChange statusFieldId trigger; moves the
+  canonical task occurrence between kanban columns AND
+  bidirectionally syncs to the Todo List page's Backburner +
+  Docket containers via linkedGroupId. Uses the existing server
+  `update_occurrence` linked-group fan-out.
+- **Cross-page COPY_LINK** from kanban tasks to Todo List
+  Backburner/Docket containers (so tasks show up in both places
+  with shared state). Likely a `Project: Sync To Todo` op or a
+  drop-handler hook.
+- **GET_USER_INPUT integration** so `Project: Create` can prompt
+  for the project name inline instead of always defaulting to
+  "Untitled". Currently the user has to manually edit the page
+  title post-mint. (GET_USER_INPUT is already on the original
+  docket — see below.)
+
+Original spec retained below:
 A made-up example project to demonstrate kanban + cross-page
 linked tasks + bidirectional state ops. Lives in the live-data
 seed.

@@ -43,8 +43,10 @@ import {
   buildTemplatesManifest,
   buildDailyRoutineTemplate,
   buildDayPageTemplate,
+  buildProjectTemplate,
   makeScheduleBuildScheduleOp,
   makeDayPageBuildOp,
+  makeProjectCreateOp,
   makeDayPageBuildTasksCompletedOp,
   makeStampDateTimeSlotOp,
   makeClearDateOnMoveOutOp,
@@ -173,6 +175,18 @@ export async function createLiveData(userId, options = {}) {
   // Courses Taken fields
   const coursesTakenFieldId           = uid();
   const coursesTakenDisplayFieldId    = uid();
+
+  // Project kanban fields — Status select (6 options matching the agile
+  // kanban columns) + Project occurrence-ref (lets a single Todo List
+  // surface tasks across multiple projects unambiguously by checking
+  // this field instead of relying on container ancestry).
+  const statusFieldId  = uid();
+  const projectFieldId = uid();
+  // Projects folder — root of every per-project page minted by
+  // Project: Create. Starts empty in the seed; the user mints projects
+  // via the operation (mirrors how Day Pages folder gets filled by
+  // Day Page: Build over time).
+  const projectsFolderId = uid();
 
   // Library page + container IDs (need before occurrences are created)
   const libraryPageModId  = uid();
@@ -1022,6 +1036,60 @@ export async function createLiveData(userId, options = {}) {
         ],
       },
     },
+    // ── PROJECT KANBAN FIELDS ─────────────────────────────────────────────
+    // Two new fields for the agile kanban demo (Project: Moduli v1 Launch).
+    // status: 6-option select mirroring the kanban column labels. The
+    // Status Router op (deferred to a future seed pass) listens for
+    // onChange on this field and moves the canonical task occurrence into
+    // the matching column container.
+    status: {
+      id: statusFieldId,
+      name: "Status",
+      type: "select",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: {
+        optionsSource: {
+          mode: "manual",
+          values: [
+            "Backburner",
+            "Docket",
+            "Working On",
+            "In Review",
+            "Test",
+            "Complete",
+          ],
+        },
+      },
+    },
+    // project: occurrence-ref pointing at a project page. Lets a single
+    // Todo List page surface tasks across many projects without
+    // ambiguous container ancestry. Find-mode scope: instances whose
+    // module label starts with "Project:" — keeps the picker tight.
+    project: {
+      id: projectFieldId,
+      name: "Project",
+      type: "occurrence",
+      inputEnabled: true,
+      displayEnabled: true,
+      meta: {
+        optionsSource: {
+          mode: "find",
+          find: {
+            over: "$allPages",
+            predicate: {
+              conjunction: "AND",
+              rules: [
+                { left: "label", comparator: "STARTS_WITH", right: "Project:" },
+              ],
+            },
+            valuePath: "id",
+            labelPath: "label",
+          },
+        },
+      },
+    },
+
     // accountSelect (legacy string-options) removed per B4. accountRef
     // (occurrence-pointer → Accounts page instance) replaces it on every
     // amount-bearing task.
@@ -3695,6 +3763,9 @@ export async function createLiveData(userId, options = {}) {
   await new Folder({ id: notesFolderId,      userId, gridId, name: "Notes",      parentId: rootFolderId, folderType: "normal",    sortOrder: 3, isExpanded: true }).save();
   await new Folder({ id: dayPagesFolderId,   userId, gridId, name: "Day Pages",  parentId: rootFolderId, folderType: "day-pages", sortOrder: 4, isExpanded: true }).save();
   await new Folder({ id: libraryFolderId,    userId, gridId, name: "Library",    parentId: rootFolderId, folderType: "normal",    sortOrder: 5, isExpanded: true }).save();
+  // Projects folder — root of every per-project page. Demo data seeds one
+  // project (Moduli v1 Launch); future projects mint sibling pages here.
+  await new Folder({ id: projectsFolderId,   userId, gridId, name: "Projects", parentId: rootFolderId, folderType: "normal",    sortOrder: 6, isExpanded: true }).save();
 
   // ── Category folders (Command Center: Fields + Operations grouping) ────────
   // folderType: "category" is the marker FieldsTab + OperationsTab read off of
@@ -3761,6 +3832,17 @@ export async function createLiveData(userId, options = {}) {
     dateFieldId,
     journalQuestionFieldId,
     journalAnswerFieldId,
+  });
+
+  // Project page template — generic, user-editable subtree in the
+  // Templates manifest. Uses {ProjectName} + {ProjectScope} placeholder
+  // tokens that Project: Create swaps via APPLY_TEMPLATE replacements
+  // at instantiation time. Mirrors the Day Page template / Daily Routine
+  // pattern. Tasks aren't seeded — the user adds them after the project
+  // page is minted.
+  await buildProjectTemplate({
+    userId, gridId, tplManifestRootFolderId, mkOcc, Module,
+    statusFieldId, projectFieldId,
   });
 
   // ── STEP 7c: Notebook docs parsed into DB textmaps ──────────────────────────
@@ -4151,6 +4233,12 @@ export async function createLiveData(userId, options = {}) {
   // null sentinels so downstream `Object.assign` / panel-pin lookups
   // don't ReferenceError before they get filtered out.
   const canvasPageModId = null; const canvasPageOccId = null;
+
+  // Project kanban template + Project: Create op are wired in STEP 7b
+  // (template manifest build). See `buildProjectTemplate` in
+  // liveSystemBuilders.js. The Projects folder above starts EMPTY —
+  // the user mints new project pages via the Project: Create op
+  // (mirroring how Day Page: Build mints day pages per date).
 
   // Library page — pinned to manifest Library folder only; no grid panel (grid is 2×3 full).
   // filterOverride:{} so the library is always visible regardless of the active date filter.
@@ -6496,6 +6584,12 @@ export async function createLiveData(userId, options = {}) {
   // Runs at priority 4 — after Build Day, Stamp, and trackers — so the
   // completion state and date stamps it reads are settled.
   await new Operation(makeDayPageBuildTasksCompletedOp({ userId, gridId, dateFieldId, completedFieldId, isTaskFieldId })).save();
+  // Project: Create — APPLY_TEMPLATEs the Project Page template into
+  // the Projects folder with {ProjectName} + {ProjectScope} replacements.
+  // triggerType:"manual" so it only fires when the user explicitly runs
+  // it (no spontaneous activity). Mirrors Day Page: Build's
+  // idempotency-by-label pattern.
+  await new Operation(makeProjectCreateOp({ userId, gridId, projectsFolderId })).save();
   await new Operation(makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, lastSeenFieldId, hubPanelModuleId: panelModuleIds.notebook })).save();
   await new Operation(makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId })).save();
 

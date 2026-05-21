@@ -395,6 +395,177 @@ export async function buildDayPageTemplate({
   return tplDayPageRootOccId;
 }
 
+// ── Project template ─────────────────────────────────────────────────────────
+// User-defined template subtree for kanban-style project pages. The
+// shape mirrors the Day Page template: real modules + occurrences in
+// the Templates manifest carrying placeholder tokens
+// (`{ProjectName}`, `{ProjectScope}`) that APPLY_TEMPLATE replaces when
+// the user instantiates a new project. The user can edit the template
+// itself (add fields, reorder columns, change the scope skeleton) and
+// every future Project: Create from it picks up the edits.
+//
+// Layout:
+//   Project: {ProjectName}     (role:page, kind:doc)
+//     ├─ Kanban                (role:container, kind:board)
+//     │   ├─ Backburner / Docket / Working On / In Review / Test / Complete
+//     │   │   (role:container, kind:list — each carries identitySignature
+//     │   │    so APPLY_TEMPLATE merge mode doesn't dupe columns on re-apply)
+//     └─ Project Scope         (role:textblock, kind:doc)
+//        textmap: H1 + intro paragraph using {ProjectScope} token
+//
+// Returns the root template occurrence id so callers can reference it
+// in operation cfg.templateId.
+export async function buildProjectTemplate({
+  userId,
+  gridId,
+  tplManifestRootFolderId,
+  mkOcc,
+  Module,
+  statusFieldId = null,
+  projectFieldId = null,
+}) {
+  // ── Root page module ──────────────────────────────────────────────────────
+  const tplProjectPageModId = uid();
+  await new Module({
+    id: tplProjectPageModId, userId, gridId,
+    role: "page", kind: "doc",
+    label: "Project: {ProjectName}",
+    meta: { templateModule: true },
+  }).save();
+
+  // ── Kanban board container module ─────────────────────────────────────────
+  const tplProjectKanbanModId = uid();
+  await new Module({
+    id: tplProjectKanbanModId, userId, gridId,
+    role: "container", kind: "board", label: "Kanban",
+    meta: { templateModule: true },
+  }).save();
+
+  // ── 6 kanban column container modules ─────────────────────────────────────
+  // Order + labels are spec'd. Distinct background tints follow the
+  // agile heat gradient (cool → warm as work moves toward done).
+  // identitySignature on each column keeps APPLY_TEMPLATE merge mode
+  // from duplicating columns on re-apply.
+  const PROJECT_KANBAN_COLS = [
+    { key: "backburner", label: "Backburner", bg: "#3b4252" },
+    { key: "docket",     label: "Docket",     bg: "#4c566a" },
+    { key: "workingOn",  label: "Working On", bg: "#5e6b88" },
+    { key: "inReview",   label: "In Review",  bg: "#7c6f8f" },
+    { key: "test",       label: "Test",       bg: "#a88a72" },
+    { key: "complete",   label: "Complete",   bg: "#5d8a6b" },
+  ];
+  const tplKanbanColModIds = {};
+  const tplKanbanColOccIds = {};
+  for (const col of PROJECT_KANBAN_COLS) {
+    const modId = uid();
+    tplKanbanColModIds[col.key] = modId;
+    tplKanbanColOccIds[col.key] = uid();
+    await new Module({
+      id: modId, userId, gridId,
+      role: "container", kind: "list", label: col.label,
+      styleMode: "own", ownStyle: { bg: col.bg },
+      meta: {
+        templateModule: true,
+        identitySignature: `kanbanCol:${col.key}`,
+      },
+    }).save();
+  }
+
+  // ── Project scope textblock module ────────────────────────────────────────
+  const tplProjectScopeModId = uid();
+  await new Module({
+    id: tplProjectScopeModId, userId, gridId,
+    role: "textblock", kind: "doc", label: "Project Scope",
+    meta: { templateModule: true },
+  }).save();
+
+  // ── Occurrences ───────────────────────────────────────────────────────────
+  // Top-down: root → kanban → columns (empty), then scope textblock.
+  const tplProjectPageOccId   = uid();
+  const tplProjectKanbanOccId = uid();
+  const tplProjectScopeOccId  = uid();
+
+  // Kanban columns — empty occurrences (no seeded tasks). The user
+  // creates tasks inside columns after instantiation, OR a future
+  // op can seed example tasks.
+  for (const col of PROJECT_KANBAN_COLS) {
+    await mkOcc({
+      id: tplKanbanColOccIds[col.key],
+      moduleId: tplKanbanColModIds[col.key],
+      targetId: tplKanbanColModIds[col.key], targetType: "module",
+      parentId: tplProjectKanbanOccId,
+      iteration: { mode: "persistent" }, fields: {},
+      occurrences: [],
+    });
+  }
+
+  // Kanban board occurrence — lists the 6 columns in left-to-right order.
+  await mkOcc({
+    id: tplProjectKanbanOccId,
+    moduleId: tplProjectKanbanModId,
+    targetId: tplProjectKanbanModId, targetType: "module",
+    parentId: tplProjectPageOccId,
+    iteration: { mode: "persistent" }, fields: {},
+    occurrences: PROJECT_KANBAN_COLS.map(c => tplKanbanColOccIds[c.key]),
+  });
+
+  // Project scope textblock — H1 + skeleton sections + {ProjectScope}
+  // placeholder. APPLY_TEMPLATE's `replacements` cfg swaps tokens at
+  // instantiation; everything else (the section headings + structure)
+  // is preserved so every new project page lands with a scope skeleton
+  // ready to fill in.
+  await mkOcc({
+    id: tplProjectScopeOccId,
+    moduleId: tplProjectScopeModId,
+    targetId: tplProjectScopeModId, targetType: "module",
+    parentId: tplProjectPageOccId,
+    iteration: { mode: "persistent" }, fields: {},
+    textmap: {
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Project Scope — {ProjectName}" }] },
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Overview" }] },
+        { type: "paragraph", content: [{ type: "text", text: "{ProjectScope}" }] },
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Goals" }] },
+        { type: "bulletList", content: [
+          { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Goal 1" }] }] },
+          { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Goal 2" }] }] },
+        ]},
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Milestones" }] },
+        { type: "bulletList", content: [
+          { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "M1" }] }] },
+        ]},
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Risks" }] },
+        { type: "paragraph", content: [{ type: "text", text: "—" }] },
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Success Criteria" }] },
+        { type: "paragraph", content: [{ type: "text", text: "—" }] },
+      ],
+    },
+    occurrences: [],
+  });
+
+  // Root project page occurrence — its `occurrences[]` lists kanban
+  // first, then the scope textblock. textmap embeds them in the same
+  // order so the rendered doc body reads kanban → scope.
+  await mkOcc({
+    id: tplProjectPageOccId,
+    moduleId: tplProjectPageModId,
+    targetId: tplProjectPageModId, targetType: "module",
+    parentId: tplManifestRootFolderId,
+    occurrences: [tplProjectKanbanOccId, tplProjectScopeOccId],
+    textmap: {
+      type: "doc",
+      content: [
+        { type: "moduleEmbed", attrs: { occurrenceId: tplProjectKanbanOccId } },
+        { type: "moduleEmbed", attrs: { occurrenceId: tplProjectScopeOccId } },
+      ],
+    },
+    meta: { templateName: "Project Page", templateModule: true },
+  });
+
+  return tplProjectPageOccId;
+}
+
 // ── Schedule / Day-Page operation factories ──────────────────────────────────
 // Each factory returns the plain object literal passed to `new Operation(obj)`.
 // The caller is responsible for `.save()`. All uid() calls are inline so every
@@ -1167,6 +1338,83 @@ export function makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolder
                     type: "ADD_CHILD",
                     parentId: hubPanelOccIdVar,
                     childId: "$newDayPageId",
+                }},
+              ],
+              else: [],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+  };
+}
+
+// ── Project: Create ──────────────────────────────────────────────────────────
+// User-triggered op (triggerType: "manual" — fires only when invoked
+// explicitly) that APPLY_TEMPLATEs the Project Page template into the
+// Projects folder. Two caller-supplied vars:
+//   - $projectName  → fills the {ProjectName} token in the page label
+//                     and scope heading
+//   - $projectScope → fills the {ProjectScope} placeholder paragraph
+// Both default to deterministic strings if absent, so a no-arg invoke
+// from the in-app run button still mints a usable scaffold.
+//
+// Mirrors Day Page: Build's idempotency-by-label pattern — checks for an
+// existing page named "Project: {ProjectName}" before APPLY_TEMPLATE so
+// repeated invocations don't dupe.
+export function makeProjectCreateOp({ userId, gridId, projectsFolderId }) {
+  return {
+    id: uid(), userId, gridId, name: "Project: Create",
+    description: "Mint a new project page from the Project Page template into the Projects folder. Args: $projectName (default 'Untitled'), $projectScope (default '—'). Idempotent by label.",
+    triggerType: "manual",
+    triggerTypes: ["manual"],
+    triggerObjects: [],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // Default args if the caller didn't supply them.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectName",  expr: "$projectName",  fallback: "literal:Untitled" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectScope", expr: "$projectScope", fallback: "literal:—" } },
+        // Deterministic page name (idempotency key).
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectPageName", expr: "Project: ${$projectName}" } },
+        // Already minted for this name?
+        { id: uid(), type: "action", config: {
+            type: "FIND", over: "$allPages",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "label", comparator: "IS", right: "$projectPageName" },
+            ]},
+            itemIdVar: "$existingProjectPageId",
+        }},
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$existingProjectPageId", comparator: "IS_EMPTY", right: "" }] },
+          then: [
+            // Locate the Project Page template root.
+            { id: uid(), type: "action", config: {
+                type: "FIND", over: "$allOccurrences",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "meta.templateName", comparator: "IS", right: "Project Page" },
+                ]},
+                itemIdVar: "$projectTplId",
+            }},
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$projectTplId", comparator: "IS_NOT_EMPTY", right: "" }] },
+              then: [
+                // APPLY_TEMPLATE into the Projects folder, swapping
+                // {ProjectName} + {ProjectScope} tokens via replacements.
+                { id: uid(), type: "action", config: {
+                    type: "APPLY_TEMPLATE",
+                    templateRef: "$projectTplId",
+                    rootParent: projectsFolderId,
+                    rootLabel: "$projectPageName",
+                    replacements: {
+                      "{ProjectName}":  "$projectName",
+                      "{ProjectScope}": "$projectScope",
+                    },
+                    rootIdVar: "$newProjectPageId",
                 }},
               ],
               else: [],
