@@ -39,6 +39,7 @@ import { getEffectiveViewMode } from "../helpers/viewMode";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
+import ViewModeSection from "../ui/ViewModeSection";
 import TemplatesSection from "../ui/TemplatesSection";
 
 import {
@@ -1298,6 +1299,7 @@ function Container({
           <FiltersSection occurrence={containerOccurrence} />
           <SortSection occurrence={containerOccurrence} />
           <FieldVisibilitySection occurrence={containerOccurrence} />
+          <ViewModeSection occurrence={containerOccurrence} />
         </HeaderDropdown>
       )}
       {templatesAnchor && (

@@ -15,6 +15,7 @@ import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
+import ViewModeSection from "../ui/ViewModeSection";
 import TemplatesSection from "../ui/TemplatesSection";
 import NodePill from "./NodePill.jsx";
 import PreviewNode from "./PreviewNode.jsx";
@@ -527,6 +528,7 @@ function Page({
           <FiltersSection occurrence={occurrence} />
           <SortSection occurrence={occurrence} />
           <FieldVisibilitySection occurrence={occurrence} />
+          <ViewModeSection occurrence={occurrence} />
         </HeaderDropdown>
       )}
       {templatesAnchor && (
