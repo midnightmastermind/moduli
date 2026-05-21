@@ -780,8 +780,29 @@ export default function LayoutForm({
           </div>
         </TabsContent>
 
-        {/* STYLE TAB: Child Container Defaults, Child Instance Defaults, Insets/Padding/Variant */}
+        {/* STYLE TAB: Panel Style (own), Child Container Defaults,
+            Child Instance Defaults, Insets/Padding/Variant.
+
+            Panel Style is the panel's OWN style (writes
+            `panel.styleMode` + `panel.ownStyle`) — what the panel
+            looks like itself. Distinct from the two "pushed down"
+            editors below which set defaults for the panel's children
+            (containers and instances). The panel renderer reads
+            `panel.ownStyle` when `styleMode === "own"` so the chrome
+            (background, border, padding) honors this section. */}
         <TabsContent value="style" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1 space-y-2">
+          <StyleEditor
+            kind="panel"
+            styleMode={panel?.styleMode || "inherit"}
+            ownStyle={panel?.ownStyle}
+            onStyleModeChange={(mode) => onPanelStyleUpdate?.({ styleMode: mode })}
+            onOwnStyleChange={(style) => onPanelStyleUpdate?.({ ownStyle: style })}
+            label="Panel Style"
+            inheritLabel="Grid default"
+          />
+
+          <Separator />
+
           <StyleEditor
             kind="panel"
             styleMode={panel?.childContainerStyle ? "own" : "inherit"}

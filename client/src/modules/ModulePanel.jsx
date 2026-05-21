@@ -50,6 +50,8 @@ import {
   Layers,
   Eye,
   EyeOff,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 import Container from "./ModuleContainer.jsx";
@@ -886,6 +888,23 @@ function Panel({
                     </button>
                   );
                 })()}
+                {/* Fullscreen toggle — toggles the Grid-level
+                    fullscreenPanelId to/from this panel's id. The
+                    isFullscreen render path (line ~505 + ~704-716) was
+                    always plumbed; only the chrome was missing. */}
+                {setFullscreenPanelId && (
+                  <button
+                    className="panel-stack-btn-inline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFullscreenPanelId(isFullscreen ? null : module.id);
+                    }}
+                    title={isFullscreen ? "Exit fullscreen" : "Fullscreen this panel"}
+                    aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen this panel"}
+                  >
+                    {isFullscreen ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
+                  </button>
+                )}
               </div>
             </div>
           );
