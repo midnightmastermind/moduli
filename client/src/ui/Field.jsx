@@ -108,7 +108,7 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
           <PopoverTrigger asChild>
             <Button variant="outline" role="combobox" disabled={disabled}
               className={`w-full justify-between font-normal ${compact ? "h-6 text-xs" : "h-7 text-sm"}`}
-              style={fieldName ? { background: "rgba(6,182,212,0.08)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(103,232,249)" } : undefined}>
+              style={fieldName ? { background: "rgba(6,182,212,0.08)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(180,225,245)" } : undefined}>
               {/* occurrence field-pill: always show the field name so it reads
                   as a labelled pill (fixes "occurrence selects show no field
                   name / no pill"). */}
@@ -840,7 +840,7 @@ function Field({
             <button type="button" disabled={disabled}
               className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
                 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
-              style={{ background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(103,232,249)" }}
+              style={{ background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(180,225,245)" }}
               title={`${name}: ${currentLabel}`}
             >
               <Link2 style={{ width: 10, height: 10, opacity: 0.6 }} />
@@ -860,7 +860,7 @@ function Field({
                         width: "100%", display: "flex", alignItems: "center", padding: "4px 8px",
                         borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)",
                         background: localValue === o.value ? "rgba(6,182,212,0.15)" : "transparent",
-                        color: localValue === o.value ? "rgb(103,232,249)" : "var(--text-muted)",
+                        color: localValue === o.value ? "rgb(180,225,245)" : "var(--text-muted)",
                         border: "none", cursor: "pointer", textAlign: "left",
                       }}
                     >
@@ -1140,7 +1140,7 @@ function Field({
                 style={{
                   minHeight: 28, fontSize: 12, fontFamily: "var(--font-mono)",
                   background: "rgba(6,182,212,0.08)", border: "1px solid rgba(6,182,212,0.25)",
-                  borderRadius: 5, color: "rgb(103,232,249)", padding: "4px 8px", outline: "none",
+                  borderRadius: 5, color: "rgb(180,225,245)", padding: "4px 8px", outline: "none",
                   display: "flex", alignItems: "center", gap: 6, cursor: disabled ? "not-allowed" : "pointer",
                   textAlign: "left",
                 }}>
@@ -1351,7 +1351,7 @@ function Field({
     if (type === "occurrence") {
       return (
         <div className="field-display field-display-compact" style={{ ...pillBase,
-          background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(103,232,249)",
+          background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(180,225,245)",
         }}>
           <Link2 style={{ width: 10, height: 10, opacity: 0.6 }} />
           {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}

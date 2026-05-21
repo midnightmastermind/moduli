@@ -1181,10 +1181,10 @@ function Container({
             role="list"
             aria-label={`${module.label || "Container"} items`}
             style={{
-              // Board containers get +2px top + bottom (5/5 vs 3/5) — the
-              // kanban-style column rows were too squished against the
+              // Board containers get +2px top + bottom over the list default —
+              // the kanban-style column rows were too squished against the
               // container chrome.
-              padding: module.kind === "board" ? "5px 5px 7px 5px" : "3px 5px 5px 5px",
+              padding: module.kind === "board" ? "7px 5px 9px 5px" : "3px 5px 5px 5px",
               flex: 1, display: "flex", flexDirection: "column",
             }}
           >
