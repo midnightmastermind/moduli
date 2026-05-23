@@ -27,7 +27,7 @@ import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptions
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLinkedOccs: null, applyEffect: null, requestUserInput: null };
+export const operationsBridge = { fireOperations: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLinkedOccs: null, applyEffect: null, requestUserInput: null, importText: null };
 
 export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) {
   // Wrap dispatch to tag all socket-originated actions
@@ -1069,6 +1069,43 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     applyOperationEffect(effect, stateNow);
   };
 
+  // Pipeline IMPORT_HTML / IMPORT_MARKDOWN bridge. Emits the existing
+  // `import_text` socket event (server/socketHandlers/import.js) and
+  // returns a Promise that resolves with `{ rootOccurrenceId, stats }`
+  // when the matching `import_text_result` acks. The server broadcasts
+  // module_created + occurrence_created for every minted entity in the
+  // same flow, which the existing store handlers absorb — pipeline
+  // callers only need the root id to chain MOVE_OCCURRENCE / UPDATE
+  // steps against the imported subtree.
+  operationsBridge.importText = ({ content, format = "auto", parentId = null, title = "Imported", htmlOpts = {}, timeoutMs = 60000 } = {}) => {
+    return new Promise((resolve, reject) => {
+      if (!content) { reject(new Error("IMPORT: content required")); return; }
+      const stateNow = stateRef?.current || {};
+      const gridId = stateNow.gridId || stateNow.grid?._id;
+      if (!gridId) { reject(new Error("IMPORT: no active gridId")); return; }
+      if (typeof socket?.emit !== "function") { reject(new Error("IMPORT: socket unavailable")); return; }
+      const requestId = (crypto?.randomUUID?.() || `imp-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      const timer = setTimeout(() => {
+        socket.off?.("import_text_result", onResult);
+        reject(new Error("IMPORT timed out"));
+      }, Math.min(120000, Math.max(1000, Number(timeoutMs) || 60000)));
+      const onResult = (resp) => {
+        if (!resp || resp.requestId !== requestId) return;
+        clearTimeout(timer);
+        socket.off?.("import_text_result", onResult);
+        if (resp.ok) {
+          resolve({ rootOccurrenceId: resp.rootOccurrenceId, stats: resp.stats || {}, detectedFormat: resp.detectedFormat || format });
+        } else {
+          reject(new Error(`IMPORT failed: ${resp.error || "unknown error"}`));
+        }
+      };
+      socket.on("import_text_result", onResult);
+      socket.emit("import_text", {
+        content, format, gridId, parentId, title, htmlOpts, requestId,
+      });
+    });
+  };
+
   // On transaction_created: fire operations + toast notification
   function onTransactionCreated({ transaction } = {}) {
     if (!transaction) return;
@@ -1287,6 +1324,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     operationsBridge.getLocalOcc = null;
     operationsBridge.getLinkedOccs = null;
     operationsBridge.applyEffect = null;
+    operationsBridge.importText = null;
     clearInterval(scheduleInterval);
     if (bc) { bc.close(); bc = null; }
     socket.off("full_state", onFullState);

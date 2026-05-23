@@ -1,5 +1,5 @@
 import React, { useState, useContext, useMemo } from "react";
-import CategoryPathPicker from "../CategoryPathPicker";
+import DrilldownPicker from "../DrilldownPicker";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig } from "../categoryRegistry";
 import ConditionGroup from "../../blocks/ConditionGroup";
 import { GridActionsContext } from "../../GridActionsContext";
@@ -263,7 +263,7 @@ function FindBody({ source, onChange }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div>
         <div style={sectionLabel}>Search in</div>
-        <CategoryPathPicker
+        <DrilldownPicker
           value={find.over}
           config={COLLECTION_PICKER_CONFIG}
           onChange={(over) => patch({ over })}
@@ -287,7 +287,7 @@ function FindBody({ source, onChange }) {
 
       <div>
         <div style={sectionLabel}>Grab value</div>
-        <CategoryPathPicker
+        <DrilldownPicker
           value={find.valuePath}
           config={leftConfig}
           onChange={(valuePath) => patch({ valuePath })}
@@ -296,7 +296,7 @@ function FindBody({ source, onChange }) {
 
       <div>
         <div style={sectionLabel}>Grab label (optional — same as value when empty)</div>
-        <CategoryPathPicker
+        <DrilldownPicker
           value={find.labelPath || ""}
           config={leftConfig}
           onChange={(labelPath) => patch({ labelPath: labelPath || undefined })}
@@ -306,7 +306,7 @@ function FindBody({ source, onChange }) {
       <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
         <div style={{ flex: 1 }}>
           <div style={sectionLabel}>Sort by (optional)</div>
-          <CategoryPathPicker
+          <DrilldownPicker
             value={find.sortPath || ""}
             config={leftConfig}
             onChange={(sortPath) => patch({ sortPath: sortPath || undefined })}

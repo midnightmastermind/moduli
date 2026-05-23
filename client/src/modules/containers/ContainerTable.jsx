@@ -26,7 +26,7 @@ import {
 } from "../../helpers/fieldVisibilityAutoAppend";
 import { uid } from "../../uid";
 import Editor from "../../ui/Editor.jsx";
-import CategoryPathPicker from "../../ui/CategoryPathPicker.jsx";
+import DrilldownPicker from "../../ui/DrilldownPicker.jsx";
 import ModuleInstance from "../ModuleInstance.jsx";
 import ModuleContainer from "../ModuleContainer.jsx";
 import { CellEmbedContext } from "../../docs/CellEmbedContext.js";
@@ -949,7 +949,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     persist({ ...table, columns: nextCols });
   }, [columns, persist, table]);
 
-  // Build the field picker config — reuse the same CategoryPathPicker pattern
+  // Build the field picker config — reuse the same DrilldownPicker pattern
   // as InstanceForm's FieldsSection: single flat category, one-click commit.
   const allFields = useMemo(
     () => Object.values(fieldsById || {}),
@@ -1271,7 +1271,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                         {/* Show field picker or the Show field trigger */}
                         {fieldPickerCol === c ? (
                           <div className="table-kebab-field-picker">
-                            <CategoryPathPicker
+                            <DrilldownPicker
                               value=""
                               onChange={(picked) => {
                                 const fieldId = picked ? picked.split(".").pop() : null;

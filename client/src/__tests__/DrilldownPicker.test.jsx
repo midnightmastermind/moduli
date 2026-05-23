@@ -1,19 +1,19 @@
-// Tests for CategoryPathPicker — the rich-tile category-first path picker.
+// Tests for DrilldownPicker — the rich-tile category-first path picker.
 import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { render, fireEvent, screen } from "@testing-library/react";
-import CategoryPathPicker from "../ui/CategoryPathPicker";
+import DrilldownPicker from "../ui/DrilldownPicker";
 
 const baseCtx = { sources: [], fields: [], localVars: [], modulesById: {}, occurrencesById: {}, fieldsById: {} };
 
-describe("CategoryPathPicker", () => {
+describe("DrilldownPicker", () => {
   it("renders an empty placeholder when no value", () => {
-    render(<CategoryPathPicker value="" ctx={baseCtx} onChange={() => {}} />);
+    render(<DrilldownPicker value="" ctx={baseCtx} onChange={() => {}} />);
     expect(screen.getByRole("button", { name: /pick path/i })).toBeTruthy();
   });
 
   it("opens the level-1 category menu on click and shows all five categories", () => {
-    render(<CategoryPathPicker value="" ctx={baseCtx} onChange={() => {}} />);
+    render(<DrilldownPicker value="" ctx={baseCtx} onChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /pick path/i }));
     expect(screen.getByText("Sources")).toBeTruthy();
     expect(screen.getByText("Occurrences")).toBeTruthy();
@@ -23,7 +23,7 @@ describe("CategoryPathPicker", () => {
   });
 
   it("each category row shows label AND description", () => {
-    render(<CategoryPathPicker value="" ctx={baseCtx} onChange={() => {}} />);
+    render(<DrilldownPicker value="" ctx={baseCtx} onChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /pick path/i }));
     // Rich tile means the description text is visible alongside the label.
     expect(screen.getByText(/variables you bound from the trigger/i)).toBeTruthy();
@@ -33,7 +33,7 @@ describe("CategoryPathPicker", () => {
   it("renders a fluffed-out chip chain (no dots) when a value is set", () => {
     const value = "$everyOcc.fields.water.value";
     const ctx = { ...baseCtx, sources: [{ id: "s", variableName: "everyOcc", entityType: "allOccurrences" }] };
-    const { container } = render(<CategoryPathPicker value={value} ctx={ctx} onChange={() => {}} />);
+    const { container } = render(<DrilldownPicker value={value} ctx={ctx} onChange={() => {}} />);
     // No dot-form rendered as visible content (the title attribute may still hold it for hover).
     const visible = container.querySelector("[data-testid='picker-closed-chips']");
     expect(visible).toBeTruthy();
@@ -43,7 +43,7 @@ describe("CategoryPathPicker", () => {
 
   it("commits a chosen built-in scalar on click (level 2 leaf)", () => {
     const onChange = vi.fn();
-    render(<CategoryPathPicker value="" ctx={baseCtx} onChange={onChange} />);
+    render(<DrilldownPicker value="" ctx={baseCtx} onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: /pick path/i }));
     fireEvent.click(screen.getByText("Built-ins"));
     fireEvent.click(screen.getByText("$today"));
@@ -56,7 +56,7 @@ describe("CategoryPathPicker", () => {
       ...baseCtx,
       sources: [{ id: "s", variableName: "everyOcc", entityType: "allOccurrences" }],
     };
-    render(<CategoryPathPicker value="" ctx={ctx} onChange={onChange} />);
+    render(<DrilldownPicker value="" ctx={ctx} onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: /pick path/i }));
     fireEvent.click(screen.getByText("Occurrences"));
     fireEvent.click(screen.getByTestId("pick-this-$everyOcc"));
@@ -89,7 +89,7 @@ describe("CategoryPathPicker", () => {
       ],
     };
     const onChange = vi.fn();
-    render(<CategoryPathPicker value="" ctx={baseCtx} config={config} onChange={onChange} />);
+    render(<DrilldownPicker value="" ctx={baseCtx} config={config} onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: /pick container/i }));
     expect(screen.getByText("Containers")).toBeTruthy();
     expect(screen.getByText("By Label")).toBeTruthy();

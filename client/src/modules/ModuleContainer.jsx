@@ -483,7 +483,7 @@ function Container({
     if (mod.role === "textblock") {
       renderBody = () => <TextblockCard occurrence={occ} />;
     } else if (mod.role === "artifact") {
-      renderBody = () => <ArtifactCard module={mod} label={mod.label} />;
+      renderBody = () => <ArtifactCard module={mod} label={mod.label} occurrence={occ} />;
     }
     return (
       <div
@@ -878,7 +878,7 @@ function Container({
                 />
               </div>
             ) : (
-              {isEditingLabel && !headerBinding ? (
+              isEditingLabel && !headerBinding ? (
                 <input
                   value={labelDraft}
                   onChange={(e) => setLabelDraft(e.target.value)}
@@ -920,7 +920,7 @@ function Container({
                     <Link2 className="w-3 h-3 text-blue-400 opacity-60 flex-shrink-0 inline" title="Linked" />
                   )}
                 </span>
-              )}
+              )
             )}
 
             <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
@@ -1245,7 +1245,7 @@ function Container({
               }
               let renderBody = null;
               if (role === "artifact") {
-                renderBody = () => <ArtifactCard module={instance} label={instance.label} />;
+                renderBody = () => <ArtifactCard module={instance} label={instance.label} occurrence={occurrence} />;
               } else if (role === "textblock") {
                 renderBody = () => <TextblockCard occurrence={occurrence} />;
               }

@@ -1,6 +1,7 @@
 // ui/NavPickerPopover.jsx
 // Date picker for filter nav. Supports single / range / multi / week / month / year
-// modes via react-multi-date-picker. Auto-detects mode from selection:
+// modes via DrilldownTimePicker (custom; replaced react-multi-date-picker
+// 2026-05-21 in commit 0c18352f). Auto-detects mode from selection:
 //   1 day                          → kind: "single"
 //   N consecutive days             → kind: "range"
 //   N non-consecutive days         → kind: "multi"
@@ -19,7 +20,7 @@
 // folds that into the persisted filter value shape.
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Calendar } from "lucide-react";
-import DrilldownDatePicker from "./DrilldownDatePicker";
+import DrilldownTimePicker from "./DrilldownTimePicker";
 
 const UNIT_LABELS = { day: "D", week: "W", month: "M", year: "Y" };
 const UNIT_ORDER = ["day", "week", "month", "year"];
@@ -185,7 +186,7 @@ export default function NavPickerPopover({ value, onCommit, constraints }) {
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  // DrilldownDatePicker emits a sorted array of "YYYY-MM-DD" strings.
+  // DrilldownTimePicker emits a sorted array of "YYYY-MM-DD" strings.
   // Convert to Date[] for classifySelection (the shared classifier
   // detects single / range / multi / week / month / year and emits the
   // persisted filter shape).
@@ -210,7 +211,7 @@ export default function NavPickerPopover({ value, onCommit, constraints }) {
     onCommit?.(next);
   };
 
-  // The DrilldownDatePicker is controlled — feed it the current
+  // The DrilldownTimePicker is controlled — feed it the current
   // selection as an ISO string array. Maps from the shape's `dates`
   // (preferred), else the single `value`, else empty.
   const pickerValue = useMemo(() => {
@@ -243,10 +244,10 @@ export default function NavPickerPopover({ value, onCommit, constraints }) {
             zIndex: 50,
           }}
         >
-          {/* The DrilldownDatePicker has its own header chrome (zoom
+          {/* The DrilldownTimePicker has its own header chrome (zoom
               chevrons, increment-shift arrows, level title). No outer
               zoom toolbar needed. */}
-          <DrilldownDatePicker
+          <DrilldownTimePicker
             value={pickerValue}
             onChange={handleChange}
           />

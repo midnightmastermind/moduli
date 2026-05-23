@@ -120,6 +120,29 @@ const ModuleSchema = new mongoose.Schema(
     trashed: { type: Boolean, default: false, index: true },
 
     // ─── Meta ────────────────────────────────────────────────
+    // Mixed by intent — meta keys vary by role/kind. The canonical
+    // contracts (the only places meta has a documented schema) are:
+    //
+    // Artifact modules (role:"artifact"):
+    //   @typedef {Object} ArtifactMeta
+    //   @property {string}        mimeType       MIME type from upload (e.g. "image/png").
+    //   @property {string}        originalName   Original filename as uploaded.
+    //   @property {number}        uploadSize     Bytes on disk.
+    //   @property {"pending"|"ready"|"error"} uploadStatus  Lifecycle flag.
+    //                                            Client placeholders mint "pending";
+    //                                            server upload handler flips to "ready";
+    //                                            client error handler flips to "error".
+    //   @property {string|null}   folderId       Parent folder id for the artifact panel
+    //                                            tree view. null = unfiled.
+    //   @property {Object} [exif]                Optional EXIF block (image artifacts only,
+    //                                            populated by future EXIF extraction work).
+    //   @property {number} [width]               Image/video pixel width (future).
+    //   @property {number} [height]              Image/video pixel height (future).
+    //
+    // Template-side modules carry meta.templateModule:true (see
+    // utils/cloneSubtree.js). Schedule-slot modules carry
+    // meta.scheduleSlot:true + meta.slotLabel (see scripts/createTestGrid.js).
+    // Anything outside the contracts above is free-form.
     meta: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { timestamps: true, minimize: false }

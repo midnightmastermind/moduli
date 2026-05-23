@@ -30,6 +30,7 @@ const PILL_ACTIVE = (color = "rgba(100,180,255,0.5)") => ({
 // helpers/moduleIcons.js helper so add/edit happens in one place.
 import { KIND_ICONS as PAGE_KIND_ICON } from "../helpers/moduleIcons";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
+import { resolveFileRef, isExternalFileRef } from "../helpers/fileRef.js";
 import RadialMenu from "../ui/RadialMenu.jsx";
 import NodePill from "./NodePill.jsx";
 
@@ -78,6 +79,29 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
   const hasChildren = childOccs.length > 0;
   const mod = modulesById?.[occ.moduleId];
   const contMod = mod; // alias for anchor branch
+  // Drag-out-to-OS for artifact rows: stamp text/uri-list + DownloadURL on the
+  // drag so dragging the pill onto the desktop saves the file under its
+  // original name. Internal refs need the full origin prefix so the OS can
+  // actually fetch them. External (Wikipedia / data: / blob:) URLs pass
+  // through. Docket §8 gap #24.
+  const externalDragData = useMemo(() => {
+    if (mod?.role !== "artifact" || !mod?.fileRef) return null;
+    const resolved = resolveFileRef(mod.fileRef);
+    if (!resolved) return null;
+    let absUrl = resolved;
+    try {
+      if (typeof window !== "undefined" && !isExternalFileRef(mod.fileRef)) {
+        absUrl = new URL(resolved, window.location.origin).toString();
+      }
+    } catch { /* fall back to resolved as-is */ }
+    const mime = mod.meta?.mimeType || "application/octet-stream";
+    const name = mod.meta?.originalName || mod.label || "file";
+    return {
+      "text/uri-list": absUrl,
+      "text/plain": absUrl,
+      "DownloadURL": `${mime}:${name}:${absUrl}`,
+    };
+  }, [mod?.role, mod?.fileRef, mod?.meta?.mimeType, mod?.meta?.originalName, mod?.label]);
   // Don't leak the raw occurrence UUID as a label — render "Untitled" when
   // the module has no label set and the textmap has no heading to fall back on.
   const label = mod?.label || "Untitled";
@@ -192,6 +216,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
           isActive={isActive}
           depth={depth}
           dragData={{ type: "artifact", occurrenceId: occ.id, parentId: occ.parentId }}
+          externalDragData={externalDragData}
           style={{ flex: 1 }}
         >
           {defaultOccurrenceId === occ.id && (
@@ -411,7 +436,13 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     const occId = crypto.randomUUID();
     const maxOrder = allChildOccs.reduce((m, o) => Math.max(m, o.sortOrder ?? 0), -1);
     CommitHelpers.createModule({ dispatch, socket, module: { id: modId, userId, gridId, role: "container", kind: "artifact", label: "Untitled" }, emit: true });
-    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: maxOrder + 1, iteration: { mode: "persistent" }, textmap: { type: "doc", content: [{ type: "paragraph" }] } }, emit: true });
+    // moduleId is the schema-canonical pointer that PageFolder / pagesList /
+    // role lookups read; targetId is the legacy alias still used by server
+    // createOccurrenceData. Without moduleId, the new doc renders as
+    // `modulesById[undefined]` → blank PreviewNode card in the folder page
+    // grid. (Symptomatically: "Folder page renders no instances" even though
+    // the doc is parented under the folder.)
+    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: maxOrder + 1, iteration: { mode: "persistent" }, textmap: { type: "doc", content: [{ type: "paragraph" }] } }, emit: true });
     setOpen(true);
     onSelect(occId);
   }, [state, socket, dispatch, folder.id, allChildOccs, onSelect]);

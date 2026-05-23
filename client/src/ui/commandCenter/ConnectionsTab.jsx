@@ -87,10 +87,10 @@ export function ConnectionsTab() {
       const r = await fetch(`/api/connections/${connId}/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName, userId, gridId, folderId }),
+        body: JSON.stringify({ fileName, userId, gridId, parentFolderId: folderId }),
       });
       const d = await r.json();
-      if (d.artifact) setStatusMsg(`Imported: ${fileName}`);
+      if (d.module) setStatusMsg(`Imported: ${fileName}`);
       else setStatusMsg(`Error: ${d.error || "Unknown error"}`);
     } catch (err) {
       setStatusMsg(`Error: ${err.message}`);
@@ -100,22 +100,28 @@ export function ConnectionsTab() {
   };
 
   const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file || !userId) return;
-    const form = new FormData();
-    form.append("file", file);
-    form.append("userId", userId);
-    if (gridId) form.append("gridId", gridId);
-    if (folderId) form.append("folderId", folderId);
-    setStatusMsg(`Uploading ${file.name}…`);
-    try {
-      const r = await fetch("/api/upload", { method: "POST", body: form });
-      const d = await r.json();
-      if (d.artifact) setStatusMsg(`Uploaded: ${d.artifact.name}`);
-      else setStatusMsg(`Error: ${d.error}`);
-    } catch (err) {
-      setStatusMsg(`Error: ${err.message}`);
-    }
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !userId) return;
+    const total = files.length;
+    setStatusMsg(total === 1 ? `Uploading ${files[0].name}…` : `Uploading ${total} files…`);
+    let ok = 0, fail = 0;
+    await Promise.all(files.map(async (file) => {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("userId", userId);
+      if (gridId) form.append("gridId", gridId);
+      if (folderId) form.append("parentFolderId", folderId);
+      try {
+        const r = await fetch("/api/artifacts/upload", { method: "POST", body: form });
+        const d = await r.json();
+        if (d.module) ok++; else fail++;
+      } catch { fail++; }
+    }));
+    setStatusMsg(
+      fail === 0 ? `Uploaded ${ok} file${ok === 1 ? "" : "s"}`
+      : ok === 0 ? `All ${total} uploads failed`
+      : `Uploaded ${ok} of ${total} · ${fail} failed`
+    );
     e.target.value = "";
     setTimeout(() => setStatusMsg(null), 3000);
   };
@@ -134,7 +140,7 @@ export function ConnectionsTab() {
           <RefreshCw style={{ width: 10, height: 10 }} />
         </button>
         {/* Hidden file input for direct upload */}
-        <input ref={uploadInputRef} type="file" style={{ display: "none" }} onChange={handleUpload} />
+        <input ref={uploadInputRef} type="file" multiple style={{ display: "none" }} onChange={handleUpload} />
         <button
           onClick={() => uploadInputRef.current?.click()}
           style={{

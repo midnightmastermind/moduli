@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
 import { X, Eye, EyeOff, Hash, Plus } from "lucide-react";
-import CategoryPathPicker from "./CategoryPathPicker";
+import DrilldownPicker from "./DrilldownPicker";
 import EditorBindingSection from "./EditorBindingSection.jsx";
 import StyleEditor from "./StyleEditor";
 import { GridActionsContext } from "../GridActionsContext";
@@ -537,7 +537,7 @@ function OtherPlacements({ moduleId, excludeOccId, occurrencesById, modulesById 
 }
 
 /**
- * FieldsSection — CategoryPathPicker (set to fields) drives attach/detach.
+ * FieldsSection — DrilldownPicker (set to fields) drives attach/detach.
  * Field creation, renaming, type changes, and deletion live exclusively in
  * the Command Center → Fields tab. This popover only binds/unbinds fields
  * and toggles per-binding visibility.
@@ -621,7 +621,7 @@ function FieldsSection({
         Attach existing fields. Create, rename, or change types in Command Center → Fields.
       </p>
 
-      <CategoryPathPicker
+      <DrilldownPicker
         value=""
         onChange={handlePickField}
         ctx={{ fields: allFields, sources: [], localVars: [] }}

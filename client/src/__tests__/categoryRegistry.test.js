@@ -1,4 +1,4 @@
-// Tests for the category registry that drives CategoryPathPicker.
+// Tests for the category registry that drives DrilldownPicker.
 import { describe, it, expect } from "vitest";
 import { CATEGORIES, resolveCategoryItems } from "../ui/categoryRegistry";
 

@@ -2,7 +2,7 @@
 //
 // Single source of truth for module-type iconography. Used wherever an
 // occurrence/module needs a visual type tag — manifest tree pills, folder-page
-// preview cards, CategoryPathPicker tiles, QuickAddMenu add tiles, mind-map
+// preview cards, DrilldownPicker tiles, QuickAddMenu add tiles, mind-map
 // representation nodes, value-builder breadcrumb crumbs, etc.
 //
 // Resolution order:

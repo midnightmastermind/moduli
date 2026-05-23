@@ -792,47 +792,60 @@ export function makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId
 // Idempotency: per-day FIND checks gate creation; APPLY_TEMPLATE's identitySig
 // merge skips already-cloned slots; ADD_CHILD's includes-check skips duplicate
 // multi-parent refs.
-export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId = null, completedTrackerName = "Tracker: Tasks Completed", waterTrackerName = "Tracker: Water Today" }) {
+export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId = null, completedTrackerName = "Tracker: Tasks Completed", waterTrackerName = "Tracker: Water Today", goalsPageOccId, schedulePageOccId }) {
+  if (!schedulePageOccId) throw new Error("makeScheduleBuildScheduleOp: schedulePageOccId required (picker-direct ancestor + page ref; see CLAUDE_CHAT.md 2026-05-22)");
+  if (!goalsPageOccId)    throw new Error("makeScheduleBuildScheduleOp: goalsPageOccId required (picker-direct ancestor; see CLAUDE_CHAT.md 2026-05-22)");
   return {
     id: uid(), userId, gridId, name: "Schedule: Build Schedule",
     description: "Build one day-column per visible day in the active filter period. ≤7 days: full slot structure per day-col. >7 days: flat day-cols. Persistent — day-cols never deleted, visibility cascade hides out-of-period ones.",
     // priority 1 so the shell (slots) + routine seeding finish before goal
-    // aggregations (priority 3) read the data. Four onFilterChange triggers:
-    //   - grid: toolbar date arrows write grid.activeFilterValues — fires a
-    //     NavigationOp with no ancestor data; matchSubjectFilter (May 15 fix)
-    //     restricts grid-subject triggers to true global changes ONLY, so this
-    //     no longer matches local container-only filter changes.
-    //   - filterNav ancestorLabel "Schedule": LocalFilterNav writes
-    //     filterOverride on the Schedule page occurrence — fire carries
-    //     _ancestorLabels routes via ancestor scope.
-    //   - filterNav ancestorLabel "Daily Goals": Goals/Physical/sub-container
-    //     filter changes fire NavigationOps with "Daily Goals" in their
-    //     ancestor chain. Build Day uses $trigger.date (the goals filter's
-    //     new value) — not $schedPage._effectiveFilter — so the seed lands
-    //     on the goals' day even when Schedule is filtered to a different
-    //     date. Without this trigger, navigating Goals to an unvisited day
-    //     showed 0s indefinitely (no underlying tasks existed for that day).
-    //     Schedule isn't visually polluted because the new instances are
-    //     dated to goals' day and Schedule's filter cascade hides anything
-    //     not matching its own current filter.
+    // aggregations (priority 3) read the data.
+    //
+    // Trigger surface (2026-05-22 refactor — picker-style direct ancestor binding):
+    //   - onLoad / onFilterChange + subjectType:grid — toolbar arrows + initial
+    //     load. matchSubjectFilter restricts grid-subject triggers to true
+    //     global changes (no sourceOccurrenceId, no _ancestorIds), so this no
+    //     longer matches local container filter changes.
+    //   - onFilterChange + subjectType:filterNav — broad match. The previous
+    //     ancestorLabel:"Schedule" / "Daily Goals" entries were brittle to
+    //     page renames (live grid renamed "Daily Goals" → "Goals" 2026-05-19;
+    //     the labels diverged and trackers silently stopped firing on goals
+    //     filter nav). Replaced by a pipeline-internal IF guard that grabs
+    //     the goals + schedule page occurrences directly via $allItemsById
+    //     and HAS_ANCESTOR-matches them against $trigger._ancestorIds. The
+    //     ids come from the seed via params; both grids can pass their own.
     triggerTypes: ["onLoad", "onFilterChange"],
     triggerObjects: [
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 1 },
       { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 1 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule",    priority: 1 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 1 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", priority: 1 },
     ],
     enabled: true,
     pipeline: {
       steps: [
+        // ── Picker-style direct bindings — rename-stable refs to seed-time
+        // ancestors. $allItemsById.<id> resolves to the occurrence object via
+        // the executor's path resolver. Equivalent to what the value-builder
+        // picker emits when an author drills into Occurrences > $allItemsById
+        // > <label> — id is in the path string but the source code reads as a
+        // reference, not a hardcoded literal on the trigger.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` }},
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" }},
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalsPage",   expr: `$allItemsById.${goalsPageOccId}` }},
+
+        // ── Ancestor guard. Lets through: (a) grid-subject triggers — no
+        // sourceOccurrenceId — toolbar arrows + onLoad. (b) filterNav whose
+        // ancestor chain includes Schedule or Goals. Anything else (filter
+        // change on an unrelated page like Todo / Daily Toolkit) short-
+        // circuits. Replaces the rename-fragile trigger.ancestorLabel approach.
+        { id: uid(), type: "if",
+          condition: { operator: "OR", rules: [
+            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS_EMPTY",     right: "" },
+            { id: uid(), left: "$trigger._ancestorIds",       comparator: "HAS_ANCESTOR", right: "$schedPage.id" },
+            { id: uid(), left: "$trigger._ancestorIds",       comparator: "HAS_ANCESTOR", right: "$goalsPage.id" },
+          ]},
+          then: [
         // ── Top-level lookups (one-time per run) ────────────────────────────
-        { id: uid(), type: "action", config: {
-            type: "FIND", over: "$allPages",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "label", comparator: "IS", right: "Schedule" },
-            ]},
-            itemIdVar: "$schedPageId", itemVar: "$schedPage",
-        }},
         { id: uid(), type: "action", config: {
             type: "FIND", over: "$allOccurrences",
             predicate: { operator: "AND", rules: [
@@ -1008,50 +1021,61 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                       ]},
                       itemIdVar: "$dayColId",
                   }},
+                  // Create the day-col only when missing. ADD_CHILD steps
+                  // below ALWAYS run because they're idempotent (parent's
+                  // occurrences[] gets the child appended only when not
+                  // already present) — gating them on IS_EMPTY made a
+                  // partially-populated day-col from a prior run stick
+                  // empty forever, since subsequent runs found the day-col,
+                  // skipped the THEN branch, and never multi-parented the
+                  // slots in. Self-healing requires ADD_CHILD outside the gate.
                   {
                     id: uid(), type: "if",
                     condition: { operator: "AND", rules: [{ id: uid(), left: "$dayColId", comparator: "IS_EMPTY", right: "" }] },
-                    then: [
+                    then: [{ id: uid(), type: "action", config: {
+                        type: "CREATE",
+                        // Label interpolated with the iteration date — was just
+                        // "Day Column" so every column rendered the same header.
+                        // resolveExpr template-interpolates ${$day} at create
+                        // time (see operationActions.js Mar 22 2026).
+                        name: "${$day} Day Column",
+                        role: "container", kind: "list",
+                        meta: { allowChildContainers: true },
+                        parent: "$schedPageId",
+                        filterOverride: { [dateFieldId]: "$day" },
+                        fields: {
+                          [dateFieldId]: "$day",
+                          ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: "literal:timeslot" } : {}),
+                        },
+                        fieldHidden: {
+                          [dateFieldId]: true,
+                          ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: true } : {}),
+                        },
+                        itemIdVar: "$dayColId",
+                    }}],
+                    else: [],
+                  },
+                  // Iterate the precomputed slot list and ADD_CHILD each
+                  // — runs every pass so a half-built day-col self-heals.
+                  {
+                    id: uid(), type: "loop", overExpr: "$slotIds", as: "$slotId",
+                    body: [
                       { id: uid(), type: "action", config: {
-                          type: "CREATE",
-                          name: "Day Column",
-                          role: "container", kind: "list",
-                          meta: { allowChildContainers: true },
-                          parent: "$schedPageId",
-                          filterOverride: { [dateFieldId]: "$day" },
-                          fields: {
-                            [dateFieldId]: "$day",
-                            ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: "literal:timeslot" } : {}),
-                          },
-                          fieldHidden: {
-                            [dateFieldId]: true,
-                            ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: true } : {}),
-                          },
-                          itemIdVar: "$dayColId",
+                          type: "ADD_CHILD",
+                          parentId: "$dayColId",
+                          childId: "$slotId",
                       }},
-                      // Iterate the precomputed slot list and ADD_CHILD each.
-                      {
-                        id: uid(), type: "loop", overExpr: "$slotIds", as: "$slotId",
-                        body: [
-                          { id: uid(), type: "action", config: {
-                              type: "ADD_CHILD",
-                              parentId: "$dayColId",
-                              childId: "$slotId",
-                          }},
-                        ],
-                      },
-                      // Multi-parent the shared Due too.
-                      {
-                        id: uid(), type: "if",
-                        condition: { operator: "AND", rules: [{ id: uid(), left: "$sharedDueId", comparator: "IS_NOT_EMPTY", right: "" }] },
-                        then: [{ id: uid(), type: "action", config: {
-                            type: "ADD_CHILD",
-                            parentId: "$dayColId",
-                            childId: "$sharedDueId",
-                        }}],
-                        else: [],
-                      },
                     ],
+                  },
+                  // Multi-parent the shared Due too.
+                  {
+                    id: uid(), type: "if",
+                    condition: { operator: "AND", rules: [{ id: uid(), left: "$sharedDueId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                    then: [{ id: uid(), type: "action", config: {
+                        type: "ADD_CHILD",
+                        parentId: "$dayColId",
+                        childId: "$sharedDueId",
+                    }}],
                     else: [],
                   },
                 ],
@@ -1085,7 +1109,9 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                     then: [
                       { id: uid(), type: "action", config: {
                           type: "CREATE",
-                          name: "Day",
+                          // Shortened day-col label uses date too — was just
+                          // "Day" so every column was indistinguishable.
+                          name: "${$day}",
                           role: "container", kind: "list",
                           meta: { allowChildContainers: true },
                           parent: "$schedPageId",
@@ -1214,6 +1240,9 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
           ],
           else: [],
         },
+          ],
+          else: [],
+        },
       ],
     },
   };
@@ -1233,33 +1262,44 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
 //   new day page as an inactive tab on that panel; hub View.activeOccurrenceId
 //   stays Schedule, so the tab is present but not shown until the user clicks it.
 // dayPagesFolderId — the folder id of the "Day Pages" day-pages folder.
-export function makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar }) {
+export function makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar, goalsPageOccId, schedulePageOccId }) {
+  if (!schedulePageOccId) throw new Error("makeDayPageBuildOp: schedulePageOccId required (picker-direct ancestor + page ref; see CLAUDE_CHAT.md 2026-05-22)");
+  if (!goalsPageOccId)    throw new Error("makeDayPageBuildOp: goalsPageOccId required (picker-direct ancestor; see CLAUDE_CHAT.md 2026-05-22)");
   return {
     id: uid(), userId, gridId, name: "Day Page: Build",
     description: "Create one doc Day Page per active date in the Day Pages folder, applying the Day Page template with the date stamped into the textblock heading.",
+    // Trigger surface (2026-05-22 refactor — picker-direct ancestor):
+    //   grid-subject onLoad/onFilterChange + broad filterNav. Pipeline IF
+    //   guard at the top matches $trigger._ancestorIds against the picker-
+    //   bound goals + schedule pages. Drops the rename-fragile
+    //   ancestorLabel approach (was "Daily Goals" / "Schedule" hardcoded).
     triggerTypes: ["onLoad", "onFilterChange"],
     triggerObjects: [
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 1 },
       { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 1 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule",    priority: 1 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 1 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", priority: 1 },
     ],
     enabled: true,
     pipeline: {
       steps: [
+        // Picker-style direct bindings — rename-stable refs to seed-time pages.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` }},
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" }},
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalsPage",   expr: `$allItemsById.${goalsPageOccId}` }},
+
+        // Ancestor guard — grid/onLoad fall through (no sourceOccurrenceId);
+        // filterNav matches when ancestor chain includes Schedule or Goals.
+        { id: uid(), type: "if",
+          condition: { operator: "OR", rules: [
+            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS_EMPTY",     right: "" },
+            { id: uid(), left: "$trigger._ancestorIds",       comparator: "HAS_ANCESTOR", right: "$schedPage.id" },
+            { id: uid(), left: "$trigger._ancestorIds",       comparator: "HAS_ANCESTOR", right: "$goalsPage.id" },
+          ]},
+          then: [
         // Resolve the date exactly like Build Day: $trigger.date wins (every
         // trigger here is an explicit user action carrying the intended
         // date), then the Schedule page's effective filter for the onLoad
         // case, then $today as a cold-start last resort.
-        { id: uid(), type: "action", config: {
-            type: "FIND",
-            over: "$allPages",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "label", comparator: "IS", right: "Schedule" },
-            ]},
-            itemIdVar: "$schedPageId",
-            itemVar: "$schedPage",
-        }},
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$trigger.date" } },
         {
           id: uid(), type: "if",
@@ -1342,6 +1382,9 @@ export function makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolder
               ],
               else: [],
             },
+          ],
+          else: [],
+        },
           ],
           else: [],
         },
@@ -2187,23 +2230,20 @@ export function makeTrackerOp({
         // trigger occurrence and would resolve to the wrong day).
         //
         // Two lookup modes:
-        //   - goalOccurrenceId provided: bind $goalId from the literal seed-
-        //     time ID, then FIND $goalItem by id match. Zero collision risk;
-        //     use this for any goal restructure where labels collide across
-        //     containers.
+        //   - goalOccurrenceId provided: direct picker-style binding. Single
+        //     INIT_VAR resolves `$allItemsById.<id>` to the occurrence object
+        //     via the executor's path resolver — rename-stable, no FIND
+        //     needed. The id is the picker output committed at seed time;
+        //     identical shape to what the CategoryPathPicker emits when an
+        //     author drills into Occurrences > $allItemsById > <label>.
         //   - goalLabel only: legacy path, FIND by label across $allInstances.
         //     Used by the test grid + any goals whose label is globally unique.
         ...(goalOccurrenceId
           ? [
-              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalId", expr: `literal:${goalOccurrenceId}` } },
-              { id: uid(), type: "action", config: {
-                  type: "FIND",
-                  over: "$allItems",
-                  predicate: { operator: "AND", rules: [
-                    { id: uid(), left: "id", comparator: "IS", right: "$goalId" },
-                  ]},
-                  itemVar: "$goalItem",
-              }},
+              // Set both $goalItem (the full record) and $goalId (its id) so
+              // downstream steps that reference either still work.
+              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem", expr: `$allItemsById.${goalOccurrenceId}` } },
+              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalId",   expr: "$goalItem.id" } },
             ]
           : [
               { id: uid(), type: "action", config: {

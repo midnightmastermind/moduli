@@ -53,7 +53,7 @@ describe("schedule ops", () => {
     expect(JSON.stringify(op.pipeline)).toContain("TS");
   });
   it("Build Schedule op (live data) loops over $activePeriodDates and creates Day Columns", () => {
-    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS" });
+    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", goalsPageOccId: "GP", schedulePageOccId: "SP" });
     expect(op.name).toBe("Schedule: Build Schedule");
     expect(op.triggerTypes).toEqual(["onLoad", "onFilterChange"]);
     expect(op.triggerObjects.every(t => t.priority === 1)).toBe(true);
@@ -61,13 +61,51 @@ describe("schedule ops", () => {
     expect(JSON.stringify(op.pipeline)).toContain("DUE");
     expect(JSON.stringify(op.pipeline)).toContain("TS");
   });
+
+  it("Build Schedule day-col ADD_CHILD runs unconditionally (self-heals half-populated day-cols)", () => {
+    // Regression: ADD_CHILD steps used to live inside the
+    // IF $dayColId IS_EMPTY THEN branch, so a partial run that
+    // created the day-col without populating it stayed empty
+    // forever. ADD_CHILD must run every pass through the per-day
+    // loop — outside the day-col-existence gate specifically.
+    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", goalsPageOccId: "GP", schedulePageOccId: "SP" });
+    const isDayColEmptyIf = (node) =>
+      node?.type === "if"
+      && (node.condition?.rules || []).some(r => r.left === "$dayColId" && r.comparator === "IS_EMPTY");
+    const findAddChildLoops = (node, inDayColGate = false, hits = []) => {
+      if (!node) return hits;
+      if (Array.isArray(node)) { node.forEach(n => findAddChildLoops(n, inDayColGate, hits)); return hits; }
+      if (typeof node !== "object") return hits;
+      if (node.type === "loop" && Array.isArray(node.body)) {
+        const inner = node.body[0];
+        if (inner?.type === "action" && inner.config?.type === "ADD_CHILD" && inner.config.parentId === "$dayColId") {
+          hits.push({ inDayColGate });
+        }
+        node.body.forEach(b => findAddChildLoops(b, inDayColGate, hits));
+      }
+      if (node.type === "if") {
+        const nextGate = inDayColGate || isDayColEmptyIf(node);
+        (node.then || []).forEach(s => findAddChildLoops(s, nextGate, hits));
+        (node.else || []).forEach(s => findAddChildLoops(s, inDayColGate, hits));
+      }
+      if (!node.type) {
+        for (const v of Object.values(node)) findAddChildLoops(v, inDayColGate, hits);
+      }
+      return hits;
+    };
+    const hits = findAddChildLoops(op.pipeline);
+    expect(hits.length).toBeGreaterThan(0);
+    // Every ADD_CHILD slot-loop must sit OUTSIDE the day-col-empty
+    // gate so a half-built day-col gets repopulated on the next run.
+    expect(hits.every(h => h.inDayColGate === false)).toBe(true);
+  });
   it("Stamp op writes the timeslot field on onCreate under the hub panel", () => {
     const op = makeStampDateTimeSlotOp({ userId: "u", gridId: "g", timeslotFieldId: "TS", hubPanelModuleId: "HUB" });
     expect(op.triggerObjects[0]).toMatchObject({ eventType: "onCreate", targetId: "HUB" });
     expect(JSON.stringify(op.pipeline)).toContain("TS");
   });
   it("Day Page: Build is named correctly, priority-1, embeds the folder + hub params", () => {
-    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC" });
+    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP" });
     expect(op.name).toBe("Day Page: Build");
     expect(op.triggerObjects.every(t => t.priority === 1)).toBe(true);
     const s = JSON.stringify(op.pipeline);

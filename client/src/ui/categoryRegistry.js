@@ -1,4 +1,4 @@
-// Pure data layer for CategoryPathPicker.
+// Pure data layer for DrilldownPicker.
 // Each category provides level-1 items via resolveItems(ctx). Items carry
 // title, sub (right-of-title detail), and description (under title) so the
 // picker renders rich rows like PanelKindSelector everywhere it appears.
@@ -201,7 +201,7 @@ export function resolveCategoryItems(categoryId, ctx) {
 
 // ---- Specialized picker configs ----------------------------------------------
 // Find and Loop both take a single collection variable as their iteration target.
-// COLLECTION_PICKER_CONFIG drives a CategoryPathPicker that exposes only those
+// COLLECTION_PICKER_CONFIG drives a DrilldownPicker that exposes only those
 // collections — picked value is committed in one click (no further drilling).
 //
 // $allOccurrences / $allItems are aliases at runtime; we surface both because
@@ -283,7 +283,7 @@ export function recordShapeForCollection(over) {
   return "occurrence";
 }
 
-// Build a config for a CategoryPathPicker that picks a record-key path on the
+// Build a config for a DrilldownPicker that picks a record-key path on the
 // record currently being iterated. There are no $-prefixed names in the
 // committed value — just the dotted key (`label`, `fields.<fid>.value`).
 export function buildRecordKeyPickerConfig(over, { placeholder } = {}) {
@@ -293,7 +293,7 @@ export function buildRecordKeyPickerConfig(over, { placeholder } = {}) {
   };
 }
 
-// TEMPLATE_PICKER_CONFIG drives a CategoryPathPicker that lists every saved
+// TEMPLATE_PICKER_CONFIG drives a DrilldownPicker that lists every saved
 // template (occurrence carrying meta.templateName) under one category. Used
 // by the APPLY_TEMPLATE action editor so authors can pick a template by name
 // instead of hand-typing its occurrence id. Picking a row commits the

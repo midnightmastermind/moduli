@@ -97,6 +97,13 @@ export function DragProvider({
   const [panelOverCellId, setPanelOverCellId] = useState(null);
   // Drag mode: 'move' | 'copy' | 'copylink'
   const [dragMode, setDragMode] = useState('move');
+  // Native external-drag preview pill (docket §6.5 drop UX polish). Set
+  // by the .grid-frame native-dragover listener whenever a drag from
+  // outside the app (browser tab, OS file picker) is over the grid;
+  // cleared on drop / dragend / dragleave-of-window. Renders a floating
+  // "Convert HTML → modules" chip near the cursor so the user knows the
+  // import pipeline will run when they release.
+  const [externalImportPreview, setExternalImportPreview] = useState(null);
 
   const activeType = activePayload?.type || null;
   const activeId = activePayload?.id || null;
@@ -971,34 +978,149 @@ export function DragProvider({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [clearSession]);
 
-  // Native file drop fallback — catches OS file drops that Pragmatic DnD might miss
+  // Native file drop fallback — catches OS file drops + native HTML /
+  // plain-text drops that Pragmatic DnD might miss. The HTML branch
+  // is what enables the drag-to-import flow (docket #6.5): the user
+  // selects content in another browser tab + drags it onto the grid;
+  // we route to handleExternalDrop which fans the content through the
+  // server-side importer.
   useEffect(() => {
     const gridFrame = document.querySelector(".grid-frame");
     if (!gridFrame) return;
     const onDragOver = (e) => {
-      if (e.dataTransfer?.types?.includes("Files")) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "copy";
+      const types = e.dataTransfer?.types || [];
+      // Files OR rich text from another tab OR a plain-text selection.
+      // For internal Pragmatic DnD drags the grid-frame listener stays
+      // silent because the inner dropTargetForElements handle them.
+      const isFile = types.includes("Files");
+      const isHtml = !isFile && types.includes("text/html");
+      const isText = !isFile && !isHtml && types.includes("text/plain");
+      if (!isFile && !isHtml && !isText) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      // Update the preview pill (only re-render when position/format/
+      // destination actually changes — onDragOver fires every few ms).
+      const format = isFile ? "file" : isHtml ? "html" : "text";
+      // Resolve the hovered destination so the pill can read out
+      // "into <container/page label>" or "new panel in this cell".
+      // Pure DOM peek — no side effects (the actual mint happens at
+      // drop-time inside handleExternalDrop.resolveImportParent).
+      const x = e.clientX, y = e.clientY;
+      const { containerId: hoveredContainerId } = getHoveredIds(x, y);
+      let destination = null;
+      if (hoveredContainerId) {
+        const c = baseContainers.find(c => c.id === hoveredContainerId);
+        if (c) destination = { kind: "container", label: c.label || "container" };
       }
+      if (!destination) {
+        const el = document.elementFromPoint?.(x, y);
+        const pageNode = el?.closest?.("[data-page-occ-id]");
+        const pageOccId = pageNode?.getAttribute?.("data-page-occ-id");
+        if (pageOccId && occurrencesById[pageOccId]) {
+          const pageOcc = occurrencesById[pageOccId];
+          const pageMod = state?.modulesById?.[pageOcc.moduleId];
+          destination = { kind: "page", label: pageMod?.label || "page" };
+        }
+      }
+      if (!destination && getCellFromPoint?.(x, y)) {
+        destination = { kind: "cell", label: "new panel" };
+      }
+      setExternalImportPreview(prev => {
+        if (prev
+          && prev.x === x && prev.y === y
+          && prev.format === format
+          && prev.destination?.kind === destination?.kind
+          && prev.destination?.label === destination?.label) return prev;
+        return { x, y, format, destination };
+      });
+    };
+    const clearPreview = () => setExternalImportPreview(null);
+    const onDragLeaveFrame = (e) => {
+      // dragleave fires when entering child elements — only clear when
+      // we've left the window (relatedTarget=null in Chrome/Firefox).
+      if (e.relatedTarget == null) clearPreview();
     };
     const onDrop = (e) => {
-      if (!e.dataTransfer?.files?.length) return;
+      const dt = e.dataTransfer;
+      if (!dt) return;
+
+      const hasFiles = dt.files?.length > 0;
+      let html = "";
+      let text = "";
+      try { html = dt.getData("text/html") || ""; } catch { /* ignore */ }
+      try { text = dt.getData("text/plain") || ""; } catch { /* ignore */ }
+      if (!hasFiles && !html && !text) return;
       e.preventDefault();
-      const files = Array.from(e.dataTransfer.files);
-      if (files.length === 0) return;
-      const payload = { type: DragType.FILE, id: "__file__", data: { files, name: files[0]?.name } };
+
       const x = e.clientX, y = e.clientY;
-      // pointerRef.current is stale for OS-native drags — use event coords directly
-      const { panelId, containerId } = getHoveredIds(x, y);
+      const { containerId } = getHoveredIds(x, y);
+      const cellFromPoint = getCellFromPoint?.(x, y) || null;
+      // Walk from the hit element up to the nearest [data-page-occ-id]
+      // so a drop on a page (no container hit) can be resolved by
+      // handleExternalDrop's resolveImportParent.
+      const pageOccId = (() => {
+        const el = document.elementFromPoint?.(x, y);
+        const node = el?.closest?.("[data-page-occ-id]");
+        return node?.getAttribute?.("data-page-occ-id") || null;
+      })();
+
+      // Build a `target` shape that dropView() can read: when a
+      // container is hovered we expose it via `moduleId` so dropView's
+      // role lookup classifies it as container. The native-drop path
+      // doesn't get Pragmatic DnD's edge/insertIndex so position is
+      // empty — handleExternalDrop falls back to y-based nearest-index
+      // resolution. `raw` carries the page/grid-cell hints that
+      // handleExternalDrop.resolveImportParent reads via dropTarget.context.
+      const target = {
+        occurrenceId: null,
+        moduleId: containerId || null,
+        kind: !containerId && !pageOccId && cellFromPoint ? DROP_TARGET_KIND.GRID_CELL : null,
+        raw: {
+          ...(pageOccId ? { pageOccurrenceId: pageOccId } : {}),
+          ...(cellFromPoint ? { row: cellFromPoint.row, col: cellFromPoint.col, cellId: cellFromPoint.cellId } : {}),
+        },
+      };
+
+      // File drop → routeDrop dispatches to handleFileDrop via sourceKind.
+      // Text/HTML drop → sourceKind:"external" routes to handleExternalDrop,
+      // which detects whether the content warrants the import pipeline.
+      const payload = hasFiles
+        ? {
+            type: DragType.FILE,
+            sourceKind: "file",
+            payloadType: DragType.FILE,
+            id: "__file__",
+            data: { files: Array.from(dt.files), name: dt.files[0]?.name },
+          }
+        : {
+            type: html ? DragType.EXTERNAL : DragType.TEXT,
+            sourceKind: "external",
+            payloadType: html ? DragType.EXTERNAL : DragType.TEXT,
+            data: { text },
+          };
+
+      const dropContext = {
+        payload,
+        target,
+        position: { edge: null, insertIndex: null },
+        pointer: { x, y },
+        dataTransfer: dt,
+      };
       const ctx = { dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, clearSession, sessionRef, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId };
-      const drop = { payload, dropTarget: {}, panelId, containerId, instanceId: null, x, y, getCellFromPoint };
-      handleFileDrop(ctx, drop);
+      routeDrop(dropContext, ctx);
+      clearPreview();
     };
     gridFrame.addEventListener("dragover", onDragOver);
     gridFrame.addEventListener("drop", onDrop);
+    gridFrame.addEventListener("dragleave", onDragLeaveFrame);
+    // Window-level dragend catches "drag canceled" (user released over
+    // a no-drop target, hit Escape, etc) so the pill doesn't linger.
+    document.addEventListener("dragend", clearPreview);
     return () => {
       gridFrame.removeEventListener("dragover", onDragOver);
       gridFrame.removeEventListener("drop", onDrop);
+      gridFrame.removeEventListener("dragleave", onDragLeaveFrame);
+      document.removeEventListener("dragend", clearPreview);
     };
   }, [dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, clearSession, getCellFromPoint, getHoveredIds, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId]);
 
@@ -1137,8 +1259,61 @@ export function DragProvider({
     <DragContext.Provider value={contextValue}>
       <DragHotContext.Provider value={hotContextValue}>
         {children}
+        {externalImportPreview && (
+          <ExternalImportPreview
+            x={externalImportPreview.x}
+            y={externalImportPreview.y}
+            format={externalImportPreview.format}
+            destination={externalImportPreview.destination}
+          />
+        )}
       </DragHotContext.Provider>
     </DragContext.Provider>
+  );
+}
+
+// Floating preview pill rendered near the cursor during a native external
+// drag (HTML/text from another tab, files from the OS). Tells the user
+// the drop will route through the import pipeline rather than minting a
+// single instance. position:fixed + pointer-events:none so it never
+// intercepts the drop event itself.
+function ExternalImportPreview({ x, y, format, destination }) {
+  const action = format === "file" ? "Upload file"
+    : format === "html" ? "Convert HTML → modules"
+    : "Convert text → modules";
+  const dest = destination
+    ? (destination.kind === "cell"
+        ? "→ new panel in this cell"
+        : `→ into ${destination.label}`)
+    : null;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        left: x + 14,
+        top: y + 14,
+        zIndex: 9999,
+        pointerEvents: "none",
+        padding: "4px 10px",
+        borderRadius: 999,
+        fontSize: 11,
+        fontFamily: "var(--font-mono)",
+        fontWeight: 500,
+        background: "rgba(15, 25, 40, 0.92)",
+        color: "rgb(180, 225, 245)",
+        border: "1px solid rgba(120, 170, 220, 0.45)",
+        boxShadow: "0 4px 14px rgba(0,0,0,0.45)",
+        whiteSpace: "nowrap",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+      }}
+    >
+      <span>{action}</span>
+      {dest && (
+        <span style={{ opacity: 0.7, fontWeight: 400 }}>{dest}</span>
+      )}
+    </div>
   );
 }
 

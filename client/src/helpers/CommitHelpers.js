@@ -716,16 +716,18 @@ export function createLeafInstanceInParent({
   return { moduleId, occurrenceId };
 }
 
-export async function uploadFile({ file, userId, gridId, dispatch }) {
+export async function uploadFile({ file, userId, gridId, parentFolderId = null, manifestId = null, dispatch }) {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("userId", userId);
   if (gridId) formData.append("gridId", gridId);
+  if (parentFolderId) formData.append("parentFolderId", parentFolderId);
+  if (manifestId) formData.append("manifestId", manifestId);
 
   try {
-    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    const res = await fetch("/api/artifacts/upload", { method: "POST", body: formData });
     const data = await res.json();
-    // Server now emits module_created via socket — no local dispatch needed
+    // Server emits module_created + occurrence_created via socket.
     return data.module;
   } catch (err) {
     console.error("Upload failed:", err);

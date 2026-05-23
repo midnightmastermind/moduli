@@ -102,16 +102,16 @@ export function FilesTab() {
   }
 
   function handleFileInput(e) {
-    const file = e.target.files?.[0];
-    if (file) uploadFile(file);
+    const files = Array.from(e.target.files || []);
+    for (const f of files) uploadFile(f);
     e.target.value = "";
   }
 
   function handleNativeDrop(e) {
     e.preventDefault();
     setDropActive(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) uploadFile(file);
+    const files = Array.from(e.dataTransfer?.files || []);
+    for (const f of files) uploadFile(f);
   }
 
   const dropZoneStyle = {
@@ -144,7 +144,7 @@ export function FilesTab() {
           <Upload style={{ width: 10, height: 10 }} />
           {uploading ? "Uploading…" : "Add Artifact"}
         </button>
-        <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={handleFileInput} />
+        <input ref={fileInputRef} type="file" multiple style={{ display: "none" }} onChange={handleFileInput} />
       </div>
 
       {/* Drop zone + artifact list */}

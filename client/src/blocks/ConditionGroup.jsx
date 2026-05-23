@@ -1,7 +1,7 @@
 // blocks/ConditionGroup.jsx
 // Recursive condition builder supporting nested AND/OR groups.
 import React, { useMemo } from "react";
-import CategoryPathPicker from "../ui/CategoryPathPicker";
+import DrilldownPicker from "../ui/DrilldownPicker";
 
 const COMPARATORS = [
   "IS", "IS_NOT", "GREATER", "LESS", "GREATER_OR_EQUAL", "LESS_OR_EQUAL",
@@ -115,7 +115,7 @@ function RuleRow({ rule, onChange, onRemove, pickerCtx, leftConfig }) {
   const toggleRightMode = () => setRightMode(m => (m === "path" ? "text" : "path"));
   return (
     <div style={rowStyle}>
-      <CategoryPathPicker
+      <DrilldownPicker
         value={typeof rule.left === "string" ? rule.left : ""}
         ctx={pickerCtx}
         config={leftConfig || undefined}
@@ -134,7 +134,7 @@ function RuleRow({ rule, onChange, onRemove, pickerCtx, leftConfig }) {
             {rightMode === "path" ? "path" : "text"}
           </button>
           {rightMode === "path" ? (
-            <CategoryPathPicker
+            <DrilldownPicker
               value={typeof rule.right === "string" ? rule.right : ""}
               ctx={pickerCtx}
               onChange={(next) => onChange({ ...rule, right: next })}

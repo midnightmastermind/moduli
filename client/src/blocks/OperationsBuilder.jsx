@@ -15,7 +15,7 @@ import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-d
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { GripVertical } from "lucide-react";
 import { arrayMove } from "../helpers/LayoutHelpers";
-import CategoryPathPicker from "../ui/CategoryPathPicker";
+import DrilldownPicker from "../ui/DrilldownPicker";
 import JsonStructureEditor from "../ui/JsonStructureEditor";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig, TEMPLATE_PICKER_CONFIG } from "../ui/categoryRegistry";
 import ConditionGroup from "./ConditionGroup";
@@ -667,7 +667,7 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
         <option value="null">null</option>
       </select>
       {mode === "path" && (
-        <CategoryPathPicker
+        <DrilldownPicker
           value={typeof value === "string" ? value : ""}
           ctx={pickerCtx}
           onChange={onChange}
@@ -728,7 +728,7 @@ function LoopStep({ step, onUpdate, onRemove, fields, varOptions, localVars = []
       {/* Header row */}
       <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
         <span style={{ fontSize: 10, color: "rgba(167,139,250,0.8)", fontFamily: "monospace", minWidth: 28 }}>for each in</span>
-        <CategoryPathPicker
+        <DrilldownPicker
           value={step.overExpr || ""}
           ctx={pickerCtx}
           config={COLLECTION_PICKER_CONFIG}
@@ -961,7 +961,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={rowStyle}>
             {fl("Look in")}
-            <CategoryPathPicker
+            <DrilldownPicker
               value={over}
               ctx={collectionPickerCtx}
               config={COLLECTION_PICKER_CONFIG}
@@ -1058,7 +1058,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={rowStyle}>
             {fl("path")}
-            <CategoryPathPicker
+            <DrilldownPicker
               value={cfg.path || ""}
               ctx={updatePickerCtx}
               onChange={v => setCfg({ path: v })}
@@ -1347,7 +1347,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
       // Templates are identified by occurrence.meta.templateName (set by
       // clone_subtree_as_template + apply_template handlers + the migration
       // script). TEMPLATE_PICKER_CONFIG (categoryRegistry.js) surfaces them
-      // through the same CategoryPathPicker the rest of the editor uses, so
+      // through the same DrilldownPicker the rest of the editor uses, so
       // authors get the familiar two-pane drill instead of a bare ExprInput
       // and hand-copied IDs.
       const templatePickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars };
@@ -1355,7 +1355,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
             {fl("template:")}
-            <CategoryPathPicker
+            <DrilldownPicker
               value={cfg.templateRef || ""}
               onChange={v => setCfg({ templateRef: v })}
               config={TEMPLATE_PICKER_CONFIG}
@@ -1419,7 +1419,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
             {fl("source:")}
-            <CategoryPathPicker
+            <DrilldownPicker
               value={cfg.sourceOccurrenceVar || ""}
               onChange={v => setCfg({ sourceOccurrenceVar: v })}
               ctx={copyPickerCtx}
@@ -1427,7 +1427,7 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
             {fl("target:")}
-            <CategoryPathPicker
+            <DrilldownPicker
               value={cfg.targetOccurrenceVar || ""}
               onChange={v => setCfg({ targetOccurrenceVar: v })}
               ctx={copyPickerCtx}
@@ -1590,7 +1590,7 @@ function FieldPicker({ value, onChange, fields, placeholder = "Pick field..." })
   );
 }
 
-// Shared CategoryPathPicker config that surfaces the grid's fields as
+// Shared DrilldownPicker config that surfaces the grid's fields as
 // one-click leaves, optionally hiding a set of already-bound ids.
 function buildAttachFieldPickerConfig({ fields, excludeIds, placeholder = "Attach a field" }) {
   return {
@@ -1658,7 +1658,7 @@ function AttachFieldsPicker({ cfg, setCfg, fields }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingLeft: 8 }}>
       <div style={{ fontSize: 10, color: "var(--text-muted)" }}>attach fields:</div>
-      <CategoryPathPicker
+      <DrilldownPicker
         value=""
         onChange={handlePick}
         ctx={{ fields, sources: [], localVars: [] }}
@@ -1715,7 +1715,7 @@ function FieldsMapEditor({ cfg, setCfg, fields, exprProps }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingLeft: 8 }}>
       <div style={{ fontSize: 10, color: "var(--text-muted)" }}>attach fields &amp; assign values:</div>
-      <CategoryPathPicker
+      <DrilldownPicker
         value=""
         onChange={handlePickField}
         ctx={{ fields, sources: [], localVars: [] }}

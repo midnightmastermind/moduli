@@ -161,7 +161,7 @@ const SHORTCUT_GROUPS = [
     group: "Dropdowns & pickers",
     items: [
       { keys: ["Esc"], action: "Close ContextMenu / RadialMenu / QuickAddMenu / HeaderDropdown" },
-      { keys: ["Esc"], action: "Close ContainerKindSelector / PanelKindSelector / CategoryPathPicker" },
+      { keys: ["Esc"], action: "Close ContainerKindSelector / PanelKindSelector / DrilldownPicker" },
       { keys: ["Esc"], action: "Close UserInputModal / PomodoroTimer panel / Toolbar filter dropdown" },
       { keys: ["ArrowUp/Down"], action: "Navigate items in command palette / doc-link suggestions" },
       { keys: ["Enter"],  action: "Select active item (or commit raw query)" },

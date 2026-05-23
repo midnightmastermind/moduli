@@ -1351,6 +1351,54 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       }];
     }
 
+    case "IMPORT_HTML":
+    case "IMPORT_MARKDOWN": {
+      // Pipe arbitrary HTML or markdown through the server-side
+      // importer (server/services/markdownImporter.js, fronted by the
+      // `import_text` socket handler) and bind the resulting root
+      // occurrence id to a $var so downstream steps can MOVE / UPDATE
+      // against the imported subtree.
+      //
+      // cfg (both actions):
+      //   html OR markdown — the source content ($var interpolation supported)
+      //   parentExpr       — destination parent occurrence id ($expr)
+      //                       null/missing → server creates as a top-level
+      //                       grid-level entity
+      //   title            — root container label (default "Imported")
+      //   htmlOpts         — { keepImages, keepTables, keepFigures, stripClasses }
+      //                       only consumed when format === "html"
+      //   timeoutMs        — Promise timeout, default 60s, max 120s
+      //   resultVar        — $var to bind { rootOccurrenceId, stats, detectedFormat }
+      //                       on resume (default "$importResult")
+      //   errorVar         — $var to bind the error to when onError === "continue"
+      //                       (default "$importError")
+      //   onError          — "fail" (default) | "continue"
+      //
+      // Reuses the executor's _callApi suspend path (any ready Promise
+      // attached via request.fetch) — see operationExecutor._handleSuspend.
+      const format = type === "IMPORT_HTML" ? "html" : "markdown";
+      const content = resolveExpr(format === "html" ? cfg.html : cfg.markdown, $vars);
+      if (!content) break;
+      const parentId = cfg.parentExpr ? resolveExpr(cfg.parentExpr, $vars) : null;
+      const title = cfg.title ? resolveExpr(cfg.title, $vars) : "Imported";
+      const htmlOpts = format === "html" ? (deepResolveExpr(cfg.htmlOpts || {}, $vars) || {}) : {};
+      const timeoutMs = Math.min(120000, Math.max(1000, Number(cfg.timeoutMs) || 60000));
+      const resultVar = cfg.resultVar || "$importResult";
+      const errorVar = cfg.errorVar || "$importError";
+      const onError = cfg.onError === "continue" ? "continue" : "fail";
+
+      // Suspend sentinel — executor's _handleSuspend detects `_importText`
+      // and invokes operationsBridge.importText with this request shape.
+      return [{
+        _suspend: true,
+        _importText: true,
+        request: { content: String(content), format, parentId, title, htmlOpts, timeoutMs },
+        resultVar,
+        errorVar,
+        onError,
+      }];
+    }
+
     case "AGGREGATE": {
       const occurrences = Object.values(occurrencesById);
       let allValues = [];

@@ -614,10 +614,40 @@ function Panel({
     if (!(panelOccurrence.occurrences || []).includes(occId)) {
       CommitHelpers.pinPageToPanel({ dispatch, socket, pageOccurrenceId: occId, panelOccurrenceId: panelOccurrence.id });
     }
+    // Already-open notification: if this page is the active occurrence of
+    // ANOTHER panel's view in the current grid, flash that other panel's
+    // shell so the user notices. We still open the page in the requested
+    // panel — this is a notice, not a block.
+    if (occId && viewsById && (modulesById || occurrencesById)) {
+      const otherPanelIds = new Set();
+      for (const [vid, v] of Object.entries(viewsById)) {
+        if (!v || v.activeOccurrenceId !== occId) continue;
+        if (vid === currentView?.id) continue; // skip THIS panel's view
+        // Resolve which panel uses this view — check panel occurrences first
+        // (canonical), fall back to module.viewId (legacy panels).
+        for (const occ of Object.values(occurrencesById || {})) {
+          if (occ?.viewId === vid) {
+            const mid = occ.moduleId || occ.targetId;
+            if (mid) otherPanelIds.add(mid);
+          }
+        }
+        for (const mod of Object.values(modulesById || {})) {
+          if (mod?.viewId === vid && mod?.role === "panel") otherPanelIds.add(mod.id);
+        }
+      }
+      for (const pid of otherPanelIds) {
+        const el = document.querySelector(`[data-panel-id="${CSS.escape(String(pid))}"]`);
+        if (!el) continue;
+        el.classList.remove("panel-already-open-flash");
+        void el.offsetWidth; // force reflow to restart animation
+        el.classList.add("panel-already-open-flash");
+        el.addEventListener("animationend", () => el.classList.remove("panel-already-open-flash"), { once: true });
+      }
+    }
     if (currentView?.id) {
       CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: occId }, emit: true });
     }
-  }, [panelOccurrence, currentView, dispatch, socket]);
+  }, [panelOccurrence, currentView, dispatch, socket, viewsById, modulesById, occurrencesById]);
 
   // Sidebar-aware page open: anything that opens a page from the Local/Root
   // tree should also collapse the sidebar (user requested: selecting closes it).

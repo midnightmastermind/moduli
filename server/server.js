@@ -14,6 +14,8 @@ import { fileURLToPath } from "url";
 import "dotenv/config";
 import { nanoid } from "nanoid";
 import jwt from "jsonwebtoken";
+import ExifReader from "exifreader";
+import sharp from "sharp";
 
 // __dirname polyfill for ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -348,6 +350,13 @@ app.use("/uploads", express.static(uploadsDir));
 const mdDir = path.join(uploadsDir, "md");
 if (!fs.existsSync(mdDir)) fs.mkdirSync(mdDir, { recursive: true });
 
+// Thumbnails directory (files audit gap #4). Sharp output lands here as
+// `<sha256>-256.webp` + `<sha256>-1024.webp`. Naming by content hash
+// means dedup'd uploads automatically reuse existing thumbnails — no
+// duplicates, no orphans tied to module ids.
+const thumbDir = path.join(uploadsDir, "thumbnails");
+if (!fs.existsSync(thumbDir)) fs.mkdirSync(thumbDir, { recursive: true });
+
 const CODE_EXTENSIONS = new Set([".js",".jsx",".ts",".tsx",".py",".sh",".bash",".json",".yaml",".yml",".toml",".css",".html",".xml",".sql",".go",".rs",".c",".cpp",".h",".rb",".php",".swift",".kt"]);
 function mimeToKind(mime, filename = "") {
   if (mime?.startsWith("image/")) return "image";
@@ -367,13 +376,196 @@ function viewFieldsForKind(kind) {
   return { viewType: "markdown", artifactType: null };
 }
 
+// Year-month upload sharding (files/artifact audit gap #18). New uploads
+// land in `uploads/user/YYYY-MM/` so the leaf directory listing stays
+// manageable over long horizons. Existing flat files keep working since
+// `resolveFileRef` and the Express static mount both serve nested paths
+// — see `scripts/shardExistingUploads.js` for the one-off migration.
+function yearMonthShard(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+// SHA-256 content hash for upload dedup (files/artifact audit gap #3). Streamed
+// so 50MB uploads don't load into RAM. Returns a 64-char hex string.
+function sha256OfFile(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash("sha256");
+    const stream = fs.createReadStream(filePath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+    stream.on("error", reject);
+  });
+}
+
+// Image thumbnails via sharp (files audit gap #4). Writes
+// `<sha256>-256.webp` + `<sha256>-1024.webp` into uploads/thumbnails/.
+// WebP for compression (~30% smaller than JPEG at comparable quality).
+// Idempotent: if a thumb already exists for this sha (dedup hit /
+// re-mirror / rerun), skip the regeneration. Returns `{ thumb256, thumb1024 }`
+// as POSIX-style relative refs (resolvable via `/uploads/<ref>`), or null
+// when the source isn't a supportable image. SVG / GIF / non-image types
+// return null — sharp's raster pipeline doesn't preserve their semantics.
+const THUMB_SUPPORTED = /^image\/(jpeg|jpg|png|webp|tiff|avif|heic|heif)$/i;
+async function generateImageThumbnails(srcPath, sha256, mimeType) {
+  if (!sha256 || !mimeType || !THUMB_SUPPORTED.test(mimeType)) return null;
+  const ref256 = `thumbnails/${sha256}-256.webp`;
+  const ref1024 = `thumbnails/${sha256}-1024.webp`;
+  const path256 = path.join(uploadsDir, ref256);
+  const path1024 = path.join(uploadsDir, ref1024);
+  const need256 = !fs.existsSync(path256);
+  const need1024 = !fs.existsSync(path1024);
+  if (!need256 && !need1024) return { thumb256: ref256, thumb1024: ref1024 };
+  try {
+    if (need256) {
+      // `withoutEnlargement` keeps tiny source images at their native size
+      // instead of upscaling. quality 78 is the sweet-spot for thumbnails.
+      await sharp(srcPath).rotate().resize({ width: 256, withoutEnlargement: true }).webp({ quality: 78 }).toFile(path256);
+    }
+    if (need1024) {
+      await sharp(srcPath).rotate().resize({ width: 1024, withoutEnlargement: true }).webp({ quality: 82 }).toFile(path1024);
+    }
+    return { thumb256: ref256, thumb1024: ref1024 };
+  } catch {
+    // Cleanup any partially-written file so a future retry isn't blocked.
+    try { if (need256 && fs.existsSync(path256)) fs.unlinkSync(path256); } catch { /* ignore */ }
+    try { if (need1024 && fs.existsSync(path1024)) fs.unlinkSync(path1024); } catch { /* ignore */ }
+    return null;
+  }
+}
+
+// EXIF + dimensions for image uploads (files audit gap #12). Returns
+// `{ width, height, exif }` or null on any failure — the upload itself
+// shouldn't fail just because metadata extraction did. Reads the full
+// file into a Buffer (capped at 50MB by multer; ExifReader's parser
+// only inspects header bytes regardless of total size). Sanitizes EXIF
+// to plain `{ tagName: description }` so Mongo can persist it under
+// Module.meta.exif without nested-object headaches.
+const EXIF_INTEREST = [
+  "DateTimeOriginal", "DateTime", "CreateDate",
+  "Make", "Model", "LensModel",
+  "FNumber", "ExposureTime", "ISOSpeedRatings", "FocalLength",
+  "Orientation",
+  "GPSLatitude", "GPSLongitude", "GPSAltitude",
+];
+function extractImageMetadata(filePath, mimeType) {
+  if (!mimeType?.startsWith("image/")) return null;
+  try {
+    const buffer = fs.readFileSync(filePath);
+    const tags = ExifReader.load(buffer, { expanded: false });
+    const out = {};
+    // ExifReader keys are tag names; values shape `{description, value}`.
+    for (const key of EXIF_INTEREST) {
+      const t = tags[key];
+      if (t && (t.description != null || t.value != null)) {
+        out[key] = t.description ?? (Array.isArray(t.value) ? t.value.join(",") : String(t.value));
+      }
+    }
+    // Width / height live on different tags depending on the format.
+    // Prefer `Image Width` / `Image Height` (JPEG/TIFF), fall back to
+    // PixelXDimension / PixelYDimension (EXIF block), then `ImageWidth`.
+    const width = Number(
+      tags["Image Width"]?.value ?? tags["PixelXDimension"]?.value ?? tags["ImageWidth"]?.value ?? NaN
+    );
+    const height = Number(
+      tags["Image Height"]?.value ?? tags["PixelYDimension"]?.value ?? tags["ImageHeight"]?.value ?? NaN
+    );
+    return {
+      width: Number.isFinite(width) ? width : null,
+      height: Number.isFinite(height) ? height : null,
+      exif: Object.keys(out).length ? out : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
   try {
     const { userId, gridId, parentFolderId, manifestId } = req.body;
     if (!userId || !req.file) return res.status(400).json({ error: "Missing userId or file" });
 
-    const subfolder = "user";
-    const artifactSubdir = path.join(uploadsDir, subfolder);
+    // Use supplied IDs if present (optimistic flow), otherwise generate fresh ones.
+    const moduleId = req.body.moduleId || nanoid();
+    const occurrenceId = req.body.occurrenceId || nanoid();
+
+    // ── Content-hash dedup (files audit gap #3) ──
+    // Compute SHA-256 BEFORE the rename so we can short-circuit the file
+    // move + new-module mint when the user already has an artifact module
+    // for this exact bytes. External-URL fileRefs (Wikipedia drops etc.)
+    // are filtered out — they can't dedup against local uploads.
+    const sha256 = await sha256OfFile(req.file.path);
+    const dedupCandidate = await Module.findOne({
+      userId,
+      role: "artifact",
+      "meta.sha256": sha256,
+      fileRef: { $not: /^(https?:|data:|blob:)/i },
+    }).lean();
+
+    if (dedupCandidate && dedupCandidate.id !== moduleId) {
+      // Dedup hit: skip the file write, reuse the existing module.
+      // Tear down the multer temp file (rename never happened).
+      try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+
+      // If the optimistic flow already inserted a placeholder Module
+      // (via the `create_module` socket emit that fires alongside the
+      // /api/artifacts/upload call), strip it now — the occurrence is
+      // about to re-point at the dedup candidate's module.
+      const placeholderMod = await Module.findOne({ id: moduleId, userId });
+      if (placeholderMod) {
+        await Module.deleteOne({ id: moduleId });
+        const cache = cacheByUser[userId];
+        if (cache) delete cache.modulesById[moduleId];
+        io.to(userRoom(userId)).emit("module_deleted", moduleId);
+      }
+
+      // Wire (or rewire) the occurrence to point at the existing module.
+      const existingOcc = await Occurrence.findOne({ id: occurrenceId });
+      const occDoc = existingOcc
+        ? { ...existingOcc.toObject(), moduleId: dedupCandidate.id }
+        : {
+            id: occurrenceId, userId, gridId: gridId || null,
+            moduleId: dedupCandidate.id,
+            parentId: parentFolderId || null,
+            textmap: null,
+          };
+      if (!existingOcc) {
+        // Reuse a single View per module-kind for the new occurrence so
+        // the artifact-panel display path still works (same shape the
+        // non-dedup branch emits below).
+        const { viewType, artifactType } = viewFieldsForKind(dedupCandidate.kind);
+        const artifactViewId = nanoid();
+        const artifactView = new View({ id: artifactViewId, userId, gridId: gridId || null, viewType, artifactType, layout: {} });
+        await artifactView.save();
+        occDoc.viewId = artifactViewId;
+      }
+      await Occurrence.findOneAndUpdate({ id: occurrenceId }, occDoc, { upsert: true });
+
+      const occObj = await Occurrence.findOne({ id: occurrenceId }).lean();
+      const cache = cacheByUser[userId];
+      if (cache) cache.occurrencesById[occObj.id] = occObj;
+      if (existingOcc) {
+        io.to(userRoom(userId)).emit("occurrence_updated", occObj);
+      } else {
+        io.to(userRoom(userId)).emit("occurrence_created", occObj);
+      }
+      io.to(userRoom(userId)).emit("artifact_created", { moduleId: dedupCandidate.id, occurrenceId, fileRef: dedupCandidate.fileRef });
+      return res.json({
+        module: dedupCandidate,
+        occurrence: occObj,
+        fileRef: dedupCandidate.fileRef,
+        url: `/uploads/${dedupCandidate.fileRef}`,
+        dedup: true,
+      });
+    }
+
+    // Sharded layout: uploads/user/YYYY-MM/<file>. fileRef is the
+    // POSIX-style path stored on the Module — always uses `/` regardless
+    // of platform separator (URL semantics + cross-OS portability).
+    const shard = yearMonthShard();
+    const subfolder = `user/${shard}`;
+    const artifactSubdir = path.join(uploadsDir, "user", shard);
     fs.mkdirSync(artifactSubdir, { recursive: true });
     const destFileName = req.file.filename;
     const destPath = path.join(artifactSubdir, destFileName);
@@ -382,12 +574,19 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
     const kind = mimeToKind(req.file.mimetype, req.file.originalname);
     const { viewType, artifactType } = viewFieldsForKind(kind);
 
-    // Use supplied IDs if present (optimistic flow), otherwise generate fresh ones.
-    const moduleId = req.body.moduleId || nanoid();
-    const occurrenceId = req.body.occurrenceId || nanoid();
-
     const existingMod = await Module.findOne({ id: moduleId });
     const isUpdate = !!existingMod;
+
+    // Extract EXIF + dimensions for image uploads (audit gap #12).
+    // Read from the renamed destPath; metadata becomes part of
+    // module.meta so the image artifact viewer + future
+    // chronological gallery can use it without re-parsing.
+    const imageMeta = extractImageMetadata(destPath, req.file.mimetype);
+
+    // Generate sharp thumbnails for image uploads (audit gap #4).
+    // sha256-keyed so dedup'd uploads reuse the existing thumbs.
+    // Awaited because the response includes the thumb refs.
+    const thumbs = await generateImageThumbnails(destPath, sha256, req.file.mimetype);
 
     const moduleDoc = {
       id: moduleId, userId, gridId: gridId || null,
@@ -398,6 +597,24 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
         ...(existingMod?.meta || {}),
         mimeType: req.file.mimetype,
         originalName: req.file.originalname,
+        // Persist size so it survives reloads — the client-side
+        // placeholder stamps this too, but rebuilding meta fresh
+        // here would have wiped it (see file/artifact docket #5).
+        uploadSize: req.file.size,
+        // Content-hash stamped on every new module so subsequent uploads
+        // of the same bytes can short-circuit via the dedup branch above.
+        sha256,
+        // Image-only: width / height / exif from ExifReader. All three
+        // are nullable when the file isn't an image or the parse fails;
+        // omit-when-null keeps non-image modules' meta unchanged.
+        ...(imageMeta?.width != null  ? { width:  imageMeta.width  } : {}),
+        ...(imageMeta?.height != null ? { height: imageMeta.height } : {}),
+        ...(imageMeta?.exif         ? { exif: imageMeta.exif } : {}),
+        // Sharp thumbnail refs — sha256-keyed paths under uploads/thumbnails/.
+        // Resolves via the same /uploads/ static mount as the original.
+        // Null for non-image or unsupported formats (SVG / GIF / etc.).
+        ...(thumbs?.thumb256  ? { thumb256:  thumbs.thumb256  } : {}),
+        ...(thumbs?.thumb1024 ? { thumb1024: thumbs.thumb1024 } : {}),
         folderId: parentFolderId || existingMod?.meta?.folderId || null,
         uploadStatus: "ready",
       },
@@ -448,33 +665,19 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
       io.to(userRoom(userId)).emit("occurrence_created", occObj);
     }
     io.to(userRoom(userId)).emit("artifact_created", { moduleId, occurrenceId, fileRef });
-    res.json({ module: modObj, occurrence: occObj, fileRef, url: `/artifacts/${fileRef}` });
+    // Serve under /uploads/; the legacy /artifacts/ mount was removed
+    // in March 2026 (see server/CLAUDE.md). The url field is purely
+    // informational — clients resolve via helpers/fileRef.resolveFileRef.
+    res.json({ module: modObj, occurrence: occObj, fileRef, url: `/uploads/${fileRef}` });
   } catch (err) {
     console.error("Artifact upload error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/api/upload", upload.single("file"), async (req, res) => {
-  try {
-    const { userId, gridId } = req.body;
-    if (!userId || !req.file) return res.status(400).json({ error: "Missing userId or file" });
-    const fileRef = req.file.filename;
-    const kind = mimeToKind(req.file.mimetype, req.file.originalname);
-    const moduleId = nanoid();
-    const module = new Module({ id: moduleId, userId, gridId: gridId || null, role: "artifact", kind, label: req.file.originalname, fileRef, meta: { mimeType: req.file.mimetype, originalName: req.file.originalname } });
-    await module.save();
-    const obj = module.toObject();
-    const modObj = { ...obj, id: obj.id || obj._id.toString() };
-    const cache = cacheByUser[userId];
-    if (cache) cache.modulesById[modObj.id] = modObj;
-    io.to(userRoom(userId)).emit("module_created", modObj);
-    res.json({ module: modObj, fileRef, url: `/uploads/${fileRef}` });
-  } catch (err) {
-    console.error("Upload error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+// /api/upload (legacy) deleted 2026-05-21 — every caller now goes through
+// /api/artifacts/upload (canonical: Module + Occurrence + View, optimistic-id
+// aware, idempotent on moduleId). See docket §8 quick wins.
 
 app.post("/api/storage-settings", async (req, res) => {
   try {
@@ -522,7 +725,7 @@ app.get("/api/connections/:id/files", (req, res) => {
 app.post("/api/connections/:id/import", async (req, res) => {
   const conn = CONNECTIONS.find((c) => c.id === req.params.id);
   if (!conn) return res.status(404).json({ error: "Connection not found" });
-  const { fileName, userId, gridId } = req.body;
+  const { fileName, userId, gridId, parentFolderId, manifestId } = req.body;
   if (!fileName || !userId) return res.status(400).json({ error: "Missing fileName or userId" });
   const srcPath = path.join(conn.path, fileName);
   if (!fs.existsSync(srcPath)) return res.status(404).json({ error: "File not found" });
@@ -530,18 +733,78 @@ app.post("/api/connections/:id/import", async (req, res) => {
     const ext = path.extname(fileName);
     const mimeMap = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".pdf": "application/pdf", ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".md": "text/markdown", ".txt": "text/plain", ".json": "application/json" };
     const mime = mimeMap[ext.toLowerCase()] || "application/octet-stream";
-    const fileRef = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
-    fs.copyFileSync(srcPath, path.join(uploadsDir, fileRef));
-    const moduleId = nanoid();
+
+    // Mirror /api/artifacts/upload: write into uploads/user/YYYY-MM/ +
+    // mint a full Module + Occurrence + View triple. The legacy
+    // flat-uploads/ path is gone; connection imports now sit alongside
+    // drag-drop uploads in the sharded layout (audit gap #18).
+    const shard = yearMonthShard();
+    const subfolder = `user/${shard}`;
+    const artifactSubdir = path.join(uploadsDir, "user", shard);
+    fs.mkdirSync(artifactSubdir, { recursive: true });
+    const destFileName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+    fs.copyFileSync(srcPath, path.join(artifactSubdir, destFileName));
+    const fileRef = `${subfolder}/${destFileName}`;
+    const stat = fs.statSync(path.join(artifactSubdir, destFileName));
+
     const kind = mimeToKind(mime, fileName);
-    const module = new Module({ id: moduleId, userId, gridId: gridId || null, role: "artifact", kind, label: fileName, fileRef, meta: { mimeType: mime, originalName: fileName } });
-    await module.save();
-    const obj = module.toObject();
-    const modObj = { ...obj, id: obj.id || obj._id.toString() };
+    const { viewType, artifactType } = viewFieldsForKind(kind);
+
+    const moduleId = nanoid();
+    const occurrenceId = nanoid();
+    const viewIdNew = nanoid();
+
+    const moduleDoc = {
+      id: moduleId, userId, gridId: gridId || null,
+      role: "artifact", kind,
+      label: fileName,
+      fileRef, defaultDragMode: "copy",
+      meta: {
+        mimeType: mime,
+        originalName: fileName,
+        uploadSize: stat.size,
+        folderId: parentFolderId || null,
+        uploadStatus: "ready",
+      },
+    };
+    await Module.findOneAndUpdate({ id: moduleId }, moduleDoc, { upsert: true });
+
+    const artifactView = new View({ id: viewIdNew, userId, gridId: gridId || null, viewType, artifactType, layout: {} });
+    await artifactView.save();
+
+    const occDoc = {
+      id: occurrenceId, userId, gridId: gridId || null,
+      moduleId,
+      parentId: parentFolderId || null,
+      viewId: viewIdNew,
+      textmap: kind === "markdown" ? { type: "doc", content: [] } : null,
+    };
+    await Occurrence.findOneAndUpdate({ id: occurrenceId }, occDoc, { upsert: true });
+
+    if (manifestId) {
+      const manifestView = await View.findOne({ manifestId, userId });
+      if (manifestView) {
+        manifestView.activeOccurrenceId = occurrenceId;
+        await manifestView.save();
+        const vc = { ...manifestView.toObject(), id: manifestView.id };
+        const cache = cacheByUser[userId];
+        if (cache) cache.viewsById[vc.id] = vc;
+        io.to(userRoom(userId)).emit("view_updated", vc);
+      }
+    }
+
+    const modObj = await Module.findOne({ id: moduleId }).lean();
+    const occObj = await Occurrence.findOne({ id: occurrenceId }).lean();
     const cache = cacheByUser[userId];
-    if (cache) cache.modulesById[modObj.id] = modObj;
+    if (cache) {
+      cache.modulesById[modObj.id] = modObj;
+      cache.occurrencesById[occObj.id] = occObj;
+    }
+
     io.to(userRoom(userId)).emit("module_created", modObj);
-    res.json({ module: modObj, fileRef, url: `/uploads/${fileRef}` });
+    io.to(userRoom(userId)).emit("occurrence_created", occObj);
+    io.to(userRoom(userId)).emit("artifact_created", { moduleId, occurrenceId, fileRef });
+    res.json({ module: modObj, occurrence: occObj, fileRef, url: `/uploads/${fileRef}` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -563,6 +826,57 @@ app.use("/api/v1", makeApiV1Router({
   userRoom,
   opRunBridge,
 }));
+
+// ─── Wikipedia import (no-/v1, no-API-token) ──────────────────────────────
+// Mirror of /api/v1/research/wikipedia/import but uses {userId,gridId} from the
+// request body the same way /api/artifacts/upload does. Lets the in-app
+// "Import from Wikipedia" operation hit it via CALL_API without minting an
+// API token first. Same-origin only is enforced upstream by CORS settings.
+app.post("/api/research/wikipedia/import", async (req, res) => {
+  try {
+    const { userId, gridId, parentId = null, query, title: explicitTitle, dryRun = false } = req.body || {};
+    if (!userId) return res.status(400).json({ error: "userId required" });
+    if (!gridId) return res.status(400).json({ error: "gridId required" });
+    if (!query && !explicitTitle) return res.status(400).json({ error: "query or title required" });
+
+    const { search, fullMarkdown } = await import("./services/wikipediaTools.js");
+    const { markdownToModuli } = await import("./services/markdownImporter.js");
+
+    let pickedTitle = explicitTitle;
+    let searchHit = null;
+    if (!pickedTitle) {
+      const hits = await search(query, { limit: 1 });
+      if (!hits.length) return res.status(404).json({ error: "No Wikipedia matches for that query" });
+      searchHit = hits[0];
+      pickedTitle = searchHit.title;
+    }
+
+    const full = await fullMarkdown(pickedTitle);
+    if (!full) return res.status(404).json({ error: "Article not found" });
+
+    const importResult = await markdownToModuli({
+      gridId, parentId, userId,
+      markdown: full.markdown, title: pickedTitle, dryRun,
+    });
+
+    if (!dryRun) {
+      for (const m of importResult.modules) io.to(userRoom(userId)).emit("module_created", { module: m });
+      for (const o of importResult.occurrences) io.to(userRoom(userId)).emit("occurrence_created", { occurrence: o });
+    }
+
+    res.json({
+      ok: true,
+      source: { title: pickedTitle, url: full.url, matchedFrom: explicitTitle ? "title" : "search" },
+      searchHit,
+      rootOccurrenceId: importResult.rootOccurrenceId,
+      stats: importResult.stats,
+      dryRun,
+    });
+  } catch (err) {
+    console.error("[wiki-import] error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // HMAC verification needs the raw body bytes — use express.raw on this
 // route only, then parse JSON ourselves after signature check passes.

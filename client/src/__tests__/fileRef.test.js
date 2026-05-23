@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveFileRef } from "../helpers/fileRef";
+import { resolveFileRef, isExternalFileRef, isExternalArtifact } from "../helpers/fileRef";
 
 describe("resolveFileRef", () => {
   it("returns null for null / undefined / empty", () => {
@@ -36,5 +36,37 @@ describe("resolveFileRef", () => {
   it("is case-insensitive for URL schemes", () => {
     expect(resolveFileRef("HTTPS://x.com/a.jpg")).toBe("HTTPS://x.com/a.jpg");
     expect(resolveFileRef("Http://x.com/a.jpg")).toBe("Http://x.com/a.jpg");
+  });
+});
+
+describe("isExternalFileRef", () => {
+  it("recognizes http / https / data / blob refs as external", () => {
+    expect(isExternalFileRef("https://wikimedia.org/x.jpg")).toBe(true);
+    expect(isExternalFileRef("http://example.com/x.jpg")).toBe(true);
+    expect(isExternalFileRef("data:image/png;base64,abc")).toBe(true);
+    expect(isExternalFileRef("blob:http://localhost/abc")).toBe(true);
+  });
+  it("treats relative + server-absolute refs as internal", () => {
+    expect(isExternalFileRef("user/abc.jpg")).toBe(false);
+    expect(isExternalFileRef("/uploads/abc.jpg")).toBe(false);
+  });
+  it("returns false for null / empty", () => {
+    expect(isExternalFileRef(null)).toBe(false);
+    expect(isExternalFileRef("")).toBe(false);
+  });
+});
+
+describe("isExternalArtifact", () => {
+  it("trusts meta.external when present", () => {
+    expect(isExternalArtifact({ meta: { external: true }, fileRef: "user/x.jpg" })).toBe(true);
+    expect(isExternalArtifact({ meta: { external: false }, fileRef: "https://x.com/a.jpg" })).toBe(false);
+  });
+  it("falls back to fileRef detection when meta.external is unset", () => {
+    expect(isExternalArtifact({ fileRef: "https://wikimedia.org/x.jpg" })).toBe(true);
+    expect(isExternalArtifact({ fileRef: "user/abc.jpg" })).toBe(false);
+  });
+  it("returns false for null / no fileRef", () => {
+    expect(isExternalArtifact(null)).toBe(false);
+    expect(isExternalArtifact({})).toBe(false);
   });
 });

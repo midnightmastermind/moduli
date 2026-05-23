@@ -92,8 +92,11 @@ import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
 import { createModuleAction, createOccurrenceAction } from "../state/actions";
 import { mimeToKind } from "./fileKind";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
+import { toast } from "sonner";
+import { jumpToOccurrence } from "./jumpToOccurrence";
 import { DROP_TARGET_KIND } from "./dragHitTesting";
 import { autoAppendFieldsToAncestorsShowMode } from "./fieldVisibilityAutoAppend";
+import { uploadFileWithProgress, registerUpload, clearUpload } from "./uploadWithProgress";
 
 // Normalize a date-typed filter value to a local-tz YYYY-MM-DD string. Handles
 // the three input shapes the filter pipeline produces in the wild:
@@ -1285,7 +1288,9 @@ export function handleFileDrop(dropContext, ctx) {
   const { x, y } = pointer || { x: 0, y: 0 };
   const { containerId, panelId } = dropView(dropContext, ctx);
 
-  const file = payload.data.files[0];
+  const files = Array.from(payload?.data?.files || []);
+  if (files.length === 0) { clearSession(); return; }
+
   const cell = getCellFromPoint(x, y);
   const fileGridId = state?.gridId || state?.grid?._id;
   const fileUserId = state?.userId;
@@ -1301,94 +1306,168 @@ export function handleFileDrop(dropContext, ctx) {
     ? Object.values(occurrencesById).find(o => o.moduleId === containerId)
     : null;
 
-  // ── Build placeholder module + occurrence with client-generated IDs ──
-  const moduleId = makeUUID();
-  const occurrenceId = makeUUID();
-  const kind = mimeToKind(file.type, file.name);
+  // ── Mint placeholders for every file up-front so the optimistic UI
+  //    shows them all at once, then kick off uploads in parallel.
+  //    Docket §8 gap #6 — was `files[0]` only.
+  const placeholders = files.map((file) => {
+    const moduleId = makeUUID();
+    const occurrenceId = makeUUID();
+    const kind = mimeToKind(file.type, file.name);
+    return {
+      file, moduleId, occurrenceId, kind,
+      module: {
+        id: moduleId, userId: fileUserId, gridId: fileGridId,
+        role: "artifact", kind, label: file.name, fileRef: null,
+        defaultDragMode: "copy",
+        meta: {
+          uploadStatus: "pending",
+          originalName: file.name,
+          mimeType: file.type,
+          uploadSize: file.size,
+        },
+      },
+      occurrence: {
+        id: occurrenceId, userId: fileUserId, gridId: fileGridId,
+        moduleId, fields: {}, meta: {},
+      },
+    };
+  });
 
-  const placeholderModule = {
-    id: moduleId,
-    userId: fileUserId,
-    gridId: fileGridId,
-    role: "artifact",
-    kind,
-    label: file.name,
-    fileRef: null,
-    defaultDragMode: "copy",
-    meta: {
-      uploadStatus: "pending",
-      originalName: file.name,
-      mimeType: file.type,
-      uploadSize: file.size,
-    },
-  };
+  // Optimistic local dispatch — every placeholder renders its spinner immediately.
+  for (const p of placeholders) {
+    dispatch(createModuleAction(p.module));
+    dispatch(createOccurrenceAction(p.occurrence));
+  }
 
-  const placeholderOccurrence = {
-    id: occurrenceId,
-    userId: fileUserId,
-    gridId: fileGridId,
-    moduleId,
-    fields: {},
-    meta: {},
-  };
-
-  // Optimistic local dispatch — renders the spinner immediately.
-  dispatch(createModuleAction(placeholderModule));
-  dispatch(createOccurrenceAction(placeholderOccurrence));
-
-  // Wire the placeholder into its destination so the spinner appears in the right spot.
+  // ── Wire placeholders into the destination ────────────────────────
   if (capturedContainerOcc) {
+    // Single batched update appending every new occurrence to the container's children.
+    const allOccIds = placeholders.map(p => p.occurrenceId);
     CommitHelpers.updateOccurrence({
       dispatch, socket,
-      occurrence: { id: capturedContainerOcc.id, occurrences: [...(capturedContainerOcc.occurrences || []), occurrenceId] },
+      occurrence: { id: capturedContainerOcc.id, occurrences: [...(capturedContainerOcc.occurrences || []), ...allOccIds] },
       emit: true,
     });
   } else if (isExistingArtifactPanel && capturedPanelView) {
-    CommitHelpers.updateView({ dispatch, socket, view: { ...capturedPanelView, activeOccurrenceId: occurrenceId } });
+    // Each artifact lives independently; only the LAST one becomes the active
+    // view (subsequent occurrences are reachable via the manifest tree if the
+    // panel has one, or via the Files tab in the command center otherwise).
+    const lastOccId = placeholders[placeholders.length - 1].occurrenceId;
+    CommitHelpers.updateView({ dispatch, socket, view: { ...capturedPanelView, activeOccurrenceId: lastOccId } });
   } else {
+    // Grid-cell destination: one new artifact panel per file, all stacked into
+    // the same cell. Users cycle through them via the existing panel-stack UI.
+    // First panel uses the targeted cell; the rest stack alongside.
     const targetCell = cell || { row: 0, col: 0 };
-    const newPanelModule = { id: makeUUID(), label: file.name || "Uploaded File", role: "panel", kind: "list" };
-    const panelResult = LayoutHelpers.createPanelInGrid({
-      dispatch, socket, grid: fileGrid, panel: newPanelModule,
-      placement: { row: targetCell.row, col: targetCell.col, width: 1, height: 1 },
-      userId: fileUserId, emit: true,
-    });
-    if (panelResult?.occurrence) {
-      const viewId = makeUUID();
-      const { viewType, artifactType } = viewFieldsForKindClient(kind);
-      CommitHelpers.createView({
-        dispatch, socket,
-        view: { id: viewId, userId: fileUserId, gridId: fileGridId, viewType, artifactType, hasTree: false, manifestId: null, activeOccurrenceId: occurrenceId },
-        emit: true,
+    for (const p of placeholders) {
+      const newPanelModule = { id: makeUUID(), label: p.file.name || "Uploaded File", role: "panel", kind: "list" };
+      const panelResult = LayoutHelpers.createPanelInGrid({
+        dispatch, socket, grid: fileGrid, panel: newPanelModule,
+        placement: { row: targetCell.row, col: targetCell.col, width: 1, height: 1 },
+        userId: fileUserId, emit: true,
       });
-      CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...panelResult.occurrence, viewId }, emit: true });
+      if (panelResult?.occurrence) {
+        const viewId = makeUUID();
+        const { viewType, artifactType } = viewFieldsForKindClient(p.kind);
+        CommitHelpers.createView({
+          dispatch, socket,
+          view: { id: viewId, userId: fileUserId, gridId: fileGridId, viewType, artifactType, hasTree: false, manifestId: null, activeOccurrenceId: p.occurrenceId },
+          emit: true,
+        });
+        CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...panelResult.occurrence, viewId }, emit: true });
+      }
     }
   }
 
-  // ── Background upload — server upserts using the IDs we just dispatched ──
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("userId", fileUserId);
-  formData.append("gridId", fileGridId);
-  formData.append("moduleId", moduleId);
-  formData.append("occurrenceId", occurrenceId);
+  // ── Per-file upload with batched progress toast ───────────────────
+  const total = placeholders.length;
+  const toastId = total > 1 ? toast.loading(`Uploading ${total} files…`) : null;
+  let uploaded = 0, failed = 0;
 
-  fetch("/api/artifacts/upload", { method: "POST", body: formData })
-    .then(r => r.json())
-    .then(({ module: uploadedModule }) => {
-      if (uploadedModule?.id) {
-        // Local module already exists; reducer is idempotent — clears the spinner.
-        CommitHelpers.updateModule({ dispatch, socket, module: uploadedModule, emit: false });
-      }
-    })
-    .catch(err => {
-      console.error("[FILE DROP] Upload error:", err);
-      CommitHelpers.updateModule({
-        dispatch, socket,
-        module: { id: moduleId, meta: { ...placeholderModule.meta, uploadStatus: "error" } },
-        emit: false,
-      });
+  let cancelled = 0;
+
+  const uploadOne = (p) => {
+    const formData = new FormData();
+    formData.append("file", p.file);
+    formData.append("userId", fileUserId);
+    formData.append("gridId", fileGridId);
+    formData.append("moduleId", p.moduleId);
+    formData.append("occurrenceId", p.occurrenceId);
+
+    // Per-upload AbortController; registered against the placeholder so the
+    // ArtifactCard's cancel button can find + invoke it (audit gap #8).
+    const controller = new AbortController();
+    let lastProgress = 0;
+    registerUpload(p.occurrenceId, {
+      abort: () => controller.abort(),
+      moduleId: p.moduleId, occurrenceId: p.occurrenceId,
+      containerOccurrenceId: capturedContainerOcc?.id || null,
     });
+
+    return uploadFileWithProgress({
+      url: "/api/artifacts/upload",
+      formData,
+      signal: controller.signal,
+      onProgress: (frac) => {
+        // Coalesce to once per 5% — module updates fan out to every React
+        // consumer and we don't need byte-accurate dispatches.
+        const stepped = Math.min(1, Math.floor(frac * 20) / 20);
+        if (stepped === lastProgress) return;
+        lastProgress = stepped;
+        CommitHelpers.updateModule({
+          dispatch, socket,
+          module: { id: p.moduleId, meta: { ...p.module.meta, uploadProgress: stepped } },
+          emit: false,
+        });
+      },
+    })
+      .then(({ module: uploadedModule }) => {
+        if (uploadedModule?.id) {
+          CommitHelpers.updateModule({ dispatch, socket, module: uploadedModule, emit: false });
+        }
+        uploaded++;
+      })
+      .catch(err => {
+        if (err?.name === "AbortError") {
+          cancelled++;
+          // ArtifactCard's cancel handler is responsible for actually
+          // tearing down the placeholder occurrence — here we just leave
+          // the local module flipped to "cancelled" in case the handler
+          // already ran (idempotent).
+          return;
+        }
+        console.error("[FILE DROP] Upload error:", err);
+        CommitHelpers.updateModule({
+          dispatch, socket,
+          module: { id: p.moduleId, meta: { ...p.module.meta, uploadStatus: "error" } },
+          emit: false,
+        });
+        failed++;
+      })
+      .finally(() => {
+        clearUpload(p.occurrenceId);
+        if (toastId == null) return;
+        const done = uploaded + failed + cancelled;
+        if (done < total) {
+          toast.loading(`Uploaded ${uploaded} of ${total}…`, { id: toastId });
+        } else if (failed === 0 && cancelled === 0) {
+          toast.success(`Uploaded ${total} files`, { id: toastId });
+        } else if (uploaded === 0 && failed === 0) {
+          toast.message(`Cancelled ${cancelled} upload${cancelled === 1 ? "" : "s"}`, { id: toastId });
+        } else if (uploaded === 0) {
+          toast.error(`All ${total} uploads failed`, { id: toastId });
+        } else {
+          const parts = [];
+          if (uploaded > 0)  parts.push(`${uploaded} uploaded`);
+          if (failed > 0)    parts.push(`${failed} failed`);
+          if (cancelled > 0) parts.push(`${cancelled} cancelled`);
+          toast.warning(parts.join(" · "), { id: toastId });
+        }
+      });
+  };
+
+  // Kick all uploads off in parallel; the server is idempotent on (moduleId).
+  Promise.all(placeholders.map(uploadOne));
 
   clearSession();
 }
@@ -1409,24 +1488,12 @@ export function handleExternalDrop(dropContext, ctx) {
   const { y } = pointer || { x: 0, y: 0 };
   const { containerId, dropTarget } = dropView(dropContext, ctx);
 
-  const container = baseContainers.find(c => c.id === containerId);
-  if (!container) { clearSession(); return; }
-
-  const containerOcc = Object.values(occurrencesById).find(o => o.moduleId === container.id);
   const gridId = state?.gridId || state?.grid?._id;
 
   // ── Drag-to-import pathway (docket #6.5) ────────────────────────
   // When the dropped content is HTML or non-trivial multi-paragraph
   // text, fan it through the server-side importer instead of minting
-  // a single instance with the raw text as the label. Detection:
-  //   - dataTransfer carries `text/html` with substantial content, OR
-  //   - the plain text has at least one paragraph break or a markdown
-  //     structural marker (heading / list / code-fence / image)
-  //
-  // The socket handler (server/socketHandlers/import.js) materializes
-  // the subtree, broadcasts module_created + occurrence_created (the
-  // existing store handlers absorb them), then ack-callbacks the new
-  // root id so we can append it under the drop container.
+  // a single instance with the raw text as the label.
   const htmlFromDt = (() => {
     try { return dataTransfer?.getData?.("text/html") || ""; } catch { return ""; }
   })();
@@ -1438,30 +1505,113 @@ export function handleExternalDrop(dropContext, ctx) {
     if (htmlFromDt && htmlFromDt.trim().length > 12) return { format: "html", content: htmlFromDt };
     const t = textFromDt;
     if (!t) return null;
-    // Multi-paragraph plain text, or text with any markdown structural
-    // marker, routes through the importer. Single short sentences fall
-    // through to the legacy "one instance with this as a label" path.
     const hasStructure = /\n\s*\n/.test(t) || /(^|\n)\s*(?:#{1,6} |[-*] |\d+\. |```|!\[)/.test(t);
     if (hasStructure || t.length > 200) return { format: "auto", content: t };
     return null;
   })();
 
-  if (wantsImport && containerOcc && gridId && socket?.emit) {
-    socket.emit("import_text", {
-      content: wantsImport.content,
-      format: wantsImport.format,
-      gridId,
-      // parentId == containerOcc.id so the imported subtree's root is
-      // appended under THIS container's occurrences[] on the server.
-      parentId: containerOcc.id,
-      title: container?.label || "Imported",
-      requestId: makeUUID(),
-    });
-    return;
+  // Resolve the import destination — three modes:
+  //   1. Container drop  — append under this container's occurrence
+  //   2. Page drop       — append under the page occurrence (board
+  //                        pages and canvas pages both work)
+  //   3. Empty grid cell — mint a new panel + container at the cell,
+  //                        then append under the new container
+  function resolveImportParent() {
+    // Mode 1: container
+    if (containerId) {
+      const c = baseContainers.find(c => c.id === containerId);
+      const cOcc = c ? Object.values(occurrencesById).find(o => o.moduleId === c.id) : null;
+      if (cOcc) return { parentId: cOcc.id, title: c.label || "Imported" };
+    }
+    // Mode 2: page (drop target carries pageOccurrenceId but no container).
+    // Folder pages are a special case — the folder-page grid enumerates
+    // children of the FOLDER (pageOcc.parentId), not children of the page
+    // occurrence. Imports onto a folder page must therefore parent under
+    // the folder so the new content actually shows up in the grid.
+    const pageOccId = dropTarget?.context?.pageOccurrenceId;
+    if (pageOccId && occurrencesById[pageOccId]) {
+      const pageOcc = occurrencesById[pageOccId];
+      const pageMod = state?.modulesById?.[pageOcc.moduleId];
+      if (pageMod?.kind === "folder" && pageOcc.parentId) {
+        return { parentId: pageOcc.parentId, title: pageMod?.label || "Imported" };
+      }
+      return { parentId: pageOccId, title: pageMod?.label || "Imported" };
+    }
+    // Mode 3: empty grid cell — mint panel + container first
+    if (dropTarget?.type === DROP_TARGET_KIND.GRID_CELL
+        && dropTarget?.context?.row !== undefined
+        && dropTarget?.context?.col !== undefined
+        && state?.grid && state?.userId && gridId) {
+      const cell = { row: dropTarget.context.row, col: dropTarget.context.col };
+      const label = "Imported";
+      const newPanel = { id: makeUUID(), label, role: "panel", kind: "list" };
+      const { occurrence: panelOcc } = LayoutHelpers.createPanelInGrid({
+        dispatch, socket, grid: state.grid, panel: newPanel,
+        placement: { row: cell.row, col: cell.col, width: 1, height: 1 },
+        userId: state.userId, emit: true,
+      });
+      const newContainer = { id: makeUUID(), label, role: "container", kind: "list" };
+      const { occurrence: containerOcc } = LayoutHelpers.createContainerInPanel({
+        dispatch, socket, gridId, panel: { ...newPanel, _occurrence: panelOcc },
+        container: newContainer, userId: state.userId, emit: true,
+      });
+      return { parentId: containerOcc.id, title: label };
+    }
+    return null;
   }
 
-  // ── Legacy fallback — short text / URL drops become a single
-  //     instance using the dropped value as the label. ─────────────
+  if (wantsImport && socket?.emit) {
+    const dest = resolveImportParent();
+    if (dest) {
+      const requestId = makeUUID();
+      // Loading toast — swapped to success/fail on import_text_result
+      // (server acks with the matching requestId). 30s upper cap in
+      // case the server never responds for some reason.
+      // Loading toast — swapped to success/fail when the server acks
+      // import_text_result with the matching requestId. 30s upper cap so
+      // the loading spinner can't get stuck if the server never responds.
+      const toastId = toast.loading(`Importing into ${dest.title}…`, { duration: 30000 });
+      const onResult = (resp) => {
+        if (!resp || resp.requestId !== requestId) return;
+        socket.off?.("import_text_result", onResult);
+        if (resp.ok) {
+          const s = resp.stats || {};
+          const bits = [];
+          if (s.containers) bits.push(`${s.containers} container${s.containers === 1 ? "" : "s"}`);
+          if (s.instances) bits.push(`${s.instances} item${s.instances === 1 ? "" : "s"}`);
+          if (s.textblocks) bits.push(`${s.textblocks} text block${s.textblocks === 1 ? "" : "s"}`);
+          if (s.artifacts) bits.push(`${s.artifacts} image${s.artifacts === 1 ? "" : "s"}`);
+          toast.success(`Imported (${bits.join(" · ") || "no content"})`, { id: toastId });
+          // Scroll to + flash the new root so the user sees their
+          // freshly imported content land. Defer briefly so the
+          // store has time to absorb the per-entity broadcasts.
+          if (resp.rootOccurrenceId) {
+            setTimeout(() => jumpToOccurrence(resp.rootOccurrenceId), 120);
+          }
+        } else {
+          toast.error(`Import failed: ${resp.error || "unknown error"}`, { id: toastId });
+        }
+      };
+      socket.on?.("import_text_result", onResult);
+      socket.emit("import_text", {
+        content: wantsImport.content,
+        format: wantsImport.format,
+        gridId,
+        parentId: dest.parentId,
+        title: dest.title,
+        requestId,
+      });
+      return;
+    }
+    // No usable drop destination — fall through to legacy below.
+  }
+
+  // ── Legacy fallback — short text / URL drops on a container become
+  //    a single instance using the dropped value as the label. ──────
+  const container = baseContainers.find(c => c.id === containerId);
+  if (!container) { clearSession(); return; }
+  const containerOcc = Object.values(occurrencesById).find(o => o.moduleId === container.id);
+
   let label = "Untitled";
   if (payload.payloadType === DragType.TEXT) label = (payload.data?.text || "").slice(0, 80) || "Text";
   else if (payload.payloadType === DragType.URL) label = payload.data?.url || "Link";

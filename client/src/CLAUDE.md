@@ -2,6 +2,93 @@
 
 _Updated: 2026-05-21. Check this file before re-reading source._
 
+> **Read [`/CLAUDE_CHAT.md`](../../CLAUDE_CHAT.md) at session start** for time-ordered user direction across sessions. New direction goes there first.
+
+## Recent Changes (2026-05-21 — Audit continuation: download / multi-file / OCR / wiki op / sample artifacts)
+- **`client/src/modules/ArtifactContent.jsx`** — Page-level artifact
+  viewer now carries a download badge for image / pdf / audio / video
+  branches AND an inline Download link in the CodeViewer header. Uses
+  `module.meta.originalName` so the saved file isn't the timestamp-
+  randomized server filename. Docket §8 gap #20.
+- **`client/src/modules/ArtifactContent.jsx`** — Image branch gained
+  an `OcrButton`: click → lazy-imports `tesseract.js` → recognizes
+  text → mints a `role:"textblock"` occurrence with the OCR'd content
+  as its textmap, appended to the image occurrence's `occurrences[]`.
+  Below the image, every child textblock renders in an editable
+  `<Editor>`. Multi-OCR is fine (each run appends a new textblock).
+  Per user request.
+- **`client/src/helpers/dropHandlers.js`** — `handleFileDrop` now
+  iterates `payload.data.files` (was `files[0]`). Container drop:
+  one batched occurrences[] update with all new ids. Artifact-panel
+  drop: all uploads share the panel/view, last becomes active.
+  Grid-cell drop: one stacked panel per file. Toast batches progress
+  ("Uploading 3 files…" → "Uploaded 3 files"). Server is idempotent
+  on `moduleId` so parallel uploads are safe. Docket §8 gap #6.
+- **`server/server.js`** — New `POST /api/research/wikipedia/import`
+  route mirrors `/api/v1/research/wikipedia/import` but uses
+  `{userId, gridId}` from the body (same pattern as
+  `/api/artifacts/upload`). Lets the in-app "Import from Wikipedia"
+  op call it via CALL_API without needing an API token.
+- **`server/scripts/createLiveData.js`**:
+  - New `Examples` folder under root + 5 seeded artifact occurrences
+    (3 Wikimedia images, 1 Big Buck Bunny mp4, 1 W3C dummy.pdf).
+    `fileRef` is the absolute URL — `resolveFileRef` passes those
+    through verbatim, so no upload is needed on re-seed.
+  - New "Examples" board page pinned to the Notebook hub panel as a
+    4th tab, surfacing the artifacts as ArtifactCards on the grid +
+    in the full-page viewer.
+  - New "Import from Wikipedia" manual operation. Pipeline:
+    GET_USER_INPUT (query) → GET_USER_INPUT (mode: create / append /
+    replace) → IF create: name + folder picker + CALL_API → SHOW_VALUE
+    results. Append/Replace branches collect input and SHOW_VALUE a
+    TODO note (the markdown→textmap merge endpoint doesn't exist
+    yet). Folder picker options bake in the per-grid folder ids at
+    seed time.
+- **`client/package.json`** — `tesseract.js` 7.x added (lazy-loaded
+  for OCR).
+- Verified: 809/809 client tests, 144/144 server tests, build green.
+  Re-seed required to pick up the artifact + op seeds:
+  `node --env-file=.env server/scripts/createLiveData.js`.
+
+## Recent Changes (2026-05-21 — File/artifact/media audit: §8 quick wins + syntax highlighting)
+- **`server/server.js`** — `/api/upload` (legacy duplicate) deleted.
+  `/api/connections/:id/import` rewritten to mirror
+  `/api/artifacts/upload`: mints Module + Occurrence + View, writes
+  the file under `uploads/user/<ts>.<ext>`, records `uploadSize` +
+  `originalName` on `module.meta`, broadcasts `module_created` +
+  `occurrence_created` + `artifact_created`. Now accepts the same
+  `parentFolderId` and `manifestId` body params as the canonical
+  endpoint. Docket §8 gap #2.
+- **`server/models/Module.js`** — `meta` field gained a JSDoc
+  `@typedef ArtifactMeta` documenting the shape used by artifact
+  modules (`mimeType` / `originalName` / `uploadSize` /
+  `uploadStatus` / `folderId` + optional `exif`/`width`/`height`).
+  Mentions the two other documented variants (template:
+  `meta.templateModule`, schedule slot: `meta.scheduleSlot`).
+  Docket §8 gap #23.
+- **`client/src/helpers/CommitHelpers.js`** — `uploadFile` now hits
+  `/api/artifacts/upload` (was `/api/upload`) and forwards optional
+  `parentFolderId` / `manifestId` to the canonical endpoint.
+- **`client/src/ui/commandCenter/ConnectionsTab.jsx`** — `importFile`
+  body uses `parentFolderId` (matches the canonical schema);
+  `handleUpload` posts to `/api/artifacts/upload` and reads
+  `d.module` (was `d.artifact`).
+- **`client/src/modules/ArtifactContent.jsx`** — `CodeViewer` got
+  real syntax highlighting via `highlight.js` + the `atom-one-dark`
+  theme. JS module is dynamic-imported (lazy chunk); CSS theme is
+  eager (~3KB). Extension → highlight.js language map covers the
+  ~30 most common file types; unknown extensions fall back to
+  `highlightAuto`. Plain `<code>` shows while the module loads or
+  if highlighting throws. Header reads
+  `<filename> · .<ext> · <lang>`. Docket §8 gap #14.
+- **`client/package.json`** — `highlight.js` 11.x added.
+- **`client/src/CLAUDE.backup.2026-05-21.md` (NEW)** — Archive of
+  every dated "Recent Changes" section from 2026-05-20 and earlier
+  that used to live in this file (1950 → 1684 active lines).
+- Verified: 806/806 client tests, 144/144 server tests, client build
+  exit 0. `highlight.js` lives in the lazy chunk so first-load cost
+  is zero for users who never open a code artifact.
+
 ## Recent Changes (2026-05-21 — CSS cascade editor extends to Grid + per-kind controls)
 - **`helpers/StyleHelpers.js`** — Added `STYLE_FIELDS_BY_KIND`
   whitelist (grid / panel / page / container / instance / textblock /
@@ -86,6 +173,38 @@ _Updated: 2026-05-21. Check this file before re-reading source._
   unrelated failures are masterReducer's pre-existing
   `SET_COMPUTED_VALUES` test drift from the prior session's
   `color/icon/suffix/replaceValue` defaults — not touched here).
+
+## 2026-05-22 session-added tasks (see [`/CLAUDE_CHAT.md`](../../CLAUDE_CHAT.md) for full user-direction context)
+
+Mid-session 2026-05-22 the user dumped a large direction set + several follow-ups. Tasks #29-#52 in the session task list capture these. Highest-leverage open items:
+
+- **#45 Page-within-a-page primitive** — A page module that functions as a container when nested in another page's `occurrences[]`. 1 component renders the same module at top-level (page chrome) or embedded (container chrome). Prerequisite for #46 People profile-card.
+- **#46 People library + profile card view** — Seed 10 people in Library, table-of-people page with profile fields as columns (mirror Schedule Table). Above the table: a page-as-container (depends #45) rendering the selected person via APPLY_TEMPLATE from a "Profile Page" template. Bidirectional copy-link people-row ↔ Library entry ↔ profile-card. Multiselect "people" field type usable on tasks (Call/Email/Text).
+- **#36 Layout cascade** — CSS-style per-kind cascade for drag-in view + nav options + lock + drop rules. Folder-page → Preview/Representation nav + Preview default. Canvas → no fields, Representation default. Page in container → forced Representation (hardcoded). Standalone page → Actual, cannot change.
+- **#35 Canvas pill → merged into Representation view** — One universal small-view component. Label + type + icon + first-image thumbnail; hover popup with actual component; user-configurable fields shown.
+- **#31 Value manipulator action tree** — JS-equivalent ops on local vars (split/sort/replace/merge/delete/find) under a drilldown action category. Merges with existing sort-action.
+- **#30 createMultiple + multiple-variant switch on every action** — Single/multiple toggle on every action (createMultiple, moveMultiple, deleteMultiple, etc.) via switch — never separate actions. Find gets first-result vs multiple-results switch (NOT auto).
+- **#29 Last-X + Array-X display field pairs** — For every "last mood / last X" display field, add a paired array-display capturing all. Spots: mood, workouts, food intake, purchases, media consumed, pomodoros, +best guess. Array values must include timeslot + (multiday only) date. "Most recent" = by timeslot, not creation time. All via ops.
+- **#51 Canvas tool additions** — Richer color picker, marker vs pencil, fill-color (paint bucket), layers (on/off per layer, edit each, layers dropdown). Required before #37 Mona Lisa drawing.
+- **#40 External I/O spec** — Browser extension, BangleJS, Windows right-click, voice (Google Home + Assistant + BangleJS), voice OCR (audio → text), YouTube/Spotify link capture (Representation occurrence + OCR text), YT/Spotify download.
+- **#43 Image lifting + line extraction** — On Image artifact, alongside OCR button: extract subject (alpha-cut), extract outline (coloring-page mode, vector strokes), future blueprint conversion.
+- **#38 Type review spec** — Deep audit of board/doc/canvas/table + container/instance/artifact/textblock — refine tools, write spec.
+- **#39 Future plans + docs/ reconciliation checklist** — Original vision vs current state, identify gaps.
+- **#34 Account split** — Each account has its own field (was netBalance shared across Checking + Savings + Net Worth). **DONE 2026-05-22.**
+- **#33 Glide animation on panel header + command center** — Slower, shift-from-above. **DONE 2026-05-22.**
+- **#41 BUG: Schedule day-column header missing date** — **DONE 2026-05-22.**
+- **#42 BUG: Page-already-open notification** — Flash other panel when opening a page that's already active there. **DONE 2026-05-22.**
+- **#44 Picker-direct migration sweep** — Replaced all FIND-by-label sites in createLiveData custom pipelines with `$allItemsById.<id>` direct binding. **DONE 2026-05-22.**
+- **#32 Rename CategoryPathPicker → DrilldownPicker + DrilldownDatePicker → DrilldownTimePicker** — **DONE 2026-05-22.**
+- **#8 Goals restructure Stage 2** — All trackers + custom pipelines now pass `goalOccurrenceId` and use picker-direct goal binding. **DONE 2026-05-22.**
+- **#47 BUG: Daily Question header chevron** — Code wiring correct; needs in-browser verification of options resolution.
+- **#48 RepresentationView.onJump cross-page wiring** — Deferred until mind-map / value-builder surfaces exist.
+- **#49 FIND single-result vs multiple-results switch** — Distinct from createMultiple.
+- **#50 Picker level review across all uses** — Audit task — confirm every drilldown picker has the levels its call site needs.
+- **#52 Triage docs/BUGS.md Open list** — ~20 bugs, many may already be resolved by recent refactors.
+- **#37 Mona Lisa drawing** — LAST, after #51 ships.
+
+Lower priority (saved for after the prioritized set): #5 Month view page, #23 mobile touch, #24 100+ item perf, #25 offline sync, #26 conflict resolution, #27 multi-window sync, #38 type review, #39 docs reconciliation, #40 external I/O, #43 image lifting.
 
 ## Open docket (work still pending — handed off 2026-05-21)
 
@@ -212,26 +331,32 @@ _Updated: 2026-05-21. Check this file before re-reading source._
   whenever Schedule's instances change, so stale ids self-heal on
   the next op fire. Re-seed required:
   `node --env-file=.env server/scripts/createLiveData.js`.
-- **Schedule on load doesn't seed instances — just shows "daycontainer".**
-  After re-seed, Schedule page renders only a container labelled
-  "daycontainer" with no children. Code-inspection (2026-05-21):
-  - `Schedule: Build Schedule` op has both `onLoad` + multiple
-    `onFilterChange` triggers — should fire on cold load.
-  - `PageBoard.jsx` recognizes a day-col by the
-    `scheduleFormat` field's value being NOT in `{"slot","due"}`.
-    When the field is "timeslot" / "shortened" the day-col
-    renders; when null/empty, the page falls back to flat
-    rendering of `containersList`.
-  - If the user sees ONE container labelled "daycontainer" with
-    no children, likely either (a) the day-col was created but
-    slot containers weren't multi-parented into it via
-    `ADD_CHILD`, OR (b) PageBoard isn't recognizing the day-col
-    as such (label collision / format field not stamped).
-  Re-seed first to verify whether the Date-field removal +
-  `Stamp Filter Date` disable cleans this up. If still broken,
-  inspect the op's run log for `ADD_CHILD` effects and check
-  what the `scheduleFormat` field value is on the day-col
-  occurrence.
+- **~~Schedule on load doesn't seed instances — just shows
+  "daycontainer".~~** FIXED 2026-05-21 in
+  `server/utils/liveSystemBuilders.js makeScheduleBuildScheduleOp`.
+  Root cause was idempotency hygiene in PHASE 4b: the `ADD_CHILD`
+  loops (multi-parent slots into the day-col + multi-parent the
+  shared Due) lived inside the `IF $dayColId IS_EMPTY` THEN
+  branch. A partially-completed prior run that created the
+  day-col but bailed before populating it (slot template
+  missing, server timeout, anything) left the day-col present
+  but empty — and subsequent runs found the day-col, took the
+  ELSE branch, and never `ADD_CHILD`'d the slots in. `ADD_CHILD`
+  is idempotent (no-op when child is already in
+  `parent.occurrences[]`), so it should never have been gated.
+  Now: the `IF $dayColId IS_EMPTY` block only wraps `CREATE` of
+  the day-col itself; the slot-multi-parent loop and the Due
+  multi-parent IF sit as direct siblings of the IF and run on
+  every per-day pass. Self-heals half-built day-cols on the
+  next op fire. PHASE 4c (shortened mode) wasn't affected — it
+  has no `ADD_CHILD` (shortened day-cols are flat by design).
+  Re-seed required: `node --env-file=.env server/scripts/createLiveData.js`.
+  Regression: 1 new test in `server/__tests__/liveSystemBuilders.test.js`
+  walks the pipeline tree and asserts every `ADD_CHILD`-of-`$dayColId`
+  loop sits outside the day-col-empty gate (vs. an earlier
+  too-coarse check that also tripped on PHASE 4b's outer
+  `$activePeriodCount <= 7` IF — that one is supposed to be
+  there, since the mode switch is intentional).
 - **~~Date-stamp bug on goal/tracker occurrences — RESOLVE BY
   REMOVING.~~** ALREADY DONE in `server/scripts/createLiveData.js`
   (confirmed 2026-05-21). Goal containers (`goalContainerMods`) have
@@ -615,19 +740,52 @@ preview textblocks.
    through verbatim; relative refs prepend `/uploads/`. Wired into
    `ArtifactCard`, `ArtifactContent`, `Field.jsx`. Wikipedia
    images now render via plain `<img src>` without upload.
-5. **Drop UX polish (Phase B)** — preview pill ("Convert → Doc tree"),
-   conflict handling when dropping onto a container vs an empty
-   grid cell, drop on the GRID (no container) → mint a new page +
-   container in that cell, undo-friendly commit, loading toast
-   while the server materializes a large import.
-6. **markdownImporter table → kind:"table" container (Phase B)** —
-   parse pipe-table markdown into real `meta.table.columns` +
-   `meta.table.cells` instead of leaving as raw-HTML preview. The
-   user / AI can also one-click promote a preview textblock to a
-   real table container.
-7. **Inline image marks (Phase B)** — handle `![alt](src)` inside
-   prose paragraphs via TipTap image nodes (instead of just alt
-   text). Phase A intentionally only handles block-level images.
+5. ✅ **Drop UX polish (Phase B)** — DONE 2026-05-21:
+   - **Floating preview pill** lives next to the cursor during
+     a native external drag — `helpers/DragProvider.jsx`
+     `ExternalImportPreview` rendered when `dragover` on
+     `.grid-frame` carries `Files`/`text/html`/`text/plain`.
+     Labels per source: "Upload file" / "Convert HTML → modules"
+     / "Convert text → modules". Cleared on `drop`, document
+     `dragend`, or `dragleave` of the window (relatedTarget null).
+   - **Drop on empty grid cell → mint panel + container** is wired
+     in `handleExternalDrop.resolveImportParent` (3-mode resolver:
+     container > page > grid-cell) via `LayoutHelpers.create*`.
+   - **Loading toast** swaps to success/fail on
+     `import_text_result` (sonner is now a top-level ESM import in
+     `dropHandlers.js`; the previous Claude's `require("sonner")`
+     would have thrown in vite's ESM bundle).
+   - **Native drop reaches the importer** — `DragProvider.jsx`'s
+     `.grid-frame` `onDrop` builds a `dropContext` with the right
+     `sourceKind` (`"file"` or `"external"`) and routes through
+     `routeDrop`. Previously the file fallback called the unimported
+     `handleFileDrop` directly (broken since the May 8 cd1b3423
+     refactor); HTML/text drops from browser tabs were dropped on
+     the floor entirely.
+6. ✅ **markdownImporter pipe-table → `kind:"table"` container** —
+   DONE 2026-05-21. `parseBlocks` recognizes a header row + `---`
+   separator + body rows; `buildTable` mints a
+   `role:"container" kind:"table"` module whose occurrence carries
+   `meta.table = { columns:[{id,title,width,…}], rowCount, cells }`.
+   Cells store TipTap docs (paragraph with a text node, or just
+   a paragraph for empty cells). The ```html``` fence fallback
+   stays for tables `htmlToMarkdown` couldn't convert. Helper
+   `splitTableRow` tolerates leading/trailing `|` omission and
+   escaped `\|`. 5 new tests cover the canonical shape,
+   alignment-marker separators, escaped pipes, defensive
+   non-promotion of stray `|` in prose, and empty-cell shape.
+7. ✅ **Inline image marks (Phase B)** — DONE 2026-05-21. New
+   `paragraphToBlocks(text)` in markdownImporter splits prose
+   paragraphs on `![alt](src)` patterns, emitting a sequence of
+   `[paragraph, image-block, paragraph, ...]` TipTap nodes per
+   imported textblock. Image is configured `inline:false` in the
+   editor (`client/src/ui/Editor.jsx:291`), so block-level is the
+   right shape. Whitespace-only chunks around an image are dropped
+   so we don't mint empty paragraphs. Inline images do NOT mint
+   artifact modules (that's still block-only); they become editor
+   image nodes only. 3 new tests cover canonical inline,
+   start-of-paragraph (no leading empty paragraph), and two
+   inline images in the same paragraph.
 8. **AI refinement hook** — see the original docket entry above
    for the registry of element handlers + site adapters the AI
    plugs into.
@@ -736,7 +894,53 @@ and the UX feedback loop (dropzone overlay, conflict resolution
 when dropping onto an existing container vs. a page) needs to be
 designed alongside. Land in a dedicated session.
 
-#### 6.55. IMPORT_TEXT / IMPORT_HTML operation actions
+#### 6.55. IMPORT_HTML / IMPORT_MARKDOWN operation actions — **SHIPPED 2026-05-21**
+Two new pipeline action types fronting the same `import_text` socket
+handler the drag-to-import flow uses. Both suspend the pipeline
+(same primitive `CALL_API` uses), await the server ack, and bind
+`{ rootOccurrenceId, stats, detectedFormat }` to `cfg.resultVar`.
+Downstream pipeline steps can then `MOVE_OCCURRENCE id:$page.rootOccurrenceId`
+or stamp fields on the imported root.
+
+**Wiring (as shipped, differs from original spec):**
+- New `IMPORT_HTML` / `IMPORT_MARKDOWN` cases in `helpers/operationActions.js`
+  return `{_suspend: true, _importText: true, request, resultVar, errorVar, onError}`.
+- `_handleSuspend` in `helpers/operationExecutor.js` gained an
+  `_importText` branch that calls `operationsBridge.importText(req)`
+  and `resumeContinuation`s with the result (or smuggles the error
+  envelope to `errorVar` when `onError === "continue"`).
+- `state/bindSocketToStore.js` wires `operationsBridge.importText`
+  to a Promise wrapper around the existing `import_text` /
+  `import_text_result` socket events. Default 60s timeout, max 120s.
+- **Fixed in passing**: the suspend-wrapper at `executeSteps` (lines
+  ~1567) was stripping the `_callApi` / `_importText` / `errorVar` /
+  `onError` props from the action's return — so every suspend was
+  silently falling through the GET_USER_INPUT branch by default
+  (would have crashed on shape mismatch). The wrapper now spreads
+  `...result[0]` so type discriminators survive. CALL_API benefits
+  from this too (the bug was latent — no tests exercised it).
+- Server-side `import_text` socket handler (untouched) broadcasts
+  `module_created` + `occurrence_created` for every minted entity,
+  which the existing store handlers absorb — pipeline callers don't
+  need to apply effects themselves.
+
+**Action cfg:**
+- `html` / `markdown` — source content ($var interpolation supported)
+- `parentExpr` — destination parent occurrence id ($expr); null/missing → server creates as grid-level
+- `title` — root container label (default "Imported")
+- `htmlOpts` — `{ keepImages, keepTables, keepFigures, stripClasses }` (IMPORT_HTML only)
+- `timeoutMs` — default 60000, max 120000
+- `resultVar` — default `$importResult`
+- `errorVar` — default `$importError` (only set when `onError === "continue"`)
+- `onError` — `"fail"` (default; drops rest of pipeline) | `"continue"` (route error to errorVar)
+
+**Tests:** 7 cases in `__tests__/importTextAction.test.js` cover
+sentinel shape (HTML + markdown), missing-content no-op,
+end-to-end suspend/resume with bridge invocation, `onError:"continue"`
+error envelope routing, default-`fail` no-crash, and missing-bridge
+warn-and-drop.
+
+**Original docket (now obsolete) follows:**
 **Added 2026-05-21.** Mirror the `/api/v1/import/markdown` +
 `/api/v1/import/html` REST endpoints as new pipeline action types
 so operations can feed arbitrary text or HTML through the importer
@@ -987,18 +1191,432 @@ seed.
   tasks (on the task instance or on a wrapping container)? And
   what's the project's name so I can write the scope textblock?
 
+#### 8. Files, uploads, artifacts, media — focused audit + polish pass
+The whole file-handling surface (upload endpoints, artifact storage,
+media renderers, per-kind viewers, file management UI) has grown
+piecemeal and deserves a dedicated session to flush out. Capture of
+current state + known gaps below; priorities at the end.
+
+**What exists today:**
+
+*Upload endpoints (server/server.js):*
+- `POST /api/artifacts/upload` (~line 370) — the canonical path.
+  Accepts `multipart/form-data` `{file, userId, gridId, parentFolderId?,
+  manifestId?, moduleId?, occurrenceId?}`. Idempotent on `moduleId`
+  (the optimistic drop flow pre-mints IDs). Mints a `role:"artifact"`
+  module + an occurrence pointing at it; creates a `View` with the
+  right `viewType`/`artifactType` for the standalone artifact-panel
+  display path. Saves the file to `uploads/user/<timestamp-rand>.<ext>`,
+  served at `/uploads/user/<ref>` AND `/artifacts/<ref>` (two mount
+  points — see gap #1). 50MB cap via multer.
+- `POST /api/upload` (~line 458) — **legacy duplicate**. Creates a
+  module only (no occurrence). Saves flat in `/uploads/` (not under
+  `user/`). Only the connection-import flow uses it. Should be folded
+  into `/api/artifacts/upload` or deleted (see gap #2).
+- `POST /api/connections/:id/import` — imports a file from a
+  pre-configured external storage path (`/home/joshpoms/files`,
+  `/home/joshpoms/notebook`). Copies the file into `/uploads/` and
+  creates a module. Same legacy code path as `/api/upload`.
+
+*Kind classification (`server/server.js mimeToKind`):*
+- image / video / audio / pdf — from MIME type
+- code — from extension (`.js / .jsx / .ts / .py / .json / .yaml / ...`
+  whitelist; `CODE_EXTENSIONS` set at the top of server.js)
+- markdown — fallback
+
+*View dispatch (`viewFieldsForKind`):*
+- `display` viewType for image/video/audio/pdf
+- `code` viewType for code files
+- `markdown` viewType otherwise
+
+*Client-side renderers:*
+- `client/src/modules/ArtifactCard.jsx` — inline card in a container.
+  Thumbnail mode (compact) + click-to-expand mode (full media).
+  Per-kind dispatch: `<img>` / `<video>` / `<audio>` / `<iframe>` for
+  pdf. Shows spinner during `meta.uploadStatus === "pending"`,
+  AlertCircle during `"error"`.
+- `client/src/modules/ArtifactContent.jsx` — page-level viewer.
+  Routes by viewType: `markdown` → TipTap editor; `code` → CodeViewer
+  (a `<pre><code>` of the fetched file, NO syntax highlighting);
+  `display` + artifactType → `<img>` / `<video>` / `<audio>` /
+  `<iframe>`. Also handles legacy `viewType === "image"|"pdf"|"audio"|"video"`
+  values.
+- `client/src/modules/pages/PageDisplay.jsx` — thin page wrapper
+  around ArtifactContent.
+- `client/src/helpers/fileRef.js resolveFileRef(ref)` — the one
+  authoritative URL resolver. Absolute URLs (`http(s)://`, `data:`,
+  `blob:`, leading `/`) pass through; relative refs prepend `/uploads/`.
+  This was the fix that made Wikipedia drops work without uploading.
+
+*Drop flow (`client/src/helpers/dropHandlers.js handleFileDrop`):*
+- Optimistic — mints client-side `moduleId` + `occurrenceId`, dispatches
+  a placeholder module with `meta.uploadStatus: "pending"`, wires it
+  into the destination container/view, then fires `/api/artifacts/upload`
+  in the background. Server upserts using the same IDs. On error,
+  flips `uploadStatus` to `"error"`.
+- Single-file only — `dt.files[0]` taken; the rest dropped silently
+  (gap #6 below).
+
+*Markdown importer artifact integration:*
+- Block-level `![alt](src)` in imported markdown mints
+  `role:"artifact" kind:"image"` with `fileRef:<src>`. Remote URLs
+  (Wikipedia) pass through verbatim via the `resolveFileRef`
+  absolute-URL branch — no upload, no rewrite, no mirror.
+- Inline `![alt](src)` (Phase B shipped 2026-05-21) splits the
+  paragraph into TipTap image nodes (block-level, since the editor's
+  Image extension is `inline:false`). Also no upload.
+
+*ManifestTree affordances:*
+- `+New Doc` button on folder hover — mints a markdown artifact
+  inside the folder.
+- Drag artifact from ManifestTree → another panel / container /
+  grid cell. Routed via `helpers/dropHandlers.js handleArtifactDrop`.
+- `data-occ-id` / `data-page-occ-id` attributes are read by
+  scroll/flash + drop-target resolution.
+
+**Known gaps + improvement opportunities:**
+
+1. **Two static mount points for the same files** — `/uploads/<ref>`
+   AND `/artifacts/<ref>` both serve `uploads/`. Pick one (probably
+   `/uploads/`) and remove the other; update `resolveFileRef` if
+   needed.
+2. **`/api/upload` is a legacy duplicate** of `/api/artifacts/upload`.
+   Either delete it + migrate the connection-import flow, or keep
+   only as an internal alias. Right now both exist and behave
+   differently (the legacy one doesn't create an occurrence).
+3. **~~No content-hash dedup~~** DONE 2026-05-22. `/api/artifacts/upload`
+   in `server/server.js` now streams the temp file through
+   `crypto.createHash("sha256")` BEFORE the rename. If a module
+   already exists for this user with the same `meta.sha256` AND a
+   LOCAL fileRef (external-URL refs are filtered out), the dedup
+   branch runs: temp file unlinked, the optimistic-flow placeholder
+   module deleted (and `module_deleted` emitted so the client clears
+   it), occurrence (re)wired to point at the existing module +
+   `occurrence_updated`/`occurrence_created` emitted, response
+   returns `{ module: existing, occurrence, fileRef: existing.fileRef,
+   dedup: true }`. Non-dedup path stamps `meta.sha256` on every new
+   module so subsequent uploads can dedup against it. Helper
+   `sha256OfFile(filePath)` is a streaming hash so 50MB files don't
+   load to RAM. 144/144 server tests still green.
+4. **~~No image optimization / responsive variants~~** DONE
+   2026-05-22. `generateImageThumbnails(srcPath, sha256, mimeType)`
+   helper in server.js runs against every image upload via the
+   sharp pipeline (auto-rotate, withoutEnlargement, WebP encoded
+   at q78/q82). Writes `<sha256>-256.webp` + `<sha256>-1024.webp`
+   into `uploads/thumbnails/`. Filename is content-hash-keyed so
+   dedup'd uploads automatically reuse existing thumbs — no
+   regeneration, no duplicates. Skipped silently for non-image
+   mime types AND for unsupported raster formats (SVG / GIF —
+   sharp's pipeline doesn't preserve vector / animation
+   semantics). Stamped on `module.meta.{thumb256, thumb1024}`.
+   Client wiring: `ArtifactCard` picks `thumb256Src` for compact
+   thumbnail mode + `thumb1024Src` for expanded mode (falls back
+   to original `src` when meta refs are missing — covers external
+   URLs + pre-sharp uploads). Smoke: 649 KB PNG → 78 KB at 1024px
+   (88% smaller) → 17 KB at 256px (97% smaller).
+5. **No file size displayed anywhere** — store `meta.uploadSize` on
+   the module (the placeholder already does this) and surface it
+   in: ArtifactCard expanded mode header, the artifact viewer page,
+   the ManifestTree tooltip. Helps users notice oversize uploads.
+6. **No multi-file drop** — `dt.files[0]` only; remaining files
+   silently dropped. Loop `dt.files` and mint one module +
+   placeholder per file; upload in parallel. UX should batch the
+   toast (`"Uploading 5 files…"` → `"Uploaded 4 of 5"` →
+   `"Done"` or `"1 failed"`).
+7. **No upload progress** — spinner is all-or-nothing. Use a
+   `XMLHttpRequest` (or `fetch` with a custom progress stream) to
+   surface byte-level progress and render a determinate progress
+   bar inside the placeholder card.
+8. **No upload cancellation** — once `/api/artifacts/upload` is
+   in flight, the only way to bail is to delete the placeholder.
+   Wire an AbortController + a cancel button on the placeholder
+   card.
+9. **PDF viewer is a bare `<iframe>`** — works on every browser
+   that has a built-in pdf renderer but lacks page nav, search
+   integration, text selection extraction (for citations later),
+   thumbnails. Consider PDF.js for a richer in-app viewer; iframe
+   stays as the fallback for very large PDFs.
+10. **Video has no transcoding** — large MOVs / HEVC / unsupported
+    codecs play raw and may fail to decode. Add an on-upload
+    detection step (probe via `ffmpeg`/`fluent-ffmpeg`) and either
+    transcode in the background or surface a clear "unsupported"
+    state with a download link.
+11. **~~Audio is `<audio controls>` only~~** DONE 2026-05-22. New
+    `AudioWaveform` component in `ArtifactContent.jsx` lazy-loads
+    `wavesurfer.js` on first audio open (matches the lazy-load
+    pattern used for highlight.js + tesseract.js). Renders a
+    moduli-themed waveform (96px tall, blue progress on muted
+    grey unplayed) with click-to-seek built in, a Play/Pause
+    button, and a "Loading waveform…" placeholder while the
+    module loads. Native `<audio controls>` stays inline as a
+    fallback for right-click → save / playback-speed control;
+    each owns its own MediaElement so they don't fight. Cleans
+    up via `ws.destroy()` on unmount. Chapter markers not yet —
+    needs metadata source.
+12. **~~No EXIF / metadata extraction~~** DONE 2026-05-22. New
+    `extractImageMetadata(filePath, mimeType)` helper in server.js
+    runs against every image upload via the rename branch in
+    `/api/artifacts/upload`. Uses `exifreader` (no native bindings;
+    handles JPEG/PNG/TIFF/HEIC/WebP). Stamps
+    `module.meta.{width, height, exif}` with a curated tag subset
+    (DateTimeOriginal / Make / Model / FNumber / ExposureTime / ISO
+    / FocalLength / Orientation / GPSLatitude / GPSLongitude /
+    GPSAltitude). Sanitized to plain `{tagName: description}` so
+    Mongo persists cleanly under the existing `meta` Mixed field;
+    non-image uploads keep their meta unchanged. Failure is silent
+    (returns null) — upload itself never fails for metadata reasons.
+13. **No in-place image edit affordance** — crop, rotate, brightness
+    have to be done in an external tool then re-uploaded. Even a
+    minimal `cropperjs` "Crop" radial menu item on image artifacts
+    would be valuable.
+14. **CodeViewer has no syntax highlighting** — just
+    `<pre><code>{text}</code></pre>` (see
+    `ArtifactContent.jsx CodeViewer`). Add `highlight.js` or
+    `shiki` and choose theme from CSS vars. Language picked from
+    file extension or `language` field on the module.
+15. **No per-user storage quota** — unlimited uploads. Track
+    `User.usedBytes` (or compute on demand from a `Module.size`
+    aggregation), enforce a soft cap, surface "X MB of Y MB used"
+    in user settings.
+16. **No virus / content scan** — accepts any file. Probably out of
+    scope for personal-use but worth flagging if Moduli ever opens
+    to multi-tenant.
+17. **No CDN / signed-URL serving** — Express serves `/uploads/`
+    statically. Fine for single-tenant; would need rework for
+    multi-tenant. Capture as a future concern.
+18. **~~Upload directory is flat~~** DONE 2026-05-22. New uploads
+    via `/api/artifacts/upload` AND `/api/connections/:id/import`
+    now land in `uploads/user/YYYY-MM/<file>` via the new
+    `yearMonthShard()` helper. `fileRef` stamped as `user/YYYY-MM/<file>`
+    (POSIX-style separator for URL safety). Existing files unaffected;
+    `helpers/fileRef.resolveFileRef` and the Express static mount
+    both serve nested paths so legacy flat refs keep working. New
+    migration script `server/scripts/shardExistingUploads.js` walks
+    `uploads/user/` top-level files, derives YYYY-MM from the
+    leading timestamp in the filename (or mtime fallback), moves
+    them into the right shard, AND updates `Module.fileRef` in one
+    pass. Dry-run by default; `--apply` actually moves. Skips files
+    with no Module ref (those are orphans for the cleanup script);
+    skips files when the target already exists.
+19. **~~No file lifecycle / trash~~** PARTIAL 2026-05-22. New
+    `server/scripts/cleanupOrphanArtifacts.js` script walks
+    `uploads/user/` (and optionally `uploads/md/` via
+    `--include-md`), cross-references against every artifact
+    Module's `fileRef`, reports / deletes files no Module references.
+    Safe by default: dry-run unless `--delete` passed; even with
+    `--delete`, only files older than `--age=N` days (default 7) are
+    removed (covers in-flight uploads / race windows where the
+    Module row hasn't persisted yet). External-URL fileRefs (Wikimedia
+    drops etc.) never appear in `uploads/` so they're naturally
+    skipped. Smoke-tested in dry-run on dev DB: 31 orphans = 44.39 MB.
+    Run: `node --env-file=.env server/scripts/cleanupOrphanArtifacts.js`.
+    Still pending: the soft-delete / `meta.trashedAt` lifecycle —
+    the user has to manually run this script for now; a periodic cron
+    or post-delete cleanup hook would close the loop.
+20. **No "download" / "open externally" affordance** — viewer pages
+    show the media inline but offer no way to grab the original. A
+    download button (with the original filename, not the
+    timestamp-randomized one) in the artifact viewer header.
+21. **External + internal artifact types have different shapes** —
+    Wikipedia drops mint `kind:"image"` with `fileRef:"https://..."`
+    (no upload). Local uploads mint `kind:"image"` with
+    `fileRef:"user/<timestamp>.png"`. Renderers handle both via
+    `resolveFileRef`, but other code paths (deletion, dedup, size
+    display) need to special-case the absolute-URL form. Document
+    + audit the distinction.
+22. **~~No "mirror remote → local"~~** DONE 2026-05-22 as a
+    migration script (`server/scripts/mirrorRemoteImages.js`). Walks
+    every artifact Module whose `fileRef` is `http(s)://`, downloads
+    via global `fetch` (25MB cap, 30s timeout, 250ms polite delay
+    between requests), writes to `uploads/user/YYYY-MM/`, recomputes
+    SHA-256, dedups against existing local modules (skips the write
+    + repoints to existing fileRef), stamps `meta.external:false` +
+    `meta.sha256` + `meta.uploadSize` + `meta.mirroredFromUrl`.
+    Dry-run by default; `--apply` actually downloads; `--max=N` caps
+    how many to mirror per run. Idempotent: already-mirrored modules
+    (`meta.external === false`) skipped on rerun. No on-import
+    automatic mirroring yet — has to be invoked manually; the
+    docket's "Optional on-import step" framing means this can stay
+    as a periodic admin job rather than slowing every import.
+23. **No file metadata field schema** — `module.meta` is Mixed.
+    There's no documented contract for what keys an artifact
+    module's meta may carry (`mimeType`, `originalName`,
+    `uploadSize`, `uploadStatus`, `folderId`, `exif?`, `width?`,
+    `height?`). Document the schema in `models/Module.js` as a
+    comment + add a TypeScript-style JSDoc typedef.
+24. **No drag-out-to-OS** — drag an artifact from Moduli onto the
+    desktop and... nothing. HTML5 native drag-out (via
+    `setData("DownloadURL", ...)` in Chrome) would let users
+    quickly extract files. Browser-quirky but worth scoping.
+
+**Suggested ordering of work:**
+1. **Quick wins** (small, isolated): ~~dedup endpoint mount points
+   (#1)~~ ✅ 2026-05-21, ~~delete `/api/upload` after migrating
+   connection-import (#2)~~ ✅ 2026-05-21, ~~add file-size display
+   (#5)~~ ✅ 2026-05-21, add download button (#20), ~~document
+   metadata schema (#23)~~ ✅ 2026-05-21.
+2. **High-impact UX**: multi-file drop (#6), upload progress (#7),
+   upload cancellation (#8), ~~code syntax highlighting (#14)~~ ✅
+   2026-05-21.
+3. **Storage hygiene**: ~~content-hash dedup (#3)~~ ✅ 2026-05-22,
+   ~~date-partitioned upload dir (#18)~~ ✅ 2026-05-22,
+   ~~orphan-file cleanup pass (#19)~~ ✅ 2026-05-22.
+4. **Media depth** (per-kind viewer polish): image optimization +
+   thumbnails (#4), EXIF extraction (#12), in-place image crop/rotate
+   (#13), PDF.js viewer (#9), waveform for audio (#11), video
+   transcoding (#10).
+5. **External / multi-tenant prep** (defer until needed): per-user
+   quota (#15), CDN (#17), drag-out-to-OS (#24), remote-image
+   mirroring (#22), virus scan (#16).
+
+**Out of scope (probably never):** in-app video editing, OCR for
+PDFs, AI-generated alt text for images (these are separate
+projects that would warrant their own roadmap).
+
+**Followups added 2026-05-21**:
+- Review every drag-in / drop place end-to-end to confirm
+  multi-file desktop drag actually surfaces all N files in
+  `dt.files`. `handleFileDrop` now handles N files (gap #6), but
+  upstream parsing (DragProvider native-file branch, ConnectionsTab
+  upload, etc.) may still grab `files[0]` somewhere — audit needed.
+- Build an op that, when run on the user's main grid (NOT live or
+  test), seeds 4 panels — one each of canvas / board / doc / table
+  — pre-filled with sample occurrences of every kind. Should be
+  idempotent (re-runnable without duplicating). Lets a fresh grid
+  show a complete reference of the system without manual setup.
+
+**Shipped 2026-05-22** (orphan cleanup + dedup + sharding + remote mirror + EXIF + audio waveform + sharp thumbnails + displayRules):
+- Gap #4 (DONE) — Sharp image thumbnails (256px + 1024px WebP)
+  generated on every image upload, sha256-keyed under
+  `uploads/thumbnails/`. Dedup'd uploads reuse existing thumbs.
+  `ArtifactCard` picks the right variant per render mode (compact
+  → 256, expanded → 1024, falls back to original `src` for
+  external URLs / pre-sharp uploads). Smoke: 649 KB PNG → 17 KB
+  at 256px (97% smaller).
+- Gap #11 (DONE) — Audio waveform via wavesurfer.js. New
+  `AudioWaveform` component in `ArtifactContent.jsx`, lazy-loaded
+  (~150KB chunk, only paid for when user opens an audio artifact).
+  Themed waveform + Play/Pause + click-to-seek; native
+  `<audio controls>` retained inline as fallback. 815/815 client
+  tests + production build clean.
+- Gap #12 (DONE) — EXIF + dimensions extraction on image upload.
+  `extractImageMetadata` helper in server.js using `exifreader`
+  (no native bindings; handles JPEG/PNG/TIFF/HEIC/WebP). Stamps
+  `module.meta.{width, height, exif}` with a curated tag subset on
+  every image upload via `/api/artifacts/upload`. Silent failure
+  mode (returns null); non-image uploads unaffected.
+- Gap #22 (DONE) — `server/scripts/mirrorRemoteImages.js`. Walks
+  artifact modules with `http(s)://` fileRef, downloads (25MB cap,
+  30s timeout, 250ms polite delay), writes to
+  `uploads/user/YYYY-MM/`, recomputes SHA-256, dedups against
+  existing local modules, stamps `meta.external:false` +
+  `meta.sha256` + `meta.mirroredFromUrl`. Dry-run by default;
+  `--apply` + `--max=N`. Re-run safe (already-mirrored modules
+  skipped via `meta.external === false`). Dev DB has 0 remote
+  modules right now (live data not re-seeded), so script just
+  reports "Remote artifact modules: 0"; ready when needed.
+
+- Gap #18 (DONE) — Year-month upload sharding. Both
+  `/api/artifacts/upload` and `/api/connections/:id/import` now
+  write into `uploads/user/YYYY-MM/<file>` via the new
+  `yearMonthShard()` helper. `fileRef` carries `user/YYYY-MM/<file>`.
+  Legacy flat refs keep working (resolveFileRef + Express static
+  both serve nested paths). New migration script
+  `server/scripts/shardExistingUploads.js` (dry-run by default,
+  `--apply` to execute) moves existing flat files into shards
+  derived from the filename's leading timestamp (mtime fallback)
+  AND updates Module.fileRef. Dev DB smoke: all 31 flat files
+  classified as orphans (no Module ref), correctly skipped.
+- Gap #3 (DONE) — SHA-256 content-hash dedup in
+  `/api/artifacts/upload`. Streaming hash + lookup before file
+  rename; on hit, temp file is unlinked, optimistic-flow placeholder
+  module is deleted (`module_deleted` emitted), occurrence rewires
+  to the existing module (`occurrence_updated`/`_created` emitted),
+  response carries `dedup: true`. Non-dedup path stamps
+  `meta.sha256` on every new module so future uploads can dedup
+  against it. External-URL refs filtered out (they can't dedup
+  against local bytes). 144/144 server tests still green.
+- Gap #19 (partial) — `server/scripts/cleanupOrphanArtifacts.js`
+  new script. Reports / deletes upload files no Module references.
+  Dry-run by default; `--delete --age=N` deletes orphans older than
+  N days (default 7); `--include-md` also scans `uploads/md/`.
+  Smoke: 31 orphans = 44.39 MB on dev DB. See docket §8 gap #19.
+- Existing docket #24 (displayRules) — all 11 remaining scalar
+  numeric trackers in createLiveData.js now carry `displayRules`
+  (Steps / Completed / Protein / Carbs / Fats / Total Reps /
+  Net Balance / Mom's Account Balance / Total Workouts / Total
+  Reading Time / Time Spent This Week / Completion Rate). 22
+  trackers total are now rule-decorated; only PUSH_TO_ARRAY
+  row-builders + the deferred Pomodoro state-rule remain unhandled
+  per the documented limitations. Re-seed required:
+  `node --env-file=.env server/scripts/createLiveData.js`.
+
+**Shipped 2026-05-21** (7 audit items + 3 user-asked features):
+- Gap #2 — `/api/upload` deleted; `/api/connections/:id/import`
+  rewritten server-side to mirror `/api/artifacts/upload` (mints
+  Module + Occurrence + View, broadcasts both). `CommitHelpers.uploadFile`
+  + `ConnectionsTab.handleUpload`/`importFile` migrated to the canonical
+  endpoint; bodies now send `parentFolderId` and read `d.module`.
+- Gap #23 — `server/models/Module.js` `meta` field now carries a JSDoc
+  `@typedef ArtifactMeta` documenting the shape artifact modules use
+  (`mimeType`, `originalName`, `uploadSize`, `uploadStatus`, `folderId`,
+  optional `exif`/`width`/`height`) + notes on template/scheduleSlot
+  module variants.
+- Gap #14 — `client/src/modules/ArtifactContent.jsx` `CodeViewer` now
+  uses `highlight.js` with the `atom-one-dark` theme. JS module is
+  dynamic-imported (lazy), CSS is eager (~3KB). Extension→language
+  map covers ~30 common file types; everything else falls through to
+  `highlightAuto`. Plain `<code>` shown as fallback before hljs
+  finishes loading or if highlighting throws. Header now shows
+  `<filename> · .<ext> · <lang>`. `highlight.js` 11.x added to
+  client dependencies.
+- Gap #20 — Page-level artifact viewer now carries a download badge
+  on every display branch (image / pdf / audio / video) plus inline
+  Download in the CodeViewer header. `<a download={originalName}>`
+  ensures the saved file uses the user-visible name, not the
+  timestamp-randomized server filename.
+- Gap #6 — `handleFileDrop` now iterates all files. Toast batches
+  progress; uploads run in parallel; idempotent on server side.
+- **User-asked: OCR on images** — image-viewer branch gained an OCR
+  button. Recognizes text via `tesseract.js` (lazy-loaded), mints a
+  textblock occurrence appended to the image occurrence, renders
+  the textblock in an editable Editor below the image. Multi-OCR is
+  fine; each run appends a new textblock.
+- **User-asked: example artifacts on grid** — `createLiveData.js`
+  now seeds an `Examples` folder with 3 image + 1 video + 1 PDF
+  artifact occurrences, surfaced via a new `Examples` page pinned
+  to the Notebook hub panel. `fileRef`s are Wikimedia / GCS / W3C
+  absolute URLs — no upload needed.
+- **User-asked: Wikipedia import op** — "Import from Wikipedia"
+  manual op with a GET_USER_INPUT chain (query → mode → branch),
+  CALL_API to a new no-auth `/api/research/wikipedia/import` server
+  route. Create branch fully wired; Append/Replace branches collect
+  input + SHOW_VALUE a TODO (the markdown-merge endpoint isn't
+  built yet).
+- Verified: 809/809 client tests, 144/144 server tests, client build
+  green. Lazy chunks hold highlight.js + tesseract.js; no first-load
+  cost. Re-seed required for the new seed data + op:
+  `node --env-file=.env server/scripts/createLiveData.js`.
+
 ### Existing docket — DO NOT IMPLEMENT until the above ship
 
-- **Author more `$displayRules` in live data.** Ten trackers now
-  rule-decorated. Original six (Water / Pages / Spent / Time Spent
-  / Pomodoros Today / Earned / Pomodoro Time) plus four added
-  2026-05-21: **Monthly Bills** (red on positive, blue at 0/null —
-  commit `b2b02277`), **Net Worth** (red ArrowDown negative, blue
-  at 0/null, green ArrowUp positive — same commit), **Task
-  Countdown** (red ArrowDown positive with "left" suffix, green
-  Check at zero — commit `1a3d2c3d`), **Total Subscriptions**
-  (mirrors Bills — commit `3b80e03c`). Remaining per the user's
-  spec:
+- **~~Author more `$displayRules` in live data.~~** DONE 2026-05-22.
+  Twenty-two trackers now rule-decorated covering every scalar
+  numeric tracker in the live grid. Original six (Water / Pages /
+  Spent / Time Spent / Pomodoros Today / Earned / Pomodoro Time)
+  plus four added 2026-05-21 (**Monthly Bills** — commit
+  `b2b02277`, **Net Worth** — same commit, **Task Countdown** —
+  commit `1a3d2c3d`, **Total Subscriptions** — commit `3b80e03c`)
+  plus the eleven added 2026-05-22: **Steps** (Water+value pattern),
+  **Completed** (Water+value pattern), **Protein / Carbs / Fats**
+  (target met/notMet + value-fallback), **Total Reps** (Water+value),
+  **Net Balance** (negative/zero/positive — red ArrowDown / blue /
+  green ArrowUp), **Mom's Account Balance** (same negative-aware
+  pattern), **Total Workouts / Total Reading Time / Time Spent This
+  Week** (Pages-style neutral counters), and **Completion Rate**
+  (percentage catch-all blue). Re-seed required to apply:
+  `node --env-file=.env server/scripts/createLiveData.js`. Deferred
+  per the same docket entry:
   - **Pomodoro Time state-based rules deferred.** The docket spec'd
     blue-on-null / red-on-`state:"paused"` / green-on-`state:"running"`,
     but the Pomodoro instance carries `pomodoroPhase` with `"work"`/
@@ -1042,13 +1660,22 @@ seed.
   into per-goal occurrences and updating tracker call sites in
   `createLiveData.js` to reference each via
   `$allItemsById.<goalOccId>` (or via the picker).
-- **Folder page renders no instances.** Separate from the breadcrumb
-  click fix this session. Folder-page kind renders via
-  `modules/pages/PageFolder.jsx`, which derives child cards from
-  occurrences with `parentId === occurrence.parentId`. Newly minted
-  folder pages come up empty — likely PageFolder's child-lookup
-  filtering them (template flags / role-kind exclusions / `parentId`
-  mismatch). Needs a focused trace through PageFolder.
+- **~~Folder page renders no instances.~~** FIXED 2026-05-21 in
+  `modules/ManifestTree.jsx FolderNode.handleNewDoc` (line ~414).
+  The "+New Doc" button on a folder hover mints an occurrence with
+  `targetId: modId` only — `moduleId` was omitted. PageFolder's
+  card grid (and pagesList, role lookups, etc.) reads
+  `modulesById[occ.moduleId]`, which resolved to `undefined`, so
+  the new doc's PreviewNode rendered blank in the folder-page grid
+  even though the doc was correctly parented under the folder.
+  Same bug the `handleFolderClick` comment at line 441-443 of the
+  same file warns about — `handleNewDoc` was the one site that
+  hadn't been updated. Fixed by adding `moduleId: modId` alongside
+  the existing `targetId: modId`. No re-seed required; new docs
+  created via the folder's "+New Doc" button will land correctly.
+  Pre-existing docs created via this path before the fix still need
+  a one-off `moduleId` backfill if they should appear in folder
+  pages — easiest is to delete + recreate them via the same UI.
 - **Value builder — typed array/object editor with CategoryPathPicker per row.**
   The current `ui/JsonStructureEditor.jsx` is a generic JSON editor
   (str / num / bool / null / [ ] / { } cycle). Grow it into a **value
@@ -1334,172 +1961,6 @@ master (commits `41f35175`, `33ab8222`, `cb2bc474`, `48b15832`,
   `"Disconnected — retry in 2s (attempt 3)"` while waiting, and
   `"Disconnected — trying now (attempt N)"` during an active attempt.
 
-## Recent Changes (2026-05-20 — Removed temporary [BUILD-DAY]/[SCHED-TABLE]/[FILTER-DIAG]/[VIS-DIAG] console logs)
-- Six files were emitting tagged diagnostic `console.log`s on every load,
-  NavigationOp, filter change, and Schedule render (~50 lines per debug
-  run, often firing many times per user interaction). They've been
-  excised:
-  - `helpers/operationExecutor.js` (~150 lines in `runMatchingOperations`)
-  - `helpers/CommitHelpers.js` (`updateOccurrenceFilterOverride`)
-  - `state/bindSocketToStore.js` (`onGridUpdated`)
-  - `App.jsx` (`filterNavState` useEffect)
-  - `ui/LocalFilterNav.jsx` (`makeOnNav`)
-  - `modules/ModuleContainer.jsx` (slot-filter pass)
-- All real instrumentation stays — the `logger.add()` calls in the
-  executor still capture every step into the persisted `OperationRunLog`
-  + the in-memory `runHistory` ring buffer, surfaced by
-  `commandCenter/OperationLogPanel.jsx`. The console.logs were redundant
-  with that pipeline.
-
-## Recent Changes (2026-05-20 — Socket status pill in toolbar)
-- **NEW `hooks/useSocketStatus.js`** — subscribes to `socket.on("connect"
-  / "disconnect" / "connect_error")` and `socket.io.on("reconnect_attempt")`,
-  returning `{ status: "connected" | "disconnected" | "recovered", attempts }`.
-  Initial status mirrors `socket.connected` so first paint reflects reality
-  for a tab restored offline. The "recovered" state holds for 3s after a
-  successful reconnect, then flips to "connected".
-- **NEW `ui/SocketStatusBanner.jsx`** — small inline pill rendered only when
-  status ≠ "connected". Red w/ pulsing dot + WifiOff icon while disconnected
-  (label includes the retry attempt count when ≥1), green + Wifi icon for
-  the 3s recovered window. Tooltip on the red pill explains that writes are
-  being buffered locally (the offline queue handles this — the pill is just
-  visibility).
-- **`Toolbar.jsx`** — imports `SocketStatusBanner` and renders it
-  immediately to the right of the logo block (still inside the left-side
-  shrink-0 group), so it's the first thing the user sees when their
-  connection drops on either desktop or mobile.
-- **`index.css`** — added `@keyframes socket-status-pulse` (opacity +
-  scale dip every 1.2s) used by the red-state dot.
-
-## Recent Changes (2026-05-19 — Editor↔field binding (self-field + sync))
-- **NEW**: `state/editorBindings.js` — `resolveEditorBinding({ occurrence, module, slot })`
-  cascade (occurrence.meta wins → module.meta next → null). String "clear"
-  on the occurrence opts out of a module binding without re-setting.
-  `findLinkedSiblings({ binding, hostOccurrence, occurrencesById, nextValue })`
-  returns all occurrences sharing host's link-field value AND carrying the
-  selfField (loop guard: skip if value already matches nextValue). `sameLinkValue`
-  has SAME_DAY semantics for ISO date strings.
-- **NEW**: `helpers/boundFieldSync.js` — `propagateBoundFieldWrite(...)` writes
-  the new value to every linked sibling via `CommitHelpers.updateOccurrence`.
-  Called after every host-field write by BoundHeader / BoundBody.
-- **NEW**: `modules/BoundHeader.jsx` + `modules/BoundBody.jsx` — render the
-  HOST occurrence's own selfField (no remote lookup). Header is type-dispatched
-  (dropdown when field has options — covers `select` AND `text` with optionsSource;
-  plain inline text otherwise). Body uses minimal TipTap (StarterKit + Placeholder)
-  for text fields; debounced 500ms write-back + sync.
-- **ModuleContainer.jsx**: `headerBinding` memo (`resolveEditorBinding`) at
-  component top; both header render sites (embedded + standard) check it and
-  swap in `<BoundHeader hostOccurrence={containerOccurrence} ... />` when set.
-  Falls back to the existing contentEditable/static label path otherwise.
-- **docs/pills/InstanceTextblockNode.jsx**: `bodyBinding` memo similarly gates
-  whether the inner `DocContent` is wrapped by `<BoundBody>` or rendered raw.
-- **NEW**: `ui/EditorBindingSection.jsx` — picker UI (two selects: Self field /
-  Link field, scope toggle module|occurrence, Clear binding). Mounted in
-  `ContainerForm` Settings tab (header binding) and `InstanceForm` Fields tab
-  inside `BodyBindingPicker` (textblock-role only).
-- **Binding shape**: `{ selfField: fieldId, link: fieldId }` stored at
-  `module.meta.<slot>Link` or `occurrence.meta.<slot>Link`. Slot ∈ {"header","body"}.
-- The op layer (e.g. drag-to-Schedule date stamp) does the JOIN setup; the
-  binding layer auto-propagates writes between any occurrences with matching
-  link value + selfField. No explicit linkedGroupId.
-
-## Recent Changes (2026-05-19 — Grid-level sort with row-major reflow)
-- **Grid.jsx**: `visiblePanels` useMemo gains a reflow path. When
-  `grid.meta.localSort.fieldId` is set AND there are ≥2 panels, panels
-  are wrapped as `{ instance, occurrence }` items, sorted via
-  `applyLocalSort` (the same helper used by container/page/panel
-  sorts), and re-emitted with row-major placement (`row: i/cols, col:
-  i%cols, width: 1, height: 1`). Occurrence `placement` is NOT
-  mutated — clearing sort restores the original 2D placement +
-  rowSpan/colSpan. Imports `applyLocalSort` from `./helpers/LayoutHelpers`.
-- **ui/SortSection.jsx**: Refactored to accept `entity` prop +
-  optional `onPersistSort(next)` callback. Falls back to occurrence-
-  based persist when only `occurrence={...}` is passed (back-compat).
-  New `labelOverride` prop. Used by `commandCenter/GridSettingsTab.jsx`
-  with `entity={grid}` + `onPersistSort` that writes through
-  `CommitHelpers.updateGrid({ grid: { meta: { ...grid.meta, localSort: next } } })`.
-
-## Recent Changes (2026-05-19 — LoginScreen redesign + new lockup SVG + addInstanceToContainer fieldIds)
-- **LoginScreen.jsx**: Layout switched from a centered single column over
-  `#1D2125` to a flex row. Left 2/3 of the viewport: `background-image:
-  url(/login_bg.jpg)` (cover/center/no-repeat) with a left-to-right
-  gradient scrim `rgba(14,33,64,0.25) → rgba(29,33,37,0.55)` so the dark
-  login box reads against the photo. Right 1/3: centered column wrapping
-  the existing login box (input/button styles unchanged). `minWidth: 280`
-  on the right column so the form never compresses below its inputs. The
-  logo `<img>` was swapped from `/moduli_logo.png` (36px) to
-  `/moduli_lockup.svg` (56px) — the new ribbon-style mark + wordmark.
-- **public/login_bg.jpg** (NEW): copy of root-folder `20260209_083212.jpg`
-  (architecture-diagram screenshot, ~147 KB) so Vite serves it. The PNG
-  in the root folder is left in place.
-- **public/moduli_mark_clean.svg + public/moduli_wordmark.svg +
-  public/moduli_lockup.svg** (NEW): clean redraw of the infinity-knot
-  mark (no `stroke-dasharray`, single continuous ribbon, dark backer +
-  specular highlight + over/under knot) plus a "moduli" wordmark where
-  each letter is drawn in the same ribbon-stroke style (rounded caps,
-  blue gradient, mini interlocking knot between `d` and `u`). Lockup
-  combines both. Existing PNGs / older SVGs left in place for A/B.
-- **App.jsx**: `addInstanceToContainer(containerId)` now accepts an
-  optional second arg `opts = { fieldIds }`. When fieldIds is a non-empty
-  array, the new module is created with `fieldBindings: [{ fieldId,
-  role:"input", hidden:false }]` pre-stamped. Empty / missing fieldIds
-  is byte-identical to before. Used by the QuickAddMenu field-picker
-  flow. Added `occurrencesById` to the useCallback dep array (was
-  previously read inside the callback without being declared — small
-  pre-existing freshness bug fixed in passing).
-
-## Recent Changes (2026-05-18 — Grid-switch loading overlay + auto-retry)
-- **App.jsx**: Grid-frame div now has `position: relative` + a conditional overlay child rendered when `state.gridId && state.grid?._id && state.gridId !== state.grid._id` (i.e. the user picked a new grid in the toolbar but `request_full_state` hasn't returned yet). Overlay is `position:absolute inset:0`, flex-column centered (gap:12) over a semi-transparent black w/ 2px backdrop blur, `zIndex:900`, with `<Spinner size="xl" />` plus a "Retrying..." label that appears underneath the spinner once the retry timer kicks in. Clears automatically when `FULL_STATE` lands and `state.grid._id` catches up to `state.gridId`. Initial app load still uses the existing full-frame spinner (the early branch where `state.grid?._id` is falsy) — the overlay only kicks in for grid-to-grid switches.
-- **App.jsx**: `gridSwitchRetrying` state + a useEffect keyed on the derived `isSwitchingGrid` flag. While switching, a `setInterval` every 8s re-emits `socket.emit("request_full_state", { gridId: targetGridId })` and flips `gridSwitchRetrying=true`. Resets to false whenever switching ends (cleanup runs on dep change). Motivation: server-side Mongo timeouts (e.g. `MongoNetworkTimeoutError` to 89.192.237.102:27017) silently swallow the first `request_full_state` socket emit — without the retry the spinner would hang forever.
-
-## Recent Changes (2026-05-17 — Select options source refactor + occurrence field type)
-- **Field type "module" replaced by "occurrence"**: `field.meta.options` (string[]) + `meta.sourceType: "pool"` both gone. Replaced by discriminated `field.meta.optionsSource = { mode: "manual" | "range" | "find", ... }`. The "find" mode reuses operations FIND machinery (`evalGroupAgainstRecord` + `resolveRecordPath`) so any reachable record path can be used as the option's value/label.
-- **Field type "occurrence"**: stores an occurrence id, displays its label (or any path). Replaces the prior "module" field type. Supports `meta.multiSelect: true` like select fields do.
-- **Migration**: lazy at `full_state` ingestion in `bindSocketToStore.js`. Legacy `meta.options` → manual mode; legacy pool → find mode with OR-grouped HAS_ANCESTOR rules; legacy `type: "module"` → `type: "occurrence"` with auto-mapped collection.
-- **Settings UI**: `client/src/ui/commandCenter/SelectOptionsSourceEditor.jsx` is the new three-mode editor (Manual / Range / Find) used by both select and occurrence fields. Find mode reuses `CategoryPathPicker`, `COLLECTION_PICKER_CONFIG`, `buildRecordKeyPickerConfig`, and `ConditionGroup` from existing operations primitives. Includes live preview.
-- **Search-when-many**: `Field.jsx`'s non-compact select Popover now renders a filter input above the option list when `_resolvedOptions.length > 10`. (Note: the non-compact occurrence path still uses a native `<select>` — possible follow-up for parity.)
-
-## Recent Changes (May 15 2026 — Mobile instance cards no longer giant)
-- **index.css** `@media (max-width:600px)`: added `.instance-content { justify-content: flex-start !important }` and `.instance-fields { flex: 0 0 auto !important; justify-content: flex-start !important }`. Root cause: ModuleInstance inline styles assume a ROW — `.instance-content` has `justify-content:space-between`, `.instance-fields` has `flex:1 1 160px`. The existing mobile rule flips `.instance-content` to `flex-direction:column`, which turned the `160px` into a tall, *growing* flex-basis and made `space-between` push label/fields to opposite ends → ~250px empty cards. Pinning justify-content to start + stopping the fields block from growing collapses cards to natural height. (Verified against screenshots.)
-
-## Recent Changes (May 11 2026 — Toast offset)
-- **App.jsx**: `<Toaster position="top-center" offset={4} />` (was no offset). Sonner's default top offset (~32px) pushed toasts below the toolbar; with offset 4 they land inside the toolbar band so notifications read as part of the chrome instead of floating below.
-
-## Recent Changes (May 10 2026 — Local tree styling + field wrap + date picker)
-- **modules/ManifestTree.jsx**: Local tree (page-panel sidebar) refactored to look identical to the root tree. Added `LocalFolderGroup` (chevron + folder NodePill + indented `PageTreeNode` children, mirrors `FolderNode`). Removed the right-aligned "LOCAL 📁" header, the right-aligned folder header rows, and `reverseIndent={true}` on PageTreeNode. Local entries now sit on the left edge with the same chevron/pill style as root.
-- **modules/ModuleInstance.jsx**: Instance row `.instance-content` gains `flexWrap: wrap` + `rowGap: 4`, and `.instance-fields` uses `flex: 1 1 160px`. Fields wrap to a new row underneath the label whenever the row is too narrow to keep them inline (fixes squished fields on Schedule slots / narrow panels).
-- **ui/Field.jsx**: Compact date pill — normalizes ISO timestamps to `yyyy-MM-dd` before binding to `<input type="date">` (seed values are full ISO strings, which the date input silently dropped). Wires `inputRef` to that hidden input and adds an `onClick` on the wrapping `<label>` that calls `inputRef.current.showPicker()` so the native date picker actually opens (the input is `pointer-events:none, 0×0` — label-click forwarding wasn't reliably triggering the picker).
-
-## Recent Changes (May 10 2026 — Panel Header Switcher Move)
-- **modules/ModulePanel.jsx**: Grid cell stack switcher (`panel-stack-btn-inline`) now lives inside the page panel header, inline-right of QuickAddMenu (Layers icon + count, only when `stack.length > 1`). Removed the `marginLeft: 18` spacer from the active page label so it sits flush against the drag handle (only the parent flex `gap: 6` remains).
-- **Grid.jsx**: GridCell stack button gated by `stackCount > 0 && !hasPanel` so it stops rendering when the cell has a panel (header takes over).
-
-## Recent Changes (Apr 9 2026 — B2/B3/C2: Local Tree Nesting + Folder Breadcrumbs + Mini Block)
-- **modules/ModulePanel.jsx**: Replaced navHistory breadcrumbs with `pageBreadcrumbs` useMemo (walks `occ.parentId → foldersById`). Shows `Folder › Page` trail when page has parent folder. navHistory state + useEffect removed. (B3)
-- **ui/Editor.jsx**: Added "Make mini block" right-click context menu item. Captures selection at menu-open time; on click creates module (role:"instance", kind:"doc") + occurrence with selection as textmap, then replaces selection with instancePill block node. (C2)
-
-## Recent Changes (Apr 9 2026 — Plan A1/A2/B1/B4: Drag Fix + Typing Fix + Tree Push + Close Buttons)
-- **helpers/dragSystem.js**: Fixed drag handle `dragstart` interceptor — replaced `elementFromPoint` with `_dragFromHandle` boolean flag. Root cause: `dragstart` fires at current cursor pos (after movement), not pointerdown pos. Now drag handles work reliably. (A1)
-- **ui/Editor.jsx**: Debounced `onAutoCreateTextblock` trigger — waits 300ms after first char before creating textblock, re-reads full text when timer fires. Added `autoCreateTimerRef` + cleanup on unmount. (A2)
-- **modules/DocContent.jsx**: After auto-creating textblock, places cursor at END of sub-editor content (Selection API `range.collapse(false)`). Fixes "elloh" ordering bug. (A2)
-- **modules/ModulePanel.jsx**: Root/local tree sidebars now push content on desktop (flex row siblings) instead of overlay (absolute). On mobile, stays as absolute overlay. Added X button in page header to close/unpin active page. (B1, B4)
-- **modules/ManifestTree.jsx**: `PageTreeNode` accepts `onClosePage` prop — shows X button on row hover in local tree. `onClosePage` threaded from ManifestTree to PageTreeNode for local pages. (B4)
-- **index.css**: Added `.page-tree-close-btn` CSS — opacity 0 by default, shows on parent div hover. (B4)
-
-## Recent Changes (Apr 9 2026 — Editor Cursor Placement + Text Drag Fix)
-- **index.css**: Added `-webkit-user-drag: none` / `user-drag: none` to `.doc-editor-content.ProseMirror` and all children. Prevents native text-selection dragging while preserving text selection/highlighting.
-- **ui/Editor.jsx**: Added `handleDOMEvents.dragstart` in TipTap editorProps — cancels dragstart unless from a drag handle element.
-- **helpers/dragSystem.js**: `useDraggable` + `useDragDrop` drag handle cleanup now intercepts `dragstart` on the wrapper. If drag didn't start from handle, cancels it and removes `draggable` attribute. Added `drop` event listener for robust cleanup.
-- **docs/ModuleEmbedExtension.js**: `draggable: true` → `false`. Prevents ProseMirror from treating embeds as native draggable nodes.
-- **docs/pills/InstancePillNode.jsx**: Block pill handle cleanup mirrors dragSystem.js fix (dragstart interception + drop listener).
-
-## Recent Changes (Apr 6 2026 — Phase E: Iframe Removal + Dead Code Cleanup)
-- **main.jsx**: Removed `previewOcc` URL param check and `PagePreviewApp` dynamic import. Always loads `App` directly. Removed dynamic import pattern.
-- **PagePreviewApp.jsx**: DELETED — was the iframe preview app entry point creating extra socket connections.
-- **helpers/thumbnailCache.js**: DELETED — iframe pool manager for preview thumbnails.
-
-## Recent Changes (Mar 26 2026 — Panel Cycler Empty State)
-- **Grid.jsx**: `GridCell` now accepts `hasHiddenStack` prop. When `!hasPanel && hasHiddenStack`, shows a "show" button (Layers icon) in the pocket that calls `cyclePanelStack({ cellKey, dir: 1 })`. Pocket `pointerEvents: "auto"` when hasHiddenStack. `cellsData` now computes `hasHiddenStack = !hasPanel && cellPanels.length > 1`.
 
 ## Key Files
 
@@ -1530,109 +1991,9 @@ master (commits `41f35175`, `33ab8222`, `cb2bc474`, `48b15832`,
 - No component calls socket directly — all mutations go through CommitHelpers.
 - Filter system (not iteration): `grid.namedFilters`, `grid.activeFilterId`, `grid.activeFilterValues`. FilterNav.jsx is the nav component.
 
-## Recent Changes (Mar 25 2026 — Batch 3: Escape + Default Page + Tree Thumb)
-- **App.jsx**: Added global Escape key `useEffect` — closes history dialog first (if open), then CommandCenter. Checks `e.defaultPrevented` so inner menus (RadialMenu, QuickAddMenu) get priority. Skips when focus is in input/textarea/contentEditable.
+## Archived — older Recent Changes
 
-## Recent Changes (Mar 20 2026 — C4 Context Split + Post-Review Fixes)
-- **GridLiveContext.js** (NEW): Frequently-changing values split from GridActionsContext: `computedValues`, `canUndo/canRedo/undo/redo/isProcessing`, `isMobile/activeCell/setActiveCell/zoomedOut/setZoomedOut`.
-- **App.jsx**: `actionsValue` dep array uses granular state subfields (`state.grid`, `state.occurrences`, etc.) instead of full `state` — deliberately excludes `state.computedValues` so computedValues changes don't force all GridActionsContext consumers to re-render. `liveValue` useMemo provides the live values. `GridLiveContext.Provider` wraps children alongside existing providers.
-- **GridActionsContext.js**: Removed `computedValues`, undo/redo, mobile state from defaults.
-- **Grid.jsx**: Split context consumption — stable values from GridActionsContext, live values from GridLiveContext.
-- **docs/pills/ExprPillNode.jsx**: Migrated `computedValues` read from GridActionsContext → GridLiveContext (was broken — reading empty default).
-- **docs/hooks/useDocFieldValues.js**: Same migration for both `useDocFieldValues()` and `useFieldValue()` hooks.
-- **Impact**: When `computedValues` changes (every operation run), only Instance.jsx + FieldRenderer.jsx + doc pills re-render — not all 200+ context consumers.
-
-## Recent Changes (Mar 19 2026 — Mobile Drag + UI Fixes)
-- **dragSystem.js**: Fixed 3 mobile touch issues: (1) Removed `e.preventDefault()` from `onStart` — native click/pointer events now fire for taps (fixes RadialMenu/Popover). (2) Cache `getBoundingClientRect()` at touchstart (fixes clone stuck at top-left). (3) Only `preventDefault` in `onMove` after threshold. Removed synthetic click dispatch. Removed `touchStartTime`.
-- **Panel.jsx, Container.jsx, Instance.jsx**: `.module-handle` + `.module-dot` replaced with `.module-drag-handle` + `.drag-handle-stem` + `.drag-handle-ball` (knob-on-stem). All RadialMenu `forceDirection` set to `"down"`.
-- **App.jsx**: Removed `cc-drawer-handle` div (Terminal button in Toolbar already toggles CC).
-- **MobileGridNav.jsx**: `LipButton` replaced with `RailButton` — full-height/width edge rails, inset 4px from screen edges (avoids Samsung back-gesture zone).
-- **index.css**: (1) `.module-handle`/`.module-dot` → `.module-drag-handle`/`.drag-handle-stem`/`.drag-handle-ball` with updated hover selectors. (2) `.cc-drawer-handle` removed. (3) `.mobile-lip-btn` replaced with `.mobile-rail-btn` (full-length, fixed, inset from edges). (4) Cog handle now shows stem+ball at rest, radial on hover.
-
-## Recent Changes (Mar 18 2026 — Mobile UX Fixes v4)
-- **Panel.jsx**: Stack cycler button added INSIDE panel header, left of QuickAddMenu (+). Uses `dragCtx.getStackForPanel(module)` for count. Only renders when `stack.length > 1`. Added `Layers` import. Added `forceDirection="right"` to panel RadialMenu. Label span gets `minWidth: 0` for proper truncation.
-- **Grid.jsx**: StackOverlay component REMOVED entirely. GridCell empty pocket now shows `.panel-stack-btn-inline` button (same style as panel header button) with `isEmpty: true` for correct cycling. Button positioned top-right of pocket (`justifyContent: flex-end`).
-- **DragProvider.jsx**: `cyclePanelStack` speed fix — `emit: idx === stack.length - 1` (only emits on last panel, cutting N socket calls to 1).
-- **index.css**: Replaced `.panel-stack-btn` (absolute positioned overlay) with `.panel-stack-btn-inline` (inline flex button, 20px height, used in both panel header and empty cell pocket).
-
-## Recent Changes (Mar 18 2026 — Mobile UX Fixes v3)
-- **RadialMenu.jsx**: `calcOpenDirection` now ALWAYS returns 'right' (handles are on left wall). Default direction state changed from 'left' to 'right'. Removed viewport clamping code (was squishing items). Spread stays at 45°. Removed "Add" button from default menu items.
-- **DragProvider.jsx**: 3-layer Android split-screen prevention: `dragover`/`dragenter` + `touchmove` (all `passive:false`). `cyclePanelStack` now accepts `isEmpty` flag for proper empty-slot cycling.
-
-## Recent Changes (Mar 18 2026 — Mobile UX Fixes v2)
-- **Grid.jsx**: StackOverlay extracted as separate component rendered AFTER panels in CSS grid (z-index: 80, pointer-events: none wrapper, pointer-events: auto on buttons). Removed z-index: 65 from GridCell (was blocking all panel interaction). GridRadialMenu conditionally hidden on mobile (`{!isMobile && <GridRadialMenu>}`).
-- **index.css**: Removed `.module-handle .module-dot { display: none !important; }` from mobile media query — was breaking drag handles. Down lip button CSS retained (safe-area offset + 24px height).
-- **DragProvider.jsx**: `touch-action: none` on `document.documentElement` during drags (mobile only) to prevent Android split-screen interception.
-- **RadialMenu.jsx**: Arc item viewport clamping (per-item position clamped to viewport bounds). Spread capped to prevent 360-degree wraparound.
-- **E2E tests**: `tests/e2e/mobile-fixes.spec.js` — verifies no z-index blocking, drag handles visible, GridRadialMenu hidden on mobile, stack overlay z-index/pointer-events, down lip button.
-
-## Recent Changes (Mar 18 2026 — Mobile UX Refinements)
-- **MobileGridNav.jsx**: Removed swipe-to-navigate (swipe now scrolls cell content). Navigation is now lip buttons + minigridmap + drag-to-edge only. Lip button icons shrunk from `size={14}` to `size={10}`.
-- **ModuleInstance.jsx**: Changed `touchAction: "none"` → `touchAction: "manipulation"` on `.instance-wrap` — allows normal scrolling through instance elements.
-- **index.css**: Lip buttons shrunk from 28x72px to 16x40px. Added `.panel-stack-overlay` CSS (absolute bottom-right, two small prev/next arrows). Removed mobile rules that hid radial menus. Removed duplicate `.panel-scroll` bottom padding, bumped `.panel-content` to 48px. Added `.mobile-lip-btn-down` safe-area offset + bigger tap target. Added `.mobile-grid-viewport` safe-area padding.
-- **Panel.jsx**: Panel cog handle removed entirely — right-click context menu has "Show/Hide header" option instead. `onContextMenu` added to panel shell div. ResizeHandle now in a flex bottom bar (inline flow, not overlayed).
-- **ResizeHandle.jsx**: Changed from `position: absolute` to inline flow (`flexShrink: 0`, `marginLeft: auto`). No longer overlays panel content.
-- **Panel.jsx**: Removed stack nav from header (moved to Grid overlay). Removed `showStackHint` state + useEffect.
-- **App.jsx**: CC drawer handle height same on mobile/desktop (14px, was 24px on mobile). Grid-frame `onTouchStart` — swipe up (dy < -30) closes CC when open.
-
-## Recent Changes (Mar 13-14 2026 — Filter System Cleanup)
-- **App.jsx**: Removed all old iteration state/handlers (selectedIterationId, currentIterationValue, iterations, categoryDimensions, etc.). Added `handleSelectFilter` + `handleFilterValueChange` to actionsValue.
-- **Toolbar.jsx**: Added `useEffect` for `Ctrl+[` / `Ctrl+]` — cycles through `grid.namedFilters` by index. Skips when focus is in input/textarea/contentEditable. Removed dead `selectedDim`/`categoryValueOpts` lines.
-- **GridLayoutForm.jsx**: Rewrote — removed entire Iterations section. Now only: Grid Name + Rows/Cols + Delete + Day Page Template picker.
-- **ui/Editor.jsx**: `doc-editor-wrapper` onClick calls `editor.commands.focus("end")` when clicking empty space below content (D8 — click & type anywhere).
-
-## Recent Changes (Mar 2026 — U1 Undo Animations)
-- **App.jsx**: Added `useAnimations` import. `captureAllPositions()` called before `_undo()` via wrapped `undo` function. `onUndoAnimation` callback passed to `useUndoRedo` → calls `animateToNewPositions + flashElement` after 100ms (waits for sync_state re-render). Duplicate Grid.jsx `undo_result` listener removed.
-- **Grid.jsx**: Removed `useAnimations` import + `socket.on("undo_result")` duplicate handler. Now a comment: "Animation hook moved to App.jsx".
-
-## Recent Changes (Mar 14 2026 — F5 + D8)
-- **Toolbar.jsx**: Added `useEffect` for `Ctrl+[` / `Ctrl+]` keyboard shortcut — cycles through `grid.namedFilters` by index, calls `onSelectFilter`. Skips when focus is in an input/textarea/contentEditable. Dependency on `grid.namedFilters`, `grid.activeFilterId`, `onSelectFilter`.
-- **ui/Editor.jsx**: `doc-editor-wrapper` div now has `onClick` handler — when `e.target === e.currentTarget` (clicked empty space below content) and editor is editable, calls `editor.commands.focus("end")`. Enables clicking anywhere in the doc area to position cursor.
-
-## Recent Changes (Mar 2026 — Toolbar + Font + EntityTree)
-- **Toolbar.jsx**: Removed `ButtonPopover` + separate `toolbarRadialItems` RadialMenu. Settings cog is now a `RadialMenu` handle with 5 items: Grid Settings, Add Panel, Undo, History, Redo. Grid Settings item opens a floating `<div>` with `GridLayoutForm` (absolute positioned, outside-click to close via `useEffect`). Removed right-side PlusSquare RadialMenu. Removed `ButtonPopover` import.
-- **index.css**: `body` font-family changed from `system-ui, -apple-system...` to `var(--font-mono)` (JetBrains Mono, matches site name).
-- **CommandCenter.jsx**: Added `DraggableEntityRow` component (before `EntityTreeTab`). Panels and containers in EntityTreeTab now use `DraggableEntityRow` — when collapsed: renders as draggable pill (same style as `DraggableInstanceRow`), when open: renders as tree header. Collapsed panels/containers are draggable via Pragmatic DnD (type: "module", role: "panel"|"container", sourceType: "command-center"). DragProvider already handles all three roles.
-
-## Recent Changes (Mar 2026 — CSS Organization + data-testid)
-- **App.jsx**: Added `data-testid="app-root"` to grid-frame root div (line 788).
-- **Toolbar.jsx**: Added `data-testid="toolbar"` to toolbar wrapper div (line 121).
-- **Module.jsx**: Added `data-testid="panel-shell"`, `"container-shell"`, `"instance-wrap"`. Replaced 10 drop indicator inline styles with CSS classes (`drop-indicator drop-indicator-top/bottom/left/right`, inst variants, `drop-indicator-insert`). Replaced `module-handle` grab zones with `module-grab-zone`. Replaced empty placeholders with `empty-placeholder` / `empty-placeholder-inline`. Replaced linked-copy badge style with `linked-copy-badge`.
-- **index.css**: Fully reorganized into 14 numbered sections. Dead `App.css` deleted. New classes: `drop-indicator` series, `module-header-row`, `module-grab-zone`, `empty-placeholder`, `empty-placeholder-inline`, `linked-copy-badge`, `flex-center`, `flex-center-gap`, `abs-fill`, `scroll-y`, `truncate-text`.
-
-## Recent Changes (Mar 17 2026 — Instance Collapse/Expand + Doc Anchor Fix)
-- **Instance.jsx**: Added `isExpanded` (default `true`) + `onToggleExpand` (default `null`) props. ChevronRight/ChevronDown before label when collapsible. Fields + ops wrapped with `(isExpanded || !onToggleExpand)`. Collapsed shows `···` placeholder; fields area click-to-expand.
-- **ModuleInstance.jsx**: Added `isDocContainer = false` prop + `isExpanded` state (default `false`). Doc container instances always expanded (no toggle). List instances start collapsed, click chevron or `···` to reveal fields.
-- **Container.jsx**: Added `occurrenceOverride` prop → `containerOccurrence` uses it directly when provided. Passes `isDocContainer` to `ModuleInstance`.
-- **ModuleEmbedNode.jsx**: Passes `occurrenceOverride={occurrence}` to `<Container>` so embedded containers use their specific occurrence (not first-found by targetId).
-- **ManifestTree.jsx**: Fixed anchor chip `parentOccId` propagation bug. Nested anchors were passing `parentOccId={occ.id}` (wrong — container occ) to children. Now passes `parentOccId={parentOccId}` (root doc occ) at all depths. Fixes "opens as new thing" — clicking nested anchor now scrolls to embedded container in parent doc instead of switching active doc.
-
-## Recent Changes (Mar 13 2026 — Filter System Cleanup)
-- **App.jsx**: Removed all old iteration state/handlers (`selectedIterationId`, `currentIterationValue`, `iterations`, `categoryDimensions`, `selectedCategoryId`, `currentCategoryValue`, `handleCommitIterations`, `handleSelectIteration`, `handleIterationValueChange`, `handleSelectCategory`, `handleCategoryValueChange`, `handleCommitCategoryDimensions`) from `dataValue` and `actionsValue` useMemos and their dependency arrays. Added `handleSelectFilter` + `handleFilterValueChange` to `actionsValue`.
-- **Toolbar.jsx**: Removed dead `selectedDim`/`categoryValueOpts` lines (referenced old `categoryDimensions` prop). Removed `onCommitIterations` prop passed to `GridLayoutForm`.
-- **GridLayoutForm.jsx**: Rewrote — removed entire Iterations section (old UI). Now only shows Grid Name + Rows/Cols + Delete. No more iteration CRUD.
-
-## Recent Changes (Mar 12 2026 — E2E State Exposure)
-- **App.jsx**: Added `window.__moduli_state__ = state` (inline after stateRef.current update). Exposes Redux state to Playwright E2E tests for data verification. Does NOT affect production behavior — only sets a window property.
-
-## Recent Changes (Mar 2026 — CommandCenter Auto-Collapse on Drag)
-- **App.jsx**: Added `monitorForElements` (Pragmatic DnD) at app level — `onDragStart` sets `commandCenterOpen(false)`. CC auto-collapses when any drag starts, revealing the grid as drop target.
-- **App.jsx**: Added `commandCenterEverOpened` flag. CommandCenter stays mounted once opened (`{commandCenterEverOpened && <CC>}` instead of `{commandCenterOpen && ...}`). This enables the slide-up animation on close because CC stays in DOM with `maxHeight` transition.
-
-## Recent Changes (Feb 22 Session 3 — Toolbar redesign + loading fix)
-- **Toolbar.jsx**: Complete redesign. Left: Logo+gear+GridSelect+inline[+]. Center: IterationNav+CategoryFilter. Right: Pomodoro+Terminal+RadialMenu(AddPanel/Undo/History/Redo). Removed separate +Panel, +Grid, Undo/History/Redo buttons. Uses `RadialMenu` with `items` prop + `forceDirection="down"`.
-- **App.jsx**: Loading state redesigned — logo+spinner inside the bordered grid-frame box (no more absolute SpinnerOverlay). DrawerHandle redesigned to pill-style (36px horizontal pill, blue when CC open). Removed ChevronDown import.
-- **DocEditor.jsx**: TDZ fix applied — `handleContextMenu` moved to AFTER `const editor = useEditor(...)` (line 218).
-
-## Recent Changes (Feb 22 Late — Bug Fixes)
-- Module.jsx: Removed `display: "flex"` from inline styles on module-handle divs (panel + container). CSS now controls display fully.
-- index.css: Changed `.module-handle` from `opacity: 0` to `display: none`; hover shows `display: flex`. No layout space when hidden.
-- ui/RadialMenu.jsx: Changed `action?.()` → `action?.(e)` in `handleAction`. Event is now passed to onAddChild/onSettings/onToggleDragMode so they can use getBoundingClientRect() for positioning.
-
-## Recent Changes (Feb 22 — Operations Pipeline)
-- App.jsx: Added stateRef (useRef), passed to bindSocketToStore as 3rd arg
-- App.jsx: computedValues exposed in GridActionsContext.Provider value
-- GridActionsContext.js: computedValues: Object.create(null) added to context defaults
-- FieldRenderer.jsx: Rewritten to use inputEnabled/displayEnabled + reads computedValues from context
-- FieldDisplay.jsx: Updated displayValue to handle new displayEnabled schema + displayConfig target support
-- FieldPillDisplay.jsx: Updated to accept `value` prop (executor-computed) + displayConfig target support
+All dated "Recent Changes" sections from 2026-05-20 and earlier have been
+moved to [`CLAUDE.backup.2026-05-21.md`](./CLAUDE.backup.2026-05-21.md) to
+keep this file workable. New session work should consult that backup only
+if the active sections above don't cover something.

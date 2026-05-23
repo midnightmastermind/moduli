@@ -30,6 +30,7 @@ export default function NodePill({
   depth = 0,
   dragType = "module",
   dragData,
+  externalDragData = null,
   variant = "entity",
   reverseIndent = false,
   style: extraStyle,
@@ -46,8 +47,13 @@ export default function NodePill({
     return draggable({
       element: ref.current,
       getInitialData: () => dragData,
+      // Pragmatic exposes `getInitialDataForExternal` for stamping
+      // non-app data formats (text/uri-list, DownloadURL, etc.) so
+      // dragging the pill OUT of the browser triggers a save-as
+      // instead of doing nothing. Docket §8 gap #24.
+      ...(externalDragData ? { getInitialDataForExternal: () => externalDragData } : {}),
     });
-  }, [dragData]);
+  }, [dragData, externalDragData]);
 
   const isEntity = variant === "entity";
   // Depth indentation lives OUTSIDE the pill (the row wrapper applies

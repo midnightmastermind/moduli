@@ -75,9 +75,14 @@ export default function CommandCenter({ open, onOpenChange, isMobile }) {
         zIndex: 200,
         maxHeight: open ? CC_MAX_H : 0,
         overflow: "hidden",
+        // Slow glide-from-above feel — translateY pairs with max-height so the
+        // contents slide down rather than unroll in place (matches the panel
+        // header autohide animation pattern, 2026-05-22 direction).
+        transform: open ? "translateY(0)" : "translateY(-8px)",
+        opacity: open ? 1 : 0,
         transition: isMobile
-          ? "max-height 0.12s ease-out"
-          : "max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
+          ? "max-height 0.18s ease-out, transform 0.18s ease-out, opacity 0.18s ease-out"
+          : "max-height 0.36s cubic-bezier(0.4, 0, 0.2, 1), transform 0.36s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.32s ease-out",
         // No outer bg/border so the grid shows through to the sides of the
         // centered card.
         background: "transparent",

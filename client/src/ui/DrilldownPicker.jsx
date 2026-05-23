@@ -531,7 +531,9 @@ function Tile({ item, onBodyClick, onPickThis }) {
 }
 
 // ---- Main component ----
-export default function CategoryPathPicker({
+// Renamed from CategoryPathPicker 2026-05-22 — name didn't capture the
+// custom-drilldown function (more than just categories).
+export default function DrilldownPicker({
   value = "",
   onChange,
   ctx = {},

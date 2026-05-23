@@ -1010,7 +1010,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     // Id-keyed lookup maps — let an op resolve a known occurrence id
     // without LOOPing or FINDing. Path resolver splits on "." only, so
     // UUIDs with dashes work as keys: `$allItemsById.<uuid>` walks to the
-    // value directly. Lets CategoryPathPicker emit stable id paths
+    // value directly. Lets DrilldownPicker emit stable id paths
     // (e.g. for tracker `$goalItem = $allItemsById.<goalId>`) without
     // bottling the id into the predicate's right side.
     $allItemsById: Object.fromEntries(allItems.map(i => [i.id, i])),
@@ -1388,6 +1388,32 @@ function _handleSuspend(result, { onPipelineDone, accumulated = [] } = {}) {
     return pre;
   }
 
+  // IMPORT_HTML / IMPORT_MARKDOWN path: emit the import_text socket
+  // event via the bridge, await `import_text_result`, bind the
+  // { rootOccurrenceId, stats, detectedFormat } result to resultVar
+  // (or smuggle the error envelope to errorVar when onError === "continue").
+  if (last._importText) {
+    const importFn = operationsBridge.importText;
+    if (typeof importFn !== "function") {
+      console.warn("[IMPORT_*] operationsBridge.importText not set — dropping the rest of the pipeline.");
+      if (onPipelineDone) onPipelineDone(nextAccumulated);
+      return pre;
+    }
+    Promise.resolve(importFn(last.request)).then((value) => {
+      resumeContinuation(last.continuation, last.resultVar || "$importResult", value, { onPipelineDone, accumulated: nextAccumulated });
+    }).catch((err) => {
+      if (last.onError === "continue") {
+        const errVarName = last.errorVar || "$importError";
+        const errPayload = { status: 0, message: String(err?.message || err) };
+        resumeContinuation(last.continuation, errVarName, errPayload, { onPipelineDone, accumulated: nextAccumulated });
+      } else {
+        console.warn("[IMPORT_*] request failed:", err);
+        if (onPipelineDone) onPipelineDone(nextAccumulated);
+      }
+    });
+    return pre;
+  }
+
   // GET_USER_INPUT path: modal-based suspend that needs the
   // operationsBridge.requestUserInput function to ferry the question to
   // the UI.
@@ -1542,9 +1568,13 @@ function executeSteps(steps, $vars, context, transaction) {
         return [
           ...updates,
           {
-            _suspend: true,
-            request: result[0].request,
-            resultVar: result[0].resultVar,
+            // Spread the action's sentinel so type discriminators
+            // (_callApi / _importText) and Promise-error metadata
+            // (errorVar / onError) survive into _handleSuspend's
+            // branch selection. Was previously stripped to bare
+            // {_suspend, request, resultVar} which dropped every
+            // suspend through the GET_USER_INPUT branch by default.
+            ...result[0],
             continuation: {
               remainingSteps: stepsArr.slice(stepIdx + 1),
               $vars,

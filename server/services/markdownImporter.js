@@ -38,6 +38,51 @@ const uid = () => crypto.randomUUID();
 // Walks a line and emits TipTap text nodes with bold/italic/code/link
 // marks. Order matters: ***x*** (both), **x** (bold), *x* (italic),
 // `x` (code), [x](y) (link).
+// Splits a pipe-table row like `| a | b | c |` into trimmed cell
+// strings. Tolerates the leading/trailing `|` being omitted (GitHub
+// flavored markdown allows that). Escaped `\|` is preserved as a
+// literal `|` inside a cell.
+function splitTableRow(line) {
+  const t = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells = [];
+  let cur = "";
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (ch === "\\" && t[i + 1] === "|") { cur += "|"; i++; continue; }
+    if (ch === "|") { cells.push(cur.trim()); cur = ""; continue; }
+    cur += ch;
+  }
+  cells.push(cur.trim());
+  return cells;
+}
+
+// Splits a prose paragraph into a sequence of top-level TipTap blocks,
+// extracting each `![alt](src)` as its own block-level image node between
+// paragraph nodes. The Image extension in the editor is configured
+// inline:false (see client/src/ui/Editor.jsx:291), so inline images
+// can't live inside a paragraph's content — we have to break the
+// paragraph around them. Returns an array of TipTap block nodes; each
+// non-image chunk runs through `parseInline` for marks (bold/italic/
+// code/link). Whitespace-only chunks are dropped so we don't mint empty
+// paragraphs around an image.
+function paragraphToBlocks(text) {
+  const blocks = [];
+  const imgRe = /!\[([^\]]*)\]\(([^)]+)\)/g;
+  let lastIdx = 0;
+  let m;
+  while ((m = imgRe.exec(text)) !== null) {
+    const before = text.slice(lastIdx, m.index).replace(/\s+$/g, "");
+    if (before) blocks.push({ type: "paragraph", content: parseInline(before) });
+    blocks.push({ type: "image", attrs: { src: m[2], alt: m[1] || null } });
+    lastIdx = m.index + m[0].length;
+  }
+  const tail = text.slice(lastIdx).replace(/^\s+/g, "");
+  if (tail) blocks.push({ type: "paragraph", content: parseInline(tail) });
+  // No image found AND no tail → the original paragraph; preserve it as one node.
+  if (!blocks.length) blocks.push({ type: "paragraph", content: parseInline(text) });
+  return blocks;
+}
+
 function parseInline(text) {
   const out = [];
   let i = 0;
@@ -132,6 +177,25 @@ function parseBlocks(markdown) {
     if (blockImg) {
       blocks.push({ kind: "image", alt: blockImg[1], src: blockImg[2] });
       i++;
+      continue;
+    }
+    // Pipe table — header row, separator row, then body rows. Promotes
+    // to a kind:"table" container (the other half of the Phase B table
+    // path; the ```html``` fence fallback in `htmlToMarkdown` still
+    // covers tables that don't survive HTML → markdown conversion).
+    // Recognition: line starts with `|`, next line is the separator
+    // (`| --- | --- |` or alignment variants). Anything else with a
+    // leading `|` falls through to the paragraph branch unchanged.
+    if (/^\s*\|/.test(line) && i + 1 < lines.length
+        && /^\s*\|?\s*:?-{3,}:?(\s*\|\s*:?-{3,}:?)+\s*\|?\s*$/.test(lines[i + 1])) {
+      const headerCells = splitTableRow(line);
+      i += 2; // skip header + separator
+      const bodyRows = [];
+      while (i < lines.length && /^\s*\|/.test(lines[i]) && lines[i].trim() !== "") {
+        bodyRows.push(splitTableRow(lines[i]));
+        i++;
+      }
+      blocks.push({ kind: "table", headers: headerCells, rows: bodyRows });
       continue;
     }
     // List (unordered or ordered) — collect contiguous lines
@@ -275,6 +339,48 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
     return occurrenceId;
   }
 
+  // Table — a real kind:"table" container whose ContainerTable renderer
+  // reads meta.table.{columns,rowCount,cells} (see
+  // client/src/modules/containers/ContainerTable.jsx). Each cell is
+  // stored as a TipTap doc fragment; for imports we start with plain
+  // text in a paragraph (the user can promote to embeds later).
+  function buildTable({ headers, rows }) {
+    const moduleId = uid();
+    const occurrenceId = uid();
+    const columns = headers.map((title, idx) => ({
+      id: `tcol_${idx}`,
+      title: title || `Column ${idx + 1}`,
+      width: 160,
+      displayFieldId: null,
+      sort: null,
+      filter: null,
+      fieldVisibility: null,
+      hideLabel: false,
+    }));
+    const cells = {};
+    rows.forEach((row, r) => {
+      row.forEach((value, c) => {
+        if (c >= columns.length) return; // ignore extra cells past column count
+        const text = String(value || "");
+        cells[`${r}:${c}`] = text
+          ? { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] }
+          : { type: "doc", content: [{ type: "paragraph" }] };
+      });
+    });
+    modules.push({
+      id: moduleId, userId, gridId,
+      role: "container", kind: "table",
+      label: headers[0] || "Table",
+    });
+    occurrences.push({
+      id: occurrenceId, userId, gridId,
+      moduleId, parentId: null,
+      fields: {},
+      meta: { table: { columns, rowCount: rows.length, cells } },
+    });
+    return occurrenceId;
+  }
+
   function buildContainer(node, parentOccId) {
     const moduleId = uid();
     const occurrenceId = uid();
@@ -292,7 +398,7 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
           childIds.push(buildInstanceLeaf(item));
         }
       } else if (c.kind === "paragraph") {
-        childIds.push(buildTextblock([{ type: "paragraph", content: parseInline(c.text) }]));
+        childIds.push(buildTextblock(paragraphToBlocks(c.text)));
       } else if (c.kind === "codeBlock") {
         childIds.push(buildTextblock([{
           type: "codeBlock",
@@ -303,6 +409,8 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
         childIds.push(buildHtmlPreviewBlock(c.html));
       } else if (c.kind === "image") {
         childIds.push(buildArtifactImage({ alt: c.alt, src: c.src }));
+      } else if (c.kind === "table") {
+        childIds.push(buildTable({ headers: c.headers, rows: c.rows }));
       }
     }
     occurrences.push({

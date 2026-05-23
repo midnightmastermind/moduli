@@ -40,7 +40,7 @@ export function buildPathConfig({ sources = [], fields = [], inLoop = false, fie
   // Built-in shapes only include scalars and $grid. Collection vars
   // ($allItems, $allTemplates, $parentFilter) are no longer auto-exposed —
   // a Source row must bind them so the user explicitly picks what shows up
-  // in the path picker (matches the new CategoryPathPicker gating).
+  // in the path picker (matches the new DrilldownPicker gating).
   const shapeByVar = {
     $now: null, $today: null, $activeDate: null, $activeDateLabel: null, $activeDayOfWeek: null,
   };

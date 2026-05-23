@@ -225,7 +225,10 @@ function YearGrid({ anchor, onPickYear }) {
 
 // ─── Root ────────────────────────────────────────────────────────────
 
-export default function DrilldownDatePicker({ value = [], onChange, defaultIncrement = 1 }) {
+// Renamed from DrilldownDatePicker 2026-05-22 — separates from the action
+// drilldown (now DrilldownPicker). Future: drill further into hours / minutes
+// / seconds for datetime inputs (operations + scheduler).
+export default function DrilldownTimePicker({ value = [], onChange, defaultIncrement = 1 }) {
   const [level, setLevel] = useState("day");
   const [anchor, setAnchor] = useState(() => {
     const first = Array.isArray(value) && value[0] ? fromISO(value[0]) : new Date();
