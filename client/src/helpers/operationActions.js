@@ -103,6 +103,14 @@ export function extractFieldValuesFiltered(occurrences, fieldId, opts = {}) {
  */
 export function resolveExpr(expr, $vars) {
   if (expr == null) return null;
+  // Value Builder reference sentinel: { __ref: "$path" } — resolve as the
+  // wrapped path. Lets authors store a picker-driven reference in a
+  // structured editor (JsonStructureEditor.jsx ReferenceInput) and have
+  // the runtime evaluate it like any other $path. Empty __ref → null.
+  if (typeof expr === "object" && !Array.isArray(expr) && expr !== null
+      && Object.prototype.hasOwnProperty.call(expr, "__ref")) {
+    return expr.__ref ? resolveExpr(expr.__ref, $vars) : null;
+  }
   // Non-string values (numbers, booleans) are literals — return as-is
   if (typeof expr !== "string") return expr;
   if (expr === "") return null;
@@ -545,6 +553,477 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       }
       break;
     }
+    // ── Value manipulator (task #31) ────────────────────────────────────
+    // JS-equivalent ops on local $vars. Each action reads / writes
+    // $vars[cfg.name] in place. Pure — no effects emitted.
+
+    case "SPLIT_STRING": {
+      // cfg: { name, by? (default " "), to? (writes back into a different var) }
+      const src = $vars[cfg.name];
+      const sep = resolveExpr(cfg.by, $vars) ?? cfg.by ?? " ";
+      const out = (typeof src === "string") ? src.split(sep) : (src == null ? [] : [src]);
+      const target = cfg.to || cfg.name;
+      $vars[target] = out;
+      break;
+    }
+    case "JOIN_ARRAY": {
+      // cfg: { name, by? (default ""), to? }
+      const src = $vars[cfg.name];
+      const sep = resolveExpr(cfg.by, $vars) ?? cfg.by ?? "";
+      const out = Array.isArray(src) ? src.join(sep) : (src == null ? "" : String(src));
+      const target = cfg.to || cfg.name;
+      $vars[target] = out;
+      break;
+    }
+    case "SORT_VAR": {
+      // cfg: { name, direction? ("asc"|"desc"), by? (key for object array) }
+      const src = $vars[cfg.name];
+      if (!Array.isArray(src)) break;
+      const direction = (cfg.direction === "desc") ? -1 : 1;
+      const key = cfg.by || null;
+      const sorted = [...src].sort((a, b) => {
+        const av = key ? (a?.[key] ?? null) : a;
+        const bv = key ? (b?.[key] ?? null) : b;
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1 * direction;
+        if (bv == null) return -1 * direction;
+        if (av < bv) return -1 * direction;
+        if (av > bv) return 1 * direction;
+        return 0;
+      });
+      $vars[cfg.name] = sorted;
+      break;
+    }
+    case "REMOVE_FROM_VAR": {
+      // cfg: { name, at? (index), value? (literal to remove first match) }
+      const src = $vars[cfg.name];
+      if (!Array.isArray(src)) break;
+      if (cfg.at != null) {
+        const i = Number(resolveExpr(cfg.at, $vars));
+        if (Number.isFinite(i) && i >= 0 && i < src.length) {
+          const out = [...src];
+          out.splice(i, 1);
+          $vars[cfg.name] = out;
+        }
+      } else if ("value" in cfg) {
+        const v = resolveExpr(cfg.value, $vars);
+        const idx = src.indexOf(v);
+        if (idx >= 0) {
+          const out = [...src];
+          out.splice(idx, 1);
+          $vars[cfg.name] = out;
+        }
+      }
+      break;
+    }
+    case "REPLACE_IN_VAR": {
+      // cfg: { name, at (index), value (resolved expr) }
+      const src = $vars[cfg.name];
+      if (!Array.isArray(src)) break;
+      const i = Number(resolveExpr(cfg.at, $vars));
+      if (!Number.isFinite(i) || i < 0 || i >= src.length) break;
+      const v = resolveExpr(cfg.value, $vars);
+      const out = [...src];
+      out[i] = v;
+      $vars[cfg.name] = out;
+      break;
+    }
+    case "MERGE_ARRAY": {
+      // cfg: { name, with (expr → array), unique? (bool) }
+      const src = Array.isArray($vars[cfg.name]) ? $vars[cfg.name] : [];
+      const incoming = resolveExpr(cfg.with, $vars);
+      const incomingArr = Array.isArray(incoming) ? incoming : (incoming == null ? [] : [incoming]);
+      let out = [...src, ...incomingArr];
+      if (cfg.unique) {
+        const seen = new Set();
+        out = out.filter(v => {
+          const key = (typeof v === "object" && v !== null) ? JSON.stringify(v) : v;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      }
+      $vars[cfg.name] = out;
+      break;
+    }
+    case "TYPE_OF": {
+      // cfg: { name, to? } — write the JS-type of the var to `to` (default $type).
+      const src = $vars[cfg.name];
+      let t;
+      if (Array.isArray(src)) t = "array";
+      else if (src === null) t = "null";
+      else t = typeof src;
+      $vars[cfg.to || "$type"] = t;
+      break;
+    }
+    case "ARRAY_LENGTH": {
+      // cfg: { name, to? } — write length to `to` (default $length).
+      const src = $vars[cfg.name];
+      const len = Array.isArray(src) ? src.length : (typeof src === "string" ? src.length : 0);
+      $vars[cfg.to || "$length"] = len;
+      break;
+    }
+
+    // ---- GROUP_BY: group an array of objects by a dotted path ----
+    // cfg: { name, by, to? }
+    //   name — source array var
+    //   by   — dotted path to extract group key from each element
+    //          (e.g. "type", "fields.dateFieldId.value", "meta.scheduleSlot")
+    //   to   — destination var, default $groups
+    //
+    // Output: object map keyed by group value, each value is an array
+    // of the matching input items (insertion-ordered). Null/undefined
+    // keys go under the literal "null" string for predictable lookup.
+    // Use case: "purchases by account", "tasks by day", "rows by status".
+    case "GROUP_BY": {
+      const src = $vars[cfg.name];
+      const byPath = cfg.by ? String(cfg.by) : null;
+      if (!Array.isArray(src) || !byPath) {
+        $vars[cfg.to || "$groups"] = {};
+        break;
+      }
+      const groups = {};
+      for (const item of src) {
+        const k = byPath.split(".").reduce((acc, key) => (acc == null ? acc : acc[key]), item);
+        const groupKey = (k == null) ? "null" : String(k);
+        if (!groups[groupKey]) groups[groupKey] = [];
+        groups[groupKey].push(item);
+      }
+      $vars[cfg.to || "$groups"] = groups;
+      break;
+    }
+
+    // ---- MAP_VAR: transform each element of an array via an expression ----
+    // cfg: { name, as?, expr, to? }
+    //   name — source array var
+    //   as   — element variable name, default "$item" (also writes $index)
+    //   expr — expression evaluated per element; can reference $item / $index
+    //   to   — destination var, default `name` (in-place)
+    //
+    // Sets $vars[as] + $vars.$index for each iteration, then restores the
+    // PRIOR values after the loop so this action doesn't leak temporary
+    // bindings into the surrounding scope.
+    case "MAP_VAR": {
+      const src = $vars[cfg.name];
+      if (!Array.isArray(src)) break;
+      const asName = cfg.as || "$item";
+      // Save prior values to restore after — important when MAP_VAR runs
+      // inside a LOOP that already uses $item.
+      const priorItem = $vars[asName];
+      const priorIndex = $vars.$index;
+      const out = [];
+      for (let i = 0; i < src.length; i++) {
+        $vars[asName] = src[i];
+        $vars.$index = i;
+        out.push(resolveExpr(cfg.expr, $vars));
+      }
+      $vars[asName] = priorItem;
+      $vars.$index = priorIndex;
+      $vars[cfg.to || cfg.name] = out;
+      break;
+    }
+
+    // ---- FILTER_VAR: keep elements matching a comparator ----
+    // cfg: { name, as?, comparator?, right?, to? }
+    //   name       — source array var
+    //   as         — element variable name, default "$item"
+    //   comparator — name from evalRule's comparator set (default "IS")
+    //   right      — comparison right value (resolved via resolveExpr)
+    //
+    // Simpler than a full predicate group — for the common "keep entries
+    // where each.field IS value" pattern. Predicate-group filtering can
+    // be done by wrapping in an IF inside a LOOP. This action covers the
+    // 90% case in one line.
+    case "FILTER_VAR": {
+      const src = $vars[cfg.name];
+      if (!Array.isArray(src)) break;
+      const asName = cfg.as || "$item";
+      const comp = cfg.comparator || "IS";
+      const priorItem = $vars[asName];
+      const out = [];
+      for (const el of src) {
+        $vars[asName] = el;
+        const rightVal = resolveExpr(cfg.right, $vars);
+        const rule = { left: asName, comparator: comp, right: rightVal };
+        if (evalRule(rule, $vars)) out.push(el);
+      }
+      $vars[asName] = priorItem;
+      $vars[cfg.to || cfg.name] = out;
+      break;
+    }
+
+    // ---- ARRAY_AT: index into array (or string), negative-friendly ----
+    // cfg: { name, index, to? } — `index` resolves via resolveExpr.
+    // Negative indices count from the end (-1 = last). Writes undefined
+    // (not null) when out of bounds.
+    case "ARRAY_AT": {
+      const src = $vars[cfg.name];
+      const idx = Number(resolveExpr(cfg.index, $vars));
+      if (!Number.isFinite(idx)) {
+        $vars[cfg.to || "$item"] = undefined;
+        break;
+      }
+      if (Array.isArray(src)) {
+        const i = idx < 0 ? src.length + idx : idx;
+        $vars[cfg.to || "$item"] = (i >= 0 && i < src.length) ? src[i] : undefined;
+      } else if (typeof src === "string") {
+        const i = idx < 0 ? src.length + idx : idx;
+        $vars[cfg.to || "$item"] = (i >= 0 && i < src.length) ? src.charAt(i) : undefined;
+      } else {
+        $vars[cfg.to || "$item"] = undefined;
+      }
+      break;
+    }
+
+    // ---- INDEX_OF_VAR: find index of a value in an array/string ----
+    // cfg: { name, find, to? } — `find` resolves via resolveExpr.
+    // Writes the integer index to `to` (default $index). -1 when missing.
+    case "INDEX_OF_VAR": {
+      const src = $vars[cfg.name];
+      const find = resolveExpr(cfg.find, $vars);
+      if (Array.isArray(src)) {
+        $vars[cfg.to || "$index"] = src.indexOf(find);
+      } else if (typeof src === "string") {
+        $vars[cfg.to || "$index"] = src.indexOf(String(find ?? ""));
+      } else {
+        $vars[cfg.to || "$index"] = -1;
+      }
+      break;
+    }
+
+    // ---- TO_LOWER / TO_UPPER: case conversion ----
+    // cfg: { name, to? } — `to` defaults to name (in-place).
+    case "TO_LOWER": {
+      const src = $vars[cfg.name];
+      if (typeof src === "string") $vars[cfg.to || cfg.name] = src.toLowerCase();
+      break;
+    }
+    case "TO_UPPER": {
+      const src = $vars[cfg.name];
+      if (typeof src === "string") $vars[cfg.to || cfg.name] = src.toUpperCase();
+      break;
+    }
+
+    // ---- TRIM: strip whitespace ----
+    case "TRIM_STRING": {
+      const src = $vars[cfg.name];
+      if (typeof src === "string") $vars[cfg.to || cfg.name] = src.trim();
+      break;
+    }
+
+    // ---- REPLACE_STRING: find/replace within a string ----
+    // cfg: { name, find, replace, all?, to? }
+    // `find` and `replace` resolve via resolveExpr. `all:true` replaces every
+    // occurrence (no regex — literal substring); default replaces only first.
+    case "REPLACE_STRING": {
+      const src = $vars[cfg.name];
+      if (typeof src !== "string") break;
+      const find = String(resolveExpr(cfg.find, $vars) ?? "");
+      const replace = String(resolveExpr(cfg.replace, $vars) ?? "");
+      if (find === "") break;
+      let out;
+      if (cfg.all === true) out = src.split(find).join(replace);
+      else out = src.replace(find, replace);
+      $vars[cfg.to || cfg.name] = out;
+      break;
+    }
+
+    // ---- CONTAINS_STRING: test substring presence ----
+    // cfg: { name, find, to? } — writes boolean to `to` (default $contains).
+    case "CONTAINS_STRING": {
+      const src = $vars[cfg.name];
+      if (typeof src !== "string") {
+        $vars[cfg.to || "$contains"] = false;
+        break;
+      }
+      const find = String(resolveExpr(cfg.find, $vars) ?? "");
+      $vars[cfg.to || "$contains"] = find === "" ? true : src.includes(find);
+      break;
+    }
+
+    // ---- CONCAT_STRINGS: join multiple values into one string ----
+    // cfg: { values: [expr...], separator?, to? }
+    // Each value is resolved via resolveExpr; nulls/undefineds → "".
+    // separator defaults to "". `to` defaults to $concat.
+    case "CONCAT_STRINGS": {
+      const items = Array.isArray(cfg.values) ? cfg.values : [];
+      const sep = String(resolveExpr(cfg.separator, $vars) ?? "");
+      const out = items
+        .map(x => {
+          const v = resolveExpr(x, $vars);
+          return v == null ? "" : String(v);
+        })
+        .join(sep);
+      $vars[cfg.to || "$concat"] = out;
+      break;
+    }
+
+    // ---- SLICE_VAR: take a sub-range of an array or string ----
+    // cfg: { name, start?, end?, to? } — like `Array.prototype.slice`.
+    // Defaults: start=0, end=length. Negative indices count from the end.
+    // Writes to `to` (default: same var, mutating in place).
+    // Common use: "last 5 entries" via `start: -5`.
+    case "SLICE_VAR": {
+      const src = $vars[cfg.name];
+      const start = Number(resolveExpr(cfg.start, $vars));
+      const end = cfg.end !== undefined ? Number(resolveExpr(cfg.end, $vars)) : undefined;
+      if (Array.isArray(src) || typeof src === "string") {
+        const startIdx = Number.isFinite(start) ? start : 0;
+        const sliced = end === undefined || !Number.isFinite(end)
+          ? src.slice(startIdx)
+          : src.slice(startIdx, end);
+        $vars[cfg.to || cfg.name] = sliced;
+      }
+      break;
+    }
+
+    // ---- UNIQUE_VAR: deduplicate an array (Set-style) ----
+    // cfg: { name, to?, by? } — `by` optionally names a dotted path on each
+    // object to dedupe by (e.g. "id" so [{id:1},{id:1},{id:2}] → 2 entries).
+    // Defaults to identity comparison for primitives. Output preserves order
+    // of first occurrence. Writes to `to` (default: same var).
+    case "UNIQUE_VAR": {
+      const src = $vars[cfg.name];
+      if (Array.isArray(src)) {
+        const byPath = cfg.by ? String(cfg.by) : null;
+        const getKey = byPath
+          ? (v) => byPath.split(".").reduce((acc, k) => (acc == null ? acc : acc[k]), v)
+          : (v) => v;
+        const seen = new Set();
+        const out = [];
+        for (const item of src) {
+          const k = getKey(item);
+          // Objects/arrays from non-trivial `by` paths still hash by their
+          // string form — primitives just hash directly.
+          const hash = (k != null && typeof k === "object") ? JSON.stringify(k) : k;
+          if (seen.has(hash)) continue;
+          seen.add(hash);
+          out.push(item);
+        }
+        $vars[cfg.to || cfg.name] = out;
+      }
+      break;
+    }
+
+    // ---- REVERSE_VAR: reverse an array or string in place ----
+    // cfg: { name, to? } — like `Array.prototype.reverse` (or string reverse).
+    case "REVERSE_VAR": {
+      const src = $vars[cfg.name];
+      if (Array.isArray(src)) {
+        $vars[cfg.to || cfg.name] = [...src].reverse();
+      } else if (typeof src === "string") {
+        $vars[cfg.to || cfg.name] = src.split("").reverse().join("");
+      }
+      break;
+    }
+
+    // ---- STREAK_VAR: consecutive-days-backward count ----
+    // cfg: { name, by?, to?, today? } — given an array of dated rows, count
+    // the number of consecutive days (going backward from `today`) where AT
+    // LEAST ONE row's date matches. `by` is the dotted path to the date
+    // value on each row (defaults to "date"). `today` overrides $today.
+    //
+    // Use case: "Current Streak" trackers — pass an array of completed-task
+    // rows with their dates, get back the streak length. Pure computation,
+    // no I/O. Stops at the first missing day.
+    case "STREAK_VAR": {
+      const src = $vars[cfg.name];
+      const byPath = cfg.by ? String(cfg.by) : "date";
+      const todayStr = resolveExpr(cfg.today, $vars) ?? $vars.$today;
+      if (!Array.isArray(src) || src.length === 0 || !todayStr) {
+        $vars[cfg.to || "$streak"] = 0;
+        break;
+      }
+      // Extract and normalize dates to YYYY-MM-DD strings.
+      const datesSet = new Set();
+      for (const row of src) {
+        if (row == null) continue;
+        const raw = byPath.split(".").reduce((acc, k) => (acc == null ? acc : acc[k]), row);
+        if (!raw) continue;
+        const s = typeof raw === "string" ? raw.slice(0, 10) : null;
+        if (s && /^\d{4}-\d{2}-\d{2}$/.test(s)) datesSet.add(s);
+      }
+      // Walk backward from today, count consecutive days present.
+      const parseYMD = (s) => {
+        const [y, m, d] = s.split("-").map(Number);
+        return new Date(y, m - 1, d);
+      };
+      const formatYMD = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${dd}`;
+      };
+      let streak = 0;
+      const cur = parseYMD(todayStr);
+      if (Number.isNaN(cur.getTime())) {
+        $vars[cfg.to || "$streak"] = 0;
+        break;
+      }
+      // Safety cap at 3650 days (~10 years). Streaks longer than that
+      // are vanishingly rare and would suggest bad input data.
+      for (let i = 0; i < 3650; i++) {
+        if (datesSet.has(formatYMD(cur))) {
+          streak++;
+          cur.setDate(cur.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+      $vars[cfg.to || "$streak"] = streak;
+      break;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Numeric aggregators over arrays. cfg: { name, by?, to? }
+    //   name — source array var
+    //   by   — optional dotted path to extract a numeric value from each
+    //          element (defaults to identity — assumes elements are numbers)
+    //   to   — destination var (defaults to $sum / $min / $max / $avg)
+    // All four short-circuit cleanly on non-arrays (write 0 / null).
+    // Pattern saves the LOOP+ADD_TO_VAR boilerplate for the common case.
+    // ──────────────────────────────────────────────────────────────────────
+    case "SUM_VAR":
+    case "MIN_VAR":
+    case "MAX_VAR":
+    case "AVG_VAR": {
+      const src = $vars[cfg.name];
+      const byPath = cfg.by ? String(cfg.by) : null;
+      const pick = byPath
+        ? (v) => {
+            const r = byPath.split(".").reduce((acc, k) => (acc == null ? acc : acc[k]), v);
+            return typeof r === "number" ? r : Number(r);
+          }
+        : (v) => (typeof v === "number" ? v : Number(v));
+      const defaultName =
+        type === "SUM_VAR" ? "$sum" :
+        type === "MIN_VAR" ? "$min" :
+        type === "MAX_VAR" ? "$max" : "$avg";
+      if (!Array.isArray(src) || src.length === 0) {
+        // Empty / missing → 0 for SUM/AVG, null for MIN/MAX (no meaningful answer).
+        $vars[cfg.to || defaultName] =
+          (type === "SUM_VAR" || type === "AVG_VAR") ? 0 : null;
+        break;
+      }
+      const nums = src.map(pick).filter((n) => Number.isFinite(n));
+      if (nums.length === 0) {
+        $vars[cfg.to || defaultName] =
+          (type === "SUM_VAR" || type === "AVG_VAR") ? 0 : null;
+        break;
+      }
+      let result;
+      if (type === "SUM_VAR") result = nums.reduce((a, b) => a + b, 0);
+      else if (type === "MIN_VAR") result = Math.min(...nums);
+      else if (type === "MAX_VAR") result = Math.max(...nums);
+      else /* AVG_VAR */ {
+        const sum = nums.reduce((a, b) => a + b, 0);
+        // Two-decimal rounding to match DIV_VAR's precision convention.
+        result = Math.round((sum / nums.length) * 100) / 100;
+      }
+      $vars[cfg.to || defaultName] = result;
+      break;
+    }
+
     case "SUBTRACT_FROM_VAR": {
       const subVal = Number(resolveExpr(cfg.expr, $vars)) || 0;
       $vars[cfg.name] = (Number($vars[cfg.name]) || 0) - subVal;
@@ -596,12 +1075,21 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         .filter(it => it && !it.deleted && !it.meta?.isTemplate)
         .filter(matchItem);
 
-      const result = cfg.multiple ? candidates : (candidates[0] || null);
+      // Task #30 follow-up — FIND auto-detects: returns the bare item when
+      // there's exactly one match, the full array when there are multiple,
+      // null when no matches. Authors that need an array-of-one for shape
+      // consistency can set `cfg.multiple: true` to force-array.
+      const forceArray = cfg.multiple === true;
+      const result = forceArray
+        ? candidates
+        : (candidates.length > 1 ? candidates : (candidates[0] || null));
       if (cfg.itemVar) $vars[cfg.itemVar] = result;
       if (cfg.itemIdVar) {
-        $vars[cfg.itemIdVar] = cfg.multiple
+        $vars[cfg.itemIdVar] = forceArray
           ? candidates.map(c => c.id)
-          : (result?.id ?? null);
+          : (candidates.length > 1
+              ? candidates.map(c => c.id)
+              : (candidates[0]?.id ?? null));
       }
       break;
     }
@@ -610,6 +1098,42 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // cfg: { name, role?, kind?, meta?, parent?, date?: { fieldId, value },
     //        fields?, textmap?, insertAtIndex?, itemIdVar?, itemVar? }
     case "CREATE": {
+      // ── Multiple mode (task #30) ──────────────────────────────────────
+      // When `cfg.multiple === true`, CREATE acts as bulk creator: it expects
+      // `cfg.rows: [{name|label, fields?, meta?, itemIdVar?, itemVar?}]` and
+      // creates one occurrence per row. Base cfg keys (role/kind/parent/...)
+      // apply to every row; per-row fields/meta merge on top of base fields/
+      // meta. Result var (if set) binds to the array of created ids.
+      // Same-kind constraint per user direction — only label/fields/meta
+      // vary per row.
+      if (cfg.multiple === true) {
+        const rows = Array.isArray(cfg.rows) ? cfg.rows : [];
+        if (rows.length === 0) break;
+        const { rows: _ignored, name: baseName, label: baseLabel, fields: baseFields, meta: baseMeta, multiple: _m, ...base } = cfg;
+        const createdIds = [];
+        for (const row of rows) {
+          if (!row || typeof row !== "object") continue;
+          const rowName = row.name ?? row.label ?? baseName ?? baseLabel;
+          if (!rowName) continue;
+          const rowCfg = {
+            ...base,
+            name: rowName,
+            fields: { ...(baseFields || {}), ...(row.fields || {}) },
+            meta:   { ...(baseMeta   || {}), ...(row.meta   || {}) },
+            itemIdVar: row.itemIdVar || null,
+            itemVar:   row.itemVar   || null,
+          };
+          const rowUpdates = executeActionItem("CREATE", rowCfg, $vars, context, transaction);
+          if (Array.isArray(rowUpdates) && rowUpdates.length > 0) {
+            updates.push(...rowUpdates);
+            const created = rowUpdates.find(u => u?._effect === "CREATE_ITEM");
+            if (created?.instance?.id) createdIds.push(created.instance.id);
+          }
+        }
+        if (cfg.resultVar) $vars[cfg.resultVar] = createdIds;
+        break;
+      }
+
       const name = resolveExpr(cfg.name, $vars) ?? cfg.name;
       if (!name) break;
 
@@ -1204,8 +1728,17 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     }
 
     // ---- DELETE: remove an item ----
-    // cfg: { itemIdExpr }
+    // cfg: { itemIdExpr } OR { multiple: true, ids | idsExpr }
     case "DELETE": {
+      if (cfg.multiple === true) {
+        const raw = cfg.ids ?? resolveExpr(cfg.idsExpr, $vars);
+        const ids = Array.isArray(raw) ? raw : [];
+        for (const id of ids) {
+          if (!id) continue;
+          updates.push({ _effect: "DELETE_ITEM", itemId: id });
+        }
+        break;
+      }
       const itemId = resolveExpr(cfg.itemIdExpr, $vars);
       if (itemId) updates.push({ _effect: "DELETE_ITEM", itemId });
       break;
@@ -1445,15 +1978,36 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // Other CRUD effects — dispatched + emitted by bindSocketToStore after execution
 
     case "MOVE_OCCURRENCE": {
-      const occId = resolveExpr(cfg.occurrenceIdExpr || "$trigger.occurrenceId", $vars);
       const toContainerId = cfg.toContainerId || resolveExpr(cfg.toContainerIdExpr, $vars);
-      if (occId && toContainerId) {
+      if (!toContainerId) break;
+      // Multiple mode (task #30) — `cfg.multiple === true` expects an
+      // `cfg.ids: string[]` array (or `cfg.idsExpr` resolving to one).
+      if (cfg.multiple === true) {
+        const raw = cfg.ids ?? resolveExpr(cfg.idsExpr, $vars);
+        const ids = Array.isArray(raw) ? raw : [];
+        for (const id of ids) {
+          if (!id) continue;
+          updates.push({ _effect: "MOVE_OCCURRENCE", occurrenceId: id, toContainerId });
+        }
+        break;
+      }
+      const occId = resolveExpr(cfg.occurrenceIdExpr || "$trigger.occurrenceId", $vars);
+      if (occId) {
         updates.push({ _effect: "MOVE_OCCURRENCE", occurrenceId: occId, toContainerId });
       }
       break;
     }
 
     case "REMOVE_OCCURRENCE": {
+      if (cfg.multiple === true) {
+        const raw = cfg.ids ?? resolveExpr(cfg.idsExpr, $vars);
+        const ids = Array.isArray(raw) ? raw : [];
+        for (const id of ids) {
+          if (!id) continue;
+          updates.push({ _effect: "REMOVE_OCCURRENCE", occurrenceId: id });
+        }
+        break;
+      }
       const occId = resolveExpr(cfg.occurrenceIdExpr || "$trigger.occurrenceId", $vars);
       if (occId) updates.push({ _effect: "REMOVE_OCCURRENCE", occurrenceId: occId });
       break;
@@ -1577,6 +2131,75 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     //   resultVar?: string  — bind the resulting ISO date to $vars[resultVar].
     //   targetFieldId?: string         — also emit a field write effect.
     //   targetOccurrenceIdExpr?: expr  — required with targetFieldId.
+    // ---- DATE_FORMAT: format an ISO date into a human-readable string ----
+    // cfg: { date, format?, to? }
+    //   date    — ISO date string or $expr resolving to one
+    //   format  — token string. Supported tokens (subset of CLDR):
+    //               yyyy   four-digit year (2026)
+    //               yy     two-digit year (26)
+    //               MMMM   full month name (May)
+    //               MMM    abbreviated month (May)
+    //               MM     two-digit month (05)
+    //               M      month number (5)
+    //               dd     two-digit day (07)
+    //               d      day number (7)
+    //               EEEE   full weekday (Monday)
+    //               EEE    abbreviated weekday (Mon)
+    //             Default: "EEE MMM d" → "Mon May 5"
+    //   to      — destination var, default $formatted
+    case "DATE_FORMAT": {
+      const raw = resolveExpr(cfg.date, $vars);
+      if (!raw) {
+        $vars[cfg.to || "$formatted"] = "";
+        break;
+      }
+      // Parse `YYYY-MM-DD` as LOCAL midnight (not UTC) so a date-only
+      // string doesn't slide a day back in negative-UTC timezones.
+      let d;
+      if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        const [y, m, day] = raw.split("-").map(Number);
+        d = new Date(y, m - 1, day);
+      } else {
+        d = new Date(raw);
+      }
+      if (Number.isNaN(d.getTime())) {
+        $vars[cfg.to || "$formatted"] = String(raw);
+        break;
+      }
+      const format = String(resolveExpr(cfg.format, $vars) ?? "EEE MMM d");
+      const MONTHS_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const WEEKDAYS_LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const WEEKDAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      const pad2 = (n) => String(n).padStart(2, "0");
+      // Two-pass token replacement using sentinels to prevent shorter
+      // tokens (M / d) from matching letters inside already-substituted
+      // month / weekday names (e.g. "May" contains 'M' / 'a' / 'y').
+      const SENT = "\x01"; // non-printing placeholder
+      const subs = [
+        { tok: /yyyy/g, val: String(d.getFullYear()) },
+        { tok: /yy/g,   val: pad2(d.getFullYear() % 100) },
+        { tok: /MMMM/g, val: MONTHS_LONG[d.getMonth()] },
+        { tok: /MMM/g,  val: MONTHS_SHORT[d.getMonth()] },
+        { tok: /MM/g,   val: pad2(d.getMonth() + 1) },
+        { tok: /M/g,    val: String(d.getMonth() + 1) },
+        { tok: /dd/g,   val: pad2(d.getDate()) },
+        { tok: /d/g,    val: String(d.getDate()) },
+        { tok: /EEEE/g, val: WEEKDAYS_LONG[d.getDay()] },
+        { tok: /EEE/g,  val: WEEKDAYS_SHORT[d.getDay()] },
+      ];
+      // Pass 1: replace each token with a sentinel-wrapped index.
+      let out = format;
+      for (let i = 0; i < subs.length; i++) {
+        out = out.replace(subs[i].tok, `${SENT}${i}${SENT}`);
+      }
+      // Pass 2: swap sentinels for the real values. No further token regex
+      // can match a value's letters because they're sealed off by sentinels.
+      out = out.replace(new RegExp(`${SENT}(\\d+)${SENT}`, "g"), (_, idx) => subs[Number(idx)].val);
+      $vars[cfg.to || "$formatted"] = out;
+      break;
+    }
+
     case "DATE_ADD": {
       const baseRaw = resolveExpr(cfg.base ?? "$today", $vars);
       if (!baseRaw) break;
@@ -2253,8 +2876,10 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
     // ---- ADD_TO_POOL: create a new instance + add to pool container ----
     // cfg: { poolId, label?, labelExpr? }
+    // `poolContainerId` accepted as legacy alias (see fieldsByOptionsSource
+    // unification and BUGS.md #21).
     case "ADD_TO_POOL": {
-      const poolId = resolveExpr(cfg.poolId, $vars);
+      const poolId = resolveExpr(cfg.poolId ?? cfg.poolContainerId, $vars);
       const label = resolveExpr(cfg.labelExpr, $vars) ?? cfg.label ?? "New Item";
       if (poolId) {
         updates.push({ _effect: "ADD_TO_POOL", poolId, label });
@@ -2268,7 +2893,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // Only removes that one canonical pool occurrence — not schedule copies.
     case "REMOVE_FROM_POOL": {
       const moduleId = resolveExpr(cfg.moduleIdExpr || "$trigger.instanceId", $vars);
-      const poolId = resolveExpr(cfg.poolId, $vars);
+      const poolId = resolveExpr(cfg.poolId ?? cfg.poolContainerId, $vars);
       if (moduleId && poolId) {
         updates.push({ _effect: "REMOVE_FROM_POOL", moduleId, poolId });
       }

@@ -4,9 +4,10 @@
 // Selecting an anchor chip calls updateView({ activeOccurrenceId: parentOccId, scrollAnchor: heading })
 // so the parent doc stays open and scrolls to that heading.
 import { useContext, useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { GridActionsContext } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
-import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Folder, Table, Pencil, Trash2, X } from "lucide-react";
+import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Folder, Table, Pencil, Trash2, X, Image as ImageIcon } from "lucide-react";
 import ContextMenu from "../ui/ContextMenu.jsx";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 
@@ -218,6 +219,21 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
           dragData={{ type: "artifact", occurrenceId: occ.id, parentId: occ.parentId }}
           externalDragData={externalDragData}
           style={{ flex: 1 }}
+          // File-size + original-name tooltip (file/artifact audit gap #5)
+          title={(() => {
+            const parts = [];
+            if (mod?.meta?.originalName) parts.push(mod.meta.originalName);
+            const sz = mod?.meta?.uploadSize;
+            if (typeof sz === "number" && sz > 0) {
+              const KB = 1024, MB = KB * 1024, GB = MB * 1024;
+              const label = sz >= GB ? `${(sz / GB).toFixed(1)} GB`
+                : sz >= MB ? `${(sz / MB).toFixed(1)} MB`
+                : sz >= KB ? `${(sz / KB).toFixed(0)} KB`
+                : `${sz} B`;
+              parts.push(label);
+            }
+            return parts.length > 0 ? parts.join(" · ") : undefined;
+          })()}
         >
           {defaultOccurrenceId === occ.id && (
             <span style={{ fontSize: 8, color: "var(--text-faint)", flexShrink: 0 }} title="Default page">&#x1F4CC;</span>
@@ -237,6 +253,145 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
   );
 }
 
+// ─── FolderCoverEditor (F2) ──────────────────────────────────────────────────
+// Tiny portaled popover with two tabs: Color (8 swatches) / Image (file picker
+// → upload via /api/artifacts/upload then write the returned fileRef as the
+// cover). Stored on folder.meta.cover = { kind: "color"|"image", value }.
+// Rendered cover surfaces:
+//   - Folder pill leading icon slot (small color square OR image thumb)
+//   - Folder-page header (when implemented)
+function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
+  const popRef = useRef(null);
+  const [tab, setTab] = useState(folder.meta?.cover?.kind === "image" ? "image" : "color");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const onDocDown = (e) => {
+      if (!popRef.current) return;
+      if (!popRef.current.contains(e.target)) onClose?.();
+    };
+    document.addEventListener("mousedown", onDocDown);
+    return () => document.removeEventListener("mousedown", onDocDown);
+  }, [onClose]);
+
+  const setCover = useCallback((cover) => {
+    CommitHelpers.updateFolder({
+      dispatch, socket,
+      folder: { id: folder.id, meta: { ...(folder.meta || {}), cover } },
+      emit: true,
+    });
+    onClose?.();
+  }, [folder, dispatch, socket, onClose]);
+
+  const handleFile = useCallback(async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      // The artifact upload endpoint expects userId + gridId. We don't need
+      // to mint a module here — the upload still creates one, but we just
+      // grab the fileRef for the cover. Future polish: a lightweight
+      // /api/folders/:id/cover upload that doesn't mint a module.
+      const userId = window?.__moduliUserId || "";
+      const gridId = window?.__moduliGridId || "";
+      fd.append("userId", userId);
+      fd.append("gridId", gridId);
+      const res = await fetch("/api/artifacts/upload", { method: "POST", body: fd });
+      const body = await res.json().catch(() => null);
+      if (body?.fileRef) setCover({ kind: "image", value: body.fileRef });
+    } finally {
+      setUploading(false);
+    }
+  }, [setCover]);
+
+  const COLORS = ["#f87171", "#fb923c", "#facc15", "#4ade80", "#38bdf8", "#818cf8", "#e879f9", "#94a3b8"];
+
+  return createPortal(
+    <div
+      ref={popRef}
+      style={{
+        position: "fixed", left: position.x, top: position.y, zIndex: 1200,
+        minWidth: 200, padding: 8,
+        background: "var(--surface, #1f2125)",
+        border: "1px solid var(--border-default)", borderRadius: 6,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+        fontSize: 11, fontFamily: "var(--font-mono)",
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div style={{ display: "flex", gap: 4, marginBottom: 8, borderBottom: "1px solid var(--border-subtle)", paddingBottom: 6 }}>
+        <button
+          onClick={() => setTab("color")}
+          aria-pressed={tab === "color"}
+          style={{
+            flex: 1, padding: "3px 6px", borderRadius: 3,
+            background: tab === "color" ? "var(--input-bg)" : "transparent",
+            border: "1px solid var(--border-subtle)",
+            color: "var(--text-primary)", cursor: "pointer", fontSize: 10,
+          }}
+        >Color</button>
+        <button
+          onClick={() => setTab("image")}
+          aria-pressed={tab === "image"}
+          style={{
+            flex: 1, padding: "3px 6px", borderRadius: 3,
+            background: tab === "image" ? "var(--input-bg)" : "transparent",
+            border: "1px solid var(--border-subtle)",
+            color: "var(--text-primary)", cursor: "pointer", fontSize: 10,
+          }}
+        >Image</button>
+      </div>
+      {tab === "color" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+          {COLORS.map(c => (
+            <button
+              key={c}
+              onClick={() => setCover({ kind: "color", value: c })}
+              title={c}
+              style={{
+                width: 32, height: 32, borderRadius: 4,
+                background: c, border: folder.meta?.cover?.value === c ? "2px solid var(--text-primary)" : "1px solid var(--border-subtle)",
+                cursor: "pointer",
+              }}
+            />
+          ))}
+        </div>
+      )}
+      {tab === "image" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={(e) => handleFile(e.target.files?.[0])}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            style={{
+              padding: "6px 10px", borderRadius: 3,
+              background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
+              color: "var(--text-primary)", cursor: uploading ? "default" : "pointer",
+              fontSize: 10,
+            }}
+          >
+            {uploading ? "Uploading…" : "Choose image…"}
+          </button>
+          {folder.meta?.cover?.kind === "image" && (
+            <div style={{ marginTop: 4, fontSize: 9, color: "var(--text-faint)", wordBreak: "break-all" }}>
+              Current: {folder.meta.cover.value}
+            </div>
+          )}
+        </div>
+      )}
+    </div>,
+    document.body
+  );
+}
+
 // ─── FolderNode ──────────────────────────────────────────────────────────────
 function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId, onOpenPage, onOpenPageAndClose, showAnchors = true }) {
   const { dispatch, socket, state } = useContext(GridActionsContext);
@@ -245,6 +400,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(folder.name);
   const [ctxMenu, setCtxMenu] = useState(null);
+  const [coverEditor, setCoverEditor] = useState(null);
   const [folderDropEdge, setFolderDropEdge] = useState(null);
   const folderDropEdgeRef = useRef(null);
   const folderRef = useRef(null);
@@ -531,10 +687,22 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
         <ContextMenu
           ctx={{ x: ctxMenu.x, y: ctxMenu.y, items: [
             { label: "Rename", icon: Pencil, onClick: () => { setRenameValue(folder.name); setIsRenaming(true); } },
+            { label: "Set cover…", icon: ImageIcon, onClick: () => setCoverEditor({ x: ctxMenu.x, y: ctxMenu.y }) },
+            ...(folder.meta?.cover ? [{ label: "Clear cover", icon: X, onClick: () => CommitHelpers.updateFolder({ dispatch, socket, folder: { id: folder.id, meta: { ...(folder.meta || {}), cover: null } }, emit: true }) }] : []),
             { separator: true },
             { label: "Delete folder", icon: Trash2, danger: true, onClick: handleDelete },
           ] }}
           onClose={() => setCtxMenu(null)}
+        />
+      )}
+
+      {coverEditor && (
+        <FolderCoverEditor
+          folder={folder}
+          dispatch={dispatch}
+          socket={socket}
+          position={coverEditor}
+          onClose={() => setCoverEditor(null)}
         />
       )}
 

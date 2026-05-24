@@ -117,7 +117,7 @@ export async function buildDailyRoutineTemplate({
     const tplSlotOccId = uid();
     await new Module({
       id: tplSlotModId, userId, gridId,
-      role: "container", kind: "list",
+      role: "container", kind: "board",
       label: slot.label,
       meta: {
         templateModule: true,
@@ -142,7 +142,7 @@ export async function buildDailyRoutineTemplate({
       const srcMod = await findModule({ id: r.sourceModId, gridId });
       await new Module({
         id: tplInstModId, userId, gridId,
-        role: "instance", kind: "list", label: r.label,
+        role: "instance", kind: "board", label: r.label,
         defaultDragMode: "copy",
         fieldBindings: srcMod?.fieldBindings || [],
         meta: { templateModule: true },
@@ -462,7 +462,7 @@ export async function buildProjectTemplate({
     tplKanbanColOccIds[col.key] = uid();
     await new Module({
       id: modId, userId, gridId,
-      role: "container", kind: "list", label: col.label,
+      role: "container", kind: "board", label: col.label,
       styleMode: "own", ownStyle: { bg: col.bg },
       meta: {
         templateModule: true,
@@ -642,7 +642,7 @@ export function makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId
                     type: "CREATE",
                     name: "Due",
                     role: "container",
-                    kind: "list",
+                    kind: "board",
                     meta: { scheduleDueContainer: true },
                     parent: "$schedPageId",
                     fields: { [timeslotFieldId]: "literal:Due" },
@@ -885,7 +885,7 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
               id: uid(), type: "if",
               condition: { operator: "AND", rules: [{ id: uid(), left: "$sharedDueId", comparator: "IS_EMPTY", right: "" }] },
               then: [{ id: uid(), type: "action", config: {
-                  type: "CREATE", name: "Due", role: "container", kind: "list",
+                  type: "CREATE", name: "Due", role: "container", kind: "board",
                   meta: scheduleFormatFieldId ? {} : { scheduleDueContainer: true },
                   parent: "$schedPageId",
                   fields: {
@@ -1039,7 +1039,7 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                         // resolveExpr template-interpolates ${$day} at create
                         // time (see operationActions.js Mar 22 2026).
                         name: "${$day} Day Column",
-                        role: "container", kind: "list",
+                        role: "container", kind: "board",
                         meta: { allowChildContainers: true },
                         parent: "$schedPageId",
                         filterOverride: { [dateFieldId]: "$day" },
@@ -1112,7 +1112,7 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                           // Shortened day-col label uses date too — was just
                           // "Day" so every column was indistinguishable.
                           name: "${$day}",
-                          role: "container", kind: "list",
+                          role: "container", kind: "board",
                           meta: { allowChildContainers: true },
                           parent: "$schedPageId",
                           filterOverride: { [dateFieldId]: "$day" },

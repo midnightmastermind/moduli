@@ -1,6 +1,6 @@
 # Layout Cascade Spec — drag-in view + nav + lock + drop rules per kind
 
-**Date:** 2026-05-22 · **Task:** #36 · **Status:** Initial spec + starting helper
+**Date:** 2026-05-22 · **Task:** #36 · **Status:** ✅ All slices shipped (1-6). Drop rules (slice 7 / `dropAccepts` cfg) deferred until a concrete consumer needs them.
 
 A CSS-cascade-style system that resolves layout/behaviour rules per occurrence kind+role at runtime, with per-level overrides. Pairs with task #38 (type review) — type-review documents the *what*; this spec documents the *resolver*.
 
@@ -117,15 +117,15 @@ Today `behavior.draggable` on a module controls draggability. The cascade's `loc
 
 ## Implementation slices
 
-1. **`helpers/layoutCascade.js` skeleton** — DEFAULT_LAYOUT_BY_KIND table + `resolveLayoutCascade` returning defaults only (no override walking yet). **THIS PR** — see helper file shipped alongside this spec.
-2. **Drop handler integration** — read resolved.dragInView, stamp `meta.viewMode` on new occurrence. ~10 lines per drop site.
-3. **Switcher integration** — wire ViewModeSwitcher's allowedModes prop. ~5 lines.
-4. **Lock rule** — wire to dragSystem's draggable check. ~10 lines.
-5. **`LayoutCascadeEditor` component** — mirror StyleEditor pattern. Reusable across LayoutForm/ContainerForm/InstanceForm/HeaderDropdown.
-6. **Cascade walker** — extend `resolveLayoutCascade` to walk ancestor chain via buildParentMap reverse map (same pattern StyleHelpers uses).
-7. **Per-occurrence + per-container + per-page + per-panel + per-grid override storage** — already supported via existing `meta.*` field on each model; just need the editor to write to it and the resolver to read it.
+1. **`helpers/layoutCascade.js` skeleton** — DEFAULT_LAYOUT_BY_KIND table + `resolveDefaultLayout`. **SHIPPED** (2026-05-22).
+2. **Drop handler integration** — `resolveDropInViewMode` reads the destination's effective cascade; `stampDropViewMode` writes `meta.viewMode` on the new child. Wired into the shared `autoAppendOnDrop` helper so every site that uses it picks up the cascade automatically. **SHIPPED** (2026-05-22).
+3. **Switcher integration** — `ViewModeSwitcher` accepts `allowedModes` + `allowChange` from the cascade. Hides entirely when `allowChange === false` or `allowedModes` is empty. **SHIPPED** (2026-05-22).
+4. **Lock rule** — `isMoveBlockedByCascadeLock` in `helpers/layoutCascade.js` finds the outermost ancestor with own `meta.layoutCascade.locked === true` and rejects moves whose destination is outside that ancestor. Wired into `dropHandlers.handleInstanceDrop` (move branch only — copy/copylink exempt since the original stays in place). Sibling-container moves under the same locked page are still allowed; cross-page moves are blocked with a toast. **SHIPPED** (2026-05-23). 6 regression tests in `__tests__/layoutCascade.test.js`.
+5. **`LayoutCascadeEditor` component** — mirror StyleEditor pattern. Editor (`ui/LayoutCascadeEditor.jsx`) + per-occurrence HeaderDropdown surface (`ui/LayoutCascadeSection.jsx`) wired into all five spec'd sites: `modules/ModuleContainer.jsx` / `modules/ModulePage.jsx` / `modules/ModulePanel.jsx` (HeaderDropdown per-occurrence), `ui/ContainerForm.jsx` (Style tab — `containerOcc.meta.layoutCascade`), `ui/InstanceForm.jsx` (Style tab — `instanceOcc.meta.layoutCascadeOverride`), `ui/LayoutForm.jsx` (panel Style tab — `panelOcc.meta.layoutCascade`), and `ui/commandCenter/GridSettingsTab.jsx` (grid-level — `grid.meta.layoutCascadeDefaults`). Editor renders the inheritance row plus per-rule controls (drag-in view radio, nav options checkboxes, allow-change/locked/show-fields switches, representation-field chip whitelist). **FULLY SHIPPED** (2026-05-23).
+6. **Cascade walker** — `mergeLayoutRules`, `resolveLayoutCascade`, `buildLayoutCascadeContext`, `resolveEffectiveLayout`. Mirrors `resolveStyleCascade` (parent-map walk, role-bucketed ctx, layered overrides). **SHIPPED** (2026-05-22) with 20 regression tests.
+7. **Per-occurrence + per-container + per-page + per-panel + per-grid override storage** — reads work via `meta.layoutCascade` / `meta.layoutCascadeOverride` / `grid.meta.layoutCascadeDefaults`. **SHIPPED** in the walker; writes pending the LayoutCascadeEditor UI.
 
-Slice 1 ships with this spec (the helper file with the DEFAULT_LAYOUT_BY_KIND table). Slices 2-7 are the implementation follow-ups.
+Slices 1-3 + 6 + partial 5 ship with this spec. Slice 4 + the full Slice 5 editor remain.
 
 ## Pairs with
 

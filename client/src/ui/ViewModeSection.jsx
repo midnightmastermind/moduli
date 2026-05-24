@@ -12,13 +12,14 @@
 // "folderPage" if mounted inside a folder-page surface to suppress
 // the Actual option.
 
-import React, { useCallback, useContext } from "react";
+import React, { useCallback, useContext, useMemo } from "react";
 import { GridActionsContext } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import ViewModeSwitcher from "./ViewModeSwitcher";
+import { resolveEffectiveLayout } from "../helpers/layoutCascade";
 
 export default function ViewModeSection({ occurrence, contextTag = "default" }) {
-  const { dispatch, socket } = useContext(GridActionsContext) || {};
+  const { dispatch, socket, occurrencesById, modulesById, grid } = useContext(GridActionsContext) || {};
   const handleChange = useCallback((nextMode) => {
     if (!occurrence?.id) return;
     CommitHelpers.updateOccurrence({
@@ -31,7 +32,20 @@ export default function ViewModeSection({ occurrence, contextTag = "default" }) 
     });
   }, [occurrence?.id, occurrence?.meta, dispatch, socket]);
 
+  // Layout cascade — gives allowedModes + allowChange that override the
+  // legacy contextTag. When the cascade returns navOptions=[] or
+  // navAllowChange=false (e.g. standalone page, page-in-container), the
+  // switcher hides entirely.
+  const layout = useMemo(() => {
+    if (!occurrence || !occurrencesById || !modulesById) return null;
+    return resolveEffectiveLayout({ occurrence, occurrencesById, modulesById, grid });
+  }, [occurrence, occurrencesById, modulesById, grid]);
+
   if (!occurrence?.id) return null;
+  // Don't render the whole section when the cascade forbids changes.
+  if (layout && (!layout.navAllowChange || (layout.navOptions || []).length === 0)) {
+    return null;
+  }
 
   return (
     <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)" }}>
@@ -45,6 +59,8 @@ export default function ViewModeSection({ occurrence, contextTag = "default" }) 
       <ViewModeSwitcher
         occurrence={occurrence}
         contextTag={contextTag}
+        allowedModes={layout?.navOptions || null}
+        allowChange={layout ? layout.navAllowChange !== false : true}
         onChange={handleChange}
         size="sm"
       />

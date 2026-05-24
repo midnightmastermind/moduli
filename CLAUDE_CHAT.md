@@ -1865,4 +1865,89 @@ keep going and i meant add it to your little tasks list here
 
 ---
 
+## 2026-05-23T11:56:22.593Z
+
+put on the docket that id like to review the connections tab in command center, list the apis on that in a section where i can add more or turn them on or off, idk if the add more is possible or turning them off but at least list all of those. then underneath, start out the external connections section and starting it off with a spotify connection link form, where we can then use it for a little spotify widget on the toolbar to show whats currently playing.
+
+---
+
+## 2026-05-23T12:00:40.895Z
+
+also add to the docket to review the occurence type additions plan you did or spec, and list those out to me with questions. make this low priority so dont list them now. continue with the rest docket items that are more pressing.
+
+---
+
+## 2026-05-23T12:07:25.313Z
+
+is the stuff with canvas, the stuff about the adding in draw link tools (linelink, drawlink, rectanglelink, circlelink and how they link occurances together. and recreating the schedule in canvas as a mindmap, and then we were going to put in a lower priority spot that we should look into adding in data to the linking and more. did that get added to docket and worked on
+
+---
+
+## 2026-05-23T12:09:07.660Z
+
+that should be a higher priority but do something thats higher priority thats small right now off the list, you dont have much tokens left
+
+---
+
+## 2026-05-24T13:44:25.258Z
+
+okay ill give you what to leave out (just add them to a future docket item) and then put together a plan for this
+
+direction:
+leave out d3 (dont we have this with markdown, what would this open us to do by having an extra),
+D6 (put later)
+D4: take in markdown table but build out our table container we built as a container (also make it available to be a page, we should be able to turn any page into a container via the view select.
+MD2: dont we already have this.
+C1: we have textblocks for this
+C5: we have a minimap already, and need it to popup whenever i scroll (it doesn't happen when i just normally scroll, currently it only does it for the drag and grab move.
+T6: we handled this, with a input button field type
+T7: this should be handled with actions.
+F1: we have views for this and the presentation mode is smaller, and the preview field is bigger currently (or should be)
+F5: extend this to search in fields and occurences content (as well as just label), we should be able to choose what we search but it defaults to everything.
+CL1: should have both
+also container - list, is board now. there shouldn't be a mention of list
+CL4 we dont need this, we just need inline editing with the editors on the children occurances, and no adding on to the end of board. the right click menu should be able to do this easily too (add an occurance or add new item here)
+LI2: cant we do this with our functionality now (with filtering), doing it per instance, we wont be able to find it to get it back
+LA1: save for later
+LA2 and LA3 are together: save for later
+LA4: save for later as a bigger feature (media editor tool)
+LT1: I want this everywhere as a new occurance (textblock-inline), which is way more condense, can be added via quick add and the right click add new item, highlighting text and right clicking should have an option for turning it into something (especially textblock inline). This can also be more than just 1 word). its pretty much just a smaller textblock and can be inline (i think we can already have this with other occurances, but its more inline (looks seamless to the sentence) (no extra margin with it) (make it look a bit diff style wise than just a textblock.
+LT2: save for later
+
+just leave out the ones i said unless its diff than what i said we already have, add the save for laters ones to the docket later, and what goes into the current plan are the ones i just gave direction to and the ones i didn't say anything about too.
+
+---
+
+## 2026-05-24T13:46:25.664Z
+
+make sure to add in to look at connections and make sure we have logins to link accounts (and use their api)
+
+---
+
+## 2026-05-24T13:46:25.664Z
+
+but let me answer the questions quick
+
+---
+
+## 2026-05-24T13:49:51.891Z
+
+okay, D3 extend the markdown editor to do this, but i dont need a seperate keyboard shortcut for adding new item. this should be seemless with the markdown checklist (typed out the same way and replaced with the tip tap stuff)
+
+---
+
+## 2026-05-24T14:03:49.554Z
+
+Q1 extend the markdown editor to do this, but i dont need a seperate keyboard shortcut for adding new item. this should be seemless with the markdown checklist (typed out the same way and replaced with the tip tap stuff).
+
+Q2 the actual for the page should be a container in spots i drop that cant be the actual page. youre right this should be a new view option. and should be turned into that if dragged to someplace inside other pages. make the view called actual-converted (only one available on pages that accept showing that).
+
+q3 ii. this was supposed to be done along time ago.
+
+t7 direction: should be added as a row in our tables.
+
+add all the new stuff to the plan too. and start working on the plan. make sure on the plan, you go smallest to biggest tasks. and work on those new items first (the ones you didn't plan for)
+
+---
+
 

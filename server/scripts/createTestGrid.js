@@ -249,7 +249,7 @@ export async function createTestGrid(userId, options = {}) {
   // ── STEP 3: Instance modules ────────────────────────────────────────────────
   await Module.insertMany([
     {
-      id: drinkWaterModId, userId, gridId, role: "instance", kind: "list", label: "Drink Water",
+      id: drinkWaterModId, userId, gridId, role: "instance", kind: "board", label: "Drink Water",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -266,7 +266,7 @@ export async function createTestGrid(userId, options = {}) {
     // matches `fields.<dateFieldId>.value SAME_DAY $schedDate`) returns null,
     // causing duplicate CREATEs on every run.
     {
-      id: morningRunModId, userId, gridId, role: "instance", kind: "list", label: "Morning Run",
+      id: morningRunModId, userId, gridId, role: "instance", kind: "board", label: "Morning Run",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -275,7 +275,7 @@ export async function createTestGrid(userId, options = {}) {
       ],
     },
     {
-      id: vitaminsModId, userId, gridId, role: "instance", kind: "list", label: "Take Vitamins",
+      id: vitaminsModId, userId, gridId, role: "instance", kind: "board", label: "Take Vitamins",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -284,7 +284,7 @@ export async function createTestGrid(userId, options = {}) {
       ],
     },
     {
-      id: stretchModId, userId, gridId, role: "instance", kind: "list", label: "Stretch",
+      id: stretchModId, userId, gridId, role: "instance", kind: "board", label: "Stretch",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -293,7 +293,7 @@ export async function createTestGrid(userId, options = {}) {
       ],
     },
     {
-      id: takeMedicationModId, userId, gridId, role: "instance", kind: "list", label: "Take Medication",
+      id: takeMedicationModId, userId, gridId, role: "instance", kind: "board", label: "Take Medication",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -302,7 +302,7 @@ export async function createTestGrid(userId, options = {}) {
       ],
     },
     {
-      id: goToGymModId, userId, gridId, role: "instance", kind: "list", label: "Go to Gym",
+      id: goToGymModId, userId, gridId, role: "instance", kind: "board", label: "Go to Gym",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -311,19 +311,19 @@ export async function createTestGrid(userId, options = {}) {
       ],
     },
     {
-      id: waterGoalModId, userId, gridId, role: "instance", kind: "list", label: "Physical Wellness",
+      id: waterGoalModId, userId, gridId, role: "instance", kind: "board", label: "Physical Wellness",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: totalWaterFieldId, role: "display", order: 0 },
       ],
     },
     {
-      id: tasksGoalModId, userId, gridId, role: "instance", kind: "list", label: "Task Progress",
+      id: tasksGoalModId, userId, gridId, role: "instance", kind: "board", label: "Task Progress",
       defaultDragMode: "move",
       fieldBindings: [{ fieldId: totalTasksCompletedFieldId, role: "display", order: 0 }],
     },
     {
-      id: todoGroceriesModId, userId, gridId, role: "instance", kind: "list", label: "Buy groceries",
+      id: todoGroceriesModId, userId, gridId, role: "instance", kind: "board", label: "Buy groceries",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -332,7 +332,7 @@ export async function createTestGrid(userId, options = {}) {
       ],
     },
     {
-      id: todoDentistModId, userId, gridId, role: "instance", kind: "list", label: "Call dentist",
+      id: todoDentistModId, userId, gridId, role: "instance", kind: "board", label: "Call dentist",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -341,7 +341,7 @@ export async function createTestGrid(userId, options = {}) {
       ],
     },
     {
-      id: todoReviewPRModId, userId, gridId, role: "instance", kind: "list", label: "Review open PRs",
+      id: todoReviewPRModId, userId, gridId, role: "instance", kind: "board", label: "Review open PRs",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -350,7 +350,7 @@ export async function createTestGrid(userId, options = {}) {
       ],
     },
     {
-      id: todoBillsModId, userId, gridId, role: "instance", kind: "list", label: "Pay monthly bills",
+      id: todoBillsModId, userId, gridId, role: "instance", kind: "board", label: "Pay monthly bills",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -359,7 +359,7 @@ export async function createTestGrid(userId, options = {}) {
       ],
     },
     {
-      id: todoReadModId, userId, gridId, role: "instance", kind: "list", label: "Read a chapter",
+      id: todoReadModId, userId, gridId, role: "instance", kind: "board", label: "Read a chapter",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -367,7 +367,7 @@ export async function createTestGrid(userId, options = {}) {
       ],
     },
     {
-      id: todoEmailModId, userId, gridId, role: "instance", kind: "list", label: "Clear inbox",
+      id: todoEmailModId, userId, gridId, role: "instance", kind: "board", label: "Clear inbox",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -376,7 +376,7 @@ export async function createTestGrid(userId, options = {}) {
     },
     // Canvas test instances — used to verify drag-to and drag-from canvas.
     {
-      id: canvasNoteAModId, userId, gridId, role: "instance", kind: "list", label: "Canvas Note A",
+      id: canvasNoteAModId, userId, gridId, role: "instance", kind: "board", label: "Canvas Note A",
       defaultDragMode: "move",
       // dateFieldId is hidden but bound so the schedule's drop-stamp logic
       // can populate it when the note is dragged into a slot — required for
@@ -387,7 +387,7 @@ export async function createTestGrid(userId, options = {}) {
       ],
     },
     {
-      id: canvasNoteBModId, userId, gridId, role: "instance", kind: "list", label: "Canvas Note B",
+      id: canvasNoteBModId, userId, gridId, role: "instance", kind: "board", label: "Canvas Note B",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: completedFieldId, role: "input", order: 0 },
@@ -396,7 +396,7 @@ export async function createTestGrid(userId, options = {}) {
     },
     // Watch Movie — toolkit task that records which movies were watched today
     {
-      id: watchMovieModId, userId, gridId, role: "instance", kind: "list", label: "Watch Movie",
+      id: watchMovieModId, userId, gridId, role: "instance", kind: "board", label: "Watch Movie",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: moviesWatchedFieldId, role: "input", order: 0 },
@@ -406,28 +406,28 @@ export async function createTestGrid(userId, options = {}) {
     },
     // Movies Watched goal instance
     {
-      id: moviesWatchedGoalModId, userId, gridId, role: "instance", kind: "list", label: "Movies Watched",
+      id: moviesWatchedGoalModId, userId, gridId, role: "instance", kind: "board", label: "Movies Watched",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: moviesWatchedDisplayFieldId, role: "display", order: 0 },
       ],
     },
     // Library movie modules — 8 films
-    { id: movieInceptionModId,       userId, gridId, role: "instance", kind: "list", label: "Inception",
+    { id: movieInceptionModId,       userId, gridId, role: "instance", kind: "board", label: "Inception",
       defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: movieMatrixModId,          userId, gridId, role: "instance", kind: "list", label: "The Matrix",
+    { id: movieMatrixModId,          userId, gridId, role: "instance", kind: "board", label: "The Matrix",
       defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: movieArrivalModId,         userId, gridId, role: "instance", kind: "list", label: "Arrival",
+    { id: movieArrivalModId,         userId, gridId, role: "instance", kind: "board", label: "Arrival",
       defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: movieDuneModId,            userId, gridId, role: "instance", kind: "list", label: "Dune",
+    { id: movieDuneModId,            userId, gridId, role: "instance", kind: "board", label: "Dune",
       defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: movieInterstellarModId,    userId, gridId, role: "instance", kind: "list", label: "Interstellar",
+    { id: movieInterstellarModId,    userId, gridId, role: "instance", kind: "board", label: "Interstellar",
       defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: movieBladeRunner2049ModId, userId, gridId, role: "instance", kind: "list", label: "Blade Runner 2049",
+    { id: movieBladeRunner2049ModId, userId, gridId, role: "instance", kind: "board", label: "Blade Runner 2049",
       defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: moviePrestigeModId,        userId, gridId, role: "instance", kind: "list", label: "The Prestige",
+    { id: moviePrestigeModId,        userId, gridId, role: "instance", kind: "board", label: "The Prestige",
       defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
-    { id: movieTenetModId,           userId, gridId, role: "instance", kind: "list", label: "Tenet",
+    { id: movieTenetModId,           userId, gridId, role: "instance", kind: "board", label: "Tenet",
       defaultDragMode: "move", fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }] },
   ]);
 
@@ -441,16 +441,16 @@ export async function createTestGrid(userId, options = {}) {
   }
 
   await Module.insertMany([
-    { id: physicalContId,     userId, gridId, role: "container", kind: "list", label: "Physical", styleMode: "own", ownStyle: { bg: "#b44a1a" } },
-    { id: physicalGoalContId, userId, gridId, role: "container", kind: "list", label: "Physical", styleMode: "own", ownStyle: { bg: "#b44a1a" } },
-    { id: todoGeneralContId,  userId, gridId, role: "container", kind: "list", label: "General",
+    { id: physicalContId,     userId, gridId, role: "container", kind: "board", label: "Physical", styleMode: "own", ownStyle: { bg: "#b44a1a" } },
+    { id: physicalGoalContId, userId, gridId, role: "container", kind: "board", label: "Physical", styleMode: "own", ownStyle: { bg: "#b44a1a" } },
+    { id: todoGeneralContId,  userId, gridId, role: "container", kind: "board", label: "General",
       defaultDragMode: "move", meta: { todoListContainer: true } },
-    { id: libraryContModId,   userId, gridId, role: "container", kind: "list", label: "Library",
+    { id: libraryContModId,   userId, gridId, role: "container", kind: "board", label: "Library",
       defaultDragMode: "move" },
     ...timeSlots.map(slot => {
       const key = `slot_${slot.hour}_${slot.minute}`;
       return {
-        id: schedContainers[key].id, userId, gridId, role: "container", kind: "list",
+        id: schedContainers[key].id, userId, gridId, role: "container", kind: "board",
         label: slot.label,
         meta: {
           scheduleSlot: true,

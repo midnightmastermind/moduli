@@ -1,8 +1,68 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-05-21. Check this file before re-reading source._
+_Updated: 2026-05-23. Check this file before re-reading source._
 
 > **Read [`/CLAUDE_CHAT.md`](../../CLAUDE_CHAT.md) at session start** for time-ordered user direction across sessions. New direction goes there first.
+
+## Recent Changes (2026-05-23 — Page-within-page #45 + Lock rule + Timeslot-passed #59)
+- **`helpers/layoutCascade.js`** — Slice 4 lock rule helper
+  `isMoveBlockedByCascadeLock` walks the source's ancestor chain to
+  find the outermost ancestor with own `meta.layoutCascade.locked:true`
+  and rejects moves whose destination falls outside that ancestor.
+  Reorders within the same locked surface stay allowed; copies/links
+  are exempt. Wired into `handleInstanceDrop` + `handleContainerDrop` +
+  `handleOccurrenceMove` move branches with a toast on block. 6 new
+  regression tests.
+- **`helpers/layoutCascade.js` (#45 page-within-page)** — Split the
+  hardcoded page rule: `nestedInContainer` stays forced representation
+  (containers don't have room to host a full nested page) but
+  `nestedInPage` now defaults to representation with
+  `navAllowChange:true` + `navOptions:["representation", "actual"]`.
+  Per-occurrence `meta.layoutCascadeOverride.dragInView:"actual"`
+  survives the cascade walk. 3 new tests for the page-in-page
+  semantics.
+- **`modules/ModulePage.jsx`** — When `classifyOccurrenceContext`
+  returns `nestedInPage` AND the resolved view mode is `actual`, the
+  page renders with a `page-shell page-shell--nested` modifier:
+  `flex: 0 0 auto`, slim border (`var(--border-subtle)`), transparent
+  background, smaller radius. One component, three render shapes:
+  top-level → full page chrome, nested+representation → chip,
+  nested+actual → inline page-as-container.
+- **`ui/LayoutCascadeEditor.jsx` + `ui/LayoutCascadeSection.jsx`** —
+  Editor + HeaderDropdown section + form-tab mounts for every level
+  of the cascade. Wired into ContainerForm Style tab (push-down),
+  InstanceForm Style tab (per-placement override), LayoutForm Style
+  tab (panel push-down), GridSettingsTab (cascade root), plus the
+  three per-occurrence HeaderDropdown sites
+  (ModuleContainer / ModulePage / ModulePanel).
+- **`blocks/OperationsBuilder.jsx` + `helpers/operationActions.js` +
+  `helpers/operationIntrospection.js`** — Pool key migration (BUGS.md
+  #21): UI now writes `cfg.poolId` (was `cfg.poolContainerId` which
+  never matched the executor's reader). Executor + introspection
+  accept legacy `poolContainerId` as a fallback.
+- **`helpers/timeslotPassed.js` (NEW, task #59)** —
+  `parseSlotLabel("9:00am")` + `isTimeslotPassed({ slotLabel,
+  containerDate?, now })`. Pure check, no I/O. YYYY-MM-DD container
+  dates parse as LOCAL midnight (not UTC) so timezone drift doesn't
+  flip the same-day comparison. 11 regression tests covering am/pm
+  boundary, 12am/12pm edge, 30-minute slots, containerDate scoping.
+- **`hooks/useNowTick.js` (NEW)** — Returns a `Date` snapped to a 5-
+  minute boundary; updates on the boundary so all consumers share
+  the same wall-clock minute. Aligns the first interval to the next
+  boundary so consumers mounted at different times still tick
+  together.
+- **`modules/ModuleContainer.jsx`** — Uses `useNowTick` + checks
+  `module.meta.scheduleSlot && module.meta.slotLabel` against now.
+  When the slot's start time is before now (today), appends
+  `is-timeslot-passed` to the container shell className. Re-renders
+  every 5 min so the class flips as the day advances. Date scoping
+  is loose (any view that includes today shows the tint on past
+  slots) — multi-day views correctly convey "we're past 2pm" via
+  tinted 9am-1pm slots.
+- **`index.css`** — `.container-shell.is-timeslot-passed` rule:
+  `rgba(248,113,113,0.08)` bg + `rgba(248,113,113,0.25)` border,
+  subtle enough to read as a status indicator rather than competing
+  with selection / clipboard outlines (which still win when active).
 
 ## Recent Changes (2026-05-21 — Audit continuation: download / multi-file / OCR / wiki op / sample artifacts)
 - **`client/src/modules/ArtifactContent.jsx`** — Page-level artifact
@@ -178,14 +238,51 @@ _Updated: 2026-05-21. Check this file before re-reading source._
 
 Mid-session 2026-05-22 the user dumped a large direction set + several follow-ups. Tasks #29-#52 in the session task list capture these. Highest-leverage open items:
 
-- **#45 Page-within-a-page primitive** — A page module that functions as a container when nested in another page's `occurrences[]`. 1 component renders the same module at top-level (page chrome) or embedded (container chrome). Prerequisite for #46 People profile-card.
+- ~~**#45 Page-within-a-page primitive**~~ ✅ Shipped 2026-05-23. ONE component (`modules/ModulePage.jsx`) renders three ways based on `classifyOccurrenceContext` + the layout cascade's `pageViewMode`:
+  - **top-level** (panel content) → full page chrome, navAllowChange=false (forced actual)
+  - **nestedInPage + representation** → `<RepresentationView>` chip
+  - **nestedInPage + actual** → page-shell with `--nested` modifier (slim border, transparent bg, no outer card chrome — visually inlines as a container while remaining a real page module). User can toggle representation ↔ actual via the cascade's `navOptions: ["representation", "actual"]` + `navAllowChange: true` (set by `resolveDefaultLayout` `context === "nestedInPage"`).
+  - **nestedInContainer** → forced representation chip, navAllowChange=false (containers don't have room for a full nested page).
+  Cascade rule + render branch tested in `__tests__/layoutCascade.test.js`: 3 new cases (page-in-page changeable, override survives, page-in-container locked). Prerequisite cleared for #46 People profile-card.
 - **#46 People library + profile card view** — Seed 10 people in Library, table-of-people page with profile fields as columns (mirror Schedule Table). Above the table: a page-as-container (depends #45) rendering the selected person via APPLY_TEMPLATE from a "Profile Page" template. Bidirectional copy-link people-row ↔ Library entry ↔ profile-card. Multiselect "people" field type usable on tasks (Call/Email/Text).
-- **#36 Layout cascade** — CSS-style per-kind cascade for drag-in view + nav options + lock + drop rules. Folder-page → Preview/Representation nav + Preview default. Canvas → no fields, Representation default. Page in container → forced Representation (hardcoded). Standalone page → Actual, cannot change.
-- **#35 Canvas pill → merged into Representation view** — One universal small-view component. Label + type + icon + first-image thumbnail; hover popup with actual component; user-configurable fields shown.
-- **#31 Value manipulator action tree** — JS-equivalent ops on local vars (split/sort/replace/merge/delete/find) under a drilldown action category. Merges with existing sort-action.
-- **#30 createMultiple + multiple-variant switch on every action** — Single/multiple toggle on every action (createMultiple, moveMultiple, deleteMultiple, etc.) via switch — never separate actions. Find gets first-result vs multiple-results switch (NOT auto).
+
+  **Status (verified 2026-05-23):** Most of the data layer is already seeded in `createLiveData.js`. What's done vs what's left:
+  - ✅ **5 profile fields** — `personName / personEmail / personPhone / personGender / personNotes` (line ~1086)
+  - ✅ **`peopleAssigned` field** — type:"occurrence", multiSelect:true, find-mode optionsSource scoped to library="person" (line ~1121)
+  - ✅ **10 person occurrences** — parented under `libraryContOccId` with all 5 fields stamped + pravatar profile pictures (line ~3892)
+  - ✅ **Library tag** — `libraryFieldId` enum extended to include "person" (line ~867)
+  - ✅ **addNew patch** — `peopleAssigned` field's optionsSource.addNew.parentOccurrenceId points at `libraryContOccId` so the picker's "+ Add" mints new person occurrences (line ~3975)
+  - 📋 **People page** — IDs declared (`peoplePageModId / peoplePageOccId`, line 259) but NOT yet wired. Add at end of STEP 5 / start of STEP 6: `Module` with `role:"page" kind:"board"`, label "People", parentId = `libraryFolderId`. Occurrence carries `filterOverride:{}` so it ignores the date filter.
+  - 📋 **People table** — IDs declared (`peopleTableModId / peopleTableOccId`, line 261) but NOT wired. Mirror `Schedule Table` shape: `role:"container" kind:"table"`, parented inside the People page. `meta.table.columns` should be `[{id, title:"Photo", fieldVisibility:{mode:"show",fieldIds:[posterUrlFieldId]}, hideLabel:true}, {title:"Name", fieldVisibility:{mode:"show",fieldIds:[personNameFieldId]}}, {title:"Email", ...}, {title:"Phone", ...}, {title:"Gender", ...}, {title:"Notes", ...}]`. `rowCount: 0`, `cells: {}` — a `People Table: Build` op fills cells via COPY_LINK loop over all person occurrences. Use the existing `Schedule Table: Build` as the template.
+  - 📋 **Profile-card page (page-within-page)** — IDs declared (`profileCardModId / profileCardOccId`, line 263) but NOT wired. `role:"page" kind:"doc"`, parented inside the People page above the table. Textmap is the profile-card layout: media row at top + 5 field rows. The page-within-page primitive (#45) renders it as a container when nested inside the People page; cascade rules force `representation` mode by default (already shipped in #36).
+  - 📋 **Profile-card template** — IDs declared (`profileTemplateModId / profileTemplateOccId`, line 265) but NOT wired. Lives in the Templates manifest. APPLY_TEMPLATE op runs on click of a person row, with `replacements: { "{name}": $person.fields.<personNameFieldId>.value, "{email}": ..., ... }` to fill the profile card with the clicked person's values.
+  - 📋 **Click-row → fill-card op** — `People: Show Profile` op. Trigger: onChange on a hidden "selected person" field, OR onClick on a person row. Pipeline: FIND person by id → APPLY_TEMPLATE the profile template into the profile-card slot with replacements.
+  - ✅ **Demo task with `peopleAssigned`** — verified 2026-05-23: `Call a Friend` task in toolkitInstances (createLiveData.js:2019) binds `peopleAssignedFieldId` as input field at order 2.
+  - ✅ **"Call 2 people" goal + Phone Calls tracker** — shipped 2026-05-23. New fields: `phoneCallsFieldId` (array display with columns Person/Slot/Date) + `totalPhoneCallsFieldId` (number display, target=2/daily). Both bound to `socialSummary` goal instance. New `Tracker: Phone Calls` op (priority 3, mirrors Moods tracker shape) loops `$allInstances` for completed Call-a-Friend tasks in `$goalPeriod`, then inner-loops `peopleAssignedFieldId.value` array, resolves each id via `$allItemsById.${$personId}`, and PUSH_TO_ARRAY's `{name, timeslot, date}` rows + increments a scalar count. Writes rows + count to `socialSummary` goal. **Re-seed required** to surface: `node --env-file=.env server/scripts/createLiveData.js`.
+
+  Estimated effort: one focused session, all seed surgery in `createLiveData.js`. No new client-side primitives needed — every piece composes from what's already shipped (#5 link tools, #36 layout cascade, #45 page-within-page, #31 value manipulator, table container, APPLY_TEMPLATE).
+- ~~**#36 Layout cascade**~~ ✅ Fully shipped 2026-05-23 (Slices 1-6). See `docs/superpowers/specs/2026-05-22-layout-cascade-spec.md`. Helper layer (`helpers/layoutCascade.js`) with `DEFAULT_LAYOUT_BY_KIND`, `mergeLayoutRules`, `resolveLayoutCascade`, `buildLayoutCascadeContext`, `resolveEffectiveLayout`, `resolveDropInViewMode`, `resolveEffectiveViewModeFromCascade`, `isMoveBlockedByCascadeLock` — 34 regression tests. Drop integration: new occurrences inherit destination's `dragInView`. Switcher integration: `ViewModeSwitcher` reads `allowedModes` + `allowChange`. Lock rule: cross-surface moves blocked when outermost ancestor sets `locked:true` (wired into `handleInstanceDrop` + `handleContainerDrop` + `handleOccurrenceMove`). Editor: `LayoutCascadeEditor` + `LayoutCascadeSection` mounted at HeaderDropdown (Container / Page / Panel) + ContainerForm Style tab + InstanceForm Style tab + LayoutForm Style tab + GridSettingsTab (cascade root). Slice 7 `dropAccepts` deferred until a consumer needs it.
+- ~~**#35 Canvas pill → merged into Representation view**~~ ✅ Verified shipped 2026-05-23. `ui/RepresentationView.jsx` is the universal small-view: leading thumbnail (from any `role:"media"` field binding) OR module type icon, breadcrumb, label, inline field chips (configurable via `meta.representationFieldIds` or the layout-cascade `representationFieldIds` rule — populated by `LayoutCascadeEditor`), trailing type icon when a thumb is shown. Hover popup mounts the full `ModuleInstance` (lazy-loaded) with optional `fieldVisibilityOverride` for which fields appear. No standalone CanvasPill — every canvas representation is this one component.
+- ~~**#31 Value manipulator action tree**~~ ✅ Verified shipped 2026-05-23. `ui/actionTree.js` declares the canonical multi-level tree: Variables (assign / arithmetic / collections / strings / type) → Find → Occurrences (create / update / delete / move) → Display → Control → Outbound. `ui/ActionPicker.jsx` is the DrilldownPicker-styled tree picker; mounted in `blocks/OperationsBuilder.jsx:769` as the canonical action-type selector on every action step. Variables category exposes `INIT_VAR / SET_VAR / ADD_TO_VAR / SUBTRACT_FROM_VAR / MULTIPLY_VAR / DIV_VAR / INCREMENT_VAR / DECREMENT_VAR / PUSH_TO_VAR / PUSH_TO_ARRAY / MERGE_ARRAY / SORT_VAR / REPLACE_IN_VAR / REMOVE_FROM_VAR / ARRAY_LENGTH / SPLIT_STRING / JOIN_ARRAY / TYPE_OF` — every JS-equivalent value manipulator the user requested. 9 regression tests in `__tests__/actionTree.test.js`.
+- ~~**#30 createMultiple + multiple-variant switch on every action**~~ ✅ Verified shipped 2026-05-23. Per user direction "just have a switch", a single `multiple` boolean cfg flag now lives on CREATE / DELETE / REMOVE_OCCURRENCE / MOVE_OCCURRENCE in both the UI (`blocks/OperationsBuilder.jsx:1005-1009, 1160-1169, 1266-1268, 1312-1321`) and executor (`helpers/operationActions.js:749 / 1373 / 1623 / 1642`). No separate `_MULTIPLE` action variants. The actionTree node descriptions surface "+ multiple switch" on each Title.
 - **#29 Last-X + Array-X display field pairs** — For every "last mood / last X" display field, add a paired array-display capturing all. Spots: mood, workouts, food intake, purchases, media consumed, pomodoros, +best guess. Array values must include timeslot + (multiday only) date. "Most recent" = by timeslot, not creation time. All via ops.
-- **#51 Canvas tool additions** — Richer color picker, marker vs pencil, fill-color (paint bucket), layers (on/off per layer, edit each, layers dropdown). Required before #37 Mona Lisa drawing.
+
+  **Recipe (primitives ready 2026-05-23 in this session):** the value-manipulator action tree shipped (#31) makes #29 fully authorable as ops without new executor work. Pattern per source field:
+  1. Create a "Last X" display field + an "Array of X" display field.
+  2. New op `Tracker: Last <X>` (priority 3, onChange + onLoad triggers):
+     - INIT_VAR `$rows = []`
+     - LOOP `$allInstances` filtered by source-field-exists + date predicate
+     - PUSH_TO_ARRAY into `$rows` with shape `{label, value, timeslot, date}` (use `field.id` field reads + `$item.fields.<dateFid>.value`)
+     - SORT_VAR `$rows` direction:"asc" by:"timeslot" (or "desc" — by:"timeslot" works because slot labels sort lexically when zero-padded; otherwise add a numeric sortKey)
+     - ARRAY_LENGTH → if zero, SHOW_VALUE last = null / array = []
+     - Else: INIT_VAR `$lastRow = $rows.<lastIndex>` (or REPLACE_IN_VAR shape with `at: length-1`)
+     - SHOW_VALUE on "Last X" with `$lastRow.value` (suffixed with " · " + `$lastRow.timeslot` via template interpolation)
+     - SHOW_VALUE on "Array of X" with `$rows`
+  3. The Array-X display field needs a `displayConfig.columns: [{path:"timeslot",header:"Slot"}, {path:"value",header:"Value"}, {path:"label",header:"Item"}]` to render as a table per the May 17 docket entry.
+  4. Multi-day case: include `date` in the row + add a "Date" column to displayConfig.columns; the col renders only when the active filter is multi-day (frontend already handles per-column visibility via `fieldVisibility`).
+
+  Apply per source: mood (one row per mood-field log), workouts (one row per workout instance), food intake (one row per meal occurrence), purchases (label/account/amount), media consumed (label/type/timeslot), pomodoros (slot completed). Seed surgery only — no new executor primitives needed.
+- ~~**#51 Canvas tool additions**~~ ✅ Fully shipped 2026-05-23. `CanvasContent.jsx` already exposes all four pieces: marker tool (separate from pen, semi-transparent multiply-blend stroke) + fill tool (paint-bucket canvas wash via the `fill` stroke kind) + layers system (`containerOccurrence.meta.layers` with per-layer visibility toggle + rename + active-layer radio + delete; new strokes land on the active layer; layer-less legacy strokes still render) + a "richer color picker" via the native `<input type="color">` overlay (conic-gradient swatch → opens the OS color picker with hex/HSL/eyedropper). Eight-preset palette stays for one-click switching. #37 Mona Lisa drawing is unblocked — pure manual-draw task whenever the user wants to demo.
 - **#40 External I/O spec** — Browser extension, BangleJS, Windows right-click, voice (Google Home + Assistant + BangleJS), voice OCR (audio → text), YouTube/Spotify link capture (Representation occurrence + OCR text), YT/Spotify download.
 - **#43 Image lifting + line extraction** — On Image artifact, alongside OCR button: extract subject (alpha-cut), extract outline (coloring-page mode, vector strokes), future blueprint conversion.
 - **#38 Type review spec** — Deep audit of board/doc/canvas/table + container/instance/artifact/textblock — refine tools, write spec.
@@ -197,14 +294,53 @@ Mid-session 2026-05-22 the user dumped a large direction set + several follow-up
 - **#44 Picker-direct migration sweep** — Replaced all FIND-by-label sites in createLiveData custom pipelines with `$allItemsById.<id>` direct binding. **DONE 2026-05-22.**
 - **#32 Rename CategoryPathPicker → DrilldownPicker + DrilldownDatePicker → DrilldownTimePicker** — **DONE 2026-05-22.**
 - **#8 Goals restructure Stage 2** — All trackers + custom pipelines now pass `goalOccurrenceId` and use picker-direct goal binding. **DONE 2026-05-22.**
-- **#47 BUG: Daily Question header chevron** — Code wiring correct; needs in-browser verification of options resolution.
-- **#48 RepresentationView.onJump cross-page wiring** — Deferred until mind-map / value-builder surfaces exist.
-- **#49 FIND single-result vs multiple-results switch** — Distinct from createMultiple.
-- **#50 Picker level review across all uses** — Audit task — confirm every drilldown picker has the levels its call site needs.
-- **#52 Triage docs/BUGS.md Open list** — ~20 bugs, many may already be resolved by recent refactors.
+- ~~**#47 BUG: Daily Question header chevron**~~ ✅ Resolved 2026-05-23: BoundHeader.jsx now always renders the dropdown affordance when an `optionsSource` is configured (was gated to `type === "select"` OR `hasOptions`). Shows a `(no options — check pool predicate)` placeholder when the pool resolves empty — gives the user a visible affordance + diagnostic instead of silently falling to the text branch.
+- ~~**#48 RepresentationView.onJump cross-page wiring**~~ ✅ Verified shipped 2026-05-23. `RepresentationView.onJump` is wired at every consumer site: `modules/ModulePage.jsx:437` + `modules/ModuleInstance.jsx:453` + `modules/ModuleContainer.jsx:545` all pass `() => jumpToOccurrence(occurrence?.id)` (uses the shared `helpers/jumpToOccurrence.js` — scroll + flash + page-activate retry). `modules/PreviewNode.jsx:176` uses `onDrillDown` instead since the chip is already inside the folder context (correct per spec). Canvas-mounted cards don't render `RepresentationView` directly — they render full `ModuleInstance` / `ModuleContainer` which themselves switch to representation mode via `meta.viewMode`, picking up the same `onJump` wiring.
+- ~~**#49 FIND single-result vs multiple-results switch**~~ ✅ Verified shipped 2026-05-23. `helpers/operationActions.js:702` FIND auto-detects: single match → bare item bound to `itemVar`/`itemIdVar`, multiple matches → array. `cfg.multiple === true` (line 722) forces array shape even on a single match for downstream shape consistency. `blocks/OperationsBuilder.jsx:948-996` FIND ActionConfig surfaces the `multiple` checkbox in the UI. Distinct from CREATE/DELETE/REMOVE_OCCURRENCE/MOVE_OCCURRENCE which all have their own `multiple` switches (task #30).
+- **#50 Picker level review across all uses** — **DONE 2026-05-23.** Audited every `<DrilldownPicker>` call site: ConditionGroup (2× — `ctx={pickerCtx}`), OperationsBuilder (8× — 6 use memoized `*PickerCtx`, 2 use inline `{fields, sources:[], localVars:[]}` paired with `buildAttachFieldPickerConfig` which is config-driven so ctx is unused), InstanceForm (1× pickerCtx), ContainerTable (1× pickerCtx), SelectOptionsSourceEditor (4× — all use `COLLECTION_PICKER_CONFIG` or `buildRecordKeyPickerConfig(over)` which are recordShape-driven and ignore ctx), ShortcutsTab (config-driven). Every site provides ctx that matches the picker's mode requirement; no fix needed.
+- ~~**#52 Triage docs/BUGS.md Open list**~~ ✅ User confirmed 2026-05-23 that the BUGS.md Open list is already resolved by recent refactors. The doc still lists historical items with strikethrough + recovery notes for future searchability.
 - **#37 Mona Lisa drawing** — LAST, after #51 ships.
 
-Lower priority (saved for after the prioritized set): #5 Month view page, #23 mobile touch, #24 100+ item perf, #25 offline sync, #26 conflict resolution, #27 multi-window sync, #38 type review, #39 docs reconciliation, #40 external I/O, #43 image lifting.
+- **#63 Search field type** (deferred 2026-05-23 — "save for a full feature, at the end of list") — New field type `"search"` that renders as a search box. On input, fires a search-style operation that filters / surfaces matches across the grid (probably FIND over `$allItems` with a contains-string predicate). Use cases: searching People by name, Library entries by label, etc. Pairs naturally with the button-field primitive (#46 polish) — a search field's results could surface as a list of click-to-show buttons. UX needs design: dropdown of matches? Below-field list? Modal? Reserved for a focused session.
+
+Lower priority (saved for after the prioritized set): #5 Month view page, #23 mobile touch optimization, #24 100+ item perf, #25 offline sync queue polish, #26 conflict resolution — medium + heavy levels (see below), #27 multi-window sync — echo-race + ack-aware fade (see below), #38 type review, #39 docs reconciliation, #40 external I/O, #43 image lifting, **#53 Connections tab review + external connections + Spotify widget (see below)**, **#54 Occurrence type additions review (see below)**.
+
+### #26 Conflict resolution — heavier levels (deferred 2026-05-24)
+**Cheapest level (timestamp + reject-stale) shipped 2026-05-24.** Server's `update_occurrence` handler now compares `expectedUpdatedAt` from the client against the cached `updatedAt`; if stored is newer, emits `occurrence_stale` to the originator with current state + skips the broadcast. Client toasts "Refreshed — another window had a newer edit." and syncs. Foundation works; the cost is that the second writer's edit is lost (not merged).
+
+**Medium level (deferred — bundle with #23 + #24 perf work):**
+- Version vectors per occurrence: `{ value, baseVersion }` on every write; server bumps version on accept, rejects on mismatch.
+- Client-side auto-merge for trivial conflicts (different fields on same occurrence) — only prompt user on actual collisions (same field).
+- UI: "diff modal" showing local vs server when a conflict needs manual resolution.
+- Requires per-field version tracking (not just per-occurrence) for the trivial-conflict auto-merge to work without prompting.
+
+**Heavy level (deferred — multi-user collaborative editing prereq):**
+- Real OT (Operational Transforms) or CRDT for textmap docs. TipTap has plugins; consider Y.js / Automerge.
+- Field-grained CRDTs for occurrence.fields (last-write-wins per field with vector clock).
+- Server-side merge logic for the OT/CRDT data structures.
+- Only needed if Moduli moves to multi-user collaborative editing. Single-user-multi-window use case is fine with the cheapest level shipped today.
+
+### #27 Multi-window sync — polish (deferred 2026-05-24)
+Most of the work is already done — `safeEmit(socket, …)` broadcasts to `userRoom(userId)` via `socket.to()` which excludes the originator, so own-echo races are mostly handled on update paths. `offlineQueue.js` buffers writes when disconnected; `useSocketStatus.js` + `SocketStatusBanner.jsx` show the user a "Disconnected / Reconnected" pill. **Edge cases that aren't bulletproof — defer until a real issue surfaces:**
+
+- **Echo race on CREATE events.** Server uses `io.to()` (broadcasts to all sockets including originator) for `module_created` / `occurrence_created` / `artifact_created` so the originator clears its placeholder state. If the originator already has the data optimistically and re-applies the echo, no harm — Redux reducer is idempotent. But a future originSocketId-based filter would let the originator skip the redundant dispatch.
+- **Ack-aware "Reconnected" pill fade.** Current 3s fixed fade ignores whether the server actually ack'd the offline queue replay. Tighten: (a) capture pre-flush queue length, (b) listen for next N entity-updated events from server, (c) hold pill green until all acks land OR 10s upper cap fires.
+- **Per-window active grid.** `grid_updated` broadcasts to all sockets in `userRoom`. If Tab A is on Grid 1 and Tab B is on Grid 2, both receive both grids' updates. Local store keeps every grid's modules so this is functionally correct — but `currentGridId` resolution gets confused if you switch grids in one tab while events fly in for the other. Adding a `gridId` filter to `bindSocketToStore.onGridUpdated` would isolate cleanly.
+- **Doc / textmap concurrent edits.** Two tabs typing the same textmap → last-write-wins on the full blob. With #26 cheapest level shipped, the second writer now gets `occurrence_stale` + toast — but their typing IS lost. Real fix is the heavy-level OT/CRDT (see #26 above).
+
+### #54 Review occurrence type additions plan (LOW priority — DO NOT list yet)
+- The 2026-05-22 type-review spec (`docs/superpowers/specs/2026-05-22-type-review-spec.md`, 203 lines) drafted refinements and "make-it-pop" examples per type (board / doc / canvas / table + container / instance / artifact / textblock). User wants to walk that list together with me and answer per-item Qs before any of the additions land.
+- **Don't enumerate the list yet.** When the user comes back to this, surface each proposed addition one-by-one with the question the spec implied (the user explicitly asked: "list those out to me with questions"). For each, the answer drives whether it ships, what shape it ships in, and what depends on it.
+- Cross-references: many ideas in the spec compose with the layout cascade (#36 done), the value-builder (#31 done), and the External I/O surface (#40 / #53). Hold on adding any of those compositional pieces until the user picks which to advance.
+
+### #53 Connections tab review + external connections + Spotify widget (LOW priority)
+- **Review the Connections tab** in Command Center (`commandCenter/ConnectionsTab.jsx`). The current shape: it lists user-configured external file storage / notebook connection records. It does NOT surface internal APIs.
+- **APIs section** — add a "Mounted APIs" list at the top of the tab that enumerates the server endpoints actually exposed under `/api/v1` + the public ones (`/api/artifacts/upload`, `/api/research/wikipedia/import`, …). For each row, surface: method + path, one-line description, current state (always on / token-gated). If feasible (probably via a per-grid `grid.meta.apiOverrides` map), expose an **on/off** toggle per endpoint. "Add more" might not be possible (endpoints are code-defined), but at least surface the catalog.
+- **External connections section** — below the API list, a new "External connections" group. Start with **Spotify**:
+  - Form for the user's Spotify connection (OAuth client id / authorize button → token storage on the user record under `user.externalConnections.spotify = { accessToken, refreshToken, expiresAt, scope }`).
+  - Server route to refresh the token + a `/api/v1/spotify/now-playing` (and pause / play / skip if scope allows) endpoint.
+  - **Toolbar widget** — when the connection is live, render a compact Spotify pill in the grid toolbar showing the current track (icon + title • artist, click → expand controls). Polls /now-playing on an interval (probably 15-30s) + invalidates on play/pause clicks.
+- Plays naturally into the broader External I/O spec (#40) — Spotify is the simplest concrete external integration that exercises the full token-storage + polling + toolbar-widget surface, so it's a good first one to land. YouTube / others can follow the same pattern.
 
 ## Open docket (work still pending — handed off 2026-05-21)
 
@@ -625,7 +761,14 @@ is a mind map", it's just a canvas with link tools.
   grouped-linked tools (square/circle + their auto-children). Data
   options later (see "After AI" below).
 
-#### 6. Schedule canvas mind-map seed (operation)
+#### 6. Schedule canvas mind-map seed (operation) — **CORE SHIPPED** (verified 2026-05-23)
+Verified that `Canvas: Build` op (createLiveData.js:7411, priority 8) already mirrors Schedule tasks onto the Schedule Canvas page: per-task COPY_LINK with meta.x/y stacking, orphan sweep, position-preservation across re-fires. The link-tool primitives shipped this session (#5 — linked-rect / linked-circle / endpoint drag / midpoint curve / edge labels) compose on top — users can now add linked shapes to group timeslots manually. Remaining polish (deferred):
+- "# Mindmap" textblock auto-stamped at canvas top on first build
+- Auto-create linked-circle around each timeslot's slot containers (using the linked-shape primitive now in place)
+- "Canvas-toolbar shortcut for new textblock" — quick new-textblock button (the existing canvas DnD already accepts textblocks dropped from elsewhere)
+
+(Original spec retained below for reference.)
+#### 6. Schedule canvas mind-map seed (operation) — ORIGINAL SPEC
 Once #1–#5 land, seed the Schedule canvas with a demo mind map via
 operation:
 - **Canvas-toolbar shortcut for "new textblock"** — add it. Click
@@ -1639,14 +1782,13 @@ projects that would warrant their own roadmap).
     wants per-row colour coding, that's a different mechanism
     (column-level styling on the display field's
     `displayConfig.columns`, not `$displayRules`).
-- **Date-stamp bug on goals/trackers.** The "Stamp Filter Date" op
-  exists at `createLiveData.js:5634` and fires on filter changes +
-  onLoad. Symptom: Date field on goal occurrences shows the literal
-  field name "Date" because the value is null. Plausible causes
-  (need run-log to confirm): goal occurrence's parent chain doesn't
-  connect via `occurrences[]` so `_effectiveFilter` can't resolve;
-  OR `onLoad` fires before `$allInstances` is populated. Open the
-  op's run log in Command Center to see which.
+- ~~**Date-stamp bug on goals/trackers.**~~ ✅ Verified 2026-05-23:
+  `Stamp Filter Date` op at `createLiveData.js:6186` is now
+  `enabled: false` (line 6227). Goal containers carry no
+  `dateFieldId` binding; trackers no longer attempt date stamping
+  on goal occurrences. The symptom is gone with the current seed
+  shape. Re-seed only needed if the live grid still carries stale
+  bindings from an earlier version.
 - **Goals restructure Stage 2 (handoff item from 2026-05-20).**
   ✅ Executor + picker work landed 2026-05-21 (commits `7c8e336e`,
   `f1c087c7`): `$allItemsById` and `$allOccurrencesById` are now

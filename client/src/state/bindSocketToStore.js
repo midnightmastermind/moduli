@@ -349,6 +349,21 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   socket.on("occurrence_updated", onOccurrenceUpdated);
   socket.on("occurrence_deleted", onOccurrenceDeleted);
 
+  // Stale-write rejection (#26 cheapest-level conflict resolution).
+  // Server emits this when an update_occurrence's expectedUpdatedAt is
+  // older than the stored copy — another window beat us. We sync the
+  // server's current state into local + Redux + toast the user so they
+  // know their edit was lost.
+  function onOccurrenceStale({ occurrence } = {}) {
+    if (!occurrence?.id) return;
+    localOccsById[occurrence.id] = occurrence;
+    socketDispatch({ type: ActionTypes.UPDATE_OCCURRENCE, payload: { occurrence } });
+    try {
+      toast?.("Refreshed — another window had a newer edit.", { duration: 3500 });
+    } catch {}
+  }
+  socket.on("occurrence_stale", onOccurrenceStale);
+
   // ======================================================
   // FIELDS (CRUD)
   // ======================================================
@@ -891,7 +906,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
             dispatch: socketDispatch,
             socket,
             containerId: effect.poolId,
-            instance: { id: instanceId, role: "instance", kind: "list", label: effect.label || "New Item", userId, gridId, fieldBindings: [] },
+            instance: { id: instanceId, role: "instance", kind: "board", label: effect.label || "New Item", userId, gridId, fieldBindings: [] },
             emit: true,
           });
         }
@@ -1338,6 +1353,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
     socket.off("occurrence_created", onOccurrenceCreated);
     socket.off("occurrence_updated", onOccurrenceUpdated);
+    socket.off("occurrence_stale", onOccurrenceStale);
     socket.off("occurrence_deleted", onOccurrenceDeleted);
 
     socket.off("field_created", onFieldCreated);

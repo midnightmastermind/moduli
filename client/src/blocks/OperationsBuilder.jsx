@@ -14,6 +14,7 @@ import { formatValue } from "../helpers/CalculationHelpers";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { GripVertical } from "lucide-react";
+import ActionPicker from "../ui/ActionPicker";
 import { arrayMove } from "../helpers/LayoutHelpers";
 import DrilldownPicker from "../ui/DrilldownPicker";
 import JsonStructureEditor from "../ui/JsonStructureEditor";
@@ -323,8 +324,8 @@ const SYSTEM_ACTION_TYPES = [
   { value: "RESET_RECURRING_TASK", label: "Reset recurring task", hint: "Reset completion + advance dueDate by recurrenceDays" },
   { value: "DISPLAY_LOCAL_FIELDS", label: "Display on node", hint: "Show computed values on the operation node card. cfg: fields: [{label, expr}]" },
   { value: "CYCLE_FIELD_VALUE", label: "Cycle field options", hint: "Rotate through a select field's options by day-of-year. cfg: sourceFieldId, targetFieldId" },
-  { value: "ADD_TO_POOL", label: "Add to pool", hint: "Create instance in pool container. cfg: poolContainerId, label / labelExpr" },
-  { value: "REMOVE_FROM_POOL", label: "Remove from pool", hint: "Delete pool occurrence by module ID. cfg: poolContainerId, moduleIdExpr (default: $trigger.instanceId)" },
+  { value: "ADD_TO_POOL", label: "Add to pool", hint: "Create instance in pool container. cfg: poolId, label / labelExpr" },
+  { value: "REMOVE_FROM_POOL", label: "Remove from pool", hint: "Delete pool occurrence by module ID. cfg: poolId, moduleIdExpr (default: $trigger.instanceId)" },
 ];
 
 const AGGREGATION_TYPES = [
@@ -765,14 +766,10 @@ function ActionStep({ step, onUpdate, onRemove, fields, varOptions, localVars = 
     <div style={actionStepSt}>
       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
         <span style={{ fontSize: 9, color: "rgba(99,202,183,0.6)", fontFamily: "monospace", minWidth: 38 }}>do</span>
-        <select value={actionType} onChange={e => onUpdate({ config: { type: e.target.value } })} style={selectSt}>
-          <optgroup label="— Set variables —">
-            {VAR_ACTION_TYPES.map(at => <option key={at.value} value={at.value}>{at.label}</option>)}
-          </optgroup>
-          <optgroup label="— Run / Find / Update —">
-            {SYSTEM_ACTION_TYPES.map(at => <option key={at.value} value={at.value}>{at.label}</option>)}
-          </optgroup>
-        </select>
+        <ActionPicker
+          value={actionType}
+          onChange={(next) => onUpdate({ config: { ...cfg, type: next } })}
+        />
         <div ref={dragHandleRef} style={{ marginLeft: "auto", display: "flex", gap: 2, alignItems: "center" }}>
           <GripVertical style={{ width: 10, height: 10, opacity: 0.25, cursor: "grab", flexShrink: 0 }} />
           <button style={removeBtnSt} onClick={onRemove}>✕</button>
@@ -997,8 +994,8 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
             </div>
             <label style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, paddingLeft: 4 }}>
               <input type="checkbox" checked={!!cfg.multiple} onChange={e => setCfg({ multiple: e.target.checked })} />
-              Return all matches as an array
-              <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(default: only the first match)</span>
+              Force array result
+              <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(default: auto — bare item when 1 match, array when many)</span>
             </label>
           </div>
         </div>
@@ -1006,38 +1003,104 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
     }
 
     case "CREATE": {
+      // Per task #30 — CREATE carries a `multiple` switch. When on, the
+      // single-name + fields UI is replaced by a rows-array editor (each
+      // row inherits the base role/kind/parent, overrides name/fields).
+      const multiple = !!cfg.multiple;
+      const rows = Array.isArray(cfg.rows) ? cfg.rows : [];
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={rowStyle}>
-            {fl("name")}
-            <ExprOrPath value={cfg.name || ""} onChange={v => setCfg({ name: v })} placeholder='"Due"   or   $slot.label' width={160} {...exprProps} />
-            {fl("role")}
-            <select value={cfg.role || "container"} onChange={e => setCfg({ role: e.target.value })} style={selectSt}>
-              {["panel", "page", "container", "instance", "artifact", "textblock"].map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-            {fl("kind")}
-            <select value={cfg.kind || "list"} onChange={e => setCfg({ kind: e.target.value })} style={selectSt}>
-              {["list", "doc", "board", "canvas", "folder", "display", "pool"].map(k => <option key={k} value={k}>{k}</option>)}
-            </select>
-          </div>
-          <div style={rowStyle}>
-            {fl("parent")}
-            <ExprOrPath value={cfg.parent || ""} onChange={v => setCfg({ parent: v })} placeholder="$schedPageId" width={160} {...exprProps} />
-          </div>
-          <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps} />
-          <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 4, marginTop: 2, display: "flex", flexDirection: "column", gap: 4 }}>
-            <div style={{ fontSize: 9, color: "var(--text-muted)", fontStyle: "italic" }}>
-              Save the new item so later steps can use it (optional):
-            </div>
-            <div style={rowStyle}>
-              {fl("Save id as $")} {varNameInput("itemIdVar", "newId")}
-              <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(just the new item's id)</span>
-            </div>
-            <div style={rowStyle}>
-              {fl("Save full item as $")} {varNameInput("itemVar", "newItem")}
-              <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(whole record)</span>
-            </div>
-          </div>
+          <label style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, paddingLeft: 4 }}>
+            <input type="checkbox" checked={multiple} onChange={e => setCfg({ multiple: e.target.checked })} />
+            <span>Create multiple</span>
+            <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(bulk-create rows of the same kind)</span>
+          </label>
+          {!multiple ? (
+            <>
+              <div style={rowStyle}>
+                {fl("name")}
+                <ExprOrPath value={cfg.name || ""} onChange={v => setCfg({ name: v })} placeholder='"Due"   or   $slot.label' width={160} {...exprProps} />
+                {fl("role")}
+                <select value={cfg.role || "container"} onChange={e => setCfg({ role: e.target.value })} style={selectSt}>
+                  {["panel", "page", "container", "instance", "artifact", "textblock"].map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+                {fl("kind")}
+                <select value={cfg.kind || "list"} onChange={e => setCfg({ kind: e.target.value })} style={selectSt}>
+                  {["list", "doc", "board", "canvas", "folder", "display", "pool"].map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
+              </div>
+              <div style={rowStyle}>
+                {fl("parent")}
+                <ExprOrPath value={cfg.parent || ""} onChange={v => setCfg({ parent: v })} placeholder="$schedPageId" width={160} {...exprProps} />
+              </div>
+              <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps} />
+              <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 4, marginTop: 2, display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ fontSize: 9, color: "var(--text-muted)", fontStyle: "italic" }}>
+                  Save the new item so later steps can use it (optional):
+                </div>
+                <div style={rowStyle}>
+                  {fl("Save id as $")} {varNameInput("itemIdVar", "newId")}
+                  <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(just the new item's id)</span>
+                </div>
+                <div style={rowStyle}>
+                  {fl("Save full item as $")} {varNameInput("itemVar", "newItem")}
+                  <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(whole record)</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={rowStyle}>
+                {fl("role")}
+                <select value={cfg.role || "instance"} onChange={e => setCfg({ role: e.target.value })} style={selectSt}>
+                  {["panel", "page", "container", "instance", "artifact", "textblock"].map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+                {fl("kind")}
+                <select value={cfg.kind || "list"} onChange={e => setCfg({ kind: e.target.value })} style={selectSt}>
+                  {["list", "doc", "board", "canvas", "folder", "display", "pool"].map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
+                {fl("parent")}
+                <ExprOrPath value={cfg.parent || ""} onChange={v => setCfg({ parent: v })} placeholder="$schedPageId" width={160} {...exprProps} />
+              </div>
+              <div style={{ fontSize: 9, color: "var(--text-muted)", fontStyle: "italic", marginTop: 2 }}>
+                Rows (one occurrence per row — same kind/role across all):
+              </div>
+              {rows.map((row, idx) => (
+                <div key={idx} style={{ ...rowStyle, gap: 4, alignItems: "center" }}>
+                  <span style={{ fontSize: 9, color: "var(--text-faint)", minWidth: 18 }}>#{idx + 1}</span>
+                  <ExprOrPath
+                    value={row.name ?? ""}
+                    onChange={v => {
+                      const next = [...rows];
+                      next[idx] = { ...next[idx], name: v };
+                      setCfg({ rows: next });
+                    }}
+                    placeholder="row name or $expr"
+                    width={200}
+                    {...exprProps}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = rows.filter((_, i) => i !== idx);
+                      setCfg({ rows: next });
+                    }}
+                    style={removeBtnSt}
+                    title="Remove row"
+                  >✕</button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCfg({ rows: [...rows, { name: "" }] })}
+                style={addBtnStyle}
+              >+ Row</button>
+              <div style={rowStyle}>
+                {fl("Save ids as $")} {varNameInput("resultVar", "createdIds")}
+                <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(array of new occurrence ids)</span>
+              </div>
+            </>
+          )}
         </div>
       );
     }
@@ -1096,9 +1159,25 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
 
     case "DELETE":
       return (
-        <div style={rowStyle}>
-          {fl("delete item")}
-          <ExprOrPath value={cfg.itemIdExpr || ""} onChange={v => setCfg({ itemIdExpr: v })} placeholder="$item.id" width={200} {...exprProps} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, paddingLeft: 4 }}>
+            <input type="checkbox" checked={!!cfg.multiple} onChange={e => setCfg({ multiple: e.target.checked })} />
+            <span>Delete multiple</span>
+            <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(consumes an ids[] array)</span>
+          </label>
+          <div style={rowStyle}>
+            {cfg.multiple ? (
+              <>
+                {fl("ids[]")}
+                <ExprOrPath value={cfg.idsExpr || ""} onChange={v => setCfg({ idsExpr: v })} placeholder="$matchedIds" width={240} {...exprProps} />
+              </>
+            ) : (
+              <>
+                {fl("delete item")}
+                <ExprOrPath value={cfg.itemIdExpr || ""} onChange={v => setCfg({ itemIdExpr: v })} placeholder="$item.id" width={200} {...exprProps} />
+              </>
+            )}
+          </div>
         </div>
       );
 
@@ -1186,11 +1265,26 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
 
     case "MOVE_OCCURRENCE": {
       const useExprTarget = !!cfg.toContainerIdExpr;
+      const multiple = !!cfg.multiple;
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          <label style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, paddingLeft: 4 }}>
+            <input type="checkbox" checked={multiple} onChange={e => setCfg({ multiple: e.target.checked })} />
+            <span>Move multiple</span>
+            <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(consumes ids[])</span>
+          </label>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
-            {fl("occurrence:")}
-            <ExprOrPath value={cfg.occurrenceIdExpr || "$trigger.occurrenceId"} onChange={v => setCfg({ occurrenceIdExpr: v })} placeholder="$trigger.occurrenceId or $item.id" sources={sources} fields={fields} />
+            {multiple ? (
+              <>
+                {fl("ids[]:")}
+                <ExprOrPath value={cfg.idsExpr || ""} onChange={v => setCfg({ idsExpr: v })} placeholder="$matchedIds" sources={sources} fields={fields} />
+              </>
+            ) : (
+              <>
+                {fl("occurrence:")}
+                <ExprOrPath value={cfg.occurrenceIdExpr || "$trigger.occurrenceId"} onChange={v => setCfg({ occurrenceIdExpr: v })} placeholder="$trigger.occurrenceId or $item.id" sources={sources} fields={fields} />
+              </>
+            )}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
             {fl("to container:")}
@@ -1217,9 +1311,25 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
 
     case "REMOVE_OCCURRENCE":
       return (
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
-          {fl("occurrence:")}
-          <ExprOrPath value={cfg.occurrenceIdExpr || "$trigger.occurrenceId"} onChange={v => setCfg({ occurrenceIdExpr: v })} placeholder="$trigger.occurrenceId or $item.id" sources={sources} fields={fields} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, paddingLeft: 4 }}>
+            <input type="checkbox" checked={!!cfg.multiple} onChange={e => setCfg({ multiple: e.target.checked })} />
+            <span>Remove multiple</span>
+            <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(consumes ids[])</span>
+          </label>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+            {cfg.multiple ? (
+              <>
+                {fl("ids[]:")}
+                <ExprOrPath value={cfg.idsExpr || ""} onChange={v => setCfg({ idsExpr: v })} placeholder="$matchedIds" sources={sources} fields={fields} />
+              </>
+            ) : (
+              <>
+                {fl("occurrence:")}
+                <ExprOrPath value={cfg.occurrenceIdExpr || "$trigger.occurrenceId"} onChange={v => setCfg({ occurrenceIdExpr: v })} placeholder="$trigger.occurrenceId or $item.id" sources={sources} fields={fields} />
+              </>
+            )}
+          </div>
         </div>
       );
 
@@ -1547,10 +1657,14 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
 
     case "ADD_TO_POOL": {
       const poolContainers = Object.values(modulesById).filter(m => m.kind === "pool");
+      // Read legacy `poolContainerId` if present so older ops still display
+      // their selected pool. Always write to the unified `poolId` key going
+      // forward — the executor reads `cfg.poolId`.
+      const selectedPoolId = cfg.poolId ?? cfg.poolContainerId ?? "";
       return (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
           {fl("pool:")}
-          <select value={cfg.poolContainerId || ""} onChange={e => setCfg({ ...cfg, poolContainerId: e.target.value })} style={selectSt}>
+          <select value={selectedPoolId} onChange={e => setCfg({ ...cfg, poolId: e.target.value, poolContainerId: undefined })} style={selectSt}>
             <option value="">Pick pool container...</option>
             {poolContainers.map(m => <option key={m.id} value={m.id}>{m.label || m.id}</option>)}
           </select>
@@ -1562,10 +1676,11 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
 
     case "REMOVE_FROM_POOL": {
       const poolContainers = Object.values(modulesById).filter(m => m.kind === "pool");
+      const selectedPoolId = cfg.poolId ?? cfg.poolContainerId ?? "";
       return (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
           {fl("pool:")}
-          <select value={cfg.poolContainerId || ""} onChange={e => setCfg({ ...cfg, poolContainerId: e.target.value })} style={selectSt}>
+          <select value={selectedPoolId} onChange={e => setCfg({ ...cfg, poolId: e.target.value, poolContainerId: undefined })} style={selectSt}>
             <option value="">Pick pool container...</option>
             {poolContainers.map(m => <option key={m.id} value={m.id}>{m.label || m.id}</option>)}
           </select>

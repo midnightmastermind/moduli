@@ -11,6 +11,7 @@ import { uid } from "../../uid";
 import { COMPARATOR_OPTIONS } from "../../helpers/comparators";
 import SortSection from "../SortSection";
 import StyleEditor from "../StyleEditor";
+import LayoutCascadeEditor from "../LayoutCascadeEditor";
 import { resolveStyleCascade } from "../../helpers/StyleHelpers";
 
 const TIME_UNIT_OPTIONS = [
@@ -195,6 +196,30 @@ export function GridSettingsTab() {
             const nextMeta = { ...(grid?.meta || {}), defaultStyle: style };
             CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta: nextMeta }, emit: true });
           }}
+        />
+      </div>
+
+      <Separator className="mb-3" />
+
+      {/* ── Grid-wide layout cascade defaults — root of the layout cascade ───
+          Writes to `grid.meta.layoutCascadeDefaults`. Every panel / page /
+          container / instance inherits these rules (drag-in view, nav
+          options, lock, show fields, repr field whitelist) and may override
+          at their own level. */}
+      <div className="mb-3">
+        <LayoutCascadeEditor
+          value={grid?.meta?.layoutCascadeDefaults || null}
+          onChange={(next) => {
+            const nextMeta = { ...(grid?.meta || {}) };
+            if (next == null) delete nextMeta.layoutCascadeDefaults;
+            else nextMeta.layoutCascadeDefaults = next;
+            CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta: nextMeta }, emit: true });
+          }}
+          cascade={null}
+          label="Grid layout cascade defaults"
+          inheritLabel="(none — this is the cascade root)"
+          showRepresentationFieldIds={false}
+          fieldsList={[]}
         />
       </div>
 

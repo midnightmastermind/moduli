@@ -59,13 +59,13 @@
 
 3. **ManifestTree ordering wrong in example data** — Items in the sidebar tree appear in the wrong order. The sortOrder values assigned in `createDefaultUserData.js` for the notes folder and its children (parent docs, flat notes sections, etc.) are not producing the intended visual order in the tree.
 
-4. **"Grid" view type should be inline TipTap tables** — The "Sample Grid" currently renders as a separate panel-level view (`viewType: "grid"`, `GridViewer` component in `Artifact.jsx`). It should not be a separate thing. Tables belong inline in doc text blocks as regular TipTap table nodes (the Table extension is already installed). The grid viewType + GridViewer should be removed; the Sample Grid example data should be a TipTap table embedded in a doc container instead.
+4. ~~**"Grid" view type should be inline TipTap tables**~~ ✅ Fixed: `GridViewer` component + `viewType: "grid"` branch removed from `ArtifactContent.jsx`. TipTap table extension already provides inline tables in doc containers; the canonical `kind: "table"` container (shipped 2026-05-18) is the layout-grid alternative.
 
 5. **Code blocks not rendering** — TipTap code blocks don't render in doc containers (BUGS.md #1).
 
 6. **Components tab ordering wrong** — The Components section in Command Center isn't ordering items correctly (BUGS.md #2).
 
-7. **Grid Settings should be leftmost tab** — The Grid tab in Command Center should be the first/leftmost tab (BUGS.md #3).
+7. ~~**Grid Settings should be leftmost tab**~~ ✅ Fixed: `CommandCenter.jsx` `TABS` array has `grid` as index 0.
 
 8. **Table row-number click deletes row** — Clicking the row number handle in an inline TipTap table deletes the row instead of selecting it (BUGS.md #4).
 
@@ -75,25 +75,25 @@
 
 11. **Container drag highlight blinks** — The blue highlight border on containers flickers rapidly during drag (BUGS.md #7).
 
-12. **Freepad/canvas renders as list panel, missing draw toolbar** — The canvas (freepad) has list panel behavior instead of canvas behavior; not recognized as canvas role. Also needs a drawing toolbar (pen, shapes, eraser, etc.) (BUGS.md #8).
+12. ~~**Freepad/canvas renders as list panel, missing draw toolbar**~~ ✅ Fixed: canvas-kind routing in `ModuleContainer.jsx` + `ModulePage.jsx`; full drawing toolbar via `CanvasContent.jsx` (pen / marker / fill / line / rect / circle / connect / eraser + per-color picker + size + undo/redo).
 
 13. **Moduli header cut off by grid select** — The toolbar header is visually truncated by the grid select dropdown (BUGS.md #9).
 
-14. **Can't click mid-sentence in doc** — Clicking in the middle of a sentence in a doc container doesn't place the cursor there (BUGS.md #10).
+14. ~~**Can't click mid-sentence in doc**~~ ✅ Fixed (Apr 10 2026): `Editor.jsx` + `DocContent.jsx` added `draggable={false}` on the editor wrapper + `editor.commands.focus()` on padding-click — Pragmatic DnD's parent `draggable="true"` was eating mousedown.
 
 15. **Daily answer fields show "object object"** — Daily answer fields render as `[object Object]` instead of their value (BUGS.md #11).
 
-16. **No "New doc" button in tree** — ManifestTree sidebar has no button to create a new document (BUGS.md #12).
+16. ~~**No "New doc" button in tree**~~ ✅ Fixed: ManifestTree `FolderNode` now exposes `+ New Doc` on folder hover (`handleNewDoc` in `ManifestTree.jsx`) and the root tree's RadialMenu has Board / Doc / Canvas / Folder page-create entries.
 
 17. ~~**Desktop image drag to grid does nothing**~~ ✅ Fixed: OS file drops now upload via `/api/artifacts/upload` and create a new artifact panel at the drop location. If dropped onto an existing artifact panel, switches the active document.
 
 18. ~~**Panel cycler can't cycle to empty cell**~~ ✅ Fixed: `cyclePanelStack` now cycles through N+1 states (N panels + 1 "all hidden" state). When all panels are hidden, an empty pocket shows a "show" button. Calling with `cellKey` instead of `panelId` works from the empty-pocket button.
 
-19. **Missing null guard in FIND_OCCURRENCE** — `FIND_OCCURRENCE` action in `operationActions.js` (~line 703) doesn't null-guard `allOccurrences` before iterating; could throw if state is empty on first load.
+19. ~~**Missing null guard in FIND_OCCURRENCE**~~ ✅ Obsolete: `FIND_OCCURRENCE` was removed and replaced by the unified `FIND` verb (which iterates a config-named collection like `$allOccurrences` and tolerates missing collections cleanly — `Array.isArray` guard at iteration entry).
 
-20. **Missing null guard in getContainerItems** — `getContainerItems` call in `Container.jsx` (~line 355) lacks a null guard; could throw if occurrence lookup returns undefined during rapid re-renders.
+20. ~~**Missing null guard in getContainerItems**~~ ✅ Fixed: `getContainerItems` / `getContainerItemsWithOccurrences` in `LayoutHelpers.js` both `if (!occ) return null` per id and `.filter(Boolean)` the result. Empty `containerOccurrence.occurrences[]` returns `[]` early.
 
-21. **Inconsistent pool field meta keys** — `poolContainerId` vs `poolContainerIds` used inconsistently in select field pool config in `createDefaultUserData.js` (~line 339). Should be unified to `poolId`.
+21. ~~**Inconsistent pool field meta keys**~~ ✅ Fixed 2026-05-23: ADD_TO_POOL / REMOVE_FROM_POOL action UI in `blocks/OperationsBuilder.jsx` now writes `cfg.poolId` (was `cfg.poolContainerId` — never matched the executor's `cfg.poolId` reader). Executor + `operationIntrospection.js` accept the legacy `poolContainerId` as a fallback so older ops still resolve. Field-level `meta.poolContainerIds` is a different surface (select-field options source) and is already normalized via `state/migrateFieldOptionsSource.js`.
 
 22. ~~**Unused "markdown" field type in schema**~~ — Actually IS used by Q&A question/answer fields. Not a bug.
 

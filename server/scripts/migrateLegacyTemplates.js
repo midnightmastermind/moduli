@@ -60,7 +60,7 @@ async function migrateGrid(grid) {
     const tplModId = newId();
     await Module.create({
       id: tplModId, userId: grid.userId, gridId,
-      role: "container", kind: "list", label: name,
+      role: "container", kind: "board", label: name,
       meta: { templateModule: true },
     });
 

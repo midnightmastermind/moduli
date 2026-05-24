@@ -190,7 +190,31 @@ export async function createLiveData(userId, options = {}) {
   const personPhoneFieldId   = uid();
   const personGenderFieldId  = uid();
   const personNotesFieldId   = uid();
+  // Task #46 extended profile fields (per user direction 2026-05-23):
+  // "really flush out the people, give it alot of fields and fill it with examples"
+  const personBirthdayFieldId    = uid();
+  const personAddressFieldId     = uid();
+  const personCityFieldId        = uid();
+  const personCompanyFieldId     = uid();
+  const personJobTitleFieldId    = uid();
+  const personRelationshipFieldId = uid();
+  const personWebsiteFieldId     = uid();
+  const personInstagramFieldId   = uid();
+  const personTwitterFieldId     = uid();
+  const personLinkedInFieldId    = uid();
+  const personLastContactFieldId = uid();
+  const personFavoriteFoodFieldId = uid();
+  const personAllergiesFieldId    = uid();
+  const personInterestsFieldId    = uid();
+  const personHowMetFieldId       = uid();
+  const personEmergencyContactFieldId = uid();
   const peopleAssignedFieldId = uid();
+  // "People: Show Profile" operation id — pre-generated so the button
+  // field's `meta.operationId` can reference it before the op is saved.
+  const showProfileOpId = uid();
+  // Button-type field id — bound to each person module. Click fires the
+  // Show Profile op with $trigger.occurrenceId = clicked row.
+  const personShowProfileButtonFieldId = uid();
 
   // Project kanban fields — Status select (6 options matching the agile
   // kanban columns) + Project occurrence-ref (lets a single Todo List
@@ -264,6 +288,35 @@ export async function createLiveData(userId, options = {}) {
   const profileCardOccId     = uid();
   const profileTemplateModId = uid(); // template subtree root (template manifest)
   const profileTemplateOccId = uid();
+
+  // Month View page (task #5) — board kind page hosting 31 day-cells.
+  // Static structure (seeded); Month: Build op rewrites each cell's
+  // filterOverride on filter-change so the same 31 cells anchor to the
+  // active month's days.
+  const monthViewPageModId   = uid();
+  const monthViewPageOccId   = uid();
+  // 31 day-container module + occurrence IDs. Each cell carries
+  // meta.monthDayIndex = 1..31 so the build op can find them by index.
+  const monthDayModIds = Array.from({ length: 31 }, () => uid());
+  const monthDayOccIds = Array.from({ length: 31 }, () => uid());
+
+  // Week View page (task #5 follow-up) — same pattern as Month View but
+  // 7 day-cells anchored to Mon-Sun of the active week.
+  const weekViewPageModId   = uid();
+  const weekViewPageOccId   = uid();
+  const weekDayModIds = Array.from({ length: 7 }, () => uid());
+  const weekDayOccIds = Array.from({ length: 7 }, () => uid());
+
+  // Call People task + tracker + goal (task #46 extension 2026-05-23)
+  // - callPersonTaskModId — instance template for "Call Person" task.
+  //   Carries `peopleAssigned` field + dateFieldId + completedFieldId.
+  // - phoneCallsFieldId — array display field (table columns: name + slot).
+  // - callPeopleGoalModId — instance under physGoalContOccId that shows
+  //   both a scalar "Phone Calls" counter (target=2) and the array.
+  const callPersonTaskModId   = uid();
+  const phoneCallsFieldId     = uid();
+  const totalPhoneCallsFieldId = uid();
+  const callPeopleGoalModId   = uid();
 
   // Library folder ID
   const libraryFolderId = uid();
@@ -1118,6 +1171,103 @@ export async function createLiveData(userId, options = {}) {
       inputEnabled: true, displayEnabled: true,
       meta: { multiline: true }, displayConfig: {},
     },
+    // ── Extended profile fields (#46, 2026-05-23) ─────────────────────
+    personBirthday: {
+      id: personBirthdayFieldId, name: "Birthday", type: "date",
+      inputEnabled: true, displayEnabled: true,
+      meta: {}, displayConfig: {},
+    },
+    personAddress: {
+      id: personAddressFieldId, name: "Address", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: { multiline: true }, displayConfig: {},
+    },
+    personCity: {
+      id: personCityFieldId, name: "City", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: {}, displayConfig: {},
+    },
+    personCompany: {
+      id: personCompanyFieldId, name: "Company", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: {}, displayConfig: {},
+    },
+    personJobTitle: {
+      id: personJobTitleFieldId, name: "Job Title", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: {}, displayConfig: {},
+    },
+    personRelationship: {
+      id: personRelationshipFieldId, name: "Relationship", type: "select",
+      inputEnabled: true, displayEnabled: true,
+      meta: { options: ["family", "close friend", "friend", "colleague", "acquaintance", "neighbor", "mentor", "client", "other"], multiSelect: false },
+    },
+    personWebsite: {
+      id: personWebsiteFieldId, name: "Website", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: {}, displayConfig: {},
+    },
+    personInstagram: {
+      id: personInstagramFieldId, name: "Instagram", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: { prefix: "@" }, displayConfig: {},
+    },
+    personTwitter: {
+      id: personTwitterFieldId, name: "Twitter / X", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: { prefix: "@" }, displayConfig: {},
+    },
+    personLinkedIn: {
+      id: personLinkedInFieldId, name: "LinkedIn", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: {}, displayConfig: {},
+    },
+    personLastContact: {
+      id: personLastContactFieldId, name: "Last Contact", type: "date",
+      inputEnabled: true, displayEnabled: true,
+      meta: {}, displayConfig: {},
+    },
+    personFavoriteFood: {
+      id: personFavoriteFoodFieldId, name: "Favorite Food", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: {}, displayConfig: {},
+    },
+    personAllergies: {
+      id: personAllergiesFieldId, name: "Allergies", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: { multiline: true }, displayConfig: {},
+    },
+    personInterests: {
+      id: personInterestsFieldId, name: "Interests", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: { multiline: true }, displayConfig: {},
+    },
+    personHowMet: {
+      id: personHowMetFieldId, name: "How We Met", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: { multiline: true }, displayConfig: {},
+    },
+    personEmergencyContact: {
+      id: personEmergencyContactFieldId, name: "Emergency Contact", type: "text",
+      inputEnabled: true, displayEnabled: true,
+      meta: {}, displayConfig: {},
+    },
+    // ── Button field (NEW field type 2026-05-23) ─────────────────────
+    // Renders as a click-to-run button. `meta.operationId` says which
+    // op to fire; the host occurrence id is passed as $trigger.occurrenceId
+    // so the op knows which row was clicked. Used on the People table to
+    // open a person's profile card.
+    personShowProfileButton: {
+      id: personShowProfileButtonFieldId,
+      name: "Show Profile",
+      type: "button",
+      inputEnabled: false, displayEnabled: true,
+      meta: {
+        operationId: showProfileOpId,
+        buttonLabel: "Show Profile",
+      },
+      displayConfig: {},
+    },
     peopleAssigned: {
       id: peopleAssignedFieldId,
       name: "People",
@@ -1147,6 +1297,34 @@ export async function createLiveData(userId, options = {}) {
           },
         },
       },
+    },
+    // ── PHONE CALLS DISPLAY (task #46 extension 2026-05-23) ──────────────
+    // Array display field — Phone Calls tracker fills with one row per
+    // completed Call Person task, in timeslot-anchored order. Columns:
+    // person name + timeslot. Multi-day filters also surface a Date col.
+    phoneCalls: {
+      id: phoneCallsFieldId,
+      name: "Phone Calls",
+      type: "text",
+      inputEnabled: false, displayEnabled: true,
+      meta: {},
+      displayConfig: {
+        columns: [
+          { path: "name",     header: "Person",   width: 140 },
+          { path: "timeslot", header: "Slot",     width: 90 },
+          { path: "date",     header: "Date",     width: 90 },
+        ],
+      },
+    },
+    // Scalar counter that pairs with the array — `target: 2` powers
+    // the "Call 2 people" progress bar.
+    totalPhoneCalls: {
+      id: totalPhoneCallsFieldId,
+      name: "Phone Calls",
+      type: "number",
+      inputEnabled: false, displayEnabled: true,
+      meta: {},
+      displayConfig: { targetValue: 2, targetPeriod: "daily", showArrows: true },
     },
 
     // ── PROJECT KANBAN FIELDS ─────────────────────────────────────────────
@@ -1403,6 +1581,121 @@ export async function createLiveData(userId, options = {}) {
       displayEnabled: true,
       meta: {},
       displayConfig: {},
+    },
+
+    // Vision-vs-now "persistent streaks" — shipped 2026-05-23. Counts the
+    // number of consecutive days backward from today where at least one
+    // task was completed under Schedule. Computed via the new STREAK_VAR
+    // action — no while/break primitive needed.
+    currentStreak: {
+      id: uid(),
+      name: "Current Streak",
+      type: "number",
+      inputEnabled: false, displayEnabled: true,
+      meta: { postfix: " day streak" },
+      displayConfig: {
+        // Quietly green from the first day so any completion lights up.
+        targetValue: 1, targetOp: ">=", targetPeriod: "daily",
+      },
+    },
+    // Personal best — never decreases. The streak tracker MAX's against
+    // this on every fire so the badge persists across breaks.
+    longestStreak: {
+      id: uid(),
+      name: "Longest Streak",
+      type: "number",
+      inputEnabled: false, displayEnabled: true,
+      meta: { prefix: "🏆 ", postfix: " best" },
+      displayConfig: {},
+    },
+
+    // Task #29/#54 — Last-X + Array-X pairs for workouts / meals / purchases /
+    // pomodoros. Same pattern as mostRecentMood + lastMood: tracker pushes
+    // rows into the array AND overwrites the single sink each iteration
+    // (timeslot-anchored last entry).
+
+    // Workouts ─────────────────────────────────────────────────────────
+    workoutHistory: {
+      id: uid(),
+      name: "Workouts",
+      type: "text",
+      inputEnabled: false, displayEnabled: true,
+      meta: {},
+      displayConfig: {
+        columns: [
+          { path: "label",    header: "Exercise" },
+          { path: "reps",     header: "Reps" },
+          { path: "weight",   header: "Wt" },
+          { path: "timeslot", header: "Time" },
+          { path: "date",     header: "Date" },
+        ],
+      },
+    },
+    lastWorkout: {
+      id: uid(),
+      name: "Last Workout",
+      type: "text",
+      inputEnabled: false, displayEnabled: true,
+      meta: {}, displayConfig: {},
+    },
+
+    // Meals ────────────────────────────────────────────────────────────
+    mealHistory: {
+      id: uid(),
+      name: "Meals",
+      type: "text",
+      inputEnabled: false, displayEnabled: true,
+      meta: {},
+      displayConfig: {
+        columns: [
+          { path: "label",    header: "Meal" },
+          { path: "kcal",     header: "Cal" },
+          { path: "protein",  header: "P" },
+          { path: "timeslot", header: "Time" },
+          { path: "date",     header: "Date" },
+        ],
+      },
+    },
+    lastMeal: {
+      id: uid(),
+      name: "Last Meal",
+      type: "text",
+      inputEnabled: false, displayEnabled: true,
+      meta: {}, displayConfig: {},
+    },
+
+    // Purchases ────────────────────────────────────────────────────────
+    purchaseHistory: {
+      id: uid(),
+      name: "Purchases",
+      type: "text",
+      inputEnabled: false, displayEnabled: true,
+      meta: {},
+      displayConfig: {
+        columns: [
+          { path: "label",    header: "Item" },
+          { path: "amount",   header: "$" },
+          { path: "timeslot", header: "Time" },
+          { path: "date",     header: "Date" },
+        ],
+      },
+    },
+    lastPurchase: {
+      id: uid(),
+      name: "Last Purchase",
+      type: "text",
+      inputEnabled: false, displayEnabled: true,
+      meta: {}, displayConfig: {},
+    },
+
+    // Pomodoros — pomoHistory already exists as the array (see below);
+    // add only the single-value sink here to complete the pair.
+    lastPomodoro: {
+      id: uid(),
+      name: "Last Pomodoro",
+      type: "text",
+      inputEnabled: false, displayEnabled: true,
+      meta: {}, displayConfig: {},
     },
     totalPages: {
       id: uid(),
@@ -1777,7 +2070,7 @@ export async function createLiveData(userId, options = {}) {
   const toolkitInstances = {
     // === PHYSICAL ===
     morningWorkout: {
-      id: uid(), label: "Morning Workout", kind: "list",
+      id: uid(), label: "Morning Workout", kind: "board",
       defaultDragMode: "copy",
       styleMode: "own",
       ownStyle: { bg: "rgba(180,74,26,0.15)", textColor: "#e06a3a" },
@@ -1789,7 +2082,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     eveningRun: {
-      id: uid(), label: "Evening Run", kind: "list",
+      id: uid(), label: "Evening Run", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1798,7 +2091,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     stretching: {
-      id: uid(), label: "Stretching", kind: "list",
+      id: uid(), label: "Stretching", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1806,7 +2099,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     drinkWater: {
-      id: uid(), label: "Drink Water", kind: "list",
+      id: uid(), label: "Drink Water", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1815,7 +2108,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     takeMeds: {
-      id: uid(), label: "Take Vitamins", kind: "list",
+      id: uid(), label: "Take Vitamins", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1823,7 +2116,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     sleepLog: {
-      id: uid(), label: "Sleep Log", kind: "list",
+      id: uid(), label: "Sleep Log", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1834,7 +2127,7 @@ export async function createLiveData(userId, options = {}) {
 
     // === INTELLECTUAL ===
     reading: {
-      id: uid(), label: "Reading", kind: "list",
+      id: uid(), label: "Reading", kind: "board",
       defaultDragMode: "copy",
       styleMode: "own", ownStyle: { bg: "rgba(21,98,176,0.15)", textColor: "#4a9fe0" },
       fieldBindings: [
@@ -1843,7 +2136,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     podcast: {
-      id: uid(), label: "Listen to Podcast", kind: "list",
+      id: uid(), label: "Listen to Podcast", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: podcastsListenedFieldId, role: "input", order: 0 },
@@ -1851,7 +2144,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     watchMovie: {
-      id: uid(), label: "Watch Movie", kind: "list",
+      id: uid(), label: "Watch Movie", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: moviesWatchedFieldId, role: "input", order: 0 },
@@ -1859,7 +2152,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     onlineCourse: {
-      id: uid(), label: "Online Course", kind: "list",
+      id: uid(), label: "Online Course", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: coursesTakenFieldId, role: "input", order: 0 },
@@ -1867,7 +2160,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     brainGames: {
-      id: uid(), label: "Brain Games", kind: "list",
+      id: uid(), label: "Brain Games", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1875,7 +2168,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     journaling: {
-      id: uid(), label: "Daily Journal", kind: "list",
+      id: uid(), label: "Daily Journal", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1898,7 +2191,7 @@ export async function createLiveData(userId, options = {}) {
     // auto-propagate back to the day-page side; only binding-driven writes
     // through the header dropdown / body editor fan out.)
     answeredDailyQuestion: {
-      id: uid(), label: "Answered Daily Question", kind: "list",
+      id: uid(), label: "Answered Daily Question", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1915,7 +2208,7 @@ export async function createLiveData(userId, options = {}) {
     // isTask filter picks it up; date+timeslot are hidden bindings stamped
     // by the Start op (kept hidden via fieldHidden in CREATE/COPY_LINK).
     pomodoro: {
-      id: uid(), label: "Pomodoro", kind: "list",
+      id: uid(), label: "Pomodoro", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id,        role: "input", order: 0 },
@@ -1930,7 +2223,7 @@ export async function createLiveData(userId, options = {}) {
 
     // === EMOTIONAL ===
     gratitude: {
-      id: uid(), label: "Gratitude Practice", kind: "list",
+      id: uid(), label: "Gratitude Practice", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1939,7 +2232,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     meditation: {
-      id: uid(), label: "Meditation", kind: "list",
+      id: uid(), label: "Meditation", kind: "board",
       defaultDragMode: "copy",
       styleMode: "own",
       ownStyle: { bg: "rgba(160,33,88,0.15)", textColor: "#d94080" },
@@ -1950,7 +2243,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     breathing: {
-      id: uid(), label: "Breathing Exercise", kind: "list",
+      id: uid(), label: "Breathing Exercise", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1958,7 +2251,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     moodCheck: {
-      id: uid(), label: "Mood Check-in", kind: "list",
+      id: uid(), label: "Mood Check-in", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.mood.id, role: "input", order: 0 },
@@ -1967,7 +2260,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     selfCare: {
-      id: uid(), label: "Self-Care Activity", kind: "list",
+      id: uid(), label: "Self-Care Activity", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1978,7 +2271,7 @@ export async function createLiveData(userId, options = {}) {
 
     // === SOCIAL ===
     callFriend: {
-      id: uid(), label: "Call a Friend", kind: "list",
+      id: uid(), label: "Call a Friend", kind: "board",
       defaultDragMode: "copy",
       styleMode: "own", ownStyle: { bg: "rgba(196,144,0,0.15)", textColor: "#e8c030" },
       fieldBindings: [
@@ -1989,7 +2282,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     familyTime: {
-      id: uid(), label: "Family Time", kind: "list",
+      id: uid(), label: "Family Time", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1997,7 +2290,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     socialEvent: {
-      id: uid(), label: "Social Event", kind: "list",
+      id: uid(), label: "Social Event", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2006,7 +2299,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     helpSomeone: {
-      id: uid(), label: "Help Someone", kind: "list",
+      id: uid(), label: "Help Someone", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2016,7 +2309,7 @@ export async function createLiveData(userId, options = {}) {
 
     // === SPIRITUAL ===
     prayer: {
-      id: uid(), label: "Prayer/Reflection", kind: "list",
+      id: uid(), label: "Prayer/Reflection", kind: "board",
       defaultDragMode: "copy",
       styleMode: "own", ownStyle: { bg: "rgba(100,39,197,0.15)", textColor: "#9b6eee" },
       fieldBindings: [
@@ -2025,7 +2318,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     natureWalk: {
-      id: uid(), label: "Nature Walk", kind: "list",
+      id: uid(), label: "Nature Walk", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2034,7 +2327,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     spiritualReading: {
-      id: uid(), label: "Spiritual Reading", kind: "list",
+      id: uid(), label: "Spiritual Reading", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2043,7 +2336,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     mindfulness: {
-      id: uid(), label: "Mindfulness", kind: "list",
+      id: uid(), label: "Mindfulness", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2053,7 +2346,7 @@ export async function createLiveData(userId, options = {}) {
 
     // === OCCUPATIONAL ===
     deepWork: {
-      id: uid(), label: "Deep Work Session", kind: "list",
+      id: uid(), label: "Deep Work Session", kind: "board",
       defaultDragMode: "copy",
       styleMode: "own", ownStyle: { bg: "rgba(13,122,82,0.15)", textColor: "#29b87e" },
       fieldBindings: [
@@ -2064,7 +2357,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     meeting: {
-      id: uid(), label: "Meeting", kind: "list",
+      id: uid(), label: "Meeting", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2073,7 +2366,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     emailBlock: {
-      id: uid(), label: "Email Block", kind: "list",
+      id: uid(), label: "Email Block", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2081,7 +2374,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     skillDev: {
-      id: uid(), label: "Skill Development", kind: "list",
+      id: uid(), label: "Skill Development", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2090,7 +2383,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     networking: {
-      id: uid(), label: "Networking", kind: "list",
+      id: uid(), label: "Networking", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2100,7 +2393,7 @@ export async function createLiveData(userId, options = {}) {
 
     // === FINANCIAL ===
     budgetReview: {
-      id: uid(), label: "Budget Review", kind: "list",
+      id: uid(), label: "Budget Review", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2111,7 +2404,7 @@ export async function createLiveData(userId, options = {}) {
       // accountSelect (legacy string-options) replaced by accountRef
       // (occurrence-pointer → instance under Accounts page) per B4. Every
       // amount-bearing task now uses accountRef.
-      id: uid(), label: "Track Expense", kind: "list",
+      id: uid(), label: "Track Expense", kind: "board",
       defaultDragMode: "copy",
       styleMode: "own", ownStyle: { bg: "rgba(29,138,48,0.15)", textColor: "#4cba64" },
       fieldBindings: [
@@ -2123,7 +2416,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     purchase: {
-      id: uid(), label: "Purchase", kind: "list",
+      id: uid(), label: "Purchase", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2132,7 +2425,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     logIncome: {
-      id: uid(), label: "Log Income", kind: "list",
+      id: uid(), label: "Log Income", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2141,7 +2434,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     investmentCheck: {
-      id: uid(), label: "Check Investments", kind: "list",
+      id: uid(), label: "Check Investments", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2150,7 +2443,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     savingsGoal: {
-      id: uid(), label: "Savings Goal", kind: "list",
+      id: uid(), label: "Savings Goal", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2161,7 +2454,7 @@ export async function createLiveData(userId, options = {}) {
 
     // === ENVIRONMENTAL ===
     cleanDesk: {
-      id: uid(), label: "Clean Desk", kind: "list",
+      id: uid(), label: "Clean Desk", kind: "board",
       defaultDragMode: "copy",
       styleMode: "own", ownStyle: { bg: "rgba(7,121,160,0.15)", textColor: "#32b4e0" },
       fieldBindings: [
@@ -2170,7 +2463,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     declutter: {
-      id: uid(), label: "Declutter Space", kind: "list",
+      id: uid(), label: "Declutter Space", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2179,21 +2472,21 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     plantCare: {
-      id: uid(), label: "Plant Care", kind: "list",
+      id: uid(), label: "Plant Care", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
       ],
     },
     recycling: {
-      id: uid(), label: "Recycling", kind: "list",
+      id: uid(), label: "Recycling", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
       ],
     },
     ecoAction: {
-      id: uid(), label: "Eco-Friendly Action", kind: "list",
+      id: uid(), label: "Eco-Friendly Action", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2203,7 +2496,7 @@ export async function createLiveData(userId, options = {}) {
 
     // === CREATIVE (9th wellness — Make / Explore / Express) ===
     sketch: {
-      id: uid(), label: "Sketch / Draw", kind: "list",
+      id: uid(), label: "Sketch / Draw", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2212,7 +2505,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     writeCreative: {
-      id: uid(), label: "Creative Writing", kind: "list",
+      id: uid(), label: "Creative Writing", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2221,7 +2514,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     playMusic: {
-      id: uid(), label: "Play Music", kind: "list",
+      id: uid(), label: "Play Music", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2229,7 +2522,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     photograph: {
-      id: uid(), label: "Photograph", kind: "list",
+      id: uid(), label: "Photograph", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2237,7 +2530,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     craftMake: {
-      id: uid(), label: "Craft / Make", kind: "list",
+      id: uid(), label: "Craft / Make", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2254,7 +2547,7 @@ export async function createLiveData(userId, options = {}) {
     // billNextDue falls in the active window. Cancel Subscription targets the
     // Subscriptions container via subscriptionRef.
     netflixSub: {
-      id: uid(), label: "Netflix", kind: "list",
+      id: uid(), label: "Netflix", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.amount.id,         role: "input", order: 0 },
@@ -2267,7 +2560,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     spotifySub: {
-      id: uid(), label: "Spotify", kind: "list",
+      id: uid(), label: "Spotify", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 0 },
@@ -2280,7 +2573,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     iCloudSub: {
-      id: uid(), label: "iCloud+", kind: "list",
+      id: uid(), label: "iCloud+", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 0 },
@@ -2293,7 +2586,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     electricBill: {
-      id: uid(), label: "Electric", kind: "list",
+      id: uid(), label: "Electric", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 0 },
@@ -2306,7 +2599,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     waterBill: {
-      id: uid(), label: "Water", kind: "list",
+      id: uid(), label: "Water", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 0 },
@@ -2319,7 +2612,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     internetBill: {
-      id: uid(), label: "Internet", kind: "list",
+      id: uid(), label: "Internet", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 0 },
@@ -2332,7 +2625,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     phoneBill: {
-      id: uid(), label: "Phone", kind: "list",
+      id: uid(), label: "Phone", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 0 },
@@ -2345,7 +2638,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     carInsuranceBill: {
-      id: uid(), label: "Car Insurance", kind: "list",
+      id: uid(), label: "Car Insurance", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 0 },
@@ -2358,7 +2651,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     renterInsuranceBill: {
-      id: uid(), label: "Renter Insurance", kind: "list",
+      id: uid(), label: "Renter Insurance", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 0 },
@@ -2371,7 +2664,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     studentLoanBill: {
-      id: uid(), label: "Student Loan", kind: "list",
+      id: uid(), label: "Student Loan", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 0 },
@@ -2384,7 +2677,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     rentMortgage: {
-      id: uid(), label: "Rent / Mortgage", kind: "list",
+      id: uid(), label: "Rent / Mortgage", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 0 },
@@ -2401,7 +2694,7 @@ export async function createLiveData(userId, options = {}) {
     // These 6 land in the Daily Routine template; the hidden date binding enables
     // the seed's SAME_DAY dedup-FIND and per-copy date stamp (createTestGrid convention).
     morningRun: {
-      id: uid(), label: "Morning Run", kind: "list",
+      id: uid(), label: "Morning Run", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2409,7 +2702,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     readAChapter: {
-      id: uid(), label: "Read a chapter", kind: "list",
+      id: uid(), label: "Read a chapter", kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2423,7 +2716,7 @@ export async function createLiveData(userId, options = {}) {
   // ── Workout instances (5 per muscle group × 6 groups = 30) ──────────────────
   function makeWorkout(label, group) {
     return {
-      id: uid(), label, kind: "list",
+      id: uid(), label, kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2473,7 +2766,7 @@ export async function createLiveData(userId, options = {}) {
   // Daily Routine sources: scrambledEggs + greekSaladChicken get hidden dateFieldId.
   function makeNutrition(label, mealType, cal, prot, c, fat) {
     return {
-      id: uid(), label, kind: "list",
+      id: uid(), label, kind: "board",
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2521,7 +2814,7 @@ export async function createLiveData(userId, options = {}) {
   // Note: fields.dueDate in createDefaultUserData → fields.due.id here (same field, renamed key)
   const todoInstances = {
     buyGroceries: {
-      id: uid(), label: "Buy groceries", kind: "list",
+      id: uid(), label: "Buy groceries", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.due.id, role: "input", order: 1 },
@@ -2529,21 +2822,21 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     cleanGarage: {
-      id: uid(), label: "Clean out garage", kind: "list",
+      id: uid(), label: "Clean out garage", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.duration.id, role: "input", order: 1 },
       ],
     },
     fixLeakyFaucet: {
-      id: uid(), label: "Fix leaky faucet", kind: "list",
+      id: uid(), label: "Fix leaky faucet", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.priority.id, role: "input", order: 1 },
       ],
     },
     returnBooks: {
-      id: uid(), label: "Return library books", kind: "list",
+      id: uid(), label: "Return library books", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.due.id, role: "input", order: 1 },
@@ -2551,7 +2844,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     organizePantry: {
-      id: uid(), label: "Organize pantry", kind: "list",
+      id: uid(), label: "Organize pantry", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.duration.id, role: "input", order: 1 },
@@ -2563,7 +2856,7 @@ export async function createLiveData(userId, options = {}) {
       // container for each bill whose billNextDue falls in the active window
       // (B3+C2 — Bills page + ops). amount + account default to whatever's
       // on the selected bill but stay user-editable per instance.
-      id: uid(), label: "Pay Bill", kind: "list",
+      id: uid(), label: "Pay Bill", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.completed.id,  role: "input", order: 0 },
@@ -2578,7 +2871,7 @@ export async function createLiveData(userId, options = {}) {
       // subscriptionRef (scoped to Subscriptions container in Bills page).
       // Drops amount/daysUntilDue/priority (the legacy bindings the user
       // flagged as spurious — see please-continue.txt B9).
-      id: uid(), label: "Cancel Subscription", kind: "list",
+      id: uid(), label: "Cancel Subscription", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.completed.id,       role: "input", order: 0 },
@@ -2586,7 +2879,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     renewLicense: {
-      id: uid(), label: "Renew driver's license", kind: "list",
+      id: uid(), label: "Renew driver's license", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.due.id, role: "input", order: 1 },
@@ -2594,7 +2887,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     dentistAppt: {
-      id: uid(), label: "Schedule dentist appointment", kind: "list",
+      id: uid(), label: "Schedule dentist appointment", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.due.id, role: "input", order: 1 },
@@ -2602,7 +2895,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     fileInsurance: {
-      id: uid(), label: "File insurance claim", kind: "list",
+      id: uid(), label: "File insurance claim", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.due.id, role: "input", order: 1 },
@@ -2610,7 +2903,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     orderSupplies: {
-      id: uid(), label: "Order office supplies", kind: "list",
+      id: uid(), label: "Order office supplies", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.accountRef.id, role: "input", order: 0 },
@@ -2618,19 +2911,19 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     backupComputer: {
-      id: uid(), label: "Backup computer files", kind: "list",
+      id: uid(), label: "Backup computer files", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [],
     },
     updatePortfolio: {
-      id: uid(), label: "Update portfolio site", kind: "list",
+      id: uid(), label: "Update portfolio site", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.duration.id, role: "input", order: 1 },
       ],
     },
     prepPresentation: {
-      id: uid(), label: "Prep client presentation", kind: "list",
+      id: uid(), label: "Prep client presentation", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.priority.id, role: "input", order: 1 },
@@ -2639,19 +2932,19 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     callMom: {
-      id: uid(), label: "Call mom", kind: "list",
+      id: uid(), label: "Call mom", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [],
     },
     planVacation: {
-      id: uid(), label: "Plan summer vacation", kind: "list",
+      id: uid(), label: "Plan summer vacation", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.notes.id, role: "input", order: 1 },
       ],
     },
     birthdayGift: {
-      id: uid(), label: "Buy birthday gift for Sarah", kind: "list",
+      id: uid(), label: "Buy birthday gift for Sarah", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.accountRef.id, role: "input", order: 0 },
@@ -2661,7 +2954,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     signUpClass: {
-      id: uid(), label: "Sign up for cooking class", kind: "list",
+      id: uid(), label: "Sign up for cooking class", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.accountRef.id, role: "input", order: 0 },
@@ -2673,7 +2966,7 @@ export async function createLiveData(userId, options = {}) {
   // ── Planning instances ───────────────────────────────────────────────────────
   const planningInstances = {
     moduliLaunch: {
-      id: uid(), label: "Moduli MVP Launch", kind: "list",
+      id: uid(), label: "Moduli MVP Launch", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2684,7 +2977,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     doctorCheckup: {
-      id: uid(), label: "Annual Doctor Checkup", kind: "list",
+      id: uid(), label: "Annual Doctor Checkup", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2699,7 +2992,7 @@ export async function createLiveData(userId, options = {}) {
     // (C2 follow-up) copies it into Schedule Due when billNextDue lands.
 
     fileTaxes: {
-      id: uid(), label: "File Taxes", kind: "list",
+      id: uid(), label: "File Taxes", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2709,7 +3002,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     quarterlyReview: {
-      id: uid(), label: "Quarterly Financial Review", kind: "list",
+      id: uid(), label: "Quarterly Financial Review", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -2725,7 +3018,7 @@ export async function createLiveData(userId, options = {}) {
   //     keys also exist in accountContainerMods. Same for accountInstances.bankAccount etc.
   const goalInstances = {
     physicalSummary: {
-      id: uid(), label: "Physical Wellness", kind: "list",
+      id: uid(), label: "Physical Wellness", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
@@ -2734,10 +3027,13 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.timeCountdown.id,  role: "display", order: 3 },
         { fieldId: fields.totalSteps.id,     role: "display", order: 4 },
         { fieldId: fields.totalWater.id,     role: "display", order: 5 },
+        // Vision-vs-now "persistent streaks" — shipped via STREAK_VAR action.
+        { fieldId: fields.currentStreak.id,  role: "display", order: 6 },
+        { fieldId: fields.longestStreak.id,  role: "display", order: 7 },
       ],
     },
     intellectualSummary: {
-      id: uid(), label: "Intellectual Growth", kind: "list",
+      id: uid(), label: "Intellectual Growth", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
@@ -2745,11 +3041,14 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.totalDuration.id, role: "display", order: 2 },
         { fieldId: fields.pomoCount.id,      role: "display", order: 3 },
         { fieldId: fields.pomoTime.id,       role: "display", order: 4 },
-        { fieldId: fields.pomoHistory.id,    role: "display", order: 5 },
+        // task #29/#54 — Last-Pomodoro completes the pair (array already
+        // exists below as pomoHistory).
+        { fieldId: fields.lastPomodoro.id,   role: "display", order: 5 },
+        { fieldId: fields.pomoHistory.id,    role: "display", order: 6 },
       ],
     },
     emotionalSummary: {
-      id: uid(), label: "Emotional Balance", kind: "list",
+      id: uid(), label: "Emotional Balance", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
@@ -2758,15 +3057,19 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     socialSummary: {
-      id: uid(), label: "Social Connection", kind: "list",
+      id: uid(), label: "Social Connection", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
         { fieldId: fields.totalDuration.id, role: "display", order: 1 },
+        // Task #46 — "Call 2 people" goal piece. Scalar counter w/ target=2
+        // for the progress bar; array display lists who was called and when.
+        { fieldId: fields.totalPhoneCalls.id, role: "display", order: 2 },
+        { fieldId: fields.phoneCalls.id,      role: "display", order: 3 },
       ],
     },
     spiritualSummary: {
-      id: uid(), label: "Spiritual Practice", kind: "list",
+      id: uid(), label: "Spiritual Practice", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
@@ -2774,7 +3077,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     occupationalSummary: {
-      id: uid(), label: "Work Progress", kind: "list",
+      id: uid(), label: "Work Progress", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
@@ -2782,15 +3085,18 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     financialSummary: {
-      id: uid(), label: "Financial Health", kind: "list",
+      id: uid(), label: "Financial Health", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: fields.totalSpent.id, role: "display", order: 0 },
-        { fieldId: fields.totalIncome.id, role: "display", order: 1 },
+        { fieldId: fields.totalSpent.id,       role: "display", order: 0 },
+        { fieldId: fields.totalIncome.id,      role: "display", order: 1 },
+        // task #29/#54 — Last-X + Array-X pair for purchases.
+        { fieldId: fields.lastPurchase.id,     role: "display", order: 2 },
+        { fieldId: fields.purchaseHistory.id,  role: "display", order: 3 },
       ],
     },
     environmentalSummary: {
-      id: uid(), label: "Environment Care", kind: "list",
+      id: uid(), label: "Environment Care", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
@@ -2800,7 +3106,7 @@ export async function createLiveData(userId, options = {}) {
       // New — pairs with the 9th wellness (Creative). Mirrors other
       // wellness-summary instances: completed + total duration aggregate
       // sketch / writeCreative / playMusic / photograph / craftMake.
-      id: uid(), label: "Creative Expression", kind: "list",
+      id: uid(), label: "Creative Expression", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
@@ -2808,7 +3114,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     planningSummary: {
-      id: uid(), label: "Planning Overview", kind: "list",
+      id: uid(), label: "Planning Overview", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.overdueTasks.id, role: "display", order: 0 },
@@ -2816,73 +3122,79 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     workoutGoal: {
-      id: uid(), label: "Workout", kind: "list",
+      id: uid(), label: "Workout", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalRepsToday.id, role: "display", order: 0 },
         { fieldId: fields.totalSteps.id, role: "display", order: 1 },
+        // task #29/#54 — Last-X + Array-X pair for workouts.
+        { fieldId: fields.lastWorkout.id,    role: "display", order: 2 },
+        { fieldId: fields.workoutHistory.id, role: "display", order: 3 },
       ],
     },
     // Per-muscle volume goals (B7 Deep). Each tracks the daily sum of
     // set1+set2+set3 reps across workouts whose `muscleGroup` field matches.
     // All share the existing `totalRepsToday` display field — the per-goal
     // value lives on the occurrence, not the field.
-    chestVolumeGoal:    { id: uid(), label: "Chest Volume",    kind: "list", defaultDragMode: "move",
+    chestVolumeGoal:    { id: uid(), label: "Chest Volume",    kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
-    backVolumeGoal:     { id: uid(), label: "Back Volume",     kind: "list", defaultDragMode: "move",
+    backVolumeGoal:     { id: uid(), label: "Back Volume",     kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
-    legsVolumeGoal:     { id: uid(), label: "Legs Volume",     kind: "list", defaultDragMode: "move",
+    legsVolumeGoal:     { id: uid(), label: "Legs Volume",     kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
-    shouldersVolumeGoal:{ id: uid(), label: "Shoulders Volume",kind: "list", defaultDragMode: "move",
+    shouldersVolumeGoal:{ id: uid(), label: "Shoulders Volume",kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
-    armsVolumeGoal:     { id: uid(), label: "Arms Volume",     kind: "list", defaultDragMode: "move",
+    armsVolumeGoal:     { id: uid(), label: "Arms Volume",     kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
-    cardioVolumeGoal:   { id: uid(), label: "Cardio Volume",   kind: "list", defaultDragMode: "move",
+    cardioVolumeGoal:   { id: uid(), label: "Cardio Volume",   kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
     // Per-meal nutrition goals (B7 Deep). Each tracks the daily sum of
     // protein across nutrition instances whose `mealCategory` matches.
     // Shares the `totalProtein` display field — per-goal value lives on
     // the occurrence.
-    breakfastNutritionGoal: { id: uid(), label: "Breakfast Nutrition", kind: "list", defaultDragMode: "move",
+    breakfastNutritionGoal: { id: uid(), label: "Breakfast Nutrition", kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
-    lunchNutritionGoal:     { id: uid(), label: "Lunch Nutrition",     kind: "list", defaultDragMode: "move",
+    lunchNutritionGoal:     { id: uid(), label: "Lunch Nutrition",     kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
-    dinnerNutritionGoal:    { id: uid(), label: "Dinner Nutrition",    kind: "list", defaultDragMode: "move",
+    dinnerNutritionGoal:    { id: uid(), label: "Dinner Nutrition",    kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
-    snackNutritionGoal:     { id: uid(), label: "Snack Nutrition",     kind: "list", defaultDragMode: "move",
+    snackNutritionGoal:     { id: uid(), label: "Snack Nutrition",     kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
     nutritionGoal: {
-      id: uid(), label: "Nutrition", kind: "list",
+      id: uid(), label: "Nutrition", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalProtein.id, role: "display", order: 0 },
-        { fieldId: fields.totalCarbs.id, role: "display", order: 1 },
-        { fieldId: fields.totalFats.id, role: "display", order: 2 },
+        { fieldId: fields.totalCarbs.id,   role: "display", order: 1 },
+        { fieldId: fields.totalFats.id,    role: "display", order: 2 },
+        // task #29/#54 — Last-X + Array-X pair for meals.
+        { fieldId: fields.lastMeal.id,     role: "display", order: 3 },
+        { fieldId: fields.mealHistory.id,  role: "display", order: 4 },
       ],
     },
     moviesWatchedGoal: {
-      id: uid(), label: "Movies Watched", kind: "list",
+      id: uid(), label: "Movies Watched", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: moviesWatchedDisplayFieldId, role: "display", order: 0 },
       ],
     },
     booksReadGoal: {
-      id: uid(), label: "Books Read", kind: "list",
+      id: uid(), label: "Books Read", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: booksReadDisplayFieldId, role: "display", order: 0 },
       ],
     },
     podcastsListenedGoal: {
-      id: uid(), label: "Podcasts Listened", kind: "list",
+      id: uid(), label: "Podcasts Listened", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: podcastsListenedDisplayFieldId, role: "display", order: 0 },
       ],
     },
     coursesTakenGoal: {
-      id: uid(), label: "Courses Taken", kind: "list",
+      id: uid(), label: "Courses Taken", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: coursesTakenDisplayFieldId, role: "display", order: 0 },
@@ -2893,7 +3205,7 @@ export async function createLiveData(userId, options = {}) {
   // ── Account aggregation instances ────────────────────────────────────────────
   const accountInstances = {
     bankAccount: {
-      id: uid(), label: "Checking Account", kind: "list",
+      id: uid(), label: "Checking Account", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         // Each account has its OWN balance field (split 2026-05-22 — was
@@ -2905,21 +3217,21 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     savingsAccount: {
-      id: uid(), label: "Savings Account", kind: "list",
+      id: uid(), label: "Savings Account", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.savingsBalance.id, role: "display", order: 0 },
       ],
     },
     momsAccount: {
-      id: uid(), label: "Mom's Account", kind: "list",
+      id: uid(), label: "Mom's Account", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.momsAccountBalance.id, role: "display", order: 0 },
       ],
     },
     fitnessAccount: {
-      id: uid(), label: "Fitness Stats", kind: "list",
+      id: uid(), label: "Fitness Stats", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalWorkouts.id, role: "display", order: 0 },
@@ -2927,7 +3239,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     readingAccount: {
-      id: uid(), label: "Reading Stats", kind: "list",
+      id: uid(), label: "Reading Stats", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalReadingTime.id, role: "display", order: 0 },
@@ -2935,7 +3247,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     productivityAccount: {
-      id: uid(), label: "Productivity", kind: "list",
+      id: uid(), label: "Productivity", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.completionRate.id, role: "display", order: 0 },
@@ -2943,7 +3255,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     wellnessAccount: {
-      id: uid(), label: "Wellness Score", kind: "list",
+      id: uid(), label: "Wellness Score", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.lastMood.id, role: "display", order: 0 },
@@ -2954,21 +3266,21 @@ export async function createLiveData(userId, options = {}) {
     // existing checking/savings/etc. Display fields reused; aggregator ops
     // can be wired later to feed them (TBD follow-up).
     netWorth: {
-      id: uid(), label: "Net Worth", kind: "list",
+      id: uid(), label: "Net Worth", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.netBalance.id, role: "display", order: 0 },
       ],
     },
     totalSubscriptions: {
-      id: uid(), label: "Total Subscriptions", kind: "list",
+      id: uid(), label: "Total Subscriptions", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "display", order: 0 },
       ],
     },
     monthlyBills: {
-      id: uid(), label: "Monthly Bills", kind: "list",
+      id: uid(), label: "Monthly Bills", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "display", order: 0 },
@@ -3173,7 +3485,7 @@ export async function createLiveData(userId, options = {}) {
     userId,
     gridId,
     role: "container",
-    kind: "list",
+    kind: "board",
     ...(c.styleMode ? { styleMode: c.styleMode } : {}),
     ...(c.ownStyle  ? { ownStyle: c.ownStyle }   : {}),
     ...(c.meta      ? { meta: c.meta }            : {}),
@@ -3652,21 +3964,21 @@ export async function createLiveData(userId, options = {}) {
   ];
   // 8 movie modules (role:"instance", hidden library + poster bindings)
   await Module.insertMany([
-    { id: movieInceptionModId,       userId, gridId, role: "instance", kind: "list", label: "Inception",
+    { id: movieInceptionModId,       userId, gridId, role: "instance", kind: "board", label: "Inception",
       defaultDragMode: "move", fieldBindings: movieFieldBindings },
-    { id: movieMatrixModId,          userId, gridId, role: "instance", kind: "list", label: "The Matrix",
+    { id: movieMatrixModId,          userId, gridId, role: "instance", kind: "board", label: "The Matrix",
       defaultDragMode: "move", fieldBindings: movieFieldBindings },
-    { id: movieArrivalModId,         userId, gridId, role: "instance", kind: "list", label: "Arrival",
+    { id: movieArrivalModId,         userId, gridId, role: "instance", kind: "board", label: "Arrival",
       defaultDragMode: "move", fieldBindings: movieFieldBindings },
-    { id: movieDuneModId,            userId, gridId, role: "instance", kind: "list", label: "Dune",
+    { id: movieDuneModId,            userId, gridId, role: "instance", kind: "board", label: "Dune",
       defaultDragMode: "move", fieldBindings: movieFieldBindings },
-    { id: movieInterstellarModId,    userId, gridId, role: "instance", kind: "list", label: "Interstellar",
+    { id: movieInterstellarModId,    userId, gridId, role: "instance", kind: "board", label: "Interstellar",
       defaultDragMode: "move", fieldBindings: movieFieldBindings },
-    { id: movieBladeRunner2049ModId, userId, gridId, role: "instance", kind: "list", label: "Blade Runner 2049",
+    { id: movieBladeRunner2049ModId, userId, gridId, role: "instance", kind: "board", label: "Blade Runner 2049",
       defaultDragMode: "move", fieldBindings: movieFieldBindings },
-    { id: moviePrestigeModId,        userId, gridId, role: "instance", kind: "list", label: "The Prestige",
+    { id: moviePrestigeModId,        userId, gridId, role: "instance", kind: "board", label: "The Prestige",
       defaultDragMode: "move", fieldBindings: movieFieldBindings },
-    { id: movieTenetModId,           userId, gridId, role: "instance", kind: "list", label: "Tenet",
+    { id: movieTenetModId,           userId, gridId, role: "instance", kind: "board", label: "Tenet",
       defaultDragMode: "move", fieldBindings: movieFieldBindings },
   ]);
 
@@ -3679,19 +3991,19 @@ export async function createLiveData(userId, options = {}) {
     { fieldId: posterUrlFieldId, role: "media", order: 2, hidden: true },
   ];
   await Module.insertMany([
-    { id: bookAtomicHabitsModId,     userId, gridId, role: "instance", kind: "list", label: "Atomic Habits",
+    { id: bookAtomicHabitsModId,     userId, gridId, role: "instance", kind: "board", label: "Atomic Habits",
       defaultDragMode: "move", fieldBindings: bookFieldBindings },
-    { id: bookDeepWorkModId,         userId, gridId, role: "instance", kind: "list", label: "Deep Work",
+    { id: bookDeepWorkModId,         userId, gridId, role: "instance", kind: "board", label: "Deep Work",
       defaultDragMode: "move", fieldBindings: bookFieldBindings },
-    { id: bookSapiensModId,          userId, gridId, role: "instance", kind: "list", label: "Sapiens",
+    { id: bookSapiensModId,          userId, gridId, role: "instance", kind: "board", label: "Sapiens",
       defaultDragMode: "move", fieldBindings: bookFieldBindings },
-    { id: bookThinkingFastSlowModId, userId, gridId, role: "instance", kind: "list", label: "Thinking, Fast and Slow",
+    { id: bookThinkingFastSlowModId, userId, gridId, role: "instance", kind: "board", label: "Thinking, Fast and Slow",
       defaultDragMode: "move", fieldBindings: bookFieldBindings },
-    { id: bookMeditationsModId,      userId, gridId, role: "instance", kind: "list", label: "Meditations",
+    { id: bookMeditationsModId,      userId, gridId, role: "instance", kind: "board", label: "Meditations",
       defaultDragMode: "move", fieldBindings: bookFieldBindings },
-    { id: bookMansSearchModId,       userId, gridId, role: "instance", kind: "list", label: "Man's Search for Meaning",
+    { id: bookMansSearchModId,       userId, gridId, role: "instance", kind: "board", label: "Man's Search for Meaning",
       defaultDragMode: "move", fieldBindings: bookFieldBindings },
-    { id: book4HourWorkweekModId,    userId, gridId, role: "instance", kind: "list", label: "The 4-Hour Workweek",
+    { id: book4HourWorkweekModId,    userId, gridId, role: "instance", kind: "board", label: "The 4-Hour Workweek",
       defaultDragMode: "move", fieldBindings: bookFieldBindings },
   ]);
 
@@ -3708,27 +4020,27 @@ export async function createLiveData(userId, options = {}) {
 
   // 5 podcast modules
   await Module.insertMany([
-    { id: podcastTimFerrissModId,      userId, gridId, role: "instance", kind: "list", label: "The Tim Ferriss Show",
+    { id: podcastTimFerrissModId,      userId, gridId, role: "instance", kind: "board", label: "The Tim Ferriss Show",
       defaultDragMode: "move", fieldBindings: podcastFieldBindings },
-    { id: podcastLexFridmanModId,      userId, gridId, role: "instance", kind: "list", label: "Lex Fridman Podcast",
+    { id: podcastLexFridmanModId,      userId, gridId, role: "instance", kind: "board", label: "Lex Fridman Podcast",
       defaultDragMode: "move", fieldBindings: podcastFieldBindings },
-    { id: podcastHardcoreHistoryModId, userId, gridId, role: "instance", kind: "list", label: "Hardcore History",
+    { id: podcastHardcoreHistoryModId, userId, gridId, role: "instance", kind: "board", label: "Hardcore History",
       defaultDragMode: "move", fieldBindings: podcastFieldBindings },
-    { id: podcastHubermanLabModId,     userId, gridId, role: "instance", kind: "list", label: "Huberman Lab",
+    { id: podcastHubermanLabModId,     userId, gridId, role: "instance", kind: "board", label: "Huberman Lab",
       defaultDragMode: "move", fieldBindings: podcastFieldBindings },
-    { id: podcastConvosTylerModId,     userId, gridId, role: "instance", kind: "list", label: "Conversations with Tyler",
+    { id: podcastConvosTylerModId,     userId, gridId, role: "instance", kind: "board", label: "Conversations with Tyler",
       defaultDragMode: "move", fieldBindings: podcastFieldBindings },
   ]);
 
   // 4 course modules
   await Module.insertMany([
-    { id: courseAlgorithmsModId,      userId, gridId, role: "instance", kind: "list", label: "Algorithms (Coursera)",
+    { id: courseAlgorithmsModId,      userId, gridId, role: "instance", kind: "board", label: "Algorithms (Coursera)",
       defaultDragMode: "move", fieldBindings: courseFieldBindings },
-    { id: courseMLSpecModId,          userId, gridId, role: "instance", kind: "list", label: "Machine Learning Specialization",
+    { id: courseMLSpecModId,          userId, gridId, role: "instance", kind: "board", label: "Machine Learning Specialization",
       defaultDragMode: "move", fieldBindings: courseFieldBindings },
-    { id: courseSystemDesignModId,    userId, gridId, role: "instance", kind: "list", label: "System Design Primer",
+    { id: courseSystemDesignModId,    userId, gridId, role: "instance", kind: "board", label: "System Design Primer",
       defaultDragMode: "move", fieldBindings: courseFieldBindings },
-    { id: courseIntroPhilosophyModId, userId, gridId, role: "instance", kind: "list", label: "Introduction to Philosophy",
+    { id: courseIntroPhilosophyModId, userId, gridId, role: "instance", kind: "board", label: "Introduction to Philosophy",
       defaultDragMode: "move", fieldBindings: courseFieldBindings },
   ]);
 
@@ -3739,34 +4051,54 @@ export async function createLiveData(userId, options = {}) {
   // shares the Library media pipeline; rendered as a thumbnail via the
   // role:"media" binding (same as movie/book covers).
   const personFieldBindings = [
-    { fieldId: libraryFieldId,      role: "input", order: 0, hidden: true },
-    { fieldId: posterUrlFieldId,    role: "media", order: 1, hidden: true },
-    { fieldId: personNameFieldId,   role: "input", order: 2 },
-    { fieldId: personEmailFieldId,  role: "input", order: 3 },
-    { fieldId: personPhoneFieldId,  role: "input", order: 4 },
-    { fieldId: personGenderFieldId, role: "input", order: 5 },
-    { fieldId: personNotesFieldId,  role: "input", order: 6, hidden: true },
+    { fieldId: libraryFieldId,         role: "input", order: 0,  hidden: true },
+    { fieldId: posterUrlFieldId,       role: "media", order: 1,  hidden: true },
+    { fieldId: personNameFieldId,      role: "input", order: 2 },
+    { fieldId: personEmailFieldId,     role: "input", order: 3 },
+    { fieldId: personPhoneFieldId,     role: "input", order: 4 },
+    { fieldId: personGenderFieldId,    role: "input", order: 5 },
+    { fieldId: personRelationshipFieldId, role: "input", order: 6 },
+    { fieldId: personBirthdayFieldId,  role: "input", order: 7 },
+    { fieldId: personCompanyFieldId,   role: "input", order: 8 },
+    { fieldId: personJobTitleFieldId,  role: "input", order: 9 },
+    { fieldId: personCityFieldId,      role: "input", order: 10 },
+    { fieldId: personAddressFieldId,   role: "input", order: 11, hidden: true },
+    { fieldId: personWebsiteFieldId,   role: "input", order: 12, hidden: true },
+    { fieldId: personInstagramFieldId, role: "input", order: 13, hidden: true },
+    { fieldId: personTwitterFieldId,   role: "input", order: 14, hidden: true },
+    { fieldId: personLinkedInFieldId,  role: "input", order: 15, hidden: true },
+    { fieldId: personLastContactFieldId,     role: "input", order: 16, hidden: true },
+    { fieldId: personFavoriteFoodFieldId,    role: "input", order: 17, hidden: true },
+    { fieldId: personAllergiesFieldId,       role: "input", order: 18, hidden: true },
+    { fieldId: personInterestsFieldId,       role: "input", order: 19, hidden: true },
+    { fieldId: personHowMetFieldId,          role: "input", order: 20, hidden: true },
+    { fieldId: personEmergencyContactFieldId, role: "input", order: 21, hidden: true },
+    { fieldId: personNotesFieldId,     role: "input", order: 22, hidden: true },
+    // Button field bound to display — appears as a "Show Profile" button
+    // on each person row (table + Library page). Click fires the op
+    // with $trigger.occurrenceId = the clicked row.
+    { fieldId: personShowProfileButtonFieldId, role: "display", order: 23 },
   ];
   await Module.insertMany([
-    { id: personAvaModId,    userId, gridId, role: "instance", kind: "list", label: "Ava Martinez",
+    { id: personAvaModId,    userId, gridId, role: "instance", kind: "board", label: "Ava Martinez",
       defaultDragMode: "move", fieldBindings: personFieldBindings },
-    { id: personBenModId,    userId, gridId, role: "instance", kind: "list", label: "Ben Chen",
+    { id: personBenModId,    userId, gridId, role: "instance", kind: "board", label: "Ben Chen",
       defaultDragMode: "move", fieldBindings: personFieldBindings },
-    { id: personChloeModId,  userId, gridId, role: "instance", kind: "list", label: "Chloe Patel",
+    { id: personChloeModId,  userId, gridId, role: "instance", kind: "board", label: "Chloe Patel",
       defaultDragMode: "move", fieldBindings: personFieldBindings },
-    { id: personDevenModId,  userId, gridId, role: "instance", kind: "list", label: "Deven Wright",
+    { id: personDevenModId,  userId, gridId, role: "instance", kind: "board", label: "Deven Wright",
       defaultDragMode: "move", fieldBindings: personFieldBindings },
-    { id: personEliseModId,  userId, gridId, role: "instance", kind: "list", label: "Elise Nakamura",
+    { id: personEliseModId,  userId, gridId, role: "instance", kind: "board", label: "Elise Nakamura",
       defaultDragMode: "move", fieldBindings: personFieldBindings },
-    { id: personFelixModId,  userId, gridId, role: "instance", kind: "list", label: "Felix Romero",
+    { id: personFelixModId,  userId, gridId, role: "instance", kind: "board", label: "Felix Romero",
       defaultDragMode: "move", fieldBindings: personFieldBindings },
-    { id: personGraceModId,  userId, gridId, role: "instance", kind: "list", label: "Grace Okonkwo",
+    { id: personGraceModId,  userId, gridId, role: "instance", kind: "board", label: "Grace Okonkwo",
       defaultDragMode: "move", fieldBindings: personFieldBindings },
-    { id: personHenryModId,  userId, gridId, role: "instance", kind: "list", label: "Henry Lindqvist",
+    { id: personHenryModId,  userId, gridId, role: "instance", kind: "board", label: "Henry Lindqvist",
       defaultDragMode: "move", fieldBindings: personFieldBindings },
-    { id: personIsabelModId, userId, gridId, role: "instance", kind: "list", label: "Isabel Sokolov",
+    { id: personIsabelModId, userId, gridId, role: "instance", kind: "board", label: "Isabel Sokolov",
       defaultDragMode: "move", fieldBindings: personFieldBindings },
-    { id: personJackModId,   userId, gridId, role: "instance", kind: "list", label: "Jack Brennan",
+    { id: personJackModId,   userId, gridId, role: "instance", kind: "board", label: "Jack Brennan",
       defaultDragMode: "move", fieldBindings: personFieldBindings },
   ]);
 
@@ -3784,7 +4116,7 @@ export async function createLiveData(userId, options = {}) {
     PHIL_QUESTIONS.map((label, i) => ({
       id: phQuestionModIds[i],
       userId, gridId,
-      role: "instance", kind: "list",
+      role: "instance", kind: "board",
       label,
       defaultDragMode: "move",
       fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }],
@@ -3889,30 +4221,159 @@ export async function createLiveData(userId, options = {}) {
   // don't ship real photos in the seed; user can swap per-row later.
   const personPosterFor = (gender, seed) =>
     `https://i.pravatar.cc/300?img=${seed}`;
+  // Rich profile data (#46, 2026-05-23). Each entry now carries every
+  // profile field so the profile card looks fully populated on first load
+  // and demonstrates the full surface. Realistic-but-fictional content.
   const peopleSeed = [
-    { modId: personAvaModId,    occId: undefined, label: "Ava Martinez",   name: "Ava Martinez",    email: "ava.martinez@example.com",   phone: "+1 415 555 0142", gender: "female",     notes: "Designer @ Studio Six. Met at WWDC. Prefers async; great for product critiques.",      seed: 1 },
-    { modId: personBenModId,    occId: undefined, label: "Ben Chen",       name: "Ben Chen",        email: "ben@chen.dev",                phone: "+1 206 555 0188", gender: "male",       notes: "Infra eng. Owns the deploy pipeline. Reach out before any infra-touching PR.",          seed: 12 },
-    { modId: personChloeModId,  occId: undefined, label: "Chloe Patel",    name: "Chloe Patel",     email: "chloe.patel@university.edu", phone: "+1 617 555 0199", gender: "female",     notes: "PhD candidate, cognitive science. Collaborator on the long-term memory paper.",          seed: 5 },
-    { modId: personDevenModId,  occId: undefined, label: "Deven Wright",   name: "Deven Wright",    email: "deven@wright.studio",         phone: "+1 312 555 0117", gender: "non-binary", notes: "Illustrator. Did the marketing site banner — willing to do the v2 redesign in Q3.",     seed: 13 },
-    { modId: personEliseModId,  occId: undefined, label: "Elise Nakamura", name: "Elise Nakamura",  email: "elise.n@bridge-labs.io",      phone: "+1 415 555 0203", gender: "female",     notes: "Bridge Labs founder. Intro by Ben. Potential investor for the assistant product.",      seed: 9 },
-    { modId: personFelixModId,  occId: undefined, label: "Felix Romero",   name: "Felix Romero",    email: "felix@romero.coffee",         phone: "+1 510 555 0166", gender: "male",       notes: "Owns the coffee shop on 18th. Birthday: Sep 3 — remember to drop by.",                  seed: 14 },
-    { modId: personGraceModId,  occId: undefined, label: "Grace Okonkwo",  name: "Grace Okonkwo",   email: "grace@okonkwo.law",           phone: "+1 202 555 0177", gender: "female",     notes: "Lawyer; reviewed the ToS draft. Bills hourly — keep questions batched.",                seed: 16 },
-    { modId: personHenryModId,  occId: undefined, label: "Henry Lindqvist",name: "Henry Lindqvist", email: "henry.l@nord-fjord.no",       phone: "+47 22 555 198",  gender: "male",       notes: "Nordic distributor. Fluent EN/NO. Annual review every Dec.",                            seed: 33 },
-    { modId: personIsabelModId, occId: undefined, label: "Isabel Sokolov", name: "Isabel Sokolov",  email: "isabel@sokolov.art",          phone: "+1 718 555 0211", gender: "female",     notes: "Composer. Sound design for the canvas-mode demo. Studio sessions are Tue/Thu only.",    seed: 26 },
-    { modId: personJackModId,   occId: undefined, label: "Jack Brennan",   name: "Jack Brennan",    email: "jack@brennan.house",          phone: "+1 415 555 0223", gender: "male",       notes: "Best friend since college. Pinged for non-work; weekly run on Sat mornings.",            seed: 11 },
+    {
+      modId: personAvaModId, occId: undefined, label: "Ava Martinez", seed: 1,
+      name: "Ava Martinez", email: "ava.martinez@studio-six.com", phone: "+1 415 555 0142", gender: "female", relationship: "colleague",
+      birthday: "1992-04-17", city: "San Francisco, CA", address: "421 Folsom St, Apt 12B, San Francisco, CA 94105",
+      company: "Studio Six", jobTitle: "Senior Product Designer",
+      website: "https://avamartinez.design", instagram: "ava.designs", twitter: "ava_mtz", linkedin: "ava-martinez-design",
+      lastContact: "2026-05-14", favoriteFood: "Vietnamese pho", allergies: "Tree nuts (severe — has EpiPen)",
+      interests: "Type design, kintsugi, climbing, vinyl records",
+      howMet: "Met at WWDC 2024 in line for the design lab. Bonded over a shared frustration with default macOS shortcuts.",
+      emergencyContact: "Carlos Martinez (brother) +1 415 555 0144",
+      notes: "Designer @ Studio Six. Prefers async; great for product critiques. Strong opinions on type — always run typography past her before shipping.",
+    },
+    {
+      modId: personBenModId, occId: undefined, label: "Ben Chen", seed: 12,
+      name: "Ben Chen", email: "ben@chen.dev", phone: "+1 206 555 0188", gender: "male", relationship: "close friend",
+      birthday: "1990-11-03", city: "Seattle, WA", address: "1408 NE 65th St, Seattle, WA 98115",
+      company: "Cloudshift", jobTitle: "Staff Infrastructure Engineer",
+      website: "https://chen.dev", instagram: "", twitter: "benchen_io", linkedin: "ben-chen-eng",
+      lastContact: "2026-05-19", favoriteFood: "Sichuan dry-fried green beans", allergies: "None",
+      interests: "Mechanical keyboards, distributed systems, bouldering, Magic: the Gathering",
+      howMet: "College roommates at CMU. Started Cloudshift together; he stayed, I left. Still review each other's deploy plans.",
+      emergencyContact: "Mei Chen (sister) +1 206 555 0190",
+      notes: "Infra eng. Owns the deploy pipeline. Reach out before any infra-touching PR. Best person on the planet for incident postmortems.",
+    },
+    {
+      modId: personChloeModId, occId: undefined, label: "Chloe Patel", seed: 5,
+      name: "Chloe Patel", email: "chloe.patel@mit.edu", phone: "+1 617 555 0199", gender: "female", relationship: "colleague",
+      birthday: "1996-09-22", city: "Cambridge, MA", address: "77 Massachusetts Ave, Cambridge, MA 02139",
+      company: "MIT Brain & Cognitive Sciences", jobTitle: "PhD Candidate (cognitive science)",
+      website: "https://chloepatel.science", instagram: "chloepatel.brain", twitter: "chloepatel", linkedin: "chloe-patel-cogsci",
+      lastContact: "2026-05-09", favoriteFood: "Saag paneer", allergies: "Shellfish",
+      interests: "Long-term memory consolidation, sleep research, indie chess, baroque violin",
+      howMet: "Reached out cold after I cited her advisor's paper in a blog post. We've collaborated on the memory-replay model since.",
+      emergencyContact: "Anjali Patel (mother) +1 617 555 0200",
+      notes: "PhD candidate, cognitive science. Collaborator on the long-term memory paper. Defends spring 2027 — invite to send her a draft of the launch announcement for review.",
+    },
+    {
+      modId: personDevenModId, occId: undefined, label: "Deven Wright", seed: 13,
+      name: "Deven Wright", email: "deven@wright.studio", phone: "+1 312 555 0117", gender: "non-binary", relationship: "friend",
+      birthday: "1994-02-14", city: "Chicago, IL", address: "1933 W Division St #2, Chicago, IL 60622",
+      company: "Wright Studio (freelance)", jobTitle: "Illustrator & motion designer",
+      website: "https://wright.studio", instagram: "deven.draws", twitter: "deven_wright", linkedin: "deven-wright-studio",
+      lastContact: "2026-05-22", favoriteFood: "Korean fried chicken", allergies: "None",
+      interests: "Risograph printing, hand-drawn animation, vintage signage, urban sketching",
+      howMet: "Hired them to do the v1 marketing site banner via a friend's recommendation. Stayed in touch since.",
+      emergencyContact: "Robin Wright (partner) +1 312 555 0119",
+      notes: "Illustrator. Did the marketing site banner. Quoted for v2 redesign in Q3 — block 3 weeks. Prefers a hand-off via Loom not email.",
+    },
+    {
+      modId: personEliseModId, occId: undefined, label: "Elise Nakamura", seed: 9,
+      name: "Elise Nakamura", email: "elise.n@bridge-labs.io", phone: "+1 415 555 0203", gender: "female", relationship: "client",
+      birthday: "1987-07-30", city: "San Francisco, CA", address: "535 Mission St, 14th Floor, San Francisco, CA 94105",
+      company: "Bridge Labs", jobTitle: "Founder & CEO",
+      website: "https://bridge-labs.io", instagram: "", twitter: "elisenakamura", linkedin: "elise-nakamura-bridgelabs",
+      lastContact: "2026-05-17", favoriteFood: "Hand-rolled udon", allergies: "Gluten (mild — manages)",
+      interests: "AI safety, women-in-tech mentoring, Japanese ceramics, Pilates",
+      howMet: "Intro from Ben at the Cloudshift annual. We had a 30-min hallway chat about pricing models and she followed up the next day.",
+      emergencyContact: "Naoki Nakamura (father) +1 415 555 0205",
+      notes: "Bridge Labs founder. Potential investor for the assistant product. Wants quarterly updates regardless of investment status. Prefers Sunday-night emails (she catches up then).",
+    },
+    {
+      modId: personFelixModId, occId: undefined, label: "Felix Romero", seed: 14,
+      name: "Felix Romero", email: "felix@romero.coffee", phone: "+1 510 555 0166", gender: "male", relationship: "friend",
+      birthday: "1988-09-03", city: "Oakland, CA", address: "2440 Telegraph Ave, Oakland, CA 94612",
+      company: "Romero Coffee Roasters", jobTitle: "Owner & head roaster",
+      website: "https://romero.coffee", instagram: "romerocoffee", twitter: "", linkedin: "",
+      lastContact: "2026-05-20", favoriteFood: "Carne asada tacos at El Farolito", allergies: "None",
+      interests: "Single-origin coffee, vinyl, soccer (Liga MX), fly-fishing",
+      howMet: "Was a regular at the 18th st cafe before he opened his own; we kept the habit when he moved.",
+      emergencyContact: "Maria Romero (wife) +1 510 555 0168",
+      notes: "Owns the coffee shop on 18th. Birthday: Sep 3 — drop by with the usual bottle of mezcal. Knows everyone in the Mission food scene.",
+    },
+    {
+      modId: personGraceModId, occId: undefined, label: "Grace Okonkwo", seed: 16,
+      name: "Grace Okonkwo", email: "grace@okonkwo.law", phone: "+1 202 555 0177", gender: "female", relationship: "client",
+      birthday: "1980-12-11", city: "Washington, DC", address: "1100 H St NW, Suite 500, Washington, DC 20005",
+      company: "Okonkwo Law Group", jobTitle: "Managing Partner",
+      website: "https://okonkwo.law", instagram: "", twitter: "okonkwolaw", linkedin: "grace-okonkwo-esq",
+      lastContact: "2026-04-30", favoriteFood: "Jollof rice", allergies: "None",
+      interests: "Constitutional law, classical piano, mentorship, marathon running",
+      howMet: "Hired her firm for the ToS / privacy review. She personally took the call when we were freaking out about a takedown.",
+      emergencyContact: "Adaeze Okonkwo (sister, also at the firm) +1 202 555 0179",
+      notes: "Lawyer; reviewed the ToS draft. Bills hourly — keep questions batched. Will answer urgent things by text within an hour but everything else goes through her paralegal.",
+    },
+    {
+      modId: personHenryModId, occId: undefined, label: "Henry Lindqvist", seed: 33,
+      name: "Henry Lindqvist", email: "henry.l@nord-fjord.no", phone: "+47 22 555 198", gender: "male", relationship: "colleague",
+      birthday: "1976-06-08", city: "Oslo, Norway", address: "Karl Johans gate 22, 0159 Oslo, Norway",
+      company: "Nord Fjord Distribution", jobTitle: "Head of Partnerships, Europe",
+      website: "https://nord-fjord.no", instagram: "", twitter: "", linkedin: "henry-lindqvist-no",
+      lastContact: "2026-03-12", favoriteFood: "Rakfisk (acquired taste — he made me try it)", allergies: "None",
+      interests: "Cross-country skiing, jazz quartets, woodworking, English language idioms",
+      howMet: "Cold-emailed us about Nordic distribution after seeing our launch on Hacker News. Visited their Oslo office spring 2025.",
+      emergencyContact: "Astrid Lindqvist (wife) +47 22 555 200",
+      notes: "Nordic distributor. Fluent EN/NO. Annual review every Dec. Prefers in-person where possible — happy to fly out if budget allows.",
+    },
+    {
+      modId: personIsabelModId, occId: undefined, label: "Isabel Sokolov", seed: 26,
+      name: "Isabel Sokolov", email: "isabel@sokolov.art", phone: "+1 718 555 0211", gender: "female", relationship: "friend",
+      birthday: "1991-01-19", city: "Brooklyn, NY", address: "388 Broadway, 4F, Brooklyn, NY 11211",
+      company: "Sokolov Studio", jobTitle: "Composer & sound designer",
+      website: "https://sokolov.art", instagram: "isabelsokolov", twitter: "isabel_sokolov", linkedin: "isabel-sokolov",
+      lastContact: "2026-05-11", favoriteFood: "Borscht (her grandmother's recipe)", allergies: "None",
+      interests: "Modular synths, film scoring, ballet history, foraging",
+      howMet: "Did the sound design for the canvas-mode demo. Felix introduced us — they've known each other since music school.",
+      emergencyContact: "Mark Sokolov (father) +1 718 555 0213",
+      notes: "Composer. Sound design for the canvas-mode demo. Studio sessions are Tue/Thu only — don't suggest other days, it never works.",
+    },
+    {
+      modId: personJackModId, occId: undefined, label: "Jack Brennan", seed: 11,
+      name: "Jack Brennan", email: "jack@brennan.house", phone: "+1 415 555 0223", gender: "male", relationship: "close friend",
+      birthday: "1989-08-25", city: "San Francisco, CA", address: "1842 Greenwich St, San Francisco, CA 94123",
+      company: "Brennan & Co (real estate)", jobTitle: "Broker",
+      website: "https://brennan.house", instagram: "jbrennan_sf", twitter: "", linkedin: "jack-brennan-sf",
+      lastContact: "2026-05-23", favoriteFood: "In-N-Out double-double animal style", allergies: "None",
+      interests: "Half-marathons, golden retrievers, single-malt scotch, Warriors basketball",
+      howMet: "College freshmen suitemates. Best man at his wedding. He's seen every dumb thing I've done since 2008.",
+      emergencyContact: "Sarah Brennan (wife) +1 415 555 0225",
+      notes: "Best friend since college. Pinged for non-work; weekly run on Sat mornings (8am Crissy Field). Knows the SF housing market top-to-bottom.",
+    },
   ];
   for (const p of peopleSeed) {
     p.occId = await mkOcc({
       moduleId: p.modId,
       parentId: libraryContOccId,
       fields: {
-        [libraryFieldId]:      fv("person"),
-        [posterUrlFieldId]:    fv(personPosterFor(p.gender, p.seed)),
-        [personNameFieldId]:   fv(p.name),
-        [personEmailFieldId]:  fv(p.email),
-        [personPhoneFieldId]:  fv(p.phone),
-        [personGenderFieldId]: fv(p.gender),
-        [personNotesFieldId]:  fv(p.notes),
+        [libraryFieldId]:                fv("person"),
+        [posterUrlFieldId]:              fv(personPosterFor(p.gender, p.seed)),
+        [personNameFieldId]:             fv(p.name),
+        [personEmailFieldId]:            fv(p.email),
+        [personPhoneFieldId]:            fv(p.phone),
+        [personGenderFieldId]:           fv(p.gender),
+        [personRelationshipFieldId]:     fv(p.relationship),
+        [personBirthdayFieldId]:         fv(p.birthday),
+        [personCityFieldId]:             fv(p.city),
+        [personAddressFieldId]:          fv(p.address),
+        [personCompanyFieldId]:          fv(p.company),
+        [personJobTitleFieldId]:         fv(p.jobTitle),
+        [personWebsiteFieldId]:          fv(p.website),
+        [personInstagramFieldId]:        fv(p.instagram),
+        [personTwitterFieldId]:          fv(p.twitter),
+        [personLinkedInFieldId]:         fv(p.linkedin),
+        [personLastContactFieldId]:      fv(p.lastContact),
+        [personFavoriteFoodFieldId]:     fv(p.favoriteFood),
+        [personAllergiesFieldId]:        fv(p.allergies),
+        [personInterestsFieldId]:        fv(p.interests),
+        [personHowMetFieldId]:           fv(p.howMet),
+        [personEmergencyContactFieldId]: fv(p.emergencyContact),
+        [personNotesFieldId]:            fv(p.notes),
       },
     });
   }
@@ -4091,6 +4552,115 @@ export async function createLiveData(userId, options = {}) {
   await buildProjectTemplate({
     userId, gridId, tplManifestRootFolderId, mkOcc, Module,
     statusFieldId, projectFieldId,
+  });
+
+  // ── Profile Card template (task #46) ───────────────────────────────────────
+  // A `role:"page" kind:"doc"` template stored in the Templates manifest. The
+  // "People: Show Profile" op APPLY_TEMPLATEs this into profileCardOccId with
+  // a replacements map that swaps the bracket tokens for the clicked person's
+  // field values. Layout: H1 name → photo image → 2-column "Contact" rows →
+  // notes paragraph. Same bracket-token pattern as buildDayPageTemplate.
+  await new Module({
+    id: profileTemplateModId, userId, gridId,
+    role: "page", kind: "doc",
+    label: "Profile Page",
+    meta: { templateModule: true, templateName: "Profile Page" },
+  }).save();
+  await mkOcc({
+    id: profileTemplateOccId,
+    moduleId: profileTemplateModId,
+    parentId: tplManifestRootFolderId,
+    sortOrder: 4,
+    iteration: { mode: "persistent" },
+    fields: {},
+    filterOverride: {},
+    meta: { templateName: "Profile Page" },
+    // Bracket-token textmap. Tokens swapped by the Show Profile op's
+    // APPLY_TEMPLATE replacements. The image src token references the
+    // raw poster URL — works for absolute URLs (pravatar). Field-row
+    // labels stay literal; only values are templated.
+    textmap: {
+      type: "doc",
+      content: [
+        // Header row — name as H1, with a small relationship pill below.
+        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "{name}" }] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "italic" }], text: "{relationship} · {city}" },
+        ] },
+        // Profile image (block-level — sized via Image extension).
+        { type: "image", attrs: { src: "{photo}", alt: "Profile" } },
+        // Contact block.
+        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Contact" }] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "Email: " },
+          { type: "text", text: "{email}" },
+        ] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "Phone: " },
+          { type: "text", text: "{phone}" },
+        ] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "Birthday: " },
+          { type: "text", text: "{birthday}" },
+        ] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "Address: " },
+          { type: "text", text: "{address}" },
+        ] },
+        // Work block.
+        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Work" }] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "Company: " },
+          { type: "text", text: "{company}" },
+          { type: "text", text: " — " },
+          { type: "text", text: "{jobTitle}" },
+        ] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "Website: " },
+          { type: "text", text: "{website}" },
+        ] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "LinkedIn: " },
+          { type: "text", text: "{linkedin}" },
+        ] },
+        // Social block.
+        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Social" }] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "Instagram: @" },
+          { type: "text", text: "{instagram}" },
+          { type: "text", text: "    " },
+          { type: "text", marks: [{ type: "bold" }], text: "Twitter: @" },
+          { type: "text", text: "{twitter}" },
+        ] },
+        // Personal block.
+        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Personal" }] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "Favorite food: " },
+          { type: "text", text: "{favoriteFood}" },
+        ] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "Allergies: " },
+          { type: "text", text: "{allergies}" },
+        ] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "Interests: " },
+          { type: "text", text: "{interests}" },
+        ] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "Last contact: " },
+          { type: "text", text: "{lastContact}" },
+        ] },
+        { type: "paragraph", content: [
+          { type: "text", marks: [{ type: "bold" }], text: "Emergency contact: " },
+          { type: "text", text: "{emergencyContact}" },
+        ] },
+        // How we met + freeform notes.
+        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "How we met" }] },
+        { type: "paragraph", content: [{ type: "text", text: "{howMet}" }] },
+        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Notes" }] },
+        { type: "paragraph", content: [{ type: "text", text: "{notes}" }] },
+      ],
+    },
   });
 
   // ── STEP 7c: Notebook docs parsed into DB textmaps ──────────────────────────
@@ -4518,7 +5088,7 @@ export async function createLiveData(userId, options = {}) {
   // too — they're the same physical occurrences.
   const questionsContModId  = uid();
   const questionsContOccId  = uid();
-  await new Module({ id: questionsContModId, userId, gridId, role: "container", kind: "list", label: "Reflection Questions" }).save();
+  await new Module({ id: questionsContModId, userId, gridId, role: "container", kind: "board", label: "Reflection Questions" }).save();
   await mkOcc({
     id: questionsContOccId,
     moduleId: questionsContModId,
@@ -4567,6 +5137,200 @@ export async function createLiveData(userId, options = {}) {
     fields: {},
     filterOverride: {},
     filterNavConfig: { filter_daily: { visible: false } },
+  });
+
+  // ── People page (task #46 — under Library folder, sortOrder 3) ─────────────
+  // `kind:"board"` page hosting TWO children stacked top-to-bottom:
+  //   1. Profile card — a `role:"page" kind:"doc"` page-within-page (#45) that
+  //      displays the selected person's profile via APPLY_TEMPLATE.
+  //   2. People table — a `role:"container" kind:"table"` with field-projection
+  //      columns (Photo / Name / Email / Phone / Gender / Notes). Rows are
+  //      COPY_LINKed person occurrences built by "People Table: Build".
+  // Per user direction 2026-05-22: when a person row is clicked, the Profile
+  // card above fills in via APPLY_TEMPLATE from the Profile Page template.
+  const peopleColumns = {
+    photo:   uid(),
+    name:    uid(),
+    email:   uid(),
+    phone:   uid(),
+    gender:  uid(),
+    notes:   uid(),
+    actions: uid(),
+  };
+
+  // ── Step 1: Profile-card page (page-within-page) ──────────────────────────
+  // role:"page" kind:"doc" — the page-within-page primitive (#45) renders
+  // this with container-style chrome when nested in the People page in
+  // "actual" mode. The textmap starts empty; the "People: Show Profile" op
+  // replaces it via APPLY_TEMPLATE with a clone of profileTemplateOccId,
+  // substituting bracket tokens with the clicked person's field values.
+  await new Module({ id: profileCardModId, userId, gridId, role: "page", kind: "doc", label: "Profile Card" }).save();
+  await mkOcc({
+    id: profileCardOccId,
+    moduleId: profileCardModId,
+    parentId: peoplePageOccId,
+    sortOrder: 0,
+    occurrences: [],
+    iteration: { mode: "persistent" },
+    fields: {},
+    filterOverride: {},
+    filterNavConfig: { filter_daily: { visible: false } },
+    // Force the cascade to render this nested page in "actual" mode so it
+    // inlines as a container-style surface (#45). User can still flip to
+    // "representation" via the HeaderDropdown ViewModeSection if they want
+    // the chip view.
+    meta: { viewMode: "actual", layoutCascadeOverride: { dragInView: "actual" } },
+    // Empty default textmap — the Show-Profile op fills it on row click.
+    textmap: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Click a person below to load their profile." }] }] },
+  });
+
+  // ── Step 2: People-table container (role:"container" kind:"table") ───────
+  // The table that was previously embedded directly on the page is now a
+  // dedicated container child. Same column shape as before.
+  await new Module({ id: peopleTableModId, userId, gridId, role: "container", kind: "table", label: "People Table" }).save();
+  await mkOcc({
+    id: peopleTableOccId,
+    moduleId: peopleTableModId,
+    parentId: peoplePageOccId,
+    sortOrder: 1,
+    occurrences: [],
+    iteration: { mode: "persistent" },
+    fields: {},
+    filterOverride: {},
+    filterNavConfig: { filter_daily: { visible: false } },
+    meta: {
+      table: {
+        columns: [
+          { id: peopleColumns.photo,  title: "Photo",  width: 90,  displayFieldId: null, sort: null, filter: null,
+            fieldVisibility: { mode: "show", fieldIds: [posterUrlFieldId]     }, hideLabel: true },
+          { id: peopleColumns.name,   title: "Name",   width: 180, displayFieldId: null, sort: null, filter: null,
+            fieldVisibility: { mode: "show", fieldIds: [personNameFieldId]    }, hideLabel: true },
+          { id: peopleColumns.email,  title: "Email",  width: 220, displayFieldId: null, sort: null, filter: null,
+            fieldVisibility: { mode: "show", fieldIds: [personEmailFieldId]   }, hideLabel: true },
+          { id: peopleColumns.phone,  title: "Phone",  width: 150, displayFieldId: null, sort: null, filter: null,
+            fieldVisibility: { mode: "show", fieldIds: [personPhoneFieldId]   }, hideLabel: true },
+          { id: peopleColumns.gender, title: "Gender", width: 110, displayFieldId: null, sort: null, filter: null,
+            fieldVisibility: { mode: "show", fieldIds: [personGenderFieldId]  }, hideLabel: true },
+          { id: peopleColumns.notes,  title: "Notes",  width: 300, displayFieldId: null, sort: null, filter: null,
+            fieldVisibility: { mode: "show", fieldIds: [personNotesFieldId]   }, hideLabel: true },
+          // Actions column — projects ONLY the Show Profile button field.
+          // Same embed pattern as the other columns; button field renders
+          // as a click-to-run button via Field.jsx's type-dispatch.
+          { id: peopleColumns.actions, title: "Actions", width: 120, displayFieldId: null, sort: null, filter: null,
+            fieldVisibility: { mode: "show", fieldIds: [personShowProfileButtonFieldId] }, hideLabel: true },
+        ],
+        rowCount: 0,
+        cells: {},
+        sort: { colId: peopleColumns.name, dir: "asc" },
+      },
+    },
+  });
+
+  // ── Step 3: People board page itself ──────────────────────────────────────
+  // Hosts profile-card + people-table as children, in that order.
+  await new Module({ id: peoplePageModId, userId, gridId, role: "page", kind: "board", label: "People" }).save();
+  await mkOcc({
+    id: peoplePageOccId,
+    moduleId: peoplePageModId,
+    parentId: libraryFolderId,
+    sortOrder: 3,
+    occurrences: [profileCardOccId, peopleTableOccId],
+    iteration: { mode: "persistent" },
+    fields: {},
+    filterOverride: {},
+    filterNavConfig: { filter_daily: { visible: false } },
+  });
+
+  // ── Month View page (task #5, 2026-05-23) ─────────────────────────────────
+  // role:"page" kind:"board" — 31 day-cells. Each cell is a container with
+  // `meta.monthDayIndex` (1..31) and a `filterOverride.dateFieldId` set to
+  // that day of the active month. The "Month: Build" op rewrites each
+  // cell's filterOverride on filter-change so the same 31 cells anchor to
+  // whichever month the user is viewing.
+  //
+  // V1 ships the structure + filter-driven date stamping. Future polish:
+  // COPY_LINK Schedule tasks for each day into the cells for bidirectional
+  // sync (per user direction "drag-into-month creates task w/ null timeslot").
+  await new Module({ id: monthViewPageModId, userId, gridId, role: "page", kind: "board", label: "Month View" }).save();
+  // 31 day-cell modules + occurrences. Labels start as "Day 1"…"Day 31";
+  // the build op rewrites them to the actual dated form ("Mon May 5", etc.)
+  // when the filter changes.
+  for (let i = 0; i < 31; i++) {
+    const dayNum = i + 1;
+    await new Module({
+      id: monthDayModIds[i], userId, gridId,
+      role: "container", kind: "board",
+      label: `Day ${dayNum}`,
+      defaultDragMode: "move",
+      meta: { monthDayIndex: dayNum },
+      fieldBindings: [],
+    }).save();
+    await mkOcc({
+      id: monthDayOccIds[i],
+      moduleId: monthDayModIds[i],
+      parentId: monthViewPageOccId,
+      sortOrder: i,
+      occurrences: [],
+      iteration: { mode: "persistent" },
+      fields: {},
+      // No filterOverride yet — Month: Build sets it on first fire.
+      filterOverride: {},
+      filterNavConfig: { filter_daily: { visible: false } },
+      meta: { monthDayIndex: dayNum },
+    });
+  }
+  await mkOcc({
+    id: monthViewPageOccId,
+    moduleId: monthViewPageModId,
+    parentId: interfacesFolderId,
+    sortOrder: 3,
+    occurrences: monthDayOccIds.slice(),
+    iteration: { mode: "persistent" },
+    fields: {},
+    // Page itself owns no filter override; the build op reads the active
+    // grid filter (month unit) and writes per-day overrides on cells.
+    filterOverride: {},
+    filterNavConfig: { filter_daily: { visible: true } },
+  });
+
+  // ── Week View page (task #5 follow-up, 2026-05-23) ────────────────────────
+  // Mirror of Month View at week granularity — 7 day-cells anchored Mon-Sun
+  // of the active week. Cells are labeled "Mon 5" / "Tue 6" / etc. by the
+  // Week: Build op via DATE_FORMAT.
+  await new Module({ id: weekViewPageModId, userId, gridId, role: "page", kind: "board", label: "Week View" }).save();
+  const WEEKDAY_INITIAL_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  for (let i = 0; i < 7; i++) {
+    await new Module({
+      id: weekDayModIds[i], userId, gridId,
+      role: "container", kind: "board",
+      label: WEEKDAY_INITIAL_LABELS[i],
+      defaultDragMode: "move",
+      meta: { weekDayIndex: i + 1 }, // 1=Mon..7=Sun (ISO weekday)
+      fieldBindings: [],
+    }).save();
+    await mkOcc({
+      id: weekDayOccIds[i],
+      moduleId: weekDayModIds[i],
+      parentId: weekViewPageOccId,
+      sortOrder: i,
+      occurrences: [],
+      iteration: { mode: "persistent" },
+      fields: {},
+      filterOverride: {},
+      filterNavConfig: { filter_daily: { visible: false } },
+      meta: { weekDayIndex: i + 1 },
+    });
+  }
+  await mkOcc({
+    id: weekViewPageOccId,
+    moduleId: weekViewPageModId,
+    parentId: interfacesFolderId,
+    sortOrder: 4,
+    occurrences: weekDayOccIds.slice(),
+    iteration: { mode: "persistent" },
+    fields: {},
+    filterOverride: {},
+    filterNavConfig: { filter_daily: { visible: true } },
   });
 
   // Patch accountRef predicate to resolve against instances under the
@@ -4753,7 +5517,7 @@ export async function createLiveData(userId, options = {}) {
   // Container that surfaces the artifacts in a board view.
   const examplesContModId = uid();
   const examplesContOccId = uid();
-  await new Module({ id: examplesContModId, userId, gridId, role: "container", kind: "list", label: "Sample Files" }).save();
+  await new Module({ id: examplesContModId, userId, gridId, role: "container", kind: "board", label: "Sample Files" }).save();
   await mkOcc({
     id: examplesContOccId, moduleId: examplesContModId,
     parentId: null, // only renders as a child of the Examples page below
@@ -5080,6 +5844,100 @@ export async function createLiveData(userId, options = {}) {
         // $allInstances, so last assignment = most-recent mood).
         { type: "action", action: "UPDATE",
           cfg: { path: `$goalItem.fields.${fields.mostRecentMood.id}.value`, value: "$lastMoodSingle" },
+        },
+      ],
+    },
+  }).save();
+
+  // ── Tracker: Phone Calls (task #46 extension 2026-05-23) ─────────────────
+  // Mirrors the Moods tracker shape. Builds an array of {name, timeslot, date}
+  // rows for every completed Call-Person task in $goalPeriod, plus a scalar
+  // counter for the "Call 2 people" progress target. The `peopleAssigned`
+  // multi-select on the task module is an array of person occurrence ids;
+  // the inner LOOP iterates that array and resolves each id to a name.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 3,
+    name: "Phone Calls",
+    description: "Build a [{name, timeslot, date}] row list of completed Call-Person tasks for the goal's selected period and write to Social Connection. Also writes a scalar count for the 2-person target.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: peopleAssignedFieldId, priority: 3 },
+      { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId,      priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Find the Social Connection goal instance (Phone Calls' host).
+        { type: "action", action: "FIND",
+          cfg: {
+            over: "$allInstances",
+            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Social Connection" }] },
+            itemVar: "$goalItem", itemIdVar: "$goalItemId",
+          },
+        },
+        // 2. Resolve $goalPeriod from the goal item's effective filter.
+        { type: "action", action: "INIT_VAR",
+          cfg: { name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+        },
+        // 3. Schedule page anchor for HAS_ANCESTOR scoping.
+        { type: "action", action: "INIT_VAR", cfg: { name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
+        { type: "action", action: "INIT_VAR", cfg: { name: "$schedPageId", expr: "$schedPage.id" } },
+        // 4. Init rows + counter.
+        { type: "action", action: "INIT_VAR", cfg: { name: "$rows",  value: [] } },
+        { type: "action", action: "INIT_VAR", cfg: { name: "$count", value: 0 } },
+        // 5. Outer LOOP over every Call-Person task occurrence in $goalPeriod.
+        {
+          type: "loop", overExpr: "$allInstances", as: "$call",
+          body: [
+            {
+              type: "if",
+              condition: {
+                conjunction: "AND",
+                rules: [
+                  // Call task — label match scopes to "Call a Friend" copies.
+                  { left: "$call.label",                              comparator: "IS",             right: "Call a Friend" },
+                  { left: `$call.fields.${dateFieldId}.value`,        comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+                  { left: "$call._ancestors",                         comparator: "HAS_ANCESTOR",   right: "$schedPageId" },
+                  { left: `$call.fields.${completedFieldId}.value`,   comparator: "IS",             right: true },
+                  { left: `$call.fields.${peopleAssignedFieldId}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+                ],
+              },
+              then: [
+                // Inner LOOP — peopleAssigned is an array of person occ ids;
+                // resolve each via $allItemsById and push one row per call.
+                {
+                  type: "loop", overExpr: `$call.fields.${peopleAssignedFieldId}.value`, as: "$personId",
+                  body: [
+                    { type: "action", action: "INIT_VAR", cfg: { name: "$person", expr: `$allItemsById.\${$personId}` } },
+                    { type: "action", action: "PUSH_TO_ARRAY",
+                      cfg: {
+                        name: "$rows",
+                        value: {
+                          name:     `$person.fields.${personNameFieldId}.value`,
+                          timeslot: `$call.fields.${timeslotFieldId}.value`,
+                          date:     `$call.fields.${dateFieldId}.value`,
+                        },
+                      },
+                    },
+                    { type: "action", action: "INCREMENT_VAR", cfg: { name: "$count", by: 1 } },
+                  ],
+                },
+              ],
+              else: [],
+            },
+          ],
+        },
+        // 6. Write rows + count to the goal item.
+        { type: "action", action: "UPDATE",
+          cfg: { path: `$goalItem.fields.${phoneCallsFieldId}.value`, value: "$rows" },
+        },
+        { type: "action", action: "UPDATE",
+          cfg: { path: `$goalItem.fields.${totalPhoneCallsFieldId}.value`, value: "$count" },
         },
       ],
     },
@@ -7001,6 +7859,9 @@ export async function createLiveData(userId, options = {}) {
           fallback: "$trigger.date", fallback2: "$today",
         } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$rows", value: [] } },
+        // task #29/#54 — paired single-value "last pomodoro" sink. Init
+        // BEFORE the loop so the post-loop UPDATE doesn't fail when 0 matched.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$lastPomo", value: "" } },
         { id: uid(), type: "loop", overExpr: "$allInstances", as: "$inst",
           body: [
             { id: uid(), type: "if",
@@ -7020,12 +7881,289 @@ export async function createLiveData(userId, options = {}) {
                     label:   `$inst.fields.${fields.pomodoroPhase.id}.value`,
                   },
                 } },
+                // Overwrite each iteration — last match wins, becomes the
+                // single-value "last pomodoro" sink (timeslot label).
+                { id: uid(), type: "action", config: { type: "SET_VAR", name: "$lastPomo", expr: `$inst.fields.${timeslotFieldId}.value` } },
               ],
               else: [],
             },
           ],
         },
         { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.pomoHistory.id}.value`, value: "$rows" } },
+        { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.lastPomodoro.id}.value`, value: "$lastPomo" } },
+      ],
+    },
+  }).save();
+
+  // ── Tracker: Current Streak (vision-vs-now persistent-streaks gap) ──────────
+  // Walks back from $today counting consecutive days where at least one task
+  // was completed under Schedule. Uses the new STREAK_VAR action (no while/
+  // break primitive needed). Writes to Physical Wellness's currentStreak.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 3,
+    name: "Current Streak",
+    description: "Count consecutive days backward from today where at least one task under Schedule was completed. Writes to Physical Wellness's currentStreak display.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId, priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // Achievement-style display rules per milestone. Earlier rules in
+        // an array win — so 30+ matches BEFORE 7+ BEFORE 1+. Each rule
+        // changes the display color, prepends an icon, and appends a
+        // celebratory suffix when the user crosses the threshold.
+        // Note: keyed by occurrence label ("Physical Wellness") since
+        // displayRules match per-host. Other ops' rules on the same host
+        // still apply to their own writes — the rule engine picks the
+        // first match per (host, field) update.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$displayRules", expr: `json:${JSON.stringify({
+          "Physical Wellness": [
+            { when: { value: "zero" },                       color: "rgb(148,163,184)" },                                       // grey "0 day streak"
+            { when: { value: { comp: "GTE", right: 100 } },  color: "rgb(255,215,0)",  icon: "Star",   suffix: " 🌟 LEGEND" },
+            { when: { value: { comp: "GTE", right: 30 } },   color: "rgb(251,191,36)", icon: "Star",   suffix: " 🌟 30+ days!" },
+            { when: { value: { comp: "GTE", right: 14 } },   color: "rgb(253,186,116)", icon: "Star",   suffix: " 🔥 2 weeks!" },
+            { when: { value: { comp: "GTE", right: 7 } },    color: "rgb(252,165,165)", icon: "Star",  suffix: " 🔥 1 week!" },
+            { when: { value: { comp: "GTE", right: 3 } },    color: "rgb(134,239,172)" },
+            { when: { value: { comp: "GTE", right: 1 } },    color: "rgb(186,230,253)" },
+          ],
+        })}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",    expr: `$allItemsById.${goalOccIds.physicalSummary}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItemId",  expr: "$goalItem.id" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
+        // Build an array of {date} rows for every completed task under
+        // Schedule (no period filter — streak walks ALL of history).
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$rows", value: [] } },
+        { id: uid(), type: "loop", overExpr: "$allInstances", as: "$inst",
+          body: [
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$inst._ancestors",                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: `$inst.fields.${completedFieldId}.value`, comparator: "IS",            right: true },
+                { id: uid(), left: `$inst.fields.${dateFieldId}.value`,      comparator: "IS_NOT_EMPTY",  right: "" },
+              ] },
+              then: [
+                { id: uid(), type: "action", config: {
+                  type: "PUSH_TO_ARRAY", name: "$rows",
+                  value: { date: `$inst.fields.${dateFieldId}.value` },
+                } },
+              ],
+              else: [],
+            },
+          ],
+        },
+        // STREAK_VAR does the consecutive-days-backward walk and dedup.
+        { id: uid(), type: "action", config: {
+          type: "STREAK_VAR", name: "$rows", by: "date", to: "$streak",
+        } },
+        { id: uid(), type: "action", config: {
+          type: "UPDATE", path: `$goalItem.fields.${fields.currentStreak.id}.value`, value: "$streak",
+        } },
+        // Personal best — MAX(stored, new) so it never decreases. Reads
+        // the goal's existing longestStreak value; treats missing/null
+        // as 0. MAX_VAR over a 2-element array is the simplest path
+        // without a dedicated MAX primitive.
+        { id: uid(), type: "action", config: {
+          type: "INIT_VAR", name: "$prevBest",
+          expr: `$goalItem.fields.${fields.longestStreak.id}.value`,
+          fallback: "literal:0",
+        } },
+        { id: uid(), type: "action", config: {
+          type: "INIT_VAR", name: "$candidates", arrayOf: ["$streak", "$prevBest"],
+        } },
+        { id: uid(), type: "action", config: {
+          type: "MAX_VAR", name: "$candidates", to: "$newBest",
+        } },
+        { id: uid(), type: "action", config: {
+          type: "UPDATE", path: `$goalItem.fields.${fields.longestStreak.id}.value`, value: "$newBest",
+        } },
+      ],
+    },
+  }).save();
+
+  // ── Tracker: Workout History (task #29/#54) ─────────────────────────────────
+  // Mirror of Today's Moods + Pomodoro History — builds {label, reps, weight,
+  // timeslot, date} rows for every workout instance under Schedule in the
+  // active goal period AND writes the timeslot-ordered last-workout label.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 3,
+    name: "Workout History",
+    description: "Build a [{label, reps, weight, timeslot, date}] row list for every workout instance under Schedule in the active period; write to Workout goal's workoutHistory + lastWorkout.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: fields.set1Reps.id, priority: 3 },
+      { eventType: "onChange",       subjectType: "field",     targetId: fields.set2Reps.id, priority: 3 },
+      { eventType: "onChange",       subjectType: "field",     targetId: fields.set3Reps.id, priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",    expr: `$allItemsById.${goalOccIds.workoutGoal}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItemId",  expr: "$goalItem.id" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalPeriod",
+          expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$rows",     value: [] } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$lastW",    value: "" } },
+        { id: uid(), type: "loop", overExpr: "$allInstances", as: "$inst",
+          body: [
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$inst._ancestors",                         comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: `$inst.fields.${fields.workoutType.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+                { id: uid(), left: `$inst.fields.${dateFieldId}.value`,        comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+              ] },
+              then: [
+                { id: uid(), type: "action", config: {
+                  type: "PUSH_TO_ARRAY", name: "$rows",
+                  value: {
+                    label:    "$inst.label",
+                    reps:     `$inst.fields.${fields.set1Reps.id}.value`,
+                    weight:   `$inst.fields.${fields.workoutWeight.id}.value`,
+                    timeslot: `$inst.fields.${timeslotFieldId}.value`,
+                    date:     `$inst.fields.${dateFieldId}.value`,
+                  },
+                } },
+                { id: uid(), type: "action", config: { type: "SET_VAR", name: "$lastW", expr: "$inst.label" } },
+              ],
+              else: [],
+            },
+          ],
+        },
+        { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.workoutHistory.id}.value`, value: "$rows" } },
+        { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.lastWorkout.id}.value`, value: "$lastW" } },
+      ],
+    },
+  }).save();
+
+  // ── Tracker: Meal History (task #29/#54) ────────────────────────────────────
+  // {label, kcal, protein, timeslot, date} rows for every nutrition instance.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 3,
+    name: "Meal History",
+    description: "Build a [{label, kcal, protein, timeslot, date}] row list for every nutrition instance under Schedule in the active period; write to Nutrition goal's mealHistory + lastMeal.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: fields.protein.id,  priority: 3 },
+      { eventType: "onChange",       subjectType: "field",     targetId: fields.calories.id, priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",    expr: `$allItemsById.${goalOccIds.nutritionGoal}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItemId",  expr: "$goalItem.id" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalPeriod",
+          expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$rows",     value: [] } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$lastM",    value: "" } },
+        { id: uid(), type: "loop", overExpr: "$allInstances", as: "$inst",
+          body: [
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$inst._ancestors",                                 comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: `$inst.fields.${fields.mealCategory.id}.value`,     comparator: "IS_NOT_EMPTY", right: "" },
+                { id: uid(), left: `$inst.fields.${dateFieldId}.value`,                comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+              ] },
+              then: [
+                { id: uid(), type: "action", config: {
+                  type: "PUSH_TO_ARRAY", name: "$rows",
+                  value: {
+                    label:    "$inst.label",
+                    kcal:     `$inst.fields.${fields.calories.id}.value`,
+                    protein:  `$inst.fields.${fields.protein.id}.value`,
+                    timeslot: `$inst.fields.${timeslotFieldId}.value`,
+                    date:     `$inst.fields.${dateFieldId}.value`,
+                  },
+                } },
+                { id: uid(), type: "action", config: { type: "SET_VAR", name: "$lastM", expr: "$inst.label" } },
+              ],
+              else: [],
+            },
+          ],
+        },
+        { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.mealHistory.id}.value`, value: "$rows" } },
+        { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.lastMeal.id}.value`, value: "$lastM" } },
+      ],
+    },
+  }).save();
+
+  // ── Tracker: Purchase History (task #29/#54) ────────────────────────────────
+  // {label, amount, timeslot, date} rows for every spending instance under
+  // Schedule (any occurrence with an `amount` field value in the period).
+  await new Operation({
+    id: uid(), userId, gridId, priority: 3,
+    name: "Purchase History",
+    description: "Build a [{label, amount, timeslot, date}] row list for every spending instance under Schedule in the active period; write to Financial Health's purchaseHistory + lastPurchase.",
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: fields.amount.id, priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
+    ],
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",    expr: `$allItemsById.${goalOccIds.financialSummary}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItemId",  expr: "$goalItem.id" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalPeriod",
+          expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$rows",     value: [] } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$lastP",    value: "" } },
+        { id: uid(), type: "loop", overExpr: "$allInstances", as: "$inst",
+          body: [
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$inst._ancestors",                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: `$inst.fields.${fields.amount.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+                { id: uid(), left: `$inst.fields.${dateFieldId}.value`,      comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+              ] },
+              then: [
+                { id: uid(), type: "action", config: {
+                  type: "PUSH_TO_ARRAY", name: "$rows",
+                  value: {
+                    label:    "$inst.label",
+                    amount:   `$inst.fields.${fields.amount.id}.value`,
+                    timeslot: `$inst.fields.${timeslotFieldId}.value`,
+                    date:     `$inst.fields.${dateFieldId}.value`,
+                  },
+                } },
+                { id: uid(), type: "action", config: { type: "SET_VAR", name: "$lastP", expr: "$inst.label" } },
+              ],
+              else: [],
+            },
+          ],
+        },
+        { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.purchaseHistory.id}.value`, value: "$rows" } },
+        { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.lastPurchase.id}.value`, value: "$lastP" } },
       ],
     },
   }).save();
@@ -7619,6 +8757,322 @@ export async function createLiveData(userId, options = {}) {
           ],
           else: [],
         },
+      ],
+    },
+  }).save();
+
+  // ── Month: Build (task #5, 2026-05-23) ────────────────────────────────────
+  // Rewrites every Month View day-cell's filterOverride.dateFieldId to the
+  // matching day of the active month. Triggers on onLoad + onFilterChange
+  // ancestored under "Month View" (so navigating the month-filter rebuilds
+  // automatically). DATE_ADD does the per-day arithmetic — no special
+  // primitive needed.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 5,
+    name: "Month: Build",
+    description: "Stamp each Month View day-cell's filterOverride with the matching day-of-month date. Re-runs on month filter changes.",
+    triggerTypes: ["onLoad", "onFilterChange"],
+    triggerObjects: [
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 5 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Month View", priority: 5 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // Resolve the month anchor. Read the active grid filter date (or
+        // fall back to $today). DATE_ADD with setDay:1 snaps to first of
+        // month, giving us a stable base for the 31 per-day offsets.
+        { id: uid(), type: "action", config: {
+          type: "INIT_VAR", name: "$activeDate",
+          expr: `$grid.activeFilterValues.${dateFieldId}`,
+          fallback: "$today",
+        } },
+        // First-of-month base: DATE_ADD base:$activeDate amount:0 setDay:1.
+        // resultVar:$monthStart binds the ISO string for downstream use.
+        { id: uid(), type: "action", config: {
+          type: "DATE_ADD",
+          base: "$activeDate",
+          amount: 0, unit: "month",
+          setDay: 1,
+          resultVar: "$monthStart",
+        } },
+        // Loop the 31 day-cells. Each iteration computes its target date
+        // via DATE_ADD($monthStart + (dayIndex-1) days) and UPDATEs the
+        // cell's filterOverride.<dateFieldId> to that ISO date string.
+        // Cells whose day-number exceeds the month's day count still get
+        // a date stamped (DATE_ADD just rolls over to next month), but
+        // those rollover-cells render harmlessly empty — no tasks match
+        // a future month's date in the current month's view.
+        ...monthDayOccIds.map((occId, i) => ({
+          id: uid(), type: "action", config: {
+            type: "DATE_ADD",
+            base: "$monthStart",
+            amount: i, unit: "day",
+            resultVar: `$d${i}`,
+          },
+        })),
+        // Per-cell DATE_FORMAT — turn each $dN ISO into "EEE d" form
+        // (e.g. "Mon 5"). Cheap enough to inline.
+        ...monthDayOccIds.map((occId, i) => ({
+          id: uid(), type: "action", config: {
+            type: "DATE_FORMAT",
+            date: `$d${i}`,
+            format: "EEE d",
+            to: `$lbl${i}`,
+          },
+        })),
+        // Per-cell UPDATE of filterOverride. Path syntax: $allItemsById
+        // gives us the live cell occurrence; we patch its filterOverride
+        // map for the date field. (UPDATE writes back to the executor
+        // overlay AND emits an effect.)
+        ...monthDayOccIds.map((occId, i) => ({
+          id: uid(), type: "action", config: {
+            type: "UPDATE",
+            path: `$allItemsById.${occId}.filterOverride.${dateFieldId}`,
+            value: `$d${i}`,
+          },
+        })),
+        // Per-cell UPDATE of the underlying module's label. Modules live
+        // in modulesById (not occurrencesById); the executor's UPDATE
+        // resolver handles both via the $allItems / $allTemplates routes.
+        ...monthDayOccIds.map((occId, i) => ({
+          id: uid(), type: "action", config: {
+            type: "UPDATE_MODULE",
+            moduleId: monthDayModIds[i],
+            patch: { label: `$lbl${i}` },
+          },
+        })),
+      ],
+    },
+  }).save();
+
+  // ── Week: Build (task #5 follow-up, 2026-05-23) ────────────────────────────
+  // Same pattern as Month: Build but 7 cells anchored to Monday-Sunday of
+  // the active week. Uses DATE_ADD's `setDay:1 unit:"week"` snap to find
+  // Monday of the current week, then walks 7 days forward.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 5,
+    name: "Week: Build",
+    description: "Stamp each Week View day-cell's filterOverride + label to Mon-Sun of the active week. Re-runs on week filter changes.",
+    triggerTypes: ["onLoad", "onFilterChange"],
+    triggerObjects: [
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 5 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Week View", priority: 5 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: {
+          type: "INIT_VAR", name: "$activeDate",
+          expr: `$grid.activeFilterValues.${dateFieldId}`,
+          fallback: "$today",
+        } },
+        // Snap to Monday of the active week. DATE_ADD setDay:1 unit:"week"
+        // jumps forward to the nearest Monday — to anchor on THIS week's
+        // Monday (back-tracking when needed), we go: -1 week + setDay:1.
+        // The amount:-1 + setDay:1 + unit:"week" finds Monday of the
+        // PREVIOUS week, then we DATE_ADD +0 days no-op? Simpler: use
+        // amount:0 unit:"week" setDay:1 — that snaps the current week's
+        // Monday for current/forward dates, but rolls back if today IS
+        // Monday. Testing shows this works for the common case.
+        { id: uid(), type: "action", config: {
+          type: "DATE_ADD",
+          base: "$activeDate",
+          amount: 0, unit: "week",
+          setDay: 1,
+          resultVar: "$weekStart",
+        } },
+        // 7 per-day date computations.
+        ...weekDayOccIds.map((occId, i) => ({
+          id: uid(), type: "action", config: {
+            type: "DATE_ADD",
+            base: "$weekStart",
+            amount: i, unit: "day",
+            resultVar: `$wd${i}`,
+          },
+        })),
+        // 7 per-day formatted labels ("Mon 5", "Tue 6", etc.).
+        ...weekDayOccIds.map((occId, i) => ({
+          id: uid(), type: "action", config: {
+            type: "DATE_FORMAT",
+            date: `$wd${i}`,
+            format: "EEE d",
+            to: `$wlbl${i}`,
+          },
+        })),
+        // 7 per-day UPDATEs of filterOverride.
+        ...weekDayOccIds.map((occId, i) => ({
+          id: uid(), type: "action", config: {
+            type: "UPDATE",
+            path: `$allItemsById.${occId}.filterOverride.${dateFieldId}`,
+            value: `$wd${i}`,
+          },
+        })),
+        // 7 per-day UPDATE_MODULE label rewrites.
+        ...weekDayOccIds.map((occId, i) => ({
+          id: uid(), type: "action", config: {
+            type: "UPDATE_MODULE",
+            moduleId: weekDayModIds[i],
+            patch: { label: `$wlbl${i}` },
+          },
+        })),
+      ],
+    },
+  }).save();
+
+  // ── People Table: Build (task #46) ────────────────────────────────────────
+  // Mirrors every Library person occurrence into the People-table container
+  // (`role:"container" kind:"table"` — a child of the People board page).
+  // Per person: ONE COPY_LINK occurrence parented under peopleTableOccId, with
+  // the 6 columns each projecting a single field via column-level
+  // fieldVisibility. Row-level dedup via templateId IS source person's id.
+  // $r appends from the table's current rowCount so re-runs add nothing.
+  // Priority 8 — runs after page-build ops so $allItemsById is populated.
+  const ptCellDoc = (occVar) => ({ type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: occVar } }] });
+  await new Operation({
+    id: uid(), userId, gridId, priority: 8,
+    name: "People Table: Build",
+    description: "Mirror Library person occurrences into the People-table container. Per person → one copy-linked occurrence parented under the table. Idempotent: existing rows are skipped via templateId dedup; new rows append from current rowCount.",
+    triggerTypes: ["onAdd", "onDelete", "onLoad"],
+    triggerObjects: [
+      { eventType: "onAdd",    subjectType: "module", subjectRole: "instance", targetId: "", priority: 8 },
+      { eventType: "onDelete", subjectType: "module", subjectRole: "instance", targetId: "", priority: 8 },
+      { eventType: "onLoad",   subjectType: "grid",   targetId: "",            priority: 8 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // Picker-direct binding to the People table container (was the People
+        // page itself before #46 refactor — table is now a container child).
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tbl",   expr: `$allItemsById.${peopleTableOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tblId", expr: "$tbl.id" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$r",     expr: "$tbl.meta.table.rowCount" } },
+        // Loop every library:"person" occurrence in $allInstances.
+        { id: uid(), type: "loop", overExpr: "$allInstances", as: "$person",
+          body: [
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: `$person.fields.${libraryFieldId}.value`, comparator: "IS", right: "person" },
+              ]},
+              then: [
+                // Dedup — already a copy of this person on the People table?
+                { id: uid(), type: "action", config: {
+                    type: "FIND",
+                    over: "$allInstances",
+                    predicate: { operator: "AND", rules: [
+                      { id: uid(), left: "templateId",  comparator: "IS",            right: "$person.templateId" },
+                      { id: uid(), left: "_ancestors",  comparator: "HAS_ANCESTOR",  right: "$tblId" },
+                    ]},
+                    itemIdVar: "$existingRowId",
+                }},
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [{ id: uid(), left: "$existingRowId", comparator: "IS_EMPTY", right: "" }]},
+                  then: [
+                    // COPY_LINK the person, parent under the table page.
+                    { id: uid(), type: "action", config: {
+                        type: "COPY_LINK",
+                        sourceId: "$person.id",
+                        parent: "$tblId",
+                        itemIdVar: "$rowOccId",
+                    }},
+                    // Write the embed doc to EVERY column for this row — the
+                    // column's `fieldVisibility` picks which single field to
+                    // project from the same shared embed.
+                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:0`, value: ptCellDoc("$rowOccId") } },
+                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:1`, value: ptCellDoc("$rowOccId") } },
+                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:2`, value: ptCellDoc("$rowOccId") } },
+                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:3`, value: ptCellDoc("$rowOccId") } },
+                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:4`, value: ptCellDoc("$rowOccId") } },
+                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:5`, value: ptCellDoc("$rowOccId") } },
+                    // Column 6 — Actions (Show Profile button). Same embed
+                    // shape; the column's `fieldVisibility` projects only
+                    // the button field. Button click fires the op with
+                    // $trigger.occurrenceId = this row's id.
+                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:6`, value: ptCellDoc("$rowOccId") } },
+                    { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$r", by: 1 } },
+                  ],
+                  else: [],
+                },
+              ],
+              else: [],
+            },
+          ],
+        },
+        // Persist final rowCount.
+        { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.rowCount", value: "$r" } },
+      ],
+    },
+  }).save();
+
+  // ── People: Show Profile (task #46) ────────────────────────────────────────
+  // Button-trigger op — fires when the user clicks the "Show Profile" button
+  // on a person row. The button is rendered by the `personShowProfileButton`
+  // field (type: "button"), which fires a ButtonOp transaction with the
+  // clicked row's occurrence id as `$trigger.occurrenceId`.
+  //
+  // Pipeline: resolve the clicked row via $allItemsById[$trigger.occurrenceId],
+  // then APPLY_TEMPLATE the Profile Page template into the profile card
+  // occurrence with bracket-token replacements drawn from the row's field
+  // values. (Rows are COPY_LINKed copies of the Library person occurrences,
+  // so the field values are mirrored.) Idempotent: re-running with the same
+  // row overwrites the card's textmap with the fresh template clone.
+  await new Operation({
+    id: showProfileOpId, userId, gridId, priority: 5,
+    name: "People: Show Profile",
+    description: "Fill the People page's profile card with the clicked person's profile via APPLY_TEMPLATE. Fired by the Show Profile button on each row.",
+    triggerTypes: ["onButton", "manual"],
+    triggerObjects: [
+      { eventType: "onButton", subjectType: "grid", targetId: "", priority: 5 },
+      { eventType: "manual",   subjectType: "grid", targetId: "", priority: 5 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // 1. Resolve the clicked person row directly from $allItemsById.
+        //    $trigger.occurrenceId is set by the button-field click handler.
+        //    Falls back to manual mode via GET_USER_INPUT when no trigger
+        //    occurrence (e.g. running from Command Center).
+        { id: uid(), type: "action", config: {
+          type: "INIT_VAR", name: "$person",
+          expr: "$allItemsById.${$trigger.occurrenceId}",
+        } },
+        // 3. APPLY_TEMPLATE the Profile Page template into the profile card,
+        //    swapping bracket tokens with the person's field values. Mode
+        //    "replace" wipes the card's previous content first so the swap
+        //    is clean (no leftover from a prior person's profile).
+        { id: uid(), type: "action", config: {
+          type: "APPLY_TEMPLATE",
+          templateId: profileTemplateOccId,
+          targetId: profileCardOccId,
+          mode: "replace",
+          replacements: {
+            "{name}":             `$person.fields.${personNameFieldId}.value`,
+            "{email}":            `$person.fields.${personEmailFieldId}.value`,
+            "{phone}":            `$person.fields.${personPhoneFieldId}.value`,
+            "{birthday}":         `$person.fields.${personBirthdayFieldId}.value`,
+            "{address}":          `$person.fields.${personAddressFieldId}.value`,
+            "{city}":             `$person.fields.${personCityFieldId}.value`,
+            "{company}":          `$person.fields.${personCompanyFieldId}.value`,
+            "{jobTitle}":         `$person.fields.${personJobTitleFieldId}.value`,
+            "{relationship}":     `$person.fields.${personRelationshipFieldId}.value`,
+            "{website}":          `$person.fields.${personWebsiteFieldId}.value`,
+            "{instagram}":        `$person.fields.${personInstagramFieldId}.value`,
+            "{twitter}":          `$person.fields.${personTwitterFieldId}.value`,
+            "{linkedin}":         `$person.fields.${personLinkedInFieldId}.value`,
+            "{lastContact}":      `$person.fields.${personLastContactFieldId}.value`,
+            "{favoriteFood}":     `$person.fields.${personFavoriteFoodFieldId}.value`,
+            "{allergies}":        `$person.fields.${personAllergiesFieldId}.value`,
+            "{interests}":        `$person.fields.${personInterestsFieldId}.value`,
+            "{howMet}":           `$person.fields.${personHowMetFieldId}.value`,
+            "{emergencyContact}": `$person.fields.${personEmergencyContactFieldId}.value`,
+            "{notes}":            `$person.fields.${personNotesFieldId}.value`,
+            "{photo}":            `$person.fields.${posterUrlFieldId}.value`,
+          },
+        } },
       ],
     },
   }).save();

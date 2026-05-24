@@ -5,11 +5,13 @@
 // Slide-down panel: full controls (play/pause/reset/skip + phase info)
 // ============================================================
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useContext, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 import { operationsBridge } from "../state/bindSocketToStore";
+import { GridActionsContext } from "../GridActionsContext";
+import * as CommitHelpers from "./../helpers/CommitHelpers";
 
 const PHASES = [
   { label: "Work",       duration: 25 * 60, color: "#ef4444" },
@@ -48,6 +50,33 @@ export default function PomodoroTimer() {
   const intervalRef = useRef(null);
   const panelRef = useRef(null);
   const triggerRef = useRef(null);
+
+  // Target-container picker (docket item). Stores the user's preferred
+  // destination for Pomodoro:Start writes on `grid.meta.pomodoroTargetContainerId`.
+  // When unset, the op falls back to its existing slotLabel-based FIND
+  // (current behavior). When set, the transaction carries `targetContainerId`
+  // so the op (or future ops) can route directly to the chosen container.
+  const { dispatch, socket, state, modulesById, occurrencesById } = useContext(GridActionsContext);
+  const grid = state?.grid;
+  const targetContainerId = grid?.meta?.pomodoroTargetContainerId || null;
+  const containerOptions = useMemo(() => {
+    const out = [];
+    for (const m of Object.values(modulesById || {})) {
+      if (m?.role !== "container") continue;
+      out.push({ id: m.id, label: m.label || m.id });
+    }
+    out.sort((a, b) => (a.label || "").localeCompare(b.label || ""));
+    return out;
+  }, [modulesById]);
+  const setTargetContainer = useCallback((id) => {
+    if (!grid?.id && !grid?._id) return;
+    const gridId = grid.id || grid._id;
+    CommitHelpers.updateGrid({
+      dispatch, socket, gridId,
+      grid: { meta: { ...(grid.meta || {}), pomodoroTargetContainerId: id || null } },
+      emit: true,
+    });
+  }, [grid, dispatch, socket]);
 
   const phase = PHASES[phaseIndex % PHASES.length];
 
@@ -94,6 +123,9 @@ export default function PomodoroTimer() {
           minutes: Math.round(phase.duration / 60),
           pomoNumber,
           phase: "work",
+          // When the user has picked a target container, pass its id through
+          // so the op can FIND by id instead of by slot label.
+          targetContainerId: targetContainerId || null,
         });
       }
       return next;
@@ -261,6 +293,29 @@ export default function PomodoroTimer() {
         {/* Next phase hint */}
         <div style={{ marginTop: 8, fontSize: 10, color: "var(--text-faint)", textAlign: "center" }}>
           Next: {PHASES[(phaseIndex + 1) % PHASES.length].label}
+        </div>
+
+        {/* Target container picker — `none` falls back to the slot-label
+            FIND in the Pomodoro:Start op. */}
+        <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--border-subtle)" }}>
+          <label style={{ display: "block", fontSize: 9, color: "var(--text-faint)", marginBottom: 3 }}>
+            Send pomodoros to
+          </label>
+          <select
+            value={targetContainerId || ""}
+            onChange={(e) => setTargetContainer(e.target.value || null)}
+            style={{
+              width: "100%", padding: "3px 5px",
+              background: "var(--input-bg)", color: "var(--text-primary)",
+              border: "1px solid var(--input-border)", borderRadius: 3,
+              fontSize: 10, fontFamily: "var(--font-mono)",
+            }}
+          >
+            <option value="">Auto (current slot)</option>
+            {containerOptions.map(o => (
+              <option key={o.id} value={o.id}>{o.label}</option>
+            ))}
+          </select>
         </div>
       </div>
     </div>

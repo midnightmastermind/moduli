@@ -16,6 +16,7 @@ import FiltersSection from "../ui/FiltersSection";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import ViewModeSection from "../ui/ViewModeSection";
+import LayoutCascadeSection from "../ui/LayoutCascadeSection";
 import TemplatesSection from "../ui/TemplatesSection";
 import StyleEditor from "../ui/StyleEditor";
 import { buildStyleCascadeContext, resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
@@ -35,6 +36,7 @@ import ContainerTable from "./containers/ContainerTable.jsx";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
+import { resolveEffectiveViewModeFromCascade, classifyOccurrenceContext } from "../helpers/layoutCascade";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 
 import { GridActionsContext } from "../GridActionsContext";
@@ -414,7 +416,18 @@ function Page({
   // builder context without rendering its full content. Preview mode is
   // the folder-page PreviewNode pattern (separate component) and doesn't
   // apply at the page-render entry point — falls through to Actual.
-  const pageViewMode = getEffectiveViewMode(occurrence, "default");
+  //
+  // Task #45 page-within-page: the layout cascade hardcodes a forced
+  // `representation` mode for any page nested inside another page or a
+  // container, and forced `actual` for a top-level page (panel content).
+  // The cascade-aware resolver wins over `meta.viewMode` when the cascade
+  // sets navAllowChange=false.
+  const pageViewMode = resolveEffectiveViewModeFromCascade({
+    occurrence,
+    occurrencesById,
+    modulesById,
+    grid: state?.grid,
+  }) || getEffectiveViewMode(occurrence, "default");
   if (pageViewMode === "representation") {
     return (
       <div
@@ -431,23 +444,51 @@ function Page({
     );
   }
 
+  // Task #45 — page-within-page primitive. When this page is nested INSIDE
+  // another page AND the user has switched it to "actual" mode, render
+  // with container-style chrome (slim header, no outer page border) so
+  // it visually inlines as a container while still being a real page
+  // module under the hood. The cascade rule
+  // (resolveDefaultLayout.context === "nestedInPage") gates whether the
+  // switch is even available.
+  //
+  // Q2 (2026-05-24) actual-converted view: when viewMode is
+  // "actual-converted" — selectable for pages nested in containers OR
+  // other pages — render the same nested page-shell as #45's actual mode
+  // (slim border, transparent bg). Only difference vs `actual` is the
+  // name in the switcher; both render identically and let the page
+  // inline as a container.
+  const pageContextKind = classifyOccurrenceContext({
+    occurrence,
+    occurrencesById,
+    modulesById,
+  });
+  const isNestedAsContainer =
+    (pageContextKind === "nestedInPage" && pageViewMode === "actual") ||
+    (pageContextKind === "nestedInPage" && pageViewMode === "actual-converted") ||
+    (pageContextKind === "nestedInContainer" && pageViewMode === "actual-converted");
+
   return (
     <div
       ref={dragRef}
-      className={`page-shell`}
+      className={isNestedAsContainer ? "page-shell page-shell--nested" : "page-shell"}
       data-page-occ-id={occurrence?.id}
       onContextMenu={handleContextMenu}
       style={{
         display: "flex",
         flexDirection: "column",
-        flex: 1,
+        flex: isNestedAsContainer ? "0 0 auto" : 1,
         minHeight: 0,
         opacity: isDragging ? 0.4 : 1,
         overflow: "hidden",
         position: "relative",
-        border: "1px solid var(--border-default)",
-        borderRadius: 6,
-        background: "var(--surface-card)",
+        // Nested-as-container: drop the outer border + card background
+        // so the page inlines visually inside its parent. The header
+        // row below still renders so users can switch the view back to
+        // representation. Per #45.
+        ...(isNestedAsContainer
+          ? { border: "1px solid var(--border-subtle)", borderRadius: 4, background: "transparent" }
+          : { border: "1px solid var(--border-default)", borderRadius: 6, background: "var(--surface-card)" }),
         // Cascade-resolved page style — Grid default → Panel pushdown
         // → this page's own ownStyle (last write wins). Spread AFTER
         // the static defaults so any key the user set in the Page
@@ -544,7 +585,7 @@ function Page({
                   onCreateNew={() => {
                     if (!occurrence?.id || !state?.userId || !state?.grid?._id) return;
                     const id = crypto.randomUUID();
-                    const mod = { id, role: "container", kind: "list", label: `List ${containersList.length + 1}` };
+                    const mod = { id, role: "container", kind: "board", label: `List ${containersList.length + 1}` };
                     CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
                     const occId = crypto.randomUUID();
                     const occ = { id: occId, userId: state.userId, gridId: state.grid._id, moduleId: id, fields: {} };
@@ -600,6 +641,7 @@ function Page({
           <SortSection occurrence={occurrence} />
           <FieldVisibilitySection occurrence={occurrence} />
           <ViewModeSection occurrence={occurrence} />
+          <LayoutCascadeSection occurrence={occurrence} />
         </HeaderDropdown>
       )}
       {templatesAnchor && (

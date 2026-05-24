@@ -205,7 +205,7 @@ function parseBlocks(markdown) {
         items.push(lines[i].replace(/^\s*(?:[-*]|\d+\.)\s+/, "").trim());
         i++;
       }
-      blocks.push({ kind: "list", items });
+      blocks.push({ kind: "board", items });
       continue;
     }
     // Horizontal rule / blank — skip
@@ -277,7 +277,7 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
     const occurrenceId = uid();
     modules.push({
       id: moduleId, userId, gridId,
-      role: "instance", kind: "list",
+      role: "instance", kind: "board",
       label,
     });
     occurrences.push({
@@ -386,14 +386,14 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
     const occurrenceId = uid();
     modules.push({
       id: moduleId, userId, gridId,
-      role: "container", kind: "list",
+      role: "container", kind: "board",
       label: node.label || "Section",
     });
     const childIds = [];
     for (const c of node.children || []) {
       if (c.kind === "container") {
         childIds.push(buildContainer(c, occurrenceId));
-      } else if (c.kind === "list") {
+      } else if (c.kind === "board") {
         for (const item of c.items) {
           childIds.push(buildInstanceLeaf(item));
         }

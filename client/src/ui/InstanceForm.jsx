@@ -10,6 +10,7 @@ import { X, Eye, EyeOff, Hash, Plus } from "lucide-react";
 import DrilldownPicker from "./DrilldownPicker";
 import EditorBindingSection from "./EditorBindingSection.jsx";
 import StyleEditor from "./StyleEditor";
+import LayoutCascadeSection from "./LayoutCascadeSection";
 import { GridActionsContext } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
 import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
@@ -287,6 +288,17 @@ export default function InstanceForm({
             label="Instance Style"
             inheritLabel="Container / Page / Panel / Grid"
           />
+
+          {occurrence && (
+            <>
+              <Separator />
+              {/* Layout cascade override — per-placement final-say for this
+                  instance. Writes occurrence.meta.layoutCascadeOverride; the
+                  resolver in helpers/layoutCascade.js uses this as the
+                  strongest layer (beats Grid/Panel/Page/Container). */}
+              <LayoutCascadeSection occurrence={occurrence} />
+            </>
+          )}
         </TabsContent>
 
         {/* FIELDS TAB */}

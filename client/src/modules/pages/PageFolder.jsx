@@ -4,7 +4,9 @@
 // prev/next arrows navigate peer pages at the same depth.
 
 import React, { useRef, useMemo, useState, useCallback, useContext, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutGrid, List, Search } from "lucide-react";
+import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import PreviewNode from "../PreviewNode.jsx";
 import useDrilldown, { getCardAnimStyle } from "../../hooks/useDrilldown.js";
 import { GridActionsContext } from "../../GridActionsContext";
@@ -25,7 +27,90 @@ export default function PageFolder({
   onAutoNavigateComplete,
 }) {
   const folderRef = useRef(null);
-  const { occurrencesById } = useContext(GridActionsContext);
+  const { occurrencesById, fieldsById } = useContext(GridActionsContext);
+
+  // F5-ext (2026-05-24) — search-in-folder. Filters cards by label OR
+  // field values OR occurrence content. Defaults to all three scopes; the
+  // dropdown lets the user narrow to a single scope.
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchScope, setSearchScope] = useState("all"); // "all" | "label" | "fields" | "content"
+  const matchesSearch = useCallback((occ, mod) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    if (searchScope === "all" || searchScope === "label") {
+      if ((mod?.label || "").toLowerCase().includes(q)) return true;
+      if ((occ?.label || "").toLowerCase().includes(q)) return true;
+    }
+    if (searchScope === "all" || searchScope === "fields") {
+      const fields = occ?.fields || {};
+      for (const fid of Object.keys(fields)) {
+        const slot = fields[fid];
+        const v = slot && typeof slot === "object" ? slot.value : slot;
+        if (v == null) continue;
+        const str = typeof v === "string" ? v : (typeof v === "number" || typeof v === "boolean") ? String(v) : "";
+        if (str.toLowerCase().includes(q)) return true;
+        // Field NAME match — useful for "show me cards with a 'priority' field"
+        const fname = fieldsById?.[fid]?.name || "";
+        if (fname.toLowerCase().includes(q)) return true;
+      }
+    }
+    if (searchScope === "all" || searchScope === "content") {
+      // textmap is a TipTap JSON tree; flatten text nodes.
+      const tm = occ?.textmap;
+      if (tm && typeof tm === "object") {
+        const stack = [tm];
+        while (stack.length) {
+          const n = stack.shift();
+          if (!n) continue;
+          if (typeof n.text === "string" && n.text.toLowerCase().includes(q)) return true;
+          if (Array.isArray(n.content)) stack.push(...n.content);
+        }
+      }
+    }
+    return false;
+  }, [searchQuery, searchScope, fieldsById]);
+  const filteredChildOccs = useMemo(
+    () => (childOccs || []).filter(occ => matchesSearch(occ, modulesById?.[occ.moduleId])),
+    [childOccs, matchesSearch, modulesById]
+  );
+
+  // F4 — Grid/List layout toggle. Persisted on the folder page occurrence's
+  // meta.viewLayout (grid is the default; list renders as compact rows). The
+  // toggle survives across sessions because we write through CommitHelpers.
+  const folderPageOcc = folderPageOccId ? occurrencesById?.[folderPageOccId] : null;
+  const viewLayout = folderPageOcc?.meta?.viewLayout === "list" ? "list" : "grid";
+  const setViewLayout = useCallback((mode) => {
+    if (!folderPageOcc) return;
+    if ((folderPageOcc.meta?.viewLayout || "grid") === mode) return;
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: folderPageOcc.id, meta: { ...(folderPageOcc.meta || {}), viewLayout: mode } },
+      emit: true,
+    });
+  }, [folderPageOcc, dispatch, socket]);
+
+  // F3 — drag-reorder within the folder page. Persisted via the dragged
+  // occurrence's sortOrder; we set it to the midpoint between the neighbors
+  // on either side of the closest edge so neither neighbor needs to be
+  // rewritten. This is the same midpoint-by-sortOrder pattern used by
+  // ManifestTree's between-folder reorder (Apr 6 2026 / Mar 31 2026).
+  const reorderToNeighbor = useCallback((draggedOccId, targetOccId, edge) => {
+    if (!draggedOccId || !targetOccId || draggedOccId === targetOccId) return;
+    const idx = childOccs.findIndex(o => o.id === targetOccId);
+    if (idx < 0) return;
+    const target = childOccs[idx];
+    const before = edge === "top" || edge === "left";
+    const neighborIdx = before ? idx - 1 : idx + 1;
+    const neighbor = childOccs[neighborIdx] || null;
+    const targetSort = target.sortOrder ?? idx;
+    const neighborSort = neighbor ? (neighbor.sortOrder ?? neighborIdx) : (before ? targetSort - 2 : targetSort + 2);
+    const newSort = (targetSort + neighborSort) / 2;
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: draggedOccId, sortOrder: newSort },
+      emit: true,
+    });
+  }, [childOccs, dispatch, socket]);
 
   const handleNavigate = useCallback((occId) => {
     if (panelView?.id) {
@@ -129,6 +214,35 @@ export default function PageFolder({
           );
         })}
       </div>
+      {/* F4 — Grid/List toggle. Always visible; persists per-folder. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0, marginLeft: 8 }} role="group" aria-label="Folder layout">
+        <button
+          onClick={() => setViewLayout("grid")}
+          aria-pressed={viewLayout === "grid"}
+          title="Grid layout"
+          style={{
+            background: viewLayout === "grid" ? "var(--input-bg)" : "transparent",
+            border: "1px solid var(--border-subtle)", borderRadius: 3,
+            cursor: "pointer", color: "var(--text-muted)",
+            padding: "1px 4px", display: "flex", alignItems: "center",
+          }}
+        >
+          <LayoutGrid size={11} />
+        </button>
+        <button
+          onClick={() => setViewLayout("list")}
+          aria-pressed={viewLayout === "list"}
+          title="List layout"
+          style={{
+            background: viewLayout === "list" ? "var(--input-bg)" : "transparent",
+            border: "1px solid var(--border-subtle)", borderRadius: 3,
+            cursor: "pointer", color: "var(--text-muted)",
+            padding: "1px 4px", display: "flex", alignItems: "center",
+          }}
+        >
+          <List size={11} />
+        </button>
+      </div>
       {siblingOccs?.length > 1 && currentSiblingIndex >= 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0, marginLeft: 8 }}>
           <button
@@ -179,6 +293,56 @@ export default function PageFolder({
       }}
     >
       {scopeHeader}
+      {/* F5-ext search bar — filters cards by label / fields / content. */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+        padding: "4px 8px",
+        borderBottom: "1px solid var(--border-subtle)",
+        background: "var(--surface-base)",
+      }}>
+        <Search size={11} style={{ color: "var(--text-faint)", flexShrink: 0 }} />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search…"
+          aria-label="Search folder"
+          style={{
+            flex: 1, minWidth: 0,
+            background: "transparent",
+            border: "none", outline: "none",
+            color: "var(--text-primary)",
+            fontSize: 11, fontFamily: "var(--font-mono)",
+          }}
+        />
+        <select
+          value={searchScope}
+          onChange={(e) => setSearchScope(e.target.value)}
+          aria-label="Search scope"
+          style={{
+            background: "var(--input-bg)",
+            border: "1px solid var(--border-subtle)", borderRadius: 3,
+            color: "var(--text-muted)",
+            fontSize: 9, padding: "1px 3px",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          <option value="all">All</option>
+          <option value="label">Label</option>
+          <option value="fields">Fields</option>
+          <option value="content">Content</option>
+        </select>
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery("")}
+            style={{
+              background: "transparent", border: "none", cursor: "pointer",
+              color: "var(--text-faint)", fontSize: 11, padding: "0 4px",
+            }}
+            title="Clear search"
+          >×</button>
+        )}
+      </div>
       <div style={{
         flex: 1, minHeight: 0,
         overflowY: "auto",
@@ -186,29 +350,135 @@ export default function PageFolder({
         overscrollBehavior: "contain",
         padding: isMobile ? "8px 8px 80px 8px" : "0px 0px 80px 0px",
       }}>
-        <div className="preview-node-grid">
-          {childOccs.map((occ, i) => {
+        <div className={viewLayout === "list" ? "preview-node-list" : "preview-node-grid"}>
+          {filteredChildOccs.map((occ, i) => {
             const mod = modulesById[occ.moduleId];
             return (
-              <PreviewNode
+              <FolderItem
                 key={occ.id}
-                occurrence={occ}
-                module={mod}
+                occ={occ}
+                mod={mod}
+                index={i}
+                viewLayout={viewLayout}
                 onDrillDown={handleDrillDown}
+                onReorder={reorderToNeighbor}
                 isAnimating={!!animState}
-                loadPreview={autoNavigateTo ? occ.id === autoNavigateTo : true}
-                loadIndex={i}
-                style={getCardAnimStyle(occ.id, animState)}
+                autoNavigateTo={autoNavigateTo}
+                animState={animState}
               />
             );
           })}
-          {childOccs.length === 0 && (
+          {filteredChildOccs.length === 0 && (
             <div className="text-xs text-muted-foreground text-center empty-placeholder" style={{ gridColumn: "1 / -1" }}>
-              Drop items here
+              {searchQuery.trim() ? `No matches for "${searchQuery}"` : "Drop items here"}
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// F3 + F4 — per-card wrapper. Owns the dropTargetForElements for reorder
+// (closest-edge top/left = drop before, bottom/right = drop after) and
+// switches between the existing PreviewNode card render (grid) and a
+// compact row render (list). Row mode renders directly here so PreviewNode
+// stays a pure card.
+function FolderItem({ occ, mod, index, viewLayout, onDrillDown, onReorder, isAnimating, autoNavigateTo, animState }) {
+  const wrapRef = useRef(null);
+  const [edgeHint, setEdgeHint] = useState(null); // "top" | "bottom" | "left" | "right" | null
+
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    return dropTargetForElements({
+      element: wrapRef.current,
+      canDrop: ({ source }) => {
+        const s = source?.data || {};
+        // Accept any module/occurrence drag whose payload has an occurrenceId
+        // (folder-node drags are the canonical case, but instance + container
+        // drags from elsewhere on the grid should reorder too).
+        return !!s.occurrenceId && s.occurrenceId !== occ.id;
+      },
+      getData: ({ input, element }) => attachClosestEdge(
+        { type: "folder-item", occurrenceId: occ.id, index },
+        { input, element, allowedEdges: viewLayout === "list" ? ["top", "bottom"] : ["top", "bottom", "left", "right"] }
+      ),
+      onDragEnter: ({ self }) => setEdgeHint(extractClosestEdge(self.data) || null),
+      onDrag: ({ self }) => setEdgeHint(extractClosestEdge(self.data) || null),
+      onDragLeave: () => setEdgeHint(null),
+      onDrop: ({ source, self }) => {
+        const draggedOccId = source?.data?.occurrenceId;
+        const edge = extractClosestEdge(self.data);
+        setEdgeHint(null);
+        if (draggedOccId && edge) onReorder?.(draggedOccId, occ.id, edge);
+      },
+    });
+  }, [occ.id, index, viewLayout, onReorder]);
+
+  if (viewLayout === "list") {
+    const role = mod?.role || "instance";
+    const kind = mod?.kind || null;
+    const label = mod?.label || occ?.label || "Untitled";
+    const size = mod?.meta?.uploadSize;
+    const fmtSize = (n) => {
+      if (!n) return "—";
+      if (n < 1024) return `${n} B`;
+      if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+      return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    };
+    const updated = occ?.updatedAt || mod?.updatedAt;
+    const date = updated ? new Date(updated).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
+    const glyph = kind === "folder" ? "📁" : (role === "page" ? "📄" : (role === "artifact" ? "📎" : "•"));
+    return (
+      <div
+        ref={wrapRef}
+        data-occurrence-id={occ.id}
+        onClick={() => onDrillDown?.(occ.id, wrapRef.current)}
+        className="preview-node-list-row"
+        style={{
+          position: "relative",
+          display: "grid",
+          gridTemplateColumns: "20px 1fr auto auto",
+          alignItems: "center",
+          gap: 10,
+          padding: "5px 10px",
+          borderBottom: "1px solid var(--border-subtle)",
+          cursor: "pointer",
+          background: "transparent",
+          ...getCardAnimStyle(occ.id, animState),
+        }}
+      >
+        <span style={{ fontSize: 12 }}>{glyph}</span>
+        <span style={{ fontSize: 12, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {label}
+        </span>
+        <span style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+          {fmtSize(size)}
+        </span>
+        <span style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+          {date}
+        </span>
+        {edgeHint === "top" && <div style={{ position: "absolute", left: 0, right: 0, top: -1, height: 2, background: "var(--accent-blue, #38bdf8)" }} />}
+        {edgeHint === "bottom" && <div style={{ position: "absolute", left: 0, right: 0, bottom: -1, height: 2, background: "var(--accent-blue, #38bdf8)" }} />}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <PreviewNode
+        occurrence={occ}
+        module={mod}
+        onDrillDown={onDrillDown}
+        isAnimating={isAnimating}
+        loadPreview={autoNavigateTo ? occ.id === autoNavigateTo : true}
+        loadIndex={index}
+        style={getCardAnimStyle(occ.id, animState)}
+      />
+      {edgeHint === "left" && <div style={{ position: "absolute", left: -1, top: 4, bottom: 4, width: 2, background: "var(--accent-blue, #38bdf8)" }} />}
+      {edgeHint === "right" && <div style={{ position: "absolute", right: -1, top: 4, bottom: 4, width: 2, background: "var(--accent-blue, #38bdf8)" }} />}
+      {edgeHint === "top" && <div style={{ position: "absolute", left: 4, right: 4, top: -1, height: 2, background: "var(--accent-blue, #38bdf8)" }} />}
+      {edgeHint === "bottom" && <div style={{ position: "absolute", left: 4, right: 4, bottom: -1, height: 2, background: "var(--accent-blue, #38bdf8)" }} />}
     </div>
   );
 }

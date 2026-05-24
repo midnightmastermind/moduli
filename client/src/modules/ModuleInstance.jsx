@@ -902,9 +902,12 @@ function ModuleInstance({
       {isOver && closestEdge === "left" && <div className="drop-indicator drop-indicator-inst-left" />}
       {isOver && closestEdge === "right" && <div className="drop-indicator drop-indicator-inst-right" />}
 
-      {occurrence?.linkedGroupId && (
-        <Link2 title="Linked copy" className="linked-copy-badge" />
-      )}
+      {occurrence?.linkedGroupId && (() => {
+        const siblings = linkedGroupIndex?.[occurrence.linkedGroupId] || [];
+        const count = Math.max(0, siblings.length - 1);
+        const title = count > 0 ? `Linked to ${count} other ${count === 1 ? "copy" : "copies"}` : "Linked copy";
+        return <Link2 title={title} className="linked-copy-badge" />;
+      })()}
 
       <InstanceInner
         id={module.id}

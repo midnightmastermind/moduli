@@ -44,7 +44,7 @@ describe("Field schema validation", () => {
   });
 
   it("all valid type values pass", () => {
-    const validTypes = ["number", "text", "boolean", "select", "date", "rating", "duration"];
+    const validTypes = ["number", "text", "boolean", "select", "date", "rating", "duration", "occurrence", "markdown", "button"];
     for (const t of validTypes) {
       const f = makeValid({ type: t });
       const err = f.validateSync();

@@ -1,23 +1,24 @@
 // ui/ContainerKindSelector.jsx
 // ============================================================
-// Popup selector for choosing container kind when adding new container
-// Options: List (default), Doc (rich text), Log (time-ordered)
+// Popup selector for choosing container kind. q3 ii (2026-05-24)
+// collapsed list → board, so the picker no longer surfaces the
+// legacy "List" tile.
 // ============================================================
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { List, FileText, LayoutGrid, PenTool, Table } from "lucide-react";
+import { FileText, LayoutGrid, PenTool, Table } from "lucide-react";
 
 // Canonical kind set used everywhere the user picks a new container/page kind.
 // Mirrors the category tiles QuickAddMenu shows for existing modules, so add-
 // new and add-existing surfaces have the same vocabulary.
 const CONTAINER_KINDS = [
   {
-    kind: "list",
-    label: "List",
-    description: "Drag-sortable items",
-    icon: List,
-    color: "bg-blue-600 hover:bg-blue-500",
+    kind: "board",
+    label: "Board",
+    description: "Drag-sortable list of items / kanban-style columns",
+    icon: LayoutGrid,
+    color: "bg-emerald-600 hover:bg-emerald-500",
   },
   {
     kind: "doc",
@@ -25,13 +26,6 @@ const CONTAINER_KINDS = [
     description: "Rich text with embedded pills",
     icon: FileText,
     color: "bg-purple-600 hover:bg-purple-500",
-  },
-  {
-    kind: "board",
-    label: "Board",
-    description: "Kanban-style columns",
-    icon: LayoutGrid,
-    color: "bg-emerald-600 hover:bg-emerald-500",
   },
   {
     kind: "canvas",

@@ -69,7 +69,7 @@ export default function PageCanvas({ pageModule, occurrence, panelId, dispatch, 
       // to lay out.
       let renderBody = null;
       if (mod.role === "textblock") {
-        renderBody = () => <TextblockCard occurrence={occ} />;
+        renderBody = () => <TextblockCard occurrence={occ} module={mod} />;
       } else if (mod.role === "artifact") {
         renderBody = () => <ArtifactCard module={mod} label={mod.label} />;
       }
@@ -121,7 +121,7 @@ export default function PageCanvas({ pageModule, occurrence, panelId, dispatch, 
       CommitHelpers.createModule({
         dispatch,
         socket,
-        module: { id: moduleId, userId, gridId, role: "instance", kind: "list", label: "New card", fieldBindings: [] },
+        module: { id: moduleId, userId, gridId, role: "instance", kind: "board", label: "New card", fieldBindings: [] },
         emit: true,
       });
       CommitHelpers.createOccurrence({

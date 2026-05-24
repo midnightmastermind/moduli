@@ -64,6 +64,7 @@ import FiltersSection from "../ui/FiltersSection";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
+import LayoutCascadeSection from "../ui/LayoutCascadeSection";
 import TemplatesSection from "../ui/TemplatesSection";
 
 // ============================================================
@@ -220,7 +221,7 @@ function CanvasTreePanelContent({ resolvedView, activeOcc, dispatch, socket, pan
     CommitHelpers.createInstanceInContainer({
       dispatch, socket,
       containerId: canvasModule.id,
-      instance: { id: instanceId, role: "instance", kind: "list", label: "New card", userId, gridId, fieldBindings: [] },
+      instance: { id: instanceId, role: "instance", kind: "board", label: "New card", userId, gridId, fieldBindings: [] },
       initialMeta: { x, y },
       emit: true,
     });
@@ -1272,6 +1273,7 @@ function Panel({
           <FiltersSection occurrence={panelOccurrence} />
           <SortSection occurrence={panelOccurrence} />
           <FieldVisibilitySection occurrence={panelOccurrence} />
+          <LayoutCascadeSection occurrence={panelOccurrence} />
         </HeaderDropdown>
       )}
       {templatesAnchor && (

@@ -25,12 +25,13 @@
 // The switcher hides it; if a stale `viewMode: "actual"` somehow lands on
 // a folder-page card, it's coerced back to "preview".
 
-export const VIEW_MODES = ["preview", "representation", "actual"];
+export const VIEW_MODES = ["preview", "representation", "actual", "actual-converted"];
 
 export const VIEW_MODE_LABELS = {
   preview:        "Preview",
   representation: "Representation",
   actual:         "Actual",
+  "actual-converted": "Actual (as container)",
 };
 
 // Context tags — callers pass `context` (a short string) to influence

@@ -22,7 +22,7 @@ export default function ContainerPool({ itemsWithOccurrences, dispatch, socket, 
     CommitHelpers.createInstanceInContainer({
       dispatch, socket,
       containerId: module.id,
-      instance: { id: instanceId, role: "instance", kind: "list", label, userId, gridId, fieldBindings: [] },
+      instance: { id: instanceId, role: "instance", kind: "board", label, userId, gridId, fieldBindings: [] },
       emit: true,
     });
     setPoolAddLabel("");

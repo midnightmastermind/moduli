@@ -5,6 +5,7 @@ import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import StyleEditor from "./StyleEditor";
+import LayoutCascadeSection from "./LayoutCascadeSection";
 import { GridActionsContext } from "../GridActionsContext";
 import { resolveStyleCascade } from "../helpers/StyleHelpers";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -884,6 +885,15 @@ export default function LayoutForm({
               onChange={(next) => onChange?.(ensureLockDefaults(next))}
             />
           </div>
+
+          {/* Layout cascade — per-panel rules pushed DOWN to children
+              (drag-in view / nav options / lock / show fields / repr field
+              whitelist). Writes panelOccurrence.meta.layoutCascade. */}
+          {occurrence && (
+            <div className="pt-3 border-t border-border mt-3">
+              <LayoutCascadeSection occurrence={occurrence} />
+            </div>
+          )}
         </TabsContent>
 
         {/* ACTIONS TAB: Lock/Permissions, Panel Actions */}

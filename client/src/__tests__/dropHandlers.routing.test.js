@@ -9,10 +9,10 @@ import * as LayoutHelpers from "../helpers/LayoutHelpers";
 
 function makeFixture() {
   const modules = {
-    panelMod: { id: "panelMod", role: "panel", kind: "list", label: "Panel" },
-    fromContainerMod: { id: "fromContainerMod", role: "container", kind: "list", label: "From" },
-    toContainerMod: { id: "toContainerMod", role: "container", kind: "list", label: "To" },
-    instMod: { id: "instMod", role: "instance", kind: "list", label: "Inst" },
+    panelMod: { id: "panelMod", role: "panel", kind: "board", label: "Panel" },
+    fromContainerMod: { id: "fromContainerMod", role: "container", kind: "board", label: "From" },
+    toContainerMod: { id: "toContainerMod", role: "container", kind: "board", label: "To" },
+    instMod: { id: "instMod", role: "instance", kind: "board", label: "Inst" },
   };
   const occs = {
     panelOcc: { id: "panelOcc", moduleId: "panelMod", targetId: "panelMod", occurrences: ["fromContOcc", "toContOcc"] },
@@ -96,9 +96,9 @@ describe("routeDrop + handleOccurrenceMove — in-grid instance move", () => {
     // shape that was silently failing in the field.
     const modules = {
       pageMod: { id: "pageMod", role: "page", kind: "board", label: "Schedule" },
-      slotMod: { id: "slotMod", role: "container", kind: "list", label: "6:00am", meta: { scheduleSlot: true } },
-      fromContainerMod: { id: "fromContainerMod", role: "container", kind: "list", label: "From" },
-      instMod: { id: "instMod", role: "instance", kind: "list", label: "Drink Water" },
+      slotMod: { id: "slotMod", role: "container", kind: "board", label: "6:00am", meta: { scheduleSlot: true } },
+      fromContainerMod: { id: "fromContainerMod", role: "container", kind: "board", label: "From" },
+      instMod: { id: "instMod", role: "instance", kind: "board", label: "Drink Water" },
     };
     const occs = {
       pageOcc: { id: "pageOcc", moduleId: "pageMod", targetId: "pageMod", occurrences: ["slotOcc"] },

@@ -433,19 +433,29 @@ select:disabled { cursor: not-allowed; }
     0 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 
+/* Panel / page / container header bands — darker than the body, with a
+   matching "even darker" border underneath. Per user direction:
+   "border underneath header should match the color of the header
+   container but darker and shadowed" — accomplished via stacked
+   semi-transparent black overlays. The header's bg tint deepens
+   the underlying color (which may come from ownStyle.bg); the border
+   is a heavier overlay so it reads as a darker version of the SAME
+   color rather than pure black. Drop-shadow underneath adds depth. */
 .panel-header {
-  background: rgba(0, 0, 0, 0.22);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.32);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.55);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 2px 4px -2px rgba(0, 0, 0, 0.55);
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 3px 6px -3px rgba(0, 0, 0, 0.6),
+    0 1px 0 rgba(0, 0, 0, 0.25); /* lip underneath the bottom border */
 }
 .page-header {
-  background: rgba(0, 0, 0, 0.18);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.40);
+  background: rgba(0, 0, 0, 0.28);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.50);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 2px 4px -2px rgba(0, 0, 0, 0.5);
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 3px 6px -3px rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(0, 0, 0, 0.22);
 }
 
 .panel-scroll {
@@ -495,11 +505,16 @@ select:disabled { cursor: not-allowed; }
   justify-content: start;
   align-items: center;
   cursor: grab;
-  background: rgba(0, 0, 0, 0.22);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.45);
+  /* Header band — deeper black overlay than the panel/page versions so
+     the contrast between container header and body reads at a glance.
+     Border underneath is heavier still, simulating "darker shade of
+     the same color" without per-color computation. */
+  background: rgba(0, 0, 0, 0.32);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.55);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 2px 4px -2px rgba(0, 0, 0, 0.55);
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 3px 6px -3px rgba(0, 0, 0, 0.6),
+    0 1px 0 rgba(0, 0, 0, 0.28); /* darker lip below the border line */
 }
 /* Embedded container headers use the host doc's accent color cascade —
    skip the dark overlay so the embedded header keeps its teal tint. */
@@ -660,6 +675,20 @@ select:disabled { cursor: not-allowed; }
 }
 @keyframes clipboard-marching {
   to { outline-offset: 4px; }
+}
+
+/* Task #59 — schedule slot containers whose time has passed today.
+   Slight red tint signals "this hour is over". Subtle on purpose so it
+   doesn't compete with selection/clipboard outlines (which still win
+   when both apply). Re-checked every 5 minutes by useNowTick. */
+.container-shell.is-timeslot-passed {
+  background-color: rgba(248, 113, 113, 0.08);
+  border-color: rgba(248, 113, 113, 0.25);
+}
+.container-shell.is-timeslot-passed.is-selected,
+.container-shell.is-timeslot-passed.is-clipboard-staged {
+  /* Let the selection / clipboard outline + bg win when active. */
+  background-color: initial;
 }
 
 /* Hovered drop target while clipboard-active (anywhere on the grid).
@@ -1020,6 +1049,49 @@ body[data-clipboard-active="true"] {
 .doc-editor-content.ProseMirror h1 { font-size: 1.5em; }
 .doc-editor-content.ProseMirror h2 { font-size: 1.25em; }
 .doc-editor-content.ProseMirror h3 { font-size: 1.1em; }
+
+/* Folder page list-layout (F4 — grid/list toggle) */
+.preview-node-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+.preview-node-list-row:hover {
+  background: var(--input-bg) !important;
+}
+
+/* Task lists (- [ ] / - [x] markdown) — clickable checkbox, strikethrough on check */
+.doc-editor-content.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.4em 0;
+}
+.doc-editor-content.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0.1em 0;
+}
+.doc-editor-content.ProseMirror ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  margin-top: 0.2em;
+  user-select: none;
+}
+.doc-editor-content.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
+  cursor: pointer;
+  margin: 0;
+}
+.doc-editor-content.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.doc-editor-content.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.doc-editor-content.ProseMirror ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
 
 /* Section heading colors — # prefix hidden until editing */
 .doc-editor-content.ProseMirror h1::before {
@@ -2126,6 +2198,41 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   min-height: 24px;
   outline: none;
   padding: 4px 8px 4px 8px;
+}
+
+/* textblock-inline (kind:"inline" — task #6.6 / LT1) — same Editor shell
+   but no card chrome, no margin, no padding, no background tint. Flows
+   inline with surrounding text. Distinct visual: subtle dotted underline
+   so the user can SEE that this slice is an editable occurrence rather
+   than plain text in the host doc. The host renderer is expected to
+   wrap textblock-inline occurrences in a `display:inline` context. */
+.textblock-card--inline {
+  display: inline;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+.textblock-card--inline .doc-editor-wrapper {
+  display: inline;
+  padding: 0 !important;
+}
+.textblock-card--inline .doc-editor-wrapper .ProseMirror,
+.textblock-card--inline .ProseMirror {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  border-bottom: 1px dotted rgba(134, 239, 172, 0.45);
+}
+/* Inner block elements collapse to inline-flow so the textblock slices
+   into the host paragraph instead of breaking onto its own line. */
+.textblock-card--inline .ProseMirror p,
+.textblock-card--inline .ProseMirror > * {
+  display: inline;
+  margin: 0;
 }
 
 /* ============================================================

@@ -598,7 +598,7 @@ export default function App() {
       // in the QuickAddMenu field-picker step. Default role="input" so the
       // field renders as an editable pill (matches FieldsTab "attach" flow).
       const fieldBindings = fieldIds.map(fid => ({ fieldId: fid, role: "input", hidden: false }));
-      const module = { id, role: "instance", kind: "list", label, fieldBindings };
+      const module = { id, role: "instance", kind: "board", label, fieldBindings };
 
       const container = (state.containers || []).find((c) => c.id === containerId);
       if (!container) return;
@@ -900,9 +900,12 @@ export default function App() {
           )}
         </div>
 
-        {/* Toast notifications — slim (≤24px tall) and tucked into the toolbar
-            band so they never spill down over the grid. */}
-        <Toaster position="top-center" offset={3} />
+        {/* Toast notifications — slim (≤24px tall) and tucked just below
+            the toolbar band so they never overlap toolbar controls and
+            land visibly on whatever panel the user is currently on
+            (mobile: only one panel is visible at a time below the
+            toolbar; desktop: floats above the grid). */}
+        <Toaster position="top-center" offset={44} />
 
         {/* GET_USER_INPUT modal — only mounts when an op pipeline suspends
             via operationsBridge.requestUserInput. Chained questions render

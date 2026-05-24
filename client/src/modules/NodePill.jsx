@@ -36,6 +36,10 @@ export default function NodePill({
   style: extraStyle,
   children,
   leadingSlot,
+  // Optional hover tooltip — surfaces the artifact's original filename +
+  // human-readable file size (per file/artifact audit gap #5). Falls back
+  // to label + kind when no explicit title is provided.
+  title,
 }) {
   const ref = useRef(null);
   const Icon = getModuleTypeIcon(module);
@@ -66,6 +70,7 @@ export default function NodePill({
     <div
       ref={ref}
       onClick={onClick}
+      title={title}
       style={{
         display: "flex",
         flexDirection: reverseIndent ? "row-reverse" : "row",

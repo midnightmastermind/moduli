@@ -315,12 +315,17 @@ function segmentDisplay(seg, ctx) {
   }
   if (ctx?.modulesById?.[seg]) {
     const m = ctx.modulesById[seg];
-    return m.label || m.name || seg;
+    // Prefix with [role] so the breadcrumb conveys what the segment IS,
+    // not just the label (per value-builder card spec — task #61
+    // breadcrumb crumbs read as `[panel] Daily Toolkit › [container] …`).
+    const lbl = m.label || m.name || seg;
+    return m.role ? `[${m.role}] ${lbl}` : lbl;
   }
   if (ctx?.occurrencesById?.[seg]) {
     const occ = ctx.occurrencesById[seg];
     const m = occ.moduleId && ctx.modulesById?.[occ.moduleId];
-    return m?.label || m?.name || seg;
+    const lbl = m?.label || m?.name || seg;
+    return m?.role ? `[${m.role}] ${lbl}` : lbl;
   }
   return seg;
 }

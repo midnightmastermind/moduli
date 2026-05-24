@@ -9,6 +9,7 @@ import { GridActionsContext } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
 import EditorBindingSection from "./EditorBindingSection.jsx";
 import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
+import LayoutCascadeSection from "./LayoutCascadeSection";
 
 const DRAG_MODE_OPTIONS = [
   { value: "move", label: "Move (relocate occurrence)" },
@@ -340,6 +341,14 @@ export default function ContainerForm({
                 label="This Placement (overrides module)"
                 inheritLabel="Module"
               />
+
+              <Separator />
+
+              {/* Layout cascade — per-container rules pushed DOWN to children
+                  (drag-in view / nav options / lock / show fields / repr field
+                  whitelist). Writes occurrence.meta.layoutCascade; the resolver
+                  in helpers/layoutCascade.js merges this onto descendants. */}
+              <LayoutCascadeSection occurrence={occurrence} />
             </>
           )}
         </TabsContent>

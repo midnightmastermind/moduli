@@ -89,7 +89,7 @@ describe("analyzeOperation — CREATE / UPDATE / DELETE actions", () => {
             config: {
               type: "CREATE",
               role: "instance",
-              kind: "list",
+              kind: "board",
               parent: "occ_slot_6am",
               fields: { f_date: "$today", f_done: false },
             },
@@ -100,7 +100,7 @@ describe("analyzeOperation — CREATE / UPDATE / DELETE actions", () => {
     const rec = analyzeOperation(op, ctx);
     expect(rec.fields_written.sort()).toEqual(["f_date", "f_done"]);
     expect(rec.occurrences_read).toEqual(["occ_slot_6am"]);
-    expect(rec.created_modules).toEqual(["instance:list"]);
+    expect(rec.created_modules).toEqual(["instance:board"]);
   });
 
   it("UPDATE: cfg.fieldId → fields_written; cfg.itemId → occurrences_written", () => {

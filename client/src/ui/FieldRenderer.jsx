@@ -15,6 +15,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { GridActionsContext } from "../GridActionsContext";
 import { GridLiveContext } from "../GridLiveContext";
 import { resolveOptions } from "../helpers/optionsResolver";
+import { getEffectiveFilterForOccurrence } from "../state/selectors";
 
 function FieldRenderer({
   field,
@@ -58,22 +59,46 @@ function FieldRenderer({
   const displayEnabled = field.displayEnabled === true;
 
   // Per-occurrence stored value + display flags
+  // Task #60 — `field.meta.autoStampFromFilter: true` substitutes the
+  // value from the occurrence's effective filter for this field when
+  // the stored value is null/empty. Read-time only — no DB write. Lets
+  // a date / timeslot field on a slot container show the current day-
+  // filter's date without anyone having to stamp it. Container-level
+  // only by convention (per "trust the cascade — don't pre-stamp" memory):
+  // instances opting in here is allowed but unusual.
+  const gridFilters = state?.grid?.activeFilterValues || null;
   const { value: inputValue, flow: currentFlow, hideName, hidePrefix, hidePostfix } = useMemo(() => {
     if (!occurrence?.fields || !field?.id) {
       return { value: undefined, flow: "in", hideName: false, hidePrefix: false, hidePostfix: false };
     }
     const stored = occurrence.fields[field.id];
+    let value, flow = "in";
     if (stored && typeof stored === "object" && "value" in stored) {
-      return {
-        value: stored.value,
-        flow: stored.flow || "in",
-        hideName: stored.hideName === true,
-        hidePrefix: stored.hidePrefix === true,
-        hidePostfix: stored.hidePostfix === true,
-      };
+      value = stored.value;
+      flow = stored.flow || "in";
+    } else {
+      value = stored;
+      flow = field?.meta?.flow || "in";
     }
-    return { value: stored, flow: field?.meta?.flow || "in", hideName: false, hidePrefix: false, hidePostfix: false };
-  }, [occurrence?.fields, field?.id, field?.meta?.flow]);
+    // Auto-stamp from filter when set + stored is empty.
+    if ((value == null || value === "") && field?.meta?.autoStampFromFilter === true) {
+      const eff = getEffectiveFilterForOccurrence(occurrence, {
+        grid: { activeFilterValues: gridFilters || {} },
+        occurrencesById,
+      });
+      const fromFilter = eff?.[field.id];
+      if (fromFilter != null && fromFilter !== "") {
+        value = (typeof fromFilter === "object" && "value" in fromFilter) ? fromFilter.value : fromFilter;
+      }
+    }
+    return {
+      value,
+      flow,
+      hideName: stored?.hideName === true,
+      hidePrefix: stored?.hidePrefix === true,
+      hidePostfix: stored?.hidePostfix === true,
+    };
+  }, [occurrence, occurrencesById, gridFilters, field?.id, field?.meta?.flow, field?.meta?.autoStampFromFilter]);
 
   // Computed result from operation executor
   const computedResult = useMemo(() => {
@@ -196,6 +221,7 @@ function FieldRenderer({
           <Field
             field={effectiveField}
             binding={binding}
+            hostOccurrence={occurrence}
             value={displayValue}
             target={computedTarget}
             displayRule={computedDisplayRule}
@@ -237,6 +263,7 @@ function FieldRenderer({
       <Field
         field={effectiveField}
         binding={binding}
+        hostOccurrence={occurrence}
         value={inputValue}
         displayRule={computedDisplayRule}
         compact={compact}
@@ -256,6 +283,7 @@ function FieldRenderer({
         <Field
           field={effectiveField}
           binding={binding}
+          hostOccurrence={occurrence}
           value={displayValue}
           target={computedTarget}
           displayRule={computedDisplayRule}
@@ -269,6 +297,7 @@ function FieldRenderer({
         <Field
           field={effectiveField}
           binding={binding}
+          hostOccurrence={occurrence}
           value={inputValue}
           flow={currentFlow}
           onCommit={handleCommit}

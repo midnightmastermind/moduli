@@ -12,7 +12,7 @@
 // inside the dropdown panel.
 
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect } from "react";
-import { MousePointer2, Hand, Pencil, Square, Circle, Minus, Eraser, Undo2, Redo2, ChevronUp, ChevronDown, Crosshair, Link2 } from "lucide-react";
+import { MousePointer2, Hand, Pencil, Highlighter, PaintBucket, Square, Circle, Minus, Eraser, Undo2, Redo2, ChevronUp, ChevronDown, Crosshair, Link2, Type } from "lucide-react";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useMobileDetect } from "../hooks/useMobileDetect";
 
@@ -23,15 +23,25 @@ const CANVAS_WORLD_SIZE = 4000;
 // ============================================================
 // CANVAS DRAW SECTION — draw toolbar + HTML5 canvas overlay + floating cards
 // ============================================================
+// Drawing-mode tools — left-to-right. Select + grab are split off as
+// TRAILING_TOOLS so they render on the right side of the toolbar next
+// to the center button (per #5 spec: "move the Select/Hand tool to the
+// right side of the toolbar next to the center").
 const DRAW_TOOLS = [
-  { id: "select",  icon: MousePointer2, title: "Select / move cards" },
+  { id: "connect",     icon: Link2,         title: "Connect cards (drag card → card)" },
+  { id: "rect-link",   icon: Square,        title: "Linked rectangle — groups occurrences inside as children" },
+  { id: "circle-link", icon: Circle,        title: "Linked ellipse — groups occurrences inside as children" },
+  { id: "pen",         icon: Pencil,        title: "Freehand pen — crisp thin lines" },
+  { id: "marker",      icon: Highlighter,   title: "Marker — thicker, semi-transparent" },
+  { id: "fill",        icon: PaintBucket,   title: "Fill canvas background with current color" },
+  { id: "line",        icon: Minus,         title: "Straight line" },
+  { id: "rect",        icon: Square,        title: "Rectangle (visual only)" },
+  { id: "circle",      icon: Circle,        title: "Ellipse (visual only)" },
+  { id: "eraser",      icon: Eraser,        title: "Eraser" },
+];
+const TRAILING_TOOLS = [
   { id: "grab",    icon: Hand,          title: "Grab to pan" },
-  { id: "connect", icon: Link2,         title: "Connect cards (drag card → card)" },
-  { id: "pen",     icon: Pencil,        title: "Freehand pen" },
-  { id: "line",    icon: Minus,         title: "Straight line" },
-  { id: "rect",    icon: Square,        title: "Rectangle" },
-  { id: "circle",  icon: Circle,        title: "Ellipse" },
-  { id: "eraser",  icon: Eraser,        title: "Eraser" },
+  { id: "select",  icon: MousePointer2, title: "Select / move cards" },
 ];
 
 const DRAW_COLORS = ["#e2e8f0", "#f87171", "#fb923c", "#facc15", "#4ade80", "#38bdf8", "#818cf8", "#e879f9"];
@@ -39,18 +49,31 @@ const DRAW_SIZES = [2, 4, 8, 16];
 
 function renderStrokes(ctx, strokes) {
   const prev = ctx.globalCompositeOperation;
+  const prevAlpha = ctx.globalAlpha;
   for (const s of strokes) {
     ctx.strokeStyle = s.color;
     ctx.lineWidth = s.width;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+    ctx.globalAlpha = 1;
     if (s.tool === "eraser") {
       ctx.globalCompositeOperation = "destination-out";
       ctx.lineWidth = s.width;
+    } else if (s.tool === "marker") {
+      // Marker — semi-transparent + multiply blend so overlapping strokes
+      // darken naturally like a real highlighter / brush.
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 0.55;
     } else {
       ctx.globalCompositeOperation = "source-over";
     }
-    if (s.tool === "pen" || s.tool === "eraser") {
+    if (s.tool === "fill") {
+      // Fill stroke is a full-canvas color wash committed at fire time.
+      ctx.fillStyle = s.color;
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      continue;
+    }
+    if (s.tool === "pen" || s.tool === "marker" || s.tool === "eraser") {
       if (!s.points || s.points.length < 1) continue;
       ctx.beginPath();
       ctx.moveTo(s.points[0].x, s.points[0].y);
@@ -73,6 +96,44 @@ function renderStrokes(ctx, strokes) {
     }
   }
   ctx.globalCompositeOperation = prev;
+  ctx.globalAlpha = prevAlpha;
+}
+
+// Inline-rename row for a canvas layer in the layers dropdown. Single
+// click → set active; double-click → enter rename mode; Enter / blur
+// commits, Escape cancels. Per #51 layer system follow-up.
+function LayerNameInput({ layer, fallbackName, onSelect, onRename }) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(layer?.name || fallbackName || "");
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => { onRename?.(draft.trim() || fallbackName); setEditing(false); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") { setDraft(layer?.name || fallbackName); setEditing(false); }
+        }}
+        style={{
+          flex: 1, padding: "1px 4px", borderRadius: 3,
+          background: "var(--input-bg)", border: "1px solid var(--input-border)",
+          color: "var(--text-primary)", fontSize: 10, fontFamily: "var(--font-mono)", outline: "none",
+        }}
+      />
+    );
+  }
+  return (
+    <button
+      title="Click to set active · Double-click to rename"
+      onClick={onSelect}
+      onDoubleClick={() => { setDraft(layer?.name || fallbackName); setEditing(true); }}
+      style={{ flex: 1, textAlign: "left", background: "none", border: "none", padding: "1px 3px", cursor: "pointer", color: "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-mono)" }}
+    >
+      {layer?.name || fallbackName}
+    </button>
+  );
 }
 
 export const CanvasContent = React.memo(function CanvasContent({
@@ -85,6 +146,41 @@ export const CanvasContent = React.memo(function CanvasContent({
   const [drawColor, setDrawColor] = useState("#e2e8f0");
   const [drawSize, setDrawSize] = useState(2);
   const [strokes, setStrokes] = useState(() => containerOccurrence?.meta?.drawData || []);
+  // Canvas layers (task #51 follow-up). Each layer has an id, name,
+  // visibility flag. Strokes carry an optional `layerId` — strokes
+  // without one are treated as belonging to the default layer (so
+  // pre-layer canvases keep rendering). The active layer is where new
+  // strokes land. Persisted on `containerOccurrence.meta.layers`.
+  const DEFAULT_LAYER = { id: "default", name: "Layer 1", visible: true };
+  const [layers, setLayers] = useState(() => {
+    const stored = containerOccurrence?.meta?.layers;
+    if (Array.isArray(stored) && stored.length > 0) return stored;
+    return [DEFAULT_LAYER];
+  });
+  const [activeLayerId, setActiveLayerId] = useState(() => {
+    const stored = containerOccurrence?.meta?.layers;
+    if (Array.isArray(stored) && stored.length > 0) return stored[0].id;
+    return "default";
+  });
+  const [layersOpen, setLayersOpen] = useState(false);
+  // Linked shapes (#5 spec — linked-rect / linked-circle). Each entry:
+  //   { id, kind: "rect"|"circle", x1, y1, x2, y2 }
+  // Persisted on containerOccurrence.meta.linkedShapes. Children are
+  // computed at render time: any occurrence whose card center sits
+  // inside the shape's bbox. Auto-rendered with fainter connection
+  // lines from the shape's center to each child.
+  const [linkedShapes, setLinkedShapes] = useState(
+    () => containerOccurrence?.meta?.linkedShapes || []
+  );
+  // In-progress linked-shape draw (rect-link / circle-link tools).
+  // { kind, x1, y1, x2, y2 } in world coords. Null when not drawing.
+  const [shapeDraft, setShapeDraft] = useState(null);
+  // Group-drag state (#5 spec line 628): pointer-pressed on a linked
+  // shape with the select tool → drag → both the shape AND every
+  // contained occurrence (snapshotted at drag-start) move by the same
+  // delta. Shape: { shapeId, startX, startY, dx, dy, children: [{occId, x, y}] }.
+  // Children move on RELEASE (avoid socket spam during the drag).
+  const [shapeDragMove, setShapeDragMove] = useState(null);
   // Unified undo / redo. Each entry: { type, payload }
   //   "stroke-add"  — payload is the stroke object (push at end of `strokes`)
   //   "edge-add"    — payload is the edge object (push at end of `edges`)
@@ -101,6 +197,21 @@ export const CanvasContent = React.memo(function CanvasContent({
   // In-progress connection drag (connect tool only): { fromOccId,
   // startX, startY, x, y } in world coords. Null when not dragging.
   const [connectDrag, setConnectDrag] = useState(null);
+  // Endpoint-drag state (task #5 link tools follow-up). When the user
+  // pointer-presses an edge endpoint ball with the select tool, this
+  // tracks the drag; on pointer-up we re-target the endpoint to the
+  // occurrence under the cursor (or cancel if dropped on empty space).
+  // Shape: { edgeId, endpoint: "from"|"to", x, y } in world coords.
+  const [edgeDrag, setEdgeDrag] = useState(null);
+  // Edge midpoint drag — re-shape the bezier curve by dragging the
+  // midpoint ball (select tool). Persists as `edge.cpOffset = {dx, dy}`.
+  // Shape: { edgeId, startX, startY, dx, dy }.
+  const [edgeCurveDrag, setEdgeCurveDrag] = useState(null);
+  // Edge label inline editor (#5 follow-up: typed labels on edges,
+  // foundation for the LATER "link data semantics" item). Click an
+  // existing label in select mode → inline input; commit on blur/enter.
+  // Shape: { edgeId, draft } | null
+  const [edgeLabelEdit, setEdgeLabelEdit] = useState(null);
   // Tick that bumps when a card position changes so the SVG edge layer
   // re-reads card center coords. Cheap (a number); no DOM measurement
   // until render time.
@@ -249,6 +360,19 @@ export const CanvasContent = React.memo(function CanvasContent({
     setEdges(containerOccurrence?.meta?.edges || []);
   }, [containerOccurrence?.id, containerOccurrence?.meta?.edges]);
 
+  // Strokes filtered by visible layers. Layer-less strokes (pre-layers
+  // canvases or strokes drawn before the layer was added) always show.
+  const visibleLayerIds = useMemo(() => {
+    const set = new Set();
+    for (const l of layers) {
+      if (l?.visible !== false) set.add(l.id);
+    }
+    return set;
+  }, [layers]);
+  const visibleStrokes = useMemo(() => {
+    return strokes.filter(s => !s.layerId || visibleLayerIds.has(s.layerId));
+  }, [strokes, visibleLayerIds]);
+
   // Size the drawing canvas to the world size once on mount.
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -256,17 +380,17 @@ export const CanvasContent = React.memo(function CanvasContent({
     if (canvas.width !== CANVAS_WORLD_SIZE) canvas.width = CANVAS_WORLD_SIZE;
     if (canvas.height !== CANVAS_WORLD_SIZE) canvas.height = CANVAS_WORLD_SIZE;
     const ctx = canvas.getContext("2d");
-    renderStrokes(ctx, strokesRef.current);
+    renderStrokes(ctx, visibleStrokes);
   }, []);
 
-  // Re-render strokes on change
+  // Re-render strokes on change (filter by visible layers).
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canvas.width) return;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    renderStrokes(ctx, strokes);
-  }, [strokes]);
+    renderStrokes(ctx, visibleStrokes);
+  }, [visibleStrokes]);
 
   const getPos = useCallback((e) => {
     const rect = canvasRef.current.getBoundingClientRect();
@@ -285,6 +409,30 @@ export const CanvasContent = React.memo(function CanvasContent({
         occurrence: {
           id: containerOccurrence.id,
           meta: { ...(containerOccurrence.meta || {}), drawData: newStrokes },
+        },
+        emit: true });
+    }
+  }, [containerOccurrence, dispatch, socket]);
+
+  const saveLinkedShapes = useCallback((next) => {
+    setLinkedShapes(next);
+    if (containerOccurrence?.id) {
+      CommitHelpers.updateOccurrence({ dispatch, socket,
+        occurrence: {
+          id: containerOccurrence.id,
+          meta: { ...(containerOccurrence.meta || {}), linkedShapes: next },
+        },
+        emit: true });
+    }
+  }, [containerOccurrence, dispatch, socket]);
+
+  const saveLayers = useCallback((nextLayers) => {
+    setLayers(nextLayers);
+    if (containerOccurrence?.id) {
+      CommitHelpers.updateOccurrence({ dispatch, socket,
+        occurrence: {
+          id: containerOccurrence.id,
+          meta: { ...(containerOccurrence.meta || {}), layers: nextLayers },
         },
         emit: true });
     }
@@ -543,11 +691,26 @@ export const CanvasContent = React.memo(function CanvasContent({
       e.currentTarget.setPointerCapture(e.pointerId);
       return;
     }
+    // Linked-shape tools (#5): drag a rectangle / ellipse that persists
+    // as a `linkedShape` entry. On release we add it to the persisted
+    // linkedShapes; geometric containment + auto-connect render happens
+    // each frame against the live shape bbox. When the active layer is
+    // locked, suppress draw — matches stroke-commit behavior.
+    if (drawTool === "rect-link" || drawTool === "circle-link") {
+      const activeLayer = layers.find(l => l.id === activeLayerId);
+      if (activeLayer?.locked) return;
+      e.stopPropagation();
+      const pos = getPos(e);
+      const kind = drawTool === "circle-link" ? "circle" : "rect";
+      setShapeDraft({ kind, x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y });
+      e.currentTarget.setPointerCapture(e.pointerId);
+      return;
+    }
     e.stopPropagation();
     isDrawing.current = true;
     currentPath.current = [getPos(e)];
     e.currentTarget.setPointerCapture(e.pointerId);
-  }, [drawTool, getPos, hitTestOccId]);
+  }, [drawTool, getPos, hitTestOccId, activeLayerId, layers]);
 
   const onWorldPointerMove = useCallback((e) => {
     // Connect tool: update the in-flight edge endpoint to the current
@@ -557,6 +720,31 @@ export const CanvasContent = React.memo(function CanvasContent({
       setConnectDrag(d => d ? { ...d, x: pos.x, y: pos.y } : d);
       return;
     }
+    // Edge endpoint re-snap (#5 follow-up): same pattern as connectDrag.
+    if (edgeDrag) {
+      const pos = getPos(e);
+      setEdgeDrag(d => d ? { ...d, x: pos.x, y: pos.y } : d);
+      return;
+    }
+    // Edge midpoint curve-drag.
+    if (edgeCurveDrag) {
+      const pos = getPos(e);
+      setEdgeCurveDrag(d => d ? { ...d, dx: pos.x - d.startX, dy: pos.y - d.startY } : d);
+      return;
+    }
+    // Linked-shape draft — update the bottom-right corner so the SVG
+    // overlay can render a live preview rect / ellipse.
+    if (shapeDraft) {
+      const pos = getPos(e);
+      setShapeDraft(d => d ? { ...d, x2: pos.x, y2: pos.y } : d);
+      return;
+    }
+    // Linked-shape group-drag — track delta. Children commit on release.
+    if (shapeDragMove) {
+      const pos = getPos(e);
+      setShapeDragMove(d => d ? { ...d, dx: pos.x - d.startX, dy: pos.y - d.startY } : d);
+      return;
+    }
     if (!isDrawing.current) return;
     const pos = getPos(e);
     const canvas = canvasRef.current;
@@ -564,17 +752,26 @@ export const CanvasContent = React.memo(function CanvasContent({
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     renderStrokes(ctx, strokesRef.current);
     // Live preview of current stroke
+    const prevAlpha = ctx.globalAlpha;
     ctx.strokeStyle = drawTool === "eraser" ? "rgba(200,200,200,0.4)" : drawColor;
-    ctx.lineWidth = drawTool === "eraser" ? drawSize * 3 : drawSize;
+    if (drawTool === "marker") {
+      ctx.lineWidth = drawSize * 4;
+      ctx.globalAlpha = 0.55;
+    } else if (drawTool === "eraser") {
+      ctx.lineWidth = drawSize * 3;
+    } else {
+      ctx.lineWidth = drawSize;
+    }
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.globalCompositeOperation = drawTool === "eraser" ? "destination-out" : "source-over";
-    if (drawTool === "pen" || drawTool === "eraser") {
+    if (drawTool === "pen" || drawTool === "marker" || drawTool === "eraser") {
       currentPath.current.push(pos);
       ctx.beginPath();
       ctx.moveTo(currentPath.current[0].x, currentPath.current[0].y);
       for (let i = 1; i < currentPath.current.length; i++) ctx.lineTo(currentPath.current[i].x, currentPath.current[i].y);
       ctx.stroke();
+      ctx.globalAlpha = prevAlpha;
     } else {
       const s = currentPath.current[0];
       if (drawTool === "line") {
@@ -591,9 +788,106 @@ export const CanvasContent = React.memo(function CanvasContent({
       }
     }
     ctx.globalCompositeOperation = "source-over";
-  }, [drawTool, drawColor, drawSize, getPos, connectDrag]);
+  }, [drawTool, drawColor, drawSize, getPos, connectDrag, edgeDrag, edgeCurveDrag, shapeDraft, shapeDragMove]);
 
   const onWorldPointerUp = useCallback((e) => {
+    // Linked-shape group-drag commit. Persist shape's new coords AND
+    // each child occurrence's meta.x/y shifted by the same delta.
+    if (shapeDragMove) {
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      const { shapeId, dx, dy, children } = shapeDragMove;
+      if (dx !== 0 || dy !== 0) {
+        const nextShapes = linkedShapes.map(s => s.id === shapeId
+          ? { ...s, x1: s.x1 + dx, y1: s.y1 + dy, x2: s.x2 + dx, y2: s.y2 + dy }
+          : s
+        );
+        saveLinkedShapes(nextShapes);
+        // Move each captured child by the same delta. Read each
+        // occurrence's current meta.x/y from the live itemsWithOccurrences
+        // list at commit time so concurrent edits don't get clobbered.
+        for (const ch of children) {
+          const item = itemsWithOccurrences.find(it => it.occurrence?.id === ch.occId);
+          const occ = item?.occurrence;
+          if (!occ) continue;
+          const curX = Number(occ.meta?.x) || 0;
+          const curY = Number(occ.meta?.y) || 0;
+          CommitHelpers.updateOccurrence({
+            dispatch, socket,
+            occurrence: {
+              id: ch.occId,
+              meta: { ...(occ.meta || {}), x: curX + dx, y: curY + dy },
+            },
+            emit: true,
+          });
+        }
+      }
+      setShapeDragMove(null);
+      return;
+    }
+    // Linked-shape draft commit — persist the shape unless it's degenerate.
+    if (shapeDraft) {
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      const w = Math.abs(shapeDraft.x2 - shapeDraft.x1);
+      const h = Math.abs(shapeDraft.y2 - shapeDraft.y1);
+      if (w >= 8 && h >= 8) {
+        const shape = {
+          id: `ls-${shapeDraft.kind}-${Date.now()}`,
+          kind: shapeDraft.kind,
+          x1: Math.min(shapeDraft.x1, shapeDraft.x2),
+          y1: Math.min(shapeDraft.y1, shapeDraft.y2),
+          x2: Math.max(shapeDraft.x1, shapeDraft.x2),
+          y2: Math.max(shapeDraft.y1, shapeDraft.y2),
+        };
+        saveLinkedShapes([...linkedShapes, shape]);
+      }
+      setShapeDraft(null);
+      return;
+    }
+    // Edge midpoint curve-drag commit — persist cpOffset on the edge.
+    if (edgeCurveDrag) {
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      const { edgeId, dx, dy } = edgeCurveDrag;
+      const prev = edges.find(ed => ed.id === edgeId);
+      if (prev) {
+        const baseX = Number(prev.cpOffset?.dx) || 0;
+        const baseY = Number(prev.cpOffset?.dy) || 0;
+        const next = edges.map(ed => ed.id === edgeId
+          ? { ...ed, cpOffset: { dx: baseX + dx, dy: baseY + dy } }
+          : ed
+        );
+        saveEdges(next);
+      }
+      setEdgeCurveDrag(null);
+      return;
+    }
+    // Edge endpoint re-snap commit. If dropped on an occurrence different
+    // from the OTHER endpoint, retarget the dragged endpoint; otherwise
+    // discard the drag (occurrence unchanged).
+    if (edgeDrag) {
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      const target = hitTestOccId(e.clientX, e.clientY);
+      const edge = edges.find(ed => ed.id === edgeDrag.edgeId);
+      if (edge && target) {
+        const otherEnd = edgeDrag.endpoint === "from" ? edge.to : edge.from;
+        if (target !== otherEnd) {
+          // Dedup — don't end up with an exact duplicate of an existing edge.
+          const wouldDup = edges.some(ed =>
+            ed.id !== edge.id &&
+            ((edgeDrag.endpoint === "from" && ed.from === target && ed.to === edge.to) ||
+             (edgeDrag.endpoint === "to"   && ed.from === edge.from && ed.to === target))
+          );
+          if (!wouldDup) {
+            const next = edges.map(ed => ed.id === edge.id
+              ? { ...ed, [edgeDrag.endpoint]: target }
+              : ed
+            );
+            saveEdges(next);
+          }
+        }
+      }
+      setEdgeDrag(null);
+      return;
+    }
     // Connect tool: drop endpoint on the target card. If the drop lands
     // on a different card, persist a new edge. Same-card drops + drops
     // on empty space discard the drag silently.
@@ -622,8 +916,16 @@ export const CanvasContent = React.memo(function CanvasContent({
     const pos = getPos(e);
     const s = currentPath.current[0];
     let newStroke;
-    if (drawTool === "pen" || drawTool === "eraser") {
-      newStroke = { tool: drawTool, color: drawColor, width: drawTool === "eraser" ? drawSize * 3 : drawSize, points: [...currentPath.current] };
+    if (drawTool === "pen" || drawTool === "marker" || drawTool === "eraser") {
+      const w = drawTool === "eraser" ? drawSize * 3
+              : drawTool === "marker" ? drawSize * 4
+              : drawSize;
+      newStroke = { tool: drawTool, color: drawColor, width: w, points: [...currentPath.current] };
+    } else if (drawTool === "fill") {
+      // Fill is committed on click (a single-point gesture). Wraps the
+      // entire canvas — undo/redo work through the stroke stack like
+      // everything else.
+      newStroke = { tool: "fill", color: drawColor, width: 0 };
     } else if (drawTool === "line") {
       newStroke = { tool: drawTool, color: drawColor, width: drawSize, x1: s.x, y1: s.y, x2: pos.x, y2: pos.y };
     } else if (drawTool === "rect") {
@@ -633,6 +935,15 @@ export const CanvasContent = React.memo(function CanvasContent({
     }
     currentPath.current = [];
     if (newStroke) {
+      // Stamp the active layer so visibility filtering applies. Strokes
+      // drawn before the layer was added pass through unfiltered (no
+      // layerId = always visible). When the active layer is locked,
+      // discard the stroke — the lock prevents writes to it (#51 layers).
+      const activeLayer = layers.find(l => l.id === activeLayerId);
+      if (activeLayer?.locked) {
+        return; // don't commit
+      }
+      if (activeLayerId) newStroke.layerId = activeLayerId;
       // New stroke clears any pending redo branch and pushes onto the
       // unified undo history so Cmd-Z rolls back the most recent action
       // regardless of type.
@@ -640,7 +951,7 @@ export const CanvasContent = React.memo(function CanvasContent({
       setHistory(h => [...h, { type: "stroke-add", payload: newStroke }]);
       saveStrokes([...strokesRef.current, newStroke]);
     }
-  }, [drawTool, drawColor, drawSize, getPos, saveStrokes, connectDrag, edges, hitTestOccId, saveEdges]);
+  }, [drawTool, drawColor, drawSize, activeLayerId, layers, getPos, saveStrokes, connectDrag, edgeDrag, edgeCurveDrag, shapeDraft, shapeDragMove, linkedShapes, saveLinkedShapes, itemsWithOccurrences, dispatch, socket, edges, hitTestOccId, saveEdges]);
 
   // dragover fires continuously while an item is being dragged over the
   // surface. When the pointer is within EDGE px of an edge we kick off a
@@ -773,14 +1084,37 @@ export const CanvasContent = React.memo(function CanvasContent({
   }, [minimapScale]);
 
   // ─── Toolbar content — shared between desktop bar + mobile dropdown ──────
+  const renderToolList = (list) => list.map(t => {
+    // Linked-variant tools (connect / *-link) get a small chain-link
+    // badge overlay in the bottom-right corner to visually distinguish
+    // from their plain drawing counterparts.
+    const isLinkVariant = t.id === "connect" || t.id.endsWith("-link");
+    return (
+      <button key={t.id} title={t.title} onClick={() => { setDrawTool(t.id); setMobileMenuOpen(false); }}
+        style={{ background: drawTool === t.id ? "rgba(99,102,241,0.25)" : "none", border: drawTool === t.id ? "1px solid rgba(99,102,241,0.5)" : "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: "pointer", color: drawTool === t.id ? "#818cf8" : "var(--text-muted)", display: "flex", alignItems: "center", position: "relative" }}>
+        <t.icon style={{ width: 13, height: 13 }} />
+        {isLinkVariant && (
+          <Link2 style={{
+            width: 7, height: 7,
+            position: "absolute",
+            right: 1, bottom: 1,
+            background: "var(--surface-overlay, rgba(20,22,26,0.95))",
+            color: "#818cf8",
+            borderRadius: 2,
+            padding: 0.5,
+          }} />
+        )}
+      </button>
+    );
+  });
   const toolButtons = (
     <div className="canvas-toolbar-group">
-      {DRAW_TOOLS.map(t => (
-        <button key={t.id} title={t.title} onClick={() => { setDrawTool(t.id); setMobileMenuOpen(false); }}
-          style={{ background: drawTool === t.id ? "rgba(99,102,241,0.25)" : "none", border: drawTool === t.id ? "1px solid rgba(99,102,241,0.5)" : "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: "pointer", color: drawTool === t.id ? "#818cf8" : "var(--text-muted)", display: "flex", alignItems: "center" }}>
-          <t.icon style={{ width: 13, height: 13 }} />
-        </button>
-      ))}
+      {renderToolList(DRAW_TOOLS)}
+    </div>
+  );
+  const trailingToolButtons = (
+    <div className="canvas-toolbar-group">
+      {renderToolList(TRAILING_TOOLS)}
     </div>
   );
   const colorSwatches = (
@@ -790,6 +1124,27 @@ export const CanvasContent = React.memo(function CanvasContent({
           title={c}
           style={{ width: 14, height: 14, borderRadius: "50%", background: c, border: drawColor === c ? "2px solid #818cf8" : "1px solid rgba(255,255,255,0.15)", cursor: "pointer", padding: 0, flexShrink: 0 }} />
       ))}
+      {/* Native color input for arbitrary picks. The swatch list above stays
+          as a quick-pick; this is the "open the full picker" affordance. */}
+      <label
+        title="Pick any color"
+        style={{
+          width: 16, height: 16, borderRadius: "50%",
+          background: `conic-gradient(red, yellow, lime, cyan, blue, magenta, red)`,
+          border: "1px solid rgba(255,255,255,0.25)",
+          cursor: "pointer", padding: 0, flexShrink: 0,
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          overflow: "hidden",
+        }}
+      >
+        <input
+          type="color"
+          value={drawColor}
+          onChange={(e) => { setDrawColor(e.target.value); if (drawTool === "select" || drawTool === "grab") setDrawTool("pen"); }}
+          style={{ opacity: 0, width: 16, height: 16, cursor: "pointer", padding: 0, border: "none" }}
+          aria-label="Pick any color"
+        />
+      </label>
     </div>
   );
   const sizeButtons = (
@@ -801,6 +1156,165 @@ export const CanvasContent = React.memo(function CanvasContent({
           {sz}
         </button>
       ))}
+    </div>
+  );
+
+  // Layers dropdown (task #51 follow-up). Click the button → small popout
+  // with per-layer row: visibility toggle • active-layer radio • name •
+  // delete. + button at bottom mints a new layer; new strokes land on it.
+  const layersButton = (
+    <div className="canvas-toolbar-group" style={{ position: "relative" }}>
+      <button
+        title={`Layers (${layers.length})`}
+        onClick={() => setLayersOpen(o => !o)}
+        style={{
+          background: layersOpen ? "rgba(99,102,241,0.2)" : "none",
+          border: layersOpen ? "1px solid rgba(99,102,241,0.4)" : "1px solid transparent",
+          borderRadius: 4, padding: "2px 6px", cursor: "pointer",
+          color: "var(--text-muted)", fontSize: 9, fontFamily: "var(--font-mono)",
+          display: "inline-flex", alignItems: "center", gap: 3,
+        }}
+      >
+        ≡ {layers.length}
+      </button>
+      {layersOpen ? (
+        <>
+          <div onClick={() => setLayersOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
+          <div style={{
+            position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 100,
+            minWidth: 180, padding: 6, borderRadius: 5,
+            background: "var(--surface, #1f2125)",
+            border: "1px solid var(--border-default)",
+            boxShadow: "0 6px 18px rgba(0,0,0,0.45)",
+            display: "flex", flexDirection: "column", gap: 3,
+            fontSize: 10, fontFamily: "var(--font-mono)",
+          }}>
+            <div style={{ fontSize: 9, color: "var(--text-faint)", marginBottom: 2 }}>Layers</div>
+            {layers.map((l, idx) => (
+              <div key={l.id} style={{
+                display: "flex", alignItems: "center", gap: 4,
+                padding: "2px 4px", borderRadius: 3,
+                background: l.id === activeLayerId ? "rgba(99,102,241,0.15)" : "transparent",
+              }}>
+                <button
+                  title={l.visible !== false ? "Hide layer" : "Show layer"}
+                  onClick={() => {
+                    const next = layers.map((x, i) => i === idx ? { ...x, visible: !(x.visible !== false) } : x);
+                    saveLayers(next);
+                  }}
+                  style={{ background: "none", border: "1px solid transparent", borderRadius: 3, padding: "1px 3px", cursor: "pointer", color: l.visible !== false ? "var(--text-primary)" : "var(--text-faint)" }}
+                >
+                  {l.visible !== false ? "●" : "○"}
+                </button>
+                <button
+                  title={l.locked ? "Unlock layer (allow new strokes)" : "Lock layer (block new strokes here)"}
+                  onClick={() => {
+                    const next = layers.map((x, i) => i === idx ? { ...x, locked: !x.locked } : x);
+                    saveLayers(next);
+                  }}
+                  style={{ background: "none", border: "1px solid transparent", borderRadius: 3, padding: "1px 3px", cursor: "pointer", color: l.locked ? "rgb(248,113,113)" : "var(--text-faint)", fontSize: 10 }}
+                >
+                  {l.locked ? "🔒" : "🔓"}
+                </button>
+                <LayerNameInput
+                  layer={l}
+                  fallbackName={`Layer ${idx + 1}`}
+                  onSelect={() => {
+                    setActiveLayerId(l.id);
+                    // Drawing into a hidden layer would confuse the user
+                    // (strokes vanish on commit). Auto-show on activate.
+                    if (l.visible === false) {
+                      const next = layers.map((x, i) => i === idx ? { ...x, visible: true } : x);
+                      saveLayers(next);
+                    }
+                  }}
+                  onRename={(newName) => {
+                    const next = layers.map((x, i) => i === idx ? { ...x, name: newName || `Layer ${idx + 1}` } : x);
+                    saveLayers(next);
+                  }}
+                />
+                {/* Reorder arrows — change layer order which dictates
+                    render z-order (earlier-listed layers render first / underneath). */}
+                <button
+                  title="Move up (renders below)"
+                  disabled={idx === 0}
+                  onClick={() => {
+                    if (idx === 0) return;
+                    const next = layers.slice();
+                    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                    saveLayers(next);
+                  }}
+                  style={{ background: "none", border: "none", borderRadius: 3, padding: "1px 3px", cursor: idx === 0 ? "not-allowed" : "pointer", color: "var(--text-faint)", fontSize: 10, opacity: idx === 0 ? 0.3 : 1 }}
+                >▲</button>
+                <button
+                  title="Move down (renders on top)"
+                  disabled={idx === layers.length - 1}
+                  onClick={() => {
+                    if (idx === layers.length - 1) return;
+                    const next = layers.slice();
+                    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                    saveLayers(next);
+                  }}
+                  style={{ background: "none", border: "none", borderRadius: 3, padding: "1px 3px", cursor: idx === layers.length - 1 ? "not-allowed" : "pointer", color: "var(--text-faint)", fontSize: 10, opacity: idx === layers.length - 1 ? 0.3 : 1 }}
+                >▼</button>
+                <button
+                  title="Duplicate layer (clones strokes assigned to this layer)"
+                  onClick={() => {
+                    const newId = `layer-${Date.now()}`;
+                    const newLayer = { id: newId, name: `${l.name || `Layer ${idx + 1}`} (copy)`, visible: l.visible !== false };
+                    const nextLayers = [...layers.slice(0, idx + 1), newLayer, ...layers.slice(idx + 1)];
+                    saveLayers(nextLayers);
+                    // Clone strokes on this layer to the new layer
+                    const cloned = strokes
+                      .filter(s => s.layerId === l.id)
+                      .map(s => ({ ...s, layerId: newId }));
+                    if (cloned.length > 0) {
+                      saveStrokes([...strokes, ...cloned]);
+                    }
+                    setActiveLayerId(newId);
+                  }}
+                  style={{ background: "none", border: "none", borderRadius: 3, padding: "1px 3px", cursor: "pointer", color: "var(--text-faint)", fontSize: 10 }}
+                >⎘</button>
+                {layers.length > 1 ? (
+                  <button
+                    title="Delete layer (strokes reassigned to the next layer)"
+                    onClick={() => {
+                      // Pick a fallback layer — prefer the previous sibling
+                      // so reassigned strokes land on a visible neighbor.
+                      const fallback = layers[idx - 1] || layers[idx + 1];
+                      const fallbackId = fallback?.id || "default";
+                      const nextLayers = layers.filter((_, i) => i !== idx);
+                      saveLayers(nextLayers);
+                      // Reassign strokes from the deleted layer to the
+                      // fallback so they don't vanish from view.
+                      const hasOrphans = strokes.some(s => s.layerId === l.id);
+                      if (hasOrphans) {
+                        const reassigned = strokes.map(s =>
+                          s.layerId === l.id ? { ...s, layerId: fallbackId } : s
+                        );
+                        saveStrokes(reassigned);
+                      }
+                      if (activeLayerId === l.id) setActiveLayerId(fallbackId);
+                    }}
+                    style={{ background: "none", border: "none", borderRadius: 3, padding: "1px 3px", cursor: "pointer", color: "var(--text-faint)", fontSize: 11 }}
+                  >×</button>
+                ) : null}
+              </div>
+            ))}
+            <button
+              onClick={() => {
+                const id = `layer-${Date.now()}`;
+                const next = [...layers, { id, name: `Layer ${layers.length + 1}`, visible: true }];
+                saveLayers(next);
+                setActiveLayerId(id);
+              }}
+              style={{ marginTop: 4, padding: "3px 6px", borderRadius: 3, background: "var(--input-bg)", border: "1px dashed var(--border-default)", color: "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-mono)", cursor: "pointer" }}
+            >
+              + New layer
+            </button>
+          </div>
+        </>
+      ) : null}
     </div>
   );
   const historyButtons = (
@@ -820,6 +1334,42 @@ export const CanvasContent = React.memo(function CanvasContent({
       <button onClick={() => { snapToCenter(); setMobileMenuOpen(false); }} title="Snap view to center"
         style={{ background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center" }}>
         <Crosshair style={{ width: 12, height: 12 }} />
+      </button>
+    </div>
+  );
+  // Quick-add a new textblock at canvas center (#6 spec line 645:
+  // "Canvas-toolbar shortcut for new textblock").
+  const newTextblockButton = (
+    <div className="canvas-toolbar-group">
+      <button
+        onClick={() => {
+          if (!containerOccurrence) return;
+          const res = CommitHelpers.createTextblockInContainer({
+            dispatch, socket,
+            gridId: containerOccurrence.gridId,
+            userId: containerOccurrence.userId,
+            containerOccurrence,
+            label: "",
+          });
+          // Stamp meta.x/y near the canvas viewport center so the
+          // textblock lands somewhere visible.
+          if (res?.occurrenceId) {
+            const surface = surfaceRef.current;
+            const cx = surface ? (surface.scrollLeft + surface.clientWidth / 2) : CANVAS_WORLD_SIZE / 2;
+            const cy = surface ? (surface.scrollTop + surface.clientHeight / 2) : CANVAS_WORLD_SIZE / 2;
+            CommitHelpers.updateOccurrence({
+              dispatch, socket,
+              occurrence: { id: res.occurrenceId, meta: { x: cx, y: cy } },
+              emit: true,
+            });
+          }
+          setMobileMenuOpen(false);
+        }}
+        title="New textblock at canvas center"
+        style={{ background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 2 }}
+      >
+        <Type style={{ width: 12, height: 12 }} />
+        <span style={{ fontSize: 11, fontFamily: "var(--font-mono)" }}>+</span>
       </button>
     </div>
   );
@@ -868,14 +1418,24 @@ export const CanvasContent = React.memo(function CanvasContent({
   };
   // Bezier path between two world points — gentle horizontal control
   // points so curves feel like wires, not straight lines.
-  const edgePath = (a, b) => {
+  const edgePath = (a, b, cpOffset) => {
     if (!a || !b) return "";
     const dx = Math.abs(b.x - a.x);
     const offset = Math.max(40, dx * 0.4);
-    return `M ${a.x} ${a.y} C ${a.x + offset} ${a.y}, ${b.x - offset} ${b.y}, ${b.x} ${b.y}`;
+    const ox = cpOffset?.dx || 0;
+    const oy = cpOffset?.dy || 0;
+    // Bezier control points biased toward each endpoint, then shifted by
+    // the user-set cpOffset so they can grab the midpoint and reshape
+    // the curve. Both control points move by the same offset so the
+    // curve stays roughly symmetric.
+    return `M ${a.x} ${a.y} C ${a.x + offset + ox} ${a.y + oy}, ${b.x - offset + ox} ${b.y + oy}, ${b.x} ${b.y}`;
   };
   const handleEdgeClick = (edgeId) => {
-    if (drawTool !== "connect") return;
+    // Connect tool deletes edges directly on click. Select tool also
+    // deletes (per #5 spec "Delete-from-select"). Other tools are
+    // click-through, but the hit-path doesn't enable pointerEvents for
+    // them anyway.
+    if (drawTool !== "connect" && drawTool !== "select") return;
     const removed = edges.find(e => e.id === edgeId);
     saveEdges(edges.filter(e => e.id !== edgeId));
     if (removed) {
@@ -901,11 +1461,17 @@ export const CanvasContent = React.memo(function CanvasContent({
           {sep}
           {sizeButtons}
           {sep}
+          {layersButton}
+          {sep}
           {historyButtons}
+          {sep}
+          {newTextblockButton}
+          <span style={{ marginLeft: "auto" }} />
+          {trailingToolButtons}
           {sep}
           {centerButton}
           <button onClick={() => setToolbarOpen(false)} title="Hide toolbar"
-            style={{ marginLeft: "auto", background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: "pointer", color: "var(--text-faint)", display: "flex", alignItems: "center" }}>
+            style={{ background: "none", border: "1px solid transparent", borderRadius: 5, padding: "3px 5px", cursor: "pointer", color: "var(--text-faint)", display: "flex", alignItems: "center" }}>
             <ChevronUp style={{ width: 12, height: 12 }} />
           </button>
         </div>
@@ -928,8 +1494,11 @@ export const CanvasContent = React.memo(function CanvasContent({
           {mobileMenuOpen && (
             <div className="canvas-toolbar-dropdown" onPointerDown={e => e.stopPropagation()}>
               <div className="canvas-toolbar-dropdown-row">{toolButtons}</div>
+              <div className="canvas-toolbar-dropdown-row">{trailingToolButtons}</div>
               <div className="canvas-toolbar-dropdown-row">{colorSwatches}</div>
               <div className="canvas-toolbar-dropdown-row">{sizeButtons}</div>
+              <div className="canvas-toolbar-dropdown-row">{layersButton}</div>
+              <div className="canvas-toolbar-dropdown-row">{newTextblockButton}</div>
               <div className="canvas-toolbar-dropdown-row">{historyButtons}</div>
             </div>
           )}
@@ -1047,16 +1616,190 @@ export const CanvasContent = React.memo(function CanvasContent({
               pointerEvents: "none", zIndex: 2,
             }}
           >
+            {/* Linked shapes (#5): rect / ellipse with geometric containment.
+                Children = occurrences whose card center sits inside the shape's
+                bbox. Render each shape + fainter auto-connect line from the
+                shape's center to each child's center. */}
+            {linkedShapes.map((sh) => {
+              const sx = Math.min(sh.x1, sh.x2);
+              const sy = Math.min(sh.y1, sh.y2);
+              const sw = Math.abs(sh.x2 - sh.x1);
+              const sh2 = Math.abs(sh.y2 - sh.y1);
+              const cx = sx + sw / 2;
+              const cy = sy + sh2 / 2;
+              // Find child occurrences whose card center is inside the bbox.
+              const children = itemsWithOccurrences.map(({ occurrence: occ }) => {
+                const c = cardCenterFor(occ?.id);
+                if (!c) return null;
+                if (sh.kind === "circle") {
+                  const rx = sw / 2, ry = sh2 / 2;
+                  if (rx === 0 || ry === 0) return null;
+                  const nx = (c.x - cx) / rx, ny = (c.y - cy) / ry;
+                  if (nx * nx + ny * ny > 1) return null;
+                } else {
+                  if (c.x < sx || c.x > sx + sw || c.y < sy || c.y > sy + sh2) return null;
+                }
+                return { occId: occ.id, center: c };
+              }).filter(Boolean);
+              const isHot = drawTool === "select";
+              const drag = shapeDragMove?.shapeId === sh.id ? shapeDragMove : null;
+              return (
+                <g key={sh.id} transform={drag ? `translate(${drag.dx}, ${drag.dy})` : undefined}>
+                  {sh.kind === "circle" ? (
+                    <ellipse
+                      cx={cx} cy={cy} rx={sw / 2} ry={sh2 / 2}
+                      fill="rgba(129,140,248,0.06)"
+                      stroke="rgba(129,140,248,0.55)"
+                      strokeWidth={1.5}
+                      style={{ pointerEvents: isHot ? "auto" : "none", cursor: isHot ? "grab" : "default" }}
+                      onPointerDown={(e) => {
+                        if (drawTool !== "select") return;
+                        e.stopPropagation();
+                        try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+                        const pos = getPos(e);
+                        setShapeDragMove({
+                          shapeId: sh.id,
+                          startX: pos.x, startY: pos.y,
+                          dx: 0, dy: 0,
+                          children: children.map(c => ({ occId: c.occId, x: c.center.x, y: c.center.y })),
+                        });
+                      }}
+                      onDoubleClick={(e) => {
+                        if (drawTool !== "select") return;
+                        e.stopPropagation();
+                        saveLinkedShapes(linkedShapes.filter(x => x.id !== sh.id));
+                      }}
+                    />
+                  ) : (
+                    <rect
+                      x={sx} y={sy} width={sw} height={sh2}
+                      fill="rgba(129,140,248,0.06)"
+                      stroke="rgba(129,140,248,0.55)"
+                      strokeWidth={1.5}
+                      rx={4}
+                      style={{ pointerEvents: isHot ? "auto" : "none", cursor: isHot ? "grab" : "default" }}
+                      onPointerDown={(e) => {
+                        if (drawTool !== "select") return;
+                        e.stopPropagation();
+                        try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+                        const pos = getPos(e);
+                        setShapeDragMove({
+                          shapeId: sh.id,
+                          startX: pos.x, startY: pos.y,
+                          dx: 0, dy: 0,
+                          children: children.map(c => ({ occId: c.occId, x: c.center.x, y: c.center.y })),
+                        });
+                      }}
+                      onDoubleClick={(e) => {
+                        if (drawTool !== "select") return;
+                        e.stopPropagation();
+                        saveLinkedShapes(linkedShapes.filter(x => x.id !== sh.id));
+                      }}
+                    />
+                  )}
+                  {/* Auto-connect fainter lines from shape center → each child */}
+                  {children.map((ch, i) => (
+                    <line
+                      key={i}
+                      x1={cx} y1={cy} x2={ch.center.x} y2={ch.center.y}
+                      stroke="rgba(129,140,248,0.30)"
+                      strokeWidth={1}
+                      strokeDasharray="4 3"
+                      style={{ pointerEvents: "none" }}
+                    />
+                  ))}
+                  {/* Delete affordance — small ✕ in the top-right of the
+                      shape's bbox when in select mode. More discoverable
+                      than double-click (which is also kept). */}
+                  {isHot && (
+                    <g
+                      style={{ pointerEvents: "auto", cursor: "pointer" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        saveLinkedShapes(linkedShapes.filter(x => x.id !== sh.id));
+                      }}
+                    >
+                      <circle
+                        cx={sx + sw - 8} cy={sy + 8} r={8}
+                        fill="rgba(31,33,37,0.92)"
+                        stroke="rgba(248,113,113,0.55)"
+                        strokeWidth={1}
+                      />
+                      <text
+                        x={sx + sw - 8} y={sy + 11}
+                        textAnchor="middle"
+                        fontSize={10}
+                        fontFamily="var(--font-mono)"
+                        fill="rgba(248,113,113,0.95)"
+                        style={{ pointerEvents: "none", userSelect: "none" }}
+                      >×</text>
+                    </g>
+                  )}
+                </g>
+              );
+            })}
+            {/* Linked-shape draft preview while drawing */}
+            {shapeDraft && (() => {
+              const sx = Math.min(shapeDraft.x1, shapeDraft.x2);
+              const sy = Math.min(shapeDraft.y1, shapeDraft.y2);
+              const sw = Math.abs(shapeDraft.x2 - shapeDraft.x1);
+              const sh2 = Math.abs(shapeDraft.y2 - shapeDraft.y1);
+              if (shapeDraft.kind === "circle") {
+                if (sw < 2 || sh2 < 2) return null;
+                return (
+                  <ellipse
+                    cx={sx + sw / 2} cy={sy + sh2 / 2} rx={sw / 2} ry={sh2 / 2}
+                    fill="rgba(129,140,248,0.06)"
+                    stroke="rgba(129,140,248,0.55)"
+                    strokeWidth={1.5}
+                    strokeDasharray="5 3"
+                    style={{ pointerEvents: "none" }}
+                  />
+                );
+              }
+              return (
+                <rect
+                  x={sx} y={sy} width={sw} height={sh2}
+                  fill="rgba(129,140,248,0.06)"
+                  stroke="rgba(129,140,248,0.55)"
+                  strokeWidth={1.5}
+                  strokeDasharray="5 3"
+                  rx={4}
+                  style={{ pointerEvents: "none" }}
+                />
+              );
+            })()}
             {edges.map((ed) => {
               const a = cardCenterFor(ed.from);
               const b = cardCenterFor(ed.to);
               if (!a || !b) return null;
-              const isHot = drawTool === "connect";
+              // Select tool + connect tool both let the user click an edge
+              // to delete it (#5 spec: "Delete-from-select: with the select
+              // tool, drawn lines + shapes are selectable; selected ones
+              // can be deleted"). Other tools leave edges click-through.
+              const isHot = drawTool === "connect" || drawTool === "select";
+              const showHandles = drawTool === "select";
+              // While THIS edge is being endpoint-dragged, render its
+              // moving endpoint at the drag pointer position instead of
+              // the source card's center.
+              const dragging = edgeDrag?.edgeId === ed.id ? edgeDrag : null;
+              const renderA = dragging?.endpoint === "from" ? { x: dragging.x, y: dragging.y } : a;
+              const renderB = dragging?.endpoint === "to"   ? { x: dragging.x, y: dragging.y } : b;
+              // Effective cpOffset includes any in-progress curve drag delta.
+              const baseCp = ed.cpOffset || { dx: 0, dy: 0 };
+              const curveLive = edgeCurveDrag?.edgeId === ed.id ? edgeCurveDrag : null;
+              const cp = curveLive
+                ? { dx: (baseCp.dx || 0) + curveLive.dx, dy: (baseCp.dy || 0) + curveLive.dy }
+                : baseCp;
+              // Midpoint of the edge — offset by half cpOffset so the ball
+              // tracks the visual midpoint of the curve.
+              const midX = (renderA.x + renderB.x) / 2 + (cp.dx || 0);
+              const midY = (renderA.y + renderB.y) / 2 + (cp.dy || 0);
               return (
                 <g key={ed.id}>
                   {/* Wide invisible hit path so click targeting is forgiving */}
                   <path
-                    d={edgePath(a, b)}
+                    d={edgePath(renderA, renderB, cp)}
                     stroke="transparent"
                     strokeWidth={16}
                     fill="none"
@@ -1064,12 +1807,164 @@ export const CanvasContent = React.memo(function CanvasContent({
                     onClick={(e) => { e.stopPropagation(); handleEdgeClick(ed.id); }}
                   />
                   <path
-                    d={edgePath(a, b)}
+                    d={edgePath(renderA, renderB, cp)}
                     stroke="rgba(129,140,248,0.85)"
                     strokeWidth={2}
+                    strokeDasharray={dragging || curveLive ? "6 4" : undefined}
                     fill="none"
                     style={{ pointerEvents: "none" }}
                   />
+                  {/* Midpoint drag ball — select tool only. Pointer-down
+                      starts a curve-reshape drag; the cpOffset persists
+                      on release. */}
+                  {showHandles && !dragging && (
+                    <circle
+                      cx={midX} cy={midY} r={5}
+                      fill="rgba(129,140,248,0.6)"
+                      stroke="rgba(255,255,255,0.5)"
+                      strokeWidth={1.2}
+                      style={{ cursor: "grab", pointerEvents: "auto" }}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+                        const pos = getPos(e);
+                        setEdgeCurveDrag({ edgeId: ed.id, startX: pos.x, startY: pos.y, dx: 0, dy: 0 });
+                      }}
+                    />
+                  )}
+                  {/* Edge label (#5 follow-up — foundation for the LATER
+                      "link data semantics" docket item). Click the pill in
+                      select mode to inline-edit; otherwise rendered as a
+                      static badge. A "+ label" affordance shows when the
+                      edge has no label and the user is in select mode. */}
+                  {(() => {
+                    const isEditing = edgeLabelEdit?.edgeId === ed.id;
+                    if (isEditing) {
+                      return (
+                        <foreignObject x={midX - 56} y={midY - 11} width={112} height={22} style={{ overflow: "visible" }}>
+                          <input
+                            autoFocus
+                            value={edgeLabelEdit.draft}
+                            onChange={(e) => setEdgeLabelEdit({ ...edgeLabelEdit, draft: e.target.value })}
+                            onBlur={() => {
+                              const next = edges.map(x => x.id === ed.id
+                                ? { ...x, label: edgeLabelEdit.draft || undefined }
+                                : x
+                              );
+                              saveEdges(next);
+                              setEdgeLabelEdit(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") e.currentTarget.blur();
+                              if (e.key === "Escape") setEdgeLabelEdit(null);
+                            }}
+                            placeholder="label…"
+                            style={{
+                              width: "100%", padding: "2px 6px",
+                              border: "1px solid rgba(129,140,248,0.8)",
+                              background: "rgba(31,33,37,0.95)",
+                              color: "var(--text-primary)",
+                              borderRadius: 4, fontSize: 10,
+                              fontFamily: "var(--font-mono)",
+                              outline: "none",
+                            }}
+                          />
+                        </foreignObject>
+                      );
+                    }
+                    if (ed.label) {
+                      const labelText = String(ed.label).slice(0, 24);
+                      // Approximate pixel width per char for monospace 10px font.
+                      const labelW = Math.max(40, labelText.length * 6.2 + 12);
+                      return (
+                        <g
+                          style={{ pointerEvents: showHandles ? "auto" : "none", cursor: showHandles ? "text" : "default" }}
+                          onClick={(e) => {
+                            if (!showHandles) return;
+                            e.stopPropagation();
+                            setEdgeLabelEdit({ edgeId: ed.id, draft: ed.label || "" });
+                          }}
+                        >
+                          <rect
+                            x={midX - labelW / 2} y={midY - 9}
+                            width={labelW} height={18}
+                            rx={4}
+                            fill="rgba(31,33,37,0.92)"
+                            stroke="rgba(129,140,248,0.65)"
+                            strokeWidth={1}
+                          />
+                          <text
+                            x={midX} y={midY + 3}
+                            textAnchor="middle"
+                            fontSize={10}
+                            fontFamily="var(--font-mono)"
+                            fill="rgba(190,215,255,0.95)"
+                            style={{ pointerEvents: "none", userSelect: "none" }}
+                          >
+                            {labelText}
+                          </text>
+                        </g>
+                      );
+                    }
+                    // No label + select mode → "+ label" affordance
+                    if (showHandles) {
+                      return (
+                        <g
+                          style={{ pointerEvents: "auto", cursor: "text" }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEdgeLabelEdit({ edgeId: ed.id, draft: "" });
+                          }}
+                        >
+                          <circle
+                            cx={midX} cy={midY - 12} r={7}
+                            fill="rgba(31,33,37,0.85)"
+                            stroke="rgba(129,140,248,0.5)"
+                            strokeWidth={1}
+                          />
+                          <text
+                            x={midX} y={midY - 9}
+                            textAnchor="middle"
+                            fontSize={10}
+                            fontFamily="var(--font-mono)"
+                            fill="rgba(190,215,255,0.85)"
+                            style={{ pointerEvents: "none", userSelect: "none" }}
+                          >+</text>
+                        </g>
+                      );
+                    }
+                    return null;
+                  })()}
+                  {/* Endpoint balls — select tool only — pointer-down
+                      starts a re-snap drag. */}
+                  {showHandles && (
+                    <>
+                      <circle
+                        cx={renderA.x} cy={renderA.y} r={6}
+                        fill="rgba(129,140,248,0.85)"
+                        stroke="rgba(255,255,255,0.65)"
+                        strokeWidth={1.5}
+                        style={{ cursor: "grab", pointerEvents: "auto" }}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+                          setEdgeDrag({ edgeId: ed.id, endpoint: "from", x: a.x, y: a.y });
+                        }}
+                      />
+                      <circle
+                        cx={renderB.x} cy={renderB.y} r={6}
+                        fill="rgba(129,140,248,0.85)"
+                        stroke="rgba(255,255,255,0.65)"
+                        strokeWidth={1.5}
+                        style={{ cursor: "grab", pointerEvents: "auto" }}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+                          setEdgeDrag({ edgeId: ed.id, endpoint: "to", x: b.x, y: b.y });
+                        }}
+                      />
+                    </>
+                  )}
                 </g>
               );
             })}

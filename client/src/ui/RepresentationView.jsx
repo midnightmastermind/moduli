@@ -30,6 +30,7 @@ import { createPortal } from "react-dom";
 import { GridActionsContext } from "../GridActionsContext";
 import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
 import { resolveFileRef } from "../helpers/fileRef";
+import { resolveEffectiveLayout } from "../helpers/layoutCascade";
 
 const HOVER_OPEN_MS = 320;
 const HOVER_CLOSE_MS = 140;
@@ -47,12 +48,46 @@ export default function RepresentationView({
   // task #35 / #36 — optional whitelist of fields to render inside the hover
   // popup. Null = ModuleInstance default. Pass [] for label-only.
   popupFieldIds = null,
+  // task #35 — optional whitelist of fields to render INLINE on the chip
+  // next to the label. Resolved per-occurrence — defaults to the
+  // `occurrence.meta.representationFieldIds` value (which the layout cascade
+  // or the user populates from the LayoutCascadeEditor). Pass [] to force
+  // label-only; pass null to allow the cascade fallback.
+  inlineFieldIds = null,
 }) {
   const { modulesById, occurrencesById, fieldsById } = useContext(GridActionsContext) || {};
   const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const Icon = getModuleTypeIcon(module);
   const color = getModuleTypeColor(module);
   const label = module?.label || occurrence?.label || "Untitled";
+
+  // Resolve which fields render inline next to the label. Precedence:
+  //   1) explicit `inlineFieldIds` prop
+  //   2) per-occurrence `meta.representationFieldIds`
+  //   3) layout cascade's `representationFieldIds` (resolved through the
+  //      cascade chain — set by LayoutCascadeEditor at any level)
+  const cascadeInlineFieldIds = (() => {
+    if (!occurrence || !occurrencesById || !modulesById) return null;
+    try {
+      const layout = resolveEffectiveLayout({ occurrence, occurrencesById, modulesById, grid: null });
+      return Array.isArray(layout?.representationFieldIds) ? layout.representationFieldIds : null;
+    } catch {
+      return null;
+    }
+  })();
+  const resolvedInlineFieldIds = (Array.isArray(inlineFieldIds))
+    ? inlineFieldIds
+    : (Array.isArray(occurrence?.meta?.representationFieldIds)
+        ? occurrence.meta.representationFieldIds
+        : cascadeInlineFieldIds);
+  const inlineFields = (resolvedInlineFieldIds && resolvedInlineFieldIds.length > 0 && fieldsById)
+    ? resolvedInlineFieldIds.map(fid => {
+        const f = fieldsById[fid];
+        const v = occurrence?.fields?.[fid]?.value;
+        if (!f) return null;
+        return { id: fid, name: f.name || f.id, value: v };
+      }).filter(Boolean)
+    : [];
 
   // Resolve media (poster) — first role:"media" binding on the module's
   // fieldBindings, then the occurrence's value for that field. Same shape
@@ -172,6 +207,36 @@ export default function RepresentationView({
         >
           {label}
         </span>
+        {/* User-configured inline field values (task #35). Compact name:value
+            chips after the label. Empty values render as `—` so authors can
+            see the field is bound but unset. */}
+        {inlineFields.map(({ id, name, value }) => (
+          <span
+            key={id}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 2,
+              padding: "0 4px",
+              borderRadius: 2,
+              fontSize: sizing.fontSize - 1,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              color: "var(--text-muted)",
+              flexShrink: 0,
+              maxWidth: 100,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+            title={`${name}: ${formatInlineValue(value)}`}
+          >
+            <span style={{ opacity: 0.65 }}>{name}</span>
+            <span style={{ color: "var(--text-primary)" }}>
+              {formatInlineValue(value)}
+            </span>
+          </span>
+        ))}
         {/* Type icon — small badge after the label when we showed a thumb
             (otherwise the leading Icon already conveys type). */}
         {mediaSrc && (
@@ -246,6 +311,17 @@ const SIZE_MAP = {
   md: { gap: 4, padding: "3px 7px", radius: 4, fontSize: 11, icon: 11, thumb: 18 },
   lg: { gap: 5, padding: "4px 9px", radius: 5, fontSize: 13, icon: 14, thumb: 24 },
 };
+
+// Compact display of an arbitrary field value for the inline chip. Handles
+// the common cases without pulling in Field.jsx's full formatter.
+function formatInlineValue(v) {
+  if (v == null || v === "") return "—";
+  if (typeof v === "boolean") return v ? "✓" : "✗";
+  if (Array.isArray(v)) return v.length === 0 ? "—" : `${v.length} sel`;
+  if (typeof v === "object") return "{…}";
+  const s = String(v);
+  return s.length > 12 ? s.slice(0, 11) + "…" : s;
+}
 
 // Best-effort opacity-dim for a color string. Handles `rgba(...)` and
 // falls back to wrapping in a `color-mix()` for hex / named colors.

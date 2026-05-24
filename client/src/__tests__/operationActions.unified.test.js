@@ -16,6 +16,22 @@ const makeContext = (extra = {}) => ({
 // ============================================================
 // resolveExpr
 // ============================================================
+describe("resolveExpr — Value Builder __ref sentinel", () => {
+  it("resolves the wrapped path", () => {
+    const $vars = { $today: "2026-05-23" };
+    expect(resolveExpr({ __ref: "$today" }, $vars)).toBe("2026-05-23");
+  });
+
+  it("returns null when __ref is empty", () => {
+    expect(resolveExpr({ __ref: "" }, {})).toBeNull();
+  });
+
+  it("resolves dotted paths through the wrapped value", () => {
+    const $vars = { $page: { meta: { title: "Hello" } } };
+    expect(resolveExpr({ __ref: "$page.meta.title" }, $vars)).toBe("Hello");
+  });
+});
+
 describe("resolveExpr — template interpolation", () => {
   it("resolves ${$varName} inside a string", () => {
     expect(resolveExpr("daypage ${$today}", { $today: "2026-03-22" })).toBe("daypage 2026-03-22");
@@ -311,14 +327,14 @@ describe("CREATE action", () => {
   it("mints a new template when none exists with that label", () => {
     const $vars = { $allTemplates: [], $allItems: [] };
     const updates = executeActionItem("CREATE", {
-      name: "Due", role: "container", kind: "list",
+      name: "Due", role: "container", kind: "board",
       meta: { scheduleDueContainer: true },
       itemIdVar: "$newId",
     }, $vars, makeContext());
 
     expect(updates).toHaveLength(1);
     expect(updates[0]._effect).toBe("CREATE_ITEM");
-    expect(updates[0].template).toMatchObject({ label: "Due", role: "container", kind: "list" });
+    expect(updates[0].template).toMatchObject({ label: "Due", role: "container", kind: "board" });
     expect(updates[0].instance.templateId).toBe(updates[0].template.id);
     expect($vars.$newId).toBe(updates[0].instance.id);
     // Optimistic publish
@@ -327,10 +343,10 @@ describe("CREATE action", () => {
   });
 
   it("reuses an existing template when one matches by label", () => {
-    const existing = { id: "tpl_existing", label: "Due", role: "container", kind: "list" };
+    const existing = { id: "tpl_existing", label: "Due", role: "container", kind: "board" };
     const $vars = { $allTemplates: [existing], $allItems: [] };
     const updates = executeActionItem("CREATE", {
-      name: "Due", role: "container", kind: "list",
+      name: "Due", role: "container", kind: "board",
       itemIdVar: "$newId",
     }, $vars, makeContext());
 
@@ -380,13 +396,13 @@ describe("CREATE action", () => {
   // ── fieldBindings hidden-flag handling ────────────────────────────────────
   it("CREATE matched to an existing template by label leaves its bindings alone when fieldHidden is omitted", () => {
     const existing = {
-      id: "tpl_existing", label: "Drink Water", role: "instance", kind: "list",
+      id: "tpl_existing", label: "Drink Water", role: "instance", kind: "board",
       fieldBindings: [{ fieldId: "f_date", role: "input", order: 0, hidden: true }],
     };
     const $vars = { $allTemplates: [existing], $allItems: [], $today: "2026-05-11" };
     const fieldsById = { f_date: { id: "f_date", type: "date" } };
     const updates = executeActionItem("CREATE", {
-      name: "Drink Water", role: "instance", kind: "list",
+      name: "Drink Water", role: "instance", kind: "board",
       fields: { f_date: "$today" },
     }, $vars, { state: {}, fieldsById, occurrencesById: {}, operationsById: {} });
 
@@ -398,7 +414,7 @@ describe("CREATE action", () => {
     const $vars = { $allTemplates: [], $allItems: [], $today: "2026-05-11" };
     const fieldsById = { f_date: { id: "f_date", type: "date" } };
     const updates = executeActionItem("CREATE", {
-      name: "Slot", role: "container", kind: "list",
+      name: "Slot", role: "container", kind: "board",
       fields: { f_date: "$today" },
       fieldHidden: { f_date: true },
     }, $vars, { state: {}, fieldsById, occurrencesById: {}, operationsById: {} });
@@ -660,7 +676,7 @@ describe("APPLY_TEMPLATE", () => {
 
     const state = {
       modulesById: {
-        [tplModId]: { id: tplModId, label: "Slot", role: "container", kind: "list", meta: { templateModule: true } },
+        [tplModId]: { id: tplModId, label: "Slot", role: "container", kind: "board", meta: { templateModule: true } },
         [targetModId]: { id: targetModId, label: "Page", role: "page" },
       },
       grid: { _id: "g1" },
@@ -710,7 +726,7 @@ describe("APPLY_TEMPLATE", () => {
     const tplModId = "m1";
     const state = {
       modulesById: {
-        [tplModId]: { id: tplModId, label: "T", role: "instance", kind: "list", meta: {} },
+        [tplModId]: { id: tplModId, label: "T", role: "instance", kind: "board", meta: {} },
       },
     };
     const occurrencesById = {
@@ -741,8 +757,8 @@ describe("APPLY_TEMPLATE", () => {
     const state = {
       modulesById: {
         tplRootMod: { id: "tplRootMod", role: "page",      kind: "board", label: "Daily Routine" },
-        tplSlotMod: { id: "tplSlotMod", role: "container", kind: "list",  label: "6:00am" },
-        tplInstMod: { id: "tplInstMod", role: "instance",  kind: "list",  label: "Drink Water" },
+        tplSlotMod: { id: "tplSlotMod", role: "container", kind: "board",  label: "6:00am" },
+        tplInstMod: { id: "tplInstMod", role: "instance",  kind: "board",  label: "Drink Water" },
         pageMod:    { id: "pageMod",    role: "page",      kind: "board", label: "Schedule" },
       },
     };
@@ -784,7 +800,7 @@ describe("APPLY_TEMPLATE", () => {
     const state = {
       modulesById: {
         tplRootMod: { id: "tplRootMod", role: "page",      kind: "board", label: "Daily Routine" },
-        tplSlotMod: { id: "tplSlotMod", role: "container", kind: "list",  label: "7:00am" },
+        tplSlotMod: { id: "tplSlotMod", role: "container", kind: "board",  label: "7:00am" },
         pageMod:    { id: "pageMod",    role: "page",      kind: "board", label: "Schedule" },
       },
     };
@@ -819,7 +835,7 @@ describe("APPLY_TEMPLATE", () => {
     const state = {
       modulesById: {
         rootMod:  { id: "rootMod",  role: "page",     kind: "board", label: "Root" },
-        childMod: { id: "childMod", role: "instance", kind: "list",  label: "Child" },
+        childMod: { id: "childMod", role: "instance", kind: "board",  label: "Child" },
         pageMod:  { id: "pageMod",  role: "page",     kind: "board", label: "Target" },
       },
     };
@@ -848,7 +864,7 @@ describe("APPLY_TEMPLATE", () => {
   it("appends new instance-role stubs into $allInstances", () => {
     const state = {
       modulesById: {
-        tplMod: { id: "tplMod", role: "instance", kind: "list", label: "Task" },
+        tplMod: { id: "tplMod", role: "instance", kind: "board", label: "Task" },
         pageMod: { id: "pageMod", role: "page" },
       },
     };
@@ -883,8 +899,8 @@ describe("APPLY_TEMPLATE", () => {
     const state = {
       modulesById: {
         tplRootMod: { id: "tplRootMod", role: "page",      kind: "board", label: "Daily Routine" },
-        tplSlotMod: { id: "tplSlotMod", role: "container", kind: "list",  label: "6:00am" },
-        tplInstMod: { id: "tplInstMod", role: "instance",  kind: "list",  label: "Drink Water" },
+        tplSlotMod: { id: "tplSlotMod", role: "container", kind: "board",  label: "6:00am" },
+        tplInstMod: { id: "tplInstMod", role: "instance",  kind: "board",  label: "Drink Water" },
         pageMod:    { id: "pageMod",    role: "page",      kind: "board", label: "Schedule" },
       },
     };
@@ -932,7 +948,7 @@ describe("APPLY_TEMPLATE", () => {
   it("appends new container-role stubs into $allContainers, not $allInstances", () => {
     const state = {
       modulesById: {
-        tplMod: { id: "tplMod", role: "container", kind: "list", label: "Group" },
+        tplMod: { id: "tplMod", role: "container", kind: "board", label: "Group" },
         pageMod: { id: "pageMod", role: "page" },
       },
     };
@@ -1364,5 +1380,1011 @@ describe("DATE_ADD action", () => {
     }, $vars, ctx)).not.toThrow();
     // result is still a string (capped at ~600 iters with no advancement)
     expect(typeof $vars.$next).toBe("string");
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Value manipulator actions (task #31)
+// ════════════════════════════════════════════════════════════════════
+
+describe("SPLIT_STRING action", () => {
+  const ctx = makeContext();
+
+  it("splits a string by space by default", () => {
+    const $vars = { $msg: "hello world foo" };
+    executeActionItem("SPLIT_STRING", { name: "$msg" }, $vars, ctx);
+    expect($vars.$msg).toEqual(["hello", "world", "foo"]);
+  });
+
+  it("splits by a custom separator", () => {
+    const $vars = { $csv: "a,b,c" };
+    executeActionItem("SPLIT_STRING", { name: "$csv", by: "," }, $vars, ctx);
+    expect($vars.$csv).toEqual(["a", "b", "c"]);
+  });
+
+  it("writes to a different var when `to` is set", () => {
+    const $vars = { $line: "foo bar" };
+    executeActionItem("SPLIT_STRING", { name: "$line", to: "$parts" }, $vars, ctx);
+    expect($vars.$line).toBe("foo bar");
+    expect($vars.$parts).toEqual(["foo", "bar"]);
+  });
+
+  it("null/undefined input → empty array", () => {
+    const $vars = { $maybe: null };
+    executeActionItem("SPLIT_STRING", { name: "$maybe" }, $vars, ctx);
+    expect($vars.$maybe).toEqual([]);
+  });
+});
+
+describe("JOIN_ARRAY action", () => {
+  const ctx = makeContext();
+
+  it("joins with empty separator by default", () => {
+    const $vars = { $arr: ["a", "b", "c"] };
+    executeActionItem("JOIN_ARRAY", { name: "$arr", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe("abc");
+  });
+
+  it("joins with custom separator", () => {
+    const $vars = { $arr: ["x", "y", "z"] };
+    executeActionItem("JOIN_ARRAY", { name: "$arr", by: " - " }, $vars, ctx);
+    expect($vars.$arr).toBe("x - y - z");
+  });
+});
+
+describe("SORT_VAR action", () => {
+  const ctx = makeContext();
+
+  it("sorts ascending by default (primitives)", () => {
+    const $vars = { $arr: [3, 1, 2] };
+    executeActionItem("SORT_VAR", { name: "$arr" }, $vars, ctx);
+    expect($vars.$arr).toEqual([1, 2, 3]);
+  });
+
+  it("sorts descending when direction='desc'", () => {
+    const $vars = { $arr: [1, 3, 2] };
+    executeActionItem("SORT_VAR", { name: "$arr", direction: "desc" }, $vars, ctx);
+    expect($vars.$arr).toEqual([3, 2, 1]);
+  });
+
+  it("sorts objects by key", () => {
+    const $vars = { $books: [{ pages: 300 }, { pages: 100 }, { pages: 200 }] };
+    executeActionItem("SORT_VAR", { name: "$books", by: "pages" }, $vars, ctx);
+    expect($vars.$books.map(b => b.pages)).toEqual([100, 200, 300]);
+  });
+
+  it("non-array input is a no-op", () => {
+    const $vars = { $x: "not-an-array" };
+    executeActionItem("SORT_VAR", { name: "$x" }, $vars, ctx);
+    expect($vars.$x).toBe("not-an-array");
+  });
+});
+
+describe("REMOVE_FROM_VAR action", () => {
+  const ctx = makeContext();
+
+  it("removes by index", () => {
+    const $vars = { $arr: ["a", "b", "c"] };
+    executeActionItem("REMOVE_FROM_VAR", { name: "$arr", at: 1 }, $vars, ctx);
+    expect($vars.$arr).toEqual(["a", "c"]);
+  });
+
+  it("removes the first occurrence of a literal value", () => {
+    const $vars = { $arr: ["a", "b", "c", "b"] };
+    executeActionItem("REMOVE_FROM_VAR", { name: "$arr", value: "literal:b" }, $vars, ctx);
+    expect($vars.$arr).toEqual(["a", "c", "b"]);
+  });
+
+  it("out-of-range index → no-op", () => {
+    const $vars = { $arr: ["a", "b"] };
+    executeActionItem("REMOVE_FROM_VAR", { name: "$arr", at: 99 }, $vars, ctx);
+    expect($vars.$arr).toEqual(["a", "b"]);
+  });
+});
+
+describe("REPLACE_IN_VAR action", () => {
+  const ctx = makeContext();
+
+  it("replaces at a valid index", () => {
+    const $vars = { $arr: ["a", "b", "c"] };
+    executeActionItem("REPLACE_IN_VAR", { name: "$arr", at: 1, value: "literal:Z" }, $vars, ctx);
+    expect($vars.$arr).toEqual(["a", "Z", "c"]);
+  });
+
+  it("out-of-range index → no-op", () => {
+    const $vars = { $arr: ["a", "b"] };
+    executeActionItem("REPLACE_IN_VAR", { name: "$arr", at: 99, value: "literal:Z" }, $vars, ctx);
+    expect($vars.$arr).toEqual(["a", "b"]);
+  });
+
+  it("resolves value via $vars", () => {
+    const $vars = { $arr: ["x", "y"], $new: "ZZ" };
+    executeActionItem("REPLACE_IN_VAR", { name: "$arr", at: 0, value: "$new" }, $vars, ctx);
+    expect($vars.$arr).toEqual(["ZZ", "y"]);
+  });
+});
+
+describe("MERGE_ARRAY action", () => {
+  const ctx = makeContext();
+
+  it("concatenates another array", () => {
+    const $vars = { $a: [1, 2], $b: [3, 4] };
+    executeActionItem("MERGE_ARRAY", { name: "$a", with: "$b" }, $vars, ctx);
+    expect($vars.$a).toEqual([1, 2, 3, 4]);
+  });
+
+  it("dedups when unique=true", () => {
+    const $vars = { $a: [1, 2, 3], $b: [2, 3, 4] };
+    executeActionItem("MERGE_ARRAY", { name: "$a", with: "$b", unique: true }, $vars, ctx);
+    expect($vars.$a).toEqual([1, 2, 3, 4]);
+  });
+
+  it("merges a non-array right-hand-side as a single element", () => {
+    const $vars = { $a: [1], $b: 99 };
+    executeActionItem("MERGE_ARRAY", { name: "$a", with: "$b" }, $vars, ctx);
+    expect($vars.$a).toEqual([1, 99]);
+  });
+});
+
+describe("CREATE with `multiple: true` (task #30)", () => {
+  // Per user direction "make sure the create and the createMultiple are one
+  // ui action … just have a switch that asks if its multiple". CREATE is the
+  // sole action — `cfg.multiple === true` consumes `cfg.rows` and bulk-creates.
+  const ctx = makeContext();
+
+  it("returns early when rows is missing or empty", () => {
+    const $vars = { $allItems: [], $allTemplates: [] };
+    expect(() =>
+      executeActionItem("CREATE", { multiple: true, rows: [] }, $vars, ctx)
+    ).not.toThrow();
+  });
+
+  it("skips rows without a name", () => {
+    const $vars = { $allItems: [], $allTemplates: [] };
+    const updates = executeActionItem("CREATE", {
+      multiple: true,
+      rows: [{ fields: {} }, null, undefined, { name: "" }],
+      role: "instance",
+    }, $vars, ctx);
+    expect(updates).toEqual([]);
+  });
+
+  it("creates one occurrence per row when names are provided", () => {
+    const $vars = { $allItems: [], $allOccurrences: [], $allTemplates: [], $allInstances: [], $allModules: [] };
+    const updates = executeActionItem("CREATE", {
+      multiple: true,
+      rows: [
+        { name: "Alice" },
+        { name: "Bob" },
+        { name: "Carol" },
+      ],
+      role: "instance",
+    }, $vars, ctx);
+    const created = updates.filter(u => u?._effect === "CREATE_ITEM");
+    expect(created.length).toBeGreaterThanOrEqual(3);
+    const labels = created.map(c => c.template?.label || c.template?.name);
+    expect(labels).toEqual(expect.arrayContaining(["Alice", "Bob", "Carol"]));
+  });
+
+  it("merges base fields with per-row field overrides", () => {
+    const $vars = { $allItems: [], $allOccurrences: [], $allTemplates: [], $allInstances: [], $allModules: [] };
+    const updates = executeActionItem("CREATE", {
+      multiple: true,
+      rows: [
+        { name: "row1", fields: { name1: "v1" } },
+        { name: "row2", fields: { name2: "v2" } },
+      ],
+      fields: { shared: "base" },
+      role: "instance",
+    }, $vars, ctx);
+    const created = updates.filter(u => u?._effect === "CREATE_ITEM");
+    for (const eff of created) {
+      const inst = eff.instance;
+      expect(inst?.fields).toBeTruthy();
+      expect(Object.keys(inst.fields || {}).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("binds resultVar to the array of created ids", () => {
+    const $vars = { $allItems: [], $allOccurrences: [], $allTemplates: [], $allInstances: [], $allModules: [] };
+    executeActionItem("CREATE", {
+      multiple: true,
+      rows: [{ name: "a" }, { name: "b" }],
+      role: "instance",
+      resultVar: "$createdIds",
+    }, $vars, ctx);
+    expect(Array.isArray($vars.$createdIds)).toBe(true);
+    expect($vars.$createdIds.length).toBe(2);
+    expect($vars.$createdIds.every(id => typeof id === "string" && id.length > 0)).toBe(true);
+  });
+});
+
+describe("MOVE_OCCURRENCE / REMOVE_OCCURRENCE / DELETE with `multiple: true` (task #30)", () => {
+  const ctx = makeContext();
+
+  it("MOVE_OCCURRENCE multiple loops ids and emits one effect per id", () => {
+    const $vars = {};
+    const updates = executeActionItem("MOVE_OCCURRENCE", {
+      multiple: true,
+      ids: ["a", "b", "c"],
+      toContainerId: "C1",
+    }, $vars, ctx);
+    expect(updates.length).toBe(3);
+    expect(updates.every(u => u._effect === "MOVE_OCCURRENCE" && u.toContainerId === "C1")).toBe(true);
+    expect(updates.map(u => u.occurrenceId)).toEqual(["a", "b", "c"]);
+  });
+
+  it("MOVE_OCCURRENCE multiple resolves idsExpr against $vars", () => {
+    const $vars = { $myIds: ["x", "y"] };
+    const updates = executeActionItem("MOVE_OCCURRENCE", {
+      multiple: true,
+      idsExpr: "$myIds",
+      toContainerId: "C2",
+    }, $vars, ctx);
+    expect(updates.length).toBe(2);
+  });
+
+  it("REMOVE_OCCURRENCE multiple loops ids", () => {
+    const $vars = {};
+    const updates = executeActionItem("REMOVE_OCCURRENCE", {
+      multiple: true,
+      ids: ["a", "b"],
+    }, $vars, ctx);
+    expect(updates.length).toBe(2);
+    expect(updates.every(u => u._effect === "REMOVE_OCCURRENCE")).toBe(true);
+  });
+
+  it("DELETE multiple loops ids", () => {
+    const $vars = {};
+    const updates = executeActionItem("DELETE", {
+      multiple: true,
+      ids: ["x", "y", "z"],
+    }, $vars, ctx);
+    expect(updates.length).toBe(3);
+    expect(updates.every(u => u._effect === "DELETE_ITEM")).toBe(true);
+  });
+
+  it("Single mode still works without `multiple`", () => {
+    const $vars = {};
+    const moveUpd = executeActionItem("MOVE_OCCURRENCE", {
+      occurrenceIdExpr: "literal:abc",
+      toContainerId: "C3",
+    }, $vars, ctx);
+    expect(moveUpd.length).toBe(1);
+    expect(moveUpd[0].occurrenceId).toBe("abc");
+  });
+});
+
+describe("FIND auto-array on multiple matches (task #30 follow-up)", () => {
+  const ctx = makeContext();
+
+  it("returns bare item when exactly one match", () => {
+    const $vars = {
+      $allOccurrences: [
+        { id: "a", label: "alpha", deleted: false, meta: {} },
+        { id: "b", label: "bravo", deleted: false, meta: {} },
+      ],
+    };
+    executeActionItem("FIND", {
+      over: "$allOccurrences",
+      predicate: { rules: [{ left: "label", comparator: "IS", right: "literal:alpha" }] },
+      itemVar: "$found",
+    }, $vars, ctx);
+    expect($vars.$found).toBeTruthy();
+    expect(Array.isArray($vars.$found)).toBe(false);
+    expect($vars.$found.id).toBe("a");
+  });
+
+  it("returns array when multiple matches", () => {
+    const $vars = {
+      $allOccurrences: [
+        { id: "a", label: "x", deleted: false, meta: {} },
+        { id: "b", label: "x", deleted: false, meta: {} },
+        { id: "c", label: "y", deleted: false, meta: {} },
+      ],
+    };
+    executeActionItem("FIND", {
+      over: "$allOccurrences",
+      predicate: { rules: [{ left: "label", comparator: "IS", right: "literal:x" }] },
+      itemVar: "$found",
+    }, $vars, ctx);
+    expect(Array.isArray($vars.$found)).toBe(true);
+    expect($vars.$found.length).toBe(2);
+  });
+
+  it("returns null when no matches", () => {
+    const $vars = {
+      $allOccurrences: [
+        { id: "a", label: "x", deleted: false, meta: {} },
+      ],
+    };
+    executeActionItem("FIND", {
+      over: "$allOccurrences",
+      predicate: { rules: [{ left: "label", comparator: "IS", right: "literal:NOPE" }] },
+      itemVar: "$found",
+    }, $vars, ctx);
+    expect($vars.$found).toBeNull();
+  });
+
+  it("force-array via `multiple: true` returns array even on single match", () => {
+    const $vars = {
+      $allOccurrences: [
+        { id: "a", label: "only", deleted: false, meta: {} },
+      ],
+    };
+    executeActionItem("FIND", {
+      over: "$allOccurrences",
+      predicate: { rules: [{ left: "label", comparator: "IS", right: "literal:only" }] },
+      itemVar: "$found",
+      multiple: true,
+    }, $vars, ctx);
+    expect(Array.isArray($vars.$found)).toBe(true);
+    expect($vars.$found.length).toBe(1);
+  });
+});
+
+describe("TYPE_OF + ARRAY_LENGTH actions", () => {
+  const ctx = makeContext();
+
+  it("TYPE_OF detects array vs object vs primitive", () => {
+    const $vars = { $arr: [1, 2], $obj: { a: 1 }, $s: "hi", $n: 42, $b: true, $nil: null };
+    executeActionItem("TYPE_OF", { name: "$arr", to: "$t1" }, $vars, ctx);
+    executeActionItem("TYPE_OF", { name: "$obj", to: "$t2" }, $vars, ctx);
+    executeActionItem("TYPE_OF", { name: "$s",   to: "$t3" }, $vars, ctx);
+    executeActionItem("TYPE_OF", { name: "$n",   to: "$t4" }, $vars, ctx);
+    executeActionItem("TYPE_OF", { name: "$b",   to: "$t5" }, $vars, ctx);
+    executeActionItem("TYPE_OF", { name: "$nil", to: "$t6" }, $vars, ctx);
+    expect($vars.$t1).toBe("array");
+    expect($vars.$t2).toBe("object");
+    expect($vars.$t3).toBe("string");
+    expect($vars.$t4).toBe("number");
+    expect($vars.$t5).toBe("boolean");
+    expect($vars.$t6).toBe("null");
+  });
+
+  it("ARRAY_LENGTH writes array length", () => {
+    const $vars = { $arr: ["a", "b", "c"] };
+    executeActionItem("ARRAY_LENGTH", { name: "$arr", to: "$n" }, $vars, ctx);
+    expect($vars.$n).toBe(3);
+  });
+
+  it("ARRAY_LENGTH on a string returns its character length", () => {
+    const $vars = { $s: "hi" };
+    executeActionItem("ARRAY_LENGTH", { name: "$s", to: "$len" }, $vars, ctx);
+    expect($vars.$len).toBe(2);
+  });
+});
+
+describe("SLICE_VAR + UNIQUE_VAR + REVERSE_VAR actions (2026-05-23)", () => {
+  const ctx = makeContext();
+
+  it("SLICE_VAR with positive start/end takes a sub-range", () => {
+    const $vars = { $arr: [1, 2, 3, 4, 5] };
+    executeActionItem("SLICE_VAR", { name: "$arr", start: 1, end: 4, to: "$out" }, $vars, ctx);
+    expect($vars.$out).toEqual([2, 3, 4]);
+  });
+
+  it("SLICE_VAR with negative start takes the last N entries", () => {
+    const $vars = { $arr: ["a", "b", "c", "d", "e"] };
+    executeActionItem("SLICE_VAR", { name: "$arr", start: -3, to: "$last3" }, $vars, ctx);
+    expect($vars.$last3).toEqual(["c", "d", "e"]);
+  });
+
+  it("SLICE_VAR works on strings too", () => {
+    const $vars = { $s: "hello world" };
+    executeActionItem("SLICE_VAR", { name: "$s", start: 6, to: "$tail" }, $vars, ctx);
+    expect($vars.$tail).toBe("world");
+  });
+
+  it("SLICE_VAR mutates in-place when no `to` is given", () => {
+    const $vars = { $arr: [1, 2, 3, 4, 5] };
+    executeActionItem("SLICE_VAR", { name: "$arr", start: 0, end: 2 }, $vars, ctx);
+    expect($vars.$arr).toEqual([1, 2]);
+  });
+
+  it("UNIQUE_VAR removes primitive duplicates, preserves first occurrence order", () => {
+    const $vars = { $arr: [3, 1, 2, 1, 3, 4] };
+    executeActionItem("UNIQUE_VAR", { name: "$arr", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toEqual([3, 1, 2, 4]);
+  });
+
+  it("UNIQUE_VAR with `by` path dedupes object arrays by a key", () => {
+    const $vars = { $rows: [{ id: 1, n: "a" }, { id: 1, n: "b" }, { id: 2, n: "c" }] };
+    executeActionItem("UNIQUE_VAR", { name: "$rows", by: "id", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toEqual([{ id: 1, n: "a" }, { id: 2, n: "c" }]);
+  });
+
+  it("UNIQUE_VAR is a no-op on non-arrays", () => {
+    const $vars = { $s: "hello" };
+    executeActionItem("UNIQUE_VAR", { name: "$s", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBeUndefined();
+  });
+
+  it("REVERSE_VAR reverses an array (without mutating original input by reference)", () => {
+    const original = [1, 2, 3];
+    const $vars = { $arr: original };
+    executeActionItem("REVERSE_VAR", { name: "$arr", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toEqual([3, 2, 1]);
+    // Original untouched when `to` is set.
+    expect(original).toEqual([1, 2, 3]);
+  });
+
+  it("REVERSE_VAR reverses a string when given one", () => {
+    const $vars = { $s: "hello" };
+    executeActionItem("REVERSE_VAR", { name: "$s", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe("olleh");
+  });
+});
+
+describe("SUM_VAR / MIN_VAR / MAX_VAR / AVG_VAR aggregators (2026-05-23)", () => {
+  const ctx = makeContext();
+
+  it("SUM_VAR sums a numeric array", () => {
+    const $vars = { $arr: [1, 2, 3, 4] };
+    executeActionItem("SUM_VAR", { name: "$arr", to: "$total" }, $vars, ctx);
+    expect($vars.$total).toBe(10);
+  });
+
+  it("SUM_VAR with `by` path sums object arrays", () => {
+    const $vars = { $purchases: [{ amount: 5 }, { amount: 12 }, { amount: 3 }] };
+    executeActionItem("SUM_VAR", { name: "$purchases", by: "amount", to: "$total" }, $vars, ctx);
+    expect($vars.$total).toBe(20);
+  });
+
+  it("SUM_VAR on empty array returns 0", () => {
+    const $vars = { $arr: [] };
+    executeActionItem("SUM_VAR", { name: "$arr", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe(0);
+  });
+
+  it("SUM_VAR on missing var returns 0", () => {
+    const $vars = {};
+    executeActionItem("SUM_VAR", { name: "$missing", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe(0);
+  });
+
+  it("SUM_VAR uses default $sum target when `to` is omitted", () => {
+    const $vars = { $arr: [10, 20] };
+    executeActionItem("SUM_VAR", { name: "$arr" }, $vars, ctx);
+    expect($vars.$sum).toBe(30);
+  });
+
+  it("MIN_VAR returns smallest value", () => {
+    const $vars = { $arr: [4, 1, 7, 2, 9] };
+    executeActionItem("MIN_VAR", { name: "$arr", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe(1);
+  });
+
+  it("MAX_VAR returns largest value", () => {
+    const $vars = { $arr: [4, 1, 7, 2, 9] };
+    executeActionItem("MAX_VAR", { name: "$arr", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe(9);
+  });
+
+  it("MIN_VAR / MAX_VAR on empty array return null (no meaningful answer)", () => {
+    const $vars = { $arr: [] };
+    executeActionItem("MIN_VAR", { name: "$arr", to: "$min" }, $vars, ctx);
+    executeActionItem("MAX_VAR", { name: "$arr", to: "$max" }, $vars, ctx);
+    expect($vars.$min).toBeNull();
+    expect($vars.$max).toBeNull();
+  });
+
+  it("AVG_VAR returns the mean", () => {
+    const $vars = { $arr: [10, 20, 30] };
+    executeActionItem("AVG_VAR", { name: "$arr", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe(20);
+  });
+
+  it("AVG_VAR rounds to 2 decimals", () => {
+    const $vars = { $arr: [1, 2, 3] }; // mean = 2
+    executeActionItem("AVG_VAR", { name: "$arr", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe(2);
+    const $v2 = { $arr: [1, 2] }; // mean = 1.5
+    executeActionItem("AVG_VAR", { name: "$arr", to: "$out" }, $v2, ctx);
+    expect($v2.$out).toBe(1.5);
+    const $v3 = { $arr: [1, 1, 2] }; // mean = 1.333...
+    executeActionItem("AVG_VAR", { name: "$arr", to: "$out" }, $v3, ctx);
+    expect($v3.$out).toBe(1.33);
+  });
+
+  it("AVG_VAR with `by` path averages object arrays", () => {
+    const $vars = { $rows: [{ kcal: 200 }, { kcal: 400 }, { kcal: 300 }] };
+    executeActionItem("AVG_VAR", { name: "$rows", by: "kcal", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe(300);
+  });
+
+  it("aggregators skip non-numeric entries silently", () => {
+    const $vars = { $arr: [1, "two", 3, null, 5] };
+    executeActionItem("SUM_VAR", { name: "$arr", to: "$sum" }, $vars, ctx);
+    expect($vars.$sum).toBe(9); // 1 + 3 + 5; "two" → NaN filtered, null → 0 → Number(null)=0 but Number.isFinite(0)=true so 0 counts. Actually Number(null)=0 → 0 included → 1+0+3+0+5=9. OK.
+    // Above note: Number(null) = 0 which IS finite, so null counts as 0.
+    // Number("two") = NaN, filtered out.
+  });
+});
+
+describe("STREAK_VAR action (vision-vs-now streaks gap, 2026-05-23)", () => {
+  const ctx = makeContext();
+
+  it("counts consecutive days backward from today", () => {
+    // Today = 2026-05-23. Rows for 23, 22, 21 → streak of 3.
+    const $vars = {
+      $today: "2026-05-23",
+      $rows: [
+        { date: "2026-05-23" },
+        { date: "2026-05-22" },
+        { date: "2026-05-21" },
+        { date: "2026-05-15" }, // gap — should NOT count.
+      ],
+    };
+    executeActionItem("STREAK_VAR", { name: "$rows", to: "$streak" }, $vars, ctx);
+    expect($vars.$streak).toBe(3);
+  });
+
+  it("returns 0 when today is missing from the set", () => {
+    const $vars = {
+      $today: "2026-05-23",
+      $rows: [{ date: "2026-05-22" }, { date: "2026-05-21" }],
+    };
+    executeActionItem("STREAK_VAR", { name: "$rows", to: "$streak" }, $vars, ctx);
+    expect($vars.$streak).toBe(0);
+  });
+
+  it("dedupes multiple rows on the same day", () => {
+    const $vars = {
+      $today: "2026-05-23",
+      $rows: [
+        { date: "2026-05-23" }, // dup
+        { date: "2026-05-23" }, // dup
+        { date: "2026-05-22" },
+      ],
+    };
+    executeActionItem("STREAK_VAR", { name: "$rows", to: "$streak" }, $vars, ctx);
+    expect($vars.$streak).toBe(2);
+  });
+
+  it("respects custom `by` path for object arrays", () => {
+    const $vars = {
+      $today: "2026-05-23",
+      $rows: [
+        { completedAt: "2026-05-23T14:00:00.000Z" },
+        { completedAt: "2026-05-22T10:00:00.000Z" },
+      ],
+    };
+    executeActionItem("STREAK_VAR", { name: "$rows", by: "completedAt", to: "$streak" }, $vars, ctx);
+    expect($vars.$streak).toBe(2);
+  });
+
+  it("uses custom `today` override when provided", () => {
+    const $vars = {
+      $today: "2026-12-31",
+      $rows: [{ date: "2026-05-23" }, { date: "2026-05-22" }],
+    };
+    executeActionItem("STREAK_VAR", { name: "$rows", today: "2026-05-23", to: "$streak" }, $vars, ctx);
+    expect($vars.$streak).toBe(2);
+  });
+
+  it("returns 0 on empty / missing array", () => {
+    const $vars = { $today: "2026-05-23", $rows: [] };
+    executeActionItem("STREAK_VAR", { name: "$rows", to: "$streak" }, $vars, ctx);
+    expect($vars.$streak).toBe(0);
+
+    const $v2 = { $today: "2026-05-23" };
+    executeActionItem("STREAK_VAR", { name: "$missing", to: "$streak" }, $v2, ctx);
+    expect($v2.$streak).toBe(0);
+  });
+
+  it("ignores malformed date strings without crashing", () => {
+    const $vars = {
+      $today: "2026-05-23",
+      $rows: [
+        { date: "2026-05-23" },
+        { date: "garbage" },     // skipped
+        { date: null },          // skipped
+        { date: "2026-05-22" },
+      ],
+    };
+    executeActionItem("STREAK_VAR", { name: "$rows", to: "$streak" }, $vars, ctx);
+    expect($vars.$streak).toBe(2);
+  });
+
+  it("uses default target $streak when `to` is omitted", () => {
+    const $vars = { $today: "2026-05-23", $rows: [{ date: "2026-05-23" }] };
+    executeActionItem("STREAK_VAR", { name: "$rows" }, $vars, ctx);
+    expect($vars.$streak).toBe(1);
+  });
+
+  it("a long streak walks all the way back (placeholder before string-action tests)", () => {
+    const $today = "2026-05-23";
+    const rows = [];
+    // Build a 60-day continuous run ending today.
+    const start = new Date(2026, 4, 23);
+    for (let i = 0; i < 60; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() - i);
+      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      rows.push({ date: ymd });
+    }
+    // Add a 100-day gap then a much older block — should NOT extend the streak.
+    rows.push({ date: "2026-01-01" });
+    const $vars = { $today, $rows: rows };
+    executeActionItem("STREAK_VAR", { name: "$rows", to: "$streak" }, $vars, ctx);
+    expect($vars.$streak).toBe(60);
+  });
+});
+
+describe("String manipulation actions (2026-05-23)", () => {
+  const ctx = makeContext();
+
+  it("TO_LOWER / TO_UPPER convert case", () => {
+    const $vars = { $s: "Hello World" };
+    executeActionItem("TO_LOWER", { name: "$s", to: "$lo" }, $vars, ctx);
+    executeActionItem("TO_UPPER", { name: "$s", to: "$up" }, $vars, ctx);
+    expect($vars.$lo).toBe("hello world");
+    expect($vars.$up).toBe("HELLO WORLD");
+  });
+
+  it("TO_LOWER is a no-op on non-strings", () => {
+    const $vars = { $n: 42 };
+    executeActionItem("TO_LOWER", { name: "$n", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBeUndefined();
+  });
+
+  it("TRIM_STRING strips whitespace", () => {
+    const $vars = { $s: "  hello  \n" };
+    executeActionItem("TRIM_STRING", { name: "$s", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe("hello");
+  });
+
+  it("REPLACE_STRING replaces first match by default", () => {
+    const $vars = { $s: "foo bar foo baz" };
+    executeActionItem("REPLACE_STRING", { name: "$s", find: "foo", replace: "X", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe("X bar foo baz");
+  });
+
+  it("REPLACE_STRING with all:true replaces every occurrence", () => {
+    const $vars = { $s: "foo bar foo baz" };
+    executeActionItem("REPLACE_STRING", { name: "$s", find: "foo", replace: "X", all: true, to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe("X bar X baz");
+  });
+
+  it("REPLACE_STRING resolves $-prefixed find/replace expressions", () => {
+    const $vars = { $s: "alice and bob", $name: "bob", $newName: "carol" };
+    executeActionItem("REPLACE_STRING", { name: "$s", find: "$name", replace: "$newName", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe("alice and carol");
+  });
+
+  it("REPLACE_STRING is a no-op when `find` is empty", () => {
+    const $vars = { $s: "hello" };
+    executeActionItem("REPLACE_STRING", { name: "$s", find: "", replace: "X", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBeUndefined();
+  });
+
+  it("CONTAINS_STRING writes true when substring is present", () => {
+    const $vars = { $s: "hello world" };
+    executeActionItem("CONTAINS_STRING", { name: "$s", find: "world", to: "$ok" }, $vars, ctx);
+    expect($vars.$ok).toBe(true);
+  });
+
+  it("CONTAINS_STRING writes false when substring is absent", () => {
+    const $vars = { $s: "hello world" };
+    executeActionItem("CONTAINS_STRING", { name: "$s", find: "xyz", to: "$ok" }, $vars, ctx);
+    expect($vars.$ok).toBe(false);
+  });
+
+  it("CONTAINS_STRING with empty `find` returns true (vacuous)", () => {
+    const $vars = { $s: "anything" };
+    executeActionItem("CONTAINS_STRING", { name: "$s", find: "", to: "$ok" }, $vars, ctx);
+    expect($vars.$ok).toBe(true);
+  });
+
+  it("CONTAINS_STRING returns false on non-strings", () => {
+    const $vars = { $n: 42 };
+    executeActionItem("CONTAINS_STRING", { name: "$n", find: "4", to: "$ok" }, $vars, ctx);
+    expect($vars.$ok).toBe(false);
+  });
+
+  it("CONCAT_STRINGS joins multiple expressions", () => {
+    const $vars = { $name: "Ava", $city: "SF" };
+    executeActionItem("CONCAT_STRINGS", {
+      values: ["$name", "literal: from ", "$city"],
+      to: "$out",
+    }, $vars, ctx);
+    expect($vars.$out).toBe("Ava from SF");
+  });
+
+  it("CONCAT_STRINGS with separator", () => {
+    const $vars = { $a: "hello", $b: "world" };
+    executeActionItem("CONCAT_STRINGS", {
+      values: ["$a", "$b"],
+      separator: " · ",
+      to: "$out",
+    }, $vars, ctx);
+    expect($vars.$out).toBe("hello · world");
+  });
+
+  it("CONCAT_STRINGS handles null/undefined as empty string", () => {
+    const $vars = { $a: "hello", $b: null };
+    executeActionItem("CONCAT_STRINGS", {
+      values: ["$a", "$b", "$missing"],
+      separator: ",",
+      to: "$out",
+    }, $vars, ctx);
+    expect($vars.$out).toBe("hello,,");
+  });
+});
+
+describe("ARRAY_AT + INDEX_OF_VAR actions (2026-05-23)", () => {
+  const ctx = makeContext();
+
+  it("ARRAY_AT returns the element at a positive index", () => {
+    const $vars = { $arr: ["a", "b", "c", "d"] };
+    executeActionItem("ARRAY_AT", { name: "$arr", index: 1, to: "$item" }, $vars, ctx);
+    expect($vars.$item).toBe("b");
+  });
+
+  it("ARRAY_AT supports negative indexing (-1 = last)", () => {
+    const $vars = { $arr: ["a", "b", "c", "d"] };
+    executeActionItem("ARRAY_AT", { name: "$arr", index: -1, to: "$last" }, $vars, ctx);
+    expect($vars.$last).toBe("d");
+    executeActionItem("ARRAY_AT", { name: "$arr", index: -2, to: "$secondToLast" }, $vars, ctx);
+    expect($vars.$secondToLast).toBe("c");
+  });
+
+  it("ARRAY_AT returns undefined for out-of-bounds index", () => {
+    const $vars = { $arr: ["a", "b"] };
+    executeActionItem("ARRAY_AT", { name: "$arr", index: 99, to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBeUndefined();
+    executeActionItem("ARRAY_AT", { name: "$arr", index: -5, to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBeUndefined();
+  });
+
+  it("ARRAY_AT works on strings (character access)", () => {
+    const $vars = { $s: "hello" };
+    executeActionItem("ARRAY_AT", { name: "$s", index: 0, to: "$first" }, $vars, ctx);
+    expect($vars.$first).toBe("h");
+    executeActionItem("ARRAY_AT", { name: "$s", index: -1, to: "$last" }, $vars, ctx);
+    expect($vars.$last).toBe("o");
+  });
+
+  it("ARRAY_AT resolves $-prefixed index expressions", () => {
+    const $vars = { $arr: [10, 20, 30], $i: 2 };
+    executeActionItem("ARRAY_AT", { name: "$arr", index: "$i", to: "$item" }, $vars, ctx);
+    expect($vars.$item).toBe(30);
+  });
+
+  it("INDEX_OF_VAR returns the index of a value in an array", () => {
+    const $vars = { $arr: ["x", "y", "z", "y"] };
+    executeActionItem("INDEX_OF_VAR", { name: "$arr", find: "y", to: "$i" }, $vars, ctx);
+    expect($vars.$i).toBe(1); // first match
+  });
+
+  it("INDEX_OF_VAR returns -1 when value not found", () => {
+    const $vars = { $arr: [1, 2, 3] };
+    executeActionItem("INDEX_OF_VAR", { name: "$arr", find: 99, to: "$i" }, $vars, ctx);
+    expect($vars.$i).toBe(-1);
+  });
+
+  it("INDEX_OF_VAR works on strings (substring index)", () => {
+    const $vars = { $s: "hello world" };
+    executeActionItem("INDEX_OF_VAR", { name: "$s", find: "world", to: "$i" }, $vars, ctx);
+    expect($vars.$i).toBe(6);
+  });
+
+  it("INDEX_OF_VAR resolves $-prefixed `find` expression", () => {
+    const $vars = { $arr: ["alpha", "beta", "gamma"], $target: "beta" };
+    executeActionItem("INDEX_OF_VAR", { name: "$arr", find: "$target", to: "$i" }, $vars, ctx);
+    expect($vars.$i).toBe(1);
+  });
+});
+
+describe("MAP_VAR + FILTER_VAR actions (2026-05-23)", () => {
+  const ctx = makeContext();
+
+  it("MAP_VAR transforms numeric elements via an expression", () => {
+    const $vars = { $arr: [1, 2, 3, 4] };
+    // Extract a sub-path on each item by setting up object array first.
+    const $rows = { $rows: [{ amount: 5 }, { amount: 12 }, { amount: 8 }] };
+    executeActionItem("MAP_VAR", { name: "$rows", expr: "$item.amount", to: "$out" }, $rows, ctx);
+    expect($rows.$out).toEqual([5, 12, 8]);
+  });
+
+  it("MAP_VAR uses custom `as` for the iteration variable", () => {
+    const $vars = { $people: [{ name: "Ava" }, { name: "Ben" }] };
+    executeActionItem("MAP_VAR", { name: "$people", as: "$p", expr: "$p.name", to: "$names" }, $vars, ctx);
+    expect($vars.$names).toEqual(["Ava", "Ben"]);
+  });
+
+  it("MAP_VAR exposes $index inside the expression", () => {
+    const $vars = { $arr: ["a", "b", "c"] };
+    executeActionItem("MAP_VAR", { name: "$arr", expr: "$index", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toEqual([0, 1, 2]);
+  });
+
+  it("MAP_VAR restores prior $item / $index after iteration", () => {
+    const $vars = { $arr: [1, 2, 3], $item: "outer-item", $index: 99 };
+    executeActionItem("MAP_VAR", { name: "$arr", expr: "$item", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toEqual([1, 2, 3]);
+    // Outer scope's $item / $index restored:
+    expect($vars.$item).toBe("outer-item");
+    expect($vars.$index).toBe(99);
+  });
+
+  it("MAP_VAR is a no-op on non-arrays", () => {
+    const $vars = { $s: "hello" };
+    executeActionItem("MAP_VAR", { name: "$s", expr: "$item", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBeUndefined();
+  });
+
+  it("FILTER_VAR keeps matching elements with default IS comparator", () => {
+    const $vars = { $arr: [{ done: true }, { done: false }, { done: true }] };
+    executeActionItem("FILTER_VAR", { name: "$arr", as: "$x", comparator: "IS", right: true, to: "$out" }, $vars, ctx);
+    // Default `right` literal — needs the comparator on $item itself which
+    // won't match an object. Use a sub-path expression instead by setting
+    // up a primitive array.
+    const $primitive = { $arr: [1, 2, 3, 2] };
+    executeActionItem("FILTER_VAR", { name: "$arr", comparator: "IS", right: 2, to: "$twos" }, $primitive, ctx);
+    expect($primitive.$twos).toEqual([2, 2]);
+  });
+
+  it("FILTER_VAR works with GREATER", () => {
+    const $vars = { $arr: [1, 5, 3, 7, 2] };
+    executeActionItem("FILTER_VAR", { name: "$arr", comparator: "GREATER", right: 3, to: "$bigs" }, $vars, ctx);
+    expect($vars.$bigs).toEqual([5, 7]);
+  });
+
+  it("FILTER_VAR resolves $-prefixed `right` expression", () => {
+    const $vars = { $arr: [1, 2, 3, 4], $threshold: 2 };
+    executeActionItem("FILTER_VAR", { name: "$arr", comparator: "GREATER", right: "$threshold", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toEqual([3, 4]);
+  });
+});
+
+describe("DATE_FORMAT action (2026-05-23)", () => {
+  const ctx = makeContext();
+
+  it("formats ISO date with default 'EEE MMM d' token string", () => {
+    // 2026-05-23 is a Saturday.
+    const $vars = {};
+    executeActionItem("DATE_FORMAT", { date: "2026-05-23", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe("Sat May 23");
+  });
+
+  it("supports yyyy / MM / dd tokens", () => {
+    const $vars = {};
+    executeActionItem("DATE_FORMAT", { date: "2026-05-07", format: "yyyy-MM-dd", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe("2026-05-07");
+  });
+
+  it("supports full month + weekday tokens", () => {
+    const $vars = {};
+    executeActionItem("DATE_FORMAT", { date: "2026-05-23", format: "EEEE, MMMM d, yyyy", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe("Saturday, May 23, 2026");
+  });
+
+  it("supports single-digit M / d tokens", () => {
+    const $vars = {};
+    executeActionItem("DATE_FORMAT", { date: "2026-05-07", format: "M/d/yy", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe("5/7/26");
+  });
+
+  it("resolves $-prefixed date expression", () => {
+    const $vars = { $myDate: "2026-12-25" };
+    executeActionItem("DATE_FORMAT", { date: "$myDate", format: "EEE", to: "$dow" }, $vars, ctx);
+    expect($vars.$dow).toBe("Fri");
+  });
+
+  it("uses default $formatted target when `to` is omitted", () => {
+    const $vars = {};
+    executeActionItem("DATE_FORMAT", { date: "2026-05-23" }, $vars, ctx);
+    expect($vars.$formatted).toBe("Sat May 23");
+  });
+
+  it("returns empty string for missing date", () => {
+    const $vars = {};
+    executeActionItem("DATE_FORMAT", { date: null, to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe("");
+  });
+
+  it("returns the raw string for unparseable input", () => {
+    const $vars = {};
+    executeActionItem("DATE_FORMAT", { date: "not-a-date", to: "$out" }, $vars, ctx);
+    expect($vars.$out).toBe("not-a-date");
+  });
+});
+
+describe("GROUP_BY action (2026-05-23)", () => {
+  const ctx = makeContext();
+
+  it("groups by a simple top-level key", () => {
+    const $vars = {
+      $rows: [
+        { type: "income", amount: 100 },
+        { type: "expense", amount: 30 },
+        { type: "income", amount: 50 },
+        { type: "expense", amount: 12 },
+      ],
+    };
+    executeActionItem("GROUP_BY", { name: "$rows", by: "type", to: "$g" }, $vars, ctx);
+    expect($vars.$g.income).toHaveLength(2);
+    expect($vars.$g.expense).toHaveLength(2);
+    expect($vars.$g.income[0].amount).toBe(100);
+    expect($vars.$g.income[1].amount).toBe(50);
+  });
+
+  it("groups by a nested dotted path", () => {
+    const $vars = {
+      $rows: [
+        { meta: { kind: "a" }, v: 1 },
+        { meta: { kind: "b" }, v: 2 },
+        { meta: { kind: "a" }, v: 3 },
+      ],
+    };
+    executeActionItem("GROUP_BY", { name: "$rows", by: "meta.kind", to: "$g" }, $vars, ctx);
+    expect(Object.keys($vars.$g).sort()).toEqual(["a", "b"]);
+    expect($vars.$g.a.map(x => x.v)).toEqual([1, 3]);
+    expect($vars.$g.b.map(x => x.v)).toEqual([2]);
+  });
+
+  it("places null/undefined keys under 'null'", () => {
+    const $vars = {
+      $rows: [
+        { type: "x" },
+        { type: null },
+        {}, // type undefined
+        { type: "x" },
+      ],
+    };
+    executeActionItem("GROUP_BY", { name: "$rows", by: "type", to: "$g" }, $vars, ctx);
+    expect($vars.$g.x).toHaveLength(2);
+    expect($vars.$g.null).toHaveLength(2);
+  });
+
+  it("coerces non-string keys to strings", () => {
+    const $vars = {
+      $rows: [
+        { score: 1 }, { score: 2 }, { score: 1 }, { score: 3 },
+      ],
+    };
+    executeActionItem("GROUP_BY", { name: "$rows", by: "score", to: "$g" }, $vars, ctx);
+    expect(Object.keys($vars.$g).sort()).toEqual(["1", "2", "3"]);
+    expect($vars.$g["1"]).toHaveLength(2);
+  });
+
+  it("empty array → empty object", () => {
+    const $vars = { $rows: [] };
+    executeActionItem("GROUP_BY", { name: "$rows", by: "type", to: "$g" }, $vars, ctx);
+    expect($vars.$g).toEqual({});
+  });
+
+  it("missing array or by-path → empty object", () => {
+    const $vars = { $rows: "not array" };
+    executeActionItem("GROUP_BY", { name: "$rows", by: "type", to: "$g" }, $vars, ctx);
+    expect($vars.$g).toEqual({});
+
+    const $v2 = { $rows: [{ type: "a" }] };
+    executeActionItem("GROUP_BY", { name: "$rows", to: "$g" }, $v2, ctx);
+    expect($v2.$g).toEqual({});
+  });
+
+  it("uses default $groups target when `to` is omitted", () => {
+    const $vars = { $rows: [{ k: "a" }, { k: "b" }] };
+    executeActionItem("GROUP_BY", { name: "$rows", by: "k" }, $vars, ctx);
+    expect($vars.$groups).toBeDefined();
+    expect(Object.keys($vars.$groups).sort()).toEqual(["a", "b"]);
+  });
+
+  it("preserves insertion order within each group", () => {
+    const $vars = {
+      $rows: [
+        { g: "a", n: 1 },
+        { g: "b", n: 2 },
+        { g: "a", n: 3 },
+        { g: "a", n: 4 },
+        { g: "b", n: 5 },
+      ],
+    };
+    executeActionItem("GROUP_BY", { name: "$rows", by: "g", to: "$g" }, $vars, ctx);
+    expect($vars.$g.a.map(x => x.n)).toEqual([1, 3, 4]);
+    expect($vars.$g.b.map(x => x.n)).toEqual([2, 5]);
   });
 });

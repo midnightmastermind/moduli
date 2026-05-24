@@ -103,8 +103,15 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
   // fields AND text-type fields with an optionsSource (e.g. journalQuestion's
   // find-mode pool). Falls back to the text branch when no options resolve.
   const hasOptions = options.length > 0;
+  // Any field with a configured optionsSource — render the dropdown UI
+  // even when the predicate currently resolves zero options. Gives users
+  // a visible affordance (instead of a silent text fallback) plus a
+  // diagnostic empty-state placeholder when the pool is empty (#47).
+  const wantsDropdown = field.type === "select"
+    || hasOptions
+    || !!field.meta?.optionsSource;
 
-  if (field.type === "select" || hasOptions) {
+  if (wantsDropdown) {
     const onDice = () => {
       if (!options.length) return;
       const pick = options[Math.floor(Math.random() * options.length)];
@@ -122,16 +129,22 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
           onChange={(e) => writeAndSync(e.target.value)}
           style={{ fontSize: 11, padding: "2px 4px" }}
         >
-          <option value="">— pick —</option>
-          {options.map((opt) => {
-            const v = typeof opt === "string" ? opt : opt.value;
-            const l = typeof opt === "string" ? opt : (opt.label ?? opt.value);
-            return (
-              <option key={String(v)} value={v}>
-                {l}
-              </option>
-            );
-          })}
+          {hasOptions ? (
+            <>
+              <option value="">— pick —</option>
+              {options.map((opt) => {
+                const v = typeof opt === "string" ? opt : opt.value;
+                const l = typeof opt === "string" ? opt : (opt.label ?? opt.value);
+                return (
+                  <option key={String(v)} value={v}>
+                    {l}
+                  </option>
+                );
+              })}
+            </>
+          ) : (
+            <option value="" disabled>(no options — check pool predicate)</option>
+          )}
         </select>
         {field.meta?.randomizable && (
           <button

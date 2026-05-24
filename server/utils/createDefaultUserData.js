@@ -1039,7 +1039,7 @@ export async function createDefaultUserData(userId) {
   const toolkitInstances = {
     // === PHYSICAL ===
     morningWorkout: {
-      id: uid(), label: "Morning Workout", kind: "list",
+      id: uid(), label: "Morning Workout", kind: "board",
       styleMode: "own",
       ownStyle: { bg: "rgba(180,74,26,0.15)", textColor: "#e06a3a" },
       fieldBindings: [
@@ -1050,7 +1050,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     eveningRun: {
-      id: uid(), label: "Evening Run", kind: "list",
+      id: uid(), label: "Evening Run", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
@@ -1058,27 +1058,27 @@ export async function createDefaultUserData(userId) {
       ],
     },
     stretching: {
-      id: uid(), label: "Stretching", kind: "list",
+      id: uid(), label: "Stretching", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
       ],
     },
     drinkWater: {
-      id: uid(), label: "Drink Water", kind: "list",
+      id: uid(), label: "Drink Water", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.water.id, role: "input", order: 1 },
       ],
     },
     takeMeds: {
-      id: uid(), label: "Take Vitamins", kind: "list",
+      id: uid(), label: "Take Vitamins", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
       ],
     },
     sleepLog: {
-      id: uid(), label: "Sleep Log", kind: "list",
+      id: uid(), label: "Sleep Log", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
@@ -1088,7 +1088,7 @@ export async function createDefaultUserData(userId) {
 
     // === INTELLECTUAL ===
     reading: {
-      id: uid(), label: "Reading", kind: "list",
+      id: uid(), label: "Reading", kind: "board",
       styleMode: "own", ownStyle: { bg: "rgba(21,98,176,0.15)", textColor: "#4a9fe0" },
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1098,7 +1098,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     podcast: {
-      id: uid(), label: "Listen to Podcast", kind: "list",
+      id: uid(), label: "Listen to Podcast", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.podcastTitle.id, role: "input", order: 1 },
@@ -1106,7 +1106,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     watchMovie: {
-      id: uid(), label: "Watch Movie", kind: "list",
+      id: uid(), label: "Watch Movie", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.watchlist.id, role: "input", order: 1 },  // Pick from list OR type custom
@@ -1114,21 +1114,21 @@ export async function createDefaultUserData(userId) {
       ],
     },
     onlineCourse: {
-      id: uid(), label: "Online Course", kind: "list",
+      id: uid(), label: "Online Course", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
       ],
     },
     brainGames: {
-      id: uid(), label: "Brain Games", kind: "list",
+      id: uid(), label: "Brain Games", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
       ],
     },
     journaling: {
-      id: uid(), label: "Daily Journal", kind: "list",
+      id: uid(), label: "Daily Journal", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.journalQuestion.id, role: "display", order: 1 },
@@ -1139,7 +1139,7 @@ export async function createDefaultUserData(userId) {
 
     // === EMOTIONAL ===
     gratitude: {
-      id: uid(), label: "Gratitude Practice", kind: "list",
+      id: uid(), label: "Gratitude Practice", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.mood.id, role: "input", order: 1 },
@@ -1147,7 +1147,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     meditation: {
-      id: uid(), label: "Meditation", kind: "list",
+      id: uid(), label: "Meditation", kind: "board",
       styleMode: "own",
       ownStyle: { bg: "rgba(160,33,88,0.15)", textColor: "#d94080" },
       fieldBindings: [
@@ -1157,14 +1157,14 @@ export async function createDefaultUserData(userId) {
       ],
     },
     breathing: {
-      id: uid(), label: "Breathing Exercise", kind: "list",
+      id: uid(), label: "Breathing Exercise", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
       ],
     },
     moodCheck: {
-      id: uid(), label: "Mood Check-in", kind: "list",
+      id: uid(), label: "Mood Check-in", kind: "board",
       fieldBindings: [
         { fieldId: fields.mood.id, role: "input", order: 0 },
         { fieldId: fields.energy.id, role: "input", order: 1 },
@@ -1172,7 +1172,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     selfCare: {
-      id: uid(), label: "Self-Care Activity", kind: "list",
+      id: uid(), label: "Self-Care Activity", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
@@ -1182,7 +1182,7 @@ export async function createDefaultUserData(userId) {
 
     // === SOCIAL ===
     callFriend: {
-      id: uid(), label: "Call a Friend", kind: "list",
+      id: uid(), label: "Call a Friend", kind: "board",
       styleMode: "own", ownStyle: { bg: "rgba(196,144,0,0.15)", textColor: "#e8c030" },
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1191,14 +1191,14 @@ export async function createDefaultUserData(userId) {
       ],
     },
     familyTime: {
-      id: uid(), label: "Family Time", kind: "list",
+      id: uid(), label: "Family Time", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
       ],
     },
     socialEvent: {
-      id: uid(), label: "Social Event", kind: "list",
+      id: uid(), label: "Social Event", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
@@ -1206,7 +1206,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     helpSomeone: {
-      id: uid(), label: "Help Someone", kind: "list",
+      id: uid(), label: "Help Someone", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.notes.id, role: "input", order: 1 },
@@ -1215,7 +1215,7 @@ export async function createDefaultUserData(userId) {
 
     // === SPIRITUAL ===
     prayer: {
-      id: uid(), label: "Prayer/Reflection", kind: "list",
+      id: uid(), label: "Prayer/Reflection", kind: "board",
       styleMode: "own", ownStyle: { bg: "rgba(100,39,197,0.15)", textColor: "#9b6eee" },
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1223,7 +1223,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     natureWalk: {
-      id: uid(), label: "Nature Walk", kind: "list",
+      id: uid(), label: "Nature Walk", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
@@ -1231,7 +1231,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     spiritualReading: {
-      id: uid(), label: "Spiritual Reading", kind: "list",
+      id: uid(), label: "Spiritual Reading", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
@@ -1239,7 +1239,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     mindfulness: {
-      id: uid(), label: "Mindfulness", kind: "list",
+      id: uid(), label: "Mindfulness", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
@@ -1248,7 +1248,7 @@ export async function createDefaultUserData(userId) {
 
     // === OCCUPATIONAL ===
     deepWork: {
-      id: uid(), label: "Deep Work Session", kind: "list",
+      id: uid(), label: "Deep Work Session", kind: "board",
       styleMode: "own", ownStyle: { bg: "rgba(13,122,82,0.15)", textColor: "#29b87e" },
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1258,7 +1258,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     meeting: {
-      id: uid(), label: "Meeting", kind: "list",
+      id: uid(), label: "Meeting", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
@@ -1266,14 +1266,14 @@ export async function createDefaultUserData(userId) {
       ],
     },
     emailBlock: {
-      id: uid(), label: "Email Block", kind: "list",
+      id: uid(), label: "Email Block", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
       ],
     },
     skillDev: {
-      id: uid(), label: "Skill Development", kind: "list",
+      id: uid(), label: "Skill Development", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
@@ -1281,7 +1281,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     networking: {
-      id: uid(), label: "Networking", kind: "list",
+      id: uid(), label: "Networking", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.notes.id, role: "input", order: 1 },
@@ -1290,14 +1290,14 @@ export async function createDefaultUserData(userId) {
 
     // === FINANCIAL ===
     budgetReview: {
-      id: uid(), label: "Budget Review", kind: "list",
+      id: uid(), label: "Budget Review", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
       ],
     },
     trackExpense: {
-      id: uid(), label: "Track Expense", kind: "list",
+      id: uid(), label: "Track Expense", kind: "board",
       styleMode: "own", ownStyle: { bg: "rgba(29,138,48,0.15)", textColor: "#4cba64" },
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1308,7 +1308,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     purchase: {
-      id: uid(), label: "Purchase", kind: "list",
+      id: uid(), label: "Purchase", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.accountSelect.id, role: "input", order: 1 },
@@ -1316,7 +1316,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     logIncome: {
-      id: uid(), label: "Log Income", kind: "list",
+      id: uid(), label: "Log Income", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.income.id, role: "input", order: 1 },
@@ -1324,7 +1324,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     investmentCheck: {
-      id: uid(), label: "Check Investments", kind: "list",
+      id: uid(), label: "Check Investments", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.income.id, role: "input", order: 1 },  // Track gains/losses
@@ -1332,7 +1332,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     savingsGoal: {
-      id: uid(), label: "Savings Goal", kind: "list",
+      id: uid(), label: "Savings Goal", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.amount.id, role: "input", order: 1 },
@@ -1341,7 +1341,7 @@ export async function createDefaultUserData(userId) {
 
     // === ENVIRONMENTAL ===
     cleanDesk: {
-      id: uid(), label: "Clean Desk", kind: "list",
+      id: uid(), label: "Clean Desk", kind: "board",
       styleMode: "own", ownStyle: { bg: "rgba(7,121,160,0.15)", textColor: "#32b4e0" },
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
@@ -1349,7 +1349,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     declutter: {
-      id: uid(), label: "Declutter Space", kind: "list",
+      id: uid(), label: "Declutter Space", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.duration.id, role: "input", order: 1 },
@@ -1357,19 +1357,19 @@ export async function createDefaultUserData(userId) {
       ],
     },
     plantCare: {
-      id: uid(), label: "Plant Care", kind: "list",
+      id: uid(), label: "Plant Care", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
       ],
     },
     recycling: {
-      id: uid(), label: "Recycling", kind: "list",
+      id: uid(), label: "Recycling", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
       ],
     },
     ecoAction: {
-      id: uid(), label: "Eco-Friendly Action", kind: "list",
+      id: uid(), label: "Eco-Friendly Action", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.notes.id, role: "input", order: 1 },
@@ -1380,7 +1380,7 @@ export async function createDefaultUserData(userId) {
   // === WORKOUT INSTANCES — 5 per muscle group × 6 groups = 30 ===
   function makeWorkout(label, group) {
     return {
-      id: uid(), label, kind: "list",
+      id: uid(), label, kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.set1Reps.id, role: "input", order: 1 },
@@ -1435,7 +1435,7 @@ export async function createDefaultUserData(userId) {
   // Daily targets: 2500 cal, 180g protein, 280g carbs, 80g fats
   function makeNutrition(label, mealType, cal, prot, c, fat) {
     return {
-      id: uid(), label, kind: "list",
+      id: uid(), label, kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.mealCategory.id, role: "input", order: 1 },
@@ -1484,40 +1484,40 @@ export async function createDefaultUserData(userId) {
   const todoInstances = {
     // --- Home & Errands ---
     buyGroceries: {
-      id: uid(), label: "Buy groceries", kind: "list",
+      id: uid(), label: "Buy groceries", kind: "board",
       fieldBindings: [
         { fieldId: fields.dueDate.id, role: "input", order: 1 },
         { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
       ],
     },
     cleanGarage: {
-      id: uid(), label: "Clean out garage", kind: "list",
+      id: uid(), label: "Clean out garage", kind: "board",
       fieldBindings: [
         { fieldId: fields.duration.id, role: "input", order: 1 },
       ],
     },
     fixLeakyFaucet: {
-      id: uid(), label: "Fix leaky faucet", kind: "list",
+      id: uid(), label: "Fix leaky faucet", kind: "board",
       fieldBindings: [
         { fieldId: fields.priority.id, role: "input", order: 1 },
       ],
     },
     returnBooks: {
-      id: uid(), label: "Return library books", kind: "list",
+      id: uid(), label: "Return library books", kind: "board",
       fieldBindings: [
         { fieldId: fields.dueDate.id, role: "input", order: 1 },
         { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
       ],
     },
     organizePantry: {
-      id: uid(), label: "Organize pantry", kind: "list",
+      id: uid(), label: "Organize pantry", kind: "board",
       fieldBindings: [
         { fieldId: fields.duration.id, role: "input", order: 1 },
       ],
     },
     // --- Finance & Admin ---
     payBills: {
-      id: uid(), label: "Pay utility bills", kind: "list",
+      id: uid(), label: "Pay utility bills", kind: "board",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 1 },
         { fieldId: fields.dueDate.id, role: "input", order: 2 },
@@ -1525,27 +1525,27 @@ export async function createDefaultUserData(userId) {
       ],
     },
     cancelSub: {
-      id: uid(), label: "Cancel unused subscription", kind: "list",
+      id: uid(), label: "Cancel unused subscription", kind: "board",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 1 },
       ],
     },
     renewLicense: {
-      id: uid(), label: "Renew driver's license", kind: "list",
+      id: uid(), label: "Renew driver's license", kind: "board",
       fieldBindings: [
         { fieldId: fields.dueDate.id, role: "input", order: 1 },
         { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
       ],
     },
     dentistAppt: {
-      id: uid(), label: "Schedule dentist appointment", kind: "list",
+      id: uid(), label: "Schedule dentist appointment", kind: "board",
       fieldBindings: [
         { fieldId: fields.dueDate.id, role: "input", order: 1 },
         { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
       ],
     },
     fileInsurance: {
-      id: uid(), label: "File insurance claim", kind: "list",
+      id: uid(), label: "File insurance claim", kind: "board",
       fieldBindings: [
         { fieldId: fields.dueDate.id, role: "input", order: 1 },
         { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
@@ -1553,24 +1553,24 @@ export async function createDefaultUserData(userId) {
     },
     // --- Work Projects ---
     orderSupplies: {
-      id: uid(), label: "Order office supplies", kind: "list",
+      id: uid(), label: "Order office supplies", kind: "board",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 1 },
       ],
     },
     backupComputer: {
-      id: uid(), label: "Backup computer files", kind: "list",
+      id: uid(), label: "Backup computer files", kind: "board",
       fieldBindings: [
       ],
     },
     updatePortfolio: {
-      id: uid(), label: "Update portfolio site", kind: "list",
+      id: uid(), label: "Update portfolio site", kind: "board",
       fieldBindings: [
         { fieldId: fields.duration.id, role: "input", order: 1 },
       ],
     },
     prepPresentation: {
-      id: uid(), label: "Prep client presentation", kind: "list",
+      id: uid(), label: "Prep client presentation", kind: "board",
       fieldBindings: [
         { fieldId: fields.priority.id, role: "input", order: 1 },
         { fieldId: fields.dueDate.id, role: "input", order: 2 },
@@ -1579,18 +1579,18 @@ export async function createDefaultUserData(userId) {
     },
     // --- Personal / Fun ---
     callMom: {
-      id: uid(), label: "Call mom", kind: "list",
+      id: uid(), label: "Call mom", kind: "board",
       fieldBindings: [
       ],
     },
     planVacation: {
-      id: uid(), label: "Plan summer vacation", kind: "list",
+      id: uid(), label: "Plan summer vacation", kind: "board",
       fieldBindings: [
         { fieldId: fields.notes.id, role: "input", order: 1 },
       ],
     },
     birthdayGift: {
-      id: uid(), label: "Buy birthday gift for Sarah", kind: "list",
+      id: uid(), label: "Buy birthday gift for Sarah", kind: "board",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 1 },
         { fieldId: fields.dueDate.id, role: "input", order: 2 },
@@ -1598,7 +1598,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     signUpClass: {
-      id: uid(), label: "Sign up for cooking class", kind: "list",
+      id: uid(), label: "Sign up for cooking class", kind: "board",
       fieldBindings: [
         { fieldId: fields.amount.id, role: "input", order: 1 },
       ],
@@ -1609,7 +1609,7 @@ export async function createDefaultUserData(userId) {
   // These live in the "Planning & Deadlines" todo container and show countdown timers
   const planningInstances = {
     moduiLaunch: {
-      id: uid(), label: "Moduli MVP Launch", kind: "list",
+      id: uid(), label: "Moduli MVP Launch", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.priority.id, role: "input", order: 1 },
@@ -1619,7 +1619,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     doctorCheckup: {
-      id: uid(), label: "Annual Doctor Checkup", kind: "list",
+      id: uid(), label: "Annual Doctor Checkup", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.dueDate.id, role: "input", order: 1 },
@@ -1627,7 +1627,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     carInsurance: {
-      id: uid(), label: "Car Insurance Renewal", kind: "list",
+      id: uid(), label: "Car Insurance Renewal", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.amount.id, role: "input", order: 1 },
@@ -1636,7 +1636,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     fileTaxes: {
-      id: uid(), label: "File Taxes", kind: "list",
+      id: uid(), label: "File Taxes", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.dueDate.id, role: "input", order: 1 },
@@ -1645,7 +1645,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     quarterlyReview: {
-      id: uid(), label: "Quarterly Financial Review", kind: "list",
+      id: uid(), label: "Quarterly Financial Review", kind: "board",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.dueDate.id, role: "input", order: 1 },
@@ -1657,7 +1657,7 @@ export async function createDefaultUserData(userId) {
   // === DAILY GOALS SUMMARY INSTANCES ===
   const goalInstances = {
     physicalSummary: {
-      id: uid(), label: "Physical Wellness", kind: "list",
+      id: uid(), label: "Physical Wellness", kind: "board",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
         { fieldId: fields.totalSteps.id, role: "display", order: 1 },
@@ -1665,7 +1665,7 @@ export async function createDefaultUserData(userId) {
       ],
     },
     intellectualSummary: {
-      id: uid(), label: "Intellectual Growth", kind: "list",
+      id: uid(), label: "Intellectual Growth", kind: "board",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
         { fieldId: fields.totalPages.id, role: "display", order: 1 },
@@ -1673,48 +1673,48 @@ export async function createDefaultUserData(userId) {
       ],
     },
     emotionalSummary: {
-      id: uid(), label: "Emotional Balance", kind: "list",
+      id: uid(), label: "Emotional Balance", kind: "board",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
         { fieldId: fields.lastMood.id, role: "display", order: 1 },
       ],
     },
     socialSummary: {
-      id: uid(), label: "Social Connection", kind: "list",
+      id: uid(), label: "Social Connection", kind: "board",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
         { fieldId: fields.totalDuration.id, role: "display", order: 1 },
       ],
     },
     spiritualSummary: {
-      id: uid(), label: "Spiritual Practice", kind: "list",
+      id: uid(), label: "Spiritual Practice", kind: "board",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
         { fieldId: fields.totalDuration.id, role: "display", order: 1 },
       ],
     },
     occupationalSummary: {
-      id: uid(), label: "Work Progress", kind: "list",
+      id: uid(), label: "Work Progress", kind: "board",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
         { fieldId: fields.totalDuration.id, role: "display", order: 1 },
       ],
     },
     financialSummary: {
-      id: uid(), label: "Financial Health", kind: "list",
+      id: uid(), label: "Financial Health", kind: "board",
       fieldBindings: [
         { fieldId: fields.totalSpent.id, role: "display", order: 0 },
         { fieldId: fields.totalIncome.id, role: "display", order: 1 },
       ],
     },
     environmentalSummary: {
-      id: uid(), label: "Environment Care", kind: "list",
+      id: uid(), label: "Environment Care", kind: "board",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
       ],
     },
     planningSummary: {
-      id: uid(), label: "Planning Overview", kind: "list",
+      id: uid(), label: "Planning Overview", kind: "board",
       fieldBindings: [
         { fieldId: fields.overdueTasks.id, role: "display", order: 0 },
         { fieldId: fields.upcomingThisWeek.id, role: "display", order: 1 },
@@ -1725,7 +1725,7 @@ export async function createDefaultUserData(userId) {
   // === ACCOUNT AGGREGATION INSTANCES (no targets - lifetime stats) ===
   const accountInstances = {
     bankAccount: {
-      id: uid(), label: "Checking Account", kind: "list",
+      id: uid(), label: "Checking Account", kind: "board",
       fieldBindings: [
         { fieldId: fields.netBalance.id, role: "display", order: 0 },
         { fieldId: fields.totalSpent.id, role: "display", order: 1 },
@@ -1733,40 +1733,40 @@ export async function createDefaultUserData(userId) {
       ],
     },
     savingsAccount: {
-      id: uid(), label: "Savings Account", kind: "list",
+      id: uid(), label: "Savings Account", kind: "board",
       fieldBindings: [
         { fieldId: fields.netBalance.id, role: "display", order: 0 },
       ],
     },
     momsAccount: {
-      id: uid(), label: "Mom's Account", kind: "list",
+      id: uid(), label: "Mom's Account", kind: "board",
       fieldBindings: [
         { fieldId: fields.momsAccountBalance.id, role: "display", order: 0 },
       ],
     },
     fitnessAccount: {
-      id: uid(), label: "Fitness Stats", kind: "list",
+      id: uid(), label: "Fitness Stats", kind: "board",
       fieldBindings: [
         { fieldId: fields.totalWorkouts.id, role: "display", order: 0 },
         { fieldId: fields.totalSteps.id, role: "display", order: 1 },
       ],
     },
     readingAccount: {
-      id: uid(), label: "Reading Stats", kind: "list",
+      id: uid(), label: "Reading Stats", kind: "board",
       fieldBindings: [
         { fieldId: fields.totalReadingTime.id, role: "display", order: 0 },
         { fieldId: fields.totalPages.id, role: "display", order: 1 },
       ],
     },
     productivityAccount: {
-      id: uid(), label: "Productivity", kind: "list",
+      id: uid(), label: "Productivity", kind: "board",
       fieldBindings: [
         { fieldId: fields.completionRate.id, role: "display", order: 0 },
         { fieldId: fields.totalDuration.id, role: "display", order: 1 },
       ],
     },
     wellnessAccount: {
-      id: uid(), label: "Wellness Score", kind: "list",
+      id: uid(), label: "Wellness Score", kind: "board",
       fieldBindings: [
         { fieldId: fields.lastMood.id, role: "display", order: 0 },
         { fieldId: fields.totalWater.id, role: "display", order: 1 },
@@ -1776,14 +1776,14 @@ export async function createDefaultUserData(userId) {
 
   // === WORKOUT + NUTRITION GOAL SUMMARY INSTANCES ===
   const workoutGoalInstance = {
-    id: uid(), label: "Workout Today", kind: "list",
+    id: uid(), label: "Workout Today", kind: "board",
     fieldBindings: [
       { fieldId: fields.totalRepsToday.id, role: "display", order: 0 },
       { fieldId: fields.totalSteps.id, role: "display", order: 1 },
     ],
   };
   const nutritionGoalInstance = {
-    id: uid(), label: "Nutrition Today", kind: "list",
+    id: uid(), label: "Nutrition Today", kind: "board",
     fieldBindings: [
       { fieldId: fields.totalProtein.id, role: "display", order: 0 },
       { fieldId: fields.totalCarbs.id, role: "display", order: 1 },
@@ -1852,135 +1852,135 @@ export async function createDefaultUserData(userId) {
   const notebookNoteInstancesFlat = {};
   for (const [sKey, entry] of Object.entries(notesBySectionKey)) {
     for (const [idx, inst] of entry.instances.entries()) {
-      notebookNoteInstancesFlat[`${sKey}_${idx}`] = { id: inst.id, label: inst.label, kind: "list" };
+      notebookNoteInstancesFlat[`${sKey}_${idx}`] = { id: inst.id, label: inst.label, kind: "board" };
     }
   }
 
   // Journal answer docInstances (one per Q&A section)
   const journalDocInstances = {
-    wentWellDocInst:  { id: uid(), label: "What Went Well?",          kind: "list", fieldBindings: [{ fieldId: fields.wentWellAnswer.id,  role: "input", order: 0 }] },
-    improvedDocInst:  { id: uid(), label: "What Could Be Improved?",  kind: "list", fieldBindings: [{ fieldId: fields.improvedAnswer.id,   role: "input", order: 0 }] },
-    gratitudeDocInst: { id: uid(), label: "Gratitude",                kind: "list", fieldBindings: [{ fieldId: fields.gratitudeAnswer.id,  role: "input", order: 0 }] },
+    wentWellDocInst:  { id: uid(), label: "What Went Well?",          kind: "board", fieldBindings: [{ fieldId: fields.wentWellAnswer.id,  role: "input", order: 0 }] },
+    improvedDocInst:  { id: uid(), label: "What Could Be Improved?",  kind: "board", fieldBindings: [{ fieldId: fields.improvedAnswer.id,   role: "input", order: 0 }] },
+    gratitudeDocInst: { id: uid(), label: "Gratitude",                kind: "board", fieldBindings: [{ fieldId: fields.gratitudeAnswer.id,  role: "input", order: 0 }] },
   };
 
   // Movie pool instances — library items for the Movies pool container
   const movieRatingBinding = { fieldId: fields.movieRating.id, order: 0 };
   const lastWatchedBinding = { fieldId: fields.lastWatched.id, order: 1 };
   const moviePoolInstances = {
-    movieMatrix:    { id: uid(), label: "The Matrix",                  kind: "list", defaultDragMode: "copy", fieldBindings: [movieRatingBinding, lastWatchedBinding] },
-    movieParasite:  { id: uid(), label: "Parasite",                    kind: "list", defaultDragMode: "copy", fieldBindings: [movieRatingBinding, lastWatchedBinding] },
-    movieEEAO:      { id: uid(), label: "Everything Everywhere All At Once", kind: "list", defaultDragMode: "copy", fieldBindings: [movieRatingBinding, lastWatchedBinding] },
-    movieArrival:   { id: uid(), label: "Arrival",                     kind: "list", defaultDragMode: "copy", fieldBindings: [movieRatingBinding, lastWatchedBinding] },
-    movieDune:      { id: uid(), label: "Dune",                        kind: "list", defaultDragMode: "copy", fieldBindings: [movieRatingBinding, lastWatchedBinding] },
+    movieMatrix:    { id: uid(), label: "The Matrix",                  kind: "board", defaultDragMode: "copy", fieldBindings: [movieRatingBinding, lastWatchedBinding] },
+    movieParasite:  { id: uid(), label: "Parasite",                    kind: "board", defaultDragMode: "copy", fieldBindings: [movieRatingBinding, lastWatchedBinding] },
+    movieEEAO:      { id: uid(), label: "Everything Everywhere All At Once", kind: "board", defaultDragMode: "copy", fieldBindings: [movieRatingBinding, lastWatchedBinding] },
+    movieArrival:   { id: uid(), label: "Arrival",                     kind: "board", defaultDragMode: "copy", fieldBindings: [movieRatingBinding, lastWatchedBinding] },
+    movieDune:      { id: uid(), label: "Dune",                        kind: "board", defaultDragMode: "copy", fieldBindings: [movieRatingBinding, lastWatchedBinding] },
   };
 
   const tvShowPoolInstances = {
-    tvBreakingBad: { id: uid(), label: "Breaking Bad",  kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    tvTheWire:     { id: uid(), label: "The Wire",       kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    tvSeverance:   { id: uid(), label: "Severance",      kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    tvDark:        { id: uid(), label: "Dark",           kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    tvShogun:      { id: uid(), label: "Shogun",         kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    tvBreakingBad: { id: uid(), label: "Breaking Bad",  kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    tvTheWire:     { id: uid(), label: "The Wire",       kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    tvSeverance:   { id: uid(), label: "Severance",      kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    tvDark:        { id: uid(), label: "Dark",           kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    tvShogun:      { id: uid(), label: "Shogun",         kind: "board", defaultDragMode: "copy", fieldBindings: [] },
   };
   const booksPoolInstances = {
-    bookMeditations:  { id: uid(), label: "Meditations — Marcus Aurelius", kind: "list", defaultDragMode: "copy", fieldBindings: [{ fieldId: fields.movieRating.id, order: 0 }, { fieldId: fields.lastWatched.id, order: 1 }] },
-    bookAtomicHabits: { id: uid(), label: "Atomic Habits",                  kind: "list", defaultDragMode: "copy", fieldBindings: [{ fieldId: fields.movieRating.id, order: 0 }] },
-    bookSapiens:      { id: uid(), label: "Sapiens",                        kind: "list", defaultDragMode: "copy", fieldBindings: [{ fieldId: fields.movieRating.id, order: 0 }] },
-    bookMansSearch:   { id: uid(), label: "Man's Search for Meaning",       kind: "list", defaultDragMode: "copy", fieldBindings: [{ fieldId: fields.movieRating.id, order: 0 }] },
-    bookPowerOfNow:   { id: uid(), label: "The Power of Now",               kind: "list", defaultDragMode: "copy", fieldBindings: [{ fieldId: fields.movieRating.id, order: 0 }] },
+    bookMeditations:  { id: uid(), label: "Meditations — Marcus Aurelius", kind: "board", defaultDragMode: "copy", fieldBindings: [{ fieldId: fields.movieRating.id, order: 0 }, { fieldId: fields.lastWatched.id, order: 1 }] },
+    bookAtomicHabits: { id: uid(), label: "Atomic Habits",                  kind: "board", defaultDragMode: "copy", fieldBindings: [{ fieldId: fields.movieRating.id, order: 0 }] },
+    bookSapiens:      { id: uid(), label: "Sapiens",                        kind: "board", defaultDragMode: "copy", fieldBindings: [{ fieldId: fields.movieRating.id, order: 0 }] },
+    bookMansSearch:   { id: uid(), label: "Man's Search for Meaning",       kind: "board", defaultDragMode: "copy", fieldBindings: [{ fieldId: fields.movieRating.id, order: 0 }] },
+    bookPowerOfNow:   { id: uid(), label: "The Power of Now",               kind: "board", defaultDragMode: "copy", fieldBindings: [{ fieldId: fields.movieRating.id, order: 0 }] },
   };
   const musicPoolInstances = {
-    musicKindOfBlue: { id: uid(), label: "Kind of Blue — Miles Davis",  kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    musicOKComputer: { id: uid(), label: "OK Computer — Radiohead",     kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    musicBlue:       { id: uid(), label: "Blue — Joni Mitchell",        kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    musicPurpleRain: { id: uid(), label: "Purple Rain — Prince",        kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    musicBlonde:     { id: uid(), label: "Blonde — Frank Ocean",        kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    musicKindOfBlue: { id: uid(), label: "Kind of Blue — Miles Davis",  kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    musicOKComputer: { id: uid(), label: "OK Computer — Radiohead",     kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    musicBlue:       { id: uid(), label: "Blue — Joni Mitchell",        kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    musicPurpleRain: { id: uid(), label: "Purple Rain — Prince",        kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    musicBlonde:     { id: uid(), label: "Blonde — Frank Ocean",        kind: "board", defaultDragMode: "copy", fieldBindings: [] },
   };
   const podcastsPoolInstances = {
-    podcastLex:        { id: uid(), label: "Lex Fridman Podcast",  kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    podcast99PI:       { id: uid(), label: "99% Invisible",         kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    podcastHuberman:   { id: uid(), label: "Huberman Lab",          kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    podcastHiddenBrain:{ id: uid(), label: "Hidden Brain",          kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    podcastAcquired:   { id: uid(), label: "Acquired",              kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    podcastLex:        { id: uid(), label: "Lex Fridman Podcast",  kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    podcast99PI:       { id: uid(), label: "99% Invisible",         kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    podcastHuberman:   { id: uid(), label: "Huberman Lab",          kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    podcastHiddenBrain:{ id: uid(), label: "Hidden Brain",          kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    podcastAcquired:   { id: uid(), label: "Acquired",              kind: "board", defaultDragMode: "copy", fieldBindings: [] },
   };
   const gamesPoolInstances = {
-    gameChess:     { id: uid(), label: "Chess",           kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    gameZelda:     { id: uid(), label: "Zelda: BotW",     kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    gameEldenRing: { id: uid(), label: "Elden Ring",      kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    gameMinecraft: { id: uid(), label: "Minecraft",       kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    gameStardew:   { id: uid(), label: "Stardew Valley",  kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    gameChess:     { id: uid(), label: "Chess",           kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    gameZelda:     { id: uid(), label: "Zelda: BotW",     kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    gameEldenRing: { id: uid(), label: "Elden Ring",      kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    gameMinecraft: { id: uid(), label: "Minecraft",       kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    gameStardew:   { id: uid(), label: "Stardew Valley",  kind: "board", defaultDragMode: "copy", fieldBindings: [] },
   };
   const activitiesPoolInstances = {
-    actHiking:      { id: uid(), label: "Hiking",       kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    actSwimming:    { id: uid(), label: "Swimming",     kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    actCooking:     { id: uid(), label: "Cooking",      kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    actPhotography: { id: uid(), label: "Photography",  kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    actYoga:        { id: uid(), label: "Yoga",         kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    actGardening:   { id: uid(), label: "Gardening",    kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    actDrawing:     { id: uid(), label: "Drawing",      kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    actHiking:      { id: uid(), label: "Hiking",       kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    actSwimming:    { id: uid(), label: "Swimming",     kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    actCooking:     { id: uid(), label: "Cooking",      kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    actPhotography: { id: uid(), label: "Photography",  kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    actYoga:        { id: uid(), label: "Yoga",         kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    actGardening:   { id: uid(), label: "Gardening",    kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    actDrawing:     { id: uid(), label: "Drawing",      kind: "board", defaultDragMode: "copy", fieldBindings: [] },
   };
   const roomsPoolInstances = {
-    roomLivingRoom: { id: uid(), label: "Living Room",  kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    roomKitchen:    { id: uid(), label: "Kitchen",      kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    roomBedroom:    { id: uid(), label: "Bedroom",      kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    roomBathroom:   { id: uid(), label: "Bathroom",     kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    roomOffice:     { id: uid(), label: "Office",       kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    roomGarage:     { id: uid(), label: "Garage",       kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    roomBackyard:   { id: uid(), label: "Backyard",     kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    roomLivingRoom: { id: uid(), label: "Living Room",  kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    roomKitchen:    { id: uid(), label: "Kitchen",      kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    roomBedroom:    { id: uid(), label: "Bedroom",      kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    roomBathroom:   { id: uid(), label: "Bathroom",     kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    roomOffice:     { id: uid(), label: "Office",       kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    roomGarage:     { id: uid(), label: "Garage",       kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    roomBackyard:   { id: uid(), label: "Backyard",     kind: "board", defaultDragMode: "copy", fieldBindings: [] },
   };
   const cbtPoolInstances = {
-    cbtRestructuring: { id: uid(), label: "Cognitive Restructuring",       kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    cbtActivation:    { id: uid(), label: "Behavioral Activation",         kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    cbtThoughtRecord: { id: uid(), label: "Thought Records",               kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    cbtGrounding:     { id: uid(), label: "Grounding 5-4-3-2-1",           kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    cbtMindfulness:   { id: uid(), label: "Mindfulness",                   kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    cbtExposure:      { id: uid(), label: "Exposure Exercise",             kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    cbtWorryTime:     { id: uid(), label: "Worry Time",                    kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    cbtPMR:           { id: uid(), label: "Progressive Muscle Relaxation", kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    cbtRestructuring: { id: uid(), label: "Cognitive Restructuring",       kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    cbtActivation:    { id: uid(), label: "Behavioral Activation",         kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    cbtThoughtRecord: { id: uid(), label: "Thought Records",               kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    cbtGrounding:     { id: uid(), label: "Grounding 5-4-3-2-1",           kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    cbtMindfulness:   { id: uid(), label: "Mindfulness",                   kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    cbtExposure:      { id: uid(), label: "Exposure Exercise",             kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    cbtWorryTime:     { id: uid(), label: "Worry Time",                    kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    cbtPMR:           { id: uid(), label: "Progressive Muscle Relaxation", kind: "board", defaultDragMode: "copy", fieldBindings: [] },
   };
   const bookmarksPoolInstances = {
-    bookmarkGTD:     { id: uid(), label: "Getting Things Done",     kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    bookmarkOld:     { id: uid(), label: "Old Articles to Review",  kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    bookmarkRecipes: { id: uid(), label: "Recipe Collection",       kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    bookmarkHealth:  { id: uid(), label: "Health Research",         kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    bookmarkGTD:     { id: uid(), label: "Getting Things Done",     kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    bookmarkOld:     { id: uid(), label: "Old Articles to Review",  kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    bookmarkRecipes: { id: uid(), label: "Recipe Collection",       kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    bookmarkHealth:  { id: uid(), label: "Health Research",         kind: "board", defaultDragMode: "copy", fieldBindings: [] },
   };
   // Journal question pool instances — each pool feeds a Q/A select dropdown
   const wentWellQInstances = {
-    wwq1: { id: uid(), label: "What went well today?",              kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    wwq2: { id: uid(), label: "What made you smile?",               kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    wwq3: { id: uid(), label: "What progress did you make?",        kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    wwq4: { id: uid(), label: "What are you proud of?",             kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    wwq5: { id: uid(), label: "What positive interaction did you have?", kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    wwq1: { id: uid(), label: "What went well today?",              kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    wwq2: { id: uid(), label: "What made you smile?",               kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    wwq3: { id: uid(), label: "What progress did you make?",        kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    wwq4: { id: uid(), label: "What are you proud of?",             kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    wwq5: { id: uid(), label: "What positive interaction did you have?", kind: "board", defaultDragMode: "copy", fieldBindings: [] },
   };
   const improvedQInstances = {
-    iq1: { id: uid(), label: "What could be improved?",             kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    iq2: { id: uid(), label: "What challenged you today?",          kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    iq3: { id: uid(), label: "What would you do differently?",      kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    iq4: { id: uid(), label: "Where did you feel stuck?",           kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    iq5: { id: uid(), label: "What drained your energy?",           kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    iq1: { id: uid(), label: "What could be improved?",             kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    iq2: { id: uid(), label: "What challenged you today?",          kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    iq3: { id: uid(), label: "What would you do differently?",      kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    iq4: { id: uid(), label: "Where did you feel stuck?",           kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    iq5: { id: uid(), label: "What drained your energy?",           kind: "board", defaultDragMode: "copy", fieldBindings: [] },
   };
   const gratitudeQInstances = {
-    gq1: { id: uid(), label: "What are you grateful for?",          kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    gq2: { id: uid(), label: "Who made a difference today?",        kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    gq3: { id: uid(), label: "What simple pleasure did you enjoy?", kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    gq4: { id: uid(), label: "What opportunity are you thankful for?", kind: "list", defaultDragMode: "copy", fieldBindings: [] },
-    gq5: { id: uid(), label: "What did you learn today?",           kind: "list", defaultDragMode: "copy", fieldBindings: [] },
+    gq1: { id: uid(), label: "What are you grateful for?",          kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    gq2: { id: uid(), label: "Who made a difference today?",        kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    gq3: { id: uid(), label: "What simple pleasure did you enjoy?", kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    gq4: { id: uid(), label: "What opportunity are you thankful for?", kind: "board", defaultDragMode: "copy", fieldBindings: [] },
+    gq5: { id: uid(), label: "What did you learn today?",           kind: "board", defaultDragMode: "copy", fieldBindings: [] },
   };
 
   const listTypeBinding = { fieldId: fields.listType.id, order: 0 };
   const enrichmentInstances = {
-    actWatch:    { id: uid(), label: "Watch",            kind: "list", defaultDragMode: "copy",
+    actWatch:    { id: uid(), label: "Watch",            kind: "board", defaultDragMode: "copy",
       fieldBindings: [listTypeBinding, { fieldId: fields.watchItem.id,    order: 1 }] },
-    actRead:     { id: uid(), label: "Read",             kind: "list", defaultDragMode: "copy",
+    actRead:     { id: uid(), label: "Read",             kind: "board", defaultDragMode: "copy",
       fieldBindings: [listTypeBinding, { fieldId: fields.readItem.id,     order: 1 }] },
-    actListen:   { id: uid(), label: "Listen",           kind: "list", defaultDragMode: "copy",
+    actListen:   { id: uid(), label: "Listen",           kind: "board", defaultDragMode: "copy",
       fieldBindings: [listTypeBinding, { fieldId: fields.listenItem.id,   order: 1 }] },
-    actPlay:     { id: uid(), label: "Play",             kind: "list", defaultDragMode: "copy",
+    actPlay:     { id: uid(), label: "Play",             kind: "board", defaultDragMode: "copy",
       fieldBindings: [listTypeBinding, { fieldId: fields.playItem.id,     order: 1 }] },
-    actDoRoom:   { id: uid(), label: "Tidy Room",        kind: "list", defaultDragMode: "copy",
+    actDoRoom:   { id: uid(), label: "Tidy Room",        kind: "board", defaultDragMode: "copy",
       fieldBindings: [{ fieldId: fields.roomItem.id,    order: 0 }] },
-    actCBT:      { id: uid(), label: "CBT Skill",        kind: "list", defaultDragMode: "copy",
+    actCBT:      { id: uid(), label: "CBT Skill",        kind: "board", defaultDragMode: "copy",
       fieldBindings: [{ fieldId: fields.cbtItem.id,     order: 0 }] },
-    actBookmark: { id: uid(), label: "Review Bookmark",  kind: "list", defaultDragMode: "copy",
+    actBookmark: { id: uid(), label: "Review Bookmark",  kind: "board", defaultDragMode: "copy",
       fieldBindings: [{ fieldId: fields.bookmarkItem.id, order: 0 }] },
   };
 
@@ -4342,7 +4342,7 @@ export async function createDefaultUserData(userId) {
     const pageOccId = uid();
     const cardOccIds = [];
     for (const card of pageDef.cards) {
-      const cardMod = new Module({ id: uid(), userId, gridId, role: "instance", kind: "list", label: card.label, fieldBindings: [] });
+      const cardMod = new Module({ id: uid(), userId, gridId, role: "instance", kind: "board", label: card.label, fieldBindings: [] });
       await cardMod.save();
       const cardOccId = await createOccurrence({ moduleId: cardMod.id, meta: { x: card.x, y: card.y, containerId: pageMod.id } });
       cardOccIds.push(cardOccId);

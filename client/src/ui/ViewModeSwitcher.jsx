@@ -3,8 +3,11 @@
 // 3-button segmented control for switching an occurrence's render mode.
 // Drives the representation view-toggle (see `helpers/viewMode.js`).
 //
-// Context-aware — pass `contextTag` to limit which modes are offered.
-// Folder pages, for example, never show the "Actual" button.
+// Three input forms (priority order):
+//   1. `allowedModes` + `allowChange` — layout cascade output. Strongest.
+//   2. `contextTag` — legacy context-tag based defaults (folderPage / mindMap).
+//   3. fallback to "default" context.
+// When `allowChange === false`, the switcher renders nothing.
 
 import React from "react";
 import { Eye, Tag, Layers } from "lucide-react";
@@ -19,17 +22,26 @@ const MODE_ICON = {
   preview:        Eye,
   representation: Tag,
   actual:         Layers,
+  "actual-converted": Layers,
 };
 
 export default function ViewModeSwitcher({
   occurrence,
   contextTag = "default",
+  allowedModes = null,    // layout cascade — array of allowed modes (overrides contextTag)
+  allowChange = true,     // layout cascade — false hides the switcher entirely
   onChange,
   size = "md",          // "sm" | "md"
   className = "",
 }) {
-  const current = getEffectiveViewMode(occurrence, contextTag);
-  const allowed = getAllowedViewModes(contextTag);
+  if (!allowChange) return null;
+  const allowed = allowedModes ?? getAllowedViewModes(contextTag);
+  if (!allowed || allowed.length === 0) return null;
+  // For "current" resolution: stored value wins if allowed; else first allowed.
+  const stored = occurrence?.meta?.viewMode;
+  const current = (stored && allowed.includes(stored))
+    ? stored
+    : (allowedModes ? allowed[0] : getEffectiveViewMode(occurrence, contextTag));
   const sz = size === "sm" ? SIZES.sm : SIZES.md;
 
   return (

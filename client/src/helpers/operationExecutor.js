@@ -879,8 +879,36 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   const templateById = Object.fromEntries(allTemplates.map(t => [t.id, t]));
   const allItems = Object.values(occurrencesById).map(occ => {
     const tpl = occ.moduleId ? templateById[occ.moduleId] : null;
+    const effFilter = getEffectiveFilterForOccurrence(occ, { grid: state?.grid, occurrencesById, parentByChildId });
+    // Task #60 — autoStampFromFilter: when a field's meta opts in and the
+    // stored value is empty, substitute the occurrence's effective filter
+    // value for that field. Pure read-time substitution (no DB write).
+    // Pipelines reading `$item.fields.<fid>.value` now see the filter
+    // value the same way the Field renderer does. Mirrors FieldRenderer
+    // logic so client UI + ops stay aligned. Skips when no field opts in
+    // (most occurrences) so the cost is one Map check per item.
+    let fields = occ.fields;
+    if (effFilter && fields && typeof fields === "object") {
+      let mutated = null;
+      for (const fid of Object.keys(fields)) {
+        const f = fieldsById[fid];
+        if (f?.meta?.autoStampFromFilter !== true) continue;
+        const stored = fields[fid];
+        const storedValue = (stored && typeof stored === "object" && "value" in stored) ? stored.value : stored;
+        if (storedValue != null && storedValue !== "") continue;
+        const fromFilter = effFilter[fid];
+        if (fromFilter == null || fromFilter === "") continue;
+        const v = (typeof fromFilter === "object" && "value" in fromFilter) ? fromFilter.value : fromFilter;
+        if (!mutated) mutated = { ...fields };
+        mutated[fid] = (stored && typeof stored === "object")
+          ? { ...stored, value: v }
+          : { value: v, flow: "in" };
+      }
+      if (mutated) fields = mutated;
+    }
     return {
       ...occ,
+      fields,
       label: occ.label ?? tpl?.label ?? tpl?.name ?? null,
       name: occ.name ?? tpl?.name ?? tpl?.label ?? null,
       role: occ.role ?? tpl?.role ?? null,
@@ -888,7 +916,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       meta: { ...(tpl?.meta || {}), ...(occ.meta || {}) },
       templateId: occ.moduleId ?? null,
       _ancestors: ancestorsFor(occ.id),
-      _effectiveFilter: getEffectiveFilterForOccurrence(occ, { grid: state?.grid, occurrencesById, parentByChildId }),
+      _effectiveFilter: effFilter,
     };
   });
 

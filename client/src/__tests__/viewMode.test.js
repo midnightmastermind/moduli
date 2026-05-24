@@ -69,8 +69,8 @@ describe("isViewModeIllegal", () => {
 });
 
 describe("VIEW_MODES + contexts shape", () => {
-  it("VIEW_MODES has exactly the three modes the spec calls for", () => {
-    expect(new Set(VIEW_MODES)).toEqual(new Set(["preview", "representation", "actual"]));
+  it("VIEW_MODES covers preview/representation/actual/actual-converted (Q2 2026-05-24 added actual-converted)", () => {
+    expect(new Set(VIEW_MODES)).toEqual(new Set(["preview", "representation", "actual", "actual-converted"]));
   });
 
   it("every context's default is one of VIEW_MODES", () => {

@@ -16,8 +16,8 @@ function makeFile(name, type = "image/png", size = 1024) {
 
 function makeCtx({ files, containerDestination = true }) {
   const modules = {
-    panelMod: { id: "panelMod", role: "panel", kind: "list" },
-    containerMod: { id: "containerMod", role: "container", kind: "list" },
+    panelMod: { id: "panelMod", role: "panel", kind: "board" },
+    containerMod: { id: "containerMod", role: "container", kind: "board" },
   };
   const occs = {
     panelOcc: { id: "panelOcc", moduleId: "panelMod", occurrences: ["containerOcc"] },

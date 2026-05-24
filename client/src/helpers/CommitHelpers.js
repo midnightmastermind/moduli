@@ -143,8 +143,19 @@ export function createOccurrence({ dispatch, socket, occurrence, emit = true, pa
 
 export function updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerField = null }) {
   if (!occurrence?.id) return;
+  // Conflict resolution (#26 cheapest-level): pass the local cache's
+  // `updatedAt` so the server can reject this write when another window
+  // landed a newer edit. Skipped silently when the local cache has no
+  // updatedAt yet (first-write / pre-cache occurrence).
+  const localPrev = operationsBridge.getLocalOcc?.(occurrence.id) || null;
+  const expectedUpdatedAt = localPrev?.updatedAt || null;
   dispatch?.(updateOccurrenceAction(occurrence));
-  if (shouldEmit(emit)) safeEmit(socket, "update_occurrence", { occurrence });
+  if (shouldEmit(emit)) {
+    const payload = expectedUpdatedAt
+      ? { occurrence, expectedUpdatedAt }
+      : { occurrence };
+    safeEmit(socket, "update_occurrence", payload);
+  }
 
   // Optimistic linked-group fan-out: mirror the server's update_occurrence
   // propagation locally (server/socketHandlers/occurrences.js:91) so every copy
@@ -688,7 +699,7 @@ export function createLeafInstanceInParent({
 
   const module = {
     id: moduleId, userId, gridId,
-    role: "instance", kind: "list",
+    role: "instance", kind: "board",
     label: label || "",
   };
   const occurrence = {

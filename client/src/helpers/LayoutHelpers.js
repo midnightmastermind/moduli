@@ -78,10 +78,25 @@ function _numericValue(v) {
 // Anything else reads `occurrence.fields[fid].value`.
 // Stable — items with equal keys preserve drop order.
 export function applyLocalSort(items, localSort, leafModulesLookup) {
-  if (!localSort || !localSort.fieldId || !Array.isArray(items) || items.length < 2) return items;
+  if (!Array.isArray(items) || items.length < 2) return items;
+
+  // U1 — pinned-to-top occurrences skip sort + always render first in
+  // insertion order. `occurrence.meta.pinned === true` opts in. Pinned
+  // items keep their relative drop order; unpinned items go through the
+  // normal sort path below.
+  const pinned = [];
+  const unpinned = [];
+  for (const it of items) {
+    if (it?.occurrence?.meta?.pinned === true) pinned.push(it);
+    else unpinned.push(it);
+  }
+
+  if (!localSort || !localSort.fieldId || unpinned.length < 2) {
+    return pinned.length > 0 ? [...pinned, ...unpinned] : unpinned;
+  }
   const { fieldId, dir = "asc" } = localSort;
   const mult = dir === "desc" ? -1 : 1;
-  const decorated = items.map((it, idx) => {
+  const decorated = unpinned.map((it, idx) => {
     let v;
     if (fieldId === "label") {
       const mod = it.instance || (it.occurrence?.moduleId ? leafModulesLookup?.[it.occurrence.moduleId] : null);
@@ -102,7 +117,8 @@ export function applyLocalSort(items, localSort, leafModulesLookup) {
     const bs = b.v == null ? "" : String(b.v);
     return as.localeCompare(bs) * mult || (a.idx - b.idx);
   });
-  return decorated.map(d => d.it);
+  const sorted = decorated.map(d => d.it);
+  return pinned.length > 0 ? [...pinned, ...sorted] : sorted;
 }
 
 export function getContainerItems(container, occurrencesLookup, leafModulesLookup, currentFilterValue, containerOccurrence) {

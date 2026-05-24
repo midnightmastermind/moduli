@@ -15,7 +15,7 @@ export function registerOccurrenceHandlers(socket, {
     return ensureUserCache(userId, gId);
   };
 
-  socket.on("update_occurrence", async ({ occurrence } = {}) => {
+  socket.on("update_occurrence", async ({ occurrence, expectedUpdatedAt } = {}) => {
     try {
       if (!userId) return;
       const uc = await getUc();
@@ -23,6 +23,26 @@ export function registerOccurrenceHandlers(socket, {
       if (!id) return;
 
       const prev = uc.occurrencesById[id] || {};
+
+      // ── Stale-write check (#26 cheapest-level conflict resolution) ──
+      // When the client sends `expectedUpdatedAt`, compare against the
+      // cached `updatedAt`. If the server's stored copy is newer than
+      // what the client last saw, REJECT — another window already
+      // landed a more recent edit. Emit `occurrence_stale` back to the
+      // originator with the current state so it can re-sync + toast.
+      // Skip when client didn't send expectedUpdatedAt (legacy path /
+      // optimistic-only writes / op-driven internal updates).
+      if (expectedUpdatedAt != null && prev.updatedAt) {
+        const prevMs = new Date(prev.updatedAt).getTime();
+        const expectedMs = new Date(expectedUpdatedAt).getTime();
+        if (Number.isFinite(prevMs) && Number.isFinite(expectedMs) && prevMs > expectedMs) {
+          // Stale write — server has a newer copy. Send the current
+          // state back so the originator's UI re-syncs. Don't broadcast
+          // anything else (other windows already have the newer state).
+          socket.emit("occurrence_stale", { occurrence: prev, attempted: occurrence });
+          return;
+        }
+      }
 
       // Store occurrence in cache — keep decompressed textmap so full_state can serve it
       const { textmap, ...occWithoutTextmap } = occurrence;
@@ -70,21 +90,33 @@ export function registerOccurrenceHandlers(socket, {
         }
       }
 
+      let savedDoc;
       try {
-        await Occurrence.findOneAndUpdate({ id, userId }, dbDoc, { upsert: true });
+        // `{ new: true, upsert: true }` returns the doc AFTER the write so
+        // we can re-stamp `updatedAt` into the cache for next-write stale
+        // checks (#26).
+        savedDoc = await Occurrence.findOneAndUpdate({ id, userId }, dbDoc, { upsert: true, new: true });
       } catch (upsertErr) {
         // E11000: a concurrent create/update with this id already inserted before
         // our upsert filter could match. Fall back to id-only $set so we still
         // persist the change. Without this, the parent.occurrences[] $push later
         // never runs and the slot ends up orphaned (visible only after reload).
         if (upsertErr.code === 11000) {
-          await Occurrence.findOneAndUpdate({ id }, { $set: dbDoc });
+          savedDoc = await Occurrence.findOneAndUpdate({ id }, { $set: dbDoc }, { new: true });
         } else {
           throw upsertErr;
         }
       }
+      // Stamp the fresh updatedAt into the cache so subsequent stale
+      // checks compare against the actual DB write timestamp.
+      if (savedDoc?.updatedAt) {
+        next.updatedAt = savedDoc.updatedAt;
+        uc.occurrencesById[id] = next;
+      }
 
-      // Broadcast includes textmap so other windows get it
+      // Broadcast includes textmap so other windows get it. Include
+      // updatedAt so receivers can keep their local copies in sync for
+      // future stale-write checks.
       const broadcastOcc = textmap !== undefined ? { ...next, textmap } : next;
       socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: broadcastOcc });
 

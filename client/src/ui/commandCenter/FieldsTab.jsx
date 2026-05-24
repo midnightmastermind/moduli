@@ -287,6 +287,25 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
               />
               Display
             </label>
+            {/* Filter auto-stamp opt-in (#60). When this is on, an empty
+                value is substituted with whatever the occurrence's effective
+                filter currently has for this field. Read-time only — no DB
+                write. Useful for date / timeslot fields that should follow
+                the active day filter without explicit stamping. */}
+            <label
+              title="When the stored value is empty, the field shows the current effective filter value for this field. Read-only substitution."
+              style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)", cursor: "pointer" }}
+            >
+              <input
+                type="checkbox"
+                checked={local.meta?.autoStampFromFilter === true}
+                onChange={(e) => setLocal((p) => ({
+                  ...p,
+                  meta: { ...(p.meta || {}), autoStampFromFilter: e.target.checked },
+                }))}
+              />
+              Auto-stamp from filter
+            </label>
           </div>
         </div>
       </div>

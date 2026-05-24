@@ -238,10 +238,13 @@ const ACTION_HANDLERS = {
   },
 
   ADD_TO_POOL(cfg, sets) {
-    if (looksLikeOccurrenceRef(cfg.poolContainerId)) add(sets.occurrences_written, cfg.poolContainerId);
+    const poolId = cfg.poolId ?? cfg.poolContainerId;
+    if (looksLikeOccurrenceRef(poolId)) add(sets.occurrences_written, poolId);
   },
   REMOVE_FROM_POOL(cfg, sets) {
     if (looksLikeOccurrenceRef(cfg.occurrenceId)) add(sets.occurrences_written, cfg.occurrenceId);
+    const poolId = cfg.poolId ?? cfg.poolContainerId;
+    if (looksLikeOccurrenceRef(poolId)) add(sets.occurrences_written, poolId);
   },
 };
 

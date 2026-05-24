@@ -96,6 +96,7 @@ import { toast } from "sonner";
 import { jumpToOccurrence } from "./jumpToOccurrence";
 import { DROP_TARGET_KIND } from "./dragHitTesting";
 import { autoAppendFieldsToAncestorsShowMode } from "./fieldVisibilityAutoAppend";
+import { resolveDropInViewMode, isMoveBlockedByCascadeLock } from "./layoutCascade";
 import { uploadFileWithProgress, registerUpload, clearUpload } from "./uploadWithProgress";
 
 // Normalize a date-typed filter value to a local-tz YYYY-MM-DD string. Handles
@@ -121,6 +122,43 @@ export function normalizeFilterDateValue(v) {
   }
   if (v instanceof Date && !isNaN(v.getTime())) {
     return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
+  }
+  return null;
+}
+
+// Walks the DOM from the drop point outward looking for the nearest ancestor
+// occurrence that owns its own `filterOverride` (the schedule day-cols are the
+// canonical case — each day-col carries `filterOverride: { dateFieldId: "<one
+// specific day>" }` while the page above carries the multi-day filter shape).
+// Returns the day-col occurrence to use as the parent for date-stamp
+// resolution. Falls back to null when:
+//   - pointer coords aren't available (programmatic drops)
+//   - no ancestor with a filter override sits between the drop point and the
+//     destination container (the normal single-day case — caller falls back
+//     to the destination container itself)
+// This is what unblocks MD1: drag a task between day-cols of a multi-day
+// Schedule and the new placement re-stamps to the destination day's date.
+// Without it, both day-cols' slots resolve their effective filter through
+// the slot's `parentId` (= page) → the page's multi-day filter → no single
+// date to stamp → the task keeps its source-day's date.
+export function findFilterOverrideAncestor({ pointer, occurrencesById, excludeOccId }) {
+  if (!pointer || typeof document === "undefined") return null;
+  const x = pointer.x ?? pointer.clientX;
+  const y = pointer.y ?? pointer.clientY;
+  if (typeof x !== "number" || typeof y !== "number") return null;
+  let els;
+  try { els = document.elementsFromPoint(x, y) || []; } catch { return null; }
+  for (const el of els) {
+    const occId = el?.dataset?.occurrenceId || el?.getAttribute?.("data-occ-id");
+    if (!occId || occId === excludeOccId) continue;
+    const occ = occurrencesById?.[occId];
+    if (!occ) continue;
+    const override = occ.filterOverride;
+    if (!override || typeof override !== "object") continue;
+    // Must touch at least one field key (empty override `{}` = "clear cascade",
+    // not "set a specific date").
+    if (Object.keys(override).length === 0) continue;
+    return occ;
   }
   return null;
 }
@@ -207,6 +245,32 @@ function autoAppendOnDrop({ ctx, newOccurrenceId, newOccurrence, parentOccurrenc
     newOccurrence: occ,
     destinationOccurrence: parent,
     ctx: { dispatch, socket, occurrencesById, modulesById: state?.modulesById },
+  });
+  // Layout cascade — stamp the new child's viewMode from the destination's
+  // dragInView when it's non-default. Idempotent (skips when already set
+  // to that mode or when destination wants the default "actual").
+  stampDropViewMode({ ctx, newOccurrence: occ, destinationOccurrence: parent });
+}
+
+function stampDropViewMode({ ctx, newOccurrence, destinationOccurrence }) {
+  if (!newOccurrence?.id || !destinationOccurrence) return;
+  const { dispatch, socket, state, occurrencesById } = ctx;
+  const wantMode = resolveDropInViewMode({
+    destinationOccurrence,
+    occurrencesById,
+    modulesById: state?.modulesById,
+    grid: state?.grid,
+  });
+  if (!wantMode) return;
+  const stored = newOccurrence?.meta?.viewMode;
+  if (stored === wantMode) return; // idempotent
+  CommitHelpers.updateOccurrence({
+    dispatch, socket,
+    occurrence: {
+      id: newOccurrence.id,
+      meta: { ...(newOccurrence.meta || {}), viewMode: wantMode },
+    },
+    emit: true,
   });
 }
 
@@ -534,6 +598,28 @@ export function handleContainerDrop(dropContext, ctx) {
       const samePanel = !!(fromPanel && toPanel && fromPanel.id === toPanel.id);
       const sameOrderOcc = fromOrderOcc.id === toOrderOcc.id;
 
+      // Layout-cascade lock rule: reject cross-page container moves out
+      // of a locked surface. Same-order-occurrence reorders and copies
+      // are exempt (copies leave the source in place; reorders stay
+      // inside the locked surface).
+      if (!isCopyMode && !sameOrderOcc) {
+        const sourceOcc = occurrenceId ? occurrencesById[occurrenceId] : null;
+        if (sourceOcc) {
+          const lockCheck = isMoveBlockedByCascadeLock({
+            sourceOccurrence: sourceOcc,
+            destinationOccurrence: toOrderOcc || null,
+            occurrencesById,
+            modulesById: state?.modulesById || {},
+            grid: state?.grid || null,
+          });
+          if (lockCheck.blocked) {
+            try { toast?.("This surface is locked — children can't be moved out."); } catch {}
+            clearSession();
+            return;
+          }
+        }
+      }
+
       if (isCopyMode && sameOrderOcc) {
         const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromOrderOcc.occurrences || [], occurrencesById);
         if (fromIndex !== -1) {
@@ -693,12 +779,12 @@ export function handleDocEmbedDrop(dropContext, ctx) {
     const userId = state?.userId;
     if (cell && grid && userId && gridId) {
       const label = state?.modulesById?.[movedOcc.moduleId]?.label || "Textblock";
-      const newPanel = { id: makeUUID(), label, role: "panel", kind: "list" };
+      const newPanel = { id: makeUUID(), label, role: "panel", kind: "board" };
       const { occurrence: panelOcc } = LayoutHelpers.createPanelInGrid({
         dispatch, socket, grid, panel: newPanel,
         placement: { row: cell.row, col: cell.col, width: 1, height: 1 }, userId, emit: true,
       });
-      const newContainer = { id: makeUUID(), label, role: "container", kind: "list" };
+      const newContainer = { id: makeUUID(), label, role: "container", kind: "board" };
       const { occurrence: containerOcc } = LayoutHelpers.createContainerInPanel({
         dispatch, socket, gridId, panel: { ...newPanel, _occurrence: panelOcc },
         container: newContainer, userId, emit: true,
@@ -771,6 +857,33 @@ export function handleOccurrenceMove(dropContext, ctx) {
     if (parsed.isCrossWindow) return; // Let cross-window handler deal with it
   }
 
+  // Layout-cascade lock rule (Slice 4): handleOccurrenceMove covers canvas
+  // page moves and grid-cell drilldown drops. Copy mode leaves the original
+  // in place so it's exempt. We can't always determine the destination
+  // occurrence at this point (canvas/grid-cell paths derive it later) — pass
+  // whatever's resolvable. The lock helper treats a null destination as
+  // "leaving the locked surface" → blocked when locked.
+  if (mode !== "copy" && mode !== "copylink") {
+    const moveSourceOccId = payload?.occurrenceId || payload?.context?.occurrenceId || null;
+    const sourceOcc = moveSourceOccId ? occurrencesById[moveSourceOccId] : null;
+    if (sourceOcc) {
+      const moveDestOccId = dropTarget.context?.pageOccurrenceId || containerOccurrenceId || null;
+      const destOcc = moveDestOccId ? occurrencesById[moveDestOccId] : null;
+      const lockCheck = isMoveBlockedByCascadeLock({
+        sourceOccurrence: sourceOcc,
+        destinationOccurrence: destOcc,
+        occurrencesById,
+        modulesById: state?.modulesById || {},
+        grid: state?.grid || null,
+      });
+      if (lockCheck.blocked) {
+        try { toast?.("This surface is locked — children can't be moved out."); } catch {}
+        clearSession?.();
+        return;
+      }
+    }
+  }
+
   // GRID CELL drop — drilldown: create a new panel + container in the empty
   // cell and copy the instance there. Mirrors the leaf-role branch in
   // handleModuleDrop (line ~1261) so in-grid drags of textblocks/instances
@@ -782,12 +895,12 @@ export function handleOccurrenceMove(dropContext, ctx) {
     const gridId = state?.gridId || state?.grid?._id;
     const sourceModule = (state?.modules || []).find(m => m.id === payload.moduleId);
     if (cell && grid && userId && sourceModule) {
-      const newPanel = { id: makeUUID(), label: sourceModule.label || "Panel", role: "panel", kind: "list" };
+      const newPanel = { id: makeUUID(), label: sourceModule.label || "Panel", role: "panel", kind: "board" };
       const { occurrence: panelOcc } = LayoutHelpers.createPanelInGrid({
         dispatch, socket, grid, panel: newPanel,
         placement: { row: cell.row, col: cell.col, width: 1, height: 1 }, userId, emit: true,
       });
-      const newContainer = { id: makeUUID(), label: sourceModule.label || "Container", role: "container", kind: "list" };
+      const newContainer = { id: makeUUID(), label: sourceModule.label || "Container", role: "container", kind: "board" };
       const { occurrence: containerOcc } = LayoutHelpers.createContainerInPanel({
         dispatch, socket, gridId, panel: { ...newPanel, _occurrence: panelOcc },
         container: newContainer, userId, emit: true,
@@ -1101,6 +1214,29 @@ export function handleOccurrenceMove(dropContext, ctx) {
 
   if (sameContainer && toC?.behaviorMode === "own" && toC?.behavior?.sortable === false) { clearSession(); return; }
 
+  // Layout-cascade lock rule (Slice 4): if the source's effective cascade
+  // marks an ancestor as `locked`, the source can't be MOVED out of that
+  // surface. Copy / copylink leave the original in place, so they're
+  // exempt. Same-container moves are reorders inside the locked surface
+  // and are always allowed.
+  if (!isCopyMode && !isCopylinkMode && !sameContainer) {
+    const sourceOcc = occurrenceId ? occurrencesById[occurrenceId] : null;
+    if (sourceOcc) {
+      const lockCheck = isMoveBlockedByCascadeLock({
+        sourceOccurrence: sourceOcc,
+        destinationOccurrence: toCOcc || null,
+        occurrencesById,
+        modulesById: state?.modulesById || {},
+        grid: state?.grid || null,
+      });
+      if (lockCheck.blocked) {
+        try { toast?.("This surface is locked — children can't be moved out."); } catch {}
+        clearSession();
+        return;
+      }
+    }
+  }
+
   if ((isCopylinkMode || isCopyMode) && sameContainer) {
     if (fromCOcc) {
       const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
@@ -1131,9 +1267,13 @@ export function handleOccurrenceMove(dropContext, ctx) {
     // but no operation re-fires, so trackers stay stale until you edit a
     // field.
     const sourceOcc = occurrenceId ? occurrencesById[occurrenceId] : null;
+    // MD1 — re-stamp under the destination day-col when one is present.
+    const copyDayColOcc = toCOcc
+      ? findFilterOverrideAncestor({ pointer, occurrencesById, excludeOccId: toCOcc.id })
+      : null;
     const stampedFields = computePageFilterFields({
       state, occurrencesById,
-      parentContainerOcc: toCOcc,
+      parentContainerOcc: copyDayColOcc || toCOcc,
       existingFields: sourceOcc?.fields || {},
     });
     const toPanelMod = toPanelOcc?.moduleId
@@ -1187,10 +1327,16 @@ export function handleOccurrenceMove(dropContext, ctx) {
         dispatch, socket, fromContainerOccurrence: fromCOcc, toContainerOccurrence: toCOcc,
         occurrenceId, toIndex, emit: true,
       });
+      // MD1 — when the drop landed under a day-col (or any ancestor with
+      // its own filterOverride), use IT as the parent for date stamping
+      // so a multi-day Schedule drag re-stamps to the destination day.
+      const dayColOcc = findFilterOverrideAncestor({
+        pointer, occurrencesById, excludeOccId: toCOcc.id,
+      });
       stampPageFilterFields({
         dispatch, socket, state, occurrencesById,
         occurrence: occurrencesById[occurrenceId],
-        parentContainerOcc: toCOcc,
+        parentContainerOcc: dayColOcc || toCOcc,
       });
       autoAppendOnDrop({ ctx, newOccurrenceId: occurrenceId, parentOccurrenceId: toCOcc.id });
 
@@ -1360,7 +1506,7 @@ export function handleFileDrop(dropContext, ctx) {
     // First panel uses the targeted cell; the rest stack alongside.
     const targetCell = cell || { row: 0, col: 0 };
     for (const p of placeholders) {
-      const newPanelModule = { id: makeUUID(), label: p.file.name || "Uploaded File", role: "panel", kind: "list" };
+      const newPanelModule = { id: makeUUID(), label: p.file.name || "Uploaded File", role: "panel", kind: "board" };
       const panelResult = LayoutHelpers.createPanelInGrid({
         dispatch, socket, grid: fileGrid, panel: newPanelModule,
         placement: { row: targetCell.row, col: targetCell.col, width: 1, height: 1 },
@@ -1544,13 +1690,13 @@ export function handleExternalDrop(dropContext, ctx) {
         && state?.grid && state?.userId && gridId) {
       const cell = { row: dropTarget.context.row, col: dropTarget.context.col };
       const label = "Imported";
-      const newPanel = { id: makeUUID(), label, role: "panel", kind: "list" };
+      const newPanel = { id: makeUUID(), label, role: "panel", kind: "board" };
       const { occurrence: panelOcc } = LayoutHelpers.createPanelInGrid({
         dispatch, socket, grid: state.grid, panel: newPanel,
         placement: { row: cell.row, col: cell.col, width: 1, height: 1 },
         userId: state.userId, emit: true,
       });
-      const newContainer = { id: makeUUID(), label, role: "container", kind: "list" };
+      const newContainer = { id: makeUUID(), label, role: "container", kind: "board" };
       const { occurrence: containerOcc } = LayoutHelpers.createContainerInPanel({
         dispatch, socket, gridId, panel: { ...newPanel, _occurrence: panelOcc },
         container: newContainer, userId: state.userId, emit: true,
@@ -1732,11 +1878,19 @@ export function handleModuleDrop(dropContext, ctx) {
       // handleOccurrenceMove).
       const targetContainerOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
         || Object.values(occurrencesById).find(o => o.moduleId === targetContainer.id);
+      // MD1 — when dropping into a day-col's slot, use the day-col as the
+      // parent for filter resolution so the new copy stamps the destination
+      // day's date.
+      const ccDayColOcc = targetContainerOcc
+        ? findFilterOverrideAncestor({
+            pointer, occurrencesById, excludeOccId: targetContainerOcc.id,
+          })
+        : null;
       // Pre-stamp the destination's page-filter fields so the create lands
       // with the right date — same reasoning as handleOccurrenceMove copy mode.
       const stampedFields = computePageFilterFields({
         state, occurrencesById,
-        parentContainerOcc: targetContainerOcc,
+        parentContainerOcc: ccDayColOcc || targetContainerOcc,
         existingFields: {},
       });
       const ccCopyResult = LayoutHelpers.copyInstanceToContainer({
@@ -1787,7 +1941,7 @@ export function handleModuleDrop(dropContext, ctx) {
     const userId = state?.userId;
     const container = baseContainers.find(c => c.id === payload.moduleId);
     if (cell && grid && userId && container) {
-      const newPanel = { id: makeUUID(), label: container.label || "Panel", role: "panel", kind: "list" };
+      const newPanel = { id: makeUUID(), label: container.label || "Panel", role: "panel", kind: "board" };
       const { occurrence: panelOcc } = LayoutHelpers.createPanelInGrid({
         dispatch, socket, grid, panel: newPanel,
         placement: { row: cell.row, col: cell.col, width: 1, height: 1 }, userId, emit: true,
@@ -1806,12 +1960,12 @@ export function handleModuleDrop(dropContext, ctx) {
     const userId = state?.userId;
     const instance = (state?.modules || []).find(m => m.id === payload.moduleId);
     if (cell && grid && userId && instance) {
-      const newPanel = { id: makeUUID(), label: instance.label || "Panel", role: "panel", kind: "list" };
+      const newPanel = { id: makeUUID(), label: instance.label || "Panel", role: "panel", kind: "board" };
       const { occurrence: panelOcc } = LayoutHelpers.createPanelInGrid({
         dispatch, socket, grid, panel: newPanel,
         placement: { row: cell.row, col: cell.col, width: 1, height: 1 }, userId, emit: true,
       });
-      const newContainer = { id: makeUUID(), label: instance.label || "Container", role: "container", kind: "list" };
+      const newContainer = { id: makeUUID(), label: instance.label || "Container", role: "container", kind: "board" };
       const { occurrence: containerOcc } = LayoutHelpers.createContainerInPanel({
         dispatch, socket, gridId, panel: { ...newPanel, _occurrence: panelOcc },
         container: newContainer, userId, emit: true,
@@ -1938,7 +2092,7 @@ export function handleArtifactDrop(dropContext, ctx) {
       const artifactOcc = occurrencesById[payload.occurrenceId];
       const artifactModule = artifactOcc ? (state?.modules || []).find(m => m.id === artifactOcc.moduleId) : null;
       const label = artifactModule?.label || "Artifact";
-      const newPanel = { id: makeUUID(), label, role: "panel", kind: "list" };
+      const newPanel = { id: makeUUID(), label, role: "panel", kind: "board" };
       const { occurrence: panelOcc } = LayoutHelpers.createPanelInGrid({
         dispatch, socket, grid, panel: newPanel,
         placement: { row: cell.row, col: cell.col, width: 1, height: 1 }, userId, emit: true,

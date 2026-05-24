@@ -26,6 +26,9 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import { TaskListMarkdown } from "../docs/TaskListMarkdown";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { NATIVE_DND_MIME } from "../helpers/dragSystem";
 import { embedDeleteRegistry } from "../helpers/embedRegistry";
@@ -289,6 +292,9 @@ const Editor = forwardRef(function Editor({
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
       Placeholder.configure({ placeholder }),
       Image.configure({ inline: false, allowBase64: true }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      TaskListMarkdown,
       FieldPill,
       InstancePill,
       InstanceTextblock,
@@ -1432,7 +1438,7 @@ const Editor = forwardRef(function Editor({
     const newId = crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     CommitHelpers.createModule({
       dispatch, socket,
-      module: { id: newId, label, role: "instance", kind: "list", meta: url ? { url } : {} },
+      module: { id: newId, label, role: "instance", kind: "board", meta: url ? { url } : {} },
       emit: true,
     });
     editor.chain().focus().insertContent({

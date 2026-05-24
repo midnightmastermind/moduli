@@ -40,6 +40,9 @@ import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import ViewModeSection from "../ui/ViewModeSection";
+import LayoutCascadeSection from "../ui/LayoutCascadeSection";
+import { isTimeslotPassed } from "../helpers/timeslotPassed";
+import useNowTick from "../hooks/useNowTick";
 import TemplatesSection from "../ui/TemplatesSection";
 
 import {
@@ -144,6 +147,10 @@ function Container({
   const { isContainerDrag, isInstanceDrag, isExternalDrag, isPanelDrag } = dragCtx;
   const selection = useContext(SelectionContext);
 
+  // Task #59 — schedule slot "passed time" tint. Re-renders every 5 min
+  // so the class flips from 9am → 10am → 11am … as the day progresses.
+  const nowTick = useNowTick();
+
   const [draft, setDraft] = useState(() => ({ label: module.label ?? "" }));
 
   // C5: Consolidated UI state — single reducer instead of 13 separate useState
@@ -152,7 +159,16 @@ function Container({
     return { ...s, ...a };
   }, {
     settingsOpen: false, historyOpen: false, ctxMenu: null,
-    focusedStack: [], historyExpanded: false, isBodyCollapsed: false,
+    focusedStack: [], historyExpanded: false,
+    // Persistent collapse memory (#U3) — read from localStorage on mount
+    // keyed by occurrence id so the body collapse survives reloads.
+    isBodyCollapsed: (() => {
+      try {
+        const occId = (occurrenceOverride?.id || module?._occurrenceId);
+        if (!occId) return false;
+        return localStorage.getItem(`moduli:collapse:${occId}`) === "1";
+      } catch { return false; }
+    })(),
     showHeader: true,
     showEmbeddedIterNav: false, filterPopupPos: null,
   });
@@ -166,6 +182,18 @@ function Container({
   const setFocusedStack = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ focusedStack: v(s.focusedStack) }) : { focusedStack: v }), []);
   const setHistoryExpanded = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ historyExpanded: v(s.historyExpanded) }) : { historyExpanded: v }), []);
   const setIsBodyCollapsed = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ isBodyCollapsed: v(s.isBodyCollapsed) }) : { isBodyCollapsed: v }), []);
+  // Persist collapse state to localStorage on every change so it survives
+  // reloads (#U3). Keyed by occurrence id — different placements of the
+  // same module keep independent collapse state.
+  useEffect(() => {
+    try {
+      const occId = (occurrenceOverride?.id || module?._occurrenceId);
+      if (!occId) return;
+      const key = `moduli:collapse:${occId}`;
+      if (isBodyCollapsed) localStorage.setItem(key, "1");
+      else localStorage.removeItem(key);
+    } catch {}
+  }, [isBodyCollapsed, occurrenceOverride?.id, module?._occurrenceId]);
   const setShowHeader = useCallback(v => uiDispatch({ showHeader: v }), []);
   const setShowEmbeddedIterNav = useCallback(v => uiDispatch({ showEmbeddedIterNav: v }), []);
   const setFilterPopupPos = useCallback(v => uiDispatch({ filterPopupPos: v }), []);
@@ -331,7 +359,7 @@ function Container({
     const gridId = grid?._id;
     if (!userId || !gridId) return;
     for (const text of texts) {
-      CommitHelpers.createModule({ dispatch, socket, module: { role: "instance", kind: "list", label: text, userId, gridId, fieldBindings: [], iteration: { mode: "persistent" } }, emit: true });
+      CommitHelpers.createModule({ dispatch, socket, module: { role: "instance", kind: "board", label: text, userId, gridId, fieldBindings: [], iteration: { mode: "persistent" } }, emit: true });
     }
     toast.success(`${texts.length} instance${texts.length > 1 ? "s" : ""} created — drag from toolbar`);
   }, [ctxState, dispatch, socket]);
@@ -481,7 +509,7 @@ function Container({
   const renderCanvasCard = useCallback(({ module: mod, occurrence: occ, containerId: cid, panelId: pid }) => {
     let renderBody = null;
     if (mod.role === "textblock") {
-      renderBody = () => <TextblockCard occurrence={occ} />;
+      renderBody = () => <TextblockCard occurrence={occ} module={mod} />;
     } else if (mod.role === "artifact") {
       renderBody = () => <ArtifactCard module={mod} label={mod.label} occurrence={occ} />;
     }
@@ -559,7 +587,17 @@ function Container({
         const sel = occId && selection.isSelected(occId) ? " is-selected" : "";
         const clipMode = selection.clipboard?.mode;
         const staged = occId && clipMode && selection.clipboard.ids.includes(occId) ? ` is-clipboard-staged clipboard-${clipMode}` : "";
-        return base + sel + staged;
+        // Task #59 — schedule slot containers whose time has passed get
+        // a slight red background to signal "this hour is over". Only
+        // applies when (a) the module IS a schedule slot and (b) the
+        // slot's hour is before the current local clock. Date scoping
+        // is intentionally loose (any view that includes today shows
+        // the tint on past slots) so multi-day views still convey
+        // "we're past 2pm" via the tinted 9am-1pm slots.
+        const slotPassed = (module?.meta?.scheduleSlot && module?.meta?.slotLabel)
+          ? isTimeslotPassed({ slotLabel: module.meta.slotLabel, now: nowTick })
+          : false;
+        return base + sel + staged + (slotPassed ? " is-timeslot-passed" : "");
       })()}
       style={{
         display: "flex", flexDirection: "column", minHeight: 0, overflow: "visible",
@@ -1015,7 +1053,7 @@ function Container({
             CommitHelpers.createInstanceInContainer({
               dispatch, socket,
               containerId: module.id,
-              instance: { id: instanceId, role: "instance", kind: "list", label: "New card", userId, gridId, fieldBindings: [] },
+              instance: { id: instanceId, role: "instance", kind: "board", label: "New card", userId, gridId, fieldBindings: [] },
               initialMeta: { x, y },
               emit: true,
             });
@@ -1247,7 +1285,7 @@ function Container({
               if (role === "artifact") {
                 renderBody = () => <ArtifactCard module={instance} label={instance.label} occurrence={occurrence} />;
               } else if (role === "textblock") {
-                renderBody = () => <TextblockCard occurrence={occurrence} />;
+                renderBody = () => <TextblockCard occurrence={occurrence} module={instance} />;
               }
               return (
                 <ModuleInstance
@@ -1307,6 +1345,7 @@ function Container({
           <SortSection occurrence={containerOccurrence} />
           <FieldVisibilitySection occurrence={containerOccurrence} />
           <ViewModeSection occurrence={containerOccurrence} />
+          <LayoutCascadeSection occurrence={containerOccurrence} />
         </HeaderDropdown>
       )}
       {templatesAnchor && (

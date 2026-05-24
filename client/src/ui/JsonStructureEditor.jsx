@@ -21,44 +21,60 @@
 // stored on the pipeline cfg as `json:<stringified>` so the existing
 // `json:` prefix handler in `resolveExpr` parses it back at runtime.
 
-import React, { useState, useCallback } from "react";
-import { Plus, Trash2, ChevronRight, ChevronDown, ArrowUp, ArrowDown } from "lucide-react";
+import React, { useState, useCallback, useContext, useMemo } from "react";
+import { Plus, Trash2, ChevronRight, ChevronDown, ArrowUp, ArrowDown, Link2 } from "lucide-react";
+import DrilldownPicker from "./DrilldownPicker";
+import { GridActionsContext } from "../GridActionsContext";
 
 // ─── Type plumbing ─────────────────────────────────────────────────
 
-const TYPES = ["string", "number", "boolean", "null", "array", "object"];
+// Value Builder reference sentinel (task #31 / value builder docket):
+//   { __ref: "$allItemsById.<id>"  } — a dotted path / variable expression
+// resolved against $vars at runtime. Distinguished from a plain string with
+// `$` prefix by the sentinel wrapper so authors can still type literal
+// strings starting with `$` without them becoming references.
+function isRefValue(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v)
+    && Object.prototype.hasOwnProperty.call(v, "__ref");
+}
+
+const TYPES = ["string", "number", "boolean", "null", "array", "object", "reference"];
 const TYPE_LABEL = {
-  string:  "str",
-  number:  "num",
-  boolean: "bool",
-  null:    "null",
-  array:   "[ ]",
-  object:  "{ }",
+  string:    "str",
+  number:    "num",
+  boolean:   "bool",
+  null:      "null",
+  array:     "[ ]",
+  object:    "{ }",
+  reference: "ref",
 };
 const TYPE_COLOR = {
-  string:  "rgb(134,239,172)",   // green
-  number:  "rgb(96,165,250)",    // blue
-  boolean: "rgb(252,211,77)",    // amber
-  null:    "rgb(148,163,184)",   // slate
-  array:   "rgb(196,181,253)",   // violet
-  object:  "rgb(252,165,165)",   // rose
+  string:    "rgb(134,239,172)",   // green
+  number:    "rgb(96,165,250)",    // blue
+  boolean:   "rgb(252,211,77)",    // amber
+  null:      "rgb(148,163,184)",   // slate
+  array:     "rgb(196,181,253)",   // violet
+  object:    "rgb(252,165,165)",   // rose
+  reference: "rgb(125,211,252)",   // sky
 };
 
 function detectType(v) {
   if (v === null) return "null";
   if (Array.isArray(v)) return "array";
+  if (isRefValue(v)) return "reference";
   return typeof v;
 }
 
 function emptyForType(t) {
   switch (t) {
-    case "string":  return "";
-    case "number":  return 0;
-    case "boolean": return false;
-    case "null":    return null;
-    case "array":   return [];
-    case "object":  return {};
-    default:        return null;
+    case "string":    return "";
+    case "number":    return 0;
+    case "boolean":   return false;
+    case "null":      return null;
+    case "array":     return [];
+    case "object":    return {};
+    case "reference": return { __ref: "" };
+    default:          return null;
   }
 }
 
@@ -66,10 +82,11 @@ function emptyForType(t) {
 // back to emptyForType when coercion doesn't make sense.
 function coerceTo(v, t) {
   if (detectType(v) === t) return v;
-  if (t === "string")  return v == null ? "" : String(v);
-  if (t === "number")  { const n = Number(v); return Number.isFinite(n) ? n : 0; }
-  if (t === "boolean") return !!v;
-  if (t === "null")    return null;
+  if (t === "string")    return v == null ? "" : (isRefValue(v) ? v.__ref : String(v));
+  if (t === "number")    { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+  if (t === "boolean")   return !!v;
+  if (t === "null")      return null;
+  if (t === "reference") return { __ref: (typeof v === "string" && v.startsWith("$")) ? v : "" };
   return emptyForType(t);
 }
 
@@ -185,9 +202,61 @@ function PrimitiveInput({ value, onChange }) {
   );
 }
 
+// ─── Reference input — DrilldownPicker + small breadcrumb card ─────
+//
+// Renders a DrilldownPicker for picking the path and, once committed,
+// a compact card showing the resolved segments. The breadcrumb-card
+// design (full per the docket) is intentionally minimal here: leading
+// link icon + path text + clear button. The richer occurrence/field
+// resolution can layer on top of this primitive in a later slice
+// without changing the storage shape.
+function ReferenceInput({ value, onChange, pickerCtx }) {
+  const path = (value && typeof value.__ref === "string") ? value.__ref : "";
+  // Hook must run unconditionally — React rules-of-hooks. We then prefer
+  // the caller's ctx when provided.
+  const defaultCtx = useDefaultPickerCtx();
+  const ctx = pickerCtx || defaultCtx;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0 }}>
+      <Link2 size={11} style={{ color: TYPE_COLOR.reference, flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <DrilldownPicker
+          value={path}
+          ctx={ctx}
+          onChange={(next) => onChange({ __ref: next })}
+        />
+      </div>
+      {path ? (
+        <button
+          title="Clear reference"
+          onClick={() => onChange({ __ref: "" })}
+          style={{ ...ICON_BTN, color: "var(--text-muted)" }}
+        >
+          ×
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+// Default picker ctx pulled from GridActionsContext — supplies sources,
+// fields, occurrences/modules/fields maps the picker needs to render
+// drilldown rows. Pure read; safe even when GridActionsContext is null.
+function useDefaultPickerCtx() {
+  const ga = useContext(GridActionsContext) || {};
+  return useMemo(() => ({
+    sources: [],
+    fields: ga.fields || (ga.fieldsById ? Object.values(ga.fieldsById) : []),
+    fieldsById: ga.fieldsById || {},
+    modulesById: ga.modulesById || {},
+    occurrencesById: ga.occurrencesById || {},
+    localVars: [],
+  }), [ga.fields, ga.fieldsById, ga.modulesById, ga.occurrencesById]);
+}
+
 // ─── Recursive node ────────────────────────────────────────────────
 
-function Node({ value, onChange, onRemove, keyName, onRenameKey, indexInArray, onMoveItem, isLast }) {
+function Node({ value, onChange, onRemove, keyName, onRenameKey, indexInArray, onMoveItem, isLast, pickerCtx }) {
   const t = detectType(value);
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState(false);
@@ -297,6 +366,7 @@ function Node({ value, onChange, onRemove, keyName, onRenameKey, indexInArray, o
               <Node
                 key={isArr ? `${idx}` : `k:${k}`}
                 value={v}
+                pickerCtx={pickerCtx}
                 keyName={isArr ? null : k}
                 indexInArray={isArr ? idx : null}
                 isLast={idx === entries.length - 1}
@@ -340,6 +410,22 @@ function Node({ value, onChange, onRemove, keyName, onRenameKey, indexInArray, o
     );
   }
 
+  // Reference node (task #31 / value builder) — DrilldownPicker-driven
+  if (t === "reference") {
+    return (
+      <div style={ROW}>
+        {keyCol}
+        <TypePill value={value} onChange={onChange} />
+        <ReferenceInput value={value} onChange={onChange} pickerCtx={pickerCtx} />
+        {onRemove && (
+          <button title="Remove" onClick={onRemove} style={{ ...ICON_BTN, color: "var(--danger-text)" }}>
+            <Trash2 size={11} />
+          </button>
+        )}
+      </div>
+    );
+  }
+
   // Primitive node
   return (
     <div style={ROW}>
@@ -358,7 +444,7 @@ function Node({ value, onChange, onRemove, keyName, onRenameKey, indexInArray, o
 
 // ─── Root component ────────────────────────────────────────────────
 
-export default function JsonStructureEditor({ value, onChange, rootLabel }) {
+export default function JsonStructureEditor({ value, onChange, rootLabel, pickerCtx = null }) {
   // Normalize undefined to null so detectType etc. behave.
   const v = value === undefined ? null : value;
   return (
@@ -374,7 +460,7 @@ export default function JsonStructureEditor({ value, onChange, rootLabel }) {
           {rootLabel}
         </div>
       )}
-      <Node value={v} onChange={onChange} />
+      <Node value={v} onChange={onChange} pickerCtx={pickerCtx} />
     </div>
   );
 }

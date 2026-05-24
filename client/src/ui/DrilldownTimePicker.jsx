@@ -95,7 +95,7 @@ const CELL_BASE = {
 
 // ─── Subgrids ────────────────────────────────────────────────────────
 
-function DayGrid({ anchor, selected, onToggle, onShiftToggle }) {
+function DayGrid({ anchor, selected, onToggle, onShiftToggle, onDrillIntoDay }) {
   const m = startOfMonth(anchor);
   const firstCol = m.getDay();
   const days = endOfMonth(anchor).getDate();
@@ -200,6 +200,86 @@ function MonthGrid({ anchor, onPickMonth }) {
   );
 }
 
+// ─── Hour grid ───────────────────────────────────────────────────────
+// 24-cell grid (4 cols × 6 rows) showing each hour of the anchor's day.
+// Click toggles a datetime "YYYY-MM-DDTHH:00" in the selection set.
+// Hours where ANY minute is selected highlight (so drilling into minute
+// level on top of a previously-set hour reads "this hour has selections").
+function HourGrid({ anchor, selected, onToggleHour, onDrillToMinute }) {
+  const dateIso = toISO(anchor);
+  const now = new Date();
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
+      {Array.from({ length: 24 }, (_, h) => {
+        const hourIso = `${dateIso}T${_pad2(h)}:00`;
+        const labelH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+        const ampm = h < 12 ? "am" : "pm";
+        // Selected at hour granularity OR any minute under this hour selected.
+        const exact = selected.has(hourIso);
+        const anyMinute = !exact && Array.from(selected).some(
+          s => s.startsWith(`${dateIso}T${_pad2(h)}:`) && s.length > hourIso.length
+        );
+        const isNowHour = sameDay(anchor, now) && now.getHours() === h;
+        return (
+          <button
+            key={h}
+            onClick={(e) => {
+              if (e.shiftKey) { onDrillToMinute(h); return; }
+              onToggleHour(hourIso);
+            }}
+            onContextMenu={(e) => { e.preventDefault(); onDrillToMinute(h); }}
+            title={`${labelH}:00 ${ampm} — click selects hour, right-click drills to minutes`}
+            style={{
+              ...CELL_BASE, height: 26,
+              background: exact ? "rgba(96,165,250,0.20)" : anyMinute ? "rgba(96,165,250,0.10)" : "transparent",
+              borderColor: exact ? "rgba(96,165,250,0.55)" : anyMinute ? "rgba(96,165,250,0.30)" : (isNowHour ? "rgba(99,202,183,0.45)" : "transparent"),
+              fontSize: 10,
+            }}
+          >
+            {labelH}:00{ampm}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Minute grid ─────────────────────────────────────────────────────
+// 12-cell grid showing every 5-minute slot of the focused hour (00, 05,
+// 10, …, 55). Click toggles "YYYY-MM-DDTHH:MM" in selection. Focused
+// hour comes via the anchor (which was set to that hour when drilling
+// in from HourGrid).
+function MinuteGrid({ anchor, selected, onToggleMinute }) {
+  const dateIso = toISO(anchor);
+  const h = anchor.getHours();
+  const now = new Date();
+  const nowSameHour = sameDay(anchor, now) && now.getHours() === h;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
+      {Array.from({ length: 12 }, (_, i) => {
+        const m = i * 5;
+        const minuteIso = `${dateIso}T${_pad2(h)}:${_pad2(m)}`;
+        const isSelected = selected.has(minuteIso);
+        const isNowMin = nowSameHour && Math.floor(now.getMinutes() / 5) * 5 === m;
+        return (
+          <button
+            key={m}
+            onClick={() => onToggleMinute(minuteIso)}
+            style={{
+              ...CELL_BASE, height: 26,
+              background: isSelected ? "rgba(96,165,250,0.20)" : "transparent",
+              borderColor: isSelected ? "rgba(96,165,250,0.55)" : (isNowMin ? "rgba(99,202,183,0.45)" : "transparent"),
+              fontSize: 10,
+            }}
+          >
+            :{_pad2(m)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function YearGrid({ anchor, onPickYear }) {
   // Show a 12-year band centered on the anchor.
   const base = anchor.getFullYear() - 5;
@@ -291,6 +371,10 @@ export default function DrilldownTimePicker({ value = [], onChange, defaultIncre
       if (level === "year")  return addYears(prev, -12);
       if (level === "month") return addYears(prev, -1);
       if (level === "week")  return addMonths(prev, -1);
+      if (level === "hour")  return addDays(prev, -1);
+      if (level === "minute") {
+        const next = new Date(prev); next.setHours(prev.getHours() - 1); return next;
+      }
       return addMonths(prev, -1);
     });
   }, [level, increment, shiftSelectionDays]);
@@ -302,13 +386,35 @@ export default function DrilldownTimePicker({ value = [], onChange, defaultIncre
       if (level === "year")  return addYears(prev, 12);
       if (level === "month") return addYears(prev, 1);
       if (level === "week")  return addMonths(prev, 1);
+      if (level === "hour")  return addDays(prev, 1);
+      if (level === "minute") {
+        const next = new Date(prev); next.setHours(prev.getHours() + 1); return next;
+      }
       return addMonths(prev, 1);
     });
   }, [level, increment, shiftSelectionDays]);
 
+  // ── Time selection mutators (hour / minute levels) ────────────────
+  const toggleHour = useCallback((iso) => {
+    const next = new Set(selected);
+    if (next.has(iso)) next.delete(iso); else next.add(iso);
+    emit(next);
+  }, [selected, emit]);
+
+  const toggleMinute = useCallback((iso) => {
+    const next = new Set(selected);
+    if (next.has(iso)) next.delete(iso); else next.add(iso);
+    emit(next);
+  }, [selected, emit]);
+
   // ── Drilldown ──────────────────────────────────────────────────────
+  // Levels (zoom-out → zoom-in): year ▸ month ▸ week ▸ day ▸ hour ▸ minute.
+  // Day-level drill-down: drills into the FOCUSED day's hour grid. Hour-
+  // level drill-down: drills into the focused hour's minute grid.
   const drillUp = useCallback(() => {
-    if (level === "day")   setLevel("week");
+    if (level === "minute") setLevel("hour");
+    else if (level === "hour") setLevel("day");
+    else if (level === "day")   setLevel("week");
     else if (level === "week")  setLevel("month");
     else if (level === "month") setLevel("year");
   }, [level]);
@@ -316,13 +422,44 @@ export default function DrilldownTimePicker({ value = [], onChange, defaultIncre
     if (level === "year")  setLevel("month");
     else if (level === "month") setLevel("week");
     else if (level === "week")  setLevel("day");
+    else if (level === "day")   setLevel("hour");
+    else if (level === "hour")  setLevel("minute");
   }, [level]);
+
+  // Day-cell click in DayGrid that drills DOWN — sets the anchor to that
+  // day and switches to hour level. Triggered via shift-click or context
+  // menu on a DayGrid cell — not the primary toggle path (which still
+  // selects the day in date-only callers' expectations).
+  const drillIntoDay = useCallback((day) => {
+    setAnchor(day);
+    setLevel("hour");
+  }, []);
+
+  // Hour-cell drill-in (shift-click / right-click on HourGrid) — sets
+  // anchor's hour and switches to minute level.
+  const drillIntoHour = useCallback((h) => {
+    setAnchor(prev => {
+      const next = new Date(prev);
+      next.setHours(h, 0, 0, 0);
+      return next;
+    });
+    setLevel("minute");
+  }, []);
 
   const titleText = useMemo(() => {
     if (level === "year")  return "Years";
     if (level === "month") return String(anchor.getFullYear());
     if (level === "week")  return `Weeks of ${MONTH_NAMES_LONG[anchor.getMonth()]} ${anchor.getFullYear()}`;
-    return `${MONTH_NAMES_LONG[anchor.getMonth()]} ${anchor.getFullYear()}`;
+    if (level === "day")   return `${MONTH_NAMES_LONG[anchor.getMonth()]} ${anchor.getFullYear()}`;
+    if (level === "hour") {
+      return `Hours on ${MONTH_NAMES_SHORT[anchor.getMonth()]} ${anchor.getDate()}`;
+    }
+    if (level === "minute") {
+      const h12 = anchor.getHours() === 0 ? 12 : (anchor.getHours() > 12 ? anchor.getHours() - 12 : anchor.getHours());
+      const ampm = anchor.getHours() < 12 ? "am" : "pm";
+      return `Minutes — ${h12}:00${ampm} on ${MONTH_NAMES_SHORT[anchor.getMonth()]} ${anchor.getDate()}`;
+    }
+    return "";
   }, [level, anchor]);
 
   // ── Render ─────────────────────────────────────────────────────────
@@ -332,9 +469,9 @@ export default function DrilldownTimePicker({ value = [], onChange, defaultIncre
     <div style={FRAME}>
       {/* Drill bar */}
       <div style={HEADER}>
-        <button style={ICON_BTN} onClick={drillDown} disabled={level === "day"}
+        <button style={ICON_BTN} onClick={drillDown} disabled={level === "minute"}
           title="Zoom in" >
-          <ChevronDown size={14} style={{ opacity: level === "day" ? 0.25 : 0.85 }} />
+          <ChevronDown size={14} style={{ opacity: level === "minute" ? 0.25 : 0.85 }} />
         </button>
         <button style={TITLE_BTN} onClick={drillUp} disabled={level === "year"} title="Zoom out">
           {titleText}
@@ -377,10 +514,12 @@ export default function DrilldownTimePicker({ value = [], onChange, defaultIncre
 
       {/* Body — level-dispatched */}
       <div>
-        {level === "day"   && <DayGrid anchor={anchor} selected={selected} onToggle={toggleDay} onShiftToggle={shiftToggleDay} />}
-        {level === "week"  && <WeekGrid anchor={anchor} selected={selected} onToggleWeek={toggleWeek} />}
-        {level === "month" && <MonthGrid anchor={anchor} onPickMonth={(d) => { setAnchor(d); setLevel("week"); }} />}
-        {level === "year"  && <YearGrid  anchor={anchor} onPickYear={(d)  => { setAnchor(d); setLevel("month"); }} />}
+        {level === "day"    && <DayGrid anchor={anchor} selected={selected} onToggle={toggleDay} onShiftToggle={shiftToggleDay} onDrillIntoDay={drillIntoDay} />}
+        {level === "week"   && <WeekGrid anchor={anchor} selected={selected} onToggleWeek={toggleWeek} />}
+        {level === "month"  && <MonthGrid anchor={anchor} onPickMonth={(d) => { setAnchor(d); setLevel("week"); }} />}
+        {level === "year"   && <YearGrid  anchor={anchor} onPickYear={(d)  => { setAnchor(d); setLevel("month"); }} />}
+        {level === "hour"   && <HourGrid anchor={anchor} selected={selected} onToggleHour={toggleHour} onDrillToMinute={drillIntoHour} />}
+        {level === "minute" && <MinuteGrid anchor={anchor} selected={selected} onToggleMinute={toggleMinute} />}
       </div>
 
       {/* Footer — selection summary + clear */}

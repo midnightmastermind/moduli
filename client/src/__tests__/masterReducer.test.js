@@ -513,7 +513,7 @@ describe("Doc containers and instances load from FULL_STATE", () => {
     const s = dispatch(makeState(), ActionTypes.FULL_STATE, {
       modules: [
         { id: "p_notebook", role: "panel", label: "Notebook", kind: "board" },
-        { id: "p_schedule", role: "panel", label: "Schedule", kind: "list" },
+        { id: "p_schedule", role: "panel", label: "Schedule", kind: "board" },
         ...Array.from({ length: 5 }, (_, i) => ({
           id: `c_stan_${i}`, role: "container", label: `Stan Stanza ${i + 1}`, kind: "doc",
         })),
@@ -555,12 +555,12 @@ describe("Full example-data hydration (all entity types in one FULL_STATE)", () 
       grid: { id: "grid1", cols: 3, rows: 2, occurrences: ["panelOcc1", "panelOcc2", "panelOcc3"] },
       modules: [
         // Panels
-        { id: "panel_schedule", role: "panel", label: "Schedule", kind: "list" },
+        { id: "panel_schedule", role: "panel", label: "Schedule", kind: "board" },
         { id: "panel_goals", role: "panel", label: "Goals", kind: "board" },
         { id: "panel_notebook", role: "panel", label: "Notebook", kind: "board" },
         // Containers
-        { id: "slot_9am", role: "container", label: "9:00 AM", kind: "list", occurrences: ["instOcc1"] },
-        { id: "goal_cont", role: "container", label: "Daily Goals", kind: "list", occurrences: ["instOcc2"] },
+        { id: "slot_9am", role: "container", label: "9:00 AM", kind: "board", occurrences: ["instOcc1"] },
+        { id: "goal_cont", role: "container", label: "Daily Goals", kind: "board", occurrences: ["instOcc2"] },
         { id: "doc_cont", role: "container", label: "Daily Journal", kind: "doc", occurrences: [] },
         // Instances
         { id: "workout_inst", role: "instance", label: "Morning Run",

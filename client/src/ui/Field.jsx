@@ -41,6 +41,8 @@ import {
 import { createLeafInstanceInParent } from "../helpers/CommitHelpers";
 import { resolveFileRef } from "../helpers/fileRef";
 import { GridActionsContext } from "../GridActionsContext";
+import { runMatchingOperations } from "../helpers/operationExecutor";
+import { setComputedValuesAction } from "../state/actions";
 
 // ─── FlowToggle (popover with 3 flow options) ─────────────────
 function FlowToggle({ flow = "in", onChange, compact = false, disabled = false }) {
@@ -451,6 +453,10 @@ function Field({
   hideName = false,
   hidePrefix = false,
   hidePostfix = false,
+  // Host occurrence — used by button-type fields so the click handler
+  // can pass `$trigger.occurrenceId` to the fired operation. Optional
+  // for other field types.
+  hostOccurrence = null,
   // Display
   value,
   target: targetProp,
@@ -540,7 +546,10 @@ function Field({
   const inputRef = useRef(null);
 
   // Context needed for occurrence add-new: create a new instance in the library container
-  const { dispatch, socket, gridId, userId, occurrencesById, modulesById, fieldsById } = useContext(GridActionsContext);
+  const { dispatch, socket, gridId, userId, occurrencesById, modulesById, fieldsById, operationsById, state: ctxState } = useContext(GridActionsContext);
+  // Use the prop-passed state when present, fall back to context's. Most
+  // callers thread the latest state via prop; the context is the safe net.
+  const effectiveOpState = state ?? ctxState;
 
   // occurrenceAddNewCfg is derived from field meta — stable reference, safe to compute here.
   // Read via field?.meta because the `meta` destructure happens later in the function.
@@ -633,6 +642,67 @@ function Field({
   const postfix = hidePostfix ? "" : (meta?.postfix || "");
   const showLabel = !compact && !hideName && binding?.display?.showLabel !== false;
   const showUnit = unit && binding?.display?.showUnit !== false;
+
+  // ══════════════════════════════════════════════════════════════
+  // BUTTON FIELD — runs an operation when clicked (#46 polish 2026-05-23)
+  // ══════════════════════════════════════════════════════════════
+  // `field.type === "button"` is a special field shape: no value, no
+  // input, no display. Renders as a click-to-run button. The operation
+  // id lives at `field.meta.operationId`. Fires a `ButtonOp` transaction
+  // with the host occurrence as the trigger context — pipelines can read
+  // `$trigger.occurrenceId` / `$trigger.instanceId` to know which row
+  // was clicked.
+  if (type === "button") {
+    const opId = meta?.operationId;
+    const op = opId && operationsById ? operationsById[opId] : null;
+    const buttonLabel = meta?.buttonLabel || name || "Run";
+    const tooltip = op ? `Run: ${op.name}` : (opId ? `Operation not found: ${opId}` : "No operation configured");
+    const enabled = !disabled && !!op;
+    const onClick = (e) => {
+      e.stopPropagation();
+      if (!op) return;
+      const occId = hostOccurrence?.id || null;
+      const transaction = {
+        type: "ButtonOp",
+        operationId: op.id,
+        occurrenceId: occId || null,
+        instanceId: occId || null,
+        fieldId: field.id,
+      };
+      const updates = runMatchingOperations(
+        Object.values(operationsById || {}),
+        "ButtonOp", transaction,
+        { state: effectiveOpState, fieldsById, operationsById, occurrencesById },
+      );
+      if (updates.length > 0) {
+        const displayUpdates = updates.filter(u => !u._effect);
+        if (displayUpdates.length > 0) dispatch?.(setComputedValuesAction(displayUpdates));
+      }
+    };
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={!enabled}
+        title={tooltip}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: compact ? "2px 8px" : "3px 10px",
+          borderRadius: 999,
+          fontSize: compact ? 10 : 11,
+          fontFamily: "var(--font-mono)",
+          cursor: enabled ? "pointer" : "not-allowed",
+          background: enabled ? "var(--accent-blue-bg)" : "var(--input-bg)",
+          border: `1px solid ${enabled ? "var(--accent-blue-border)" : "var(--border-subtle)"}`,
+          color: enabled ? "var(--accent-blue-text)" : "var(--text-faint)",
+          opacity: enabled ? 1 : 0.55,
+        }}
+      >
+        <Play style={{ width: 9, height: 9 }} />
+        {buttonLabel}
+      </button>
+    );
+  }
 
   // ══════════════════════════════════════════════════════════════
   // EDITABLE — INPUT RENDERING

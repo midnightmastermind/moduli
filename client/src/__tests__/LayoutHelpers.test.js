@@ -21,6 +21,7 @@ import {
   removeId,
   ensureId,
   copylinkInstanceToContainer,
+  applyLocalSort,
 } from "../helpers/LayoutHelpers";
 
 // ─── Mock CommitHelpers (LayoutHelpers imports it for panel copy/split) ────────
@@ -306,5 +307,43 @@ describe("copylinkInstanceToContainer", () => {
         }),
       })
     );
+  });
+});
+
+describe("applyLocalSort — pin-to-top (#U1)", () => {
+  const items = [
+    { occurrence: { id: "a", fields: { score: { value: 30 } } } },
+    { occurrence: { id: "b", fields: { score: { value: 10 } }, meta: { pinned: true } } },
+    { occurrence: { id: "c", fields: { score: { value: 20 } } } },
+    { occurrence: { id: "d", fields: { score: { value: 40 } }, meta: { pinned: true } } },
+  ];
+
+  test("pinned items render first in insertion order, unpinned items get sorted", () => {
+    const sorted = applyLocalSort(items, { fieldId: "score", dir: "asc" }, {});
+    // Pinned: b, d (their order in the source list). Unpinned sorted asc by score: c(20), a(30).
+    expect(sorted.map(it => it.occurrence.id)).toEqual(["b", "d", "c", "a"]);
+  });
+
+  test("pinned items skip sort even when descending", () => {
+    const sorted = applyLocalSort(items, { fieldId: "score", dir: "desc" }, {});
+    // Pinned still b, d. Unpinned desc: a(30), c(20).
+    expect(sorted.map(it => it.occurrence.id)).toEqual(["b", "d", "a", "c"]);
+  });
+
+  test("no sort config — pinned items still float to top in insertion order", () => {
+    const sorted = applyLocalSort(items, null, {});
+    expect(sorted.map(it => it.occurrence.id)).toEqual(["b", "d", "a", "c"]);
+  });
+
+  test("no pinned items — sort runs as before", () => {
+    const noPin = items.map(it => ({ ...it, occurrence: { ...it.occurrence, meta: {} } }));
+    const sorted = applyLocalSort(noPin, { fieldId: "score", dir: "asc" }, {});
+    expect(sorted.map(it => it.occurrence.id)).toEqual(["b", "c", "a", "d"]);
+  });
+
+  test("all pinned — order is just insertion order", () => {
+    const allPin = items.map(it => ({ ...it, occurrence: { ...it.occurrence, meta: { pinned: true } } }));
+    const sorted = applyLocalSort(allPin, { fieldId: "score", dir: "asc" }, {});
+    expect(sorted.map(it => it.occurrence.id)).toEqual(["a", "b", "c", "d"]);
   });
 });
