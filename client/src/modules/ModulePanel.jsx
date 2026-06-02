@@ -9,6 +9,7 @@ import RadialMenu from "../ui/RadialMenu";
 import ContainerKindSelector from "../ui/ContainerKindSelector";
 import ContextMenu from "../ui/ContextMenu";
 import { buildStyleCascadeContext, resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
+import { bumpRender } from "../helpers/renderProbe";
 
 import Artifact from "./ArtifactContent";
 import ManifestTree from "./ManifestTree";
@@ -16,7 +17,7 @@ import LayoutForm from "../ui/LayoutForm";
 import TransactionHistory from "../ui/TransactionHistory";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 
-import { GridActionsContext } from "../GridActionsContext";
+import { useGridActionsSelector } from "../GridActionsContext";
 import { GridDataContext } from "../GridDataContext";
 import { GridLiveContext } from "../GridLiveContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
@@ -185,7 +186,8 @@ function TreePanelContent({ resolvedView, activeOcc, activeOccView, dispatch, so
 // CANVAS TREE PANEL — ManifestTree sidebar + CanvasDrawSection per page
 // ============================================================
 function CanvasTreePanelContent({ resolvedView, activeOcc, dispatch, socket, panelId }) {
-  const { occurrencesById, modulesById } = useContext(GridActionsContext);
+  const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
+  const modulesById = useGridActionsSelector(s => s.modulesById);
   const { state: ctxState } = useContext(GridDataContext);
   const [treeCollapsed, setTreeCollapsed] = useState(true);
 
@@ -281,6 +283,7 @@ function Panel({
   forceFullscreen = false,
   isForeground = false,
 }) {
+  bumpRender("panel");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [kindSelectorOpen, setKindSelectorOpen] = useState(false);
@@ -304,7 +307,14 @@ function Panel({
   const prevActiveOccRef = useRef(null);
   const panelDragMode = module?.defaultDragMode || "move";
 
-  const { occurrencesById, instancesById, leafModulesById, containersById, viewsById, modulesById, manifestsById, foldersById } = useContext(GridActionsContext);
+  const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
+  const instancesById = useGridActionsSelector(s => s.instancesById);
+  const leafModulesById = useGridActionsSelector(s => s.leafModulesById);
+  const containersById = useGridActionsSelector(s => s.containersById);
+  const viewsById = useGridActionsSelector(s => s.viewsById);
+  const modulesById = useGridActionsSelector(s => s.modulesById);
+  const manifestsById = useGridActionsSelector(s => s.manifestsById);
+  const foldersById = useGridActionsSelector(s => s.foldersById);
   const { state } = useContext(GridDataContext);
   const { isMobile } = useContext(GridLiveContext);
   const dragCtx = useDragContext();

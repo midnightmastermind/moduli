@@ -2,6 +2,79 @@
 
 _Updated: 2026-05-20. Check this file before re-reading source._
 
+## Recent Changes (2026-05-26 — fireOperationsBatch: filter-change cascade dedup)
+- **`bindSocketToStore.js`** — new closure-level `_navCascadeFiredOps` Set (null
+  except during a batch) + `operationsBridge.fireOperationsBatch(type,
+  transactions[])`. The batch sets a fresh Set, fires each transaction via the
+  optimistic path, then restores. `_fireOperationsInner` passes
+  `cascadeFiredOps` into `runMatchingOperations` ONLY when `_fireDepth === 1`
+  (top-level) so nested effect-driven fires (MeasureOp/OccurrenceCreateOp) are
+  never deduped. `operationsBridge` gained `fireOperationsBatch` (declared in
+  the export, nulled in cleanup).
+- **Why:** `CommitHelpers.updateOccurrenceFilterOverride` fans one filter change
+  into ~50 top-level `NavigationOp` fires (source page + every inheriting
+  descendant). Ancestor-scoped page-rebuild ops matched all ~50 → re-ran 50×
+  (Schedule date-switch 5-10s freeze). The shared dedup Set makes each op run
+  once per cascade. See `helpers/CLAUDE.md` (2026-05-26) for the executor side +
+  full root-cause. Client-only, no re-seed.
+
+## Recent Changes (2026-05-25 part 3 — durable executor cycle breaker for op-emitted CRUD)
+- **`bindSocketToStore.js`** — new closure-level `opEmittedOccIds` Set +
+  `_markOpEmitted(id)` helper (declared next to `localOccsById`, line ~42).
+  Occurrences CREATED or DELETED by operation effects now get marked:
+  `CREATE_ITEM` (alongside the existing `optimisticFiredSet.add`),
+  `DELETE_ITEM`, and `REMOVE_OCCURRENCE`. `onOccurrenceCreated` /
+  `onOccurrenceDeleted` skip the trigger fire when the echoed id is in
+  EITHER `optimisticFiredSet` OR `opEmittedOccIds`, then clear it from the
+  durable set (echo-arrival lifecycle; 60s fallback sweep only to bound
+  memory).
+- **Why this exists on top of the two prior guards:** `setOpApplyingEffects`
+  (operationExecutor) covers only the SYNCHRONOUS nested-fire path;
+  `optimisticFiredSet` dedups echoes but on a **5s** timer. `deleteOccurrence`
+  defers per-field MeasureOps via `requestAnimationFrame`, so a mirror-op
+  rebuild stretches across many frames (35s+ in the toolkit-drop freeze) —
+  long enough for the 5s timer to expire between chunks, after which the
+  server echo re-fires `OccurrenceDeleteOp`/`CreateOp` → cascade. The durable
+  set closes that async leak regardless of cascade duration. Derived-data
+  CRUD must never drive automation (downstream ops already saw the effect
+  synchronously in the same `runMatchingOperations` sweep via the liveOccs
+  overlay). Per-client, so multi-window sync is preserved (other windows
+  lack the id and fire normally). No re-seed (client-only). Pairs with the
+  seed-side inclusive scope guards on the mirror ops (server/CLAUDE.md).
+
+## Recent Changes (2026-05-25 — async-echo create loop fix [the actual freeze])
+- **Root cause (finally):** the freeze was an UNBOUNDED ASYNC CREATE loop, not
+  the synchronous delete cascade. `CREATE_ITEM` effect handler emits
+  `create_occurrence` directly (does NOT route through
+  `CommitHelpers.createOccurrence`, so it never fired OccurrenceCreateOp
+  synchronously NOR added the id to `optimisticFiredSet`). The server echoes
+  `occurrence_created` for every op-minted row/card/copy → `onOccurrenceCreated`
+  re-fired `OccurrenceCreateOp` → the rebuild op (Table/Canvas/People Table
+  Build, all triggered on unscoped onAdd) ran again → created more → emitted →
+  echoed → loop. Server log showed the `create_occurrence` flood; client froze
+  before logging.
+- **Fixes (client-only, no re-seed):**
+  - `onOccurrenceCreated` + `onOccurrenceDeleted` now skip the trigger fire when
+    `optimisticFiredSet.has(id)` (same dedup `onOccurrenceUpdated` already had),
+    then clear the flag. Stops this client's own echo from re-triggering ops.
+  - `CREATE_ITEM` effect handler now `optimisticFiredSet.add(newOcc.id)` (+5s
+    fallback clear) so op-minted occurrences are recognized as
+    already-handled-by-this-client and their echo is skipped. This is the piece
+    that actually closes the create loop.
+  - (delete path already added ids via CommitHelpers.deleteOccurrence's
+    optimistic fire, so the delete echo was covered once the dedup check existed.)
+
+## Recent Changes (2026-05-25 — self-trigger guard around effect application)
+- **`bindSocketToStore.js` (`_fireOperationsInner` effect loop)** — each
+  `applyOperationEffect(eff)` is now wrapped with
+  `setOpApplyingEffects(eff._sourceOpId, true/false)` (imported from
+  operationExecutor). While an op's effect is applying, that op is skipped by
+  `runMatchingOperations`, so a delete/create effect's nested
+  OccurrenceDeleteOp/CreateOp can't re-trigger the op that produced it. This is
+  the client-only fix for the drop-into-Schedule freeze (Table/Canvas Build
+  deleting their own rows/cards → exponential OccurrenceDeleteOp cascade). See
+  client/src/helpers/CLAUDE.md for the executor side + rationale. No re-seed.
+
 ## Recent Changes (2026-05-21 — bindSocketToStore handles run_op_for_api)
 - **`bindSocketToStore.js` new `onRunOpForApi` handler** — server's
   `/api/v1/operations/:id/run` route emits `run_op_for_api` over the

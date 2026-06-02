@@ -516,6 +516,16 @@ select:disabled { cursor: not-allowed; }
     0 3px 6px -3px rgba(0, 0, 0, 0.6),
     0 1px 0 rgba(0, 0, 0, 0.28); /* darker lip below the border line */
 }
+/* #38: opt-in sticky container header. Toggle via the layout cascade
+   (`stickyHeaders: true`) — see helpers/layoutCascade.js. ModuleContainer
+   adds the class when the resolved rule is on. The header stays pinned
+   to the top of the nearest scrolling ancestor (the page-shell scroll
+   region) as the user scrolls past it. */
+.container-shell.is-sticky-header > .container-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
 /* Embedded container headers use the host doc's accent color cascade —
    skip the dark overlay so the embedded header keeps its teal tint. */
 .embedded-container-header {
@@ -626,6 +636,19 @@ select:disabled { cursor: not-allowed; }
   position: relative;
   margin-top: 6px;
   margin-bottom: 5px;
+  /* #24 perf — browser-native off-screen skip. `content-visibility:
+     auto` lets the rendering engine skip layout + paint for items
+     outside the viewport (plus a small reserve area). `contain-
+     intrinsic-size` gives the browser a placeholder height so the
+     scrollbar / page geometry stays stable while items are skipped.
+     Width:auto lets the natural width flow; the height seed (60px)
+     is the typical instance row height — actual rendered items
+     replace this seed without reflowing siblings because they live
+     inside the same flex column. Falls back to no-op on unsupported
+     browsers (Chrome < 85). Works for 100+ board children without
+     a hard render cap. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60px;
 }
 
 .instance-wrap.is-dragging {
@@ -675,20 +698,6 @@ select:disabled { cursor: not-allowed; }
 }
 @keyframes clipboard-marching {
   to { outline-offset: 4px; }
-}
-
-/* Task #59 — schedule slot containers whose time has passed today.
-   Slight red tint signals "this hour is over". Subtle on purpose so it
-   doesn't compete with selection/clipboard outlines (which still win
-   when both apply). Re-checked every 5 minutes by useNowTick. */
-.container-shell.is-timeslot-passed {
-  background-color: rgba(248, 113, 113, 0.08);
-  border-color: rgba(248, 113, 113, 0.25);
-}
-.container-shell.is-timeslot-passed.is-selected,
-.container-shell.is-timeslot-passed.is-clipboard-staged {
-  /* Let the selection / clipboard outline + bg win when active. */
-  background-color: initial;
 }
 
 /* Hovered drop target while clipboard-active (anywhere on the grid).
@@ -2233,6 +2242,55 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .textblock-card--inline .ProseMirror > * {
   display: inline;
   margin: 0;
+}
+
+/* InstanceTextblockInline TipTap NodeView — inline atom node displayed in
+   the middle of a paragraph. Visually a soft pill: subtle background tint
+   so the user can see where the textblock starts and ends, no border, no
+   margin, sits on the paragraph baseline. Double-click → contenteditable
+   edit (the `.is-editing` modifier swaps the styling). */
+.instance-textblock-inline {
+  display: inline-block;
+  padding: 1px 6px;
+  margin: 1px 2px;
+  background: rgba(134, 239, 172, 0.10);
+  border: 1px solid rgba(134, 239, 172, 0.22);
+  border-radius: 4px;
+  cursor: grab;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  vertical-align: baseline;
+  line-height: 1.35;
+  /* Long chips (many words) wrap their text to multiple lines inside
+     the chip border instead of overflowing horizontally. `word-break`
+     handles edge cases like a single un-breakable token longer than
+     the available width. */
+  white-space: normal;
+  word-break: break-word;
+  /* Cap the chip's width to its natural line — when text fits on one
+     line the chip shrinks; when text is long the chip stays bounded
+     by its container's width and wraps inside. */
+  max-width: 100%;
+}
+.instance-textblock-inline:hover {
+  background: rgba(134, 239, 172, 0.18);
+  border-color: rgba(134, 239, 172, 0.42);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
+}
+.instance-textblock-inline:active {
+  cursor: grabbing;
+}
+.instance-textblock-inline.is-empty .instance-textblock-inline-text {
+  color: var(--text-faint);
+  font-style: italic;
+}
+.instance-textblock-inline.is-editing {
+  background: rgba(134, 239, 172, 0.20);
+  outline: 1px dashed rgba(134, 239, 172, 0.55);
+}
+.instance-textblock-inline-edit {
+  outline: none;
+  display: inline;
+  min-width: 8px;
 }
 
 /* ============================================================

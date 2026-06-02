@@ -13,13 +13,13 @@
 // the Actual option.
 
 import React, { useCallback, useContext, useMemo } from "react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import ViewModeSwitcher from "./ViewModeSwitcher";
 import { resolveEffectiveLayout } from "../helpers/layoutCascade";
 
 export default function ViewModeSection({ occurrence, contextTag = "default" }) {
-  const { dispatch, socket, occurrencesById, modulesById, grid } = useContext(GridActionsContext) || {};
+  const { dispatch, socket, occurrencesById, modulesById, grid } = useGridActions() || {};
   const handleChange = useCallback((nextMode) => {
     if (!occurrence?.id) return;
     CommitHelpers.updateOccurrence({

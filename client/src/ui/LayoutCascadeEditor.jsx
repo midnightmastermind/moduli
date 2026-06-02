@@ -73,6 +73,7 @@ export default function LayoutCascadeEditor({
       if (typeof r.navAllowChange === "boolean") seed.navAllowChange = r.navAllowChange;
       if (typeof r.locked === "boolean") seed.locked = r.locked;
       if (typeof r.showFieldsByDefault === "boolean") seed.showFieldsByDefault = r.showFieldsByDefault;
+      if (typeof r.stickyHeaders === "boolean") seed.stickyHeaders = r.stickyHeaders;
       onChange?.(seed);
     }
   }, [mode, onChange, cascade]);
@@ -162,6 +163,12 @@ export default function LayoutCascadeEditor({
             value={cur.showFieldsByDefault ?? null}
             onChange={(v) => setKey("showFieldsByDefault", v)}
             tooltip="Whether Representation chips show inline field chips by default."
+          />
+          <RuleSwitch
+            label="Sticky header"
+            value={cur.stickyHeaders ?? null}
+            onChange={(v) => setKey("stickyHeaders", v)}
+            tooltip="Pin the container header to the top of the scroll region as you scroll past it. Cascades to descendants until overridden."
           />
           {showRepresentationFieldIds ? (
             <RuleFieldList

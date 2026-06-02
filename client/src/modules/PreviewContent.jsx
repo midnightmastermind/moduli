@@ -6,7 +6,7 @@
 // ============================================================
 import { useContext, useEffect, useRef } from "react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { GridActionsContext } from "../GridActionsContext.js";
+import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
 import { updateView } from "../helpers/CommitHelpers.js";
 
 const ICON = {
@@ -22,7 +22,7 @@ const ICON = {
 };
 
 export default function PreviewContent({ occurrence, view, dispatch, socket }) {
-  const { modulesById } = useContext(GridActionsContext);
+  const { modulesById } = useGridActions();
   const dragRef = useRef(null);
 
   const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;

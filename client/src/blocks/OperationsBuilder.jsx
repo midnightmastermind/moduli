@@ -1025,8 +1025,8 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
                   {["panel", "page", "container", "instance", "artifact", "textblock"].map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
                 {fl("kind")}
-                <select value={cfg.kind || "list"} onChange={e => setCfg({ kind: e.target.value })} style={selectSt}>
-                  {["list", "doc", "board", "canvas", "folder", "display", "pool"].map(k => <option key={k} value={k}>{k}</option>)}
+                <select value={cfg.kind || "board"} onChange={e => setCfg({ kind: e.target.value })} style={selectSt}>
+                  {["board", "doc", "canvas", "table", "folder", "display", "pool"].map(k => <option key={k} value={k}>{k}</option>)}
                 </select>
               </div>
               <div style={rowStyle}>
@@ -1056,8 +1056,8 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
                   {["panel", "page", "container", "instance", "artifact", "textblock"].map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
                 {fl("kind")}
-                <select value={cfg.kind || "list"} onChange={e => setCfg({ kind: e.target.value })} style={selectSt}>
-                  {["list", "doc", "board", "canvas", "folder", "display", "pool"].map(k => <option key={k} value={k}>{k}</option>)}
+                <select value={cfg.kind || "board"} onChange={e => setCfg({ kind: e.target.value })} style={selectSt}>
+                  {["board", "doc", "canvas", "table", "folder", "display", "pool"].map(k => <option key={k} value={k}>{k}</option>)}
                 </select>
                 {fl("parent")}
                 <ExprOrPath value={cfg.parent || ""} onChange={v => setCfg({ parent: v })} placeholder="$schedPageId" width={160} {...exprProps} />

@@ -1,220 +1,773 @@
 [
   {
-    "_id": "69c288bee56661f84e2e250b",
-    "id": "KG7PSrkpzHPg",
+    "_id": "6a1ecc8727aa50e8595e78f2",
+    "id": "ZAKjLJe19Whg",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Completed",
     "type": "boolean",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "0_B2YqasgdMg",
     "meta": {
       "variant": "switch",
       "defaultValue": false
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:10.662Z",
-    "updatedAt": "2026-03-24T12:51:10.662Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288bfe56661f84e2e2510",
-    "id": "nWjx4QfWkSuz",
+    "_id": "6a1ecc8727aa50e8595e78f3",
+    "id": "hRJng6xPvEsW",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Date",
+    "type": "date",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "0_B2YqasgdMg",
+    "siblingLinks": [],
+    "meta": {}
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e78f4",
+    "id": "LKFpRr-5HmbH",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Time Slot",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "0_B2YqasgdMg",
+    "meta": {
+      "optionsSource": {
+        "mode": "manual",
+        "values": [
+          {
+            "value": "12:00am",
+            "label": "12:00am"
+          },
+          {
+            "value": "12:30am",
+            "label": "12:30am"
+          },
+          {
+            "value": "1:00am",
+            "label": "1:00am"
+          },
+          {
+            "value": "1:30am",
+            "label": "1:30am"
+          },
+          {
+            "value": "2:00am",
+            "label": "2:00am"
+          },
+          {
+            "value": "2:30am",
+            "label": "2:30am"
+          },
+          {
+            "value": "3:00am",
+            "label": "3:00am"
+          },
+          {
+            "value": "3:30am",
+            "label": "3:30am"
+          },
+          {
+            "value": "4:00am",
+            "label": "4:00am"
+          },
+          {
+            "value": "4:30am",
+            "label": "4:30am"
+          },
+          {
+            "value": "5:00am",
+            "label": "5:00am"
+          },
+          {
+            "value": "5:30am",
+            "label": "5:30am"
+          },
+          {
+            "value": "6:00am",
+            "label": "6:00am"
+          },
+          {
+            "value": "6:30am",
+            "label": "6:30am"
+          },
+          {
+            "value": "7:00am",
+            "label": "7:00am"
+          },
+          {
+            "value": "7:30am",
+            "label": "7:30am"
+          },
+          {
+            "value": "8:00am",
+            "label": "8:00am"
+          },
+          {
+            "value": "8:30am",
+            "label": "8:30am"
+          },
+          {
+            "value": "9:00am",
+            "label": "9:00am"
+          },
+          {
+            "value": "9:30am",
+            "label": "9:30am"
+          },
+          {
+            "value": "10:00am",
+            "label": "10:00am"
+          },
+          {
+            "value": "10:30am",
+            "label": "10:30am"
+          },
+          {
+            "value": "11:00am",
+            "label": "11:00am"
+          },
+          {
+            "value": "11:30am",
+            "label": "11:30am"
+          },
+          {
+            "value": "12:00pm",
+            "label": "12:00pm"
+          },
+          {
+            "value": "12:30pm",
+            "label": "12:30pm"
+          },
+          {
+            "value": "1:00pm",
+            "label": "1:00pm"
+          },
+          {
+            "value": "1:30pm",
+            "label": "1:30pm"
+          },
+          {
+            "value": "2:00pm",
+            "label": "2:00pm"
+          },
+          {
+            "value": "2:30pm",
+            "label": "2:30pm"
+          },
+          {
+            "value": "3:00pm",
+            "label": "3:00pm"
+          },
+          {
+            "value": "3:30pm",
+            "label": "3:30pm"
+          },
+          {
+            "value": "4:00pm",
+            "label": "4:00pm"
+          },
+          {
+            "value": "4:30pm",
+            "label": "4:30pm"
+          },
+          {
+            "value": "5:00pm",
+            "label": "5:00pm"
+          },
+          {
+            "value": "5:30pm",
+            "label": "5:30pm"
+          },
+          {
+            "value": "6:00pm",
+            "label": "6:00pm"
+          },
+          {
+            "value": "6:30pm",
+            "label": "6:30pm"
+          },
+          {
+            "value": "7:00pm",
+            "label": "7:00pm"
+          },
+          {
+            "value": "7:30pm",
+            "label": "7:30pm"
+          },
+          {
+            "value": "8:00pm",
+            "label": "8:00pm"
+          },
+          {
+            "value": "8:30pm",
+            "label": "8:30pm"
+          },
+          {
+            "value": "9:00pm",
+            "label": "9:00pm"
+          },
+          {
+            "value": "9:30pm",
+            "label": "9:30pm"
+          },
+          {
+            "value": "10:00pm",
+            "label": "10:00pm"
+          },
+          {
+            "value": "10:30pm",
+            "label": "10:30pm"
+          },
+          {
+            "value": "11:00pm",
+            "label": "11:00pm"
+          },
+          {
+            "value": "11:30pm",
+            "label": "11:30pm"
+          }
+        ]
+      }
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e78f5",
+    "id": "O5SAww61g_dZ",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Due",
+    "type": "date",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "0_B2YqasgdMg",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e78f6",
+    "id": "YxAtQrK6X_WM",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Last Seen",
+    "type": "date",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "0_B2YqasgdMg",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e78f7",
+    "id": "mVpBG2myRqpc",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Is Task",
+    "type": "boolean",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "0_B2YqasgdMg",
+    "siblingLinks": [],
+    "meta": {}
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e78f8",
+    "id": "GQnlvKw1zMRv",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Schedule Format",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "0_B2YqasgdMg",
+    "meta": {
+      "optionsSource": {
+        "mode": "manual",
+        "options": [
+          "timeslot",
+          "shortened"
+        ]
+      }
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e78f9",
+    "id": "NzTWuQQDVB6O",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Cadence",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "5SXaHtPaGFvL",
+    "meta": {
+      "optionsSource": {
+        "mode": "manual",
+        "options": [
+          "weekly",
+          "biweekly",
+          "monthly",
+          "quarterly",
+          "yearly",
+          "every-n-days"
+        ]
+      }
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e78fa",
+    "id": "M7-35LQ32a1K",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Day",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "5SXaHtPaGFvL",
+    "meta": {
+      "min": 1,
+      "max": 31,
+      "increment": 1
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e78fb",
+    "id": "GezNS9JKYDjq",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Every N Days",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "5SXaHtPaGFvL",
+    "meta": {
+      "min": 1,
+      "increment": 1
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e78fc",
+    "id": "jzhu43G-yz8q",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Anchor Date",
+    "type": "date",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "5SXaHtPaGFvL",
+    "siblingLinks": [],
+    "meta": {}
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e78fd",
+    "id": "GKoTDXRspsvP",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Next Due",
+    "type": "date",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "5SXaHtPaGFvL",
+    "siblingLinks": [],
+    "meta": {}
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e78fe",
+    "id": "SHikxIlCb3-i",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Account",
+    "type": "occurrence",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "mVeYNkDp-f0W",
+    "meta": {
+      "optionsSource": {
+        "mode": "find",
+        "over": "$allInstances",
+        "predicate": {
+          "conjunction": "AND",
+          "rules": [
+            {
+              "left": "$record._ancestors",
+              "comparator": "HAS_ANCESTOR",
+              "right": "5wX15jQXLsE4"
+            }
+          ]
+        },
+        "valuePath": "id",
+        "labelPath": "label",
+        "addNew": {
+          "parentOccurrenceId": "_elLpmAT4Q5O"
+        }
+      }
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e78ff",
+    "id": "WThwP3gXu0Sw",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Bill",
+    "type": "occurrence",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "mVeYNkDp-f0W",
+    "meta": {
+      "optionsSource": {
+        "mode": "find",
+        "over": "$allInstances",
+        "predicate": {
+          "conjunction": "AND",
+          "rules": [
+            {
+              "left": "$record._ancestors",
+              "comparator": "HAS_ANCESTOR",
+              "right": "fyZD3KAEEZgw"
+            }
+          ]
+        },
+        "valuePath": "id",
+        "labelPath": "label",
+        "addNew": {
+          "parentOccurrenceId": "GTx-r4hPVowr"
+        }
+      }
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7900",
+    "id": "x2QRTk0fbxnH",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Subscription",
+    "type": "occurrence",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "mVeYNkDp-f0W",
+    "meta": {
+      "optionsSource": {
+        "mode": "find",
+        "over": "$allInstances",
+        "predicate": {
+          "conjunction": "AND",
+          "rules": [
+            {
+              "left": "$record._ancestors",
+              "comparator": "HAS_ANCESTOR",
+              "right": "YwsxAOcv3TI3"
+            }
+          ]
+        },
+        "valuePath": "id",
+        "labelPath": "label",
+        "addNew": {
+          "parentOccurrenceId": "YwsxAOcv3TI3"
+        }
+      }
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7901",
+    "id": "X4ThZgexK6nL",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Duration",
     "type": "duration",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "0_B2YqasgdMg",
     "meta": {
       "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:11.768Z",
-    "updatedAt": "2026-03-24T12:51:11.768Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288bfe56661f84e2e2514",
-    "id": "ZkPBkZln1IX-",
+    "_id": "6a1ecc8727aa50e8595e7902",
+    "id": "WbWpxfskvK9e",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Priority",
     "type": "rating",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "0_B2YqasgdMg",
     "meta": {
       "max": 5
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:11.905Z",
-    "updatedAt": "2026-03-24T12:51:11.905Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c0e56661f84e2e2516",
-    "id": "XpMIH9HGA6SV",
+    "_id": "6a1ecc8727aa50e8595e7903",
+    "id": "yyECm7BLqWKE",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Notes",
     "type": "text",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "0_B2YqasgdMg",
     "meta": {
       "placeholder": "Add notes..."
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:12.071Z",
-    "updatedAt": "2026-03-24T12:51:12.071Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c0e56661f84e2e2518",
-    "id": "DS5gTH54NeXH",
+    "_id": "6a1ecc8727aa50e8595e7904",
+    "id": "WQGgT_1bK26J",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Amount",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "4wnTXJB9a9Wi",
     "meta": {
       "prefix": "$",
       "postfix": "",
       "increment": 5,
       "flow": "out"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:12.208Z",
-    "updatedAt": "2026-03-24T12:51:12.208Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c0e56661f84e2e251a",
-    "id": "L0AV7Np3Zrxv",
+    "_id": "6a1ecc8727aa50e8595e7905",
+    "id": "fLQ9yf8h4Bob",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Income",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "4wnTXJB9a9Wi",
     "meta": {
       "prefix": "$",
       "postfix": "",
       "increment": 10,
       "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:12.316Z",
-    "updatedAt": "2026-03-24T12:51:12.316Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c0e56661f84e2e251c",
-    "id": "r8f4dlHruVFr",
+    "_id": "6a1ecc8727aa50e8595e7906",
+    "id": "EVFw9p7pGMtU",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Calories",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "tXJBk6QBjQWQ",
     "meta": {
       "postfix": " cal",
       "increment": 50,
       "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:12.433Z",
-    "updatedAt": "2026-03-24T12:51:12.433Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c0e56661f84e2e251e",
-    "id": "aEKOn7_yLcHl",
+    "_id": "6a1ecc8727aa50e8595e7907",
+    "id": "9xUw-OlLekCu",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Steps",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "-TV0gTMuLi3m",
     "meta": {
       "postfix": " steps",
       "increment": 500,
       "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:12.552Z",
-    "updatedAt": "2026-03-24T12:51:12.552Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c0e56661f84e2e2520",
-    "id": "9RWuVXMHC-op",
+    "_id": "6a1ecc8727aa50e8595e7908",
+    "id": "FqVA75mUeai9",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Water",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "-TV0gTMuLi3m",
     "meta": {
       "postfix": " oz",
       "increment": 8,
       "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:12.703Z",
-    "updatedAt": "2026-03-24T12:51:12.703Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c0e56661f84e2e2522",
-    "id": "5rmi5O14GKKB",
+    "_id": "6a1ecc8727aa50e8595e7909",
+    "id": "MdTcoR5faN22",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Mood",
     "type": "select",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "-TV0gTMuLi3m",
     "meta": {
       "multiSelect": true,
       "options": [
@@ -408,1361 +961,2117 @@
         }
       ]
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:12.814Z",
-    "updatedAt": "2026-03-24T12:51:12.814Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c0e56661f84e2e2524",
-    "id": "UHDX9FJ4w9_b",
+    "_id": "6a1ecc8727aa50e8595e790a",
+    "id": "bmt2TrspYioY",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Energy",
     "type": "rating",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
     "folderId": null,
     "meta": {
       "max": 5
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:12.946Z",
-    "updatedAt": "2026-03-24T12:51:12.946Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c1e56661f84e2e2526",
-    "id": "7Ty_yjUK25jR",
+    "_id": "6a1ecc8727aa50e8595e790b",
+    "id": "yJwSfPgzHl5o",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Pages",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
-    "meta": {
-      "postfix": " pages",
-      "increment": 5,
-      "flow": "in"
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:13.054Z",
-    "updatedAt": "2026-03-24T12:51:13.054Z"
-  },
-  {
-    "_id": "69c288c1e56661f84e2e2528",
-    "id": "d1pWlMBPQpM1",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Due",
-    "type": "date",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
+    "folderId": "V5lGA5k6z7if",
     "meta": {},
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:13.285Z",
-    "updatedAt": "2026-03-24T12:51:13.285Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c1e56661f84e2e252a",
-    "id": "QnrA81e_JnJt",
+    "_id": "6a1ecc8727aa50e8595e790c",
+    "id": "Y7khNIwodAPZ",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Scheduled Date",
-    "type": "date",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "siblingLinks": [],
-    "meta": {},
-    "createdAt": "2026-03-24T12:51:13.433Z",
-    "updatedAt": "2026-03-24T12:51:13.433Z"
-  },
-  {
-    "_id": "69c288c1e56661f84e2e252c",
-    "id": "8nbH0j9SHmMS",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Time Slot",
-    "type": "text",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "siblingLinks": [],
-    "meta": {},
-    "createdAt": "2026-03-24T12:51:13.642Z",
-    "updatedAt": "2026-03-24T12:51:13.642Z"
-  },
-  {
-    "_id": "69c288c1e56661f84e2e252e",
-    "id": "pIy5KBP398CA",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Rating",
     "type": "rating",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "0_B2YqasgdMg",
     "meta": {
       "max": 5
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:13.804Z",
-    "updatedAt": "2026-03-24T12:51:13.804Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c1e56661f84e2e2530",
-    "id": "v-DId9zq89RA",
+    "_id": "6a1ecc8727aa50e8595e790d",
+    "id": "6980rLkqGm1p",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Last Watched",
     "type": "date",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
     "folderId": null,
     "siblingLinks": [],
-    "meta": {},
-    "createdAt": "2026-03-24T12:51:13.945Z",
-    "updatedAt": "2026-03-24T12:51:13.945Z"
+    "meta": {}
   },
   {
-    "_id": "69c288c2e56661f84e2e2532",
-    "id": "mjpcEIS5TuaW",
+    "_id": "6a1ecc8727aa50e8595e790e",
+    "id": "Q8u8BUT6hSgI",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "List",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Library",
     "type": "select",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {
+      "options": [
+        "movie",
+        "book",
+        "tv show",
+        "podcast",
+        "course",
+        "question",
+        "person"
+      ],
+      "multiSelect": false
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e790f",
+    "id": "SDHbYzdNcfpM",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Movies Watched",
+    "type": "occurrence",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {
+      "multiSelect": true,
+      "optionsSource": {
+        "mode": "find",
+        "over": "$allInstances",
+        "predicate": {
+          "conjunction": "AND",
+          "rules": [
+            {
+              "left": "fields.Q8u8BUT6hSgI.value",
+              "comparator": "IS",
+              "right": "movie"
+            }
+          ]
+        },
+        "valuePath": "id",
+        "labelPath": "label",
+        "chipDisplay": {
+          "showLabel": true,
+          "showMedia": false,
+          "fieldIds": [
+            "Q8u8BUT6hSgI"
+          ]
+        },
+        "addNew": {
+          "parentOccurrenceId": "a6mV7l4iBMBi",
+          "stampFields": {
+            "Q8u8BUT6hSgI": {
+              "value": "movie",
+              "flow": "in"
+            }
+          }
+        }
+      }
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7910",
+    "id": "SmR8QV40DSyF",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Movies Watched",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7911",
+    "id": "7m-qXM1BOIdn",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Last Movie",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7912",
+    "id": "P7rZmGQYe5TD",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Last Book",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7913",
+    "id": "WP4wmbvBPsWS",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Last Podcast",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7914",
+    "id": "hx4YoQp3Qeiu",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Books Read",
+    "type": "occurrence",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {
+      "multiSelect": true,
+      "optionsSource": {
+        "mode": "find",
+        "over": "$allInstances",
+        "predicate": {
+          "conjunction": "AND",
+          "rules": [
+            {
+              "left": "fields.Q8u8BUT6hSgI.value",
+              "comparator": "IS",
+              "right": "book"
+            }
+          ]
+        },
+        "valuePath": "id",
+        "labelPath": "label",
+        "chipDisplay": {
+          "showLabel": true,
+          "showMedia": true,
+          "fieldIds": [
+            "yJwSfPgzHl5o",
+            "Q8u8BUT6hSgI"
+          ]
+        },
+        "addNew": {
+          "parentOccurrenceId": "a6mV7l4iBMBi",
+          "stampFields": {
+            "Q8u8BUT6hSgI": {
+              "value": "book",
+              "flow": "in"
+            }
+          }
+        }
+      }
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7915",
+    "id": "Wo4t4t_z1T1Z",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Books Read",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7916",
+    "id": "25WZtlPq0VnH",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Poster",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7917",
+    "id": "R_iZao4l_bO3",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Podcasts Listened",
+    "type": "occurrence",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {
+      "multiSelect": true,
+      "optionsSource": {
+        "mode": "find",
+        "over": "$allInstances",
+        "predicate": {
+          "conjunction": "AND",
+          "rules": [
+            {
+              "left": "fields.Q8u8BUT6hSgI.value",
+              "comparator": "IS",
+              "right": "podcast"
+            }
+          ]
+        },
+        "valuePath": "id",
+        "labelPath": "label",
+        "addNew": {
+          "parentOccurrenceId": "a6mV7l4iBMBi",
+          "stampFields": {
+            "Q8u8BUT6hSgI": {
+              "value": "podcast",
+              "flow": "in"
+            }
+          }
+        }
+      }
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7918",
+    "id": "PSLwy_t2PVIN",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Podcasts Listened",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7919",
+    "id": "S6aeqgs4gsak",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Courses Taken",
+    "type": "occurrence",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {
+      "multiSelect": true,
+      "optionsSource": {
+        "mode": "find",
+        "over": "$allInstances",
+        "predicate": {
+          "conjunction": "AND",
+          "rules": [
+            {
+              "left": "fields.Q8u8BUT6hSgI.value",
+              "comparator": "IS",
+              "right": "course"
+            }
+          ]
+        },
+        "valuePath": "id",
+        "labelPath": "label",
+        "addNew": {
+          "parentOccurrenceId": "a6mV7l4iBMBi",
+          "stampFields": {
+            "Q8u8BUT6hSgI": {
+              "value": "course",
+              "flow": "in"
+            }
+          }
+        }
+      }
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e791a",
+    "id": "JAFLU6v2HIHQ",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Courses Taken",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e791b",
+    "id": "L6NkfkDPgVkn",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Name",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e791c",
+    "id": "I43vP5LZM4YL",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Email",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e791d",
+    "id": "ajMfNjaPjpeP",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Phone",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e791e",
+    "id": "aw5wICuU2TDr",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Gender",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
     "folderId": null,
     "meta": {
       "options": [
-        {
-          "value": "movies",
-          "label": "Movies"
+        "female",
+        "male",
+        "non-binary",
+        "other",
+        "prefer not to say"
+      ],
+      "multiSelect": false
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e791f",
+    "id": "H9OJYfbBdzhl",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Notes",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "0_B2YqasgdMg",
+    "meta": {
+      "multiline": true
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7920",
+    "id": "DsdsxagBhRZK",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Birthday",
+    "type": "date",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7921",
+    "id": "TMHYcndRuD3-",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Address",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {
+      "multiline": true
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7922",
+    "id": "dZjyQBQmINEG",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "City",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7923",
+    "id": "f2lyGXzNwRw3",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Company",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7924",
+    "id": "MYRzHq_J18m6",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Job Title",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7925",
+    "id": "HO8rGrd3jEWI",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Relationship",
+    "type": "select",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {
+      "options": [
+        "family",
+        "close friend",
+        "friend",
+        "colleague",
+        "acquaintance",
+        "neighbor",
+        "mentor",
+        "client",
+        "other"
+      ],
+      "multiSelect": false
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7926",
+    "id": "Fc8rLNOIQA8U",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Website",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7927",
+    "id": "dlsdthZJfbsW",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Instagram",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "@"
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7928",
+    "id": "MXh4ZY1EPlaA",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Twitter / X",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "@"
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7929",
+    "id": "CcQQfK7LemjT",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "LinkedIn",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e792a",
+    "id": "8fU80AIbgdJ9",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Last Contact",
+    "type": "date",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e792b",
+    "id": "cJzs2yTpJXCc",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Favorite Food",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e792c",
+    "id": "t4lv3FnwBfxc",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Allergies",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {
+      "multiline": true
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e792d",
+    "id": "ADr_ks4yBMlZ",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Interests",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {
+      "multiline": true
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e792e",
+    "id": "cz6Shbe_VliU",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "How We Met",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {
+      "multiline": true
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e792f",
+    "id": "cqMxAe7N_-Fv",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Emergency Contact",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7930",
+    "id": "Fd1yXMtMwSgp",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Show Profile",
+    "type": "button",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {
+      "operationId": "9FdrsQ-KuRKX",
+      "buttonLabel": "Show Profile"
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7931",
+    "id": "09J6u3C0fKcC",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "People",
+    "type": "occurrence",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {
+      "multiSelect": true,
+      "optionsSource": {
+        "mode": "find",
+        "over": "$allInstances",
+        "predicate": {
+          "conjunction": "AND",
+          "rules": [
+            {
+              "left": "fields.Q8u8BUT6hSgI.value",
+              "comparator": "IS",
+              "right": "person"
+            }
+          ]
         },
-        {
-          "value": "tvshows",
-          "label": "TV Shows"
+        "valuePath": "id",
+        "labelPath": "label",
+        "chipDisplay": {
+          "showLabel": true,
+          "showMedia": true,
+          "fieldIds": [
+            "L6NkfkDPgVkn",
+            "I43vP5LZM4YL",
+            "ajMfNjaPjpeP"
+          ]
         },
-        {
-          "value": "books",
-          "label": "Books"
-        },
-        {
-          "value": "music",
-          "label": "Music"
-        },
-        {
-          "value": "podcasts",
-          "label": "Podcasts"
-        },
-        {
-          "value": "games",
-          "label": "Games"
-        },
-        {
-          "value": "activities",
-          "label": "Activities"
-        },
-        {
-          "value": "rooms",
-          "label": "Rooms"
-        },
-        {
-          "value": "cbt",
-          "label": "CBT Skills"
-        },
-        {
-          "value": "bookmarks",
-          "label": "Bookmarks"
+        "addNew": {
+          "parentOccurrenceId": "a6mV7l4iBMBi",
+          "stampFields": {
+            "Q8u8BUT6hSgI": {
+              "value": "person",
+              "flow": "in"
+            }
+          }
         }
-      ]
+      }
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:14.092Z",
-    "updatedAt": "2026-03-24T12:51:14.092Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c2e56661f84e2e2534",
-    "id": "Vp8HFQKMUFk3",
+    "_id": "6a1ecc8727aa50e8595e7932",
+    "id": "QWq1MrDYtvak",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Title",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "multiSelect": true,
-      "sourceType": "pool",
-      "poolContainerIds": [
-        "TksPOkG7Zkfd",
-        "-QdgUWWL2_FB"
-      ]
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:14.170Z",
-    "updatedAt": "2026-03-24T12:51:14.170Z"
-  },
-  {
-    "_id": "69c288c2e56661f84e2e2536",
-    "id": "g9dhjGGhidDP",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Title",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "multiSelect": true,
-      "sourceType": "pool",
-      "poolContainerId": "_yhWbujynF7q"
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:14.482Z",
-    "updatedAt": "2026-03-24T12:51:14.482Z"
-  },
-  {
-    "_id": "69c288c2e56661f84e2e2538",
-    "id": "q1JbpGUedwqI",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Title",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "multiSelect": true,
-      "sourceType": "pool",
-      "poolContainerIds": [
-        "U6dNpZBFPqOm",
-        "EZnV2H3oIILQ"
-      ]
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:14.707Z",
-    "updatedAt": "2026-03-24T12:51:14.707Z"
-  },
-  {
-    "_id": "69c288c2e56661f84e2e253a",
-    "id": "7FGGwnrurKLi",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Title",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "multiSelect": true,
-      "sourceType": "pool",
-      "poolContainerIds": [
-        "jrZZajid51JX",
-        "0PVHWqhEPoIz"
-      ]
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:14.897Z",
-    "updatedAt": "2026-03-24T12:51:14.897Z"
-  },
-  {
-    "_id": "69c288c3e56661f84e2e253c",
-    "id": "6tgdqrmcGYqz",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Room",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "multiSelect": true,
-      "sourceType": "pool",
-      "poolContainerId": "xZnzmhqkdJoY"
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:15.127Z",
-    "updatedAt": "2026-03-24T12:51:15.127Z"
-  },
-  {
-    "_id": "69c288c3e56661f84e2e253e",
-    "id": "MGxUBqIVIEq2",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Skill",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "multiSelect": true,
-      "sourceType": "pool",
-      "poolContainerId": "iMLtQnEm5GQE"
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:15.351Z",
-    "updatedAt": "2026-03-24T12:51:15.351Z"
-  },
-  {
-    "_id": "69c288c3e56661f84e2e2540",
-    "id": "xRj4F-XRHl6O",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Link",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "multiSelect": true,
-      "sourceType": "pool",
-      "poolContainerId": "y6AIbTZ9DFog"
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:15.588Z",
-    "updatedAt": "2026-03-24T12:51:15.588Z"
-  },
-  {
-    "_id": "69c288c3e56661f84e2e2542",
-    "id": "zDps_H9PDRLK",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Movie",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Phone Calls",
     "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7933",
+    "id": "wEqum-INPje-",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Phone Calls",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": true,
+      "targetValue": 2,
+      "targetPeriod": "daily",
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7934",
+    "id": "MLWvOyEiznPl",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Status",
+    "type": "select",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
     "folderId": null,
     "meta": {
-      "placeholder": "Movie title..."
+      "optionsSource": {
+        "mode": "manual",
+        "values": [
+          "Backburner",
+          "Docket",
+          "Working On",
+          "In Review",
+          "Test",
+          "Complete"
+        ]
+      }
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:15.779Z",
-    "updatedAt": "2026-03-24T12:51:15.779Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c3e56661f84e2e2544",
-    "id": "6h2w8mbhAxDh",
+    "_id": "6a1ecc8727aa50e8595e7935",
+    "id": "lM2o4imm264M",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Book",
-    "type": "text",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Project",
+    "type": "occurrence",
     "inputEnabled": true,
-    "displayEnabled": false,
+    "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
     "folderId": null,
     "meta": {
-      "placeholder": "Book title..."
+      "optionsSource": {
+        "mode": "find",
+        "find": {
+          "over": "$allPages",
+          "predicate": {
+            "conjunction": "AND",
+            "rules": [
+              {
+                "left": "label",
+                "comparator": "STARTS_WITH",
+                "right": "Project:"
+              }
+            ]
+          },
+          "valuePath": "id",
+          "labelPath": "label"
+        }
+      }
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:15.982Z",
-    "updatedAt": "2026-03-24T12:51:15.982Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c4e56661f84e2e2546",
-    "id": "10HggLXfsyY2",
+    "_id": "6a1ecc8727aa50e8595e7936",
+    "id": "6Dzv8Q1McFgL",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Podcast",
-    "type": "text",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "placeholder": "Podcast name..."
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:16.118Z",
-    "updatedAt": "2026-03-24T12:51:16.118Z"
-  },
-  {
-    "_id": "69c288c4e56661f84e2e2548",
-    "id": "r37JBwDKbhVL",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Workout",
     "type": "text",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "XnmtYnRei8GZ",
     "meta": {
       "placeholder": "Workout type..."
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:16.412Z",
-    "updatedAt": "2026-03-24T12:51:16.412Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c4e56661f84e2e254a",
-    "id": "wzes6oMeJalc",
+    "_id": "6a1ecc8727aa50e8595e7937",
+    "id": "wgoGUPO_kamx",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Meal",
     "type": "text",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "tXJBk6QBjQWQ",
     "meta": {
       "placeholder": "What did you eat..."
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:16.859Z",
-    "updatedAt": "2026-03-24T12:51:16.859Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c5e56661f84e2e254c",
-    "id": "aEYDhIL7QoZQ",
+    "_id": "6a1ecc8727aa50e8595e7938",
+    "id": "WorYEOShmRVa",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Activity",
     "type": "text",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
     "folderId": null,
     "meta": {
       "placeholder": "Describe activity..."
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:17.248Z",
-    "updatedAt": "2026-03-24T12:51:17.248Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c5e56661f84e2e254e",
-    "id": "-zDSrzHsxGDO",
+    "_id": "6a1ecc8727aa50e8595e7939",
+    "id": "2On3m-mygn9L",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Watchlist",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "multiSelect": true,
-      "quickAdd": true,
-      "removeOnComplete": true,
-      "randomize": true,
-      "options": [
-        {
-          "value": "inception",
-          "label": "Inception"
-        },
-        {
-          "value": "interstellar",
-          "label": "Interstellar"
-        },
-        {
-          "value": "the_matrix",
-          "label": "The Matrix"
-        },
-        {
-          "value": "blade_runner",
-          "label": "Blade Runner 2049"
-        },
-        {
-          "value": "dune",
-          "label": "Dune"
-        },
-        {
-          "value": "the_godfather",
-          "label": "The Godfather"
-        },
-        {
-          "value": "parasite",
-          "label": "Parasite"
-        },
-        {
-          "value": "oppenheimer",
-          "label": "Oppenheimer"
-        }
-      ]
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:17.577Z",
-    "updatedAt": "2026-03-24T12:51:17.577Z"
-  },
-  {
-    "_id": "69c288c5e56661f84e2e2550",
-    "id": "4alccdW1N-Mm",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Reading List",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "multiSelect": true,
-      "quickAdd": true,
-      "removeOnComplete": true,
-      "randomize": true,
-      "options": [
-        {
-          "value": "atomic_habits",
-          "label": "Atomic Habits"
-        },
-        {
-          "value": "deep_work",
-          "label": "Deep Work"
-        },
-        {
-          "value": "thinking_fast_slow",
-          "label": "Thinking, Fast and Slow"
-        },
-        {
-          "value": "4_hour_workweek",
-          "label": "The 4-Hour Workweek"
-        },
-        {
-          "value": "mans_search",
-          "label": "Man's Search for Meaning"
-        },
-        {
-          "value": "meditations",
-          "label": "Meditations"
-        },
-        {
-          "value": "sapiens",
-          "label": "Sapiens"
-        }
-      ]
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:17.948Z",
-    "updatedAt": "2026-03-24T12:51:17.948Z"
-  },
-  {
-    "_id": "69c288c6e56661f84e2e2552",
-    "id": "1nKep_eHx5WT",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Question Pool",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "options": [
-        {
-          "value": "q1",
-          "label": "What are you most grateful for today?"
-        },
-        {
-          "value": "q2",
-          "label": "What's one thing you want to accomplish?"
-        },
-        {
-          "value": "q3",
-          "label": "What's been on your mind lately?"
-        },
-        {
-          "value": "q4",
-          "label": "What made you smile today?"
-        },
-        {
-          "value": "q5",
-          "label": "What lesson did you learn recently?"
-        },
-        {
-          "value": "q6",
-          "label": "Who do you want to connect with this week?"
-        },
-        {
-          "value": "q7",
-          "label": "What habit are you trying to build?"
-        },
-        {
-          "value": "q8",
-          "label": "What would make today great?"
-        },
-        {
-          "value": "q9",
-          "label": "What are you avoiding that you should face?"
-        },
-        {
-          "value": "q10",
-          "label": "What's one kind thing you can do for yourself?"
-        }
-      ]
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:18.337Z",
-    "updatedAt": "2026-03-24T12:51:18.337Z"
-  },
-  {
-    "_id": "69c288c6e56661f84e2e2554",
-    "id": "r8ORuMaFPViW",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Daily Question",
     "type": "text",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
-    "meta": {},
+    "folderId": "WRKICNzK7q8h",
+    "meta": {
+      "randomizable": true,
+      "optionsSource": {
+        "mode": "find",
+        "find": {
+          "over": "$allInstances",
+          "predicate": {
+            "conjunction": "AND",
+            "rules": [
+              {
+                "left": "fields.Q8u8BUT6hSgI.value",
+                "comparator": "IS",
+                "right": "question"
+              }
+            ]
+          },
+          "valuePath": "label",
+          "labelPath": "label"
+        }
+      }
+    },
     "siblingLinks": [
-      "1nKep_eHx5WT"
-    ],
-    "createdAt": "2026-03-24T12:51:18.549Z",
-    "updatedAt": "2026-03-24T12:51:26.570Z"
+      "Rwp0GaFntblP"
+    ]
   },
   {
-    "_id": "69c288c6e56661f84e2e2556",
-    "id": "GG93s7m1c1z9",
+    "_id": "6a1ecc8727aa50e8595e793a",
+    "id": "Rwp0GaFntblP",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Answer",
     "type": "text",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
     "folderId": null,
     "meta": {
       "placeholder": "Write your answer..."
     },
     "siblingLinks": [
-      "r8ORuMaFPViW"
-    ],
-    "createdAt": "2026-03-24T12:51:18.848Z",
-    "updatedAt": "2026-03-24T12:51:26.686Z"
+      "2On3m-mygn9L"
+    ]
   },
   {
-    "_id": "69c288c6e56661f84e2e2558",
-    "id": "7-YjUwJIZ6fy",
+    "_id": "6a1ecc8727aa50e8595e793b",
+    "id": "zFhuLdhnH3-6",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Question",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "sourceType": "pool",
-      "poolContainerId": "bkr8MglpsJAW"
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:18.984Z",
-    "updatedAt": "2026-03-24T12:51:18.984Z"
-  },
-  {
-    "_id": "69c288c7e56661f84e2e255a",
-    "id": "G_jjgCVhNyUE",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Went Well",
-    "type": "text",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "placeholder": "What went well..."
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:19.139Z",
-    "updatedAt": "2026-03-24T12:51:19.139Z"
-  },
-  {
-    "_id": "69c288c7e56661f84e2e255c",
-    "id": "H0q1EBNmk1Kl",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Question",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "sourceType": "pool",
-      "poolContainerId": "c1TYiRWiB39F"
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:19.528Z",
-    "updatedAt": "2026-03-24T12:51:19.528Z"
-  },
-  {
-    "_id": "69c288c7e56661f84e2e255e",
-    "id": "8ZRmzc7S1kB7",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Improvement",
-    "type": "text",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "placeholder": "What could be improved..."
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:19.641Z",
-    "updatedAt": "2026-03-24T12:51:19.641Z"
-  },
-  {
-    "_id": "69c288c8e56661f84e2e2560",
-    "id": "5hYOqnSXFdg_",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Question",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "sourceType": "pool",
-      "poolContainerId": "Dw2MuICUXjed"
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:20.191Z",
-    "updatedAt": "2026-03-24T12:51:20.191Z"
-  },
-  {
-    "_id": "69c288c8e56661f84e2e2562",
-    "id": "29-kqQ7mia8U",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Gratitude",
-    "type": "text",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "placeholder": "What are you grateful for..."
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:20.550Z",
-    "updatedAt": "2026-03-24T12:51:20.550Z"
-  },
-  {
-    "_id": "69c288c8e56661f84e2e2564",
-    "id": "owx-hWbmQw7t",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Account",
-    "type": "select",
-    "inputEnabled": true,
-    "displayEnabled": false,
-    "displayConfig": {
-      "showArrows": false,
-      "arrowColor": null
-    },
-    "folderId": null,
-    "meta": {
-      "options": [
-        {
-          "value": "checking",
-          "label": "Checking"
-        },
-        {
-          "value": "savings",
-          "label": "Savings"
-        },
-        {
-          "value": "moms",
-          "label": "Mom's Account"
-        }
-      ]
-    },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:20.675Z",
-    "updatedAt": "2026-03-24T12:51:20.675Z"
-  },
-  {
-    "_id": "69c288c8e56661f84e2e2566",
-    "id": "EY5b64q5FQu7",
-    "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Tasks Completed",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
+      "targetValue": 10,
+      "targetPeriod": "daily",
       "showArrows": false,
       "arrowColor": null
     },
     "folderId": null,
     "meta": {
       "prefix": "",
-      "postfix": " done"
+      "postfix": " done",
+      "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:20.786Z",
-    "updatedAt": "2026-03-24T12:51:20.786Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c8e56661f84e2e2568",
-    "id": "a1846vIpVCDB",
+    "_id": "6a1ecc8727aa50e8595e793c",
+    "id": "7RlklYHsyl9O",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Time Spent Today",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Tasks Left",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "targetValue": 0,
+      "targetPeriod": "daily",
+      "showArrows": false,
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "prefix": "",
+      "postfix": " left",
+      "flow": "out"
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e793d",
+    "id": "kNF3R4N2LC-t",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Now",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {
+      "liveSource": "currentTime",
+      "liveGranularity": "seconds",
+      "flow": "in"
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e793e",
+    "id": "q1a2JuFJzmxm",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Time Left",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {
+      "liveSource": "endOfDayCountdown",
+      "liveGranularity": "seconds",
+      "flow": "out"
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e793f",
+    "id": "ZjXL3ZGBJn4c",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Time Spent",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "4wnTXJB9a9Wi",
     "meta": {
       "prefix": "",
       "postfix": " min"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:20.909Z",
-    "updatedAt": "2026-03-24T12:51:20.909Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c9e56661f84e2e256a",
-    "id": "rhGYPhMHKKri",
+    "_id": "6a1ecc8727aa50e8595e7940",
+    "id": "Xt-HyhrhcQPI",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Spent Today",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Spent",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "4wnTXJB9a9Wi",
     "meta": {
       "prefix": "$",
       "postfix": ""
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:21.033Z",
-    "updatedAt": "2026-03-24T12:51:21.033Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c9e56661f84e2e256c",
-    "id": "E3JM2_mUddye",
+    "_id": "6a1ecc8727aa50e8595e7941",
+    "id": "Syh0M5izCA0a",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Earned Today",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Earned",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "4wnTXJB9a9Wi",
     "meta": {
       "prefix": "$",
       "postfix": ""
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:21.148Z",
-    "updatedAt": "2026-03-24T12:51:21.148Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c9e56661f84e2e256e",
-    "id": "L5fwbW_0y2Kg",
+    "_id": "6a1ecc8727aa50e8595e7942",
+    "id": "_sWHUBJxgyZd",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Daily Steps",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "-TV0gTMuLi3m",
     "meta": {
       "postfix": " steps"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:21.275Z",
-    "updatedAt": "2026-03-24T12:51:21.275Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c9e56661f84e2e2570",
-    "id": "zZVeg6-Y9o5D",
+    "_id": "6a1ecc8727aa50e8595e7943",
+    "id": "YwnR86LWx6FX",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Daily Water",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "-TV0gTMuLi3m",
     "meta": {
       "postfix": " oz"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:21.411Z",
-    "updatedAt": "2026-03-24T12:51:21.411Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c9e56661f84e2e2572",
-    "id": "F0Ty3Dk-cdo_",
+    "_id": "6a1ecc8727aa50e8595e7944",
+    "id": "2z-CIMTiY7_7",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Latest Mood",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Moods",
     "type": "text",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "-TV0gTMuLi3m",
     "meta": {},
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:21.556Z",
-    "updatedAt": "2026-03-24T12:51:21.556Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288c9e56661f84e2e2574",
-    "id": "dV11hgD-0sR3",
+    "_id": "6a1ecc8727aa50e8595e7945",
+    "id": "I4bzW9nDIbEt",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Pages Read Today",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Last Mood",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "-TV0gTMuLi3m",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7946",
+    "id": "jcHZhE-bdT3T",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Current Streak",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
+      "targetValue": 1,
+      "targetPeriod": "daily",
       "showArrows": false,
       "arrowColor": null
     },
     "folderId": null,
     "meta": {
-      "postfix": " pages"
+      "postfix": " day streak"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:21.958Z",
-    "updatedAt": "2026-03-24T12:51:21.958Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cae56661f84e2e2576",
-    "id": "GdbOzgurbPDk",
+    "_id": "6a1ecc8727aa50e8595e7947",
+    "id": "mC7hH98oVIUa",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Task Count Today",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Longest Streak",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
     "folderId": null,
+    "meta": {
+      "prefix": "🏆 ",
+      "postfix": " best"
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7948",
+    "id": "0Myq2UWOmcFg",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Workouts",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "XnmtYnRei8GZ",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7949",
+    "id": "c8C8CJDb2MMz",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Last Workout",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "XnmtYnRei8GZ",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e794a",
+    "id": "dSeTQavIZcUr",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Meals",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "tXJBk6QBjQWQ",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e794b",
+    "id": "CyTJkb7OqVpu",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Last Meal",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "tXJBk6QBjQWQ",
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e794c",
+    "id": "v7zERrib0-_1",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Purchases",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e794d",
+    "id": "LdrPPFa1DdWr",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Last Purchase",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e794e",
+    "id": "z7LbVv2VqDoy",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Last Pomodoro",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e794f",
+    "id": "tS3Uw9tDCYd5",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Pages Read",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "V5lGA5k6z7if",
+    "meta": {
+      "postfix": " pages"
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7950",
+    "id": "JBymJ1mb36Ql",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Task Count",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "WRKICNzK7q8h",
     "meta": {
       "prefix": "",
       "postfix": " tasks"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:22.048Z",
-    "updatedAt": "2026-03-24T12:51:22.048Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cae56661f84e2e2578",
-    "id": "vlSCDy0spdSO",
+    "_id": "6a1ecc8727aa50e8595e7951",
+    "id": "hGb6R5dG0GeQ",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Net Balance",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Pomodoro Minutes",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {
+      "postfix": " min"
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7952",
+    "id": "x8QpA-8gBZ3Z",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Pomodoro #",
+    "type": "number",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7953",
+    "id": "FOziq-dGjTWw",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Pomodoro Phase",
+    "type": "text",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7954",
+    "id": "reln106j_mJI",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Pomodoros Today",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": true,
+      "targetValue": 3,
+      "targetPeriod": "daily",
+      "arrowColor": null
+    },
+    "folderId": null,
+    "meta": {
+      "postfix": " pomos"
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7955",
+    "id": "eS07xJqLllcu",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Pomodoro Time",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
     "folderId": null,
+    "meta": {
+      "postfix": " min"
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7956",
+    "id": "rdccmPK-H5RA",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Pomodoro History",
+    "type": "text",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7957",
+    "id": "A_Qp2PaJS_qV",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Net Worth",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "4wnTXJB9a9Wi",
     "meta": {
       "prefix": "$",
       "postfix": ""
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:22.383Z",
-    "updatedAt": "2026-03-24T12:51:22.383Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cae56661f84e2e257a",
-    "id": "9ynAbfCWBxFW",
+    "_id": "6a1ecc8727aa50e8595e7958",
+    "id": "ZkD1fjIL-Qa8",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Checking Balance",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "4wnTXJB9a9Wi",
+    "meta": {
+      "prefix": "$",
+      "postfix": ""
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e7959",
+    "id": "Omqwq6DCZGMs",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Savings Balance",
+    "type": "number",
+    "inputEnabled": false,
+    "displayEnabled": true,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": "4wnTXJB9a9Wi",
+    "meta": {
+      "prefix": "$",
+      "postfix": ""
+    },
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e795a",
+    "id": "F4e5HGf02L2Z",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Mom's Account",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "WRKICNzK7q8h",
     "meta": {
       "prefix": "$",
       "postfix": ""
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:22.691Z",
-    "updatedAt": "2026-03-24T12:51:22.691Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cae56661f84e2e257c",
-    "id": "sMT36QGYdqRK",
+    "_id": "6a1ecc8727aa50e8595e795b",
+    "id": "kktSjv39PnTR",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Workouts",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "XnmtYnRei8GZ",
     "meta": {
       "prefix": "",
       "postfix": " total"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:22.781Z",
-    "updatedAt": "2026-03-24T12:51:22.781Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cae56661f84e2e257e",
-    "id": "PK6bRfGV5KXE",
+    "_id": "6a1ecc8727aa50e8595e795c",
+    "id": "V_6biHz_T3jO",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Reading Time",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "V5lGA5k6z7if",
     "meta": {
       "prefix": "",
       "postfix": " hrs"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:22.881Z",
-    "updatedAt": "2026-03-24T12:51:22.881Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cbe56661f84e2e2580",
-    "id": "jZXlgb5xy_37",
+    "_id": "6a1ecc8727aa50e8595e795d",
+    "id": "UdsBDgl1vHdx",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Completion Rate",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
     "folderId": null,
     "meta": {
       "prefix": "",
       "postfix": "%"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:23.228Z",
-    "updatedAt": "2026-03-24T12:51:23.228Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cbe56661f84e2e2582",
-    "id": "PZNGIDMpMuKF",
+    "_id": "6a1ecc8727aa50e8595e795e",
+    "id": "0Gk0PshESaIj",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Days Until Due",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "0_B2YqasgdMg",
     "meta": {
       "postfix": " days"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:23.442Z",
-    "updatedAt": "2026-03-24T12:51:23.442Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cbe56661f84e2e2584",
-    "id": "s4Agu1WLgeqf",
+    "_id": "6a1ecc8727aa50e8595e795f",
+    "id": "L-tW9XRSHuy2",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Overdue Tasks",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "0_B2YqasgdMg",
     "meta": {
       "postfix": " overdue"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:23.797Z",
-    "updatedAt": "2026-03-24T12:51:23.797Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cbe56661f84e2e2586",
-    "id": "sAPr_Mpl32sr",
+    "_id": "6a1ecc8727aa50e8595e7960",
+    "id": "II1-Fl5rU46o",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Due This Week",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "0_B2YqasgdMg",
     "meta": {
       "postfix": " tasks"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:23.941Z",
-    "updatedAt": "2026-03-24T12:51:23.941Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cce56661f84e2e2588",
-    "id": "9EhMXKmfs43X",
+    "_id": "6a1ecc8727aa50e8595e7961",
+    "id": "jEHRS9IBNY2n",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Set 1",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": "H_93AFtNkGa-",
+    "folderId": "XnmtYnRei8GZ",
     "meta": {
       "postfix": " reps",
       "increment": 1,
       "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:24.081Z",
-    "updatedAt": "2026-03-24T12:51:24.081Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cce56661f84e2e258a",
-    "id": "rZGFagxxFKq2",
+    "_id": "6a1ecc8727aa50e8595e7962",
+    "id": "BSPOZYwMKLuY",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Set 2",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": "H_93AFtNkGa-",
+    "folderId": "XnmtYnRei8GZ",
     "meta": {
       "postfix": " reps",
       "increment": 1,
       "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:24.532Z",
-    "updatedAt": "2026-03-24T12:51:24.532Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cce56661f84e2e258c",
-    "id": "eiWBMql7cvrs",
+    "_id": "6a1ecc8727aa50e8595e7963",
+    "id": "T1tXMsRG0oax",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Set 3",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": "H_93AFtNkGa-",
+    "folderId": "XnmtYnRei8GZ",
     "meta": {
       "postfix": " reps",
       "increment": 1,
       "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:24.665Z",
-    "updatedAt": "2026-03-24T12:51:24.665Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cde56661f84e2e258e",
-    "id": "2CtsAwkG_cnN",
+    "_id": "6a1ecc8727aa50e8595e7964",
+    "id": "xko3QiKLErlD",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Weight",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": "H_93AFtNkGa-",
+    "folderId": "XnmtYnRei8GZ",
     "meta": {
       "postfix": " lbs",
       "increment": 5,
       "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:25.331Z",
-    "updatedAt": "2026-03-24T12:51:25.331Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cde56661f84e2e2590",
-    "id": "ASaKDq5jzsnE",
+    "_id": "6a1ecc8727aa50e8595e7965",
+    "id": "O_QDxQFhvlOx",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Muscle Group",
     "type": "select",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": "H_93AFtNkGa-",
+    "folderId": "XnmtYnRei8GZ",
     "meta": {
       "options": [
         {
@@ -1796,114 +3105,114 @@
       ],
       "multiple": false
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:25.444Z",
-    "updatedAt": "2026-03-24T12:51:25.444Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cde56661f84e2e2592",
-    "id": "Hf7YPoe700LZ",
+    "_id": "6a1ecc8727aa50e8595e7966",
+    "id": "DF3iGr22aa_U",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Total Reps Today",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Total Reps",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": true,
+      "targetValue": 150,
+      "targetPeriod": "daily",
       "arrowColor": null
     },
-    "folderId": "H_93AFtNkGa-",
+    "folderId": "XnmtYnRei8GZ",
     "meta": {
       "postfix": " reps"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:25.516Z",
-    "updatedAt": "2026-03-24T12:51:25.516Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cde56661f84e2e2594",
-    "id": "xtRrknMdpPBj",
+    "_id": "6a1ecc8727aa50e8595e7967",
+    "id": "eUq-TokYeQDo",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Protein",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": "TXqSYFUXunHx",
+    "folderId": "tXJBk6QBjQWQ",
     "meta": {
       "postfix": "g",
       "increment": 5,
       "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:25.596Z",
-    "updatedAt": "2026-03-24T12:51:25.596Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cde56661f84e2e2596",
-    "id": "lz_tTQHKejyU",
+    "_id": "6a1ecc8727aa50e8595e7968",
+    "id": "QmZge-dTkq56",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Carbs",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": "TXqSYFUXunHx",
+    "folderId": "tXJBk6QBjQWQ",
     "meta": {
       "postfix": "g",
       "increment": 5,
       "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:25.674Z",
-    "updatedAt": "2026-03-24T12:51:25.674Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cde56661f84e2e2598",
-    "id": "fcEkgCSQcIpY",
+    "_id": "6a1ecc8727aa50e8595e7969",
+    "id": "C6OP_1cgZ2vW",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Fats",
     "type": "number",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": "TXqSYFUXunHx",
+    "folderId": "tXJBk6QBjQWQ",
     "meta": {
       "postfix": "g",
       "increment": 2,
       "flow": "in"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:25.791Z",
-    "updatedAt": "2026-03-24T12:51:25.791Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cde56661f84e2e259a",
-    "id": "jcdnyJets6Uj",
+    "_id": "6a1ecc8727aa50e8595e796a",
+    "id": "okJty2nxkUyS",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Meal Type",
     "type": "select",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": "TXqSYFUXunHx",
+    "folderId": "tXJBk6QBjQWQ",
     "meta": {
       "options": [
         {
@@ -1929,87 +3238,87 @@
       ],
       "multiple": false
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:25.891Z",
-    "updatedAt": "2026-03-24T12:51:25.891Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cde56661f84e2e259c",
-    "id": "ZI9_8aPS3ahP",
+    "_id": "6a1ecc8727aa50e8595e796b",
+    "id": "x21XGQQXEAnj",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Protein Today",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Protein",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": "TXqSYFUXunHx",
+    "folderId": "tXJBk6QBjQWQ",
     "meta": {
       "postfix": "g"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:26.001Z",
-    "updatedAt": "2026-03-24T12:51:26.001Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cee56661f84e2e259e",
-    "id": "0AAEcN-hload",
+    "_id": "6a1ecc8727aa50e8595e796c",
+    "id": "OacFq5NbAHHb",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Carbs Today",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Carbs",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": "TXqSYFUXunHx",
+    "folderId": "tXJBk6QBjQWQ",
     "meta": {
       "postfix": "g"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:26.113Z",
-    "updatedAt": "2026-03-24T12:51:26.113Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cee56661f84e2e25a0",
-    "id": "33-jN_V9rU_5",
+    "_id": "6a1ecc8727aa50e8595e796d",
+    "id": "KQckqVtSvzd7",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
-    "name": "Fats Today",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Fats",
     "type": "number",
     "inputEnabled": false,
     "displayEnabled": true,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": "TXqSYFUXunHx",
+    "folderId": "tXJBk6QBjQWQ",
     "meta": {
       "postfix": "g"
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:26.207Z",
-    "updatedAt": "2026-03-24T12:51:26.207Z"
+    "siblingLinks": []
   },
   {
-    "_id": "69c288cee56661f84e2e25a2",
-    "id": "wNR6FhYPvMVH",
+    "_id": "6a1ecc8727aa50e8595e796e",
+    "id": "BqDPYzh2SKmU",
     "userId": "{{USER_ID}}",
-    "gridId": "69c288bee56661f84e2e2504",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Category",
     "type": "select",
     "inputEnabled": true,
     "displayEnabled": false,
     "displayConfig": {
       "showArrows": false,
-      "arrowColor": null
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
     },
-    "folderId": null,
+    "folderId": "0_B2YqasgdMg",
     "meta": {
       "options": [
         "physical",
@@ -2028,8 +3337,25 @@
       ],
       "multiple": false
     },
-    "siblingLinks": [],
-    "createdAt": "2026-03-24T12:51:26.327Z",
-    "updatedAt": "2026-03-24T12:51:26.327Z"
+    "siblingLinks": []
+  },
+  {
+    "_id": "6a1ecc8727aa50e8595e796f",
+    "id": "H9IfbEK62DWY",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Day Date",
+    "type": "date",
+    "inputEnabled": true,
+    "displayEnabled": false,
+    "displayConfig": {
+      "showArrows": false,
+      "arrowColor": null,
+      "targetValue": null,
+      "targetPeriod": "daily"
+    },
+    "folderId": null,
+    "meta": {},
+    "siblingLinks": []
   }
 ]

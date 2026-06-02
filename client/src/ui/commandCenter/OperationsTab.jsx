@@ -6,7 +6,7 @@ import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/ad
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { Plus, FolderPlus, ChevronLeft, GripVertical, Trash2, Play } from "lucide-react";
 
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import { uid } from "../../uid";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { PipelineEditor } from "../../blocks";
@@ -84,7 +84,7 @@ export function getTriggerVars(eventType, subjectType) {
 // ============================================================
 export function OpItem({ op, selected, onClick, onPreview, isDuplicate = false }) {
   const ref = useRef(null);
-  const { state, fieldsById, occurrencesById } = useContext(GridActionsContext);
+  const { state, fieldsById, occurrencesById } = useGridActions();
 
   // Detect localField sources with nodeInput: true
   const nodeInputSources = useMemo(() =>
@@ -470,7 +470,7 @@ export function ScheduleEditor({ schedule, onChange }) {
 // OPERATION EDITOR
 // ============================================================
 export function OperationEditor({ operation, fields, onSave, onDelete, onRun, categoryFolders = [], isDuplicate = false }) {
-  const { modulesById, occurrencesById, fieldsById, operationsById, roleByModuleId } = useContext(GridActionsContext);
+  const { modulesById, occurrencesById, fieldsById, operationsById, roleByModuleId } = useGridActions();
   const [local, setLocal] = useState(operation);
   useMemo(() => setLocal(operation), [operation?.id]);
 
@@ -873,7 +873,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
 // OPERATIONS TAB — pills in a wrapping flex row
 // ============================================================
 export function OperationsTab() {
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const { state, operationsById, foldersById, fieldsById, socket, dispatch } = ctx;
   const gridId = state?.gridId;
 
@@ -895,6 +895,13 @@ export function OperationsTab() {
       .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
     [foldersById, gridId]
   );
+
+  // Split ops by schedule presence. Action ops include legacy ops with
+  // schedule undefined; scheduled ops are those with op.schedule != null.
+  // Declared BEFORE opsByFolder so its dep array doesn't TDZ-fail
+  // during render (the dep array is evaluated synchronously every render).
+  const actionOps = useMemo(() => gridOperations.filter(o => !o.schedule), [gridOperations]);
+  const scheduledOps = useMemo(() => gridOperations.filter(o => !!o.schedule), [gridOperations]);
 
   const opsByFolder = useMemo(() => {
     const groups = { uncategorized: [] };
@@ -937,11 +944,6 @@ export function OperationsTab() {
   // Sub-tab: Actions (event-triggered ops) vs Schedules (time-triggered ops).
   // Same op records; the only difference is `op.schedule != null`.
   const [subTab, setSubTab] = useState("actions");
-
-  // Split ops by schedule presence. Action ops include legacy ops with
-  // schedule undefined; scheduled ops are those with op.schedule != null.
-  const actionOps = useMemo(() => gridOperations.filter(o => !o.schedule), [gridOperations]);
-  const scheduledOps = useMemo(() => gridOperations.filter(o => !!o.schedule), [gridOperations]);
 
   // Track Pragmatic DnD op drags so column HTML5 onDrop can read the dragged op
   useEffect(() => {

@@ -18,7 +18,7 @@ import ErrorBoundary from "./ui/ErrorBoundary";
 import FullscreenOverlay from "./ui/FullscreenOverlay";
 
 import { GridDataContext } from "./GridDataContext";
-import { GridActionsContext } from "./GridActionsContext";
+import { GridActionsContext, useGridActions } from "./GridActionsContext";
 import { GridLiveContext } from "./GridLiveContext";
 
 import { DragProvider } from "./helpers/DragProvider";
@@ -338,7 +338,7 @@ function GridInner() {
     createField,
     updateField,
     deleteField,
-  } = useContext(GridActionsContext);
+  } = useGridActions();
 
   const {
     canUndo,

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 import { operationsBridge } from "../state/bindSocketToStore";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "./../helpers/CommitHelpers";
 
 const PHASES = [
@@ -56,7 +56,7 @@ export default function PomodoroTimer() {
   // When unset, the op falls back to its existing slotLabel-based FIND
   // (current behavior). When set, the transaction carries `targetContainerId`
   // so the op (or future ops) can route directly to the chosen container.
-  const { dispatch, socket, state, modulesById, occurrencesById } = useContext(GridActionsContext);
+  const { dispatch, socket, state, modulesById, occurrencesById } = useGridActions();
   const grid = state?.grid;
   const targetContainerId = grid?.meta?.pomodoroTargetContainerId || null;
   const containerOptions = useMemo(() => {

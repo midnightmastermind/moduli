@@ -13,13 +13,11 @@ describe("getEffectiveViewMode", () => {
   it("returns the stored meta.viewMode when allowed in context", () => {
     const occ = { meta: { viewMode: "representation" } };
     expect(getEffectiveViewMode(occ, "default")).toBe("representation");
-    expect(getEffectiveViewMode(occ, "mindMap")).toBe("representation");
   });
 
   it("falls back to the context default when no stored viewMode", () => {
     expect(getEffectiveViewMode({}, "default")).toBe("actual");
     expect(getEffectiveViewMode({}, "folderPage")).toBe("preview");
-    expect(getEffectiveViewMode({}, "mindMap")).toBe("representation");
   });
 
   it("coerces a disallowed stored mode back to the context default", () => {
@@ -48,8 +46,8 @@ describe("getAllowedViewModes", () => {
     expect(getAllowedViewModes("folderPage")).not.toContain("actual");
   });
 
-  it("allows all three for mindMap context", () => {
-    expect(getAllowedViewModes("mindMap")).toContain("actual");
+  it("valueBuilder context only allows representation", () => {
+    expect(getAllowedViewModes("valueBuilder")).toEqual(["representation"]);
   });
 });
 

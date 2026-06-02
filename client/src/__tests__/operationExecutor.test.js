@@ -17,6 +17,7 @@ import {
   executePipeline,
   runMatchingOperations,
   effectiveFilterFor,
+  setOpApplyingEffects,
 } from "../helpers/operationExecutor";
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -473,6 +474,56 @@ describe("runMatchingOperations", () => {
     expect(result[0].fieldId).toBe("f1");
   });
 
+  // Regression: self-trigger guard. While an op's effects are being applied
+  // (marked via setOpApplyingEffects), runMatchingOperations must skip that op
+  // so its own delete/create effects can't re-trigger it — the exponential
+  // OccurrenceDeleteOp cascade that froze the app. Cross-loops are covered the
+  // same way (both ops stay marked while on the stack).
+  test("ops marked applying-effects are skipped (self-trigger guard)", () => {
+    const ops = [
+      makeOp({ id: "op1", triggerType: "onLoad", blockTree: literalBlock(1), targetFieldId: "f1" }),
+      makeOp({ id: "op2", triggerType: "onLoad", blockTree: literalBlock(2), targetFieldId: "f2" }),
+    ];
+    // Baseline: both fire.
+    expect(runMatchingOperations(ops, null, null, {})).toHaveLength(2);
+    // With op1 marked applying, only op2 fires.
+    setOpApplyingEffects("op1", true);
+    try {
+      const result = runMatchingOperations(ops, null, null, {});
+      expect(result).toHaveLength(1);
+      expect(result[0].fieldId).toBe("f2");
+    } finally {
+      setOpApplyingEffects("op1", false);
+    }
+    // Cleared again: both fire (marker is per-stack, not permanent).
+    expect(runMatchingOperations(ops, null, null, {})).toHaveLength(2);
+  });
+
+  // Regression: cascade-dedup. A single filter change fans out into many
+  // top-level NavigationOp fires (one per inheriting descendant). A shared
+  // context.cascadeFiredOps Set makes each matching op run ONCE across the
+  // whole burst instead of once per descendant — the Schedule date-switch
+  // 5-10s freeze (Table/Canvas Build re-ran ~50×). See
+  // CommitHelpers.fireOperationsBatch / bindSocketToStore.
+  test("cascadeFiredOps dedups an op across a multi-transaction cascade", () => {
+    const ops = [
+      makeOp({ id: "op1", triggerType: "onLoad", blockTree: literalBlock(1), targetFieldId: "f1" }),
+      makeOp({ id: "op2", triggerType: "onLoad", blockTree: literalBlock(2), targetFieldId: "f2" }),
+    ];
+    const cascadeFiredOps = new Set();
+    // First transaction in the cascade: both ops run and get marked.
+    const first = runMatchingOperations(ops, null, null, { cascadeFiredOps });
+    expect(first).toHaveLength(2);
+    expect(cascadeFiredOps.has("op1")).toBe(true);
+    expect(cascadeFiredOps.has("op2")).toBe(true);
+    // Second transaction in the SAME cascade: both already fired → skipped.
+    expect(runMatchingOperations(ops, null, null, { cascadeFiredOps })).toHaveLength(0);
+    // A fresh cascade (new set) runs them again.
+    expect(runMatchingOperations(ops, null, null, { cascadeFiredOps: new Set() })).toHaveLength(2);
+    // No set at all → no dedup (legacy single-fire behavior preserved).
+    expect(runMatchingOperations(ops, null, null, {})).toHaveLength(2);
+  });
+
   test("manual ops never fire automatically", () => {
     const ops = [
       makeOp({ id: "op1", triggerType: "manual", blockTree: literalBlock(99), targetFieldId: "f1" }),
@@ -743,14 +794,14 @@ describe("shouldTrigger — triggerObjects filters", () => {
         { eventType: "onChange", subjectType: "field", targetId: "completed" },
       ],
     });
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "completed" })).toBe(true);
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "duration" })).toBe(false);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { completed: { value: 1 } } })).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { duration: { value: 1 } } })).toBe(false);
     expect(shouldTrigger(op, "MeasureOp", {})).toBe(false);
   });
 
   test("onChange with no triggerObjects passes any MeasureOp", () => {
     const op = makeOp({ triggerTypes: ["onChange"] });
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "anything" })).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { anything: 1 } })).toBe(true);
     expect(shouldTrigger(op, "MeasureOp", {})).toBe(true);
   });
 
@@ -762,9 +813,9 @@ describe("shouldTrigger — triggerObjects filters", () => {
         { eventType: "onChange", subjectType: "field", targetId: "steps" },
       ],
     });
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "water" })).toBe(true);
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "steps" })).toBe(true);
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "mood" })).toBe(false);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { water: 1 } })).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { steps: 1 } })).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { mood: 1 } })).toBe(false);
   });
 
   test("onChange + instance subject: filters on instanceId", () => {
@@ -852,8 +903,8 @@ describe("shouldTrigger — triggerObjects filters", () => {
         { eventType: "onMove", subjectType: "module", subjectRole: "panel", targetId: "schedule-panel" },
       ],
     });
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "completed" })).toBe(true);
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "duration" })).toBe(false);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { completed: 1 } })).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { duration: 1 } })).toBe(false);
     expect(shouldTrigger(op, "OccurrenceMoveOp", { fromPanelId: "schedule-panel" })).toBe(true);
     expect(shouldTrigger(op, "OccurrenceMoveOp", { fromPanelId: "goals-panel" })).toBe(false);
   });
@@ -876,13 +927,13 @@ describe("computeTriggerMatch — matched triggerObject threading", () => {
       triggerTypes: ["onChange"],
       triggerObjects: [toWater],
     });
-    expect(computeTriggerMatch(op, "MeasureOp", { fieldId: "water" }))
+    expect(computeTriggerMatch(op, "MeasureOp", { fields: { water: 1 } }))
       .toEqual({ matched: true, triggerObject: toWater });
   });
 
   test("returns triggerObject: null when no triggerObjects are set (event-only match)", () => {
     const op = makeOp({ triggerTypes: ["onChange"] });
-    expect(computeTriggerMatch(op, "MeasureOp", { fieldId: "any" }))
+    expect(computeTriggerMatch(op, "MeasureOp", { fields: { any: 1 } }))
       .toEqual({ matched: true, triggerObject: null });
   });
 
@@ -893,7 +944,7 @@ describe("computeTriggerMatch — matched triggerObject threading", () => {
       triggerTypes: ["onChange"],
       triggerObjects: [toA, toB],
     });
-    expect(computeTriggerMatch(op, "MeasureOp", { fieldId: "b" }))
+    expect(computeTriggerMatch(op, "MeasureOp", { fields: { b: 1 } }))
       .toEqual({ matched: true, triggerObject: toB });
   });
 
@@ -966,6 +1017,30 @@ describe("executePipeline — $trigger variable in if conditions", () => {
     });
     expect(executePipeline(op, {}, { fieldId: "completed" })).toHaveLength(1);
     expect(executePipeline(op, {}, { fieldId: "duration" })).toHaveLength(0);
+  });
+
+  // Regression: $trigger.occurrence._ancestors lets a rebuild op (Table/Canvas
+  // Build) tell "the Schedule source changed" apart from "I just deleted my own
+  // derived copy" — the self-trigger guard that stops the exponential
+  // OccurrenceDeleteOp cascade that froze the app on drop-into-Schedule.
+  test("$trigger.occurrence._ancestors is populated for HAS_ANCESTOR guard", () => {
+    const ctx = makeState([
+      { id: "page-1", role: "page", occurrences: ["child-1"] },
+      { id: "child-1", role: "instance", parentId: "page-1", fields: {} },
+      { id: "other-1", role: "instance", parentId: "elsewhere", fields: {} },
+    ]);
+    const op = makeOp({
+      pipeline: pipe(
+        ifS(andCond({ left: "$trigger.occurrence._ancestors", comparator: "HAS_ANCESTOR", right: "page-1" }),
+          [s("UPDATE", { path: "$display.guard.t", value: "literal:self" })]),
+      ),
+    });
+    // Deleting our own derived copy (under page-1) → guard fires (would no-op the rebuild).
+    expect(executePipeline(op, ctx, { type: "OccurrenceDeleteOp", occurrenceId: "child-1" })).toHaveLength(1);
+    // A delete elsewhere (real source change) → guard does not fire.
+    expect(executePipeline(op, ctx, { type: "OccurrenceDeleteOp", occurrenceId: "other-1" })).toHaveLength(0);
+    // No trigger occurrence (bulk onLoad) → guard does not fire.
+    expect(executePipeline(op, ctx, { type: "onLoad" })).toHaveLength(0);
   });
 
   test("action BEFORE if always runs, action INSIDE if is conditional", () => {
@@ -1141,8 +1216,8 @@ describe("runMatchingOperations — integration with triggerTypes + triggerObjec
       ],
       pipeline: pipe(s("UPDATE", { path: "$display.f1.t", value: "literal:1" })),
     });
-    expect(runMatchingOperations([op], "MeasureOp", { fieldId: "completed" }, {})).toHaveLength(1);
-    expect(runMatchingOperations([op], "MeasureOp", { fieldId: "duration" }, {})).toHaveLength(0);
+    expect(runMatchingOperations([op], "MeasureOp", { fields: { completed: 1 } }, {})).toHaveLength(1);
+    expect(runMatchingOperations([op], "MeasureOp", { fields: { duration: 1 } }, {})).toHaveLength(0);
   });
 
   test("AGGREGATE op fires on onFilterChange and returns correct sum", () => {
@@ -2108,14 +2183,14 @@ describe("shouldTrigger — onFieldChange / onFilterChange aliases", () => {
         { eventType: "onFieldChange", subjectType: "field", targetId: "completed" },
       ],
     });
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "completed" })).toBe(true);
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "duration" })).toBe(false);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { completed: 1 } })).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { duration: 1 } })).toBe(false);
   });
 
   test("onFieldChange fires without a triggerObject filter (event-only match)", () => {
     const op = makeOp({ triggerTypes: ["onFieldChange"] });
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "completed" })).toBe(true);
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "duration" })).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { completed: 1 } })).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { duration: 1 } })).toBe(true);
   });
 
   test("onFieldChange with multiple field targets matches any of them", () => {
@@ -2126,9 +2201,9 @@ describe("shouldTrigger — onFieldChange / onFilterChange aliases", () => {
         { eventType: "onFieldChange", subjectType: "field", targetId: "steps" },
       ],
     });
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "water" })).toBe(true);
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "steps" })).toBe(true);
-    expect(shouldTrigger(op, "MeasureOp", { fieldId: "mood" })).toBe(false);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { water: 1 } })).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { steps: 1 } })).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp", { fields: { mood: 1 } })).toBe(false);
   });
 
   test("onFieldChange with instance subject filters on instanceId", () => {

@@ -110,6 +110,43 @@ export async function buildDailyRoutineTemplate({
 
   const tplRoutineRootOccId = uid();
 
+  // Day-container wrapper module + occurrence — sits between the page
+  // root and the 48 slots. Schedule Template: Build APPLY_TEMPLATEs
+  // this whole subtree into Library > Templates; the Day container
+  // becomes the canonical "day-col template" that Schedule: Build
+  // COPY_LINKs into the active Schedule page per-day.
+  const tplDayModId = uid();
+  const tplDayOccId = uid();
+  await new Module({
+    id: tplDayModId, userId, gridId,
+    role: "container", kind: "board", label: "Day",
+    meta: { templateModule: true, allowChildContainers: true },
+  }).save();
+
+  // Due container — holds tasks for the day with no specific time slot.
+  // Lives as the FIRST child of the Day container, before the 48 timeslots.
+  // Identity is field-based (timeslot="Due") — no schedule-specific meta
+  // marker.
+  const tplDueModId = uid();
+  const tplDueOccId = uid();
+  await new Module({
+    id: tplDueModId, userId, gridId,
+    role: "container", kind: "board", label: "Due",
+    meta: { templateModule: true },
+    fieldBindings: [{ fieldId: timeslotFieldId, role: "input", hidden: true, order: 0 }],
+  }).save();
+  await mkOcc({
+    id: tplDueOccId,
+    moduleId: tplDueModId,
+    targetId: tplDueModId, targetType: "module",
+    parentId: tplDayOccId,
+    fields: {
+      [timeslotFieldId]: { value: "Due", flow: "in" },
+    },
+    occurrences: [],
+    identitySignature: "slot:Due",
+  });
+
   // Build one slot container per timeslot, with nested routine instances
   const tplSlotOccIds = [];
   for (const slot of timeSlots) {
@@ -170,7 +207,7 @@ export async function buildDailyRoutineTemplate({
       id: tplSlotOccId,
       moduleId: tplSlotModId,
       targetId: tplSlotModId, targetType: "module",
-      parentId: tplRoutineRootOccId,
+      parentId: tplDayOccId,
       fields: {
         [timeslotFieldId]: { value: slot.label, flow: "in" },
         ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: { value: "slot", flow: "in" } } : {}),
@@ -185,17 +222,170 @@ export async function buildDailyRoutineTemplate({
     tplSlotOccIds.push(tplSlotOccId);
   }
 
-  // Template root occurrence — parented to templates manifest root folder
+  // Day container occurrence — wraps Due + the 48 slots.
+  // Due comes first so it visually anchors the top of each day-col.
+  await mkOcc({
+    id: tplDayOccId,
+    moduleId: tplDayModId,
+    targetId: tplDayModId, targetType: "module",
+    parentId: tplRoutineRootOccId,
+    occurrences: [tplDueOccId, ...tplSlotOccIds],
+    meta: { templateModule: true },
+    identitySignature: "day-container",
+  });
+
+  // Template root occurrence — parented to templates manifest root folder.
+  // Contains exactly one child: the Day container.
   await mkOcc({
     id: tplRoutineRootOccId,
     moduleId: tplRoutineRootModId,
     targetId: tplRoutineRootModId, targetType: "module",
     parentId: tplManifestRootFolderId,
-    occurrences: tplSlotOccIds,
+    occurrences: [tplDayOccId],
     meta: { templateName: "Daily Routine", templateModule: true },
   });
 
   return tplRoutineRootOccId;
+}
+
+// ── "Schedule Template" PAGE in Library > Templates ───────────────────────────
+// Live-data variant of the Daily Routine template. Same Day-container subtree
+// (Due + 48 slots + per-slot routine instances), but parented as a real PAGE
+// under Library > Templates so the user can open + edit it directly. The
+// "Schedule: Build Schedule" op COPY_LINKs the Day container into the active
+// Schedule page per visible day in the active period — instances live HERE
+// canonically; day-cols are linked views.
+//
+// Returns { schedTplPageOccId, dayContainerOccId } so the seed can pass the
+// Day container's id straight into the op via picker-direct binding.
+export async function buildScheduleTemplatePage({
+  userId, gridId, timeSlots, timeslotFieldId, routineBySlot,
+  libraryTemplatesFolderId, mkOcc, Module, findModule,
+  completedFieldId, waterFieldId, isTaskFieldId,
+  scheduleFormatFieldId = null,
+}) {
+  const schedTplPageModId = uid();
+  await new Module({
+    id: schedTplPageModId, userId, gridId,
+    role: "page", kind: "board", label: "Schedule Template",
+  }).save();
+
+  const schedTplPageOccId = uid();
+  const dayContainerModId = uid();
+  const dayContainerOccId = uid();
+  await new Module({
+    id: dayContainerModId, userId, gridId,
+    role: "container", kind: "board", label: "Day",
+    meta: { allowChildContainers: true },
+  }).save();
+
+  // Due container (first child of Day). Field-based identity via timeslot="Due".
+  const tplDueModId = uid();
+  const tplDueOccId = uid();
+  await new Module({
+    id: tplDueModId, userId, gridId,
+    role: "container", kind: "board", label: "Due",
+    fieldBindings: [{ fieldId: timeslotFieldId, role: "input", hidden: true, order: 0 }],
+  }).save();
+  await mkOcc({
+    id: tplDueOccId,
+    moduleId: tplDueModId,
+    targetId: tplDueModId, targetType: "module",
+    parentId: dayContainerOccId,
+    fields: { [timeslotFieldId]: { value: "Due", flow: "in" } },
+    occurrences: [],
+    identitySignature: "slot:Due",
+  });
+
+  // 48 slot containers + per-slot routine instances.
+  const tplSlotOccIds = [];
+  for (const slot of timeSlots) {
+    const tplSlotModId = uid();
+    const tplSlotOccId = uid();
+    await new Module({
+      id: tplSlotModId, userId, gridId,
+      role: "container", kind: "board",
+      label: slot.label,
+      meta: {
+        slotHour: slot.hour,
+        slotMinute: slot.minute,
+        slotLabel: slot.label,
+      },
+      fieldBindings: scheduleFormatFieldId
+        ? [{ fieldId: scheduleFormatFieldId, role: "input", hidden: true, order: 0 }]
+        : [],
+    }).save();
+
+    const routineInsts = routineBySlot[slot.label] || [];
+    const slotChildOccIds = [];
+    for (const r of routineInsts) {
+      const tplInstModId = uid();
+      const tplInstOccId = uid();
+      const srcMod = await findModule({ id: r.sourceModId, gridId });
+      await new Module({
+        id: tplInstModId, userId, gridId,
+        role: "instance", kind: "board", label: r.label,
+        defaultDragMode: "copy",
+        fieldBindings: srcMod?.fieldBindings || [],
+      }).save();
+      const initialFields = {
+        [timeslotFieldId]: { value: slot.label, flow: "in" },
+      };
+      if (r.completed && completedFieldId) initialFields[completedFieldId] = { value: true, flow: "in" };
+      if (r.water != null && waterFieldId) initialFields[waterFieldId] = { value: r.water, flow: "in" };
+      if (isTaskFieldId) initialFields[isTaskFieldId] = { value: true, flow: "in" };
+      await mkOcc({
+        id: tplInstOccId,
+        moduleId: tplInstModId,
+        targetId: tplInstModId, targetType: "module",
+        parentId: tplSlotOccId,
+        fields: initialFields,
+        occurrences: [],
+      });
+      slotChildOccIds.push(tplInstOccId);
+    }
+
+    await mkOcc({
+      id: tplSlotOccId,
+      moduleId: tplSlotModId,
+      targetId: tplSlotModId, targetType: "module",
+      parentId: dayContainerOccId,
+      fields: {
+        [timeslotFieldId]: { value: slot.label, flow: "in" },
+        ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: { value: "slot", flow: "in" } } : {}),
+      },
+      occurrences: slotChildOccIds,
+      meta: { slotLabel: slot.label },
+      identitySignature: `slot:${slot.label}`,
+    });
+    tplSlotOccIds.push(tplSlotOccId);
+  }
+
+  // Day container — wraps Due + the 48 slots.
+  await mkOcc({
+    id: dayContainerOccId,
+    moduleId: dayContainerModId,
+    targetId: dayContainerModId, targetType: "module",
+    parentId: schedTplPageOccId,
+    occurrences: [tplDueOccId, ...tplSlotOccIds],
+    identitySignature: "day-container",
+  });
+
+  // Page root — parented to Library > Templates folder.
+  await mkOcc({
+    id: schedTplPageOccId,
+    moduleId: schedTplPageModId,
+    targetId: schedTplPageModId, targetType: "module",
+    parentId: libraryTemplatesFolderId,
+    sortOrder: 0,
+    occurrences: [dayContainerOccId],
+    iteration: { mode: "persistent" },
+    fields: {},
+    filterOverride: {},
+    filterNavConfig: { filter_daily: { visible: false } },
+  });
+
+  return { schedTplPageOccId, dayContainerOccId };
 }
 
 // ── "Day Page" template — a doc page with one textblock child ────────────
@@ -792,28 +982,23 @@ export function makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId
 // Idempotency: per-day FIND checks gate creation; APPLY_TEMPLATE's identitySig
 // merge skips already-cloned slots; ADD_CHILD's includes-check skips duplicate
 // multi-parent refs.
-export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId = null, completedTrackerName = "Tracker: Tasks Completed", waterTrackerName = "Tracker: Water Today", goalsPageOccId, schedulePageOccId }) {
-  if (!schedulePageOccId) throw new Error("makeScheduleBuildScheduleOp: schedulePageOccId required (picker-direct ancestor + page ref; see CLAUDE_CHAT.md 2026-05-22)");
-  if (!goalsPageOccId)    throw new Error("makeScheduleBuildScheduleOp: goalsPageOccId required (picker-direct ancestor; see CLAUDE_CHAT.md 2026-05-22)");
+export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId = null, completedTrackerName = "Tracker: Tasks Completed", waterTrackerName = "Tracker: Water Today", goalsPageOccId, schedulePageOccId, dayContainerOccId }) {
+  if (!schedulePageOccId) throw new Error("makeScheduleBuildScheduleOp: schedulePageOccId required (picker-direct ancestor + page ref)");
+  if (!goalsPageOccId)    throw new Error("makeScheduleBuildScheduleOp: goalsPageOccId required (picker-direct ancestor)");
+  if (!dayContainerOccId) throw new Error("makeScheduleBuildScheduleOp: dayContainerOccId required (Day container occurrence id from the seeded Schedule Template page)");
+  if (!scheduleFormatFieldId) throw new Error("makeScheduleBuildScheduleOp: scheduleFormatFieldId required (used to tag day-col containers)");
   return {
     id: uid(), userId, gridId, name: "Schedule: Build Schedule",
-    description: "Build one day-column per visible day in the active filter period. ≤7 days: full slot structure per day-col. >7 days: flat day-cols. Persistent — day-cols never deleted, visibility cascade hides out-of-period ones.",
-    // priority 1 so the shell (slots) + routine seeding finish before goal
-    // aggregations (priority 3) read the data.
-    //
-    // Trigger surface (2026-05-22 refactor — picker-style direct ancestor binding):
-    //   - onLoad / onFilterChange + subjectType:grid — toolbar arrows + initial
-    //     load. matchSubjectFilter restricts grid-subject triggers to true
-    //     global changes (no sourceOccurrenceId, no _ancestorIds), so this no
-    //     longer matches local container filter changes.
-    //   - onFilterChange + subjectType:filterNav — broad match. The previous
-    //     ancestorLabel:"Schedule" / "Daily Goals" entries were brittle to
-    //     page renames (live grid renamed "Daily Goals" → "Goals" 2026-05-19;
-    //     the labels diverged and trackers silently stopped firing on goals
-    //     filter nav). Replaced by a pipeline-internal IF guard that grabs
-    //     the goals + schedule page occurrences directly via $allItemsById
-    //     and HAS_ANCESTOR-matches them against $trigger._ancestorIds. The
-    //     ids come from the seed via params; both grids can pass their own.
+    description: "For each visible day in the active filter period, COPY_LINK the Day container from the Schedule Template into the Schedule page as a date-stamped day-col. Idempotent. Day-cols outside the period are deleted; the template + its instances persist.",
+    // Resolve the built-in date vars ($activeDate / $activePeriod /
+    // $activePeriodDates) from the SCHEDULE PAGE's effective filter cascade
+    // (page filterOverride → grid) — the same cascade every other schedule op
+    // already reads in-pipeline ($schedPage._effectiveFilter). Without this the
+    // built-ins fall back to the GRID filter only, so an on-page date switch
+    // (which writes the page's filterOverride, not the grid) left the period
+    // stale and the schedule rebuilt for the old day. Now grid and page filter
+    // switches resolve uniformly through one cascade.
+    targetOccurrenceId: schedulePageOccId,
     triggerTypes: ["onLoad", "onFilterChange"],
     triggerObjects: [
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 1 },
@@ -823,423 +1008,230 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
     enabled: true,
     pipeline: {
       steps: [
-        // ── Picker-style direct bindings — rename-stable refs to seed-time
-        // ancestors. $allItemsById.<id> resolves to the occurrence object via
-        // the executor's path resolver. Equivalent to what the value-builder
-        // picker emits when an author drills into Occurrences > $allItemsById
-        // > <label> — id is in the path string but the source code reads as a
-        // reference, not a hardcoded literal on the trigger.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` }},
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" }},
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalsPage",   expr: `$allItemsById.${goalsPageOccId}` }},
+        // Picker-direct refs — seed-time IDs, rename-stable.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalsPage",   expr: `$allItemsById.${goalsPageOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayCont",     expr: `$allItemsById.${dayContainerOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayContId",   expr: "$dayCont.id" } },
 
-        // ── Ancestor guard. Lets through: (a) grid-subject triggers — no
-        // sourceOccurrenceId — toolbar arrows + onLoad. (b) filterNav whose
-        // ancestor chain includes Schedule or Goals. Anything else (filter
-        // change on an unrelated page like Todo / Daily Toolkit) short-
-        // circuits. Replaces the rename-fragile trigger.ancestorLabel approach.
+        // Source-only guard: fire ONCE per filter change. Lets through
+        //   (a) grid-subject triggers — no sourceOccurrenceId — toolbar +
+        //       onLoad
+        //   (b) the Schedule/Goals page's OWN filter change — sourceOccurrenceId
+        //       matches one of the seeded pages
+        // Does NOT pass descendant-cascade NavigationOps (where source is a
+        // day-col / slot / instance). `updateOccurrenceFilterOverride` fires
+        // one NavigationOp per inheriting descendant; without this tightening
+        // every descendant would re-fire the build (50+ no-op runs per click
+        // that still re-emit UPDATE_ITEM_META / RUN_OPERATION tails, choking
+        // the createQueue).
         { id: uid(), type: "if",
           condition: { operator: "OR", rules: [
-            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS_EMPTY",     right: "" },
-            { id: uid(), left: "$trigger._ancestorIds",       comparator: "HAS_ANCESTOR", right: "$schedPage.id" },
-            { id: uid(), left: "$trigger._ancestorIds",       comparator: "HAS_ANCESTOR", right: "$goalsPage.id" },
+            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS_EMPTY", right: "" },
+            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$schedPage.id" },
+            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$goalsPage.id" },
           ]},
           then: [
-        // ── Top-level lookups (one-time per run) ────────────────────────────
-        { id: uid(), type: "action", config: {
-            type: "FIND", over: "$allOccurrences",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "meta.templateName", comparator: "IS", right: "Daily Routine" },
-            ]},
-            itemIdVar: "$dailyRoutineTplId",
-        }},
-        { id: uid(), type: "action", config: {
-            type: "FIND", over: "$allContainers",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "meta.todoListContainer", comparator: "IS", right: true },
-            ]},
-            itemIdVar: "$todoContId",
-        }},
-
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
-          then: [
-            // ── PHASE 1: shared Due ─────────────────────────────────────────
-            // One Due container per Schedule page. parentId = Schedule;
-            // multi-parented into every day-col via ADD_CHILD below.
-            // Identity: scheduleFormat="due" field (live data path) or
-            // meta.scheduleDueContainer (test grid fallback when the field
-            // id wasn't passed).
-            { id: uid(), type: "action", config: {
-                type: "FIND", over: "$allContainers",
-                predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                  scheduleFormatFieldId
-                    ? { id: uid(), left: `fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "due" }
-                    : { id: uid(), left: "meta.scheduleDueContainer", comparator: "IS", right: true },
-                ]},
-                itemIdVar: "$sharedDueId",
-            }},
-            {
-              id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$sharedDueId", comparator: "IS_EMPTY", right: "" }] },
-              then: [{ id: uid(), type: "action", config: {
-                  type: "CREATE", name: "Due", role: "container", kind: "board",
-                  meta: scheduleFormatFieldId ? {} : { scheduleDueContainer: true },
-                  parent: "$schedPageId",
-                  fields: {
-                    [timeslotFieldId]: "literal:Due",
-                    ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: "literal:due" } : {}),
-                  },
-                  fieldHidden: {
-                    [timeslotFieldId]: true,
-                    ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: true } : {}),
-                  },
-                  insertAtIndex: 0,
-                  itemIdVar: "$sharedDueId",
-              }}],
-              else: [],
-            },
-
-            // ── PHASE 2: shared 48 slots (one-time setup) ───────────────────
-            // Check if any slot exists under Schedule. If none, APPLY_TEMPLATE
-            // the Daily Routine template; identitySig "slot:<label>" makes
-            // re-runs no-ops once slots exist. defaultFields here stamps the
-            // first $activePeriodDates day so the first routine instances are
-            // dated. Subsequent days top up in PHASE 3.
-            { id: uid(), type: "action", config: {
-                type: "FIND", over: "$allContainers",
-                predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                  scheduleFormatFieldId
-                    ? { id: uid(), left: `fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "slot" }
-                    : { id: uid(), left: "meta.scheduleSlot", comparator: "IS", right: true },
-                ]},
-                itemIdVar: "$anySlotId",
-            }},
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$firstDay", expr: "$activePeriodDates.0" } },
-            {
-              id: uid(), type: "if",
+            { id: uid(), type: "if",
               condition: { operator: "AND", rules: [
-                { id: uid(), left: "$dailyRoutineTplId", comparator: "IS_NOT_EMPTY", right: "" },
-                { id: uid(), left: "$anySlotId",         comparator: "IS_EMPTY",     right: "" },
+                { id: uid(), left: "$schedPageId", comparator: "IS_NOT_EMPTY", right: "" },
+                { id: uid(), left: "$dayContId",   comparator: "IS_NOT_EMPTY", right: "" },
               ]},
-              then: [{ id: uid(), type: "action", config: {
-                  type: "APPLY_TEMPLATE",
-                  templateRef: "$dailyRoutineTplId",
-                  targetOccurrenceVar: "$schedPageId",
-                  mode: "merge", unwrapRoot: true,
-                  defaultFields: {
-                    [dateFieldId]: "$firstDay",
-                    [dueFieldId]:  "$firstDay",
-                  },
-              }}],
-              else: [],
-            },
-
-            // ── PHASE 3: per-day routine seeding ────────────────────────────
-            // For each $day in the active period, ensure routine instances
-            // dated to $day exist under the shared slots. APPLY_TEMPLATE in
-            // merge mode skips slot containers (identitySig dedup) and only
-            // clones the routine instances stamped with $day.
-            {
-              id: uid(), type: "loop", overExpr: "$activePeriodDates", as: "$day",
-              body: [
-                { id: uid(), type: "action", config: {
-                    type: "FIND", over: "$allInstances",
-                    predicate: { operator: "AND", rules: [
-                      { id: uid(), left: "_ancestors",                  comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                      { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY",     right: "$day" },
-                    ]},
-                    itemIdVar: "$existingRoutineId",
-                }},
+              then: [
+                // ── PHASE A: per-day hybrid build of the day-col ──────────────
+                // Each active day gets one day-col under the Schedule page,
+                // built bottom-up:
+                //   1. Fresh day-col container (CREATE) — fresh module so
+                //      its label can be date-stamped ("Schedule - <date>")
+                //      without affecting the template.
+                //   2. For each direct child of the template's Day container
+                //      (Due + 48 slot containers) — shallow COPY_LINK into
+                //      the day-col. The slot's MODULE is shared with the
+                //      template so editing the template's "6:00am" slot's
+                //      label updates every day-col. linkedGroupId pairs the
+                //      slot copies for cross-day field/textmap sync.
+                //   3. For each routine instance in the template slot —
+                //      COPY_LINK with `linked: false` (no linkedGroupId)
+                //      and `recursive: false` (leaf), parented into the
+                //      day-col's slot copy, with date stamped. Result:
+                //      shared instance MODULE (edit "Drink Water" → all
+                //      days update) but per-day independent OCCURRENCES
+                //      (completion is per-day).
+                // Idempotent via the day-col FIND at the top of the loop.
                 {
-                  id: uid(), type: "if",
-                  condition: { operator: "AND", rules: [
-                    { id: uid(), left: "$dailyRoutineTplId", comparator: "IS_NOT_EMPTY", right: "" },
-                    { id: uid(), left: "$existingRoutineId", comparator: "IS_EMPTY",     right: "" },
-                  ]},
-                  then: [{ id: uid(), type: "action", config: {
-                      type: "APPLY_TEMPLATE",
-                      templateRef: "$dailyRoutineTplId",
-                      targetOccurrenceVar: "$schedPageId",
-                      mode: "merge", unwrapRoot: true,
-                      defaultFields: {
-                        [dateFieldId]: "$day",
-                        [dueFieldId]:  "$day",
-                      },
-                  }}],
-                  else: [],
-                },
-              ],
-            },
-
-            // ── PHASE 4a: pre-compute slot ID list ──────────────────────────
-            // Walk $allContainers ONCE up-front and push every shared-slot id
-            // into $slotIds. Phase 4b's per-day loop then iterates $slotIds
-            // instead of re-scanning $allContainers per day. Cuts perf from
-            // O(days × containers) to O(containers + days × slots).
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$slotIds", expr: "json:[]" } },
-            {
-              id: uid(), type: "loop", overExpr: "$allContainers", as: "$cont",
-              body: [{
-                id: uid(), type: "if",
-                condition: { operator: "AND", rules: [
-                  { id: uid(), left: "$cont._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                  scheduleFormatFieldId
-                    ? { id: uid(), left: `$cont.fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "slot" }
-                    : { id: uid(), left: "$cont.meta.scheduleSlot", comparator: "IS", right: true },
-                ]},
-                then: [{ id: uid(), type: "action", config: { type: "PUSH_TO_VAR", name: "$slotIds", expr: "$cont.id" } }],
-                else: [],
-              }],
-            },
-
-            // ── PHASE 4b: per-day TIMESLOT day-col creation + multi-parent ───
-            // Gated on $activePeriodCount ≤ 7. For each $day, ensure a
-            // timeslot day-col wrapper exists with all shared slots + Due
-            // multi-parented in. ADD_CHILD is idempotent so re-runs are
-            // no-ops. Above 7 days, PHASE 4c creates shortened day-cols
-            // instead (flat, no slots).
-            //
-            // Day-col identity is field-based: a container with the
-            // scheduleFormat field stamped (any value) is a day-col. Date
-            // comes from the dateFieldId stamp. No meta markers.
-            {
-              id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$activePeriodCount", comparator: "LESS_OR_EQUAL", right: 7 }] },
-              then: [{
-                id: uid(), type: "loop", overExpr: "$activePeriodDates", as: "$day",
-                body: [
-                  { id: uid(), type: "action", config: {
-                      type: "FIND", over: "$allContainers",
-                      predicate: { operator: "AND", rules: [
-                        { id: uid(), left: "_ancestors",                                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                        ...(scheduleFormatFieldId ? [{ id: uid(), left: `fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "timeslot" }] : []),
-                        { id: uid(), left: `fields.${dateFieldId}.value`,                      comparator: "SAME_DAY",    right: "$day" },
-                      ]},
-                      itemIdVar: "$dayColId",
-                  }},
-                  // Create the day-col only when missing. ADD_CHILD steps
-                  // below ALWAYS run because they're idempotent (parent's
-                  // occurrences[] gets the child appended only when not
-                  // already present) — gating them on IS_EMPTY made a
-                  // partially-populated day-col from a prior run stick
-                  // empty forever, since subsequent runs found the day-col,
-                  // skipped the THEN branch, and never multi-parented the
-                  // slots in. Self-healing requires ADD_CHILD outside the gate.
-                  {
-                    id: uid(), type: "if",
-                    condition: { operator: "AND", rules: [{ id: uid(), left: "$dayColId", comparator: "IS_EMPTY", right: "" }] },
-                    then: [{ id: uid(), type: "action", config: {
-                        type: "CREATE",
-                        // Label interpolated with the iteration date — was just
-                        // "Day Column" so every column rendered the same header.
-                        // resolveExpr template-interpolates ${$day} at create
-                        // time (see operationActions.js Mar 22 2026).
-                        name: "${$day} Day Column",
-                        role: "container", kind: "board",
-                        meta: { allowChildContainers: true },
-                        parent: "$schedPageId",
-                        filterOverride: { [dateFieldId]: "$day" },
-                        fields: {
-                          [dateFieldId]: "$day",
-                          ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: "literal:timeslot" } : {}),
-                        },
-                        fieldHidden: {
-                          [dateFieldId]: true,
-                          ...(scheduleFormatFieldId ? { [scheduleFormatFieldId]: true } : {}),
-                        },
+                  id: uid(), type: "loop", overExpr: "$activePeriodDates", as: "$day",
+                  body: [
+                    { id: uid(), type: "action", config: {
+                        type: "FIND", over: "$allContainers",
+                        predicate: { operator: "AND", rules: [
+                          { id: uid(), left: "_ancestors",                            comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                          { id: uid(), left: `fields.${scheduleFormatFieldId}.value`, comparator: "IS",           right: "day-col" },
+                          { id: uid(), left: `fields.${dateFieldId}.value`,           comparator: "SAME_DAY",     right: "$day" },
+                        ]},
                         itemIdVar: "$dayColId",
-                    }}],
-                    else: [],
-                  },
-                  // Iterate the precomputed slot list and ADD_CHILD each
-                  // — runs every pass so a half-built day-col self-heals.
-                  {
-                    id: uid(), type: "loop", overExpr: "$slotIds", as: "$slotId",
-                    body: [
-                      { id: uid(), type: "action", config: {
-                          type: "ADD_CHILD",
-                          parentId: "$dayColId",
-                          childId: "$slotId",
-                      }},
-                    ],
-                  },
-                  // Multi-parent the shared Due too.
-                  {
-                    id: uid(), type: "if",
-                    condition: { operator: "AND", rules: [{ id: uid(), left: "$sharedDueId", comparator: "IS_NOT_EMPTY", right: "" }] },
-                    then: [{ id: uid(), type: "action", config: {
-                        type: "ADD_CHILD",
-                        parentId: "$dayColId",
-                        childId: "$sharedDueId",
-                    }}],
-                    else: [],
-                  },
-                ],
-              }],
-              else: [],
-            },
-
-            // ── PHASE 4c: per-day SHORTENED day-col creation ────────────────
-            // Gated on $activePeriodCount > 7. Each shortened day-col is a
-            // flat container (no slots inside) — Schedule's day-grouped
-            // calendar view for long periods. Field-based identity (no
-            // meta markers): scheduleFormat="shortened" + date field = $day.
-            ...(scheduleFormatFieldId ? [{
-              id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$activePeriodCount", comparator: "GREATER", right: 7 }] },
-              then: [{
-                id: uid(), type: "loop", overExpr: "$activePeriodDates", as: "$day",
-                body: [
-                  { id: uid(), type: "action", config: {
-                      type: "FIND", over: "$allContainers",
-                      predicate: { operator: "AND", rules: [
-                        { id: uid(), left: "_ancestors",                                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                        { id: uid(), left: `fields.${scheduleFormatFieldId}.value`,            comparator: "IS",           right: "shortened" },
-                        { id: uid(), left: `fields.${dateFieldId}.value`,                      comparator: "SAME_DAY",     right: "$day" },
-                      ]},
-                      itemIdVar: "$shortColId",
-                  }},
-                  {
-                    id: uid(), type: "if",
-                    condition: { operator: "AND", rules: [{ id: uid(), left: "$shortColId", comparator: "IS_EMPTY", right: "" }] },
-                    then: [
-                      { id: uid(), type: "action", config: {
+                    }},
+                    // 1. Ensure the day-col container exists (idempotent —
+                    //    CREATE only runs when FIND came back empty).
+                    {
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$dayColId", comparator: "IS_EMPTY", right: "" }] },
+                      then: [{ id: uid(), type: "action", config: {
                           type: "CREATE",
-                          // Shortened day-col label uses date too — was just
-                          // "Day" so every column was indistinguishable.
-                          name: "${$day}",
+                          name: "Schedule - ${dateLong:$day}",
                           role: "container", kind: "board",
                           meta: { allowChildContainers: true },
                           parent: "$schedPageId",
                           filterOverride: { [dateFieldId]: "$day" },
                           fields: {
                             [dateFieldId]: "$day",
-                            [scheduleFormatFieldId]: "literal:shortened",
+                            [scheduleFormatFieldId]: "literal:day-col",
                           },
                           fieldHidden: {
                             [dateFieldId]: true,
                             [scheduleFormatFieldId]: true,
                           },
-                          itemIdVar: "$shortColId",
-                      }},
-                    ],
-                    else: [],
-                  },
-                ],
-              }],
-              else: [],
-            }] : []),
+                          itemIdVar: "$dayColId",
+                      }}],
+                      else: [],
+                    },
+                    // 2. Per-slot population — runs ALWAYS, not just when
+                    //    the day-col is fresh. The previous gate ("only
+                    //    populate when day-col is empty") made the build
+                    //    non-self-healing: if the user reloaded
+                    //    mid-build, only the slots that had landed in
+                    //    Mongo before the AbortController fired survived,
+                    //    and the next reload's FIND saw the half-built
+                    //    day-col, took the "skip" branch, and the
+                    //    schedule stayed stuck at "Due only".
+                    //
+                    //    Now we walk every template Day child and FIRST
+                    //    check whether a copy already exists under the
+                    //    day-col (matched via linkedGroupId="lg-<tplId>",
+                    //    which COPY_LINK derives deterministically from
+                    //    the source id). If it exists, skip — that slot
+                    //    is already populated. If missing, COPY_LINK +
+                    //    APPLY_TEMPLATE the instances. Reloads now
+                    //    self-heal a partial build with O(missing) work.
+                    {
+                      id: uid(), type: "loop", overExpr: "$dayCont.occurrences", as: "$tplChildId",
+                      body: [
+                        { id: uid(), type: "action", config: {
+                            type: "SET_VAR", name: "$tplChild",
+                            expr: "$allItemsById.${$tplChildId}",
+                        }},
+                        // Idempotency check: does a copy of this template
+                        // child already live under the day-col? COPY_LINK
+                        // stamps `meta.copyLinkSource = <sourceId>` on
+                        // every cloned occurrence, so the match is direct
+                        // and discoverable — no need for the op author to
+                        // know the `lg-<id>` linkedGroupId derivation rule.
+                        { id: uid(), type: "action", config: {
+                            type: "FIND", over: "$allContainers",
+                            predicate: { operator: "AND", rules: [
+                              { id: uid(), left: "meta.copyLinkSource", comparator: "IS",           right: "$tplChildId" },
+                              { id: uid(), left: "_ancestors",          comparator: "HAS_ANCESTOR", right: "$dayColId" },
+                            ]},
+                            itemIdVar: "$slotCopyId",
+                        }},
+                        // Only build this slot if it's not already there.
+                        {
+                          id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [{ id: uid(), left: "$slotCopyId", comparator: "IS_EMPTY", right: "" }] },
+                          then: [
+                            // 2a. Shallow COPY_LINK the slot/Due — shares
+                            //     the template's module + linkedGroupId,
+                            //     but its occurrences[] starts empty so we
+                            //     can populate it with per-day instances.
+                            { id: uid(), type: "action", config: {
+                                type: "COPY_LINK",
+                                sourceId: "$tplChildId",
+                                parent: "$dayColId",
+                                recursive: false,
+                                itemIdVar: "$slotCopyId",
+                            }},
+                            // 2b. Per-instance: APPLY_TEMPLATE the template
+                            //     instance into the slot copy. Deep clones
+                            //     (fresh module + occurrence). defaultFields
+                            //     stamps the date.
+                            {
+                              id: uid(), type: "loop", overExpr: "$tplChild.occurrences", as: "$tplInstId",
+                              body: [{ id: uid(), type: "action", config: {
+                                  type: "APPLY_TEMPLATE",
+                                  templateRef: "$tplInstId",
+                                  rootParent: "$slotCopyId",
+                                  defaultFields: { [dateFieldId]: "$day" },
+                              }}],
+                            },
+                          ],
+                          else: [],
+                        },
+                      ],
+                    },
+                  ],
+                },
 
-            // ── PHASE 5: teardown out-of-period / wrong-format day-cols ─────
-            // Loop every container under Schedule that has the scheduleFormat
-            // field stamped (i.e. is a day-col). DELETE if EITHER:
-            // (a) its date field is NOT in $activePeriodDates, OR
-            // (b) its scheduleFormat doesn't match the current mode
-            //     (timeslot when ≤7, shortened when >7).
-            // Slots aren't touched — they don't carry scheduleFormat, so the
-            // outer `IS_NOT_EMPTY` gate skips them. Slots are multi-parented
-            // into surviving day-cols, so DELETE doesn't cascade.
-            ...(scheduleFormatFieldId ? [
-              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$expectedFormat", expr: "literal:timeslot" } },
-              {
-                id: uid(), type: "if",
-                condition: { operator: "AND", rules: [{ id: uid(), left: "$activePeriodCount", comparator: "GREATER", right: 7 }] },
-                then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$expectedFormat", expr: "literal:shortened" } }],
-                else: [],
-              },
-              {
-                id: uid(), type: "loop", overExpr: "$allContainers", as: "$cont",
-                body: [{
-                  id: uid(), type: "if",
+                // ── PHASE B: layout cascade ──────────────────────────────────
+                // hideChildIds is empty — the template's Day container lives
+                // in Library > Templates, not under Schedule, so nothing needs
+                // hiding at the Schedule page level.
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$pageMode",    expr: "literal:stack" } },
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$pageColumns", value: 1 } },
+                { id: uid(), type: "if",
                   condition: { operator: "AND", rules: [
-                    { id: uid(), left: "$cont._ancestors",                                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                    { id: uid(), left: `$cont.fields.${scheduleFormatFieldId}.value`,            comparator: "IS_NOT_EMPTY", right: "" },
+                    { id: uid(), left: "$activePeriodCount", comparator: "GREATER",       right: 1 },
+                    { id: uid(), left: "$activePeriodCount", comparator: "LESS_OR_EQUAL", right: 7 },
                   ]},
-                  then: [{
-                    id: uid(), type: "if",
-                    condition: { operator: "AND", rules: [
-                      { id: uid(), left: "$activePeriodDates",                                   comparator: "ARRAY_INCLUDES", right: `$cont.fields.${dateFieldId}.value` },
-                      { id: uid(), left: `$cont.fields.${scheduleFormatFieldId}.value`,          comparator: "IS",             right: "$expectedFormat" },
-                    ]},
-                    then: [],
-                    else: [{ id: uid(), type: "action", config: {
-                        type: "DELETE",
-                        itemIdExpr: "$cont.id",
-                    }}],
-                  }],
+                  then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$pageMode", expr: "literal:flex-row" } }],
                   else: [],
-                }],
-              },
-            ] : []),
+                },
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [{ id: uid(), left: "$activePeriodCount", comparator: "GREATER", right: 7 }] },
+                  then: [
+                    { id: uid(), type: "action", config: { type: "SET_VAR", name: "$pageMode",    expr: "literal:grid" } },
+                    { id: uid(), type: "action", config: { type: "SET_VAR", name: "$pageColumns", value: 7 } },
+                  ],
+                  else: [],
+                },
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageOcc", expr: `$allItemsById.${schedulePageOccId}` } },
+                { id: uid(), type: "action", config: {
+                    type: "UPDATE",
+                    path: "$schedPageOcc.meta.layoutCascadeOverride",
+                    value: { mode: "$pageMode", columns: "$pageColumns", hideChildIds: "json:[]" },
+                }},
 
-            // ── PHASE 6: per-day todo sweep into shared Due ─────────────────
-            // For each $day, sweep matching todos into the shared Due via
-            // COPY_LINK (so completion fan-out works). All swept copies live
-            // under the shared Due — visibility cascade filters them per
-            // day-col render via the day-col's filterOverride.
-            {
-              id: uid(), type: "if",
-              condition: { operator: "AND", rules: [
-                { id: uid(), left: "$todoContId",  comparator: "IS_NOT_EMPTY", right: "" },
-                { id: uid(), left: "$sharedDueId", comparator: "IS_NOT_EMPTY", right: "" },
-              ]},
-              then: [{
-                id: uid(), type: "loop", overExpr: "$activePeriodDates", as: "$day",
-                body: [{
-                  id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
+                // ── PHASE C: teardown out-of-period day-cols ─────────────────
+                // Delete every container under Schedule tagged scheduleFormat="day-col"
+                // whose date is NOT in the active period. The template (and its
+                // routine instances) live elsewhere, so DELETE doesn't cascade
+                // into shared structure.
+                {
+                  id: uid(), type: "loop", overExpr: "$allContainers", as: "$cont",
                   body: [{
                     id: uid(), type: "if",
                     condition: { operator: "AND", rules: [
-                      { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$todoContId" },
-                      { id: uid(), left: `$item.fields.${dueFieldId}.value`, comparator: "SAME_DAY", right: "$day" },
+                      { id: uid(), left: "$cont._ancestors",                                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                      { id: uid(), left: `$cont.fields.${scheduleFormatFieldId}.value`,            comparator: "IS",           right: "day-col" },
                     ]},
-                    then: [
-                      { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$todoTemplateId", expr: "$item.templateId" } },
-                      { id: uid(), type: "action", config: {
-                          type: "FIND", over: "$allInstances",
-                          predicate: { operator: "AND", rules: [
-                            { id: uid(), left: "templateId", comparator: "IS",           right: "$todoTemplateId" },
-                            { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$sharedDueId" },
-                            { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$day" },
-                          ]},
-                          itemIdVar: "$existingCopyId",
-                      }},
-                      {
-                        id: uid(), type: "if",
-                        condition: { operator: "AND", rules: [{ id: uid(), left: "$existingCopyId", comparator: "IS_EMPTY", right: "" }] },
-                        then: [{ id: uid(), type: "action", config: {
-                            type: "COPY_LINK",
-                            sourceId: "$item.id",
-                            parent: "$sharedDueId",
-                            fields: { [dateFieldId]: "$day", [dueFieldId]: "$day" },
-                        }}],
-                        else: [{ id: uid(), type: "action", config: {
-                            type: "COPY_LINK",
-                            sourceId: "$item.id",
-                            targetId: "$existingCopyId",
-                        }}],
-                      },
-                    ],
+                    then: [{
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: "$activePeriodDates", comparator: "ARRAY_INCLUDES", right: `$cont.fields.${dateFieldId}.value` },
+                      ]},
+                      then: [],
+                      else: [{ id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$cont.id" } }],
+                    }],
                     else: [],
                   }],
-                }],
-              }],
+                },
+
+                // Tail: re-aggregate trackers so newly-built day-cols + their
+                // linked routine instances tick goal totals immediately.
+                { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: waterTrackerName } },
+                { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: completedTrackerName } },
+              ],
               else: [],
             },
-
-            // Tail: re-aggregate trackers so newly-seeded routine + swept
-            // todos tick goal totals immediately. Names parameterized so
-            // live data ("Tracker: Water") and test grid ("Tracker: Water Today")
-            // each point at the right ops.
-            { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: waterTrackerName } },
-            { id: uid(), type: "action", config: { type: "RUN_OPERATION", operationName: completedTrackerName } },
-          ],
-          else: [],
-        },
           ],
           else: [],
         },
@@ -1287,13 +1279,14 @@ export function makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolder
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" }},
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalsPage",   expr: `$allItemsById.${goalsPageOccId}` }},
 
-        // Ancestor guard — grid/onLoad fall through (no sourceOccurrenceId);
-        // filterNav matches when ancestor chain includes Schedule or Goals.
+        // Source-only guard — fires once per filter change (grid/onLoad
+        // when source is empty; the Schedule/Goals page itself when source
+        // matches). Descendant-cascade NavigationOps are skipped.
         { id: uid(), type: "if",
           condition: { operator: "OR", rules: [
-            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS_EMPTY",     right: "" },
-            { id: uid(), left: "$trigger._ancestorIds",       comparator: "HAS_ANCESTOR", right: "$schedPage.id" },
-            { id: uid(), left: "$trigger._ancestorIds",       comparator: "HAS_ANCESTOR", right: "$goalsPage.id" },
+            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS_EMPTY", right: "" },
+            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$schedPage.id" },
+            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$goalsPage.id" },
           ]},
           then: [
         // Resolve the date exactly like Build Day: $trigger.date wins (every
@@ -1594,7 +1587,10 @@ export function makeProjectStatusRouterOp({ userId, gridId, statusFieldId }) {
       sources: [],
       steps: [
         // ── Trigger args ──────────────────────────────────────────────────
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$newStatus", expr: "$trigger.value" } },
+        // MeasureOp carries `fields: { [fid]: { value, flow } }` (coalesced
+        // shape — see CommitHelpers / dropHandlers fire sites). Read the
+        // status field's new value off that map.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$newStatus", expr: `$trigger.fields.${statusFieldId}.value` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$taskId",    expr: "$trigger.occurrenceId" } },
 
         // ── Resolve the task occurrence (need its parentId) ──────────────
@@ -1692,10 +1688,10 @@ export function makeDayPageBuildTasksCompletedOp({
       { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 4 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule", priority: 4 },
       { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId, priority: 4 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 4 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 4 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 4 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 4 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 4 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 4 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 4 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 4 },
     ],
     enabled: true,
     pipeline: {
@@ -1723,6 +1719,28 @@ export function makeDayPageBuildTasksCompletedOp({
         },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayPageName", expr: "Day Page - ${$dayDate}" } },
 
+        // SCOPE GUARD (2026-05-25 part 3 — inclusive). Only rebuild the
+        // Tasks-Completed embed list on a genuine Schedule change: a bulk
+        // fire (no trigger occurrence) OR a trigger occurrence under the
+        // Schedule page (a task completion toggle, a drag in/out, a slot
+        // container from Build Day's APPLY_TEMPLATE). Without this, the op's
+        // unscoped onAdd/onDelete instance+container triggers re-fire it on
+        // EVERY other mirror op's row/card CRUD — it fired 57x in the
+        // toolkit-drop freeze even though it only writes a textmap (no CRUD
+        // fuel of its own). ANDed into the $dayPageId gate below.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerOccId",   expr: "$trigger.occurrenceId" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$isSourceChange", expr: "literal:0" } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$triggerOccId", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
+          else: [],
+        },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$trigger.occurrence._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" }] },
+          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
+          else: [],
+        },
+
         // Locate the day page for $dayDate.
         { id: uid(), type: "action", config: {
             type: "FIND",
@@ -1735,8 +1753,13 @@ export function makeDayPageBuildTasksCompletedOp({
         }},
         // Bail when no day page has been built yet — Day Page: Build runs
         // earlier in the same priority sweep but this op is safe either way.
+        // Also bail (no-op) when this wasn't a genuine Schedule source change
+        // (see SCOPE GUARD above) so non-source CRUD echoes don't rebuild.
         { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$dayPageId",      comparator: "IS_NOT_EMPTY", right: "" },
+            { id: uid(), left: "$isSourceChange", comparator: "IS",           right: 1  },
+          ] },
           then: [
             // Find the Tasks Completed container as a direct child of the
             // day page. Match by parentId + label — both fields survive the
@@ -1807,7 +1830,7 @@ export function makeDayPageBuildTasksCompletedOp({
   };
 }
 
-export function makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPanelModuleId, lastSeenFieldId = null }) {
+export function makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPanelModuleId, lastSeenFieldId = null, dateFieldId = null }) {
   const steps = [
     // Bind $item to the freshly-created occurrence so UPDATE paths resolve.
     { id: uid(), type: "action", config: {
@@ -1817,19 +1840,30 @@ export function makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPa
         ]},
         itemVar: "$item",
     }},
-    // Date stamping is handled by the drop side (dropHandlers.stampPageFilterFields /
-    // computePageFilterFields) which reads the slot's parent-chain effective
-    // filter at drop time and pre-stamps the new occurrence's fields BEFORE
-    // the OccurrenceCreateOp dispatch. The Stamp op only handles the timeslot
-    // label here — writing the date again would overwrite the drop-side stamp
-    // with $trigger._effectiveFilter.Date, which doesn't exist on the
-    // optimistic OccurrenceCreateOp transaction (resolves to undefined → null).
+    // Timeslot label — derives from the destination container's label, which
+    // the OccurrenceCreateOp trigger carries as $trigger.containerLabel.
     { id: uid(), type: "action", config: {
         type: "UPDATE",
         path: `$item.fields.${timeslotFieldId}.value`,
         value: "$trigger.containerLabel",
     }},
   ];
+  // Date stamp — resolves the destination's effective filter date via the
+  // bound $item's _effectiveFilter (precomputed by executePipeline at
+  // pipeline start), falling back to $today. Routes through UPDATE_ITEM_FIELD
+  // so bindSocketToStore's auto-bind side-effect adds the date binding to
+  // the source module the first time it's needed; subsequent drops are
+  // idempotent no-ops. Lives here (vs. dropHandlers.computePageFilterFields)
+  // so the stamping rule has a single architectural home.
+  if (dateFieldId) {
+    steps.push({
+      id: uid(), type: "action", config: {
+        type: "UPDATE",
+        path: `$item.fields.${dateFieldId}.value`,
+        value: `$item._effectiveFilter.${dateFieldId}`,
+      },
+    });
+  }
   // Optional lastSeen stamp — when a lastSeenFieldId is provided, also stamp
   // today's date (or the active Schedule filter date) onto the dropped
   // occurrence so "last seen / last touched" displays + occurrence-select
@@ -2133,16 +2167,15 @@ export function makeTrackerOp({
   }
   const uniqMeasureFieldIds = [...new Set(measureFieldIds)];
 
+  // MeasureOp now carries `fields: { [fid]: value }` (coalesced) and the
+  // executor's matchSubjectFilter already drops MeasureOps that don't touch
+  // any of this op's targeted fields — so the in-pipeline `$trigger.fieldId IS X`
+  // gate is redundant. We keep only the date-gate when this tracker is
+  // date-scoped (filters out MeasureOps from occurrences outside $goalPeriod).
   const measureRule = {
     id: uid(), operator: "AND",
     rules: [
       { id: uid(), left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
-      uniqMeasureFieldIds.length === 1
-        ? { id: uid(), left: "$trigger.fieldId", comparator: "IS", right: uniqMeasureFieldIds[0] }
-        : {
-            id: uid(), operator: "OR",
-            rules: uniqMeasureFieldIds.map((fid) => ({ id: uid(), left: "$trigger.fieldId", comparator: "IS", right: fid })),
-          },
       ...(dateGated
         ? [{ id: uid(), left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" }]
         : []),
@@ -2195,8 +2228,13 @@ export function makeTrackerOp({
     // item removal.
     triggerObjects: [
       ...onChangeTriggers,
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      // Narrowed to ancestorLabel:"Schedule" — trackers aggregate over Schedule
+      // tasks, so a container/instance add outside the Schedule subtree (e.g.
+      // dropping a textblock into Notes) has no possible effect on the goal
+      // total and shouldn't pay the per-op match + pipeline-setup cost.
+      // Pairs with the executor's matchAncestorScope extension covering onAdd/onDelete.
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Daily Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],

@@ -5,7 +5,7 @@
 // so the parent doc stays open and scrolls to that heading.
 import { useContext, useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { GridActionsContext } from "../GridActionsContext.js";
+import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Folder, Table, Pencil, Trash2, X, Image as ImageIcon } from "lucide-react";
 import ContextMenu from "../ui/ContextMenu.jsx";
@@ -394,7 +394,7 @@ function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
 
 // ─── FolderNode ──────────────────────────────────────────────────────────────
 function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId, onOpenPage, onOpenPageAndClose, showAnchors = true }) {
-  const { dispatch, socket, state } = useContext(GridActionsContext);
+  const { dispatch, socket, state } = useGridActions();
   const [open, setOpen] = useState(folder?.isExpanded !== false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -739,7 +739,7 @@ const PAGE_KIND_GLYPH = { canvas: "∿", doc: "≋", display: "□", board: "≡
 
 // ─── PageTreeNode — pill style page entry + container anchor chips (draggable) ──
 function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId, folderPageOccId, reverseIndent = false, depth = 0, siblingOccs = null }) {
-  const { dispatch, socket } = useContext(GridActionsContext);
+  const { dispatch, socket } = useGridActions();
   const pageOcc = occurrencesById?.[pageOccId];
   const pageMod = pageOcc ? modulesById?.[pageOcc.moduleId] : null;
   const [open, setOpen] = useState(false);
@@ -895,7 +895,7 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
 
 // ─── LocalFolderGroup — folder header + pinned pages, mirrors FolderNode style ──
 function LocalFolderGroup({ folder, pageOccIds, occurrencesById, modulesById, childrenByParentId, view, onOpenPage, onClosePage, onSelect, onScrollTo }) {
-  const { dispatch, socket, state } = useContext(GridActionsContext);
+  const { dispatch, socket, state } = useGridActions();
   const [open, setOpen] = useState(true);
   const hasChildren = pageOccIds.length > 0;
 
@@ -1009,7 +1009,7 @@ function AnchorChip({ contOcc, modulesById, onOpenPage, pageOccId }) {
 
 // ─── ManifestTree ─────────────────────────────────────────────────────────────
 export default function ManifestTree({ manifestId, view, dispatch, socket, collapsed, onToggleCollapse, scrollHighlightId, panelOccurrence, onOpenPage, onClosePage, activePageView }) {
-  const { manifestsById, foldersById, occurrencesById, modulesById, childrenByParentId, state } = useContext(GridActionsContext);
+  const { manifestsById, foldersById, occurrencesById, modulesById, childrenByParentId, state } = useGridActions();
   // foldersById is already available above
   const manifest = manifestsById?.[manifestId];
   const rootFolder = manifest?.rootFolderId ? foldersById?.[manifest.rootFolderId] : null;

@@ -1,0 +1,632 @@
+Layout was forced before the page was fully loaded. If stylesheets are not yet loaded this may cause a flash of unstyled content. node.js:416:1
+[socket] full_state received: 
+Object { gridId: "6a173172a3f08eb24e9fe64a", grid: {…}, modules: (649) […], occurrences: (724) […], fields: (126) […], manifests: (2) […], views: (10) […], folders: (27) […], operations: (67) […], grids: (1) […] }
+PagePreviewApp-CjXwhsUD.js:5:20375
+[full_state-client] +3ms reducer dispatched (724 occs, 649 mods) PagePreviewApp-CjXwhsUD.js:5:20297
+[op-timing] null total=807ms ops=55
+    386ms    3fx  Schedule: Build Schedule
+     33ms    0fx  Table: Build
+     33ms    0fx  Canvas: Build
+     33ms    1fx  People Table: Build
+     20ms    1fx  Time Spent
+     18ms    1fx  Day Page: Build Tasks Completed
+     12ms    1fx  Carbs
+     11ms    1fx  Completed
+     11ms    0fx  Phone Calls
+     11ms    1fx  Total Workouts
+     10ms    1fx  Task Countdown
+     10ms    0fx  Podcasts Listened
+      9ms    1fx  Steps
+      9ms    1fx  Pages
+      9ms    1fx  Monthly Bills
+      8ms    1fx  Spent
+      7ms    1fx  Pomodoro Time
+      7ms    1fx  Arms Volume
+      7ms    1fx  Checking Balance
+      7ms    1fx  Completion Rate
+      7ms    0fx  Due: Seed
+      7ms    1fx  Net Worth
+      6ms    1fx  Water
+      6ms    1fx  Pomodoros Today
+      6ms    1fx  Earned
+      6ms    1fx  Protein
+      6ms    1fx  Fats
+      6ms    1fx  Time Spent This Week
+      5ms    0fx  Moods
+      5ms    1fx  Total Reps
+      5ms    1fx  Mom's Account Balance
+      5ms    2fx  Purchase History
+      5ms    1fx  Total Subscriptions
+      4ms    0fx  Day Page: Build
+      4ms    1fx  Back Volume
+      4ms    1fx  Legs Volume
+      4ms    1fx  Shoulders Volume
+      4ms    1fx  Cardio Volume
+      4ms    1fx  Lunch Nutrition
+      4ms    1fx  Snack Nutrition
+      4ms    1fx  Total Reading Time
+      4ms    0fx  Movies Watched
+      4ms    0fx  Books Read
+      4ms    2fx  Pomodoro History
+      4ms    2fx  Current Streak
+      4ms    2fx  Meal History
+      4ms    0fx  Compute Next Due
+      4ms    0fx  Mark Passed Timeslots
+      3ms    1fx  Chest Volume
+      3ms    1fx  Breakfast Nutrition
+      3ms    1fx  Dinner Nutrition
+      3ms    0fx  Courses Taken
+      3ms    0fx  Daily Question Rotator
+      3ms    2fx  Workout History
+      3ms    0fx  Project: Create PagePreviewApp-CjXwhsUD.js:4:12
+[full_state-client] runMatchingOperations: 809ms — 67 ops, 48 effects, 0 display updates PagePreviewApp-CjXwhsUD.js:5:22539
+[full_state-client] applied effects in 4ms PagePreviewApp-CjXwhsUD.js:5:22741
+[dragDiag] CONTAINER render 
+Object { id: "ybZ0a6PmaWq7", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "haZTVKqTm5jV", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "h-OMcI7u7nuQ", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "s_cGHxcIC9Up", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "3D3xLYPwC8xB", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "46cQ-JlQnr5u", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "Rtb0Bu9inuVZ", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "iZb1N_Atuhwb", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "QMCkGtGPJIYQ", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "b4bbbd7f-c75f-446a-b6b2-b445a2be0b96", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "FsiUbTeFhte0", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "TmncSiMi7ni5", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "p1Xb-DhChcCv", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "ABG4y10Y-KDf", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "s-cWHKJdtipd", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XIm_-0LDWcFZ", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "ISOw8toG2Txt", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "08RV1Nw849Ks", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "1BS4G2KchuwT", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "IU3OmKRxzPQU", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "kb7rtpAJHV0_", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "HTaXtrReJ-c2", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XYSr2fnNAow2", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "mgvBVL3Iwhec", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "dUvklB4lkFEJ", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "kcCFTx0B3_J0", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "9NZg_NUo3NMC", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "xfRVrNmsEeDw", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "4PcIR38eMhx7", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "Ua-Hgk1nwSi6", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "ix371rBXJCFg", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "gZKbYhQZOhzV", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "qlNEtCZVfeA8", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "Nw6ir3vsJVdZ", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "dkV-cVVH2PuL", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "qQKpuqP-PMe1", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "toE1ngde_Bn8", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "Vp5LdACh2toZ", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "henNKWhUlOQH", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "jvpJ94ZbZFLf", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "Rn6rFHV4ufGH", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "n4n8AL0gv8QD", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "qhxScr1ysgMf", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "RdIn5LYOSVr6", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "fuz13tPHxG_7", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "mvrQ94xly8IP", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "BiWHctY3Rr3U", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "5y6iDIPQwbQc", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "wlcEtcyemcjO", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "IjX6C_asftHF", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XtlfT9l6UGsc", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "Js0WeHdr7oxC", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "HzvNVxW8DCqE", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "t4KviUOAugQs", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "cf7pFLJzOH5Y", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "m3Qm7fyrokQo", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "qVpnnQrCH2_t", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "e_bO-6vnKTVc", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "lvooNJHAc85U", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "I3h7HFQ5zB3I", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "myxbeH6lvfrF", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "RrXGvvIF3s8Y", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "8LO2rTY2QgFt", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "B6qYc7fdwI_u", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "CbfUrr97bJyh", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "LvA2hOrx0TPW", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "vfWaoSxCL4Uq", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "k2dgGNcrY8bL", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "Tayzd8B6mX0p", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "2lr_PSYmtn7y", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "cUtoNaqWBmvM", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "VMPNx6i6RFtX", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "i_hJuwI5MUx3", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "f1_nCoP7-Lwu", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "tYSkVIyXeduw", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "m5Msv2-8kfer", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "haZTVKqTm5jV", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "h-OMcI7u7nuQ", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "3D3xLYPwC8xB", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "3D3xLYPwC8xB", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "b4bbbd7f-c75f-446a-b6b2-b445a2be0b96", isContainerOver: true, closestEdge: "left" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "FsiUbTeFhte0", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "TmncSiMi7ni5", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "p1Xb-DhChcCv", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "ABG4y10Y-KDf", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "s-cWHKJdtipd", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "left" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XIm_-0LDWcFZ", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "ISOw8toG2Txt", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "08RV1Nw849Ks", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "1BS4G2KchuwT", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "IU3OmKRxzPQU", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "kb7rtpAJHV0_", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "HTaXtrReJ-c2", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XYSr2fnNAow2", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "mgvBVL3Iwhec", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "dUvklB4lkFEJ", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "kcCFTx0B3_J0", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "9NZg_NUo3NMC", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "xfRVrNmsEeDw", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "4PcIR38eMhx7", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "Ua-Hgk1nwSi6", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "ix371rBXJCFg", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "gZKbYhQZOhzV", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "qlNEtCZVfeA8", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "Nw6ir3vsJVdZ", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "dkV-cVVH2PuL", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "qQKpuqP-PMe1", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "toE1ngde_Bn8", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "Vp5LdACh2toZ", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "henNKWhUlOQH", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "jvpJ94ZbZFLf", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "Rn6rFHV4ufGH", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "n4n8AL0gv8QD", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "qhxScr1ysgMf", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "RdIn5LYOSVr6", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "fuz13tPHxG_7", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "mvrQ94xly8IP", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "BiWHctY3Rr3U", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "5y6iDIPQwbQc", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "wlcEtcyemcjO", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "IjX6C_asftHF", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XtlfT9l6UGsc", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "Js0WeHdr7oxC", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "HzvNVxW8DCqE", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "t4KviUOAugQs", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "cf7pFLJzOH5Y", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "m3Qm7fyrokQo", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "qVpnnQrCH2_t", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "e_bO-6vnKTVc", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "bottom" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "bottom" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "bottom" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "bottom" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "bottom" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: true, closestEdge: "bottom" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XIm_-0LDWcFZ", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "D6VihBGm1e1P", isContainerOver: false, closestEdge: null }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XIm_-0LDWcFZ", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XIm_-0LDWcFZ", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XIm_-0LDWcFZ", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XIm_-0LDWcFZ", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XIm_-0LDWcFZ", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XIm_-0LDWcFZ", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XIm_-0LDWcFZ", isContainerOver: true, closestEdge: "bottom" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XIm_-0LDWcFZ", isContainerOver: true, closestEdge: "bottom" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[dragDiag] CONTAINER render 
+Object { id: "XIm_-0LDWcFZ", isContainerOver: true, closestEdge: "top" }
+PagePreviewApp-CjXwhsUD.js:56:98956
+[drop] +0ms handleDrop entry App-VN392DQU.js:1:138224
+[drop] +0ms rawEvent built App-VN392DQU.js:1:138224
+[drop] +0ms dropContext built (target=occurrence mode=copy) App-VN392DQU.js:1:138224
+[op-fire] depth=1 OccurrenceCreateOp occ=17799072 PagePreviewApp-CjXwhsUD.js:5:37913
+[op-timing] OccurrenceCreateOp total=431ms ops=49
+     83ms   36fx  Table: Build
+     50ms    3fx  Canvas: Build
+     17ms    1fx  Day Page: Build Tasks Completed
+     15ms    1fx  Completed
+     12ms    1fx  Water
+     11ms    1fx  Total Workouts
+     11ms    1fx  Monthly Bills
+     10ms    1fx  Spent
+      9ms    3fx  Schedule: Stamp Date & Time Slot
+      9ms    1fx  Total Reps
+      9ms    0fx  Podcasts Listened
+      8ms    1fx  Time Spent
+      8ms    1fx  Checking Balance
+      8ms    1fx  Completion Rate
+      8ms   11fx  Compute Next Due
+      7ms    1fx  Steps
+      7ms    1fx  Earned
+      7ms    1fx  Breakfast Nutrition
+      7ms    1fx  Time Spent This Week
+      6ms    1fx  Pages
+      6ms    1fx  Pomodoros Today
+      6ms    1fx  Pomodoro Time
+      6ms    1fx  Protein
+      6ms    1fx  Carbs
+      6ms    0fx  Due: Seed
+      6ms    1fx  Total Subscriptions
+      5ms    1fx  Task Countdown
+      5ms    0fx  Moods
+      5ms    0fx  Phone Calls
+      5ms    1fx  Fats
+      5ms    1fx  Legs Volume
+      5ms    1fx  Mom's Account Balance
+      5ms    1fx  Total Reading Time
+      5ms    2fx  Workout History
+      5ms    2fx  Purchase History
+      4ms    1fx  Chest Volume
+      4ms    1fx  Arms Volume
+      4ms    1fx  Lunch Nutrition
+      4ms    1fx  Dinner Nutrition
+      4ms    0fx  Movies Watched
+      4ms    2fx  Current Streak
+      3ms    1fx  Back Volume
+      3ms    1fx  Shoulders Volume
+      3ms    1fx  Cardio Volume
+      3ms    1fx  Snack Nutrition
+      3ms    0fx  Books Read
+      3ms    0fx  Courses Taken
+      3ms    2fx  Pomodoro History
+      3ms    2fx  Meal History PagePreviewApp-CjXwhsUD.js:4:12
+[op-effects] depth=1 "Schedule: Stamp Date & Time Slot" UPDATE_ITEM_FIELD=3 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Day Page: Build Tasks Completed" UPDATE_ITEM_TEXTMAP=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Table: Build" CREATE_ITEM=1 UPDATE_OCCURRENCE=1 UPDATE_ITEM_META=34 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-effects] depth=1 "Canvas: Build" CREATE_ITEM=1 UPDATE_ITEM_META=2 PagePreviewApp-CjXwhsUD.js:5:38530
+[op-fire] depth=2 MeasureOp occ=17799072 2 PagePreviewApp-CjXwhsUD.js:5:37913
+[op-fire-done] depth=1 OccurrenceCreateOp 444ms total=85 display=11 PagePreviewApp-CjXwhsUD.js:5:38786
+[drop] +449ms routeDrop returned (sync mutations + op fires done) App-VN392DQU.js:1:138224
+[drop] +449ms clearSession done — handleDrop synchronous end App-VN392DQU.js:1:138224
+[drop] +0ms handleDrop entry 4 App-VN392DQU.js:1:138224
+[drop] +725ms rAF #1 (pre-paint of next frame) App-VN392DQU.js:1:138224
+[drop] +781ms rAF #2 (next frame painted) App-VN392DQU.js:1:138224
+[drop-renders] panel=10 container=154 instance=168 page=10 field=0 App-VN392DQU.js:1:139818
+[op-fire] depth=1 MeasureOp — 3 PagePreviewApp-CjXwhsUD.js:5:37913

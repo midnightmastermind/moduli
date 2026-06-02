@@ -36,11 +36,13 @@ import { embedDeleteRegistry } from "../helpers/embedRegistry";
 import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table";
 import { FieldPill } from "../docs/FieldPillExtension";
 import { InstancePill } from "../docs/InstancePillExtension";
+import { Footnote } from "../docs/FootnoteExtension";
 import { DocLink } from "../docs/DocLinkExtension";
 import { PillBackspace } from "../docs/PillBackspaceExtension";
 import { HeadingFocus } from "../docs/HeadingFocusExtension";
 import { ModuleEmbed } from "../docs/ModuleEmbedExtension";
 import { InstanceTextblock } from "../docs/InstanceTextblockExtension";
+import { InstanceTextblockInline } from "../docs/InstanceTextblockInlineExtension";
 import { ExprPill } from "../docs/ExprPillExtension";
 import { CellEmbedContext } from "../docs/CellEmbedContext";
 import FieldSuggestion from "../docs/suggestions/FieldSuggestion";
@@ -48,9 +50,9 @@ import CommandPalette from "../docs/suggestions/CommandPalette";
 import DocLinkSuggestion from "../docs/suggestions/DocLinkSuggestion";
 import DocToolbar from "../docs/DocToolbar";
 import ContextMenu from "./ContextMenu";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box } from "lucide-react";
+import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type } from "lucide-react";
 
 // Atomic same-doc move for a TipTap embed node (instanceTextblock,
 // moduleEmbed). Scans the editor's doc for a node whose attrs match
@@ -163,7 +165,7 @@ const Editor = forwardRef(function Editor({
   // Cell mode: opt-in via mode="cell". Gates doc-only behaviors and enables
   // spreadsheet navigation keymaps. The default mode="doc" path is unchanged.
   const isCell = mode === "cell";
-  const { fieldsById, instancesById, occurrencesById, modulesById } = useContext(GridActionsContext) || {};
+  const { fieldsById, instancesById, occurrencesById, modulesById } = useGridActions() || {};
 
   // Suggestion / palette state
   const [showSuggestion, setShowSuggestion] = useState(false);
@@ -298,12 +300,14 @@ const Editor = forwardRef(function Editor({
       FieldPill,
       InstancePill,
       InstanceTextblock,
+      InstanceTextblockInline,
+      Footnote,
       DocLink,
       PillBackspace,
       HeadingFocus,
       ModuleEmbed,
       ExprPill,
-      Table.configure({ resizable: false }),
+      Table.configure({ resizable: true }),
       TableRow,
       TableCell,
       TableHeader,
@@ -860,6 +864,99 @@ const Editor = forwardRef(function Editor({
         },
       },
       hasSelection && dispatch && socket && occurrence?.userId && { separator: true },
+      hasSelection && dispatch && socket && occurrence?.userId && {
+        label: "Make inline textblock",
+        icon: Type,
+        onClick: () => {
+          const userId = occurrence.userId;
+          const gridId = occurrence.gridId;
+          const modId = crypto.randomUUID();
+          const occId = crypto.randomUUID();
+          const text = (capturedText || "").trim();
+          const initialTextmap = text
+            ? { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] }
+            : { type: "doc", content: [{ type: "paragraph" }] };
+          CommitHelpers.createModule({
+            dispatch, socket,
+            module: { id: modId, userId, gridId, role: "textblock", kind: "inline", label: "" },
+            emit: true,
+          });
+          CommitHelpers.createOccurrence({
+            dispatch, socket,
+            occurrence: {
+              id: occId, userId, gridId,
+              moduleId: modId,
+              parentId: occurrence?.id,
+              textmap: initialTextmap,
+              fields: {},
+            },
+            emit: true,
+          });
+          const schema = editor.state.schema;
+          if (!schema.nodes.instanceTextblockInline) return;
+          const inlineNode = schema.nodes.instanceTextblockInline.create({
+            instanceId: modId,
+            occurrenceId: occId,
+          });
+          editor.chain().focus().insertContentAt(
+            { from: capturedFrom, to: capturedTo },
+            inlineNode.toJSON()
+          ).run();
+        },
+      },
+      hasSelection && dispatch && socket && occurrence?.userId && {
+        label: "Split into inline textblocks",
+        icon: Type,
+        onClick: () => {
+          const userId = occurrence.userId;
+          const gridId = occurrence.gridId;
+          // Split on whitespace runs — keeps each visible "word" as a
+          // separate chip. Punctuation stays attached to the adjacent
+          // word (e.g. "hello," is one chip) — matches how a user reads
+          // a sentence. The original whitespace BETWEEN chips is
+          // discarded; chips render with their own padding so the
+          // visual gap is preserved.
+          const tokens = (capturedText || "")
+            .split(/\s+/)
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0);
+          if (tokens.length === 0) return;
+          const schema = editor.state.schema;
+          if (!schema.nodes.instanceTextblockInline) return;
+
+          // Mint one textblock module + occurrence per token. Build the
+          // TipTap content array as we go so we can replace the entire
+          // selection in a single transaction.
+          const inlineNodes = [];
+          for (const tok of tokens) {
+            const modId = crypto.randomUUID();
+            const occId = crypto.randomUUID();
+            CommitHelpers.createModule({
+              dispatch, socket,
+              module: { id: modId, userId, gridId, role: "textblock", kind: "inline", label: "" },
+              emit: true,
+            });
+            CommitHelpers.createOccurrence({
+              dispatch, socket,
+              occurrence: {
+                id: occId, userId, gridId,
+                moduleId: modId,
+                parentId: occurrence?.id,
+                textmap: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: tok }] }] },
+                fields: {},
+              },
+              emit: true,
+            });
+            inlineNodes.push(schema.nodes.instanceTextblockInline.create({ instanceId: modId, occurrenceId: occId }));
+          }
+          // Replace the selection with the chip sequence in one tx.
+          const docFragment = inlineNodes.map((n) => n.toJSON());
+          editor.chain().focus().insertContentAt(
+            { from: capturedFrom, to: capturedTo },
+            docFragment
+          ).run();
+        },
+      },
       hasSelection && dispatch && socket && occurrence?.userId && {
         label: "Make mini block",
         icon: Box,

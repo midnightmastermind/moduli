@@ -107,11 +107,66 @@ export function createInstanceInContainer({
 }
 
 // ===== OCCURRENCE =====
+// Helper: ensure every fieldId carried on `occurrence.fields` (with a real
+// value) has a binding on the source module's `fieldBindings`. Module-level
+// bindings are the system's canonical contract — the rest of the codebase
+// (renderers, forms, pickers) reads `module.fieldBindings` to know what
+// fields exist on an occurrence. When a drop / op pre-populates fields on
+// create, the binding must follow so the pill renders. Idempotent.
+// Exported for the op-CREATE_ITEM handler in bindSocketToStore (which mints
+// occurrences without going through `createOccurrence`).
+export function ensureModuleBindingsForOccurrenceFields({ dispatch, socket, occurrence }) {
+  const fields = occurrence?.fields;
+  if (!fields || typeof fields !== "object") return;
+  const fieldIds = Object.keys(fields).filter(fid => {
+    const v = fields[fid];
+    if (v == null) return false;
+    // Skip slots that exist but carry no real value yet (e.g. flow-only).
+    if (typeof v === "object" && !("value" in v)) return false;
+    const vv = typeof v === "object" ? v.value : v;
+    return vv != null && vv !== "";
+  });
+  if (fieldIds.length === 0) return;
+  const moduleId = occurrence.moduleId || occurrence.targetId;
+  if (!moduleId) return;
+  const mod = operationsBridge.getLocalMod?.(moduleId);
+  if (!mod) return;
+  const bindings = Array.isArray(mod.fieldBindings) ? mod.fieldBindings : [];
+  const bound = new Set(bindings.map(b => b?.fieldId).filter(Boolean));
+  const missing = fieldIds.filter(fid => !bound.has(fid));
+  if (missing.length === 0) return;
+  const maxOrder = bindings.reduce((m, b) => Math.max(m, b?.order ?? 0), -1);
+  const nextBindings = [...bindings];
+  for (let i = 0; i < missing.length; i++) {
+    nextBindings.push({ fieldId: missing[i], role: "input", order: maxOrder + 1 + i });
+  }
+  updateModule({
+    dispatch, socket,
+    module: { id: mod.id, fieldBindings: nextBindings },
+    emit: true,
+  });
+}
+
 export function createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null, containerLabel = "", panelLabel = "" }) {
   if (!occurrence?.id) return;
   operationsBridge.updateLocalOcc?.(occurrence);
   dispatch?.(createOccurrenceAction(occurrence));
   if (shouldEmit(emit)) safeEmit(socket, "create_occurrence", { occurrence });
+  // Module-level binding contract: if the new occurrence carries values for
+  // fields the module doesn't bind, add the bindings now so the pill renders.
+  ensureModuleBindingsForOccurrenceFields({ dispatch, socket, occurrence });
+  // Compute the new occurrence's ancestor chain so ancestor-scoped triggers
+  // (e.g. `ancestorLabel: "Daily Goals"` on a tracker's onAdd) can match.
+  // Without this enrichment, every tracker with an unscoped onAdd matched
+  // every create grid-wide — the 300ms+ fan-out per drop. Now ops opt in
+  // by declaring ancestorLabel on the trigger and the matcher drops them
+  // from the match list entirely when the create happened outside scope.
+  const ancestors = operationsBridge.getAncestorChain?.(occurrence.id) || { ids: [], labels: [] };
+  // ONE trigger per user action. A create fires OccurrenceCreateOp only;
+  // onAdd subscribers (incl. field-scoped via subjectType:"field" against
+  // transaction.fields[targetId]) match here. onChange is reserved for actual
+  // value changes on an existing occurrence (setOccurrenceFieldValue / the
+  // triggerField branch in updateOccurrence). No piggyback MeasureOp.
   operationsBridge.fireOperations?.("OccurrenceCreateOp", {
     type: "OccurrenceCreateOp",
     occurrenceId: occurrence.id,
@@ -119,26 +174,12 @@ export function createOccurrence({ dispatch, socket, occurrence, emit = true, pa
     containerId: occurrence.parentId,
     gridId: occurrence.gridId,
     ...(panelId ? { panelId } : {}),
-    // Trigger enrichment — operations like Schedule: Stamp Date read these
-    // off $trigger to populate slot fields. Without them the optimistic
-    // create writes nulls that overwrite drop-side pre-stamps.
     containerLabel,
     panelLabel,
+    fields: occurrence.fields || {},
+    _ancestorIds: ancestors.ids,
+    _ancestorLabels: ancestors.labels,
   });
-  // Fire MeasureOp for each field so onChange operations (e.g. aggregations) retrigger on add
-  const fields = occurrence.fields;
-  if (fields) {
-    for (const fieldId of Object.keys(fields)) {
-      const fv = fields[fieldId];
-      operationsBridge.fireOperations?.("MeasureOp", {
-        type: "MeasureOp",
-        occurrenceId: occurrence.id,
-        instanceId: occurrence.moduleId,
-        fieldId,
-        value: fv && typeof fv === "object" && "value" in fv ? fv.value : fv,
-      });
-    }
-  }
 }
 
 export function updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerField = null }) {
@@ -147,14 +188,53 @@ export function updateOccurrence({ dispatch, socket, occurrence, emit = true, tr
   // `updatedAt` so the server can reject this write when another window
   // landed a newer edit. Skipped silently when the local cache has no
   // updatedAt yet (first-write / pre-cache occurrence).
+  //
+  // #26 medium-tier: when the patch carries fields, also pass per-field
+  // baselines from the local cache's `fieldUpdatedAt` map. The server
+  // does per-field collision detection — fields whose stored timestamp
+  // is newer than what the client expected come back via
+  // `occurrence_field_conflict`; non-conflicting fields auto-merge so
+  // two windows editing different fields no longer trample each other.
   const localPrev = operationsBridge.getLocalOcc?.(occurrence.id) || null;
   const expectedUpdatedAt = localPrev?.updatedAt || null;
+  let expectedFieldUpdatedAt = null;
+  if (occurrence.fields && typeof occurrence.fields === "object" && Object.keys(occurrence.fields).length > 0) {
+    const prevFieldTs = (localPrev?.fieldUpdatedAt && typeof localPrev.fieldUpdatedAt === "object") ? localPrev.fieldUpdatedAt : {};
+    expectedFieldUpdatedAt = {};
+    for (const fid of Object.keys(occurrence.fields)) {
+      expectedFieldUpdatedAt[fid] = Number(prevFieldTs[fid]) || 0;
+    }
+  }
   dispatch?.(updateOccurrenceAction(occurrence));
   if (shouldEmit(emit)) {
-    const payload = expectedUpdatedAt
-      ? { occurrence, expectedUpdatedAt }
-      : { occurrence };
+    const payload = { occurrence };
+    if (expectedUpdatedAt) payload.expectedUpdatedAt = expectedUpdatedAt;
+    if (expectedFieldUpdatedAt) payload.expectedFieldUpdatedAt = expectedFieldUpdatedAt;
     safeEmit(socket, "update_occurrence", payload);
+
+    // Optimistically advance local updatedAt so the NEXT updateOccurrence
+    // call for this id (which can happen multiple times in a single tick
+    // when an op pipeline produces several UPDATE_OCCURRENCE effects for
+    // the same occurrence) uses a fresh expectedUpdatedAt. Without this:
+    // — Write 1 sends expectedUpdatedAt=T0 → server accepts, stores T1
+    // — Write 2 reads localPrev.updatedAt still=T0 (the persisted ack
+    //   hasn't round-tripped yet) → sends expectedUpdatedAt=T0
+    // — Server compares stored=T1 vs expected=T0 → flags as stale →
+    //   emits occurrence_stale → spurious "another window had a newer
+    //   edit" toast even though no other window exists.
+    // Per-field timestamps are also bumped so the medium-tier
+    // expectedFieldUpdatedAt check stays consistent.
+    if (localPrev) {
+      const nowIso = new Date().toISOString();
+      const nowMs = Date.now();
+      const patch = { ...localPrev, updatedAt: nowIso };
+      if (occurrence.fields && Object.keys(occurrence.fields).length > 0) {
+        const nextFieldTs = { ...(localPrev.fieldUpdatedAt || {}) };
+        for (const fid of Object.keys(occurrence.fields)) nextFieldTs[fid] = nowMs;
+        patch.fieldUpdatedAt = nextFieldTs;
+      }
+      operationsBridge.updateLocalOcc?.(patch);
+    }
   }
 
   // Optimistic linked-group fan-out: mirror the server's update_occurrence
@@ -179,12 +259,14 @@ export function updateOccurrence({ dispatch, socket, occurrence, emit = true, tr
   if (triggerField) {
     // Update local cache with the new occurrence so the executor sees the correct value
     operationsBridge.updateLocalOcc?.(occurrence);
+    const tfAncestors = operationsBridge.getAncestorChain?.(occurrence.id) || { ids: [], labels: [] };
     operationsBridge.fireOperations?.("MeasureOp", {
       type: "MeasureOp",
       occurrenceId: occurrence.id,
       instanceId: triggerField.instanceId,
-      fieldId: triggerField.fieldId,
-      value: triggerField.value,
+      fields: { [triggerField.fieldId]: triggerField.value },
+      _ancestorIds: tfAncestors.ids,
+      _ancestorLabels: tfAncestors.labels,
     });
   }
 }
@@ -288,11 +370,20 @@ export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOve
 
   if (!occurrencesById || !modulesById) return;
 
-  // Fire NavigationOp for the source occurrence — onFilterChange / onNavigation
-  // triggers configured with ancestorId/ancestorLabel use the source's ancestor
-  // chain to decide scope.
+  // Build the NavigationOp fan-out: one transaction for the source occurrence
+  // plus one for every descendant whose effective filter actually moved (still
+  // inheriting a changed key). Per-occurrence triggers (e.g. ancestorLabel +
+  // subjectRole:"container" on a timeslot) need a transaction carrying their
+  // own ancestor chain to match.
+  //
+  // These are fired as a SINGLE cascade so an op matching many of them runs
+  // ONCE — not once per descendant. Without this, changing the date on the
+  // Schedule page fanned out ~50 NavigationOps and re-ran every ancestor-scoped
+  // page-rebuild op (Table: Build / Canvas: Build / Build Schedule) ~50× — the
+  // 5-10s freeze. The rebuild ops resolve their date from targetOccurrenceId,
+  // not the trigger, so a single run is correct.
   const sourceChain = _ancestorChain(id, occurrencesById, modulesById);
-  operationsBridge.fireOperations?.("NavigationOp", {
+  const transactions = [{
     type: "NavigationOp",
     sourceOccurrenceId: id,
     occurrenceId: id,
@@ -301,19 +392,13 @@ export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOve
     activeFilterValues: filterOverride || {},
     _ancestorIds: sourceChain.ids,
     _ancestorLabels: sourceChain.labels,
-  });
+  }];
 
-  // Cascade: descendants whose effective filter actually moved (still inheriting
-  // any of the changed keys) need their own NavigationOp so per-occurrence
-  // triggers (e.g. ancestorLabel:"Schedule" + subjectRole:"container" on a
-  // timeslot) fire. The descendant's stored data is unchanged — only the
-  // derived effective filter shifted — so without an explicit fire here, those
-  // ops would never run when a parent's filter moves.
   if (changedKeys.length) {
     const affected = _walkInheritingDescendants(id, changedKeys, occurrencesById);
     for (const desc of affected) {
       const chain = _ancestorChain(desc.id, occurrencesById, modulesById);
-      operationsBridge.fireOperations?.("NavigationOp", {
+      transactions.push({
         type: "NavigationOp",
         sourceOccurrenceId: desc.id,
         occurrenceId: desc.id,
@@ -325,44 +410,86 @@ export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOve
       });
     }
   }
+
+  // Defer the cascade so the picker UI commits visually before the op storm
+  // runs. Filter writes are user-facing and the click latency dominates UX —
+  // without this, a date pick blocks the main thread for the sync cost of
+  // every matching rebuild op (Schedule: Build, Table: Build, trackers, …)
+  // plus their re-render fan-out. The Redux dispatch + socket emit + local
+  // cache update above already happened synchronously, so consumers reading
+  // grid.activeFilterValues / filterOverride see the new value immediately.
+  // The ops then catch up on the next animation frame.
+  const fireCascade = () => {
+    if (operationsBridge.fireOperationsBatch) {
+      operationsBridge.fireOperationsBatch("NavigationOp", transactions);
+    } else {
+      // Fallback (bridge not wired, e.g. in unit tests): fire individually.
+      for (const t of transactions) operationsBridge.fireOperations?.("NavigationOp", t);
+    }
+  };
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(fireCascade);
+  } else {
+    fireCascade();
+  }
 }
 
-export function deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, emit = true }) {
+export function deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, emit = true, fireTrigger = true }) {
   if (!occurrenceId) return;
+  // Snapshot the occurrence BEFORE eviction. Callers that delete via an
+  // operation effect (applyOperationEffect → DELETE_ITEM) don't pass
+  // `occurrence`, so without this the OccurrenceDeleteOp below fires with no
+  // override and the executor can't enrich `$trigger.occurrence` — which the
+  // Table/Canvas "Build" self-trigger guard relies on to tell "I deleted my
+  // own derived copy" from "the source changed". Missing that, the rebuild's
+  // own orphan-sweep deletes re-fire the rebuild → exponential freeze.
+  const snap = occurrence || operationsBridge.getLocalOcc?.(occurrenceId) || null;
+  // Capture ancestor chain BEFORE eviction so ancestor-scoped triggers
+  // (e.g. tracker onDelete ancestorLabel:"Daily Goals") can match against
+  // the occurrence's actual position in the tree at delete time.
+  const ancestors = operationsBridge.getAncestorChain?.(occurrenceId) || { ids: [], labels: [] };
   // Evict from local cache BEFORE dispatch so fireOperations sees updated state
   operationsBridge.removeLocalOcc?.(occurrenceId);
   dispatch?.(deleteOccurrenceAction(occurrenceId));
   if (shouldEmit(emit)) safeEmit(socket, "delete_occurrence", { occurrenceId });
-  const deleteOverride = occurrence ? { [occurrenceId]: occurrence } : null;
+  // CYCLE BREAKER (2026-05-25) — when `fireTrigger` is false the caller is an
+  // operation effect deleting DERIVED data (a mirror op's row/card copy, via
+  // applyOperationEffect → DELETE_ITEM / REMOVE_OCCURRENCE). Such deletions
+  // must NOT fire OccurrenceDeleteOp + the per-field MeasureOp re-aggregation:
+  //   - The trackers aggregate over Schedule tasks (HAS_ANCESTOR $schedPageId).
+  //     A deleted table row / canvas card lives under $tblId / $canvasId, never
+  //     under Schedule, so re-aggregating produces the IDENTICAL total — pure
+  //     waste. In the toolkit-drop trace this was 17 OccurrenceDeleteOps ×
+  //     ~300ms (42 tracker effects each) = the ~5s post-fix freeze.
+  //   - Any op that genuinely needs downstream re-aggregation already runs it
+  //     in the same runMatchingOperations sweep (liveOccs overlay) or via an
+  //     explicit RUN_OPERATION tail. The mirror ops don't.
+  // User-initiated deletes (drag-out, manual remove) keep fireTrigger=true so
+  // trackers update normally. Pairs with the async-echo suppression
+  // (opEmittedOccIds in bindSocketToStore) — same policy, both paths.
+  if (!fireTrigger) return;
+  const deleteOverride = snap ? { [occurrenceId]: snap } : null;
   const deleteOpts = deleteOverride ? { occurrencesOverride: deleteOverride } : undefined;
-  // Fire onDelete/onRemove trigger immediately (occurrence visible via override for trigger checking)
+  // ONE trigger per user action. Delete fires OccurrenceDeleteOp only,
+  // carrying the deleted occurrence's fields so field-scoped onDelete
+  // subscribers (subjectType:"field" → transaction.fields[targetId]) match.
+  // No piggyback MeasureOp — onChange is reserved for value edits.
   operationsBridge.fireOperations?.("OccurrenceDeleteOp", {
     type: "OccurrenceDeleteOp",
     occurrenceId,
-    instanceId: occurrence?.moduleId,
-    containerId: occurrence?.parentId,
+    instanceId: snap?.moduleId,
+    containerId: snap?.parentId,
+    fields: snap?.fields || {},
+    _ancestorIds: ancestors.ids,
+    _ancestorLabels: ancestors.labels,
   }, deleteOpts);
-  // Defer MeasureOp until after React renders so _cachedBaseOccsById is rebuilt without this
-  // occurrence — otherwise the aggregation still counts it and produces the same result
-  if (occurrence?.fields) {
-    const savedFields = occurrence.fields;
-    const savedTargetId = occurrence.moduleId;
-    requestAnimationFrame(() => {
-      for (const fieldId of Object.keys(savedFields)) {
-        operationsBridge.fireOperations?.("MeasureOp", {
-          type: "MeasureOp",
-          occurrenceId,
-          instanceId: savedTargetId,
-          fieldId,
-        });
-      }
-    });
-  }
 }
 
 // Remove occurrence from grid + clean up parent reference (optimistic)
 export function removeOccurrence({ dispatch, socket, occurrenceId, occurrence, parentOccurrence, grid, emit = true }) {
   if (!occurrenceId) return;
+  // Capture ancestor chain BEFORE eviction (see deleteOccurrence for rationale).
+  const ancestors = operationsBridge.getAncestorChain?.(occurrenceId) || { ids: [], labels: [] };
   // Evict from local cache BEFORE dispatch so fireOperations sees updated state
   operationsBridge.removeLocalOcc?.(occurrenceId);
   // Update parent's occurrences array optimistically
@@ -379,28 +506,17 @@ export function removeOccurrence({ dispatch, socket, occurrenceId, occurrence, p
   if (shouldEmit(emit)) safeEmit(socket, "delete_occurrence", { occurrenceId });
   const removeOverride = occurrence ? { [occurrenceId]: occurrence } : null;
   const removeOpts = removeOverride ? { occurrencesOverride: removeOverride } : undefined;
-  // Fire onDelete/onRemove trigger immediately
+  // ONE trigger per user action — see deleteOccurrence above. The delete
+  // carries fields so field-scoped onDelete/onRemove subscribers match.
   operationsBridge.fireOperations?.("OccurrenceDeleteOp", {
     type: "OccurrenceDeleteOp",
     occurrenceId,
     instanceId: occurrence?.moduleId,
     containerId: occurrence?.parentId,
+    fields: occurrence?.fields || {},
+    _ancestorIds: ancestors.ids,
+    _ancestorLabels: ancestors.labels,
   }, removeOpts);
-  // Defer MeasureOp until after React renders so _cachedBaseOccsById no longer has this occurrence
-  if (occurrence?.fields) {
-    const savedFields = occurrence.fields;
-    const savedTargetId = occurrence.moduleId;
-    requestAnimationFrame(() => {
-      for (const fieldId of Object.keys(savedFields)) {
-        operationsBridge.fireOperations?.("MeasureOp", {
-          type: "MeasureOp",
-          occurrenceId,
-          instanceId: savedTargetId,
-          fieldId,
-        });
-      }
-    });
-  }
 }
 
 // ===== TRASH (soft delete) =====
@@ -615,12 +731,14 @@ export function setOccurrenceFieldValue({ dispatch, socket, occurrences, occurre
   dispatch?.(updateOccurrenceAction(updatedOcc));
   // Update local occurrence cache + fire operations immediately (optimistic)
   operationsBridge.updateLocalOcc?.(updatedOcc);
+  const sfvAncestors = operationsBridge.getAncestorChain?.(occurrenceId) || { ids: [], labels: [] };
   operationsBridge.fireOperations?.("MeasureOp", {
     type: "MeasureOp",
     occurrenceId,
     instanceId: occ.moduleId,
-    fieldId,
-    value,
+    fields: { [fieldId]: value },
+    _ancestorIds: sfvAncestors.ids,
+    _ancestorLabels: sfvAncestors.labels,
   });
   safeEmit(socket, "update_occurrence", { occurrence: updatedOcc });
 }
@@ -644,8 +762,10 @@ export function createOccurrenceInContainer({ socket, instanceId, containerId, f
 
 // Creates a role:"textblock" module + occurrence and appends it to a container.
 // Optimistic local dispatch + socket emits. Returns the created IDs.
+// `kind` accepts "doc" (default — full block textblock) or "inline" (LT1 —
+// compact inline variant that renders inside doc text flow when embedded).
 export function createTextblockInContainer({
-  dispatch, socket, gridId, userId, containerOccurrence, label = "",
+  dispatch, socket, gridId, userId, containerOccurrence, label = "", kind = "doc",
 }) {
   if (!gridId || !userId || !containerOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `tb-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -656,7 +776,7 @@ export function createTextblockInContainer({
     userId,
     gridId,
     role: "textblock",
-    kind: "doc",
+    kind,
     label: label || "",
   };
   const occurrence = {

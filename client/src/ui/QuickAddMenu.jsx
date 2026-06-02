@@ -7,7 +7,7 @@
 import { useState, useMemo, useContext, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Plus, ChevronLeft, List, FileText, LayoutGrid, Image as ImageIcon, Box, FileQuestion, Check, Search } from "lucide-react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { templatesByKind } from "../helpers/templateHelpers";
 import { commitApplyTemplate } from "../helpers/CommitHelpers";
 
@@ -35,14 +35,14 @@ const KIND_FALLBACK = { label: "Other", icon: Box, desc: "" };
 // they should not show "Documents" or "Boards" (those are container/page kinds).
 // Panels surface container kinds. Pages surface panel kinds.
 const ALLOWED_KINDS_BY_ROLE = {
-  instance:  new Set(["list", "textblock", "artifact"]),
-  container: new Set(["list", "doc", "board", "canvas", "table"]),
+  instance:  new Set(["board", "textblock", "artifact"]),
+  container: new Set(["board", "doc", "canvas", "table"]),
   panel:     new Set(["board"]),
   page:      new Set(["board", "doc", "canvas", "table", "folder"]),
 };
 
 export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null }) {
-  const { modulesById, roleByModuleId, socket, state, occurrencesById, manifestsById, foldersById, fieldsById } = useContext(GridActionsContext);
+  const { modulesById, roleByModuleId, socket, state, occurrencesById, manifestsById, foldersById, fieldsById } = useGridActions();
   const lookups = useMemo(
     () => ({ manifestsById, foldersById, occurrencesById, modulesById }),
     [manifestsById, foldersById, occurrencesById, modulesById]
@@ -166,7 +166,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   const categories = useMemo(() => {
     const buckets = new Map();
     for (const m of matchingModules) {
-      const kind = m.kind || "list";
+      const kind = m.kind || "board";
       if (!buckets.has(kind)) buckets.set(kind, []);
       buckets.get(kind).push(m);
     }
@@ -193,7 +193,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   // Modules filtered by picked kind + search.
   const filteredModules = useMemo(() => {
     return matchingModules
-      .filter(m => !pickedKind || (m.kind || "list") === pickedKind)
+      .filter(m => !pickedKind || (m.kind || "board") === pickedKind)
       .filter(m => {
         if (!search) return true;
         return (m.label || m.name || "").toLowerCase().includes(search.toLowerCase());
@@ -428,7 +428,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {m.label || m.name || "Untitled"}
                     </span>
-                    {m.kind && m.kind !== "list" && (
+                    {m.kind && m.kind !== "board" && (
                       <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{m.kind}</span>
                     )}
                   </button>

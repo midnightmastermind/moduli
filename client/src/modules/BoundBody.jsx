@@ -16,7 +16,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Link2, Unlink2 } from "lucide-react";
-import { GridActionsContext } from "../GridActionsContext.js";
+import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
 import { propagateBoundFieldWrite } from "../helpers/boundFieldSync.js";
 import { findLinkedSiblings } from "../state/editorBindings.js";
 import * as CommitHelpers from "../helpers/CommitHelpers";
@@ -94,7 +94,7 @@ function normalizeToDoc(value) {
 }
 
 export default function BoundBody({ hostOccurrence, binding, children }) {
-  const { occurrencesById, fieldsById, dispatch, socket } = useContext(GridActionsContext) || {};
+  const { occurrencesById, fieldsById, dispatch, socket } = useGridActions() || {};
   const field = fieldsById?.[binding?.selfField];
 
   const isLinked = useMemo(() => {

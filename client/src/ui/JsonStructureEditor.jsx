@@ -24,7 +24,7 @@
 import React, { useState, useCallback, useContext, useMemo } from "react";
 import { Plus, Trash2, ChevronRight, ChevronDown, ArrowUp, ArrowDown, Link2 } from "lucide-react";
 import DrilldownPicker from "./DrilldownPicker";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 
 // ─── Type plumbing ─────────────────────────────────────────────────
 
@@ -243,7 +243,7 @@ function ReferenceInput({ value, onChange, pickerCtx }) {
 // fields, occurrences/modules/fields maps the picker needs to render
 // drilldown rows. Pure read; safe even when GridActionsContext is null.
 function useDefaultPickerCtx() {
-  const ga = useContext(GridActionsContext) || {};
+  const ga = useGridActions() || {};
   return useMemo(() => ({
     sources: [],
     fields: ga.fields || (ga.fieldsById ? Object.values(ga.fieldsById) : []),

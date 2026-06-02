@@ -166,7 +166,11 @@ const ACTION_HANDLERS = {
   MARK_COMPLETE(cfg, sets)   { ACTION_HANDLERS.SET_FIELD_VALUE(cfg, sets); },
 
   DELETE(cfg, sets) {
-    for (const k of ["itemId", "target", "occurrenceId"]) {
+    // itemIdExpr / itemIdVar are the dynamic-target keys the Schedule/Table/
+    // Canvas "Build" ops use (e.g. `itemIdExpr: "$orphan.id"`). Without them
+    // the depth-cap loop-detector's `occurrences_written` check came back
+    // empty, so its `suspects: []` never named the looping op.
+    for (const k of ["itemId", "target", "occurrenceId", "itemIdExpr", "itemIdVar", "targetExpr"]) {
       if (looksLikeOccurrenceRef(cfg[k])) add(sets.occurrences_written, cfg[k]);
     }
   },

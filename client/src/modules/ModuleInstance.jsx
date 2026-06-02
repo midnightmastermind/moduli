@@ -5,12 +5,13 @@
 
 import React, { useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { GridDataContext } from "../GridDataContext";
-import { GridActionsContext } from "../GridActionsContext";
+import { useGridActionsSelector } from "../GridActionsContext";
 import { GridLiveContext } from "../GridLiveContext";
 import { SelectionContext } from "../state/SelectionContext";
 import ContextMenu from "../ui/ContextMenu";
 import InstanceForm from "../ui/InstanceForm";
 import FieldRenderer from "../ui/FieldRenderer";
+import { bumpRender } from "../helpers/renderProbe";
 import RadialMenu from "../ui/RadialMenu";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
@@ -71,8 +72,19 @@ function InstanceInner({
   // Task column anyway).
   embedHideLabel = false,
 }) {
+  bumpRender("instance");
   const { state } = useContext(GridDataContext);
-  const { fieldsById, addInstanceToContainer, occurrencesById, modulesById, linkedGroupIndex, instancesById, operationsById } = useContext(GridActionsContext);
+  // Split into per-slice selectors so this component only re-renders when
+  // one of its actually-read slices changes identity. Was a single
+  // useGridActions() that re-rendered on EVERY actionsValue rebuild — i.e.
+  // on every filter change / drop / field edit anywhere on the grid.
+  const fieldsById = useGridActionsSelector(s => s.fieldsById);
+  const addInstanceToContainer = useGridActionsSelector(s => s.addInstanceToContainer);
+  const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
+  const modulesById = useGridActionsSelector(s => s.modulesById);
+  const linkedGroupIndex = useGridActionsSelector(s => s.linkedGroupIndex);
+  const instancesById = useGridActionsSelector(s => s.instancesById);
+  const operationsById = useGridActionsSelector(s => s.operationsById);
   const { computedValues } = useContext(GridLiveContext);
   const isOriginalActive = !overlay && state?.activeId === id;
 
@@ -742,7 +754,9 @@ function ModuleInstance({
   // selected occurrence (+ its parent) and pass them to removeOccurrence
   // so MeasureOps fire and the parent's occurrences[] cleans up. Single-
   // item delete below already does this for the right-clicked target.
-  const { occurrencesById } = useContext(GridActionsContext);
+  const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
+  const parentByChildId = useGridActionsSelector(s => s.parentByChildId);
+  const linkedGroupIndex = useGridActionsSelector(s => s.linkedGroupIndex);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [showDoc, setShowDoc] = useState(false);
 
@@ -814,12 +828,11 @@ function ModuleInstance({
             const target = occurrencesById?.[id];
             let parentOcc = null;
             if (occurrencesById) {
-              for (const cand of Object.values(occurrencesById)) {
-                if (Array.isArray(cand.occurrences) && cand.occurrences.includes(id)) {
-                  parentOcc = cand;
-                  break;
-                }
-              }
+              // O(1) parent lookup via App-level parentByChildId index.
+              // Was an O(N) scan over every occurrence per selected id
+              // (so bulk-delete of N items was O(N×total)).
+              const parentId = parentByChildId?.[id];
+              parentOcc = parentId ? occurrencesById[parentId] : null;
               if (!parentOcc && target?.parentId) parentOcc = occurrencesById[target.parentId] || null;
             }
             CommitHelpers.removeOccurrence({

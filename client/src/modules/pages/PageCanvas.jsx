@@ -4,7 +4,7 @@
 // components used in board/doc), with a thin wrapper for meta.x/y. No
 // canvas-specific card component — modules are unified across views.
 import React, { useMemo, useCallback, useContext } from "react";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import { CanvasDrawSection } from "../CanvasContent.jsx";
 import ModuleInstance from "../ModuleInstance.jsx";
 import Container from "../ModuleContainer.jsx";
@@ -32,7 +32,7 @@ function CanvasSlot({ x, y, children }) {
 }
 
 export default function PageCanvas({ pageModule, occurrence, panelId, dispatch, socket }) {
-  const { occurrencesById, modulesById, state: ctxState } = useContext(GridActionsContext);
+  const { occurrencesById, modulesById, state: ctxState } = useGridActions();
 
   const { ref: canvasDropRef } = useDroppable({
     type: "canvas-page",

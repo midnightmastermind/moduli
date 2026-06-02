@@ -5,7 +5,7 @@ import React, { useState, useMemo, useContext, useEffect, useRef } from "react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { GripVertical, Upload } from "lucide-react";
 
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import { createModuleAction, createOccurrenceAction } from "../../state/actions";
 
 const MIME_EXT_ICONS = { md: "📝", txt: "📄", pdf: "📕", png: "🖼️", jpg: "🖼️",
@@ -69,7 +69,7 @@ export function ArtifactPill({ module: mod }) {
 }
 
 export function FilesTab() {
-  const { state, modulesById, dispatch, socket } = useContext(GridActionsContext);
+  const { state, modulesById, dispatch, socket } = useGridActions();
   const gridId = state?.gridId;
   const userId = state?.userId;
   const fileInputRef = useRef(null);

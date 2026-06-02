@@ -6,7 +6,7 @@
 // =========================================
 
 import { ActionTypes } from "./actions";
-import { runMatchingOperations, executeOperation, executePipeline } from "../helpers/operationExecutor";
+import { runMatchingOperations, executeOperation, executePipeline, setOpApplyingEffects } from "../helpers/operationExecutor";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, updateOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast } from "sonner";
 import {
@@ -18,16 +18,18 @@ import {
   updateModule,
   deleteModule,
   updateOccurrence,
+  ensureModuleBindingsForOccurrenceFields,
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
 import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptionsSource";
+import { analyzeAllOperations } from "../helpers/operationIntrospection";
 
 /**
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLinkedOccs: null, applyEffect: null, requestUserInput: null, importText: null };
+export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null };
 
 export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) {
   // Wrap dispatch to tag all socket-originated actions
@@ -40,10 +42,40 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // React render cycle hasn't completed yet.
   const localOccsById = {};
 
+  // ── EXECUTOR CYCLE BREAKER (2026-05-25) ───────────────────────────────────
+  // Durable suppression set for occurrences CREATED or DELETED by operation
+  // effects (CREATE_ITEM / DELETE_ITEM / REMOVE_OCCURRENCE). Such derived-data
+  // CRUD must NEVER re-fire OccurrenceCreateOp / OccurrenceDeleteOp on the
+  // server's echo — the producing op already ran (and any downstream op saw
+  // the effect synchronously in the same runMatchingOperations sweep via the
+  // liveOccs overlay), so the echo would only re-trigger mirror ops and feed
+  // the cascade.
+  //
+  // This complements two existing guards that each have a blind spot:
+  //   - setOpApplyingEffects (operationExecutor): covers the SYNCHRONOUS
+  //     nested-fire path only — an op can't re-trigger while its own effect
+  //     batch is applying.
+  //   - optimisticFiredSet (below): dedups echoes, but on a 5s timer. When
+  //     deleteOccurrence's rAF-deferred MeasureOps stretch a rebuild across
+  //     many frames (35s+ in the toolkit-drop freeze), that timer expires
+  //     between chunks and the echo re-fires — the async leak.
+  // opEmittedOccIds is cleared on echo ARRIVAL (its natural lifecycle), with a
+  // long 60s fallback sweep only to bound memory if an echo never lands
+  // (offline). It does NOT expire mid-storm, so it closes the async leak
+  // regardless of how long the cascade runs.
+  const opEmittedOccIds = new Set();
+  const _markOpEmitted = (id) => {
+    if (!id) return;
+    opEmittedOccIds.add(id);
+    setTimeout(() => opEmittedOccIds.delete(id), 60000);
+  };
+
   // ======================================================
   // FULL STATE HYDRATE
   // ======================================================
   function onFullState(payload = {}) {
+    const tFS0 = performance.now();
+    const markFS = (label) => console.log(`[full_state-client] +${Math.round(performance.now() - tFS0)}ms ${label}`);
     console.log("[socket] full_state received:", payload);
 
     // persist selection
@@ -125,6 +157,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       }
     }
 
+    markFS(`reducer dispatched (${(payload.occurrences || []).length} occs, ${(payload.modules || []).length} mods)`);
+
     // Fire onLoad/onNavigation operations after hydration (via microtask so state is updated first)
     const operations = payload.operations || [];
     const fieldsById = {};
@@ -150,6 +184,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // Defer operation execution until after the first paint so the grid renders immediately.
     // requestAnimationFrame fires before next paint, the nested rAF fires AFTER paint.
     requestAnimationFrame(() => requestAnimationFrame(() => {
+      const tOps0 = performance.now();
       // Overlay localOccsById on top of the payload snapshot. Between full_state
       // dispatch and this deferred callback, React's filterNavState useEffect
       // may already have fired a NavigationOp synchronously — that pipeline
@@ -158,14 +193,17 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // and re-creates the same items the NavigationOp pass already created.
       const overlay = Object.assign({}, occurrencesById, localOccsById);
       const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById }, { onError: (name, err) => toast.error(`Operation "${name}" failed`, { description: err?.message, duration: 4000 }) });
+      const tOps1 = performance.now();
       const displayUpdates = allUpdates.filter(u => !u._effect);
       const effects = allUpdates.filter(u => u._effect);
+      console.log(`[full_state-client] runMatchingOperations: ${Math.round(tOps1 - tOps0)}ms — ${operations.length} ops, ${effects.length} effects, ${displayUpdates.length} display updates`);
       if (displayUpdates.length > 0) {
         dispatch(setComputedValuesAction(displayUpdates));
       }
       for (const eff of effects) {
         applyOperationEffect(eff, hydratedState);
       }
+      console.log(`[full_state-client] applied effects in ${Math.round(performance.now() - tOps1)}ms`);
       // Flush any mutations queued while offline — replayed on top of fresh server state
       flushOfflineQueue(socket);
     }));
@@ -259,15 +297,31 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const _gridOccSet = new Set(_stateNow.grid?.occurrences || []);
     const _panelOcc = findGridPanelOcc(_containerOcc, _revMap, _occById, _gridOccSet);
     const _panelMod = _panelOcc ? _modsArr.find(m => m.id === _panelOcc.moduleId) : null;
-    fireOperations("OccurrenceCreateOp", {
-      type: "OccurrenceCreateOp",
-      occurrenceId: occurrence.id,
-      instanceId: occurrence.moduleId,
-      containerId: occurrence.parentId,
-      panelId: _panelOcc?.moduleId || occurrence.panelId,
-      containerLabel: _containerMod?.label || "",
-      panelLabel: _panelMod?.label || "",
-    });
+    // Skip the trigger fire if THIS client already fired it optimistically when
+    // it created the occurrence (CommitHelpers.createOccurrence → fireOperations
+    // Optimistic). Without this, the server's own-echo of an op-created
+    // occurrence re-fires OccurrenceCreateOp at depth 0 (fresh stack, outside the
+    // synchronous self-trigger guard) → the rebuild op re-creates → emits →
+    // echoes again → unbounded async create loop (the create_occurrence flood).
+    // Other windows didn't create it, so their set lacks the id and they fire
+    // normally — multi-window sync preserved.
+    if (!optimisticFiredSet.has(occurrence.id) && !opEmittedOccIds.has(occurrence.id)) {
+      const ancestors = operationsBridge.getAncestorChain?.(occurrence.id) || { ids: [], labels: [] };
+      fireOperations("OccurrenceCreateOp", {
+        type: "OccurrenceCreateOp",
+        occurrenceId: occurrence.id,
+        instanceId: occurrence.moduleId,
+        containerId: occurrence.parentId,
+        panelId: _panelOcc?.moduleId || occurrence.panelId,
+        containerLabel: _containerMod?.label || "",
+        panelLabel: _panelMod?.label || "",
+        fields: occurrence.fields || {},
+        _ancestorIds: ancestors.ids,
+        _ancestorLabels: ancestors.labels,
+      });
+    }
+    optimisticFiredSet.delete(occurrence.id);
+    opEmittedOccIds.delete(occurrence.id);
   }
 
   function onOccurrenceUpdated({ occurrence } = {}) {
@@ -283,19 +337,26 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       payload: { occurrence },
     });
 
-    // Fire operations on field change — skip if already fired optimistically by CommitHelpers
+    // Fire operations on field change — skip if already fired optimistically by CommitHelpers.
+    // Coalesces all changed fields into ONE compound MeasureOp; matchSubjectFilter
+    // matches on `transaction.fields[targetId]` so per-field-targeted triggers still match.
     if (!optimisticFiredSet.has(occurrence.id)) {
       const prevFields = prevOcc?.fields || {};
-      const changedFieldIds = Object.keys(occurrence.fields || {}).filter(
-        fid => JSON.stringify(occurrence.fields[fid]) !== JSON.stringify(prevFields[fid])
-      );
-      for (const fieldId of changedFieldIds) {
+      const changedFields = {};
+      for (const fid of Object.keys(occurrence.fields || {})) {
+        if (JSON.stringify(occurrence.fields[fid]) !== JSON.stringify(prevFields[fid])) {
+          changedFields[fid] = occurrence.fields[fid];
+        }
+      }
+      if (Object.keys(changedFields).length > 0) {
+        const ancestors = operationsBridge.getAncestorChain?.(occurrence.id) || { ids: [], labels: [] };
         fireOperations("MeasureOp", {
           type: "MeasureOp",
           occurrenceId: occurrence.id,
           instanceId: occurrence.moduleId,
-          fieldId,
-          value: occurrence.fields[fieldId]?.value,
+          fields: changedFields,
+          _ancestorIds: ancestors.ids,
+          _ancestorLabels: ancestors.labels,
         });
       }
     }
@@ -323,26 +384,38 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // as an override so onRemove / onDelete operations still see the full data.
     const override = removedOcc ? { [occurrenceId]: removedOcc } : null;
 
-    // Fire onDelete trigger
-    fireOperations("OccurrenceDeleteOp", {
-      type: "OccurrenceDeleteOp",
-      occurrenceId,
-      instanceId: payload.instanceId,
-      containerId: payload.containerId,
-    }, { occurrencesOverride: override });
-
-    // Re-run onChange operations for each field that was set on the deleted occurrence.
-    // This ensures aggregation operations (e.g. water total) recalculate after removal.
-    if (removedOcc?.fields) {
-      for (const fieldId of Object.keys(removedOcc.fields)) {
-        fireOperations("MeasureOp", {
-          type: "MeasureOp",
-          occurrenceId,
-          instanceId: removedOcc.moduleId,
-          fieldId,
-        }, { occurrencesOverride: override });
+    // Skip if THIS client already fired the delete trigger optimistically
+    // (CommitHelpers.deleteOccurrence). Otherwise the server's own-echo of an
+    // op-deleted occurrence re-fires OccurrenceDeleteOp at depth 0 (outside the
+    // synchronous self-trigger guard) → rebuild op re-deletes → emits → echoes →
+    // unbounded async loop (the OccurrenceDeleteOp depth-cap flood).
+    if (!optimisticFiredSet.has(occurrenceId) && !opEmittedOccIds.has(occurrenceId)) {
+      // Compute the ancestor chain for the just-deleted occurrence using the
+      // override (the occurrence is gone from localOccsById, so the live-overlay
+      // walk inside getAncestorChain would miss it; we walk from the snapshot).
+      let delAncestors = { ids: [], labels: [] };
+      if (removedOcc) {
+        // Best-effort: use bridge if it still resolves; otherwise just walk
+        // parentId from the snapshot.
+        const probe = operationsBridge.getAncestorChain?.(occurrenceId);
+        if (probe && (probe.ids.length || probe.labels.length)) delAncestors = probe;
       }
+      // ONE trigger per user action — OccurrenceDeleteOp carries the deleted
+      // occurrence's fields so field-scoped onDelete triggers
+      // (subjectType:"field" → transaction.fields[targetId]) match. No piggyback
+      // MeasureOp — onChange is reserved for value edits on a live occurrence.
+      fireOperations("OccurrenceDeleteOp", {
+        type: "OccurrenceDeleteOp",
+        occurrenceId,
+        instanceId: payload.instanceId || removedOcc?.moduleId,
+        containerId: payload.containerId || removedOcc?.parentId,
+        fields: removedOcc?.fields || {},
+        _ancestorIds: delAncestors.ids,
+        _ancestorLabels: delAncestors.labels,
+      }, { occurrencesOverride: override });
     }
+    optimisticFiredSet.delete(occurrenceId);
+    opEmittedOccIds.delete(occurrenceId);
   }
 
   socket.on("occurrence_created", onOccurrenceCreated);
@@ -363,6 +436,58 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     } catch {}
   }
   socket.on("occurrence_stale", onOccurrenceStale);
+
+  // Persistence ack from the server — sent ONLY to the originator after a
+  // successful update_occurrence. Carries just the fresh updatedAt (and
+  // fieldUpdatedAt map when fields were written). Patches the local cache
+  // so the NEXT write on this occurrence sends a current expectedUpdatedAt
+  // and doesn't trip the stale-write guard. Without this ack the
+  // originator's updatedAt stays frozen at the value from full_state and
+  // every subsequent write looks stale → spurious "another window had a
+  // newer edit" toast despite no other window existing.
+  function onOccurrencePersisted({ id, updatedAt, fieldUpdatedAt } = {}) {
+    if (!id || !updatedAt) return;
+    const prev = localOccsById[id];
+    if (!prev) return;
+    const patch = { ...prev, updatedAt };
+    if (fieldUpdatedAt && typeof fieldUpdatedAt === "object") patch.fieldUpdatedAt = fieldUpdatedAt;
+    localOccsById[id] = patch;
+    // Skip Redux dispatch — these timestamps are stale-check bookkeeping;
+    // no UI consumes them, so we avoid the re-render storm of N persists
+    // per pipeline run.
+  }
+  socket.on("occurrence_persisted", onOccurrencePersisted);
+
+  // Per-field conflict (#26 medium-tier conflict resolution). Server
+  // emits this when a fields-patch carried `expectedFieldUpdatedAt`
+  // baselines and at least one field's stored timestamp is newer
+  // than the client's expectation. Non-conflicting fields in the same
+  // patch were auto-merged and broadcast via the regular
+  // `occurrence_updated` path; this event covers ONLY the rejected
+  // fields so the client can surface a "same field touched in another
+  // window" decision to the user. Default UX: sync the server's value
+  // for the conflicting field + toast with the count.
+  function onOccurrenceFieldConflict({ occurrenceId, conflicts, occurrence } = {}) {
+    if (!occurrenceId || !conflicts) return;
+    // Refresh local cache + Redux to the server's current state so the
+    // user sees the winning value immediately. The user's attempt for
+    // the conflicting field is dropped — same trade as the cheap tier,
+    // but only for the colliding field instead of the whole occurrence.
+    if (occurrence?.id) {
+      localOccsById[occurrence.id] = occurrence;
+      socketDispatch({ type: ActionTypes.UPDATE_OCCURRENCE, payload: { occurrence } });
+    }
+    const count = Object.keys(conflicts).length;
+    try {
+      toast?.(
+        count === 1
+          ? "1 field had a newer edit in another window — yours was discarded for that field."
+          : `${count} fields had newer edits in other windows — your values were discarded for those.`,
+        { duration: 4000 }
+      );
+    } catch {}
+  }
+  socket.on("occurrence_field_conflict", onOccurrenceFieldConflict);
 
   // ======================================================
   // FIELDS (CRUD)
@@ -579,9 +704,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
 
         // Auto-attach the field to the target module's fieldBindings if missing.
-        // Required so date-stamping ops (Schedule: Stamp Date & Time Slot, etc.)
-        // produce a value the renderer can show — without a binding the field
-        // pill never appears even though occ.fields[fieldId] is set.
+        // Module-level bindings are the canonical contract the rest of the
+        // system reads (every renderer, form, picker walks `module.fieldBindings`).
+        // When a value lands on an occurrence whose module doesn't bind that
+        // field, the field pill never appears even though occ.fields[fieldId]
+        // is set. Adding the binding to the module surfaces the pill on every
+        // occurrence sharing the module — by design: occurrences without a
+        // value just render an empty pill, which is the coherent system
+        // behavior. Idempotent — already-bound fields are skipped.
         if (effect.subKind !== "flow" && effect.fieldId) {
           const occ = occOverlay[effect.itemId];
           const mod = occ ? state.modulesById?.[occ.moduleId] : null;
@@ -615,16 +745,32 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           };
           updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, fields } });
         } else {
-          setOccurrenceFieldValue({
-            dispatch: socketDispatch,
-            socket,
-            occurrencesById: occOverlay,
-            occurrences: state.occurrences,
-            occurrenceId: effect.itemId,
-            fieldId: effect.fieldId,
-            value: effect.value,
-            flow: "replace",
-          });
+          // No-op guard: skip if the new value is identical to what's
+          // already stored. Without this, a tracker that re-computes the
+          // same sum on every fire (e.g. Total Subscriptions writing
+          // amount=30.97 every time) re-emits MeasureOp and can cascade
+          // into the recursion cap. Equality via JSON to handle arrays/
+          // objects + primitives uniformly.
+          const _curOcc = occOverlay[effect.itemId];
+          const _curVal = _curOcc?.fields?.[effect.fieldId]?.value;
+          const _isSame = (() => {
+            if (_curVal === effect.value) return true;
+            if (_curVal == null && effect.value == null) return true;
+            try { return JSON.stringify(_curVal) === JSON.stringify(effect.value); }
+            catch (_) { return false; }
+          })();
+          if (!_isSame) {
+            setOccurrenceFieldValue({
+              dispatch: socketDispatch,
+              socket,
+              occurrencesById: occOverlay,
+              occurrences: state.occurrences,
+              occurrenceId: effect.itemId,
+              fieldId: effect.fieldId,
+              value: effect.value,
+              flow: "replace",
+            });
+          }
         }
         break;
       }
@@ -735,11 +881,19 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       }
 
       case "DELETE_ITEM":
-        if (effect.itemId) deleteOccurrence({ dispatch: socketDispatch, socket, occurrenceId: effect.itemId });
+        if (effect.itemId) {
+          _markOpEmitted(effect.itemId);  // suppress async echo from re-firing OccurrenceDeleteOp
+          // fireTrigger:false suppresses the SYNCHRONOUS OccurrenceDeleteOp +
+          // tracker re-aggregation too — a deleted derived row never changes a
+          // Schedule-scoped aggregate, so firing it was ~300ms of pure waste
+          // per row (the post-loop ~5s freeze). See CommitHelpers.deleteOccurrence.
+          deleteOccurrence({ dispatch: socketDispatch, socket, occurrenceId: effect.itemId, fireTrigger: false });
+        }
         break;
 
       case "REMOVE_OCCURRENCE":
-        deleteOccurrence({ dispatch: socketDispatch, socket, occurrenceId: effect.occurrenceId });
+        _markOpEmitted(effect.occurrenceId);  // suppress async echo from re-firing OccurrenceDeleteOp
+        deleteOccurrence({ dispatch: socketDispatch, socket, occurrenceId: effect.occurrenceId, fireTrigger: false });
         break;
 
       case "CREATE_OCCURRENCE":
@@ -816,6 +970,19 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         socketDispatch(createOccurrenceAction(newOcc));
         localOccsById[newOcc.id] = newOcc;
 
+        // Mark op-created occurrences so the server's own-echo
+        // (occurrence_created) does NOT re-fire OccurrenceCreateOp for them in
+        // onOccurrenceCreated. CREATE_ITEM emits create_occurrence directly
+        // (it does not route through CommitHelpers.createOccurrence's optimistic
+        // fire), so without this the echo of every op-minted row/card/copy
+        // re-triggers the rebuild op → it creates more → emits → echoes → an
+        // unbounded async create loop (the create_occurrence server flood that
+        // froze the app). Cleared by onOccurrenceCreated on echo; 5s fallback in
+        // case the echo never arrives (offline).
+        optimisticFiredSet.add(newOcc.id);
+        setTimeout(() => optimisticFiredSet.delete(newOcc.id), 5000);
+        _markOpEmitted(newOcc.id);  // durable suppression — survives long rAF-stretched cascades (see cycle breaker)
+
         // Optimistically append to the parent's occurrences[] — server auto-pushes
         // server-side, but its broadcast excludes the sender. localOccsById is preferred
         // over state.occurrencesById since state is frozen for the entire op pass.
@@ -842,6 +1009,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
             ...(typeof inst.insertAtIndex === "number" && { insertAtIndex: inst.insertAtIndex }),
           },
         });
+        // Same module-binding contract as CommitHelpers.createOccurrence —
+        // op-emitted CREATE_ITEM doesn't route through that function, so the
+        // ensure step runs here. Idempotent.
+        ensureModuleBindingsForOccurrenceFields({
+          dispatch: socketDispatch, socket, occurrence: newOcc,
+        });
         break;
       }
 
@@ -862,8 +1035,28 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         break;
 
       case "UPDATE_OCCURRENCE":
-        // Used by APPEND_TO_DOC, SET_TEXTMAP — updates occurrence directly
+        // Used by APPEND_TO_DOC, SET_TEXTMAP, COPY_LINK's source-stamp,
+        // LINK_OCCURRENCE_TO_PARENT, etc. — updates occurrence directly.
+        //
+        // MIRROR TO localOccsById (2026-05-25) — without this, the next
+        // synchronous fireOperations call reads stale data because
+        // _cachedBaseOccsById only refreshes when state.occurrences gets
+        // a new array reference (React batches dispatches across the
+        // current tick). Symptom this fixes: Table:Build's COPY_LINK
+        // mints `lg-<src.id>` on a new row copy AND emits
+        // UPDATE_OCCURRENCE on the source to stamp the same lg back.
+        // The dispatch + socket emit land eventually, but the source
+        // patch never reaches localOccsById, so when Table:Build fires
+        // again ~10ms later (from the next OccurrenceCreateOp /
+        // MeasureOp) it reads source.linkedGroupId === null,
+        // existence-checks fail, and it deletes every row it just
+        // created. Merging the patch into localOccsById here closes
+        // that gap — the next fire sees the freshly-stamped source.
         if (effect.occurrence?.id) {
+          const prev = localOccsById[effect.occurrence.id];
+          if (prev) {
+            localOccsById[effect.occurrence.id] = { ...prev, ...effect.occurrence };
+          }
           updateOccurrence({ dispatch: socketDispatch, socket, occurrence: effect.occurrence });
         }
         break;
@@ -969,16 +1162,71 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // here just hides the bug longer. 8 is plenty for legitimate cascades.
   let _fireDepth = 0;
   const _FIRE_DEPTH_LIMIT = 8;
+  // When a single filter change fans out into many top-level NavigationOp fires
+  // (CommitHelpers.updateOccurrenceFilterOverride emits one per inheriting
+  // descendant), this holds a per-cascade Set of opIds that have already run so
+  // each matching op fires ONCE for the whole cascade. Non-null only for the
+  // duration of fireOperationsBatch; applied only to depth-1 fires so nested
+  // op-triggered fires (MeasureOp/OccurrenceCreateOp from effects) are untouched.
+  let _navCascadeFiredOps = null;
+  // Throttle the depth-cap warning per (transactionType + fieldId + occurrenceId)
+  // so a runaway cycle doesn't flood the console.
+  const _fireWarnAt = new Map();
 
   function fireOperations(transactionType, transaction, { occurrencesOverride } = {}) {
     if (_fireDepth >= _FIRE_DEPTH_LIMIT) {
       // Skip recursive fires past the cap. Surface once per breach so the
       // user can find the op-loop without the page hard-crashing.
-      console.warn(
-        `[operations] fire depth cap hit (${_FIRE_DEPTH_LIMIT}) — skipping ${transactionType}. ` +
-        `An operation is triggering itself (or a cycle). Check trigger predicates / fields_written vs allowedFields.`,
-        { transactionType, transaction }
-      );
+      // Throttle by (transactionType + fieldId + occurrenceId) so a chatty
+      // loop logs once every 5s instead of flooding the console.
+      const state = stateRef.current || {};
+      const fieldId = transaction?.fieldId;
+      const occurrenceId = transaction?.occurrenceId;
+      const field = fieldId ? (state.fields || []).find(f => f.id === fieldId) : null;
+      const occ = occurrenceId ? (localOccsById[occurrenceId] || (state.occurrences || []).find(o => o.id === occurrenceId)) : null;
+      const module = occ ? (state.modules || []).find(m => m.id === occ.moduleId) : null;
+      const key = `${transactionType}|${fieldId || ""}|${occurrenceId || ""}`;
+      const now = Date.now();
+      const lastAt = _fireWarnAt.get(key) || 0;
+      if (now - lastAt > 5000) {
+        _fireWarnAt.set(key, now);
+        // Find candidate ops that could form a loop:
+        //   - MeasureOp (field write): trigger-on-field AND write-that-field
+        //   - OccurrenceCreateOp / OccurrenceDeleteOp: trigger on the matching
+        //     onAdd/onDelete event AND emit a CREATE/DELETE/COPY_LINK in
+        //     their pipeline (occurrences_written via introspection).
+        const ops = state.operations || [];
+        let suspects = [];
+        try {
+          const fieldsById = {};
+          for (const f of (state.fields || [])) fieldsById[f.id] = f;
+          const opsById = {};
+          for (const o of ops) opsById[o.id] = o;
+          const introspect = analyzeAllOperations(opsById, { fieldsById });
+          if (fieldId) {
+            suspects = ops.filter(o => {
+              const rec = introspect[o.id] || {};
+              const triggers = (o.triggerObjects || []).some(t => t?.fieldId === fieldId);
+              const writes = (rec.fields_written || []).includes?.(fieldId);
+              return triggers && writes;
+            }).map(o => o.name);
+          } else if (transactionType === "OccurrenceCreateOp" || transactionType === "OccurrenceDeleteOp") {
+            const wantEvent = transactionType === "OccurrenceCreateOp" ? "onAdd" : "onDelete";
+            suspects = ops.filter(o => {
+              const rec = introspect[o.id] || {};
+              const triggers = (o.triggerObjects || []).some(t => t?.eventType === wantEvent);
+              const mutates = (rec.occurrences_written || []).length > 0;
+              return triggers && mutates;
+            }).map(o => o.name);
+          }
+        } catch (_) { /* analysis is best-effort */ }
+        console.warn(
+          `[operations] fire depth cap hit (${_FIRE_DEPTH_LIMIT}) — skipping ${transactionType}. ` +
+          `field="${field?.name || fieldId || "?"}" occ="${module?.label || occ?.label || occurrenceId || "?"}" value=${JSON.stringify(transaction?.value)}` +
+          (suspects.length ? ` — candidate looping ops: ${suspects.join(", ")}` : ""),
+          { transactionType, transaction, fieldId, occurrenceId, field, occ, module, suspects }
+        );
+      }
       return;
     }
     _fireDepth++;
@@ -1032,19 +1280,75 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // $trigger.occurrence enrichment still works.
     const occurrencesById = Object.assign({}, _cachedBaseOccsById, localOccsById, occurrencesOverride || null);
 
-    const allUpdates = runMatchingOperations(operations, transactionType, transaction, { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById, modulesById: _cachedModulesById }, { onError: (name, err) => toast.error(`Operation "${name}" failed`, { description: err?.message, duration: 4000 }) });
+    // ── DIAG: fire entry log ────────────────────────────────────────────────
+    // Each top-level fire (depth=1) logs trigger + matched-op preview so the
+    // user can spot which trigger is producing the create flood. Nested fires
+    // (depth>1) log condensed so cascades are visible without console spam.
+    const _tFire0 = performance.now();
+    const _diagDepth = _fireDepth;
+    const _diagTriggerSummary = transaction ? (
+      transaction.occurrenceId ? `occ=${String(transaction.occurrenceId).slice(0, 8)}` :
+      transaction.fields ? `fields=${Object.keys(transaction.fields).map(s => s.slice(0, 6)).join(",")}` : "—"
+    ) : "—";
+    if (_diagDepth <= 2) {
+      console.log(`[op-fire] depth=${_diagDepth} ${transactionType} ${_diagTriggerSummary}`);
+    }
+
+    // Cascade-dedup only applies to top-level (depth-1) fires — the burst of
+    // NavigationOps from one filter change. Nested fires (effect-driven
+    // MeasureOp/OccurrenceCreateOp) must NOT consult it or they'd be wrongly
+    // skipped when an already-fired op legitimately re-runs under a new trigger.
+    const cascadeFiredOps = _fireDepth === 1 ? _navCascadeFiredOps : null;
+    const allUpdates = runMatchingOperations(operations, transactionType, transaction, { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById, modulesById: _cachedModulesById, cascadeFiredOps }, { onError: (name, err) => toast.error(`Operation "${name}" failed`, { description: err?.message, duration: 4000 }) });
 
     // Separate display updates (computedValues) from real CRUD effects
     const displayUpdates = allUpdates.filter(u => !u._effect);
     const effects = allUpdates.filter(u => u._effect);
 
+    // ── DIAG: per-op effect counts ─────────────────────────────────────────
+    // Groups effects by their producing op and tallies by type. Reveals which
+    // op is responsible for which slice of the work in a single line per op.
+    if (effects.length > 0) {
+      const byOp = new Map();
+      for (const eff of effects) {
+        const sid = eff._sourceOpId || "?";
+        if (!byOp.has(sid)) byOp.set(sid, {});
+        const counts = byOp.get(sid);
+        counts[eff._effect] = (counts[eff._effect] || 0) + 1;
+      }
+      for (const [sid, counts] of byOp) {
+        const op = _cachedOperationsById[sid];
+        const opName = op?.name || String(sid).slice(0, 8);
+        const summary = Object.entries(counts).map(([k, v]) => `${k}=${v}`).join(" ");
+        console.log(`[op-effects] depth=${_diagDepth} "${opName}" ${summary}`);
+      }
+    }
+
     if (displayUpdates.length > 0) {
       dispatch(setComputedValuesAction(displayUpdates));
     }
-    for (const eff of effects) {
-      applyOperationEffect(eff, state);
+    // Mark EVERY op that produced effects in this batch as "applying" for the
+    // WHOLE application phase (not per-effect). Any OccurrenceCreateOp/DeleteOp/
+    // MeasureOp these effects synchronously fire (via createOccurrence /
+    // deleteOccurrence / setOccurrenceFieldValue) then can't re-trigger ANY of
+    // these ops — including cross-loops (Table→Canvas→Table). Per-effect marking
+    // was too granular: while applying op A's effect, op B (also in this batch)
+    // was unmarked and re-ran once per effect, re-creating occurrences in a loop.
+    // Ops with a DIFFERENT trigger that didn't run in this batch are NOT marked,
+    // so legitimate A→B cross-trigger chains still fire.
+    const batchOpIds = [...new Set(effects.map(e => e._sourceOpId).filter(Boolean))];
+    for (const sid of batchOpIds) setOpApplyingEffects(sid, true);
+    try {
+      for (const eff of effects) {
+        applyOperationEffect(eff, state);
+      }
+    } finally {
+      for (const sid of batchOpIds) setOpApplyingEffects(sid, false);
     }
 
+    if (_diagDepth <= 2 && effects.length > 0) {
+      console.log(`[op-fire-done] depth=${_diagDepth} ${transactionType} ${Math.round(performance.now() - _tFire0)}ms total=${effects.length} display=${displayUpdates.length}`);
+    }
   }
 
   // Track optimistically-fired occurrences to prevent double-firing on server echo
@@ -1060,11 +1364,45 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     fireOperations(transactionType, transaction, options);
   }
 
+  // Fire a burst of related transactions (e.g. the NavigationOp fan-out a
+  // single filter change emits — source page + every inheriting descendant)
+  // as ONE cascade: each matching op runs only once across the whole burst.
+  // The fresh per-call Set means independent filter changes never dedup
+  // against each other. Routes through the optimistic path so each
+  // occurrence's filterOverride echo is still de-duplicated.
+  function fireOperationsBatch(transactionType, transactions) {
+    if (!Array.isArray(transactions) || transactions.length === 0) return;
+    const prev = _navCascadeFiredOps;
+    _navCascadeFiredOps = new Set();
+    try {
+      for (const t of transactions) fireOperationsOptimistic(transactionType, t);
+    } finally {
+      _navCascadeFiredOps = prev;
+    }
+  }
+
   // Expose on module-level bridge so CommitHelpers can call optimistically
   operationsBridge.fireOperations = fireOperationsOptimistic;
+  operationsBridge.fireOperationsBatch = fireOperationsBatch;
   operationsBridge.updateLocalOcc = (occ) => { if (occ?.id) localOccsById[occ.id] = occ; };
   operationsBridge.removeLocalOcc = (occurrenceId) => { delete localOccsById[occurrenceId]; };
   operationsBridge.getLocalOcc = (occurrenceId) => localOccsById[occurrenceId] || null;
+  // Read-only access to the current modules map. Used by
+  // CommitHelpers.createOccurrence's auto-bind to look up the source module
+  // without forcing every caller to thread state through. No mirror cache
+  // for modules (unlike `localOccsById`) — modules change rarely, so reading
+  // directly off the latest snapshot is fine.
+  operationsBridge.getLocalMod = (moduleId) => {
+    if (!moduleId) return null;
+    const s = stateRef.current;
+    // `modulesById` is a derived lookup built by `createLookupsFromState` —
+    // it's NOT on the raw redux state. Scan `state.modules` (the array of
+    // truth) for the id; small enough that the linear scan is fine for the
+    // once-per-drop auto-bind path.
+    const mods = s?.modules;
+    if (!Array.isArray(mods)) return null;
+    return mods.find(m => m?.id === moduleId) || null;
+  };
   operationsBridge.getLinkedOccs = (linkedGroupId, excludeId) => {
     if (!linkedGroupId) return [];
     const out = [];
@@ -1072,6 +1410,41 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       if (o?.linkedGroupId === linkedGroupId && o.id !== excludeId) out.push(o);
     }
     return out;
+  };
+  // Compute the ancestor chain for an occurrence: returns { ids, labels }
+  // closest-first. Powers ancestor-scoped triggers (ancestorLabel:"Daily Goals")
+  // on onAdd/onDelete/onMove — the executor's matchAncestorScope reads
+  // `transaction._ancestorIds`/`_ancestorLabels` to gate match. Walks via
+  // each occurrence's `occurrences[]` reverse map (with parentId fallback) so
+  // page/panel parents (which usually have no parentId) are still seen.
+  operationsBridge.getAncestorChain = (occId) => {
+    const ids = [];
+    const labels = [];
+    if (!occId) return { ids, labels };
+    // Build a parent-by-child reverse map from the live overlay.
+    const parentByChildId = {};
+    for (const o of Object.values(localOccsById)) {
+      for (const childId of o?.occurrences || []) {
+        parentByChildId[childId] = o.id;
+      }
+    }
+    const mods = stateRef.current?.modules;
+    const modById = {};
+    if (Array.isArray(mods)) {
+      for (const m of mods) if (m?.id) modById[m.id] = m;
+    }
+    let cur = localOccsById[occId];
+    const seen = new Set();
+    let depth = 0;
+    while (cur && !seen.has(cur.id) && depth++ < 20) {
+      seen.add(cur.id);
+      ids.push(cur.id);
+      const label = modById[cur.moduleId]?.label;
+      if (label) labels.push(label);
+      const nextId = parentByChildId[cur.id] ?? cur.parentId;
+      cur = nextId ? localOccsById[nextId] : null;
+    }
+    return { ids, labels };
   };
   // Scheduler path: apply a single pipeline effect (UPDATE_ITEM_FIELD,
   // CREATE_ITEM, NOTIFY, etc.) without going through runMatchingOperations.
@@ -1083,6 +1456,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const stateNow = stateRef?.current || {};
     applyOperationEffect(effect, stateNow);
   };
+
+
 
   // Pipeline IMPORT_HTML / IMPORT_MARKDOWN bridge. Emits the existing
   // `import_text` socket event (server/socketHandlers/import.js) and
@@ -1334,10 +1709,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // ======================================================
   return () => {
     operationsBridge.fireOperations = null;
+    operationsBridge.fireOperationsBatch = null;
     operationsBridge.updateLocalOcc = null;
     operationsBridge.removeLocalOcc = null;
     operationsBridge.getLocalOcc = null;
+    operationsBridge.getLocalMod = null;
     operationsBridge.getLinkedOccs = null;
+    operationsBridge.getAncestorChain = null;
     operationsBridge.applyEffect = null;
     operationsBridge.importText = null;
     clearInterval(scheduleInterval);
@@ -1354,6 +1732,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     socket.off("occurrence_created", onOccurrenceCreated);
     socket.off("occurrence_updated", onOccurrenceUpdated);
     socket.off("occurrence_stale", onOccurrenceStale);
+    socket.off("occurrence_persisted", onOccurrencePersisted);
+    socket.off("occurrence_field_conflict", onOccurrenceFieldConflict);
     socket.off("occurrence_deleted", onOccurrenceDeleted);
 
     socket.off("field_created", onFieldCreated);

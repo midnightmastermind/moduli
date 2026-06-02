@@ -114,6 +114,16 @@ import { uploadFileWithProgress, registerUpload, clearUpload } from "./uploadWit
 // the "stamping as May 22 when the filter says May 23" bug.
 export function normalizeFilterDateValue(v) {
   if (v == null || v === "") return null;
+  // DrilldownDatePicker period-shape: {value, unit, kind, dates, span}.
+  // Single-day picks expose `value` as YYYY-MM-DD; multi-day picks use `dates[0]`
+  // as the anchor. Without this, the new picker's object shape falls through
+  // to `return null` below and drop-side date stamping silently no-ops —
+  // the dropped occurrence is created without its date field.
+  if (typeof v === "object" && !(v instanceof Date)) {
+    if (typeof v.value === "string" || v.value instanceof Date) return normalizeFilterDateValue(v.value);
+    if (Array.isArray(v.dates) && v.dates.length) return normalizeFilterDateValue(v.dates[0]);
+    return null;
+  }
   if (typeof v === "string") {
     if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
     const d = new Date(v);
@@ -174,6 +184,14 @@ export function findFilterOverrideAncestor({ pointer, occurrencesById, excludeOc
 // callers can cheaply detect a no-op via identity.
 function computePageFilterFields({ state, occurrencesById, parentContainerOcc, existingFields = {} }) {
   if (!parentContainerOcc) return existingFields;
+  // #60 — per-container opt-out. Containers with
+  // `meta.skipFilterStamp: true` short-circuit so drops into them
+  // don't auto-stamp the filter's date/timeslot. Useful for
+  // long-lived "all dates" containers (Library / Bills / Accounts)
+  // where stamping today's date onto a movie / bill / account would
+  // hide it from the next-day filter view. Default behavior
+  // (auto-stamp) preserved for Schedule slots, day-page tasks, etc.
+  if (parentContainerOcc?.meta?.skipFilterStamp === true) return existingFields;
   const grid = state?.grid;
   const activeNamedFilter = (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId);
   const navFieldIds = (activeNamedFilter?.conditions || [])
@@ -915,11 +933,13 @@ export function handleOccurrenceMove(dropContext, ctx) {
     return;
   }
 
-  // Helper: fire OccurrenceMoveOp + per-field MeasureOp so user-defined `onMove`
-  // operations (e.g. "Schedule: Clear Date on Move-Out") run after the move.
-  // Mirrors the post-move trigger burst in the regular container-move branch
-  // so canvas moves participate in the same operation pipeline.
+  // ONE trigger per user action. A move fires OccurrenceMoveOp only,
+  // carrying the moved occurrence's fields so field-scoped onMove
+  // subscribers (subjectType:"field" → transaction.fields[targetId]) match.
+  // onChange is reserved for actual value edits on an existing occurrence.
   const fireMoveTrigger = ({ occurrenceId, instanceId, fromContainerId, toContainerId, fromPanelId, toPanelId }) => {
+    const fmAncestors = operationsBridge.getAncestorChain?.(occurrenceId) || { ids: [], labels: [] };
+    const movedOcc = occurrencesById[occurrenceId];
     operationsBridge.fireOperations?.("OccurrenceMoveOp", {
       type: "OccurrenceMoveOp",
       occurrenceId,
@@ -928,18 +948,10 @@ export function handleOccurrenceMove(dropContext, ctx) {
       toContainerId,
       fromPanelId,
       toPanelId,
+      fields: movedOcc?.fields || {},
+      _ancestorIds: fmAncestors.ids,
+      _ancestorLabels: fmAncestors.labels,
     });
-    const movedOcc = occurrencesById[occurrenceId];
-    for (const fieldId of Object.keys(movedOcc?.fields || {})) {
-      const fv = movedOcc.fields[fieldId];
-      operationsBridge.fireOperations?.("MeasureOp", {
-        type: "MeasureOp",
-        occurrenceId,
-        instanceId,
-        fieldId,
-        value: fv && typeof fv === "object" && "value" in fv ? fv.value : fv,
-      });
-    }
   };
 
   // CANVAS PAGE drop — move/copy a leaf occurrence into the page with meta.x/y stamp.
@@ -1346,11 +1358,13 @@ export function handleOccurrenceMove(dropContext, ctx) {
       const fromPanelOcc = findGridPanelOcc(fromCOcc, _revMap, occurrencesById, _gridOccSet);
       const toPanelOcc = findGridPanelOcc(toCOcc, _revMap, occurrencesById, _gridOccSet);
 
+      const movedOccForTx = occurrencesById[occurrenceId];
       const tx = {
         type: "OccurrenceMoveOp", occurrenceId, instanceId: draggedInstanceId,
         fromContainerId: fromC.id, toContainerId: toC.id,
         fromPanelId: fromPanelOcc?.moduleId || null,
         toPanelId: toPanelOcc?.moduleId || null,
+        fields: movedOccForTx?.fields || {},
       };
       const operations = Object.values(state?.operationsById || {});
       const fieldsById = Object.fromEntries((state?.fields || []).map(f => [f.id, f]));
@@ -1390,20 +1404,9 @@ export function handleOccurrenceMove(dropContext, ctx) {
       operationsBridge.updateLocalOcc?.({ ...fromCOcc, occurrences: fromIdsAfter });
       operationsBridge.updateLocalOcc?.({ ...toCOcc, occurrences: toIdsAfter });
 
-      // Fire MeasureOp for each field of the moved occurrence so onChange operations retrigger
-      const movedOcc = occurrencesById[occurrenceId];
-      if (movedOcc?.fields) {
-        for (const fieldId of Object.keys(movedOcc.fields)) {
-          const fv = movedOcc.fields[fieldId];
-          operationsBridge.fireOperations?.("MeasureOp", {
-            type: "MeasureOp",
-            occurrenceId,
-            instanceId: draggedInstanceId,
-            fieldId,
-            value: fv && typeof fv === "object" && "value" in fv ? fv.value : fv,
-          });
-        }
-      }
+      // ONE trigger per user action — the OccurrenceMoveOp above already
+      // carried `fields`, so field-scoped onMove triggers matched in
+      // runMatchingOperations. No piggyback MeasureOp.
     }
     autoCheckBooleanFields(state, dispatch, socket, draggedInstanceId, occurrenceId);
   }

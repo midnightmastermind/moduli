@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import PomodoroTimer from "./ui/PomodoroTimer";
 import MiniGridMap from "./mobile/MiniGridMap";
 
@@ -15,11 +15,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { PlusSquare, Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { PlusSquare, Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X } from "lucide-react";
 import ToolbarFilterDropdown from "./ui/ToolbarFilterDropdown";
 import SocketStatusBanner from "./ui/SocketStatusBanner";
 import ClipboardStatusBanner from "./ui/ClipboardStatusBanner";
 import SelectionStatusBanner from "./ui/SelectionStatusBanner";
+import FilterNavWidget from "./ui/FilterNavWidgets";
+import { useGridActions } from "./GridActionsContext";
+import * as CommitHelpers from "./helpers/CommitHelpers";
 
 export default function Toolbar({
   gridId,
@@ -35,8 +38,6 @@ export default function Toolbar({
   // History
   onHistory,
   historyOpen = false,
-  // Filter navigation
-  onFilterNav,
   // Account
   userId,
   onLogout,
@@ -51,22 +52,39 @@ export default function Toolbar({
   const [accountOpen, setAccountOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // Grab the slices FilterNavWidget needs from context — same surface the
+  // occurrence-header FiltersSection consumes, so the toolbar's date nav is
+  // literally the same component with the same widget cascade.
+  const { dispatch, socket, fieldsById, occurrencesById, modulesById, foldersById } = useGridActions();
+
   const activeFilter = useMemo(
     () => (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId) || null,
     [grid?.namedFilters, grid?.activeFilterId]
   );
-  const primaryNavFieldId = useMemo(() => {
-    const nav = (activeFilter?.conditions || []).find(c => c.isNav && c.fieldId);
-    return nav?.fieldId || null;
-  }, [activeFilter]);
-  const primaryDate = useMemo(() => {
-    if (!primaryNavFieldId) return null;
-    const val = grid?.activeFilterValues?.[primaryNavFieldId];
-    return val ? new Date(val + "T00:00:00") : new Date();
-  }, [primaryNavFieldId, grid?.activeFilterValues]);
+  const navConditions = useMemo(
+    () => (activeFilter?.conditions || []).filter(c => c.isNav && c.fieldId),
+    [activeFilter]
+  );
+  const primaryNavFieldId = navConditions[0]?.fieldId || null;
+  const primaryNavValue = primaryNavFieldId
+    ? grid?.activeFilterValues?.[primaryNavFieldId]
+    : null;
 
-  const formatNavDate = (d) =>
-    d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  // Widget commits per filter id by default; the toolbar writes to the GRID's
+  // activeFilterValues map instead, fanning the same value into every nav
+  // field so multi-field nav conditions stay in sync.
+  const handleToolbarNav = useCallback((next) => {
+    if (!navConditions.length || !gridId) return;
+    const updatedValues = navConditions.reduce((acc, c) => {
+      acc[c.fieldId] = next;
+      return acc;
+    }, { ...(grid?.activeFilterValues || {}) });
+    CommitHelpers.updateGrid({
+      dispatch, socket,
+      gridId,
+      grid: { activeFilterValues: updatedValues },
+    });
+  }, [navConditions, grid?.activeFilterValues, gridId, dispatch, socket]);
 
 const gridOptions = useMemo(
     () =>
@@ -207,32 +225,23 @@ const gridOptions = useMemo(
         <div className="flex-1" />
 
         {/* ── Center: Filter dropdown + Global date nav ── */}
+        {/* Toolbar date nav is the same FilterNavWidget the occurrence-header
+            FiltersSection mounts: arrows + NavPickerPopover with the on/link/off
+            tri-state day cycle. onNav writes to grid.activeFilterValues so the
+            widget stays the toolbar's source of truth. */}
         <ToolbarFilterDropdown />
-        {primaryDate && (
-          <div className="flex items-center" style={{ gap: 0 }}>
-            <button
-              onClick={() => onFilterNav?.(-1)}
-              className="rounded flex items-center justify-center hover:bg-accent text-text-muted hover:text-foreground transition-colors"
-              style={{ height: 26, width: 20, minWidth: 20, padding: 0 }}
-              title="Previous"
-            >
-              <ChevronLeft className="h-3 w-3" />
-            </button>
-            <span
-              className="text-text-primary font-mono flex-1 text-center select-none"
-              style={{ fontSize: 9, minWidth: 0, padding: "0 2px" }}
-            >
-              {formatNavDate(primaryDate)}
-            </span>
-            <button
-              onClick={() => onFilterNav?.(1)}
-              className="rounded flex items-center justify-center hover:bg-accent text-text-muted hover:text-foreground transition-colors"
-              style={{ height: 26, width: 20, minWidth: 20, padding: 0 }}
-              title="Next"
-            >
-              <ChevronRight className="h-3 w-3" />
-            </button>
-          </div>
+        {activeFilter && primaryNavFieldId && (
+          <FilterNavWidget
+            filter={activeFilter}
+            navConfig={null}
+            value={primaryNavValue}
+            fieldsById={fieldsById}
+            occurrencesById={occurrencesById}
+            modulesById={modulesById}
+            foldersById={foldersById}
+            dispatch={dispatch}
+            onNav={handleToolbarNav}
+          />
         )}
 
         {/* ── Right: Filter + Pomodoro + Terminal + Account ── */}

@@ -66,6 +66,14 @@ const OccurrenceSchema = new mongoose.Schema(
     // Optional snapshot of field values (for UI convenience)
     fields: { type: mongoose.Schema.Types.Mixed, default: {} },
 
+    // Per-field last-write timestamp map: `{ [fieldId]: epochMs }`. Bumped
+    // every time a field is written. Powers #26 medium-tier conflict
+    // resolution: two windows writing DIFFERENT fields auto-merge; two
+    // writing the SAME field produce a per-field collision the client
+    // resolves explicitly. Mixed-type because Mongoose can't index per-
+    // key arbitrary fieldIds; the executor reads it as a plain object.
+    fieldUpdatedAt: { type: mongoose.Schema.Types.Mixed, default: {} },
+
     // View reference — viewId → View model record (SEPARATE model, NOT embedded)
     viewId: { type: String, default: null, index: true },
 
@@ -106,6 +114,13 @@ const OccurrenceSchema = new mongoose.Schema(
 
 OccurrenceSchema.index({ gridId: 1, timestamp: -1 });
 OccurrenceSchema.index({ moduleId: 1, gridId: 1 });
+// Compound (userId, gridId) — every full_state load runs
+// `Occurrence.find({ userId, gridId })`. Without this index, Mongo picks
+// the single-field userId index and filters gridId in-memory; for users
+// with multiple grids that means scanning every doc the user owns.
+// Diagnostic baseline: Atlas Serverless ran this query in 9.3s for 615
+// docs against single-field indexes only.
+OccurrenceSchema.index({ userId: 1, gridId: 1 });
 
 OccurrenceSchema.set("toJSON", {
   versionKey: false,

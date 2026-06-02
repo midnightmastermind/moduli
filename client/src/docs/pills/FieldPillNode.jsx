@@ -7,7 +7,7 @@
 import { useContext, useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import { useFieldValue } from "../hooks/useDocFieldValues";
 import { Copy, Link, Trash2, Settings } from "lucide-react";
 import RadialMenu from "../../ui/RadialMenu";
@@ -40,7 +40,7 @@ const PILL_STYLE_HOVER = {
  * - deleteNode: Function to delete this node
  */
 export default function FieldPillNode({ node, selected, deleteNode }) {
-  const { fieldsById, dispatch, socket } = useContext(GridActionsContext) || {};
+  const { fieldsById, dispatch, socket } = useGridActions() || {};
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const showMenu = hovered || menuOpen;

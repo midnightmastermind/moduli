@@ -1,0 +1,856 @@
+Layout was forced before the page was fully loaded. If stylesheets are not yet loaded this may cause a flash of unstyled content. node.js:416:1
+[socket] full_state received: 
+Object { gridId: "6a172b41c68f2e2a61fbcdea", grid: {…}, modules: (628) […], occurrences: (625) […], fields: (126) […], manifests: (2) […], views: (7) […], folders: (27) […], operations: (67) […], grids: (1) […] }
+PagePreviewApp-lZCRh2OG.js:5:20375
+[full_state-client] +2ms reducer dispatched (625 occs, 628 mods) PagePreviewApp-lZCRh2OG.js:5:20297
+[op-timing] null total=488ms ops=55
+     76ms  108fx  Schedule: Build Schedule
+     20ms    1fx  Carbs
+     19ms    1fx  Day Page: Build Tasks Completed
+     19ms   18fx  Canvas: Build
+     19ms   91fx  People Table: Build
+     17ms   16fx  Table: Build
+     16ms    1fx  Time Spent
+     12ms    1fx  Completed
+     12ms    1fx  Steps
+     12ms    1fx  Pomodoro Time
+     12ms    1fx  Time Spent This Week
+     11ms    1fx  Pomodoros Today
+     11ms    1fx  Spent
+     11ms    1fx  Protein
+     10ms    0fx  Moods
+     10ms    1fx  Total Reps
+     10ms    1fx  Arms Volume
+     10ms    1fx  Net Worth
+      9ms    1fx  Chest Volume
+      9ms    1fx  Dinner Nutrition
+      8ms    1fx  Legs Volume
+      7ms    1fx  Water
+      7ms    1fx  Pages
+      7ms    1fx  Cardio Volume
+      7ms    1fx  Checking Balance
+      7ms    1fx  Completion Rate
+      6ms    6fx  Day Page: Build
+      6ms    1fx  Fats
+      6ms    1fx  Total Reading Time
+      6ms    0fx  Due: Seed
+      6ms    1fx  Monthly Bills
+      5ms    1fx  Earned
+      5ms    1fx  Snack Nutrition
+      5ms    1fx  Mom's Account Balance
+      5ms    1fx  Total Workouts
+      5ms    0fx  Movies Watched
+      5ms    9fx  Project: Create
+      5ms    1fx  Total Subscriptions
+      4ms    1fx  Task Countdown
+      4ms    0fx  Phone Calls
+      4ms    1fx  Back Volume
+      4ms    1fx  Shoulders Volume
+      4ms    1fx  Breakfast Nutrition
+      4ms    2fx  Current Streak
+      3ms    1fx  Lunch Nutrition
+      3ms    0fx  Books Read
+      3ms    0fx  Podcasts Listened
+      3ms    0fx  Courses Taken
+      3ms    2fx  Pomodoro History
+      3ms    2fx  Workout History
+      3ms    2fx  Meal History
+      3ms    2fx  Purchase History
+      3ms    0fx  Compute Next Due
+      3ms    0fx  Mark Passed Timeslots
+      1ms    0fx  Daily Question Rotator PagePreviewApp-lZCRh2OG.js:4:12
+[full_state-client] runMatchingOperations: 491ms — 67 ops, 292 effects, 0 display updates PagePreviewApp-lZCRh2OG.js:5:22539
+[op-fire] depth=1 MeasureOp occ=NYo4w1cL PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=zPpvngo4 2 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=ExMo3HJO PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=jxVNq4os PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=6h4dWSU2 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=YcaId5Is 2 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=VEn705Pi PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=FrV7hG8Q PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=WVsxJCN6 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=cgj0jqoR PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=NXz3XwK- PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=mEpXRx-I PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=8LdUsN_U PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=hNFaeMKg PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=tJQDQ4W9 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=cscaQxic PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=uoE-3vBl PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=QJ21mprK PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=pPedXoMd PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=WgD8NgCn PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=BMa-eWUS PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=wvlbvIgY PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=wAuTvy-x PagePreviewApp-lZCRh2OG.js:5:37913
+[op-effects] depth=1 "Net Worth" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-fire] depth=2 MeasureOp occ=YKsjd3sK PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire-done] depth=1 MeasureOp 9ms total=1 display=0 PagePreviewApp-lZCRh2OG.js:5:38786
+[op-fire] depth=1 MeasureOp occ=v6P1kvpn PagePreviewApp-lZCRh2OG.js:5:37913
+[op-effects] depth=1 "Net Worth" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-fire-done] depth=1 MeasureOp 6ms total=1 display=0 PagePreviewApp-lZCRh2OG.js:5:38786
+[op-fire] depth=1 MeasureOp occ=dbNj9fkd PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=I93YC8Cw PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=vhLYxtAO 2 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=YcaId5Is 2 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=dWMcySop 2 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=xTLT-E85 2 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=2LPXw79W 2 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=VEn705Pi 2 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire] depth=1 MeasureOp occ=VrhE4x4X PagePreviewApp-lZCRh2OG.js:5:37913
+[op-timing] MeasureOp total=42ms ops=6
+     15ms    1fx  Total Subscriptions
+      8ms    1fx  Monthly Bills
+      7ms    1fx  Checking Balance
+      5ms    1fx  Mom's Account Balance
+      4ms    2fx  Purchase History
+      3ms    0fx  Spent PagePreviewApp-lZCRh2OG.js:4:12
+[op-effects] depth=1 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-fire] depth=2 MeasureOp occ=ltTxrfke PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire-done] depth=1 MeasureOp 48ms total=6 display=0 PagePreviewApp-lZCRh2OG.js:5:38786
+[full_state-client] applied effects in 96ms PagePreviewApp-lZCRh2OG.js:5:22741
+[table] 
+Object { occId: "SPKhdroq1bL5", label: "Schedule Table", rowCount: 0, columns: 4, cellsPersisted: 0, hasMetaTable: true }
+PagePreviewApp-lZCRh2OG.js:56:59831
+[op-fire] depth=1 MeasureOp — 43 PagePreviewApp-lZCRh2OG.js:5:37913
+[dragDiag] genPreview (native ghost) 
+Object { type: "instance", id: "7AoGiWB7awrY", nativeEnabled: true }
+PagePreviewApp-lZCRh2OG.js:34:177655
+[dragDiag] dragStart 
+Object { type: "instance", mode: "copy", label: "Morning Workout" }
+App-CDUagDMj.js:1:131898
+[dragDiag] drop LEAVE 
+Object { type: "instance", id: "7AoGiWB7awrY" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "instance", id: "XxZRmCxhyGTb", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] drop LEAVE 
+Object { type: "instance", id: "XxZRmCxhyGTb" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "YlP0OwlbScXy" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "563GH_bc7VDb", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] drop ENTER 
+Object { type: "instance", id: "CzHSY8-qakXd", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] drop LEAVE 
+Object { type: "instance", id: "CzHSY8-qakXd" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "563GH_bc7VDb" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "FtVrkhQlR-cj", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] drop ENTER 
+Object { type: "instance", id: "OTsNt18TAjml", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] drop LEAVE 
+Object { type: "instance", id: "OTsNt18TAjml" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "FtVrkhQlR-cj" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "lbstUFk9edW8", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] drop ENTER 
+Object { type: "container", id: "477a86b5-d584-4371-a7da-af34939d92a0", edge: "left" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] hover 
+Object { type: "instance", panelId: null, rawContainerId: null, stickyToLast: null, containerId: null, instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: true, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-CDUagDMj.js:1:133648
+[dragDiag] edge 
+Object { type: "container", id: "lbstUFk9edW8", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] edge 
+Object { type: "container", id: "477a86b5-d584-4371-a7da-af34939d92a0", edge: "left" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "lbstUFk9edW8", stickyToLast: false, containerId: "lbstUFk9edW8", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-CDUagDMj.js:1:133648
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "lbstUFk9edW8", stickyToLast: false, containerId: "lbstUFk9edW8", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "lbstUFk9edW8", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] edge 
+Object { type: "container", id: "477a86b5-d584-4371-a7da-af34939d92a0", edge: "right" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "lbstUFk9edW8", stickyToLast: false, containerId: "lbstUFk9edW8", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "lbstUFk9edW8", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "lbstUFk9edW8", stickyToLast: false, containerId: "lbstUFk9edW8", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "lbstUFk9edW8" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "DuJvxzv_uzjG", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "lbstUFk9edW8", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] edge 
+Object { type: "container", id: "DuJvxzv_uzjG", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-CDUagDMj.js:1:133648
+[dragDiag] edge 
+Object { type: "container", id: "DuJvxzv_uzjG", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "477a86b5-d584-4371-a7da-af34939d92a0", edge: "left" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "DuJvxzv_uzjG", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "DuJvxzv_uzjG", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "DuJvxzv_uzjG", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "DuJvxzv_uzjG" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "lbstUFk9edW8", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "lbstUFk9edW8", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "lbstUFk9edW8", stickyToLast: false, containerId: "lbstUFk9edW8", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-CDUagDMj.js:1:133648
+[dragDiag] edge 
+Object { type: "container", id: "lbstUFk9edW8", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "lbstUFk9edW8" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "2RUrZOXzma6e", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "lbstUFk9edW8", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "lbstUFk9edW8", stickyToLast: false, containerId: "lbstUFk9edW8", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "2RUrZOXzma6e", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "2RUrZOXzma6e", stickyToLast: false, containerId: "2RUrZOXzma6e", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-CDUagDMj.js:1:133648
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "2RUrZOXzma6e", stickyToLast: false, containerId: "2RUrZOXzma6e", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "2RUrZOXzma6e", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "2RUrZOXzma6e" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "exL9N86F-lw_", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "2RUrZOXzma6e", stickyToLast: false, containerId: "2RUrZOXzma6e", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "exL9N86F-lw_", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-CDUagDMj.js:1:133648
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "exL9N86F-lw_", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "exL9N86F-lw_", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "exL9N86F-lw_", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "exL9N86F-lw_", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "exL9N86F-lw_", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "exL9N86F-lw_", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "exL9N86F-lw_", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "exL9N86F-lw_", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "exL9N86F-lw_", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] edge 
+Object { type: "container", id: "exL9N86F-lw_", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "exL9N86F-lw_" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "Zvw5H68yPO5Z", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "Zvw5H68yPO5Z", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-CDUagDMj.js:1:133648
+[dragDiag] edge 
+Object { type: "container", id: "Zvw5H68yPO5Z", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "Zvw5H68yPO5Z", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "Zvw5H68yPO5Z", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "Zvw5H68yPO5Z", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "Zvw5H68yPO5Z", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "Zvw5H68yPO5Z", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "Zvw5H68yPO5Z", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "Zvw5H68yPO5Z", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "Zvw5H68yPO5Z" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "exL9N86F-lw_", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "Zvw5H68yPO5Z", stickyToLast: false, containerId: "Zvw5H68yPO5Z", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "exL9N86F-lw_", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "exL9N86F-lw_" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "2RUrZOXzma6e", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "exL9N86F-lw_", stickyToLast: false, containerId: "exL9N86F-lw_", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-CDUagDMj.js:1:133648
+[dragDiag] edge 
+Object { type: "container", id: "2RUrZOXzma6e", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "2RUrZOXzma6e", stickyToLast: false, containerId: "2RUrZOXzma6e", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-CDUagDMj.js:1:133648
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "2RUrZOXzma6e", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "2RUrZOXzma6e", stickyToLast: false, containerId: "2RUrZOXzma6e", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "2RUrZOXzma6e", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "2RUrZOXzma6e", stickyToLast: false, containerId: "2RUrZOXzma6e", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "2RUrZOXzma6e" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "lbstUFk9edW8", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "2RUrZOXzma6e", stickyToLast: false, containerId: "2RUrZOXzma6e", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "lbstUFk9edW8", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "lbstUFk9edW8" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "DuJvxzv_uzjG", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "lbstUFk9edW8", stickyToLast: false, containerId: "lbstUFk9edW8", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-CDUagDMj.js:1:133648
+[dragDiag] edge 
+Object { type: "container", id: "DuJvxzv_uzjG", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-CDUagDMj.js:1:133648
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "DuJvxzv_uzjG", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "DuJvxzv_uzjG", edge: "top" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] drop LEAVE 
+Object { type: "container", id: "DuJvxzv_uzjG" }
+PagePreviewApp-lZCRh2OG.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "container", id: "1C0NbnmCMLNQ", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178376
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "DuJvxzv_uzjG", stickyToLast: false, containerId: "DuJvxzv_uzjG", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] edge 
+Object { type: "container", id: "1C0NbnmCMLNQ", edge: "bottom" }
+PagePreviewApp-lZCRh2OG.js:34:178684
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-CDUagDMj.js:1:133648
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "1C0NbnmCMLNQ", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "1C0NbnmCMLNQ", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "1C0NbnmCMLNQ", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "1C0NbnmCMLNQ", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "1C0NbnmCMLNQ", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "1C0NbnmCMLNQ", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "477a86b5-d584-4371-a7da-af34939d92a0", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "o-AG2knGK0Ot", rawContainerId: "1C0NbnmCMLNQ", stickyToLast: false, containerId: "1C0NbnmCMLNQ", instanceId: null }
+App-CDUagDMj.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "1C0NbnmCMLNQ", found: true, matchCount: 1 }
+App-CDUagDMj.js:1:126114
+[drop] +0ms handleDrop entry App-CDUagDMj.js:1:138224
+[drop] +1ms rawEvent built App-CDUagDMj.js:1:138224
+[drop] +2ms dropContext built (target=occurrence mode=copy) App-CDUagDMj.js:1:138224
+[op-fire] depth=1 OccurrenceCreateOp occ=17799034 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-timing] OccurrenceCreateOp total=393ms ops=49
+     62ms   28fx  Table: Build
+     41ms    3fx  Canvas: Build
+     20ms    1fx  Pomodoros Today
+     20ms    1fx  Day Page: Build Tasks Completed
+     15ms    1fx  Checking Balance
+     13ms    3fx  Schedule: Stamp Date & Time Slot
+     12ms    1fx  Total Reps
+     10ms    0fx  Movies Watched
+      9ms    1fx  Steps
+      8ms    1fx  Completed
+      8ms    1fx  Pomodoro Time
+      8ms    1fx  Completion Rate
+      7ms    1fx  Earned
+      6ms    1fx  Water
+      6ms    1fx  Time Spent
+      6ms    1fx  Pages
+      6ms    1fx  Protein
+      6ms    1fx  Fats
+      6ms    1fx  Mom's Account Balance
+      6ms    1fx  Total Reading Time
+      6ms    1fx  Time Spent This Week
+      6ms    0fx  Due: Seed
+      5ms    1fx  Task Countdown
+      5ms    1fx  Spent
+      5ms    1fx  Carbs
+      5ms    1fx  Legs Volume
+      5ms    2fx  Meal History
+      5ms    2fx  Purchase History
+      5ms    1fx  Total Subscriptions
+      5ms    1fx  Monthly Bills
+      4ms    0fx  Moods
+      4ms    0fx  Phone Calls
+      4ms    1fx  Chest Volume
+      4ms    1fx  Back Volume
+      4ms    1fx  Dinner Nutrition
+      4ms    1fx  Total Workouts
+      4ms    0fx  Podcasts Listened
+      4ms    2fx  Current Streak
+      4ms    2fx  Workout History
+      4ms   11fx  Compute Next Due
+      3ms    1fx  Arms Volume
+      3ms    1fx  Cardio Volume
+      3ms    1fx  Breakfast Nutrition
+      3ms    1fx  Lunch Nutrition
+      3ms    1fx  Snack Nutrition
+      3ms    0fx  Books Read
+      3ms    0fx  Courses Taken
+      3ms    2fx  Pomodoro History
+      2ms    1fx  Shoulders Volume PagePreviewApp-lZCRh2OG.js:4:12
+[op-effects] depth=1 "Schedule: Stamp Date & Time Slot" UPDATE_ITEM_FIELD=3 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Day Page: Build Tasks Completed" UPDATE_ITEM_TEXTMAP=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Table: Build" CREATE_ITEM=1 UPDATE_OCCURRENCE=1 UPDATE_ITEM_META=26 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-effects] depth=1 "Canvas: Build" CREATE_ITEM=1 UPDATE_ITEM_META=2 PagePreviewApp-lZCRh2OG.js:5:38530
+[op-fire] depth=2 MeasureOp occ=17799034 2 PagePreviewApp-lZCRh2OG.js:5:37913
+[op-fire-done] depth=1 OccurrenceCreateOp 409ms total=77 display=11 PagePreviewApp-lZCRh2OG.js:5:38786
+[drop] +415ms routeDrop returned (sync mutations + op fires done) App-CDUagDMj.js:1:138224
+[drop] +415ms clearSession done — handleDrop synchronous end App-CDUagDMj.js:1:138224
+[drop] +0ms handleDrop entry 4 App-CDUagDMj.js:1:138224
+[drop] +740ms rAF #1 (pre-paint of next frame) App-CDUagDMj.js:1:138224
+[drop] +790ms rAF #2 (next frame painted) App-CDUagDMj.js:1:138224
+[drop-renders] panel=10 container=154 instance=164 page=10 field=0 App-CDUagDMj.js:1:139818
+[op-fire] depth=1 MeasureOp — 3 PagePreviewApp-lZCRh2OG.js:5:37913

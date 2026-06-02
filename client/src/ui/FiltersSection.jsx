@@ -9,7 +9,7 @@
 
 import React, { useState, useContext, useMemo } from "react";
 import { Plus, Lock, Unlock, Settings, X } from "lucide-react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import FilterNavWidget from "./FilterNavWidgets";
 import FilterEditor from "./FilterEditor";
@@ -85,7 +85,7 @@ function resolveFilterDisplayValue({ own, inherited, fieldType }) {
 }
 
 export default function FiltersSection({ occurrence }) {
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const { dispatch, socket, fieldsById, occurrencesById, modulesById, foldersById, state } = ctx;
   const grid = state?.grid;
   const filters = grid?.namedFilters || [];

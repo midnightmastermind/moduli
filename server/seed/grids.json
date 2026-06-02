@@ -1,19 +1,18 @@
 [
   {
-    "_id": "69c288bee56661f84e2e2504",
+    "_id": "6a1ecc8627aa50e8595e78ee",
+    "name": "Live Grid",
     "rows": 2,
     "cols": 3,
     "colSizes": [],
     "rowSizes": [],
     "userId": "{{USER_ID}}",
     "occurrences": [
-      "B2h9Y2NgARZY",
-      "IAO5saY4dvpc",
-      "0FPhweZkRH2c",
-      "iJHrZNMS5KsO",
-      "TTz1FU3JpB_m",
-      "IHhCn6i-k5wD",
-      "_CSH4m2tmYD2"
+      "ofnNapOCMhNp",
+      "Rwd6bmwfvQAV",
+      "qkwQ1G2F7mCT",
+      "LdmvUCHHi7yi",
+      "XJpU__FJgxoQ"
     ],
     "namedFilters": [
       {
@@ -21,279 +20,149 @@
         "name": "Daily",
         "conditions": [
           {
-            "fieldId": "QnrA81e_JnJt",
-            "comparator": "same_day"
+            "fieldId": "hRJng6xPvEsW",
+            "comparator": "SAME_DAY",
+            "isNav": true
           }
         ],
-        "timeScale": "daily",
-        "_id": "69c288bee56661f84e2e2505"
-      },
-      {
-        "id": "filter_weekly",
-        "name": "Weekly",
-        "conditions": [
-          {
-            "fieldId": "QnrA81e_JnJt",
-            "comparator": "same_week"
-          }
-        ],
-        "timeScale": "weekly",
-        "_id": "69c288bee56661f84e2e2506"
-      },
-      {
-        "id": "filter_all",
-        "name": "All",
-        "conditions": [],
         "timeScale": null,
-        "_id": "69c288bee56661f84e2e2507"
+        "primaryDateFieldId": null,
+        "timeUnit": "day",
+        "lock": false,
+        "_id": "6a1ecc8627aa50e8595e78ef"
       }
     ],
-    "activeFilterId": "filter_all",
-    "activeFilterValues": {
-      "QnrA81e_JnJt": "2026-03-24T17:00:00.000Z"
-    },
+    "activeFilterId": "filter_daily",
+    "toolbarNavFilters": [],
     "fieldIds": [
-      "KG7PSrkpzHPg",
-      "nWjx4QfWkSuz",
-      "ZkPBkZln1IX-",
-      "XpMIH9HGA6SV",
-      "DS5gTH54NeXH",
-      "L0AV7Np3Zrxv",
-      "r8f4dlHruVFr",
-      "aEKOn7_yLcHl",
-      "9RWuVXMHC-op",
-      "5rmi5O14GKKB",
-      "UHDX9FJ4w9_b",
-      "7Ty_yjUK25jR",
-      "d1pWlMBPQpM1",
-      "QnrA81e_JnJt",
-      "8nbH0j9SHmMS",
-      "pIy5KBP398CA",
-      "v-DId9zq89RA",
-      "mjpcEIS5TuaW",
-      "Vp8HFQKMUFk3",
-      "g9dhjGGhidDP",
-      "q1JbpGUedwqI",
-      "7FGGwnrurKLi",
-      "6tgdqrmcGYqz",
-      "MGxUBqIVIEq2",
-      "xRj4F-XRHl6O",
-      "zDps_H9PDRLK",
-      "6h2w8mbhAxDh",
-      "10HggLXfsyY2",
-      "r37JBwDKbhVL",
-      "wzes6oMeJalc",
-      "aEYDhIL7QoZQ",
-      "-zDSrzHsxGDO",
-      "4alccdW1N-Mm",
-      "1nKep_eHx5WT",
-      "r8ORuMaFPViW",
-      "GG93s7m1c1z9",
-      "7-YjUwJIZ6fy",
-      "G_jjgCVhNyUE",
-      "H0q1EBNmk1Kl",
-      "8ZRmzc7S1kB7",
-      "5hYOqnSXFdg_",
-      "29-kqQ7mia8U",
-      "owx-hWbmQw7t",
-      "EY5b64q5FQu7",
-      "a1846vIpVCDB",
-      "rhGYPhMHKKri",
-      "E3JM2_mUddye",
-      "L5fwbW_0y2Kg",
-      "zZVeg6-Y9o5D",
-      "F0Ty3Dk-cdo_",
-      "dV11hgD-0sR3",
-      "GdbOzgurbPDk",
-      "vlSCDy0spdSO",
-      "9ynAbfCWBxFW",
-      "sMT36QGYdqRK",
-      "PK6bRfGV5KXE",
-      "jZXlgb5xy_37",
-      "PZNGIDMpMuKF",
-      "s4Agu1WLgeqf",
-      "sAPr_Mpl32sr",
-      "9EhMXKmfs43X",
-      "rZGFagxxFKq2",
-      "eiWBMql7cvrs",
-      "2CtsAwkG_cnN",
-      "ASaKDq5jzsnE",
-      "Hf7YPoe700LZ",
-      "xtRrknMdpPBj",
-      "lz_tTQHKejyU",
-      "fcEkgCSQcIpY",
-      "jcdnyJets6Uj",
-      "ZI9_8aPS3ahP",
-      "0AAEcN-hload",
-      "33-jN_V9rU_5",
-      "wNR6FhYPvMVH"
+      "ZAKjLJe19Whg",
+      "hRJng6xPvEsW",
+      "LKFpRr-5HmbH",
+      "O5SAww61g_dZ",
+      "YxAtQrK6X_WM",
+      "mVpBG2myRqpc",
+      "GQnlvKw1zMRv",
+      "NzTWuQQDVB6O",
+      "M7-35LQ32a1K",
+      "GezNS9JKYDjq",
+      "jzhu43G-yz8q",
+      "GKoTDXRspsvP",
+      "SHikxIlCb3-i",
+      "WThwP3gXu0Sw",
+      "x2QRTk0fbxnH",
+      "X4ThZgexK6nL",
+      "WbWpxfskvK9e",
+      "yyECm7BLqWKE",
+      "WQGgT_1bK26J",
+      "fLQ9yf8h4Bob",
+      "EVFw9p7pGMtU",
+      "9xUw-OlLekCu",
+      "FqVA75mUeai9",
+      "MdTcoR5faN22",
+      "bmt2TrspYioY",
+      "yJwSfPgzHl5o",
+      "Y7khNIwodAPZ",
+      "6980rLkqGm1p",
+      "Q8u8BUT6hSgI",
+      "SDHbYzdNcfpM",
+      "SmR8QV40DSyF",
+      "7m-qXM1BOIdn",
+      "P7rZmGQYe5TD",
+      "WP4wmbvBPsWS",
+      "hx4YoQp3Qeiu",
+      "Wo4t4t_z1T1Z",
+      "25WZtlPq0VnH",
+      "R_iZao4l_bO3",
+      "PSLwy_t2PVIN",
+      "S6aeqgs4gsak",
+      "JAFLU6v2HIHQ",
+      "L6NkfkDPgVkn",
+      "I43vP5LZM4YL",
+      "ajMfNjaPjpeP",
+      "aw5wICuU2TDr",
+      "H9OJYfbBdzhl",
+      "DsdsxagBhRZK",
+      "TMHYcndRuD3-",
+      "dZjyQBQmINEG",
+      "f2lyGXzNwRw3",
+      "MYRzHq_J18m6",
+      "HO8rGrd3jEWI",
+      "Fc8rLNOIQA8U",
+      "dlsdthZJfbsW",
+      "MXh4ZY1EPlaA",
+      "CcQQfK7LemjT",
+      "8fU80AIbgdJ9",
+      "cJzs2yTpJXCc",
+      "t4lv3FnwBfxc",
+      "ADr_ks4yBMlZ",
+      "cz6Shbe_VliU",
+      "cqMxAe7N_-Fv",
+      "Fd1yXMtMwSgp",
+      "09J6u3C0fKcC",
+      "QWq1MrDYtvak",
+      "wEqum-INPje-",
+      "MLWvOyEiznPl",
+      "lM2o4imm264M",
+      "6Dzv8Q1McFgL",
+      "wgoGUPO_kamx",
+      "WorYEOShmRVa",
+      "2On3m-mygn9L",
+      "Rwp0GaFntblP",
+      "zFhuLdhnH3-6",
+      "7RlklYHsyl9O",
+      "kNF3R4N2LC-t",
+      "q1a2JuFJzmxm",
+      "ZjXL3ZGBJn4c",
+      "Xt-HyhrhcQPI",
+      "Syh0M5izCA0a",
+      "_sWHUBJxgyZd",
+      "YwnR86LWx6FX",
+      "2z-CIMTiY7_7",
+      "I4bzW9nDIbEt",
+      "jcHZhE-bdT3T",
+      "mC7hH98oVIUa",
+      "0Myq2UWOmcFg",
+      "c8C8CJDb2MMz",
+      "dSeTQavIZcUr",
+      "CyTJkb7OqVpu",
+      "v7zERrib0-_1",
+      "LdrPPFa1DdWr",
+      "z7LbVv2VqDoy",
+      "tS3Uw9tDCYd5",
+      "JBymJ1mb36Ql",
+      "hGb6R5dG0GeQ",
+      "x8QpA-8gBZ3Z",
+      "FOziq-dGjTWw",
+      "reln106j_mJI",
+      "eS07xJqLllcu",
+      "rdccmPK-H5RA",
+      "A_Qp2PaJS_qV",
+      "ZkD1fjIL-Qa8",
+      "Omqwq6DCZGMs",
+      "F4e5HGf02L2Z",
+      "kktSjv39PnTR",
+      "V_6biHz_T3jO",
+      "UdsBDgl1vHdx",
+      "0Gk0PshESaIj",
+      "L-tW9XRSHuy2",
+      "II1-Fl5rU46o",
+      "jEHRS9IBNY2n",
+      "BSPOZYwMKLuY",
+      "T1tXMsRG0oax",
+      "xko3QiKLErlD",
+      "O_QDxQFhvlOx",
+      "DF3iGr22aa_U",
+      "eUq-TokYeQDo",
+      "QmZge-dTkq56",
+      "C6OP_1cgZ2vW",
+      "okJty2nxkUyS",
+      "x21XGQQXEAnj",
+      "OacFq5NbAHHb",
+      "KQckqVtSvzd7",
+      "BqDPYzh2SKmU",
+      "H9IfbEK62DWY"
     ],
-    "templates": [
-      {
-        "id": "nxIjhYtGRNfi",
-        "name": "Morning Routine",
-        "items": [
-          {
-            "instanceId": "g7TojdT5MVJA"
-          },
-          {
-            "instanceId": "0PVU7GhuszgY"
-          },
-          {
-            "instanceId": "V_Gxv0iYSKz3"
-          },
-          {
-            "instanceId": "pocRigoqfnGM"
-          },
-          {
-            "instanceId": "V7gzB8oNOjmA"
-          },
-          {
-            "instanceId": "yfbYSF5HZ7mN"
-          }
-        ],
-        "createdAt": "2026-03-24T13:02:50.667Z",
-        "_id": "69c28b7ae56661f84e2e3219"
-      },
-      {
-        "id": "tmpl_daily_24h",
-        "name": "Daily Schedule (24h)",
-        "items": [],
-        "createdAt": "2026-03-26T00:29:14.850Z",
-        "_id": "69c2aaa1e56661f84e2e3300"
-      },
-      {
-        "id": "tmpl_weekly_7d",
-        "name": "Weekly Schedule (7 days)",
-        "items": [
-          {
-            "instanceId": "wkday_mon"
-          },
-          {
-            "instanceId": "wkday_tue"
-          },
-          {
-            "instanceId": "wkday_wed"
-          },
-          {
-            "instanceId": "wkday_thu"
-          },
-          {
-            "instanceId": "wkday_fri"
-          },
-          {
-            "instanceId": "wkday_sat"
-          },
-          {
-            "instanceId": "wkday_sun"
-          }
-        ],
-        "createdAt": "2026-03-26T00:29:14.850Z",
-        "_id": "69c2aaa2e56661f84e2e3301"
-      },
-      {
-        "id": "tmpl_monthly_31d",
-        "name": "Monthly Schedule (31 days)",
-        "items": [
-          {
-            "instanceId": "moday_1"
-          },
-          {
-            "instanceId": "moday_2"
-          },
-          {
-            "instanceId": "moday_3"
-          },
-          {
-            "instanceId": "moday_4"
-          },
-          {
-            "instanceId": "moday_5"
-          },
-          {
-            "instanceId": "moday_6"
-          },
-          {
-            "instanceId": "moday_7"
-          },
-          {
-            "instanceId": "moday_8"
-          },
-          {
-            "instanceId": "moday_9"
-          },
-          {
-            "instanceId": "moday_10"
-          },
-          {
-            "instanceId": "moday_11"
-          },
-          {
-            "instanceId": "moday_12"
-          },
-          {
-            "instanceId": "moday_13"
-          },
-          {
-            "instanceId": "moday_14"
-          },
-          {
-            "instanceId": "moday_15"
-          },
-          {
-            "instanceId": "moday_16"
-          },
-          {
-            "instanceId": "moday_17"
-          },
-          {
-            "instanceId": "moday_18"
-          },
-          {
-            "instanceId": "moday_19"
-          },
-          {
-            "instanceId": "moday_20"
-          },
-          {
-            "instanceId": "moday_21"
-          },
-          {
-            "instanceId": "moday_22"
-          },
-          {
-            "instanceId": "moday_23"
-          },
-          {
-            "instanceId": "moday_24"
-          },
-          {
-            "instanceId": "moday_25"
-          },
-          {
-            "instanceId": "moday_26"
-          },
-          {
-            "instanceId": "moday_27"
-          },
-          {
-            "instanceId": "moday_28"
-          },
-          {
-            "instanceId": "moday_29"
-          },
-          {
-            "instanceId": "moday_30"
-          },
-          {
-            "instanceId": "moday_31"
-          }
-        ],
-        "createdAt": "2026-03-26T00:29:14.852Z",
-        "_id": "69c2aaa3e56661f84e2e3302"
-      }
-    ],
-    "createdAt": "2026-03-24T12:51:10.558Z",
-    "updatedAt": "2026-03-24T13:04:03.122Z"
+    "manifestId": "Usr9KvPpqry1",
+    "templates": []
   }
 ]

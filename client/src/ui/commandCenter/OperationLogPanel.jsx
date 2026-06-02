@@ -10,7 +10,7 @@ import {
   GitBranch, Repeat, Variable, Zap, AlertCircle, CheckCircle2,
   Eye, ArrowRight,
 } from "lucide-react";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import {
   executePipeline,
   getOpRunHistory,
@@ -494,7 +494,7 @@ function ActionBody({ actionType, cfg = {}, resolvedConfig, resolvedPredicate, r
       )}
     </ParamRow>);
     rows.push(<ParamRow key="role" label="role">{<code style={codeSt}>{cfg.role || "container"}</code>}</ParamRow>);
-    rows.push(<ParamRow key="kind" label="kind">{<code style={codeSt}>{cfg.kind || "list"}</code>}</ParamRow>);
+    rows.push(<ParamRow key="kind" label="kind">{<code style={codeSt}>{cfg.kind || "board"}</code>}</ParamRow>);
     if (cfg.parent) {
       rows.push(<ParamRow key="parent" label="parent">
         <code style={codeSt}>{cfg.parent}</code>
@@ -902,7 +902,7 @@ function RunRow({ run, expanded, onToggle, isLatest, maps }) {
 const labelStyle = { fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace" };
 
 export default function OperationLogPanel({ operation }) {
-  const { state, fieldsById, occurrencesById, modulesById, operationsById } = useContext(GridActionsContext);
+  const { state, fieldsById, occurrencesById, modulesById, operationsById } = useGridActions();
   const opId = operation?.id;
   const [history, setHistory] = useState(() => (opId ? getOpRunHistory(opId) : []));
   const [expandedIdx, setExpandedIdx] = useState(0);

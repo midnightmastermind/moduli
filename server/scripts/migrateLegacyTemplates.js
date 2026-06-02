@@ -38,7 +38,7 @@ async function ensureManifest(grid) {
       userId: grid.userId, gridId,
       manifestType: "templates", rootFolderId: folderId,
     },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
   return m;
 }

@@ -17,13 +17,13 @@ export async function ensureTemplatesManifest({ gridId, userId, uc }) {
   const folder = await Folder.findOneAndUpdate(
     { id: folderId },
     { id: folderId, name: "Templates", userId, gridId, folderType: "templates", parentId: null, sortOrder: 0 },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   ).lean();
 
   const manifest = await Manifest.findOneAndUpdate(
     { id: manifestId },
     { id: manifestId, name: "Templates", userId, gridId, manifestType: "templates", rootFolderId: folderId },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   ).lean();
 
   uc.foldersById = uc.foldersById || {};

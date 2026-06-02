@@ -1,0 +1,270 @@
+Layout was forced before the page was fully loaded. If stylesheets are not yet loaded this may cause a flash of unstyled content. node.js:416:1
+[socket] full_state received: 
+Object { gridId: "6a15ee616d81c5362786f6f9", grid: {…}, modules: (618) […], occurrences: (615) […], fields: (123) […], manifests: (2) […], views: (7) […], folders: (27) […], operations: (67) […], grids: (1) […] }
+PagePreviewApp-QUyR1_dx.js:5:20377
+[full_state-client] +4ms reducer dispatched (615 occs, 618 mods) PagePreviewApp-QUyR1_dx.js:5:20298
+[op-timing] null total=446ms ops=55
+     75ms  108fx  Schedule: Build Schedule
+     26ms   91fx  People Table: Build
+     25ms   16fx  Table: Build
+     22ms    1fx  Day Page: Build Tasks Completed
+     16ms   18fx  Canvas: Build
+     12ms    1fx  Total Reps
+     12ms    1fx  Total Workouts
+     11ms    1fx  Fats
+     10ms    1fx  Steps
+     10ms    1fx  Shoulders Volume
+      8ms    1fx  Completed
+      8ms    1fx  Pomodoros Today
+      8ms    1fx  Earned
+      8ms    1fx  Protein
+      8ms    1fx  Back Volume
+      7ms    1fx  Pages
+      7ms    1fx  Checking Balance
+      7ms    1fx  Completion Rate
+      7ms    1fx  Time Spent This Week
+      7ms    0fx  Due: Seed
+      6ms    1fx  Water
+      6ms    1fx  Time Spent
+      6ms    1fx  Spent
+      6ms    1fx  Carbs
+      6ms    1fx  Breakfast Nutrition
+      6ms    1fx  Mom's Account Balance
+      6ms    9fx  Project: Create
+      6ms    1fx  Net Worth
+      5ms    6fx  Day Page: Build
+      5ms    1fx  Pomodoro Time
+      5ms    1fx  Snack Nutrition
+      5ms    2fx  Pomodoro History
+      5ms    1fx  Total Subscriptions
+      4ms    1fx  Task Countdown
+      4ms    0fx  Moods
+      4ms    1fx  Arms Volume
+      4ms    1fx  Cardio Volume
+      4ms    1fx  Lunch Nutrition
+      4ms    1fx  Dinner Nutrition
+      4ms    1fx  Total Reading Time
+      4ms    0fx  Movies Watched
+      4ms    2fx  Workout History
+      4ms    2fx  Meal History
+      4ms    0fx  Compute Next Due
+      4ms    0fx  Mark Passed Timeslots
+      4ms    1fx  Monthly Bills
+      3ms    0fx  Phone Calls
+      3ms    1fx  Chest Volume
+      3ms    1fx  Legs Volume
+      3ms    0fx  Books Read
+      3ms    0fx  Podcasts Listened
+      3ms    0fx  Courses Taken
+      3ms    0fx  Daily Question Rotator
+      3ms    2fx  Current Streak
+      3ms    2fx  Purchase History PagePreviewApp-QUyR1_dx.js:4:12
+[full_state-client] runMatchingOperations: 447ms — 67 ops, 292 effects, 0 display updates PagePreviewApp-QUyR1_dx.js:5:22537
+[op-fire] depth=1 MeasureOp occ=bI8R45zm 4 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=wIwGYwo8 4 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=8Ym_bl50 2 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=Uz7xnT27 3 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=nJK791np PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=LYQlSJwk PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=FXvdubJ6 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=AUXgl1Y1 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=ovBKaZDK PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=U7GvTUto PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=t1sdvUW1 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=L5WJNaYf PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=jeP-nT8q PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=5OdhHAFo PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=OiNJSzHr PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=_6KROamM PagePreviewApp-QUyR1_dx.js:5:38124
+[op-effects] depth=1 "Net Worth" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-fire] depth=2 MeasureOp occ=GKXuVPj6 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire-done] depth=1 MeasureOp 9ms total=1 display=0 PagePreviewApp-QUyR1_dx.js:5:38998
+[op-fire] depth=1 MeasureOp occ=sz3fsb0u PagePreviewApp-QUyR1_dx.js:5:38124
+[op-effects] depth=1 "Net Worth" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-fire-done] depth=1 MeasureOp 7ms total=1 display=0 PagePreviewApp-QUyR1_dx.js:5:38998
+[op-fire] depth=1 MeasureOp occ=LrkKiELH PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=XI9Te8p3 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=MXs09A-A 2 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=wIwGYwo8 2 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=bI8R45zm 2 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=nJK791np 2 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=Uz7xnT27 2 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=8Ym_bl50 2 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire] depth=1 MeasureOp occ=WhWG0KDY PagePreviewApp-QUyR1_dx.js:5:38124
+[op-timing] MeasureOp total=37ms ops=6
+     12ms    1fx  Monthly Bills
+      7ms    1fx  Checking Balance
+      5ms    1fx  Mom's Account Balance
+      5ms    1fx  Total Subscriptions
+      4ms    0fx  Spent
+      4ms    2fx  Purchase History PagePreviewApp-QUyR1_dx.js:4:12
+[op-effects] depth=1 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-fire] depth=2 MeasureOp occ=CTuFAC3j PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire-done] depth=1 MeasureOp 40ms total=6 display=0 PagePreviewApp-QUyR1_dx.js:5:38998
+[full_state-client] applied effects in 93ms PagePreviewApp-QUyR1_dx.js:5:22739
+[table] 
+Object { occId: "MyYx6xSarWp5", label: "Schedule Table", rowCount: 0, columns: 4, cellsPersisted: 0, hasMetaTable: true }
+PagePreviewApp-QUyR1_dx.js:76:59855
+[op-fire] depth=1 MeasureOp — 43 PagePreviewApp-QUyR1_dx.js:5:38124
+[drop] +0ms handleDrop entry App-B_VtVrM4.js:1:137914
+[drop] +0ms rawEvent built App-B_VtVrM4.js:1:137914
+[drop] +1ms dropContext built (target=occurrence mode=copy) App-B_VtVrM4.js:1:137914
+[op-fire] depth=1 OccurrenceCreateOp occ=17798231 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-timing] OccurrenceCreateOp total=383ms ops=49
+     53ms   28fx  Table: Build
+     30ms    3fx  Canvas: Build
+     23ms    1fx  Day Page: Build Tasks Completed
+     11ms    1fx  Time Spent
+     11ms    1fx  Mom's Account Balance
+     10ms    1fx  Completed
+     10ms    1fx  Protein
+      9ms    3fx  Schedule: Stamp Date & Time Slot
+      9ms    1fx  Task Countdown
+      9ms    1fx  Shoulders Volume
+      9ms    1fx  Checking Balance
+      9ms    0fx  Due: Seed
+      8ms    0fx  Phone Calls
+      8ms    1fx  Steps
+      8ms    1fx  Pages
+      8ms    1fx  Earned
+      8ms    1fx  Completion Rate
+      7ms    1fx  Water
+      7ms    1fx  Pomodoros Today
+      7ms    1fx  Pomodoro Time
+      7ms    1fx  Total Reps
+      7ms    0fx  Movies Watched
+      6ms    0fx  Moods
+      6ms    1fx  Spent
+      6ms    1fx  Carbs
+      6ms    1fx  Fats
+      6ms    1fx  Total Reading Time
+      6ms    1fx  Total Subscriptions
+      5ms    1fx  Cardio Volume
+      5ms    1fx  Time Spent This Week
+      5ms    2fx  Purchase History
+      5ms    1fx  Monthly Bills
+      4ms    1fx  Chest Volume
+      4ms    1fx  Legs Volume
+      4ms    1fx  Breakfast Nutrition
+      4ms    1fx  Dinner Nutrition
+      4ms    1fx  Total Workouts
+      4ms    2fx  Pomodoro History
+      4ms    2fx  Workout History
+      4ms    2fx  Meal History
+      4ms   11fx  Compute Next Due
+      3ms    1fx  Back Volume
+      3ms    1fx  Arms Volume
+      3ms    1fx  Lunch Nutrition
+      3ms    1fx  Snack Nutrition
+      3ms    0fx  Books Read
+      3ms    0fx  Courses Taken
+      3ms    2fx  Current Streak
+      2ms    0fx  Podcasts Listened PagePreviewApp-QUyR1_dx.js:4:12
+[op-effects] depth=1 "Schedule: Stamp Date & Time Slot" UPDATE_ITEM_FIELD=3 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Day Page: Build Tasks Completed" UPDATE_ITEM_TEXTMAP=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Table: Build" CREATE_ITEM=1 UPDATE_OCCURRENCE=1 UPDATE_ITEM_META=26 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Canvas: Build" CREATE_ITEM=1 UPDATE_ITEM_META=2 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-fire] depth=2 MeasureOp occ=17798231 2 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-fire-done] depth=1 OccurrenceCreateOp 395ms total=77 display=11 PagePreviewApp-QUyR1_dx.js:5:38998
+[op-fire] depth=1 MeasureOp occ=17798231 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-timing] MeasureOp total=70ms ops=2
+     38ms    0fx  Table: Build
+     32ms    0fx  Canvas: Build PagePreviewApp-QUyR1_dx.js:4:12
+[drop] +468ms routeDrop returned (sync mutations + op fires done) App-B_VtVrM4.js:1:137914
+[drop] +468ms clearSession done — handleDrop synchronous end App-B_VtVrM4.js:1:137914
+[drop] +0ms handleDrop entry 2 App-B_VtVrM4.js:1:137914
+[drop] +715ms rAF #1 (pre-paint of next frame) App-B_VtVrM4.js:1:137914
+[drop] +773ms rAF #2 (next frame painted) App-B_VtVrM4.js:1:137914
+[drop-renders] panel=5 container=81 instance=70 page=6 field=0 App-B_VtVrM4.js:1:139507
+[drop] +0ms handleDrop entry App-B_VtVrM4.js:1:137914
+[drop] +0ms rawEvent built App-B_VtVrM4.js:1:137914
+[drop] +1ms dropContext built (target=occurrence mode=copy) App-B_VtVrM4.js:1:137914
+[op-fire] depth=1 OccurrenceCreateOp occ=17798231 PagePreviewApp-QUyR1_dx.js:5:38124
+[op-timing] OccurrenceCreateOp total=153ms ops=20
+     17ms    1fx  Snack Nutrition
+     14ms   11fx  Compute Next Due
+     11ms    1fx  Lunch Nutrition
+     11ms    1fx  Total Subscriptions
+     10ms    1fx  Legs Volume
+      9ms    1fx  Chest Volume
+      9ms    1fx  Shoulders Volume
+      9ms    1fx  Cardio Volume
+      9ms    2fx  Current Streak
+      9ms    2fx  Meal History
+      6ms    0fx  Due: Seed
+      5ms    1fx  Task Countdown
+      5ms    2fx  Workout History
+      5ms    2fx  Purchase History
+      5ms    1fx  Monthly Bills
+      4ms    1fx  Back Volume
+      4ms    1fx  Arms Volume
+      4ms    1fx  Dinner Nutrition
+      4ms    2fx  Pomodoro History
+      3ms    1fx  Breakfast Nutrition PagePreviewApp-QUyR1_dx.js:4:12
+[op-effects] depth=1 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-effects] depth=1 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-QUyR1_dx.js:5:38742
+[op-fire-done] depth=1 OccurrenceCreateOp 155ms total=23 display=11 PagePreviewApp-QUyR1_dx.js:5:38998
+[op-fire] depth=1 MeasureOp occ=17798231 PagePreviewApp-QUyR1_dx.js:5:38124
+[drop] +168ms routeDrop returned (sync mutations + op fires done) App-B_VtVrM4.js:1:137914
+[drop] +168ms clearSession done — handleDrop synchronous end App-B_VtVrM4.js:1:137914
+[drop] +0ms handleDrop entry 2 App-B_VtVrM4.js:1:137914
+[drop] +377ms rAF #1 (pre-paint of next frame) App-B_VtVrM4.js:1:137914
+[drop] +435ms rAF #2 (next frame painted) App-B_VtVrM4.js:1:137914
+[drop-renders] panel=5 container=81 instance=71 page=6 field=0 App-B_VtVrM4.js:1:139507

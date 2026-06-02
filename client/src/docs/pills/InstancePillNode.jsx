@@ -9,7 +9,7 @@
 import React, { useContext, useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import { Copy, Link, Trash2, Settings, Move, Check, Box, Maximize2 } from "lucide-react";
 import RadialMenu from "../../ui/RadialMenu";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
@@ -40,7 +40,7 @@ function formatFieldValue(field, rawValue) {
 }
 
 export default function InstancePillNode({ node, selected, deleteNode, updateAttributes, editor, getPos }) {
-  const { instancesById, occurrencesById, fieldsById, dispatch, socket } = useContext(GridActionsContext) || {};
+  const { instancesById, occurrencesById, fieldsById, dispatch, socket } = useGridActions() || {};
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const pillRef = useRef(null);

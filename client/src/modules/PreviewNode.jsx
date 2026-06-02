@@ -1,30 +1,46 @@
 // modules/PreviewNode.jsx
 // Preview card component for folder page views.
-// Shows a module occurrence as a card with iframe content preview.
+// Shows a module occurrence as a card with INLINE content preview.
 // Click triggers drilldown animation.
 //
-// Uses ?previewOcc=<occId> iframe that loads PagePreviewApp — a lightweight
-// app that connects via socket with previewOcc param to get only the
-// occurrence subtree needed.
+// 2026-05-25 — Replaced the iframe (`<iframe src="/?previewOcc=X">`) with
+// an inline mount of <PagePreviewBody>. Old design: each card spawned a
+// separate browser context loading the full React bundle (every chunk:
+// react / tiptap / pdf / highlight / lucide / dnd / …). 11 visible
+// folder-page cards × full-bundle parse + full-app-context = the page
+// load froze, the AbortSignal MaxListeners warning fired (one signal per
+// iframe), and any state change after that pegged the browser. Now the
+// same subtree-filtering optimization happens inside the parent's React
+// tree — zero bundle reload, zero iframe, zero extra socket. PagePreviewBody
+// reads parent state through a prop and replaces all the byId lookup
+// contexts with subtree-only versions, so Page renders cheaply even with
+// 11 cards on screen. The legacy `/?previewOcc=X` iframe entry point in
+// main.jsx still works for any outstanding iframe consumers.
 
-import React, { useRef, useEffect, useContext, useState, useCallback } from "react";
-import { File } from "lucide-react";
+import React, { useRef, useEffect, useContext, useState, useCallback, useMemo } from "react";
+import { File, Image as ImageIcon, X } from "lucide-react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { GridActionsContext } from "../GridActionsContext.js";
+import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
 import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
 import { getEffectiveViewMode } from "../helpers/viewMode";
+import { resolveFileRef } from "../helpers/fileRef";
 import ViewModeSwitcher from "../ui/ViewModeSwitcher";
 import RepresentationView from "../ui/RepresentationView";
+import ContextMenu from "../ui/ContextMenu";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { PagePreviewBody } from "../PagePreviewApp.jsx";
 
-// Iframe preview — loads /?previewOcc=<occId> which renders PagePreviewApp
-function IframePreview({ occurrenceId, landscape = false }) {
-  const [loaded, setLoaded] = useState(false);
+// Inline preview — mounts PagePreviewBody directly in the parent React tree.
+// Scaled to fit the card via CSS transform; pointer-events:none keeps it
+// non-interactive so the parent card's click/drag/right-click stay live.
+function InlinePreview({ occurrenceId, landscape = false }) {
   const containerRef = useRef(null);
   const [scale, setScale] = useState(0.15);
   const iframeW = landscape ? 560 : 600;
   const iframeH = landscape ? 380 : 800;
 
+  // Re-measure the card to compute scale (same width-driven scaling the
+  // iframe path used).
   useEffect(() => {
     if (!containerRef.current) return;
     const ro = new ResizeObserver(([entry]) => {
@@ -34,6 +50,16 @@ function IframePreview({ occurrenceId, landscape = false }) {
     ro.observe(containerRef.current);
     return () => ro.disconnect();
   }, [iframeW]);
+
+  // PagePreviewBody expects a parentState prop. App.jsx writes the live
+  // store snapshot to `window.__moduli_state__` synchronously on every
+  // parent render — reading it here gives us a fresh ref on every
+  // PreviewNode render, and PagePreviewBody's internal memos refilter on
+  // ref change. That's the same coupling the iframe path had via its
+  // 100ms poll; here it's tighter (synchronous) and cheaper (no postMessage,
+  // no IPC). Falling back to null lets the body render an empty
+  // placeholder before the parent has hydrated state.
+  const parentState = typeof window !== "undefined" ? window.__moduli_state__ : null;
 
   if (!occurrenceId) {
     return (
@@ -45,34 +71,23 @@ function IframePreview({ occurrenceId, landscape = false }) {
 
   return (
     <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative", overflow: "hidden" }}>
-      <iframe
-        src={`/?previewOcc=${occurrenceId}`}
+      <div
         style={{
           position: "absolute",
           top: 0,
           left: 0,
           width: iframeW,
           height: iframeH,
-          border: "none",
           transformOrigin: "top left",
           transform: `scale(${scale})`,
           pointerEvents: "none",
-          opacity: loaded ? 1 : 0,
-          transition: "opacity 0.3s ease",
+          // Block any internal scroll inside the preview from bubbling out
+          // and stealing the parent's scroll. The preview is non-interactive.
+          overflow: "hidden",
         }}
-        title="Preview"
-        onLoad={() => setLoaded(true)}
-        tabIndex={-1}
-      />
-      {!loaded && (
-        <div style={{
-          position: "absolute", inset: 0,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: "var(--text-faint)", fontSize: 10,
-        }}>
-          …
-        </div>
-      )}
+      >
+        <PagePreviewBody parentState={parentState} occurrenceId={occurrenceId} />
+      </div>
     </div>
   );
 }
@@ -98,7 +113,7 @@ export default function PreviewNode({
   // here per the user spec (Folder pages exist to give a grid-of-cards
   // drilldown; rendering full Actual would defeat the purpose). The
   // ViewModeSwitcher's folderPage contextTag filters Actual out.
-  const ctxActions = useContext(GridActionsContext) || {};
+  const ctxActions = useGridActions() || {};
   const dispatch = ctxActions.dispatch;
   const socket = ctxActions.socket;
   const viewMode = getEffectiveViewMode(occurrence, "folderPage");
@@ -156,6 +171,57 @@ export default function PreviewNode({
   const isLandscape = kind === "folder";
   const shouldLoadIframe = loadPreview && hasBeenVisible;
 
+  // F2 — per-card cover override. When `occurrence.meta.cover` is set
+  // (URL or fileRef string), render it INSTEAD of the iframe preview.
+  // The image still drills in on click. Right-click menu sets / clears.
+  const coverRaw = occurrence?.meta?.cover;
+  const coverSrc = typeof coverRaw === "string" && coverRaw.trim()
+    ? resolveFileRef(coverRaw.trim())
+    : null;
+
+  const [ctxMenu, setCtxMenu] = useState(null);
+  const handleSetCover = useCallback(() => {
+    if (!occurrence?.id) return;
+    const next = window.prompt(
+      "Cover image URL (or relative upload path; leave empty to clear):",
+      coverRaw || ""
+    );
+    if (next == null) return; // user cancelled
+    const trimmed = next.trim();
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: {
+        id: occurrence.id,
+        meta: { ...(occurrence.meta || {}), cover: trimmed || null },
+      },
+      emit: true,
+    });
+  }, [occurrence?.id, occurrence?.meta, coverRaw, dispatch, socket]);
+
+  const handleClearCover = useCallback(() => {
+    if (!occurrence?.id) return;
+    const nextMeta = { ...(occurrence.meta || {}) };
+    delete nextMeta.cover;
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: occurrence.id, meta: nextMeta },
+      emit: true,
+    });
+  }, [occurrence?.id, occurrence?.meta, dispatch, socket]);
+
+  const handleContextMenu = useCallback((e) => {
+    if (!occurrence?.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setCtxMenu({
+      x: e.clientX, y: e.clientY,
+      items: [
+        { label: coverSrc ? "Change cover image…" : "Set cover image…", icon: ImageIcon, onClick: handleSetCover },
+        coverSrc ? { label: "Clear cover", icon: X, onClick: handleClearCover, danger: true } : null,
+      ].filter(Boolean),
+    });
+  }, [occurrence?.id, coverSrc, handleSetCover, handleClearCover]);
+
   // Representation mode renders a single chip (no iframe, no preview
   // body) — the user can still drill in by clicking it.
   if (viewMode === "representation") {
@@ -199,11 +265,19 @@ export default function PreviewNode({
         if (isAnimating || !canDrillDown) return;
         onDrillDown?.(occurrence?.id, ref.current);
       }}
+      onContextMenu={handleContextMenu}
       style={{ position: "relative", ...extraStyle }}
     >
       <div className="preview-node-preview" style={isLandscape ? { aspectRatio: "4 / 3" } : undefined}>
-        {shouldLoadIframe
-          ? <IframePreview occurrenceId={occurrence?.id} landscape={isLandscape} />
+        {coverSrc
+          ? <img
+              src={coverSrc}
+              alt=""
+              loading="lazy"
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          : shouldLoadIframe
+          ? <InlinePreview occurrenceId={occurrence?.id} landscape={isLandscape} />
           : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <File size={20} style={{ color: "var(--text-faint)", opacity: 0.3 }} />
             </div>
@@ -222,6 +296,7 @@ export default function PreviewNode({
           className="preview-node-mode-switcher"
         />
       </div>
+      <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { setFilterNavAction } from "../state/actions";
 import { resolveOptions } from "../helpers/optionsResolver";
 import NavPickerPopover from "./NavPickerPopover.jsx";
+import { summarizeSelection } from "./filterSummary";
 
 // Period units exposed in the D/W/M/Y toggle. Stepping uses Date#setDate /
 // setMonth / setFullYear (NOT fixed ms deltas — month/year vary in length).
@@ -166,8 +167,11 @@ function ArrowsWidget({ filter, navConfig, value, dispatch, onNav }) {
   // Label reads from the persisted shape's kind for richer display.
   const baseLabel = shape.value ? formatPeriodLabel(parseDateValue(shape.value), unit) : "—";
   const label = (() => {
-    if (shape.kind === "multi" && Array.isArray(shape.dates)) return `${shape.dates.length} days`;
-    if (unit === "day" && span > 1) return `${baseLabel} + ${span - 1} day${span === 2 ? "" : "s"}`;
+    // Multi or multi-day span → list the actual days/ranges. Single + week/
+    // month/year keep the weekday/period label for at-a-glance reading.
+    const isListed = (shape.kind === "multi" && Array.isArray(shape.dates) && shape.dates.length)
+      || (unit === "day" && span > 1);
+    if (isListed) return summarizeSelection(shape, { maxSegments: 3 }) || baseLabel;
     return baseLabel;
   })();
   const showToggle = !allowedUnits || allowedUnits.length > 1;
@@ -180,8 +184,13 @@ function ArrowsWidget({ filter, navConfig, value, dispatch, onNav }) {
     writeNext(next.value, next.unit || "day", next.span || 1, extras);
   };
 
+  // Wrap the central label as the calendar trigger so the picker is
+  // discoverable — clicking the date opens the full multi-date-picker
+  // calendar popover. Prev/next arrows stay for quick day stepping.
+  // D/W/M/Y toggle removed per user direction — the calendar handles
+  // ranges and multi-day natively via the picker's own modes.
   return (
-    <div style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+    <div style={{ display: "inline-flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
       <button
         onClick={onPrev}
         disabled={arrow.disabled}
@@ -193,7 +202,12 @@ function ArrowsWidget({ filter, navConfig, value, dispatch, onNav }) {
           opacity: arrow.disabled ? 0.4 : 1,
         }}
       ><ChevronLeft size={14} /></button>
-      <span style={{ minWidth: 96, textAlign: "center", fontSize: 12 }}>{label}</span>
+      <NavPickerPopover
+        value={value}
+        constraints={constraints}
+        onCommit={onPickerCommit}
+        triggerLabel={label}
+      />
       <button
         onClick={onNext}
         disabled={arrow.disabled}
@@ -205,29 +219,6 @@ function ArrowsWidget({ filter, navConfig, value, dispatch, onNav }) {
           opacity: arrow.disabled ? 0.4 : 1,
         }}
       ><ChevronRight size={14} /></button>
-      <NavPickerPopover
-        value={value}
-        constraints={constraints}
-        onCommit={onPickerCommit}
-      />
-      {showToggle && (
-        <div style={{ display: "inline-flex", gap: 2, marginLeft: 4 }}>
-          {(allowedUnits || UNIT_ORDER).map(u => (
-            <button
-              key={u}
-              onClick={() => onUnitChange(u)}
-              title={u}
-              style={{
-                padding: "1px 5px", fontSize: 10, lineHeight: "12px",
-                borderRadius: 4,
-                border: "1px solid var(--panel-border, #374151)",
-                background: u === unit ? "var(--accent, #14b8a6)" : "transparent",
-                color: "inherit", cursor: "pointer",
-              }}
-            >{UNIT_LABELS[u]}</button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -311,9 +302,25 @@ export default function FilterNavWidget({ filter, navConfig, value, fieldsById, 
   return null;
 }
 
+// Resolve the filter's primary field. Two seed shapes in the wild:
+//   - legacy: filter.primaryDateFieldId (removed Apr 24 in favor of isNav)
+//   - current: filter.fieldId (local occurrence filters) OR the first nav-flagged
+//     condition's fieldId (grid namedFilters)
+function primaryFieldOf(filter) {
+  if (!filter) return null;
+  if (filter.primaryDateFieldId) return filter.primaryDateFieldId;
+  if (filter.fieldId) return filter.fieldId;
+  const navCond = (filter.conditions || []).find(c => c?.isNav && c.fieldId);
+  return navCond?.fieldId || null;
+}
+
 export function defaultStyleForFilter(filter, fieldsById) {
-  const fieldId = filter?.primaryDateFieldId;
-  const fld = fieldId ? fieldsById?.[fieldId] : null;
+  // Author-set style wins (e.g. Schedule's timeslot filter pins "select").
+  if (filter?.style) return filter.style;
+  const fld = (() => {
+    const fid = primaryFieldOf(filter);
+    return fid ? fieldsById?.[fid] : null;
+  })();
   if (fld?.type === "date") return "arrows";
   if (fld?.type === "select" || fld?.type === "boolean") return "pills";
   if (fld?.type === "number") return "arrows";
@@ -321,7 +328,9 @@ export function defaultStyleForFilter(filter, fieldsById) {
 }
 
 export function derivedOptionsForFilter(filter, fieldsById, ctx = {}) {
-  const fld = filter?.primaryDateFieldId ? fieldsById?.[filter.primaryDateFieldId] : null;
+  if (Array.isArray(filter?.options) && filter.options.length) return filter.options;
+  const fid = primaryFieldOf(filter);
+  const fld = fid ? fieldsById?.[fid] : null;
   if (fld?.type === "boolean") return [true, false];
   if (fld?.type === "select") return resolveOptions(fld, { fieldsById, ...ctx }).options.map(o => o.value);
   return [];

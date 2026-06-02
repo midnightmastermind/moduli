@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useContext, useMemo } from "react";
 import { Search, Copy, Link2 } from "lucide-react";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 
 const PILL_COLORS = {
   field_input: "bg-blue-500",
@@ -44,7 +44,7 @@ export default function FieldSuggestion({
   const inputRef = useRef(null);
   const listRef = useRef(null);
 
-  const ctx = useContext(GridActionsContext) || {};
+  const ctx = useGridActions() || {};
   const { modulesById } = ctx;
 
   // Build unified items list
@@ -84,7 +84,7 @@ export default function FieldSuggestion({
             _id: `panel:${mod.id}`,
             id: mod.id,
             name: mod.label || mod.id,
-            subtitle: `Panel · ${mod.kind || "list"}`,
+            subtitle: `Panel · ${mod.kind || "board"}`,
             color: PILL_COLORS.panel,
             icon: "⬛",
             data: mod,
@@ -95,7 +95,7 @@ export default function FieldSuggestion({
             _id: `container:${mod.id}`,
             id: mod.id,
             name: mod.label || mod.id,
-            subtitle: `Container · ${mod.kind || "list"}`,
+            subtitle: `Container · ${mod.kind || "board"}`,
             color: PILL_COLORS.container,
             icon: "▣",
             data: mod,

@@ -6,7 +6,7 @@ import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/ad
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { Plus, FolderPlus, ChevronLeft, GripVertical, Trash2 } from "lucide-react";
 
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import { uid } from "../../uid";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import SelectOptionsSourceEditor from "./SelectOptionsSourceEditor";
@@ -219,7 +219,7 @@ export function FieldPill({ field, selected, onClick, compact = false }) {
 // FIELD DETAIL (native inputs for dark-panel aesthetic)
 // ============================================================
 export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
-  const { modulesById, roleByModuleId } = useContext(GridActionsContext);
+  const { modulesById, roleByModuleId } = useGridActions();
   const [local, setLocal] = useState(field);
   useMemo(() => setLocal(field), [field.id]);
 
@@ -483,7 +483,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
 // FIELDS TAB — pills in a wrapping flex row
 // ============================================================
 export function FieldsTab() {
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const { state, fieldsById, foldersById, socket, dispatch } = ctx;
   const gridId = state?.gridId;
 

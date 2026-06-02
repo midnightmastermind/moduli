@@ -16,6 +16,15 @@ const OperationSchema = new mongoose.Schema(
     // Which field this operation calculates
     targetFieldId: { type: String, default: null },
 
+    // Which occurrence's effective filter drives the built-in date vars
+    // ($activeDate / $activePeriod / $activePeriodDates) for this op. When set,
+    // the executor resolves the active period from THIS occurrence's filter
+    // chain (page filterOverride → grid) instead of the grid filter alone — so
+    // a period-based op (e.g. Schedule: Build Schedule) reacts to an on-page
+    // filter switch, not just a toolbar/grid switch. Unset → grid-level (legacy
+    // behavior for every other op).
+    targetOccurrenceId: { type: String, default: null },
+
     // When to evaluate — event type (generalized)
     triggerType: { type: String, default: "manual" },
     // Array of trigger objects: [{ eventType, subjectType, subjectRole, targetId }]

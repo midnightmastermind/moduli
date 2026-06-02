@@ -5,7 +5,7 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Filter } from "lucide-react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
 function Switch({ checked, onChange, title }) {
@@ -36,7 +36,7 @@ function Switch({ checked, onChange, title }) {
 }
 
 export default function ToolbarFilterDropdown() {
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const { socket, dispatch, state, fieldsById, onSelectFilter } = ctx;
   const grid = state?.grid;
   const filters = grid?.namedFilters || [];

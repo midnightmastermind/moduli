@@ -1,21 +1,24 @@
 // modules/pages/PageBoard.jsx
-// Board page — vertical list of sortable containers.
 //
-// Schedule-aware rendering: when any child container carries the
-// scheduleFormat field, the page enters "multi-day mode":
-//   - Hide containers with scheduleFormat ∈ {"slot","due"} from the
-//     page-level render (they're still multi-parented INTO each day-col
-//     and render there). Prevents the slot subtree from double-rendering
-//     both at the page level and inside day-cols.
-//   - The day-cols carry a `Schedule Format` field with value "timeslot"
-//     (≤7-day view — horizontal columns side-by-side) or "shortened"
-//     (>7-day view — wrapped horizontal grid, no slots inside). Build
-//     Schedule inflates/deflates each format based on $activePeriodCount,
-//     so at most one mode's day-cols exist at a time.
+// Generic board page renderer. Reads layout shape entirely from the
+// layout cascade — `mode` / `columns` / `childGap` / `hideChildIds` —
+// and applies it. NO domain knowledge of schedule, no field sniffing,
+// no kind-specific branches. Any op (or seed) that wants a custom
+// layout writes `meta.layoutCascade` on the page occurrence and this
+// renderer reflects it.
+//
+// Cascade properties consumed:
+//   mode          "stack" (default) | "flex-row" | "grid"
+//   columns       integer — used when mode === "grid"
+//   childGap      gap between children in px
+//   hideChildIds  array of occurrence IDs to skip rendering at this
+//                 level (children may still appear elsewhere via
+//                 multi-parenting)
 import React, { useContext, useMemo } from "react";
 import Container from "../ModuleContainer.jsx";
 import { Spinner } from "../../components/ui/spinner";
-import { GridActionsContext } from "../../GridActionsContext";
+import { useGridActionsSelector } from "../../GridActionsContext";
+import { resolveEffectiveLayout } from "../../helpers/layoutCascade";
 
 export default function PageBoard({
   occurrence,
@@ -29,70 +32,46 @@ export default function PageBoard({
   isMobile,
   fullStateLoaded,
 }) {
-  const { fieldsById } = useContext(GridActionsContext);
+  const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
+  const modulesById = useGridActionsSelector(s => s.modulesById);
+  const grid = useGridActionsSelector(s => s.grid);
 
-  // Locate the Schedule Format field id by name. Cheap — runs once per
-  // fieldsById change (fields are stable across normal usage).
-  const scheduleFormatFieldId = useMemo(() => {
-    if (!fieldsById) return null;
-    for (const f of Object.values(fieldsById)) {
-      if (f?.name === "Schedule Format") return f.id;
-    }
-    return null;
-  }, [fieldsById]);
+  const layout = useMemo(
+    () => resolveEffectiveLayout({ occurrence, occurrencesById, modulesById, grid }),
+    [occurrence, occurrencesById, modulesById, grid]
+  );
 
-  const { visibleList, isMultiDay, isShortened } = useMemo(() => {
-    // Day-col identity is field-based: a container with the scheduleFormat
-    // field value set (any non-empty value) is a day-col. Read the value
-    // off the occurrence's stamped fields. No meta markers consulted.
-    const formatValueFor = (entry) => (
-      scheduleFormatFieldId
-        ? entry?.occurrence?.fields?.[scheduleFormatFieldId]?.value || null
-        : null
-    );
-    const hasDayCols = containersList.some((e) => {
-      const v = formatValueFor(e);
-      return v && v !== "slot" && v !== "due";
-    });
-    if (!hasDayCols) return { visibleList: containersList, isMultiDay: false, isShortened: false };
-    // Hide shared slot/Due containers at the page level — they're
-    // multi-parented into each day-col and render there. Field-based:
-    // scheduleFormat ∈ {"slot","due"} marks the shared shells.
-    const filtered = containersList.filter((e) => {
-      const v = formatValueFor(e);
-      return v !== "slot" && v !== "due";
-    });
-    const dayCols = filtered.filter((e) => {
-      const v = formatValueFor(e);
-      return v && v !== "slot" && v !== "due";
-    });
-    // Build Schedule keeps all day-cols in one format at a time (PHASE 5
-    // teardown), so the first col's format is authoritative.
-    const firstFormat = dayCols.length > 0 ? formatValueFor(dayCols[0]) : null;
-    const shortened = firstFormat === "shortened";
-    return { visibleList: filtered, isMultiDay: dayCols.length >= 2 && !shortened, isShortened: shortened };
-  }, [containersList, scheduleFormatFieldId]);
+  const mode = layout?.mode || "stack";
+  const columns = Math.max(1, Number(layout?.columns) || 1);
+  const childGap = Number.isFinite(layout?.childGap) ? layout.childGap : 12;
+  const hideSet = useMemo(() => new Set(layout?.hideChildIds || []), [layout?.hideChildIds]);
 
-  const innerStyle = isShortened
-    ? {
-        position: "relative", minHeight: "100%", zIndex: 1,
-        display: "flex", flexDirection: "row", flexWrap: "wrap",
-        alignItems: "flex-start",
-        gap: 6,
-      }
-    : isMultiDay
-    ? {
-        position: "relative", minHeight: "100%", zIndex: 1,
-        display: "flex", flexDirection: "row", alignItems: "flex-start",
-        gap: 12, overflowX: "auto",
-      }
-    : { position: "relative", minHeight: "100%", zIndex: 1 };
+  const visibleList = useMemo(
+    () => containersList.filter((e) => !hideSet.has(e?.occurrence?.id)),
+    [containersList, hideSet]
+  );
 
-  const containerWrapperStyle = isShortened
-    ? { flex: "1 1 140px", minWidth: 140, maxWidth: 200, minHeight: 100 }
-    : isMultiDay
-    ? { flex: "0 0 auto", minWidth: 280, maxWidth: 360 }
-    : undefined;
+  const innerStyle =
+    mode === "grid"
+      ? {
+          position: "relative", minHeight: "100%", zIndex: 1,
+          display: "grid",
+          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+          alignItems: "stretch",
+          gap: childGap,
+        }
+      : mode === "flex-row"
+      ? {
+          position: "relative", minHeight: "100%", zIndex: 1,
+          display: "flex", flexDirection: "row", alignItems: "flex-start",
+          gap: childGap, overflowX: "auto",
+        }
+      : { position: "relative", minHeight: "100%", zIndex: 1 };
+
+  const childWrapperStyle =
+    mode === "flex-row" ? { flex: "0 0 auto", minWidth: 280, maxWidth: 360 }
+      : mode === "grid" ? { minWidth: 0, minHeight: 100 }
+      : undefined;
 
   return (
     <div
@@ -104,8 +83,9 @@ export default function PageBoard({
         overscrollBehavior: "contain",
         padding: isMobile ? "6px 6px 80px 6px" : "0px 5px 80px 5px",
         position: "relative",
-        outline: isOver ? "2px solid rgba(50,150,255,0.5)" : "none",
-        outlineOffset: -2,
+        // Page-level isOver outline removed — it toggled via React state and
+        // sputtered. The drop area is now shown by DragProvider's direct-DOM
+        // drop-area box around the hovered container (zero re-render, stable).
       }}
     >
       <div style={innerStyle}>
@@ -117,15 +97,15 @@ export default function PageBoard({
               occurrenceOverride={containerOcc}
               panelId={panelId}
               pageOccurrenceId={occurrence.id}
-              panelLayoutOrientation={isMultiDay ? "horizontal" : "vertical"}
+              panelLayoutOrientation={mode === "flex-row" ? "horizontal" : "vertical"}
               addInstanceToContainer={addInstanceToContainer}
               dispatch={dispatch}
               socket={socket}
-              gapPx={12}
+              gapPx={childGap}
             />
           );
-          return containerWrapperStyle
-            ? <div key={containerOcc?.id || container.id} style={containerWrapperStyle}>{card}</div>
+          return childWrapperStyle
+            ? <div key={containerOcc?.id || container.id} style={childWrapperStyle}>{card}</div>
             : card;
         })}
         {visibleList.length === 0 && !fullStateLoaded && (occurrence.occurrences?.length > 0) && (

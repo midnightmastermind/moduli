@@ -7,7 +7,7 @@
 // per-placement). The resolver in helpers/layoutCascade.js reads both.
 
 import React, { useCallback, useContext, useMemo } from "react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import LayoutCascadeEditor from "./LayoutCascadeEditor";
 import {
@@ -17,7 +17,7 @@ import {
 
 export default function LayoutCascadeSection({ occurrence }) {
   const { dispatch, socket, occurrencesById, modulesById, fieldsById, grid } =
-    useContext(GridActionsContext) || {};
+    useGridActions() || {};
 
   const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const role = module?.role || "instance";

@@ -1,6 +1,58 @@
 // server/__tests__/liveSystemBuilders.test.js
 import { describe, it, expect } from "vitest";
-import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeScheduleBuildScheduleOp, makeDayPageBuildOp, makeStampDateTimeSlotOp, makeClearDateOnMoveOutOp, makeTrackerOp } from "../utils/liveSystemBuilders.js";
+import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeScheduleBuildScheduleOp, makeDayPageBuildOp, makeStampDateTimeSlotOp, makeClearDateOnMoveOutOp, makeTrackerOp, makeDayPageBuildTasksCompletedOp } from "../utils/liveSystemBuilders.js";
+
+// Recursively flatten a pipeline's steps (then/else/body branches included).
+function flattenSteps(steps) {
+  const out = [];
+  const walk = (arr) => {
+    if (!Array.isArray(arr)) return;
+    for (const s of arr) {
+      out.push(s);
+      if (s.then) walk(s.then);
+      if (s.else) walk(s.else);
+      if (s.body) walk(s.body);
+    }
+  };
+  walk(steps);
+  return out;
+}
+
+describe("makeDayPageBuildTasksCompletedOp — inclusive scope guard (cascade fix)", () => {
+  const op = makeDayPageBuildTasksCompletedOp({
+    userId: "u", gridId: "g", dateFieldId: "DF", completedFieldId: "CF", isTaskFieldId: "TF",
+  });
+  const steps = flattenSteps(op.pipeline.steps);
+
+  it("computes a $isSourceChange flag set on bulk fires (no trigger occurrence)", () => {
+    expect(steps.some(s => s.config?.type === "INIT_VAR" && s.config?.name === "$isSourceChange")).toBe(true);
+    // The bulk branch: IF $triggerOccId IS_EMPTY → SET $isSourceChange = 1
+    const bulkIf = steps.find(s =>
+      s.type === "if" &&
+      s.condition?.rules?.some(r => r.left === "$triggerOccId" && r.comparator === "IS_EMPTY"));
+    expect(bulkIf).toBeTruthy();
+    expect(JSON.stringify(bulkIf.then)).toContain("$isSourceChange");
+  });
+
+  it("sets $isSourceChange when the trigger occurrence is under the Schedule page", () => {
+    const ancestorIf = steps.find(s =>
+      s.type === "if" &&
+      s.condition?.rules?.some(r =>
+        r.left === "$trigger.occurrence._ancestors" &&
+        r.comparator === "HAS_ANCESTOR" &&
+        r.right === "$schedPageId"));
+    expect(ancestorIf).toBeTruthy();
+    expect(JSON.stringify(ancestorIf.then)).toContain("$isSourceChange");
+  });
+
+  it("gates the rebuild on $isSourceChange IS 1 (so non-source CRUD echoes no-op)", () => {
+    const gate = steps.find(s =>
+      s.type === "if" &&
+      s.condition?.rules?.some(r => r.left === "$dayPageId" && r.comparator === "IS_NOT_EMPTY") &&
+      s.condition?.rules?.some(r => r.left === "$isSourceChange" && r.comparator === "IS" && r.right === 1));
+    expect(gate).toBeTruthy();
+  });
+});
 
 describe("buildGridDoc", () => {
   it("creates a Daily namedFilter on dateFieldId with empty activeFilterValues", () => {
@@ -36,13 +88,96 @@ describe("buildDailyRoutineTemplate", () => {
       findModule: async () => ({ fieldBindings: [{ fieldId: "c", role: "input", order: 0 }] }),
     });
     const slotOccs = occs.filter(o => o.identitySignature?.startsWith("slot:"));
-    expect(slotOccs).toHaveLength(2);
+    // 2 hour slots + 1 Due container (identitySig "slot:Due", first child of Day)
+    expect(slotOccs).toHaveLength(3);
+    expect(slotOccs.some(o => o.identitySignature === "slot:Due")).toBe(true);
     const root = occs.find(o => o.id === rootOccId);
     expect(root.meta).toMatchObject({ templateName: "Daily Routine", templateModule: true });
   });
 });
 
+describe("buildScheduleTemplatePage", () => {
+  it("seeds a Schedule Template page under libraryTemplatesFolderId with a Day container holding Due + slots", async () => {
+    const { buildScheduleTemplatePage } = await import("../utils/liveSystemBuilders.js");
+    const occs = [];
+    const mkOcc = async (d) => { const id = d.id || `o${occs.length}`; occs.push({ ...d, id }); return id; };
+    const ModuleStub = function (o) { Object.assign(this, o); this.save = async () => {}; };
+    const { schedTplPageOccId, dayContainerOccId } = await buildScheduleTemplatePage({
+      userId: "u", gridId: "g",
+      timeSlots: [{ hour: 6, minute: 0, label: "6:00am" }, { hour: 7, minute: 0, label: "7:00am" }],
+      timeslotFieldId: "TS",
+      routineBySlot: { "6:00am": [{ sourceModId: "SRC", label: "Drink Water" }] },
+      libraryTemplatesFolderId: "LIBT", mkOcc, Module: ModuleStub,
+      findModule: async () => ({ fieldBindings: [{ fieldId: "c", role: "input", order: 0 }] }),
+    });
+    const page = occs.find(o => o.id === schedTplPageOccId);
+    expect(page.parentId).toBe("LIBT");
+    const day = occs.find(o => o.id === dayContainerOccId);
+    expect(day.identitySignature).toBe("day-container");
+    expect(day.parentId).toBe(schedTplPageOccId);
+    // Day's occurrences[] = [Due, slot1, slot2]
+    expect(day.occurrences).toHaveLength(3);
+    const slotOccs = occs.filter(o => o.identitySignature?.startsWith("slot:"));
+    expect(slotOccs).toHaveLength(3);
+    expect(slotOccs.some(o => o.identitySignature === "slot:Due")).toBe(true);
+    expect(slotOccs.every(o => o.parentId === dayContainerOccId)).toBe(true);
+  });
+});
+
+// Guardrail: every reference in the build op should be picker-emittable —
+// either a `$var` runtime ref, a path expression, or a picker-direct binding
+// (`$allItemsById.<id>`). Raw bare UUIDs/nanoids appearing as `right` values
+// in FIND/IF predicates or as `sourceId` in COPY_LINK would imply the op
+// author had to type a literal id, which the picker UI never does.
+// `left` paths can contain field/module ids (e.g. `fields.<fid>.value`) by
+// design — those reflect the picker's "drill into this field" output —
+// so we only scan `right` + a few cfg leaves where bare ids would be the
+// smell.
+function collectBareIdLeaks(node, path = "") {
+  const leaks = [];
+  const isBareId = (v) =>
+    typeof v === "string"
+    && !v.startsWith("$")        // not a var ref
+    && !v.startsWith("literal:") // not an explicit literal
+    && !v.startsWith("field:")   // not a picker field ref
+    && !v.startsWith("op:")      // not a picker op ref
+    && !v.includes("${")         // not a template string
+    && !v.includes(" ")          // not a sentence (labels often have spaces)
+    // 12-char nanoid OR uuid v4
+    && (/^[A-Za-z0-9_-]{12}$/.test(v) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v));
+
+  const visit = (n, p) => {
+    if (n == null) return;
+    if (Array.isArray(n)) { n.forEach((x, i) => visit(x, `${p}[${i}]`)); return; }
+    if (typeof n !== "object") return;
+    // Predicate rule shape
+    if (typeof n.left === "string" && n.comparator && "right" in n) {
+      if (isBareId(n.right)) leaks.push(`${p}.right="${n.right}"`);
+    }
+    // COPY_LINK / APPLY_TEMPLATE / CREATE leaf cfg keys where a bare id
+    // would mean the author typed an id instead of picking a $var.
+    for (const k of ["sourceId", "templateRef", "parent", "rootParent", "targetOccurrenceVar", "sourceOccurrenceVar"]) {
+      if (typeof n[k] === "string" && isBareId(n[k])) leaks.push(`${p}.${k}="${n[k]}"`);
+    }
+    for (const [k, v] of Object.entries(n)) visit(v, p ? `${p}.${k}` : k);
+  };
+  visit(node, path);
+  return leaks;
+}
+
 describe("schedule ops", () => {
+  it("Build Schedule op has no hand-typed bare ids — every entity ref goes through a picker / runtime var", () => {
+    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", scheduleFormatFieldId: "SF", goalsPageOccId: "GP", schedulePageOccId: "SP", dayContainerOccId: "DAY" });
+    // The seed-time picker-direct bindings (INIT_VAR $schedPage expr:
+    // "$allItemsById.<id>") are INTENTIONAL and would be authored via
+    // the picker — they show up as `expr` strings starting with
+    // `$allItemsById.`, which our `isBareId` already excludes (starts
+    // with `$`). The guardrail only catches truly-bare uuids/nanoids
+    // sitting at right/sourceId/parent positions.
+    const leaks = collectBareIdLeaks(op.pipeline);
+    expect(leaks).toEqual([]);
+  });
+
   it("Build Day op (test grid) is priority-1, onLoad+onFilterChange, references date/due/timeslot fields", () => {
     const op = makeScheduleBuildDayOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS" });
     expect(op.name).toBe("Schedule: Build Day");
@@ -52,52 +187,49 @@ describe("schedule ops", () => {
     expect(JSON.stringify(op.pipeline)).toContain("DUE");
     expect(JSON.stringify(op.pipeline)).toContain("TS");
   });
-  it("Build Schedule op (live data) loops over $activePeriodDates and creates Day Columns", () => {
-    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", goalsPageOccId: "GP", schedulePageOccId: "SP" });
+  it("Build Schedule op (live data) loops over $activePeriodDates and COPY_LINKs the Day container per day", () => {
+    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", scheduleFormatFieldId: "SF", goalsPageOccId: "GP", schedulePageOccId: "SP", dayContainerOccId: "DAY" });
     expect(op.name).toBe("Schedule: Build Schedule");
     expect(op.triggerTypes).toEqual(["onLoad", "onFilterChange"]);
     expect(op.triggerObjects.every(t => t.priority === 1)).toBe(true);
-    expect(JSON.stringify(op.pipeline)).toContain("DF");
-    expect(JSON.stringify(op.pipeline)).toContain("DUE");
-    expect(JSON.stringify(op.pipeline)).toContain("TS");
+    const s = JSON.stringify(op.pipeline);
+    expect(s).toContain("DF");
+    expect(s).toContain("DAY");
+    expect(s).toContain("SF");
+    expect(s).toContain("$activePeriodDates");
+    expect(s).toContain("COPY_LINK");
+    expect(s).toContain("$dayContId");
   });
 
-  it("Build Schedule day-col ADD_CHILD runs unconditionally (self-heals half-populated day-cols)", () => {
-    // Regression: ADD_CHILD steps used to live inside the
-    // IF $dayColId IS_EMPTY THEN branch, so a partial run that
-    // created the day-col without populating it stayed empty
-    // forever. ADD_CHILD must run every pass through the per-day
-    // loop — outside the day-col-existence gate specifically.
-    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", goalsPageOccId: "GP", schedulePageOccId: "SP" });
-    const isDayColEmptyIf = (node) =>
-      node?.type === "if"
-      && (node.condition?.rules || []).some(r => r.left === "$dayColId" && r.comparator === "IS_EMPTY");
-    const findAddChildLoops = (node, inDayColGate = false, hits = []) => {
-      if (!node) return hits;
-      if (Array.isArray(node)) { node.forEach(n => findAddChildLoops(n, inDayColGate, hits)); return hits; }
-      if (typeof node !== "object") return hits;
-      if (node.type === "loop" && Array.isArray(node.body)) {
-        const inner = node.body[0];
-        if (inner?.type === "action" && inner.config?.type === "ADD_CHILD" && inner.config.parentId === "$dayColId") {
-          hits.push({ inDayColGate });
-        }
-        node.body.forEach(b => findAddChildLoops(b, inDayColGate, hits));
-      }
-      if (node.type === "if") {
-        const nextGate = inDayColGate || isDayColEmptyIf(node);
-        (node.then || []).forEach(s => findAddChildLoops(s, nextGate, hits));
-        (node.else || []).forEach(s => findAddChildLoops(s, inDayColGate, hits));
-      }
-      if (!node.type) {
-        for (const v of Object.values(node)) findAddChildLoops(v, inDayColGate, hits);
-      }
-      return hits;
-    };
-    const hits = findAddChildLoops(op.pipeline);
-    expect(hits.length).toBeGreaterThan(0);
-    // Every ADD_CHILD slot-loop must sit OUTSIDE the day-col-empty
-    // gate so a half-built day-col gets repopulated on the next run.
-    expect(hits.every(h => h.inDayColGate === false)).toBe(true);
+  it("Build Schedule sets targetOccurrenceId to the Schedule page so $activePeriodDates resolves from the page's effective filter (uniform with grid/page switches)", () => {
+    // Without this the built-in date vars fall back to the GRID filter only,
+    // so an on-page date switch (writes the page's filterOverride, not the
+    // grid) left the period stale and the schedule rebuilt for the old day.
+    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", scheduleFormatFieldId: "SF", goalsPageOccId: "GP", schedulePageOccId: "SP", dayContainerOccId: "DAY" });
+    expect(op.targetOccurrenceId).toBe("SP");
+  });
+
+  it("Build Schedule builds day-cols hybrid: CREATE day-col + shallow COPY_LINK slots + APPLY_TEMPLATE per-day instances with date stamps", () => {
+    // Day-col: fresh CREATE so its label can carry the date.
+    // Slots: shallow COPY_LINK (recursive:false) — module + linkedGroupId
+    //        shared so editing template's "6:00am" propagates everywhere.
+    // Instances: APPLY_TEMPLATE on each — deep clone (fresh module + fresh
+    //            occurrence, no linkedGroupId). Completion is per-day.
+    //            defaultFields stamps the date on instance-role clones.
+    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", scheduleFormatFieldId: "SF", goalsPageOccId: "GP", schedulePageOccId: "SP", dayContainerOccId: "DAY" });
+    const s = JSON.stringify(op.pipeline);
+    // Day-col created fresh via CREATE with date-stamped name.
+    expect(s).toContain("\"type\":\"CREATE\"");
+    expect(s).toContain("Schedule - ${dateLong:$day}");
+    expect(s).toContain("\"filterOverride\":{\"DF\":\"$day\"}");
+    // Shallow COPY_LINK of slot templates.
+    expect(s).toContain("\"sourceId\":\"$tplChildId\"");
+    expect(s).toContain("\"recursive\":false");
+    // Per-instance APPLY_TEMPLATE with defaultFields date stamp.
+    expect(s).toContain("\"type\":\"APPLY_TEMPLATE\"");
+    expect(s).toContain("\"templateRef\":\"$tplInstId\"");
+    expect(s).toContain("\"rootParent\":\"$slotCopyId\"");
+    expect(s).toContain("\"defaultFields\":{\"DF\":\"$day\"}");
   });
   it("Stamp op writes the timeslot field on onCreate under the hub panel", () => {
     const op = makeStampDateTimeSlotOp({ userId: "u", gridId: "g", timeslotFieldId: "TS", hubPanelModuleId: "HUB" });

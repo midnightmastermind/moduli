@@ -13,13 +13,13 @@
 // handful of patterns. Either way the chatbox works.
 
 import React, { useEffect, useRef, useState, useContext } from "react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 
 const STORAGE_KEY = "moduli_api_token";
 const HISTORY_KEY = "moduli_assistant_history";
 
 export default function AssistantDrawer() {
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const gridId = ctx?.state?.grid?._id || ctx?.state?.grid?.id;
   const [open, setOpen] = useState(false);
   const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEY) || "");

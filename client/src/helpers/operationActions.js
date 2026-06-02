@@ -188,13 +188,39 @@ export function resolveExpr(expr, $vars) {
     return Math.round((d - today) / 86400000);
   }
 
+  // dateLong:expr — formats a date expression as "Sunday, May 24th, 2026"
+  // (YYYY-MM-DD strings parsed as LOCAL midnight to avoid timezone drift).
+  if (expr.startsWith("dateLong:")) {
+    const dateVal = resolveExpr(expr.slice(9), $vars);
+    if (dateVal == null || dateVal === "") return "";
+    let d;
+    if (typeof dateVal === "string" && /^\d{4}-\d{2}-\d{2}/.test(dateVal)) {
+      const [y, m, day] = dateVal.slice(0, 10).split("-").map(Number);
+      d = new Date(y, m - 1, day);
+    } else {
+      d = new Date(dateVal);
+    }
+    if (isNaN(d.getTime())) return String(dateVal);
+    const weekday = d.toLocaleDateString("en-US", { weekday: "long" });
+    const month = d.toLocaleDateString("en-US", { month: "long" });
+    const dayNum = d.getDate();
+    const j = dayNum % 10, k = dayNum % 100;
+    const suffix = (k >= 11 && k <= 13) ? "th" : j === 1 ? "st" : j === 2 ? "nd" : j === 3 ? "rd" : "th";
+    return `${weekday}, ${month} ${dayNum}${suffix}, ${d.getFullYear()}`;
+  }
+
   // Template string interpolation: "daypage ${$today}" → "daypage 2026-03-22"
   // Detect ${...} patterns and replace each with resolved inner expression.
+  // If the substituted result is itself a path expression ($var.x.y), recurse
+  // so callers like `"$allItemsById.${$childId}"` resolve to the actual
+  // occurrence object instead of stopping at the substituted string.
   if (expr.includes("${")) {
-    return expr.replace(/\$\{([^}]+)\}/g, (_, inner) => {
+    const substituted = expr.replace(/\$\{([^}]+)\}/g, (_, inner) => {
       const resolved = resolveExpr(inner.trim(), $vars);
       return resolved != null ? String(resolved) : "";
     });
+    if (substituted.startsWith("$")) return resolveExpr(substituted, $vars);
+    return substituted;
   }
 
   if (expr.startsWith("$")) {
@@ -250,10 +276,19 @@ export function evalRule(rule, $vars) {
   switch (comparator) {
     case "IS":               return String(leftVal) === String(rightVal);
     case "IS_NOT":           return String(leftVal) !== String(rightVal);
-    case "GREATER":          return Number(leftVal) > Number(rightVal);
-    case "LESS":             return Number(leftVal) < Number(rightVal);
-    case "GREATER_OR_EQUAL": return Number(leftVal) >= Number(rightVal);
-    case "LESS_OR_EQUAL":    return Number(leftVal) <= Number(rightVal);
+    // Numeric comparators. The `_THAN` aliases match the natural-language
+    // phrasing seed authors reach for ("$count GREATER_THAN 0") — without
+    // them, a hand-typed predicate silently falls through to the default
+    // `return false`, making a guard's whole AND branch dead code. Aliased
+    // here so authoring stays forgiving on either name.
+    case "GREATER":
+    case "GREATER_THAN":             return Number(leftVal) > Number(rightVal);
+    case "LESS":
+    case "LESS_THAN":                return Number(leftVal) < Number(rightVal);
+    case "GREATER_OR_EQUAL":
+    case "GREATER_THAN_OR_EQUAL":    return Number(leftVal) >= Number(rightVal);
+    case "LESS_OR_EQUAL":
+    case "LESS_THAN_OR_EQUAL":       return Number(leftVal) <= Number(rightVal);
     case "CONTAINS":         return String(leftVal).includes(String(rightVal));
     case "NOT_CONTAINS":     return !String(leftVal).includes(String(rightVal));
     // Array comparators — left resolves to an array (e.g. $item._ancestors)
@@ -1527,9 +1562,15 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         // linkedGroupId fan-out never matches, so completing one never ticks
         // the other. Deriving the id from the stable source occ id makes every
         // COPY_LINK of the same source converge on one group, idempotently.
-        let linkedGroupId = src.linkedGroupId || null;
+        // cfg.linked === false → "shared-module copy" mode: new occurrence
+        // reuses the source's module but carries NO linkedGroupId. Field
+        // writes don't fan out across the group. Use when you want a fresh
+        // independent placement (e.g. per-day routine instance) that still
+        // benefits from a shared module label/bindings.
+        const linkSiblings = cfg.linked !== false;
+        let linkedGroupId = linkSiblings ? (src.linkedGroupId || null) : null;
         let mintedNewLink = false;
-        if (!linkedGroupId) {
+        if (linkSiblings && !linkedGroupId) {
           linkedGroupId = `lg-${src.id}`;
           mintedNewLink = true;
           if (context.occurrencesById && context.occurrencesById[src.id]) {
@@ -1561,17 +1602,32 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           }
         }
 
+        // filterOverride applies to ROOT only — typical caller intent is
+        // "this clone has its own per-day filter; descendants inherit".
+        let rootFilterOverride = null;
+        if (isRoot && cfg.filterOverride && typeof cfg.filterOverride === "object") {
+          rootFilterOverride = {};
+          for (const [fid, expr] of Object.entries(cfg.filterOverride)) {
+            const v = resolveExpr(expr, $vars);
+            if (v != null) rootFilterOverride[fid] = v;
+          }
+        }
+
         const newId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
         // Recurse into children FIRST so we can inline their ids into our
         // CREATE_ITEM emit. Each child's own linkedGroupId pairs that child
-        // with src.occurrences[i] independently.
+        // with src.occurrences[i] independently. cfg.recursive === false
+        // skips the walk (root-only clone — useful when the caller wants
+        // to add a per-day instance set manually).
         const childIds = [];
-        for (const childOccId of (src.occurrences || [])) {
-          const childSrc = findSource(childOccId);
-          if (!childSrc) continue;
-          const childResult = linkOne(childSrc, newId, false, depth + 1);
-          if (childResult?.newId) childIds.push(childResult.newId);
+        if (cfg.recursive !== false) {
+          for (const childOccId of (src.occurrences || [])) {
+            const childSrc = findSource(childOccId);
+            if (!childSrc) continue;
+            const childResult = linkOne(childSrc, newId, false, depth + 1);
+            if (childResult?.newId) childIds.push(childResult.newId);
+          }
         }
 
         // _ancestors walk — chain logic identical to CREATE.
@@ -1595,7 +1651,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           ? $vars.$allTemplates.find(t => t && t.id === srcMod)
           : null;
         const role = tpl?.role || src.role || "instance";
-        const label = src.label ?? tpl?.label ?? tpl?.name ?? null;
+        // Root may override its label via cfg.label (resolveExpr supports
+        // template interpolation, e.g. "Schedule - ${dateLong:$day}").
+        // Children inherit from source.
+        const rootLabelOverride = isRoot && cfg.label != null
+          ? resolveExpr(cfg.label, $vars)
+          : null;
+        const label = rootLabelOverride ?? src.label ?? tpl?.label ?? tpl?.name ?? null;
 
         const stub = {
           id: newId,
@@ -1608,6 +1670,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           meta: { createdByOperation: true, copyLinkSource: src.id },
           _ancestors: newAncestors,
           occurrences: childIds,
+          ...(rootFilterOverride ? { filterOverride: rootFilterOverride } : {}),
         };
 
         // Optimistic publish so subsequent same-pipeline FINDs see the clone.
@@ -1627,6 +1690,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             linkedGroupId,
             meta: { createdByOperation: true, copyLinkSource: src.id },
             occurrences: childIds,
+            ...(rootFilterOverride ? { filterOverride: rootFilterOverride } : {}),
           };
           if (targetParentId && context.occurrencesById[targetParentId]) {
             const parent = context.occurrencesById[targetParentId];
@@ -1656,6 +1720,17 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             fields,
             linkedGroupId,
             occurrences: childIds,
+            // Persist a discoverable "this is a copy of <src.id>" marker
+            // so idempotency FINDs in op pipelines can match on
+            // `meta.copyLinkSource IS $sourceId` directly — without
+            // requiring the op author to know the `lg-<id>` linkedGroupId
+            // derivation rule. The local stub already carries this in
+            // memory; including it in the CREATE_ITEM instance pushes it
+            // through to bindSocketToStore's create_occurrence emit so
+            // it persists to Mongo.
+            meta: { createdByOperation: true, copyLinkSource: src.id },
+            ...(rootLabelOverride ? { label: rootLabelOverride } : {}),
+            ...(rootFilterOverride ? { filterOverride: rootFilterOverride } : {}),
             ...(isRoot && typeof cfg.insertAtIndex === "number" ? { insertAtIndex: cfg.insertAtIndex } : {}),
           },
         });

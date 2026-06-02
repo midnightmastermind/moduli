@@ -1,18 +1,31 @@
 // GridActionsContext.js
-import { createContext } from "react";
+//
+// Migrated to use-context-selector so per-id subscriptions (useGridActionsSelector)
+// only re-render when their specific slice changes. The previous monolithic
+// React.useContext caused ~162 component re-renders per drop because the
+// actionsValue memo invalidates on every occurrencesById update.
+//
+// Public API:
+//   - GridActionsContext: the use-context-selector context (use with Provider as before)
+//   - useGridActions(): subscribe to the full context value (re-renders on any change)
+//   - useGridActionsSelector(selector): subscribe to a slice (re-renders only when
+//     the selector's return value changes via Object.is). Hot-path components
+//     (ModuleInstance / ModuleContainer / ModulePanel / ModulePage / PageBoard)
+//     use this to read their own occurrence/module by id.
+import { createContext, useContext, useContextSelector } from "use-context-selector";
 
-export const GridActionsContext = createContext({
+const DEFAULT_VALUE = {
   socket: null,
   dispatch: () => {},
 
   // Full state object (for calculations)
   state: {},
 
-  // action creators (you pass these)
+  // action creators (passed in)
   updatePanel: () => {},
   updateGrid: () => {},
 
-  // lookups (you pass these)
+  // lookups (passed in)
   modulesById: Object.create(null),
   roleByModuleId: Object.create(null),
   instancesById: Object.create(null),
@@ -22,6 +35,8 @@ export const GridActionsContext = createContext({
   occurrencesById: Object.create(null),
   linkedGroupIndex: Object.create(null),
   childrenByParentId: Object.create(null),
+  occurrencesByModuleId: Object.create(null),
+  parentByChildId: Object.create(null),
   containersById: Object.create(null),
   fieldsById: Object.create(null),
   pagesById: Object.create(null),
@@ -31,7 +46,7 @@ export const GridActionsContext = createContext({
   foldersById: Object.create(null),
   operationsById: Object.create(null),
 
-  // adders (you pass these)
+  // adders (passed in)
   addContainerToPanel: () => {},
   addInstanceToContainer: () => {},
 
@@ -48,4 +63,14 @@ export const GridActionsContext = createContext({
   onFilterValueChange: () => {},
   // NOTE: computedValues, undo/redo, isMobile, activeCell, zoomedOut
   // moved to GridLiveContext (C4 context split)
-});
+};
+
+export const GridActionsContext = createContext(DEFAULT_VALUE);
+
+export function useGridActions() {
+  return useContext(GridActionsContext);
+}
+
+export function useGridActionsSelector(selector) {
+  return useContextSelector(GridActionsContext, selector);
+}

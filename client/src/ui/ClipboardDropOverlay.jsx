@@ -19,7 +19,7 @@
 
 import { useContext, useEffect, useRef } from "react";
 import { SelectionContext } from "../state/SelectionContext";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { runPasteClipboard } from "../helpers/pasteClipboard";
 
 // Look at the topmost element under the cursor and walk up to find the
@@ -48,7 +48,7 @@ function isEditableTarget(el) {
 
 export default function ClipboardDropOverlay() {
   const selection = useContext(SelectionContext);
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const lastHoverRef = useRef(null);
 
   const clip = selection?.clipboard;

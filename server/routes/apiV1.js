@@ -142,7 +142,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       const next = await Module.findOneAndUpdate(
         { id: req.params.id, userId: req.userId },
         { $set: patch },
-        { new: true, lean: true },
+        { returnDocument: "after", lean: true },
       );
       if (!next) return err(res, 404, "not_found", "Module not found");
       io.to(userRoom(req.userId)).emit("module_updated", { module: next });
@@ -207,7 +207,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       const next = await Occurrence.findOneAndUpdate(
         { id: req.params.id, userId: req.userId },
         { $set: patch },
-        { new: true, lean: true },
+        { returnDocument: "after", lean: true },
       );
       if (!next) return err(res, 404, "not_found", "Occurrence not found");
       io.to(userRoom(req.userId)).emit("occurrence_updated", { occurrence: next });
@@ -352,7 +352,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       const next = await Field.findOneAndUpdate(
         { id: req.params.id, userId: req.userId },
         { $set: req.body || {} },
-        { new: true, lean: true },
+        { returnDocument: "after", lean: true },
       );
       if (!next) return err(res, 404, "not_found", "Field not found");
       io.to(userRoom(req.userId)).emit("field_updated", { field: next });
@@ -413,7 +413,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       const next = await Operation.findOneAndUpdate(
         { id: req.params.id, userId: req.userId },
         { $set: req.body || {} },
-        { new: true, lean: true },
+        { returnDocument: "after", lean: true },
       );
       if (!next) return err(res, 404, "not_found", "Operation not found");
       io.to(userRoom(req.userId)).emit("operation_updated", { operation: next });
@@ -598,7 +598,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       const doc = await Secret.findOneAndUpdate(
         { userId: req.userId, key },
         { $set: { ...enc, userId: req.userId, key } },
-        { upsert: true, new: true, lean: true },
+        { upsert: true, returnDocument: "after", lean: true },
       );
       res.status(201).json({ key: doc.key, createdAt: doc.createdAt, lastUsedAt: doc.lastUsedAt });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -643,7 +643,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       const next = await Operation.findOneAndUpdate(
         { id: req.params.id, userId: req.userId },
         { $set: { webhookSecret: null } },
-        { new: true, lean: true },
+        { returnDocument: "after", lean: true },
       );
       if (!next) return err(res, 404, "not_found", "Operation not found");
       res.json({ ok: true, operationId: req.params.id });

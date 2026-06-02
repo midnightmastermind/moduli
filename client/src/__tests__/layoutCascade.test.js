@@ -18,12 +18,14 @@ import {
 //   - page-in-container hardcoded rule trumps every layer
 
 describe("resolveDefaultLayout", () => {
-  it("folder page → preview default + no actual in nav", () => {
+  it("folder page → top-level offers actual + actual-converted (D4 2026-05-24)", () => {
     const r = resolveDefaultLayout({ role: "page", kind: "folder", context: "topLevel" });
-    // page topLevel forces actual + no switcher per hardcoded rule
+    // top-level pages default to actual but expose actual-converted in the
+    // switcher so users can collapse any page into a container-styled
+    // render without nesting it.
     expect(r.dragInView).toBe("actual");
-    expect(r.navOptions).toEqual([]);
-    expect(r.navAllowChange).toBe(false);
+    expect(r.navOptions).toEqual(["actual", "actual-converted"]);
+    expect(r.navAllowChange).toBe(true);
   });
 
   it("canvas container → representation default", () => {

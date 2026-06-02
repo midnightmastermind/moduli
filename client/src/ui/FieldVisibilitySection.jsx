@@ -17,7 +17,7 @@
 // cascade isOccurrenceVisible / ModuleInstance read at render time.
 
 import React, { useContext, useMemo } from "react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   getParentOccurrence,
@@ -34,7 +34,7 @@ const MODES = [
 ];
 
 export default function FieldVisibilitySection({ occurrence }) {
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const { dispatch, socket, fieldsById, occurrencesById } = ctx;
 
   const own = occurrence?.fieldVisibility || null;

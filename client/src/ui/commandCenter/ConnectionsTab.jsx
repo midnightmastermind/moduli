@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useContext, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, ChevronRight, FolderOpen, RefreshCw, Upload, Download } from "lucide-react";
 
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 
 const labelStyle = {
   fontSize: 10,
@@ -30,7 +30,7 @@ export function formatBytes(bytes) {
 }
 
 export function ConnectionsTab() {
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const { state, socket } = ctx;
   const userId = state?.userId;
   const gridId = state?.gridId;

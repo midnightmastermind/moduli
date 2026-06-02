@@ -27,10 +27,17 @@
 
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
 import { resolveFileRef } from "../helpers/fileRef";
 import { resolveEffectiveLayout } from "../helpers/layoutCascade";
+// Static import — ModuleInstance is statically imported elsewhere
+// (ModuleContainer, ContainerTable, PageCanvas, ModuleEmbedNode), so
+// the earlier dynamic-import-for-lazy-load was useless: Vite couldn't
+// split it into its own chunk and emitted a `dynamic import will not
+// move module into another chunk` warning. Importing it here directly
+// fixes the warning at zero cost (already in the main bundle).
+import ModuleInstanceComponent from "../modules/ModuleInstance.jsx";
 
 const HOVER_OPEN_MS = 320;
 const HOVER_CLOSE_MS = 140;
@@ -55,7 +62,7 @@ export default function RepresentationView({
   // label-only; pass null to allow the cascade fallback.
   inlineFieldIds = null,
 }) {
-  const { modulesById, occurrencesById, fieldsById } = useContext(GridActionsContext) || {};
+  const { modulesById, occurrencesById, fieldsById } = useGridActions() || {};
   const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const Icon = getModuleTypeIcon(module);
   const color = getModuleTypeColor(module);
@@ -259,20 +266,12 @@ export default function RepresentationView({
   );
 }
 
-// Lazy-imported actual-component renderer for the hover popup. Mounts
-// ModuleInstance for instance/artifact/textblock; falls back to a label
-// row for unsupported roles. Defers the import so the regular pill render
-// path doesn't pull in the full ModuleInstance bundle when popup isn't
-// used (~mind-map nodes / breadcrumb crumbs).
+// Hover popup renderer. Mounts ModuleInstance for instance / artifact /
+// textblock occurrences. ModuleInstance is statically imported at the top
+// of the file (other modules pull it into the main bundle anyway, so the
+// previous lazy-import was a no-op that Vite warned about).
 function RepresentationHoverPopup({ occurrence, module, x, y, popupFieldIds, onMouseEnter, onMouseLeave }) {
-  const [Comp, setComp] = useState(null);
-  useEffect(() => {
-    let alive = true;
-    import("../modules/ModuleInstance.jsx").then(m => {
-      if (alive) setComp(() => m.default);
-    });
-    return () => { alive = false; };
-  }, []);
+  const Comp = ModuleInstanceComponent;
   return (
     <div
       onMouseEnter={onMouseEnter}

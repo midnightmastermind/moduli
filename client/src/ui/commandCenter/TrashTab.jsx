@@ -1,11 +1,11 @@
 // commandCenter/TrashTab.jsx
 import React, { useContext } from "react";
 import { Trash2, RotateCcw } from "lucide-react";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import { restoreModule } from "../../helpers/CommitHelpers";
 
 export function TrashTab() {
-  const { state, dispatch, socket } = useContext(GridActionsContext);
+  const { state, dispatch, socket } = useGridActions();
   const trashed = Object.values(state?.modulesById || {}).filter(m => m.trashed);
 
   return (

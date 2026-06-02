@@ -94,6 +94,31 @@ describe("evalRule — HAS_ANCESTOR comparator", () => {
   });
 });
 
+describe("evalRule — numeric comparator _THAN aliases", () => {
+  // Regression for createLiveData's seed authoring habit of writing
+  // "GREATER_THAN" / "LESS_THAN" — without these aliases, the rule silently
+  // fell through to default `return false`, making guard branches dead code.
+  it("GREATER_THAN behaves like GREATER", () => {
+    expect(evalRule({ left: 5, comparator: "GREATER_THAN", right: 3 }, {})).toBe(true);
+    expect(evalRule({ left: 3, comparator: "GREATER_THAN", right: 5 }, {})).toBe(false);
+    expect(evalRule({ left: 3, comparator: "GREATER_THAN", right: 3 }, {})).toBe(false);
+  });
+  it("LESS_THAN behaves like LESS", () => {
+    expect(evalRule({ left: 3, comparator: "LESS_THAN", right: 5 }, {})).toBe(true);
+    expect(evalRule({ left: 5, comparator: "LESS_THAN", right: 3 }, {})).toBe(false);
+  });
+  it("GREATER_THAN_OR_EQUAL behaves like GREATER_OR_EQUAL", () => {
+    expect(evalRule({ left: 3, comparator: "GREATER_THAN_OR_EQUAL", right: 3 }, {})).toBe(true);
+    expect(evalRule({ left: 4, comparator: "GREATER_THAN_OR_EQUAL", right: 3 }, {})).toBe(true);
+    expect(evalRule({ left: 2, comparator: "GREATER_THAN_OR_EQUAL", right: 3 }, {})).toBe(false);
+  });
+  it("LESS_THAN_OR_EQUAL behaves like LESS_OR_EQUAL", () => {
+    expect(evalRule({ left: 3, comparator: "LESS_THAN_OR_EQUAL", right: 3 }, {})).toBe(true);
+    expect(evalRule({ left: 2, comparator: "LESS_THAN_OR_EQUAL", right: 3 }, {})).toBe(true);
+    expect(evalRule({ left: 4, comparator: "LESS_THAN_OR_EQUAL", right: 3 }, {})).toBe(false);
+  });
+});
+
 describe("evalRule — DATE_EQUALS / SAME_DAY", () => {
   it("matches identical YYYY-MM-DD dates", () => {
     expect(evalRule({ left: "2026-04-27", comparator: "SAME_DAY", right: "2026-04-27" }, {})).toBe(true);

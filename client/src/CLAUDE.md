@@ -580,10 +580,13 @@ type is shown.
 Foundation landed this session:
 - `helpers/viewMode.js` — pure resolver. `getEffectiveViewMode(occ,
   contextTag)` reads `occ.meta.viewMode` and falls back to context
-  defaults. Contexts: `default` (allows all three), `folderPage`
-  (no Actual — per spec), `mindMap` (defaults to representation),
-  `valueBuilder` (representation only). `isViewModeIllegal(occ,
-  contextTag)` lets callers detect + coerce stale modes.
+  defaults. Contexts: `default` (allows preview / representation /
+  actual / actual-converted), `folderPage` (no Actual — per spec),
+  `valueBuilder` (representation only). The layout cascade now owns
+  the per-kind allowed-modes list (see `helpers/layoutCascade.js`);
+  these context constants are the non-cascade fallback.
+  `isViewModeIllegal(occ, contextTag)` lets callers detect + coerce
+  stale modes.
 - `ui/RepresentationView.jsx` — compact `[Icon] Label` chip using
   the shared `helpers/moduleIcons`. Three sizes (sm/md/lg).
   `onJump(occId)` callback hook for the clickable-jump pattern

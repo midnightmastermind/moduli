@@ -11,7 +11,7 @@
 
 import React, { useContext, useMemo, useState } from "react";
 import { ArrowUp, ArrowDown, X, ChevronDown } from "lucide-react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
 // SortSection reads `entity.meta.localSort` and persists either via the
@@ -24,7 +24,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 // prop is treated as the entity. New callers should prefer
 // `entity={entity} onPersistSort={(next) => ...}`.
 export default function SortSection({ occurrence, entity, onPersistSort, labelOverride }) {
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const { dispatch, socket, fieldsById } = ctx;
   const e = entity ?? occurrence ?? null;
 

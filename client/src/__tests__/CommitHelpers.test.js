@@ -157,10 +157,116 @@ describe("Occurrence commit helpers", () => {
     expect(socket.emit).toHaveBeenCalledWith("delete_occurrence", { occurrenceId: "occ1" });
   });
 
+  // Regression: an operation-effect delete (applyOperationEffect → DELETE_ITEM)
+  // calls deleteOccurrence WITHOUT an `occurrence` arg. deleteOccurrence must
+  // snapshot the occurrence from the local cache (getLocalOcc) BEFORE eviction
+  // and pass it as occurrencesOverride on the OccurrenceDeleteOp fire — that
+  // override is what lets the executor enrich $trigger.occurrence so the
+  // Table/Canvas "Build" self-trigger guard can match
+  // `$trigger.occurrence._ancestors HAS_ANCESTOR <ownPageId>` and skip the
+  // rebuild. Without it the rebuild's orphan-sweep deletes re-fire the rebuild
+  // → exponential freeze.
+  test("deleteOccurrence sources snapshot from cache and passes it as override", async () => {
+    const { dispatch, socket } = makeMocks();
+    const { operationsBridge } = await import("../state/bindSocketToStore");
+    const snap = { id: "occ1", moduleId: "mod1", parentId: "tbl1", fields: {} };
+    const fireOperations = vi.fn();
+    const getLocalOcc = vi.fn(() => snap);
+    operationsBridge.getLocalOcc = getLocalOcc;
+    operationsBridge.removeLocalOcc = vi.fn();
+    operationsBridge.fireOperations = fireOperations;
+    try {
+      deleteOccurrence({ dispatch, socket, occurrenceId: "occ1" });
+      expect(getLocalOcc).toHaveBeenCalledWith("occ1");
+      const deleteCall = fireOperations.mock.calls.find(c => c[0] === "OccurrenceDeleteOp");
+      expect(deleteCall).toBeTruthy();
+      expect(deleteCall[1]).toMatchObject({ occurrenceId: "occ1", containerId: "tbl1" });
+      expect(deleteCall[2]).toEqual({ occurrencesOverride: { occ1: snap } });
+    } finally {
+      operationsBridge.getLocalOcc = null;
+      operationsBridge.removeLocalOcc = null;
+      operationsBridge.fireOperations = null;
+    }
+  });
+
+  // Cycle breaker: an operation effect deleting DERIVED data (a mirror op's
+  // row/card copy) passes fireTrigger:false. The deletion must still propagate
+  // (dispatch + socket emit + cache eviction) but must NOT fire
+  // OccurrenceDeleteOp — re-aggregating trackers over a deleted derived row
+  // (never under the Schedule scope) is pure waste and was the ~5s post-loop
+  // freeze. User-initiated deletes keep the default fireTrigger:true.
+  test("deleteOccurrence with fireTrigger:false still deletes but skips the OccurrenceDeleteOp fire", async () => {
+    const { dispatch, socket } = makeMocks();
+    const { operationsBridge } = await import("../state/bindSocketToStore");
+    const snap = { id: "occ1", moduleId: "mod1", parentId: "tbl1", fields: { f1: { value: 2 } } };
+    const fireOperations = vi.fn();
+    operationsBridge.getLocalOcc = vi.fn(() => snap);
+    operationsBridge.removeLocalOcc = vi.fn();
+    operationsBridge.fireOperations = fireOperations;
+    try {
+      deleteOccurrence({ dispatch, socket, occurrenceId: "occ1", fireTrigger: false });
+      // Deletion still propagated:
+      expect(operationsBridge.removeLocalOcc).toHaveBeenCalledWith("occ1");
+      expect(socket.emit).toHaveBeenCalledWith("delete_occurrence", { occurrenceId: "occ1" });
+      // But NO trigger fired:
+      expect(fireOperations).not.toHaveBeenCalled();
+    } finally {
+      operationsBridge.getLocalOcc = null;
+      operationsBridge.removeLocalOcc = null;
+      operationsBridge.fireOperations = null;
+    }
+  });
+
   test("updateOccurrence skips if occurrence has no id", () => {
     const { dispatch, socket } = makeMocks();
     updateOccurrence({ dispatch, socket, occurrence: {} });
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  // Uniform-trigger rule: each user action fires exactly ONE trigger type.
+  // A create fires OccurrenceCreateOp (matches onAdd) and NOT a piggyback
+  // MeasureOp — onChange is reserved for actual value edits on an existing
+  // occurrence. The OccurrenceCreateOp carries `fields` so field-scoped
+  // onAdd subscribers (subjectType:"field") still match.
+  test("createOccurrence fires OccurrenceCreateOp only (no piggyback MeasureOp) and carries fields", async () => {
+    const { dispatch, socket } = makeMocks();
+    const { operationsBridge } = await import("../state/bindSocketToStore");
+    const fireOperations = vi.fn();
+    operationsBridge.fireOperations = fireOperations;
+    try {
+      const occurrence = { id: "occ1", moduleId: "mod1", parentId: "c1", fields: { f1: { value: 5 } } };
+      createOccurrence({ dispatch, socket, occurrence });
+      const types = fireOperations.mock.calls.map(c => c[0]);
+      expect(types).toContain("OccurrenceCreateOp");
+      expect(types).not.toContain("MeasureOp");
+      const createCall = fireOperations.mock.calls.find(c => c[0] === "OccurrenceCreateOp");
+      expect(createCall[1].fields).toEqual({ f1: { value: 5 } });
+    } finally {
+      operationsBridge.fireOperations = null;
+    }
+  });
+
+  // Same rule on the delete path: one OccurrenceDeleteOp carrying fields, no
+  // piggyback MeasureOp.
+  test("deleteOccurrence fires OccurrenceDeleteOp only and the transaction carries fields", async () => {
+    const { dispatch, socket } = makeMocks();
+    const { operationsBridge } = await import("../state/bindSocketToStore");
+    const snap = { id: "occ1", moduleId: "mod1", parentId: "c1", fields: { f1: { value: 7 } } };
+    const fireOperations = vi.fn();
+    operationsBridge.getLocalOcc = vi.fn(() => snap);
+    operationsBridge.removeLocalOcc = vi.fn();
+    operationsBridge.fireOperations = fireOperations;
+    try {
+      deleteOccurrence({ dispatch, socket, occurrenceId: "occ1" });
+      const types = fireOperations.mock.calls.map(c => c[0]);
+      expect(types).toEqual(["OccurrenceDeleteOp"]);
+      const deleteCall = fireOperations.mock.calls.find(c => c[0] === "OccurrenceDeleteOp");
+      expect(deleteCall[1].fields).toEqual({ f1: { value: 7 } });
+    } finally {
+      operationsBridge.getLocalOcc = null;
+      operationsBridge.removeLocalOcc = null;
+      operationsBridge.fireOperations = null;
+    }
   });
 });
 

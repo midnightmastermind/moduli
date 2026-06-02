@@ -119,6 +119,36 @@ describe("createLiveData — structural assertions", () => {
     }
   });
 
+  // ── 2b. Mirror ops carry the INCLUSIVE scope guard (toolkit-drop freeze fix) ──
+  // Canvas: Build and People Table: Build must rebuild ONLY on a genuine source
+  // change — a bulk fire OR a trigger occurrence under the source page. The old
+  // EXCLUSIVE self-trigger guard (skip only when the trigger is provably one of
+  // the op's OWN copies) failed on DELETEs (deleted occ has no resolvable
+  // ancestors) and let the orphan-sweep deletes re-fire the op → exponential
+  // OccurrenceDeleteOp cascade. The inclusive guard is marked by the
+  // $isSourceChange flag + a $trigger.occurrence._ancestors HAS_ANCESTOR rule.
+  it("Canvas: Build uses the inclusive scope guard ($isSourceChange + ancestor scope)", async () => {
+    if (!connected) return;
+    const { gridId } = result;
+    const op = await Operation.findOne({ gridId, name: "Canvas: Build" });
+    expect(op).toBeTruthy();
+    const json = JSON.stringify(op.pipeline ?? {});
+    expect(json).toContain("$isSourceChange");
+    expect(json).toContain("$trigger.occurrence._ancestors");
+    // Scoped to the Schedule page, not to the canvas's own children.
+    expect(json).toContain("$schedPageId");
+  });
+
+  it("People Table: Build uses the inclusive scope guard ($isSourceChange + ancestor scope)", async () => {
+    if (!connected) return;
+    const { gridId } = result;
+    const op = await Operation.findOne({ gridId, name: "People Table: Build" });
+    expect(op).toBeTruthy();
+    const json = JSON.stringify(op.pipeline ?? {});
+    expect(json).toContain("$isSourceChange");
+    expect(json).toContain("$trigger.occurrence._ancestors");
+  });
+
   // ── 3. No scheduleSlot container modules at grid scope ───────────────────────
   it("no container module at grid scope has meta.scheduleSlot === true", async () => {
     if (!connected) return;
@@ -156,11 +186,20 @@ describe("createLiveData — structural assertions", () => {
   });
 
   // ── 5. Template occurrences exist ────────────────────────────────────────────
-  it("exactly one occurrence with meta.templateName === 'Daily Routine' exists", async () => {
+  // The Schedule Template page lives in Library > Templates (it's a real
+  // library page, not a templates-manifest entry). Schedule: Build COPY_LINKs
+  // its Day container into the Schedule page per visible day.
+  it("exactly one 'Schedule Template' page exists with a Day container as its child", async () => {
     if (!connected) return;
     const { gridId } = result;
-    const occs = await Occurrence.find({ gridId, "meta.templateName": "Daily Routine" }).lean();
-    expect(occs).toHaveLength(1);
+    const Module = mongoose.model("Module");
+    const pageMods = await Module.find({ gridId, role: "page", label: "Schedule Template" }).lean();
+    expect(pageMods).toHaveLength(1);
+    const pageOccs = await Occurrence.find({ gridId, moduleId: pageMods[0].id }).lean();
+    expect(pageOccs).toHaveLength(1);
+    const dayOccs = await Occurrence.find({ gridId, identitySignature: "day-container" }).lean();
+    expect(dayOccs).toHaveLength(1);
+    expect(dayOccs[0].parentId).toBe(pageOccs[0].id);
   });
 
   it("exactly one occurrence with meta.templateName === 'Day Page' exists", async () => {

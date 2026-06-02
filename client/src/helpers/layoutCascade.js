@@ -26,12 +26,28 @@ import { buildParentMap } from "./dragHitTesting";
 // standalone page forced actual) are applied in resolveDefaultLayout
 // AFTER the per-kind lookup so they always win.
 
+// Layout-shape properties (mode/columns/childGap/hideChildIds) live in the
+// cascade alongside view-mode rules. Any ancestor (grid → panel → page →
+// container) can stamp these on `meta.layoutCascade` and they merge per-key
+// like every other cascade rule. Default `mode: "stack"` = vertical list.
+//
+// Recognized `mode` values (consumed generically by PageBoard / future
+// board-style renderers):
+//   "stack"     — vertical column (default)
+//   "flex-row"  — horizontal flex row, no wrap, horizontal scroll
+//   "grid"      — CSS grid; `columns` sets the column count (default 1)
+//
+// `hideChildIds` is an array of occurrence IDs the renderer must NOT render
+// at this level (they may still appear via multi-parenting elsewhere). Lets
+// an op carve out which children of a page are "owned" by other surfaces
+// (e.g. multi-parented into day-cols) without the renderer needing any
+// domain knowledge.
 const PAGE_DEFAULTS = {
-  folder:        { dragInView: "preview",        navOptions: ["preview", "representation"],         navAllowChange: true, locked: false, showFieldsByDefault: true  },
-  board:         { dragInView: "actual",         navOptions: ["preview", "representation", "actual"], navAllowChange: true, locked: false, showFieldsByDefault: true  },
-  doc:           { dragInView: "actual",         navOptions: ["preview", "representation", "actual"], navAllowChange: true, locked: false, showFieldsByDefault: true  },
-  canvas:        { dragInView: "representation", navOptions: ["preview", "representation", "actual"], navAllowChange: true, locked: false, showFieldsByDefault: false },
-  table:         { dragInView: "actual",         navOptions: ["representation", "actual"],            navAllowChange: true, locked: false, showFieldsByDefault: true  },
+  folder:        { dragInView: "preview",        navOptions: ["preview", "representation"],         navAllowChange: true, locked: false, showFieldsByDefault: true,  mode: "stack",    columns: 1, childGap: 12, hideChildIds: [] },
+  board:         { dragInView: "actual",         navOptions: ["preview", "representation", "actual"], navAllowChange: true, locked: false, showFieldsByDefault: true,  mode: "stack",    columns: 1, childGap: 12, hideChildIds: [] },
+  doc:           { dragInView: "actual",         navOptions: ["preview", "representation", "actual"], navAllowChange: true, locked: false, showFieldsByDefault: true,  mode: "stack",    columns: 1, childGap: 12, hideChildIds: [] },
+  canvas:        { dragInView: "representation", navOptions: ["preview", "representation", "actual"], navAllowChange: true, locked: false, showFieldsByDefault: false, mode: "stack",    columns: 1, childGap: 12, hideChildIds: [] },
+  table:         { dragInView: "actual",         navOptions: ["representation", "actual"],            navAllowChange: true, locked: false, showFieldsByDefault: true,  mode: "stack",    columns: 1, childGap: 12, hideChildIds: [] },
 };
 
 // q3 ii (2026-05-24) — kind: "board" was collapsed into kind:"board". Existing
@@ -60,14 +76,14 @@ export const DEFAULT_LAYOUT_BY_KIND = {
   // are short-circuited in resolveDefaultLayout.
 };
 
-const EMPTY = Object.freeze({ dragInView: "actual", navOptions: ["actual"], navAllowChange: true, locked: false, showFieldsByDefault: true });
+const EMPTY = Object.freeze({ dragInView: "actual", navOptions: ["actual"], navAllowChange: true, locked: false, showFieldsByDefault: true, stickyHeaders: false, mode: "stack", columns: 1, childGap: 12, hideChildIds: [] });
 
 /**
  * Resolve the default layout rules for a given (role, kind) tuple.
  *
  * @param {Object} args
  * @param {string} args.role - "page" | "container" | "instance" | "artifact" | "textblock" | "panel"
- * @param {string} args.kind - "folder" | "board" | "doc" | "canvas" | "table" | "list" (kind ignored for leaf roles)
+ * @param {string} args.kind - "folder" | "board" | "doc" | "canvas" | "table" (kind ignored for leaf roles)
  * @param {string} [args.context] - "topLevel" | "nestedInPage" | "nestedInContainer" — special-case overrides
  * @returns {Object} resolved layout rule object (always returns a complete shape)
  */
@@ -91,9 +107,13 @@ export function resolveDefaultLayout({ role, kind, context = "topLevel" } = {}) 
       return { ...EMPTY, dragInView: "representation", navOptions: ["representation", "actual", "actual-converted"], navAllowChange: true };
     }
     if (context === "topLevel") {
-      // Standalone page (panel content) — always actual, can't switch.
+      // Standalone page (panel content) — defaults to actual page chrome.
+      // Per D4 (2026-05-24): the view selector also exposes `actual-
+      // converted` so the user can collapse a top-level page into a
+      // container-styled render without nesting it. The cascade still
+      // defaults to the page's natural full render.
       const kindDefault = PAGE_DEFAULTS[kind] || EMPTY;
-      return { ...kindDefault, dragInView: "actual", navOptions: [], navAllowChange: false };
+      return { ...kindDefault, dragInView: "actual", navOptions: ["actual", "actual-converted"], navAllowChange: true };
     }
   }
 

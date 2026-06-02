@@ -41,9 +41,6 @@ export const VIEW_MODE_CONTEXTS = {
   default:      { default: "actual",         allowed: ["preview", "representation", "actual"] },
   // Folder-page cards — no Actual (would defeat the purpose of the grid).
   folderPage:   { default: "preview",        allowed: ["preview", "representation"] },
-  // Mind-map nodes — default to the lightweight chip; user can opt into
-  // preview or actual if they want a richer view.
-  mindMap:      { default: "representation", allowed: ["preview", "representation", "actual"] },
   // Value-builder breadcrumb-card crumbs — rendered as Representation by
   // the helper itself, but the constant lives here for symmetry.
   valueBuilder: { default: "representation", allowed: ["representation"] },

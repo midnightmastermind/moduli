@@ -5,7 +5,7 @@ import React, { useState, useMemo, useContext, useEffect, useRef, useCallback } 
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { GripVertical, BookMarked, Pencil, Trash2 } from "lucide-react";
 
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 
 const inputStyle = {
@@ -34,7 +34,7 @@ export function ModulePill({ module, inferredRole }) {
   const ref = useRef(null);
   const label = module.label || module.name || "Untitled";
   const role = inferredRole || module.role || "instance";
-  const kind = module.kind || "list";
+  const kind = module.kind || "board";
 
   useEffect(() => {
     const el = ref.current;
@@ -165,27 +165,84 @@ export function TemplatePill({ template, isEditing, editName, onEditNameChange, 
   );
 }
 
+// F5 — extend search beyond labels. Walks an occurrence's TipTap doc and
+// flattens every text node into a single string for substring matching.
+function extractTextmapText(textmap) {
+  if (!textmap || typeof textmap !== "object") return "";
+  const parts = [];
+  const walk = (n) => {
+    if (!n) return;
+    if (n.type === "text" && typeof n.text === "string") parts.push(n.text);
+    if (Array.isArray(n.content)) n.content.forEach(walk);
+  };
+  walk(textmap);
+  return parts.join(" ").toLowerCase();
+}
+
+// Flatten a single occurrence's field-values map into one searchable string.
+function extractFieldsText(occ) {
+  const fields = occ?.fields;
+  if (!fields || typeof fields !== "object") return "";
+  const parts = [];
+  for (const v of Object.values(fields)) {
+    const raw = v?.value;
+    if (raw == null) continue;
+    if (typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean") parts.push(String(raw));
+    else if (Array.isArray(raw)) parts.push(raw.filter(x => x != null).join(" "));
+    else if (typeof raw === "object") parts.push(JSON.stringify(raw));
+  }
+  return parts.join(" ").toLowerCase();
+}
+
 export function ComponentsTab() {
-  const ctx = useContext(GridActionsContext);
-  const { state, socket, dispatch, modulesById, roleByModuleId } = ctx;
+  const ctx = useGridActions();
+  const { state, socket, dispatch, modulesById, roleByModuleId, occurrencesById } = ctx;
   const gridId = state?.gridId;
   const grid = state?.grid;
   const templates = useMemo(() => grid?.templates || [], [grid?.templates]);
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  // F5 — scope toggle. "all" (default) searches label + fields + content.
+  // Individual scopes restrict to one surface.
+  const [searchScope, setSearchScope] = useState("all");
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
 
   const allModules = useMemo(() => Object.values(modulesById || {}), [modulesById]);
 
+  // Index moduleId → [occurrences] once per occurrence-store change so the
+  // search filter doesn't re-scan every occurrence on every keystroke.
+  const occurrencesByModuleId = useMemo(() => {
+    const map = {};
+    const all = Object.values(occurrencesById || {});
+    for (const occ of all) {
+      const mid = occ?.moduleId || occ?.targetId;
+      if (!mid) continue;
+      (map[mid] = map[mid] || []).push(occ);
+    }
+    return map;
+  }, [occurrencesById]);
+
   const filteredModules = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return allModules.filter(m => {
       const role = roleByModuleId?.[m.id] || m.role || "instance";
       if (roleFilter !== "all" && role !== roleFilter) return false;
+      if (!q) return true;
       const label = (m.label || m.name || "").toLowerCase();
-      if (search && !label.includes(search.toLowerCase())) return false;
-      return true;
+      const wantLabel = searchScope === "all" || searchScope === "label";
+      const wantFields = searchScope === "all" || searchScope === "fields";
+      const wantContent = searchScope === "all" || searchScope === "content";
+      if (wantLabel && label.includes(q)) return true;
+      if (wantFields || wantContent) {
+        const occs = occurrencesByModuleId[m.id] || [];
+        for (const occ of occs) {
+          if (wantFields && extractFieldsText(occ).includes(q)) return true;
+          if (wantContent && extractTextmapText(occ.textmap).includes(q)) return true;
+        }
+      }
+      return false;
     }).sort((a, b) => {
       const roleOrder = { panel: 0, page: 1, container: 2, instance: 3 };
       const ra = roleByModuleId?.[a.id] || a.role || "instance";
@@ -196,7 +253,7 @@ export function ComponentsTab() {
       if (lc !== 0) return lc;
       return (a.id || "").localeCompare(b.id || "");
     });
-  }, [allModules, search, roleFilter, roleByModuleId]);
+  }, [allModules, search, searchScope, roleFilter, roleByModuleId, occurrencesByModuleId]);
 
   const commitTemplates = useCallback((updated) => {
     const gid = grid?._id?.toString() || grid?.id || gridId;
@@ -221,7 +278,7 @@ export function ComponentsTab() {
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search modules…"
+          placeholder="Search labels, fields, and content…"
           style={{ ...inputStyle, flex: 1, height: 26 }}
         />
         {["all", "panel", "page", "container", "instance"].map(r => (
@@ -237,6 +294,31 @@ export function ComponentsTab() {
             }}
           >
             {r}
+          </button>
+        ))}
+      </div>
+      {/* F5 — search-scope toggle. Default "all" searches across label,
+          field values, and textmap content. Individual scopes restrict. */}
+      <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 9, color: "var(--text-faint)", fontFamily: "monospace" }}>
+        <span>Search in:</span>
+        {[
+          { key: "all", label: "everything" },
+          { key: "label", label: "labels" },
+          { key: "fields", label: "field values" },
+          { key: "content", label: "content" },
+        ].map(s => (
+          <button
+            key={s.key}
+            onClick={() => setSearchScope(s.key)}
+            style={{
+              fontSize: 9, fontFamily: "monospace", padding: "2px 6px",
+              borderRadius: 4, border: "1px solid var(--border-default)",
+              background: searchScope === s.key ? "var(--border-default)" : "transparent",
+              color: searchScope === s.key ? "var(--text-primary)" : "var(--text-muted)",
+              cursor: "pointer",
+            }}
+          >
+            {s.label}
           </button>
         ))}
       </div>

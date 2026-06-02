@@ -11,10 +11,10 @@
 // picked, or via right-click "convert highlight to inline-textblock".
 import React, { useContext } from "react";
 import Editor from "../ui/Editor.jsx";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 
 export default function TextblockCard({ occurrence, module }) {
-  const { dispatch, socket } = useContext(GridActionsContext);
+  const { dispatch, socket } = useGridActions();
   const isInline = module?.kind === "inline";
   return (
     <div className={isInline ? "textblock-card textblock-card--inline" : "textblock-card"}>

@@ -7,7 +7,7 @@
 import { useContext, useMemo, useCallback } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { FileText, Calendar, FolderOpen } from "lucide-react";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 
 /**
  * DocLinkNode - Renders a document link as [[bracketed text]]
@@ -17,7 +17,7 @@ import { GridActionsContext } from "../../GridActionsContext";
  * - selected: Whether the node is currently selected
  */
 export default function DocLinkNode({ node, selected }) {
-  const { containersById } = useContext(GridActionsContext) || {};
+  const { containersById } = useGridActions() || {};
 
   const { targetId, label, linkType = "doc" } = node.attrs;
 

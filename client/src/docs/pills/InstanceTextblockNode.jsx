@@ -4,7 +4,7 @@
 import React, { useContext, useCallback, useEffect, useMemo, useRef } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import DocContent from "../../modules/DocContent.jsx";
 import BoundBody from "../../modules/BoundBody.jsx";
 import RadialMenu from "../../ui/RadialMenu.jsx";
@@ -13,7 +13,7 @@ import { embedDeleteRegistry } from "../../helpers/embedRegistry.js";
 import { resolveEditorBinding } from "../../state/editorBindings.js";
 
 export default function InstanceTextblockNode({ node, editor, getPos, deleteNode }) {
-  const { occurrencesById, modulesById, dispatch, socket } = useContext(GridActionsContext) || {};
+  const { occurrencesById, modulesById, dispatch, socket } = useGridActions() || {};
 
   const { instanceId, occurrenceId } = node.attrs;
   const occurrence = occurrencesById?.[occurrenceId] || null;

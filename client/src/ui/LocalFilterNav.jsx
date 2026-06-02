@@ -8,13 +8,13 @@
 // even when defaults would otherwise show it. Matches FiltersSection's
 // effectivelyActive check + the user's "deactivated → no nav" rule.
 import React, { useContext, useMemo } from "react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import FilterNavWidget from "./FilterNavWidgets";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 
 export default function LocalFilterNav({ occurrence, compact = false }) {
-  const { state: ctxState, dispatch, fieldsById, occurrencesById, modulesById, foldersById, socket } = useContext(GridActionsContext);
+  const { state: ctxState, dispatch, fieldsById, occurrencesById, modulesById, foldersById, socket } = useGridActions();
   if (!occurrence) return null;
 
   const grid = ctxState?.grid;

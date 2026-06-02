@@ -6,7 +6,7 @@
 import React, { useState, useCallback, useContext, useMemo } from "react";
 import { Plus, Trash2, ChevronDown, ChevronRight, Check, Lock, Unlock } from "lucide-react";
 
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { uid } from "../../uid";
 import ConditionGroup from "../../blocks/ConditionGroup";
@@ -229,7 +229,7 @@ function FilterRow({ filter, isActive, onActivate, onUpdate, onDelete, fieldsByI
 
 // ── FiltersTab ─────────────────────────────────────────────────────────────────
 export function FiltersTab() {
-  const { dispatch, socket, state, fieldsById } = useContext(GridActionsContext);
+  const { dispatch, socket, state, fieldsById } = useGridActions();
 
   const grid = state?.grid;
   const gridId = state?.gridId || grid?._id;

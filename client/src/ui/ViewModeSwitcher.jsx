@@ -5,7 +5,7 @@
 //
 // Three input forms (priority order):
 //   1. `allowedModes` + `allowChange` — layout cascade output. Strongest.
-//   2. `contextTag` — legacy context-tag based defaults (folderPage / mindMap).
+//   2. `contextTag` — legacy context-tag based defaults (folderPage / valueBuilder).
 //   3. fallback to "default" context.
 // When `allowChange === false`, the switcher renders nothing.
 

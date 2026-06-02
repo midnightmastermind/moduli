@@ -1,0 +1,166 @@
+Layout was forced before the page was fully loaded. If stylesheets are not yet loaded this may cause a flash of unstyled content. node.js:416:1
+[socket] full_state received: 
+Object { gridId: "6a15de41bf6047291c96b6f9", grid: {…}, modules: (639) […], occurrences: (714) […], fields: (123) […], manifests: (2) […], views: (10) […], folders: (27) […], operations: (67) […], grids: (1) […] }
+PagePreviewApp-BxwiTJ61.js:5:20355
+[full_state-client] +2ms reducer dispatched (714 occs, 639 mods) PagePreviewApp-BxwiTJ61.js:5:20276
+[op-timing] null total=633ms ops=55
+     70ms    3fx  Schedule: Build Schedule
+     60ms   33fx  Table: Build
+     34ms    0fx  Canvas: Build
+     32ms    1fx  People Table: Build
+     25ms    1fx  Pages
+     25ms    1fx  Day Page: Build Tasks Completed
+     23ms    1fx  Back Volume
+     19ms    1fx  Protein
+     19ms    1fx  Completion Rate
+     16ms    1fx  Snack Nutrition
+     13ms    1fx  Steps
+     12ms    1fx  Water
+     12ms    1fx  Earned
+     12ms    1fx  Total Reps
+     12ms    1fx  Total Reading Time
+     12ms    2fx  Pomodoro History
+     11ms    0fx  Moods
+     11ms    1fx  Fats
+     11ms    1fx  Mom's Account Balance
+     10ms    1fx  Arms Volume
+     10ms    1fx  Breakfast Nutrition
+     10ms    1fx  Dinner Nutrition
+     10ms    1fx  Total Subscriptions
+      9ms    0fx  Movies Watched
+      8ms    1fx  Pomodoro Time
+      8ms    1fx  Checking Balance
+      7ms    1fx  Time Spent
+      7ms    1fx  Pomodoros Today
+      7ms    1fx  Spent
+      7ms    1fx  Time Spent This Week
+      7ms    0fx  Podcasts Listened
+      6ms    1fx  Completed
+      6ms    1fx  Carbs
+      6ms    0fx  Courses Taken
+      6ms    0fx  Due: Seed
+      6ms    1fx  Net Worth
+      5ms    1fx  Task Countdown
+      5ms    0fx  Phone Calls
+      5ms    1fx  Total Workouts
+      5ms    1fx  Monthly Bills
+      4ms    0fx  Day Page: Build
+      4ms    1fx  Legs Volume
+      4ms    1fx  Lunch Nutrition
+      4ms    0fx  Books Read
+      4ms    2fx  Current Streak
+      4ms    2fx  Workout History
+      4ms    2fx  Meal History
+      4ms    2fx  Purchase History
+      4ms    0fx  Compute Next Due
+      4ms    0fx  Mark Passed Timeslots
+      3ms    1fx  Chest Volume
+      3ms    1fx  Shoulders Volume
+      3ms    1fx  Cardio Volume
+      3ms    0fx  Project: Create
+      2ms    0fx  Daily Question Rotator PagePreviewApp-BxwiTJ61.js:4:12
+[full_state-client] runMatchingOperations: 635ms — 67 ops, 81 effects, 0 display updates PagePreviewApp-BxwiTJ61.js:5:22515
+[full_state-client] applied effects in 5ms PagePreviewApp-BxwiTJ61.js:5:22717
+[op-fire] depth=1 OccurrenceCreateOp occ=17798187 PagePreviewApp-BxwiTJ61.js:5:37653
+[op-timing] OccurrenceCreateOp total=418ms ops=50
+     64ms   36fx  Table: Build
+     47ms    1fx  Day Page: Build Tasks Completed
+     40ms    3fx  Canvas: Build
+     14ms    0fx  Due: Seed
+     11ms    3fx  Schedule: Stamp Date & Time Slot
+     10ms    1fx  Checking Balance
+     10ms    1fx  Monthly Bills
+      9ms    1fx  Total Reading Time
+      8ms    1fx  Water
+      8ms    1fx  Pomodoros Today
+      8ms    1fx  Spent
+      8ms    1fx  Protein
+      8ms    2fx  Pomodoro History
+      8ms    2fx  Workout History
+      8ms    2fx  Purchase History
+      7ms    1fx  Carbs
+      7ms    1fx  Total Reps
+      7ms    1fx  Completion Rate
+      6ms    1fx  Completed
+      6ms    0fx  Phone Calls
+      6ms    1fx  Pomodoro Time
+      6ms    1fx  Earned
+      6ms    1fx  Shoulders Volume
+      6ms    1fx  Time Spent This Week
+      6ms    2fx  Meal History
+      5ms    1fx  Steps
+      5ms    1fx  Time Spent
+      5ms    1fx  Pages
+      5ms    1fx  Fats
+      5ms    1fx  Mom's Account Balance
+      4ms    1fx  Task Countdown
+      4ms    0fx  Moods
+      4ms    1fx  Back Volume
+      4ms    1fx  Arms Volume
+      4ms    1fx  Cardio Volume
+      4ms    1fx  Breakfast Nutrition
+      4ms    1fx  Dinner Nutrition
+      4ms    1fx  Snack Nutrition
+      4ms    1fx  Total Workouts
+      4ms    2fx  Current Streak
+      4ms   11fx  Compute Next Due
+      4ms    1fx  Total Subscriptions
+      3ms    1fx  Chest Volume
+      3ms    1fx  Legs Volume
+      3ms    1fx  Lunch Nutrition
+      3ms    0fx  Books Read
+      3ms    0fx  People Table: Build
+      2ms    0fx  Movies Watched
+      2ms    0fx  Podcasts Listened
+      2ms    0fx  Courses Taken PagePreviewApp-BxwiTJ61.js:4:12
+[op-effects] depth=1 "Schedule: Stamp Date & Time Slot" UPDATE_ITEM_FIELD=3 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Day Page: Build Tasks Completed" UPDATE_ITEM_TEXTMAP=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Table: Build" CREATE_ITEM=1 UPDATE_OCCURRENCE=1 UPDATE_ITEM_META=34 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-effects] depth=1 "Canvas: Build" CREATE_ITEM=1 UPDATE_ITEM_META=2 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-fire] depth=2 MeasureOp occ=17798187 PagePreviewApp-BxwiTJ61.js:5:37653
+[op-effects] depth=2 "Schedule: Route by Timeslot" MOVE_OCCURRENCE=1 PagePreviewApp-BxwiTJ61.js:5:38271
+[op-fire-done] depth=2 MeasureOp 4ms total=1 display=0 PagePreviewApp-BxwiTJ61.js:5:38527
+[op-fire] depth=2 MeasureOp occ=17798187 PagePreviewApp-BxwiTJ61.js:5:37653
+[op-fire-done] depth=1 OccurrenceCreateOp 429ms total=85 display=11 PagePreviewApp-BxwiTJ61.js:5:38527
+[op-fire] depth=1 MeasureOp occ=17798187 PagePreviewApp-BxwiTJ61.js:5:37653
+[op-timing] MeasureOp total=76ms ops=2
+     46ms    0fx  Table: Build
+     30ms    0fx  Canvas: Build PagePreviewApp-BxwiTJ61.js:4:12
+[op-fire] depth=1 MeasureOp — 3 PagePreviewApp-BxwiTJ61.js:5:37653

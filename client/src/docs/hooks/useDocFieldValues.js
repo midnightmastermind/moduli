@@ -5,7 +5,7 @@
 // ============================================================
 
 import { useMemo, useContext } from "react";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import { GridLiveContext } from "../../GridLiveContext";
 import * as CalculationHelpers from "../../helpers/CalculationHelpers";
 
@@ -40,7 +40,7 @@ function extractFieldIds(content) {
  * @returns {Object} Map of fieldId -> { value, displayValue, error }
  */
 export function useDocFieldValues(docContent) {
-  const context = useContext(GridActionsContext) || {};
+  const context = useGridActions() || {};
   const {
     fieldsById = {},
     occurrencesById = {},
@@ -164,7 +164,7 @@ function formatValue(value, field) {
  * Hook for getting a single field's live value
  */
 export function useFieldValue(fieldId) {
-  const context = useContext(GridActionsContext) || {};
+  const context = useGridActions() || {};
   const {
     fieldsById = {},
     occurrencesById = {},

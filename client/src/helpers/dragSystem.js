@@ -158,13 +158,43 @@ function attachDragPreview(el, location, nativeSetDragImage) {
     getOffset: () => ({ x: offsetX, y: offsetY }),
     render: ({ container }) => {
       const clone = el.cloneNode(true);
+      // The clone gets appended into Pragmatic DnD's preview container,
+      // which is detached from the source's flex/grid layout. Without
+      // explicit dimensions the clone collapses (children using
+      // `flex: 1`, `width: 100%`, or `min-width: 0` shrink to 0) and
+      // the user sees just an empty shell.
+      clone.style.width = `${rect.width}px`;
+      clone.style.height = `${rect.height}px`;
+      clone.style.maxWidth = `${rect.width}px`;
+      clone.style.maxHeight = `${rect.height}px`;
+      clone.style.boxSizing = "border-box";
       clone.style.opacity = '1';
       clone.style.transform = 'none';
-      clone.style.background = 'var(--surface-overlay)';
-      clone.style.border = '1px solid var(--input-border)';
+      // Match the info-pill background opacity (`rgba(15,25,40,0.92)`)
+      // so the preview reads as a solid card, not a faded ghost. The
+      // earlier `var(--surface-overlay)` resolved to a semi-transparent
+      // overlay on some themes — content showed THROUGH it, looking
+      // "dim" + "empty" even when children were rendered.
+      clone.style.background = 'rgba(15, 25, 40, 0.92)';
+      clone.style.border = '1px solid rgba(120, 170, 220, 0.45)';
       clone.style.borderRadius = '8px';
-      clone.style.boxShadow = '0 8px 24px rgba(0,0,0,0.5)';
+      clone.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.5)';
       clone.style.padding = '4px 8px';
+      // Force-visible every descendant. Source-side CSS rules like
+      // `.dragging .x { opacity: 0 }` or hover-only reveals (handles,
+      // tooltips, etc.) would otherwise hide content in the clone too.
+      // The clone is a static visual; nothing needs to be hidden.
+      clone.classList.remove("dragging");
+      const allDescendants = clone.querySelectorAll("*");
+      allDescendants.forEach((n) => {
+        n.classList.remove("dragging");
+        // Skip elements the source intentionally marks invisible
+        // (handles that fade in on hover, etc.). For everything else,
+        // pin opacity 1 so we don't render an outline-only card.
+        if (n.style && n.style.opacity !== "" && parseFloat(n.style.opacity) < 0.5) return;
+        n.style.opacity = "1";
+        n.style.visibility = "visible";
+      });
       container.appendChild(clone);
     },
   });
@@ -496,6 +526,8 @@ export function useDragDrop({
   const [isDragging, setIsDragging] = useState(false);
   const [isOver, setIsOver] = useState(false);
   const [closestEdge, setClosestEdge] = useState(null);
+  // diag-only: last edge logged so onDrag doesn't spam every frame
+  const lastDiagEdgeRef = useRef(null);
 
   // Stable ref for mobile touch system to update state
   const stateRef = useRef({ setIsOver, setClosestEdge });
@@ -764,6 +796,9 @@ export function useDragDrop({
         return externalData;
       },
       onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
+        if (typeof window !== "undefined" && window.__dragDiag === true) {
+          console.log("[dragDiag] genPreview (native ghost)", { type, id, nativeEnabled });
+        }
         if (nativeEnabled) attachDragPreview(el, location, nativeSetDragImage);
       },
       onDragStart: ({ location }) => {
@@ -804,6 +839,9 @@ export function useDragDrop({
             setIsOver(true);
             const edge = extractClosestEdge(self.data);
             setClosestEdge(edge);
+            if (typeof window !== "undefined" && window.__dragDiag === true) {
+              console.log("[dragDiag] drop ENTER", { type, id, edge });
+            }
           }
         },
         onDrag: ({ location, self }) => {
@@ -812,10 +850,18 @@ export function useDragDrop({
           dragCtx.handleDragOver?.({ type, id, context, clientX, clientY });
           const edge = extractClosestEdge(self.data);
           setClosestEdge(edge);
+          if (typeof window !== "undefined" && window.__dragDiag === true && lastDiagEdgeRef.current !== edge) {
+            lastDiagEdgeRef.current = edge;
+            console.log("[dragDiag] edge", { type, id, edge });
+          }
         },
         onDragLeave: () => {
           setIsOver(false);
           setClosestEdge(null);
+          lastDiagEdgeRef.current = null;
+          if (typeof window !== "undefined" && window.__dragDiag === true) {
+            console.log("[dragDiag] drop LEAVE", { type, id });
+          }
         },
         onDrop: ({ source, location, nativeEvent, self }) => {
           setIsOver(false);

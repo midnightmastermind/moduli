@@ -1,6 +1,224 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-05-20. Check this file before re-reading source._
+_Updated: 2026-05-27. Check this file before re-reading source._
+
+## Recent Changes (2026-05-27 — Goal refactor: per-metric splits + Media goal + rich history cells)
+- **`scripts/createLiveData.js` — umbrella goal instances split into per-metric
+  occurrences** (continuation of the Stage-3 goal restructure; account2 did
+  Physical/Intellectual + the 7 summaries first):
+  - `workoutGoal` umbrella → `workoutReps` ("Reps") + `workoutLog` ("Workout
+    Log": last+history pair). Dropped the dead `totalSteps` tile (steps is only
+    written to `physicalSteps` — no workout-steps tracker). Per-muscle volume
+    tiles unchanged siblings.
+  - `nutritionGoal` umbrella → `nutritionProtein`/`nutritionCarbs`/
+    `nutritionFats` + `nutritionLog` ("Meal Log": last+history). Per-meal tiles
+    unchanged.
+  - **Media goal (NEW)** — replaced the 3 standalone `moviesWatchedGoal` /
+    `booksReadGoal` / `podcastsListenedGoal` containers with ONE `mediaGoal`
+    ("Media") container holding `mediaMovies` / `mediaBooks` / `mediaPodcasts`
+    per-type occurrences, each = **last + history** (count was considered then
+    dropped per user). New fields: `lastMovie` / `lastBook` / `lastPodcast`.
+- **All affected trackers stay mechanics-faithful** — only `goalOccurrenceId` /
+  `goalLabel` / `displayRules`-key changed (never op names or pipeline-step
+  logic), so RUN_OPERATION-by-name chains, `$goalPeriod`/`_effectiveFilter`
+  resolution, trigger surfaces, and scope guards are untouched. The Movies/Books/
+  Podcasts trackers were **converted from FIND-by-label → picker-direct
+  `$allItemsById.<occId>`** (the last live FIND-by-label goal lookups — audit
+  now finds ZERO). `displayRules` keys re-keyed to each new tile's label
+  ($displayRules is keyed by occurrence label).
+- **Rich history cells** — the Movies/Books/Podcasts trackers now
+  `PUSH_TO_ARRAY` descriptor rows: `label` = `{ kind:"occurrence", id:$X.id }`
+  (renders a click-to-jump chip), Movies/Books also add `poster` =
+  `{ kind:"media", id:$X.id, fieldId:posterUrlFieldId }`. Consumed by the new
+  `ArrayCell` renderer (see client/src/ui/CLAUDE.md). `deepResolveExpr` resolves
+  the `$X.id` leaves inside the nested descriptor objects.
+- Goal containers auto-parent into the Daily Goals page via
+  `occurrences: Object.values(goalContOccIds)` — no manual page-wiring needed
+  when adding/removing a goal container.
+- **Re-seed REQUIRED** to apply (seed-data only, no schema change):
+  `node --env-file=.env server/scripts/createLiveData.js`. 152/152 server tests
+  green.
+
+## Recent Changes (2026-05-26 — stale-write check exempts same-socket self-succession)
+- **`socketHandlers/occurrences.js` (`update_occurrence`)** — both the
+  medium-tier per-field conflict check AND the cheap outer-doc stale check now
+  skip rejection when the LAST writer of that occurrence was the SAME socket
+  (`uc._lastWriterByOcc[id] === socket.id`). New per-user-cache map
+  `uc._lastWriterByOcc`, stamped after every successful write.
+- **Root cause of "schedule flashes then vanishes + 'another window had a newer
+  edit' toast" (single window):** switching the date on the Schedule page
+  writes the page's `filterOverride`, then the `Schedule: Build Schedule` op it
+  triggers writes the SAME page occurrence's `meta.layoutCascadeOverride`
+  (UPDATE_ITEM_META routes through CommitHelpers.updateOccurrence, which sends
+  `expectedUpdatedAt`). The second write's baseline predates the first write's
+  persist ack → server sees its stored copy as newer → false `occurrence_stale`
+  → the client re-syncs the page and the just-built day disappears. A real
+  cross-window conflict (different socket.id) is still detected. Server-restart
+  only — NO reseed (handler logic, not seed data).
+- Pairs with the same-session client fixes (cascade dedup + Build Schedule
+  targetOccurrenceId — see below + client CLAUDE.md). 152 server tests green.
+
+## Recent Changes (2026-05-26 — Build Schedule reacts to on-page date switch; filters uniform)
+- **`models/Operation.js`** — new `targetOccurrenceId: { type: String, default:
+  null }`. The executor (operationExecutor.js:1174) already reads
+  `operation.targetOccurrenceId` to resolve the built-in date vars
+  (`$activeDate` / `$activePeriod` / `$activePeriodDates`) from THAT occurrence's
+  effective filter cascade — but the field was never in the schema (strict mode
+  dropped it) and no op set it, so the built-ins always fell back to the GRID
+  filter.
+- **`utils/liveSystemBuilders.js` (`makeScheduleBuildScheduleOp`)** — now sets
+  `targetOccurrenceId: schedulePageOccId`. **Root cause of "schedule builds on
+  first load but not after switching the date on the page":** Build Schedule
+  loops `$activePeriodDates`, which (target unset) resolved from the GRID filter.
+  A toolbar switch changes the grid (worked); an **on-page** switch writes only
+  the Schedule page's `filterOverride` (grid unchanged) → `$activePeriodDates`
+  stale → it rebuilt the old day, never the new one. Pointing the op at the
+  Schedule page makes the built-ins resolve through the page's effective filter
+  cascade (page override → grid) — the SAME cascade `Table: Build` and the
+  trackers already read in-pipeline (`$schedPage._effectiveFilter`). Grid and
+  on-page filter switches are now uniform. The page's filterOverride carries the
+  full picker period-shape `{value,unit,kind,dates}`, so this also makes Build
+  Schedule consume the rich picker data instead of a grid-flattened value.
+- **Re-seed REQUIRED** (op + schema change):
+  `node --env-file=.env server/scripts/createLiveData.js` (restart the server
+  first so the new schema field persists).
+- Regression: `__tests__/liveSystemBuilders.test.js` ("Build Schedule sets
+  targetOccurrenceId to the Schedule page …"). 25 tests green.
+- **`vitest.config.js`** — `test.cache.dir` → top-level `cacheDir` (silences the
+  deprecation warning; client `vite.config.js` got the same change).
+
+## Recent Changes (2026-05-25 part 4 — setMaxListeners on per-socket AbortSignal)
+- **`socketHandlers/crud.js` + `socketHandlers/occurrences.js`** — each
+  socket creates ONE `AbortController` whose `.signal` is passed to every
+  Mongoose query for the socket's lifetime (so a disconnect cancels all
+  in-flight round-trips at once). A write burst attaches >10 concurrent
+  `abort` listeners to that single signal, tripping Node's default-10 leak
+  heuristic → `MaxListenersExceededWarning: 11 abort listeners added to
+  [AbortSignal]`. They aren't a leak (each clears when its query settles),
+  so both files now call `setMaxListeners(100, abortController.signal)`
+  (`import { setMaxListeners } from "node:events"`) right after creating the
+  controller. Cosmetic — silences the warning without changing the
+  one-controller-per-socket cancellation design. No re-seed.
+
+## Recent Changes (2026-05-25 part 3 — INCLUSIVE scope guard on all mirror ops — FREEZE FIX, the actual one)
+- **Root cause (confirmed from `console-export-2026-5-25_18-16-8`):** the
+  toolkit-drop freeze is a flat **depth-2** cascade (NOT the depth-8
+  recursion the earlier notes assumed — the depth cap never trips). A
+  single `OccurrenceDeleteOp` fire runs the whole op suite (86 effects),
+  including `Canvas: Build DELETE_ITEM=14 CREATE_ITEM=7`; each of those 14
+  deletes re-fires `OccurrenceDeleteOp` → re-runs the suite → loop. **Proof
+  in the same log:** `Schedule Table: Build` (already converted to the
+  inclusive scope guard last session) fired **6×**; `Canvas: Build` (still
+  on the old EXCLUSIVE self-trigger guard) fired **57×** — identical
+  trigger surface, opposite outcome.
+- **Why the exclusive self-trigger guard failed:** it skipped the rebuild
+  only when it could PROVE the trigger was the op's OWN copy
+  (`$trigger.occurrence._ancestors HAS_ANCESTOR <ownPageId>`). That proof is
+  impossible for a DELETE — the occurrence is already gone from the store,
+  so its `_ancestors` resolve empty → guard false → rebuild runs on the
+  op's own orphan-sweep deletes → cascade.
+- **Fix — flip every mirror op to the INCLUSIVE guard:** rebuild ONLY when
+  the trigger is positively a source change — a bulk fire (`$triggerOccId
+  IS_EMPTY`) OR `$trigger.occurrence._ancestors HAS_ANCESTOR <sourcePageId>`.
+  A deleted/created derived copy can't prove it's a source occurrence, so
+  the op no-ops and the cascade dies at the source. Pattern: compute
+  `$isSourceChange` (0/1) via two IFs, gate the rebuild on it.
+  - **`scripts/createLiveData.js` `Canvas: Build` (~line 8891)** — replaced
+    the exclusive guard (+ the now-redundant missing-position self-heal
+    probe) with the inclusive guard keyed to `$schedPageId`. Diff body stays
+    in the `else` branch (no-op `then`).
+  - **`scripts/createLiveData.js` `People Table: Build` (~line 9165)** —
+    wrapped its loop + rowCount write in the inclusive guard keyed to the
+    **Library container** (`libraryContOccId`), NOT the People page: the
+    table's own rows are COPY_LINK copies that also carry
+    `library:"person"`, so scoping by the person tag alone would re-match
+    them. Ancestor-scoping to the Library container excludes the table's
+    rows (parented under the table, not the container).
+  - **`utils/liveSystemBuilders.js` `makeDayPageBuildTasksCompletedOp`
+    (~line 1658)** — computes `$isSourceChange` (keyed to `$schedPageId`,
+    already resolved early) and ANDs `$isSourceChange IS 1` into the
+    existing `$dayPageId IS_NOT_EMPTY` rebuild gate. This op only writes a
+    textmap (no CRUD fuel) but fired 57× on the cascade via its unscoped
+    onAdd/onDelete triggers — now no-ops on non-source CRUD.
+- **Pairs with the client-side executor cycle breaker** (see
+  client/src/state/CLAUDE.md) — defense-in-depth so op-emitted CRUD echoes
+  can never re-fire triggers even if a future mirror op forgets its guard.
+- **Re-seed REQUIRED to apply** (seed-data change):
+  `node --env-file=.env server/scripts/createLiveData.js`.
+- **Regression tests:** `__tests__/liveSystemBuilders.test.js` (3 cases on
+  the Day Page op's guard shape — no DB) + `__tests__/createLiveData.test.js`
+  (2 DB-backed cases asserting Canvas/People Table pipelines carry the
+  inclusive guard). 151 server tests green.
+
+## Recent Changes (2026-05-25 — Table:Build diff mode — FREEZE FIX continuation)
+- **`scripts/createLiveData.js` (`Table: Build`, ~line 8632)** —
+  rewrote the ELSE branch from clean-and-rebuild to true diff mode
+  (mirrors `Canvas: Build`'s pattern). Three phases:
+  - **Phase 1** — orphan sweep. For each existing row copy under
+    `$tblId`, scan `$allInstances` for a matching source task on
+    `$schedDate` under Schedule (by `linkedGroupId`). If none found
+    → `DELETE` and bump `$changed`.
+  - **Phase 2** — per-task existence check. For each Schedule task
+    on `$schedDate`, count copies under `$tblId` with matching
+    `linkedGroupId`. If zero → `COPY_LINK` once + bump `$changed`.
+  - **Phase 3** — cells rebuild, gated on `$changed > 0`. Wipes
+    cells, walks tasks in `$allInstances` order, finds each row
+    copy by `linkedGroupId`, writes four cell embeds (all pointing
+    at the same row occurrence — the column-level `fieldVisibility`
+    config picks fields per column). Skipped entirely when nothing
+    changed.
+  - **One copy per row** (was three). The previous 3-copies-per-row
+    layout was redundant — every column's projection comes from
+    `meta.table.columns[i].fieldVisibility`, not from the cell's
+    occurrence identity. People Table:Build already uses 1
+    copy/row; Schedule Table now matches.
+  - **Net effect:** steady-state fire emits **zero** create/update
+    events. Single-task add → 1 `create_occurrence` + ~74
+    `update_occurrence`. Single-task remove → 1 `delete_occurrence`
+    + ~69 update events. Pre-refactor, every fire emitted ~54
+    `create_occurrence` events regardless of whether the schedule
+    changed — the source of the toolkit-drop + date-filter freeze
+    (server log showed a flood of unique creates per drop).
+  - **Re-seed required to apply:**
+    `node --env-file=.env server/scripts/createLiveData.js`.
+
+## Recent Changes (2026-05-25 — `_THAN` comparator aliases + seed cleanup)
+- **`client/src/helpers/operationActions.js` `evalRule`** —
+  numeric comparators gained `_THAN` aliases:
+  `GREATER_THAN` ↔ `GREATER`,
+  `LESS_THAN` ↔ `LESS`,
+  `GREATER_THAN_OR_EQUAL` ↔ `GREATER_OR_EQUAL`,
+  `LESS_THAN_OR_EQUAL` ↔ `LESS_OR_EQUAL`. Seed authors reach for
+  the natural-language form; without the alias the rule silently
+  fell through to default `false`, making whichever guard branch
+  used it dead code. 4 regression tests in
+  `__tests__/operationActions.unified.test.js`.
+- **`scripts/createLiveData.js:8624` + `:8917`** —
+  `Table: Build` and `Canvas: Build` idempotency guards rewritten
+  to use the canonical `GREATER` comparator. Same intent, now
+  actually evaluates. Re-seed picks up the change.
+
+## Recent Changes (2026-05-25 — Table/Canvas Build self-trigger guard — FREEZE FIX)
+- **`scripts/createLiveData.js` (`Table: Build` ~8615, `Canvas: Build`
+  ~8779)** — both ops' rebuild-gate IFs gained a self-trigger guard:
+  the no-op THEN now also fires when
+  `$trigger.occurrence._ancestors HAS_ANCESTOR $tblId` (resp.
+  `$canvasId`) — i.e. the triggering add/delete is one of the op's OWN
+  row/card copies, not a real Schedule change. Condition went from
+  `AND(rowCount>0, triggerEmpty[, missingPos=0])` to
+  `OR(selfGuard, AND(...existing))`. **Root cause of the app freeze on
+  drop-into-Schedule:** both ops trigger on unscoped `onAdd`/`onDelete`
+  (instance + container, `targetId:""`) AND delete-then-rebuild their
+  own copies in an orphan sweep. Each cleanup `DELETE` →
+  `deleteOccurrence` (CommitHelpers) → synchronous `OccurrenceDeleteOp`
+  → re-matched both ops → deleted more → exponential fan-out bounded
+  only by the depth-8 cap (which is why the console flooded with
+  `fire depth cap hit … OccurrenceDeleteOp`). The guard breaks the
+  self-loop at the source while preserving "rebuild when Schedule
+  changes". Relies on the new `$trigger.occurrence._ancestors`
+  enrichment (see client/src/helpers/CLAUDE.md).
+  **Re-seed required to apply:**
+  `node --env-file=.env server/scripts/createLiveData.js`.
 
 ## Recent Changes (2026-05-21 — Jarvis assistant (branch: assistant-jarvis))
 - **`services/wikipediaTools.js` (NEW)** — `search`, `summary`, and

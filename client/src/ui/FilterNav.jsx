@@ -19,6 +19,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ChevronLeft, ChevronRight, CalendarDays, Filter } from "lucide-react";
+import { Calendar } from "react-multi-date-picker";
+import DatePanel from "react-multi-date-picker/plugins/date_panel";
+import Toolbar from "react-multi-date-picker/plugins/toolbar";
+import "react-multi-date-picker/styles/backgrounds/bg-dark.css";
+import "react-multi-date-picker/styles/colors/teal.css";
+import "./filterCalendar.css";
+import { classifySelection } from "./NavPickerPopover.jsx";
 
 const UNIT_LABELS = { day: "D", week: "W", month: "M", year: "Y" };
 const UNIT_ORDER = ["day", "week", "month", "year"];
@@ -206,6 +213,78 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
     writeFilterValue(date, unit);
   }, [hasDateNav, unit, writeFilterValue]);
 
+  // react-multi-date-picker emits one of:
+  //   - DateObject              (single mode)
+  //   - DateObject[]            (multiple mode)
+  //   - [DateObject, DateObject]               (range mode — start..end pair)
+  //   - [[DateObject, DateObject], ...]        (multiple range mode — N pairs)
+  // We use `multiple range`, so any selection collapses to N ranges. Expand
+  // every range into its day-by-day list, dedupe, then classifySelection
+  // (single / range / multi / week / month / year) and persist as the
+  // standard `{kind, value, span, dates, unit}` shape.
+  const handleCalendarChange = useCallback((picked) => {
+    if (!hasDateNav) return;
+    const toJsDate = (d) => (typeof d?.toDate === "function" ? d.toDate() : new Date(d));
+    const expandRange = (start, end) => {
+      const a = toJsDate(start); const b = toJsDate(end);
+      if (isNaN(a?.getTime()) || isNaN(b?.getTime())) return [];
+      const [lo, hi] = a <= b ? [a, b] : [b, a];
+      const out = [];
+      const cur = new Date(lo.getFullYear(), lo.getMonth(), lo.getDate());
+      const last = new Date(hi.getFullYear(), hi.getMonth(), hi.getDate());
+      while (cur.getTime() <= last.getTime()) {
+        out.push(new Date(cur.getFullYear(), cur.getMonth(), cur.getDate()));
+        cur.setDate(cur.getDate() + 1);
+      }
+      return out;
+    };
+
+    let dates = [];
+    if (!picked) {
+      dates = [];
+    } else if (Array.isArray(picked)) {
+      // Each entry may be a DateObject (multi mode) or a [start, end] pair (range).
+      for (const entry of picked) {
+        if (Array.isArray(entry)) {
+          if (entry.length === 1) dates.push(toJsDate(entry[0]));
+          else if (entry.length >= 2) dates.push(...expandRange(entry[0], entry[1]));
+        } else {
+          dates.push(toJsDate(entry));
+        }
+      }
+    } else {
+      dates.push(toJsDate(picked));
+    }
+    dates = dates.filter(d => d && !isNaN(d.getTime()));
+    if (dates.length === 0) {
+      onFilterValueChange?.(dateCond.fieldId, null);
+      return;
+    }
+    // Dedupe by day-key.
+    const seen = new Set();
+    const unique = [];
+    for (const d of dates) {
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(d);
+    }
+    const next = classifySelection(unique);
+    if (next) onFilterValueChange?.(dateCond.fieldId, next);
+  }, [hasDateNav, dateCond, onFilterValueChange]);
+
+  // Picker accepts strings, Dates, or DateObjects. ISO strings are simplest.
+  const pickerValue = useMemo(() => {
+    if (rawValue && typeof rawValue === "object" && Array.isArray(rawValue.dates)) return rawValue.dates;
+    if (rawValue && typeof rawValue === "object" && rawValue.value) return [rawValue.value];
+    if (typeof rawValue === "string") return [rawValue];
+    if (rawValue instanceof Date) {
+      const d = rawValue;
+      return [`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`];
+    }
+    return [];
+  }, [rawValue]);
+
   const handleUnitChange = useCallback((u) => {
     if (!hasDateNav) return;
     writeFilterValue(currentDate, u);
@@ -259,31 +338,31 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
               </div>
             )}
 
-            {/* Unit toggle (D / W / M / Y) — only renders when 2+ allowed */}
-            {hasDateNav && allowedUnits.length > 1 && (
-              <div className="flex items-center justify-center" style={{ gap: 2 }}>
-                {allowedUnits.map(u => (
-                  <button
-                    key={u}
-                    onClick={() => handleUnitChange(u)}
-                    title={u}
-                    style={{
-                      padding: "1px 6px", fontSize: 10, lineHeight: "14px",
-                      borderRadius: 4,
-                      border: "1px solid var(--panel-border, #374151)",
-                      background: u === unit ? "var(--accent, #14b8a6)" : "transparent",
-                      color: "inherit", cursor: "pointer",
-                    }}
-                  >{UNIT_LABELS[u]}</button>
-                ))}
-              </div>
-            )}
-
-            {/* Quick date picker */}
+            {/* Calendar drilldown — month grid with multi-select; replaces D/W/M/Y toggle */}
             {hasDateNav && (
               <>
                 <div className="h-px bg-border" />
-                <QuickDatePicker currentDate={currentDate} unit={unit} onSelect={handleDateSelect} />
+                <Calendar
+                range
+                multiple
+                format="YYYY-MM-DD"
+                value={pickerValue}
+                onChange={handleCalendarChange}
+                className="bg-dark teal moduli-calendar"
+                plugins={[
+                  <DatePanel
+                    key="panel"
+                    position="right"
+                    sort="date"
+                    removeButton
+                  />,
+                  <Toolbar
+                    key="toolbar"
+                    position="bottom"
+                    sort={["today", "deselect", "close"]}
+                  />,
+                ]}
+              />
               </>
             )}
           </div>
@@ -328,7 +407,27 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
           </PopoverTrigger>
           {hasDateNav && (
             <PopoverContent className="w-auto p-2" align="center">
-              <QuickDatePicker currentDate={currentDate} unit={unit} onSelect={handleDateSelect} />
+              <Calendar
+                range
+                multiple
+                format="YYYY-MM-DD"
+                value={pickerValue}
+                onChange={handleCalendarChange}
+                className="bg-dark teal moduli-calendar"
+                plugins={[
+                  <DatePanel
+                    key="panel"
+                    position="right"
+                    sort="date"
+                    removeButton
+                  />,
+                  <Toolbar
+                    key="toolbar"
+                    position="bottom"
+                    sort={["today", "deselect", "close"]}
+                  />,
+                ]}
+              />
               {!isCurrentPeriod && (
                 <div className="pt-2 border-t border-border mt-2">
                   <Button size="sm" className="w-full" onClick={handleToday}>Go to Today</Button>
@@ -342,25 +441,6 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
           <ChevronRight className="h-3 w-3" />
         </Button>
 
-        {/* Unit toggle (D / W / M / Y) — compact pill row */}
-        {hasDateNav && allowedUnits.length > 1 && (
-          <div className="flex items-center ml-1" style={{ gap: 1 }}>
-            {allowedUnits.map(u => (
-              <button
-                key={u}
-                onClick={() => handleUnitChange(u)}
-                title={u}
-                style={{
-                  padding: "0 4px", fontSize: 9, lineHeight: compact ? "16px" : "20px",
-                  borderRadius: 3,
-                  border: "1px solid var(--panel-border, #374151)",
-                  background: u === unit ? "var(--accent, #14b8a6)" : "transparent",
-                  color: "inherit", cursor: "pointer",
-                }}
-              >{UNIT_LABELS[u]}</button>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

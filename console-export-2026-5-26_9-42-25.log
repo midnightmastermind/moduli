@@ -1,0 +1,108 @@
+[socket] full_state received: 
+Object { gridId: "6a15b019558b83b8e91acfcf", grid: {…}, modules: (618) […], occurrences: (615) […], fields: (123) […], manifests: (2) […], views: (7) […], folders: (27) […], operations: (67) […], grids: (1) […] }
+PagePreviewApp-WXatSoDZ.js:3:114063
+[full_state-client] +7ms reducer dispatched (615 occs, 618 mods) PagePreviewApp-WXatSoDZ.js:3:113984
+[full_state-client] runMatchingOperations: 444ms — 67 ops, 292 effects, 0 display updates PagePreviewApp-WXatSoDZ.js:3:116223
+[op-fire] depth=1 MeasureOp occ=tmheDiar 4 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=7sjzPt0z 4 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=ID-kFAGJ 2 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=GAfzDWdu 3 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=7OjwAH8M PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=Wh_jm9l- PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=k4RSIX2W PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=7c-rA7B7 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=sm-oiA91 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=MwHo5EKn PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=Uiy-KnsQ PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=5vCfotwv PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=jvU6KsAn PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=OqZis7-i PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=B7Z-grgs PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=9mYhOSgI PagePreviewApp-WXatSoDZ.js:3:131361
+[op-effects] depth=1 "Net Worth" UPDATE_ITEM_FIELD=1 PagePreviewApp-WXatSoDZ.js:3:131979
+[op-fire] depth=2 MeasureOp occ=RDOuapjc PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire-done] depth=1 MeasureOp 12ms total=1 display=0 PagePreviewApp-WXatSoDZ.js:3:132235
+[op-fire] depth=1 MeasureOp occ=XMuerLMS PagePreviewApp-WXatSoDZ.js:3:131361
+[op-effects] depth=1 "Net Worth" UPDATE_ITEM_FIELD=1 PagePreviewApp-WXatSoDZ.js:3:131979
+[op-fire-done] depth=1 MeasureOp 11ms total=1 display=0 PagePreviewApp-WXatSoDZ.js:3:132235
+[op-fire] depth=1 MeasureOp occ=SvII21AQ PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=WykmoFG9 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=69lzw_5S 2 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=7sjzPt0z 2 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=tmheDiar 2 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=7OjwAH8M 2 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=GAfzDWdu 2 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=ID-kFAGJ 2 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 MeasureOp occ=3o1tLv10 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-effects] depth=1 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-WXatSoDZ.js:3:131979
+[op-effects] depth=1 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-WXatSoDZ.js:3:131979
+[op-effects] depth=1 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-WXatSoDZ.js:3:131979
+[op-effects] depth=1 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-WXatSoDZ.js:3:131979
+[op-effects] depth=1 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-WXatSoDZ.js:3:131979
+[op-fire] depth=2 MeasureOp occ=T_SxSBTz PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire-done] depth=1 MeasureOp 34ms total=6 display=0 PagePreviewApp-WXatSoDZ.js:3:132235
+[full_state-client] applied effects in 84ms PagePreviewApp-WXatSoDZ.js:3:116425
+[table] 
+Object { occId: "EUA2T-R91mpg", label: "Schedule Table", rowCount: 0, columns: 4, cellsPersisted: 0, hasMetaTable: true }
+PagePreviewApp-WXatSoDZ.js:74:59855
+[op-fire] depth=1 MeasureOp — 43 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=69qN7oIU PagePreviewApp-WXatSoDZ.js:3:131361
+[op-effects] depth=1 "Schedule: Build Schedule" CREATE_ITEM=56 UPDATE_ITEM_META=1 DELETE_ITEM=1 UPDATE_ITEM_FIELD=2 PagePreviewApp-WXatSoDZ.js:3:131979
+[op-fire-done] depth=1 NavigationOp 101ms total=60 display=0 PagePreviewApp-WXatSoDZ.js:3:132235
+[op-fire] depth=1 NavigationOp occ=14dba00d PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=152f1510 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=8719123d PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=31197bfc PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=8419785f PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=35d61317 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=2e13f4e5 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=b8e1c13b PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=98213f3b PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=9554563c PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=cb8d2d8e PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=25a5f658 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=f2850901 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=03b1ffd0 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=ffbd8216 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=726d7a3b PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=bb1af6bb PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=5267bc76 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=321421e0 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=87883daa PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=12d92acd PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=a319e515 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=3d6a8653 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=0ad7b14a PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=303476ee PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=034c43ec PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=901e652b PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=0945cf34 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=d722a9a7 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=4902fc07 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=a354fe38 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=e2af664f PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=5c9a922b PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=d44401f5 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=b12df779 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=802bac03 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=9d217847 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=d72664c9 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=793fd674 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=1eec931a PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=5e5a1f16 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=04637295 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=ad015aac PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=49949672 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=2a483d2b PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=85105699 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=80945dd8 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=bf4bfd97 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=07b557e9 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=8f2602aa PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=786884ef PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=471cdf2f PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=39689b88 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=d3393988 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=510f15bb PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 NavigationOp occ=d55ada40 PagePreviewApp-WXatSoDZ.js:3:131361
+[op-fire] depth=1 ScheduleOp — PagePreviewApp-WXatSoDZ.js:3:131361

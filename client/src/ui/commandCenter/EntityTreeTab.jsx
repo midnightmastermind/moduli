@@ -15,7 +15,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { TemplatePill } from "./ComponentsTab";
 import GlobalTree from "../../modules/GlobalTree.jsx";
@@ -177,7 +177,7 @@ export function DraggableEntityRow({ entity, role, icon: Icon, iconColor, label,
 // Universal manifest tree: Grid → Panels → Containers → Instances (+ draggable)
 // ============================================================
 export function EntityTreeTab() {
-  const ctx = useContext(GridActionsContext) || {};
+  const ctx = useGridActions() || {};
   const { state, socket, dispatch, occurrencesById, modulesById, panelsById, containersById, instancesById } = ctx;
   const gridId = state?.gridId;
   const grid = state?.grid;

@@ -3,7 +3,7 @@
 // Thin entry point: reads occurrence, resolves role/view, routes to the correct inner component.
 // All layout/sidebar/routing logic is here; inner components (Panel/Container/Instance/Artifact) are pure renderers.
 import { useContext, useState, useCallback } from "react";
-import { GridActionsContext } from "../GridActionsContext.js";
+import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
 import ModulePanel from "./ModulePanel.jsx";
 import ModulePage from "./ModulePage.jsx";
 import Container from "./ModuleContainer.jsx";
@@ -15,7 +15,7 @@ import PreviewContent from "./PreviewContent.jsx";
 // ─── ModuleRouter ──────────────────────────────────────────────────────────────
 
 export default function ModuleRouter({ occurrence, embedded = false, dispatch, socket, ...props }) {
-  const { viewsById, modulesById, occurrencesById, roleByModuleId } = useContext(GridActionsContext);
+  const { viewsById, modulesById, occurrencesById, roleByModuleId } = useGridActions();
 
   if (!occurrence) return null;
 

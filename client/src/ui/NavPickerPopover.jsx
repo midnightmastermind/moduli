@@ -19,8 +19,15 @@
 // Emits via `onCommit({ kind, value, span, dates, unit })`. The parent (ArrowsWidget)
 // folds that into the persisted filter value shape.
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import { Calendar } from "lucide-react";
-import DrilldownTimePicker from "./DrilldownTimePicker";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar, DateObject } from "react-multi-date-picker";
+import DatePanel from "react-multi-date-picker/plugins/date_panel";
+import Toolbar from "react-multi-date-picker/plugins/toolbar";
+import "react-multi-date-picker/styles/backgrounds/bg-dark.css";
+import "react-multi-date-picker/styles/colors/teal.css";
+import "./filterCalendar.css";
+import { summarizeSelection } from "./filterSummary";
+import { seedSelection, cycleDay, barPosition } from "./daySelectionCycle";
 
 const UNIT_LABELS = { day: "D", week: "W", month: "M", year: "Y" };
 const UNIT_ORDER = ["day", "week", "month", "year"];
@@ -127,27 +134,14 @@ function hydrateSelection({ value, span = 1, dates }) {
   return [new DateObject(parseISO(value))];
 }
 
-// Pretty summary for the trigger button.
-function formatSummary({ kind, value, span, dates }) {
-  if (!value) return "Pick";
-  const start = parseISO(value);
-  const fmt = (d) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  if (kind === "single") return fmt(start);
-  if (kind === "month") return start.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  if (kind === "year") return String(start.getFullYear());
-  if (kind === "week") return `Week of ${fmt(start)}`;
-  if (kind === "multi" && Array.isArray(dates)) {
-    if (dates.length <= 3) return dates.map(d => fmt(parseISO(d))).join(", ");
-    return `${fmt(parseISO(dates[0]))} +${dates.length - 1}`;
-  }
-  if (kind === "range") {
-    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + (span - 1));
-    return `${fmt(start)} – ${fmt(end)}`;
-  }
-  return fmt(start);
+// Pretty summary for the trigger button — lists distinct days and ranges
+// ("May 6, May 9–12, May 20") via the shared formatter.
+function formatSummary(shape) {
+  if (!shape || !shape.value) return "Pick";
+  return summarizeSelection(shape, { maxSegments: 3 }) || "Pick";
 }
 
-export default function NavPickerPopover({ value, onCommit, constraints }) {
+export default function NavPickerPopover({ value, onCommit, constraints, triggerLabel = null }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -186,55 +180,143 @@ export default function NavPickerPopover({ value, onCommit, constraints }) {
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  // DrilldownTimePicker emits a sorted array of "YYYY-MM-DD" strings.
-  // Convert to Date[] for classifySelection (the shared classifier
-  // detects single / range / multi / week / month / year and emits the
-  // persisted filter shape).
-  const handleChange = (isoStrings) => {
-    if (!Array.isArray(isoStrings) || isoStrings.length === 0) return;
-    const jsDates = isoStrings.map(s => {
-      const [y, m, d] = s.split("-").map(Number);
-      return new Date(y, (m || 1) - 1, d || 1);
-    });
-    // Enforce maxDays: trim oldest if exceeded.
-    const trimmed = maxDays && jsDates.length > maxDays ? jsDates.slice(-maxDays) : jsDates;
-    const next = classifySelection(trimmed);
+  // Day list carried by the incoming persisted shape (multi → dates[];
+  // range → value..value+span-1; single → [value]). Used to seed the picker's
+  // working state when it opens.
+  const initialDays = (sh) => {
+    if (Array.isArray(sh.dates) && sh.dates.length) return sh.dates.map(s => s.slice(0, 10));
+    if (sh.value && sh.span > 1) {
+      const s = parseISO(sh.value);
+      const out = [];
+      for (let i = 0; i < sh.span; i++) out.push(toISO(new Date(s.getFullYear(), s.getMonth(), s.getDate() + i)));
+      return out;
+    }
+    if (sh.value) return [String(sh.value).slice(0, 10)];
+    return [];
+  };
+
+  // Working selection while the popover is open — the on/link/off model.
+  // (Seeded from the persisted shape; local state is authoritative while open.)
+  const [sel, setSel] = useState(() => seedSelection(initialDays(shape)));
+  // Re-seed each time the popover opens so external value changes are picked up.
+  useEffect(() => {
+    if (open) setSel(seedSelection(initialDays(shape)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Day-clicks are handled by us (mapDays onClick); set a guard so the
+  // library's own onChange (fired in same tick when value prop changes
+  // OR same-day toggle in `multiple` mode) doesn't clobber the click we
+  // just processed and overwrite the distinct/range kind map.
+  const clickGuard = useRef(false);
+  // Stash the keys snapshot from our most recent cycleDay commit so we can
+  // detect when the library's onChange is just echoing our value back. If
+  // the picked days exactly match what we just set, it's an echo — no-op
+  // (otherwise seedSelection would re-derive every adjacent pair as a
+  // bar and clobber a deliberately-distinct neighbor pair).
+  const lastCommittedKeys = useRef([]);
+
+  // Push a working selection out to the parent in the persisted shape.
+  const commit = (nextSel) => {
+    let working = nextSel;
+    if (maxDays && working.keys.length > maxDays) {
+      working = seedSelection(working.keys.slice(-maxDays)); // keep most recent N
+    }
+    setSel(working);
+    lastCommittedKeys.current = working.keys;
+    if (!working.keys.length) {
+      onCommit?.({ kind: "single", value: null, span: 1, dates: null, unit: "day" });
+      return;
+    }
+    const next = classifySelection(working.keys.map(parseISO));
     if (!next) return;
-    // Suppress disallowed kinds — fall back to range/single if multi disallowed.
     if (allowedKinds && !allowedKinds.includes(next.kind)) {
-      if (next.kind === "multi" && allowedKinds.includes("range")) {
-        next.kind = "range";
-      } else if (!allowedKinds.includes("single")) {
-        return;
-      }
+      if (next.kind === "multi" && allowedKinds.includes("range")) next.kind = "range";
+      else if (!allowedKinds.includes("single")) return;
     }
     onCommit?.(next);
   };
 
-  // The DrilldownTimePicker is controlled — feed it the current
-  // selection as an ISO string array. Maps from the shape's `dates`
-  // (preferred), else the single `value`, else empty.
-  const pickerValue = useMemo(() => {
-    if (Array.isArray(shape.dates) && shape.dates.length) return shape.dates;
-    if (shape.value) return [shape.value];
-    return [];
-  }, [shape.dates, shape.value]);
+  const handleDayClick = (dateObj) => {
+    const d = typeof dateObj?.toDate === "function" ? dateObj.toDate() : new Date(dateObj);
+    if (isNaN(d?.getTime())) return;
+    clickGuard.current = true;
+    commit(cycleDay(sel, toISO(d)));
+    // rAF (not setTimeout 0) keeps the guard alive past any microtask /
+    // synchronous onChange the library fires during click handling. The
+    // guard releases on the next paint, well after React has flushed the
+    // post-click render and the library has settled.
+    requestAnimationFrame(() => { clickGuard.current = false; });
+  };
+
+  // Fires from the side panel × (remove), toolbar deselect, OR — depending
+  // on library version — as an echo right after our day-click. We block
+  // echos two ways: clickGuard for the same-tick path, and an
+  // identity check against the keys we just committed for any later echo.
+  const handleExternalChange = (picked) => {
+    if (clickGuard.current) return;
+    const toJs = (d) => (typeof d?.toDate === "function" ? d.toDate() : new Date(d));
+    const days = [];
+    const arr = Array.isArray(picked) ? picked : picked ? [picked] : [];
+    for (const e of arr) {
+      const d = toJs(Array.isArray(e) ? e[0] : e);
+      if (d && !isNaN(d.getTime())) days.push(toISO(d));
+    }
+    // Echo check: if the library is just reporting our committed keys back,
+    // do nothing. Otherwise seedSelection would re-derive contiguous days
+    // as range and overwrite a deliberate distinct-pair (the original bug
+    // that broke distinct → range fill: library echoed a fresh-distinct
+    // back, seedSelection promoted it to "range" because of an adjacent
+    // distinct, then on the next click cycleDay saw "range" instead of
+    // "distinct" and jumped straight to "off").
+    const last = lastCommittedKeys.current || [];
+    const lastSorted = [...last].sort();
+    const daysSorted = [...days].sort();
+    if (lastSorted.length === daysSorted.length &&
+        lastSorted.every((k, i) => k === daysSorted[i])) {
+      return;
+    }
+    commit(seedSelection(days));
+  };
+
+  const todayKey = toISO(new Date());
+  // Per-day classes: today = square marker, selected distinct = circle,
+  // selected ranged = connected bar (start/mid/end for rounding).
+  const mapDays = ({ date }) => {
+    const d = typeof date?.toDate === "function" ? date.toDate() : new Date(date);
+    const key = toISO(d);
+    const classes = [];
+    if (key === todayKey) classes.push("moduli-today");
+    const kind = sel.kind[key];
+    if (kind === "distinct") classes.push("moduli-distinct");
+    else if (kind === "range") {
+      classes.push("moduli-ranged");
+      const pos = barPosition(sel, key);
+      if (pos) classes.push(`moduli-range-${pos}`);
+    }
+    return { className: classes.join(" "), onClick: () => handleDayClick(date) };
+  };
+
+  const pickerValue = useMemo(() => sel.keys, [sel.keys]);
 
   return (
     <span ref={wrapRef} style={{ position: "relative", display: "inline-flex" }}>
       <button
         onClick={() => setOpen(v => !v)}
-        title="Pick date / range / weeks / months"
+        title="Pick date / range / multi / weeks / months"
         style={{
-          display: "inline-flex", alignItems: "center", gap: 3,
-          padding: "1px 6px", fontSize: 10,
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: triggerLabel ? "1px 8px" : "1px 6px",
+          fontSize: triggerLabel ? 12 : 10,
+          minWidth: triggerLabel ? 96 : "auto",
+          justifyContent: "center",
           background: "transparent", color: "inherit",
           border: "1px solid var(--panel-border, #374151)", borderRadius: 4,
           cursor: "pointer",
         }}
       >
-        <Calendar size={11} />
-        <span>{summary}</span>
+        <CalendarIcon size={11} />
+        <span>{triggerLabel || summary}</span>
       </button>
       {open && (
         <div
@@ -244,12 +326,17 @@ export default function NavPickerPopover({ value, onCommit, constraints }) {
             zIndex: 50,
           }}
         >
-          {/* The DrilldownTimePicker has its own header chrome (zoom
-              chevrons, increment-shift arrows, level title). No outer
-              zoom toolbar needed. */}
-          <DrilldownTimePicker
+          <Calendar
+            multiple
+            format="YYYY-MM-DD"
             value={pickerValue}
-            onChange={handleChange}
+            onChange={handleExternalChange}
+            mapDays={mapDays}
+            className="bg-dark teal moduli-calendar"
+            plugins={[
+              <DatePanel key="panel" position="right" sort="date" removeButton />,
+              <Toolbar key="toolbar" position="bottom" sort={["today", "deselect", "close"]} />,
+            ]}
           />
           {maxDays && (
             <div style={{ fontSize: 9, opacity: 0.6, marginTop: 4, textAlign: "center" }}>

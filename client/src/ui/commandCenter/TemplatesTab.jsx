@@ -1,6 +1,6 @@
 // commandCenter/TemplatesTab.jsx
 import React, { useContext, useMemo, useState } from "react";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import { rootFolderForTemplates, templateKindOf } from "../../helpers/templateHelpers";
 import { commitApplyTemplate } from "../../helpers/CommitHelpers";
 
@@ -53,7 +53,7 @@ function labelFor(modulesById, occ) {
 }
 
 export default function TemplatesTab() {
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const { socket, state, modulesById, occurrencesById, manifestsById, foldersById } = ctx;
   const gridId = state?.grid?._id || state?.gridId;
   const lookups = useMemo(

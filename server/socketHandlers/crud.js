@@ -1,4 +1,5 @@
 // socketHandlers/crud.js — CRUD for Grid, Module, Occurrence (simple), Field, Operation, Folder + genericCRUD
+import { setMaxListeners } from "node:events";
 import Grid from "../models/Grid.js";
 import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
@@ -784,11 +785,29 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
   // $push calls land on the parent in arbival order — slots showed up randomized.
   let createQueue = Promise.resolve();
 
-  // Cancel queued work after the socket disconnects. Without this, a long auto-build
-  // burst would keep hammering Mongo after the client reloaded, starving the new
-  // socket's request_full_state of connections (Atlas Serverless pool exhaustion).
+  // Cancel queued work after the socket disconnects. Two mechanisms:
+  //   1. `disconnected` flag — checked at the start AND mid-handler of
+  //      handleCreateOccurrence so queued-but-not-started writes bail
+  //      immediately and never touch Atlas.
+  //   2. `abortController.signal` — Mongoose 9 honors AbortSignal on
+  //      every query/write. Calling `abort()` on disconnect cancels any
+  //      Mongo round-trip CURRENTLY IN FLIGHT for this socket, freeing
+  //      the connection pool slot the new (reloaded) socket needs for
+  //      its request_full_state. Without this, an in-flight upsert can
+  //      hold a connection for 30–75s on Atlas Serverless and the new
+  //      socket's Grid.findOne queues behind it.
   let disconnected = false;
-  socket.on("disconnect", () => { disconnected = true; });
+  const abortController = new AbortController();
+  // Shared per-socket signal (see occurrences.js) — a write burst attaches
+  // many concurrent 'abort' listeners, tripping Node's default-10 leak
+  // heuristic. They clear as each query settles; setting to 0 means
+  // unlimited (per Node docs) so the warning never fires for legitimate
+  // bursts. A hard cap (100) just bounced the noise to higher counts.
+  setMaxListeners(0, abortController.signal);
+  socket.on("disconnect", () => {
+    disconnected = true;
+    abortController.abort();
+  });
 
   socket.on("create_occurrence", ({ occurrence } = {}) => {
     createQueue = createQueue.then(() => handleCreateOccurrence(occurrence)).catch(() => {});
@@ -816,7 +835,7 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       const updatedParent = await Occurrence.findOneAndUpdate(
         { id: parentOccurrenceId, userId, occurrences: { $ne: occurrenceId } },
         { $push: { occurrences: occurrenceId } },
-        { returnDocument: "after" }
+        { returnDocument: "after", signal: abortController.signal }
       );
       if (!updatedParent) return; // already linked or parent missing — no-op
       const parentObj = typeof updatedParent.toObject === "function" ? updatedParent.toObject() : updatedParent;
@@ -824,6 +843,9 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       socket.to(userRoomFn(userId)).emit("occurrence_updated", { occurrence: parentObj });
       socket.emit("occurrence_updated", { occurrence: parentObj });
     } catch (err) {
+      // Swallow MongoServerSelectionError/AbortError when disconnected —
+      // the cancellation is expected.
+      if (disconnected && (err?.name === "MongoServerSelectionError" || err?.name === "AbortError" || /aborted/i.test(err?.message || ""))) return;
       console.error("link_occurrence_to_parent error:", err);
     }
   }
@@ -892,17 +914,41 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
         ...(occurrence.dragMode != null && { dragMode: occurrence.dragMode }),
       };
       uc.occurrencesById[id] = occurrenceData;
+      // Second disconnect check — between the start gate and the actual
+      // Mongo write. The handler may have been queued behind a slow
+      // Mongo round-trip (e.g. `await getUc()` cold-cache load) and the
+      // socket may have disconnected during that wait. Bailing here saves
+      // a Mongo write + the parent.occurrences[] $push that follows,
+      // freeing the connection pool for the NEW socket's
+      // `request_full_state` query. Diagnostic baseline: a single
+      // in-flight create from a disconnected socket held the pool for
+      // 30s while the reload's Grid.findOne sat queued.
+      if (disconnected) { console.log("🟣 create_occurrence ABORT mid-handler (disconnected)", _id); return; }
       try {
-        await Occurrence.findOneAndUpdate({ id, userId }, occurrenceData, { upsert: true });
+        // AbortSignal cancels the Mongo round-trip if the socket
+        // disconnects mid-write. Without this, an in-flight upsert
+        // could hold a connection pool slot for 30–75s on Atlas
+        // Serverless, blocking the reload's Grid.findOne.
+        await Occurrence.findOneAndUpdate(
+          { id, userId },
+          occurrenceData,
+          { upsert: true, signal: abortController.signal }
+        );
       } catch (upsertErr) {
+        if (disconnected && (upsertErr?.name === "AbortError" || /aborted/i.test(upsertErr?.message || ""))) return;
         // E11000: an update_occurrence raced ahead and already inserted this id.
         // Fall back to id-only $set so the create still persists its data.
         if (upsertErr.code === 11000) {
-          await Occurrence.findOneAndUpdate({ id }, { $set: occurrenceData });
+          await Occurrence.findOneAndUpdate(
+            { id },
+            { $set: occurrenceData },
+            { signal: abortController.signal }
+          );
         } else {
           throw upsertErr;
         }
       }
+      if (disconnected) return; // bail before the parent push too
       socket.to(userRoomFn(userId)).emit("occurrence_created", { occurrence: occurrenceData });
 
       // ── Auto-push into parent.occurrences[] (atomic — many concurrent
@@ -921,7 +967,7 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
         const updatedParent = await Occurrence.findOneAndUpdate(
           { id: occurrenceData.parentId, userId, occurrences: { $ne: id } },
           update,
-          { returnDocument: "after" }
+          { returnDocument: "after", signal: abortController.signal }
         );
         if (updatedParent) {
           const parentObj = typeof updatedParent.toObject === "function" ? updatedParent.toObject() : updatedParent;
@@ -931,6 +977,12 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       }
       console.log("🟣 create_occurrence DONE", _id);
     } catch (err) {
+      // Expected when disconnect aborts an in-flight write — not an
+      // actual error, just the user reloaded mid-write.
+      if (disconnected && (err?.name === "AbortError" || err?.name === "MongoServerSelectionError" || /aborted/i.test(err?.message || ""))) {
+        console.log("🟣 create_occurrence ABORT in-flight (disconnected)", _id);
+        return;
+      }
       console.error("create_occurrence error:", err);
       socket.emit("server_error", "Failed to create occurrence");
     }

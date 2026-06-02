@@ -52,4 +52,6 @@ ManifestSchema.set("toJSON", {
   },
 });
 
+ManifestSchema.index({ userId: 1, gridId: 1 });
+
 export default mongoose.model("Manifest", ManifestSchema);

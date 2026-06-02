@@ -11,8 +11,9 @@ import ContextMenu from "../ui/ContextMenu";
 import ContainerForm from "../ui/ContainerForm";
 import TransactionHistory from "../ui/TransactionHistory";
 import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
+import { bumpRender } from "../helpers/renderProbe";
 
-import { GridActionsContext } from "../GridActionsContext";
+import { useGridActionsSelector } from "../GridActionsContext";
 import { SelectionContext } from "../state/SelectionContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
@@ -36,13 +37,12 @@ import FiltersSection from "../ui/FiltersSection";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
+import { buildLayoutCascadeContext, resolveLayoutCascade } from "../helpers/layoutCascade";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import ViewModeSection from "../ui/ViewModeSection";
 import LayoutCascadeSection from "../ui/LayoutCascadeSection";
-import { isTimeslotPassed } from "../helpers/timeslotPassed";
-import useNowTick from "../hooks/useNowTick";
 import TemplatesSection from "../ui/TemplatesSection";
 
 import {
@@ -55,6 +55,9 @@ import {
   ArrowLeft,
   X,
   ClipboardPaste,
+  Plus,
+  FileText,
+  Type,
 } from "lucide-react";
 
 import { CanvasDrawSection } from "./CanvasContent.jsx";
@@ -142,14 +145,22 @@ function Container({
   embedOnDelete = null,
   embedSourceType = null,
 }) {
-  const { occurrencesById, instancesById, leafModulesById, modulesById, viewsById, fieldsById, state: ctxState } = useContext(GridActionsContext);
+  bumpRender("container");
+  // Per-slice selectors — only re-render when an actually-read slice's identity
+  // changes (was a single useGridActions() that re-rendered on every actionsValue
+  // rebuild — i.e. on every filter change anywhere on the grid).
+  const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
+  const occurrencesByModuleId = useGridActionsSelector(s => s.occurrencesByModuleId);
+  const parentByChildId = useGridActionsSelector(s => s.parentByChildId);
+  const instancesById = useGridActionsSelector(s => s.instancesById);
+  const leafModulesById = useGridActionsSelector(s => s.leafModulesById);
+  const modulesById = useGridActionsSelector(s => s.modulesById);
+  const viewsById = useGridActionsSelector(s => s.viewsById);
+  const fieldsById = useGridActionsSelector(s => s.fieldsById);
+  const ctxState = useGridActionsSelector(s => s.state);
   const dragCtx = useDragContext();
   const { isContainerDrag, isInstanceDrag, isExternalDrag, isPanelDrag } = dragCtx;
   const selection = useContext(SelectionContext);
-
-  // Task #59 — schedule slot "passed time" tint. Re-renders every 5 min
-  // so the class flips from 9am → 10am → 11am … as the day progresses.
-  const nowTick = useNowTick();
 
   const [draft, setDraft] = useState(() => ({ label: module.label ?? "" }));
 
@@ -263,8 +274,12 @@ function Container({
 
   const containerOccurrence = useMemo(() => {
     if (occurrenceOverride) return occurrencesById[occurrenceOverride.id] || occurrenceOverride;
-    return Object.values(occurrencesById).find(occ => occ.moduleId === module.id);
-  }, [occurrenceOverride, occurrencesById, module.id]);
+    // O(1) lookup via App-level occurrencesByModuleId index. Each
+    // container previously scanned every occurrence on every render
+    // (`Object.values(...).find`) — see #24 perf notes.
+    const matches = occurrencesByModuleId?.[module.id];
+    return matches && matches.length > 0 ? matches[0] : undefined;
+  }, [occurrenceOverride, occurrencesById, occurrencesByModuleId, module.id]);
 
   const containerDragMode = containerOccurrence?.dragMode ?? module?.defaultDragMode ?? "move";
 
@@ -329,11 +344,13 @@ function Container({
 
   const removeMe = useCallback(() => {
     if (!containerOccurrence?.id) return;
-    const parentOcc = Object.values(occurrencesById).find(occ =>
-      Array.isArray(occ.occurrences) && occ.occurrences.includes(containerOccurrence.id)
-    );
+    // O(1) parent lookup via the App-level parentByChildId index.
+    // Previously scanned every occurrence looking for one whose
+    // `occurrences[]` contained this id. #24 perf.
+    const parentId = parentByChildId?.[containerOccurrence.id];
+    const parentOcc = parentId ? occurrencesById[parentId] : null;
     CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: containerOccurrence.id, occurrence: containerOccurrence, parentOccurrence: parentOcc || null, emit: true });
-  }, [containerOccurrence, occurrencesById, dispatch, socket]);
+  }, [containerOccurrence, occurrencesById, parentByChildId, dispatch, socket]);
 
   // Quick-add: create an occurrence of an existing instance module in this container
   const handleQuickAddInstance = useCallback((instanceModule) => {
@@ -427,6 +444,22 @@ function Container({
     accepts: DropAccepts.CONTAINER_LIST,
     disabled: isContainerDrag,
   });
+
+  // Resolve the layout cascade for this container so render-time decisions
+  // (sticky header, future view rules) can read the effective rule set
+  // without each consumer walking ancestors themselves. Memoized on the
+  // inputs the walker reads — occurrence + maps + grid defaults.
+  const layoutCascade = useMemo(() => {
+    if (!containerOccurrence?.id) return null;
+    const ctx = buildLayoutCascadeContext({
+      leafOccurrence: containerOccurrence,
+      occurrencesById,
+      modulesById,
+      grid: ctxState?.grid,
+    });
+    return resolveLayoutCascade(ctx, "container");
+  }, [containerOccurrence, occurrencesById, modulesById, ctxState?.grid]);
+  const stickyHeader = layoutCascade?.resolved?.stickyHeaders === true;
 
   // Occurrence controls order — pass containerOccurrence so ordering reads from occurrence.occurrences.
   // When `module.meta.allowChildContainers` is set, fall back to the full modulesById lookup so
@@ -588,16 +621,8 @@ function Container({
         const clipMode = selection.clipboard?.mode;
         const staged = occId && clipMode && selection.clipboard.ids.includes(occId) ? ` is-clipboard-staged clipboard-${clipMode}` : "";
         // Task #59 — schedule slot containers whose time has passed get
-        // a slight red background to signal "this hour is over". Only
-        // applies when (a) the module IS a schedule slot and (b) the
-        // slot's hour is before the current local clock. Date scoping
-        // is intentionally loose (any view that includes today shows
-        // the tint on past slots) so multi-day views still convey
-        // "we're past 2pm" via the tinted 9am-1pm slots.
-        const slotPassed = (module?.meta?.scheduleSlot && module?.meta?.slotLabel)
-          ? isTimeslotPassed({ slotLabel: module.meta.slotLabel, now: nowTick })
-          : false;
-        return base + sel + staged + (slotPassed ? " is-timeslot-passed" : "");
+        const sticky = stickyHeader ? " is-sticky-header" : "";
+        return base + sel + staged + sticky;
       })()}
       style={{
         display: "flex", flexDirection: "column", minHeight: 0, overflow: "visible",
@@ -728,6 +753,43 @@ function Container({
                 },
               },
               clip && { separator: true },
+              // CL4 — "Add new item here" entries. Direct creation under
+              // THIS container without opening the QuickAddMenu surface.
+              // Generic instance, plain textblock, and the new inline
+              // textblock variant (LT1).
+              {
+                label: "Add new item here",
+                icon: Plus,
+                onClick: () => onAdd?.(),
+              },
+              {
+                label: "Add textblock here",
+                icon: FileText,
+                onClick: () => {
+                  if (!containerOccurrence) return;
+                  CommitHelpers.createTextblockInContainer({
+                    dispatch, socket,
+                    gridId: ctxState?.gridId || ctxState?.grid?._id,
+                    userId: ctxState?.userId,
+                    containerOccurrence,
+                  });
+                },
+              },
+              {
+                label: "Add inline textblock here",
+                icon: Type,
+                onClick: () => {
+                  if (!containerOccurrence) return;
+                  CommitHelpers.createTextblockInContainer({
+                    dispatch, socket,
+                    gridId: ctxState?.gridId || ctxState?.grid?._id,
+                    userId: ctxState?.userId,
+                    containerOccurrence,
+                    kind: "inline",
+                  });
+                },
+              },
+              { separator: true },
               {
                 label: "Copy container", icon: Copy, onClick: () => {
                   const newM = { ...module, id: crypto.randomUUID(), label: `${module.label} (Copy)` };
@@ -931,8 +993,9 @@ function Container({
                   style={{
                     flex: "1 1 auto", minWidth: 0,
                     background: "transparent", border: "none", outline: "none",
-                    fontSize: module.kind === "board" ? "0.95rem" : "0.75rem",
-                    fontWeight: module.kind === "board" ? 600 : 500,
+                    padding: module.kind === "board" ? "2px 0" : 0,
+                    fontSize: module.kind === "board" ? "0.8rem" : "0.75rem",
+                    fontWeight: module.kind === "board" ? 500 : 500,
                     color: "var(--text-primary)", fontFamily: "inherit",
                   }}
                 />
@@ -940,7 +1003,7 @@ function Container({
                 <span
                   onDoubleClick={!headerBinding ? (e) => { e.stopPropagation(); setIsEditingLabel(true); } : undefined}
                   title={!headerBinding ? "Double-click to rename" : undefined}
-                  style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", fontSize: module.kind === "board" ? "0.95rem" : "0.75rem", fontWeight: module.kind === "board" ? 600 : 500, display: "flex", alignItems: "center", gap: 4, cursor: !headerBinding ? "text" : undefined }}
+                  style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", padding: module.kind === "board" ? "2px 0" : 0, fontSize: module.kind === "board" ? "0.8rem" : "0.75rem", fontWeight: module.kind === "board" ? 500 : 500, display: "flex", alignItems: "center", gap: 4, cursor: !headerBinding ? "text" : undefined }}
                 >
                   <AutoMarquee>
                     {headerBinding ? (

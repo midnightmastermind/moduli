@@ -35,13 +35,14 @@ import View from "../models/View.js";
 import Folder from "../models/Folder.js";
 import Operation from "../models/Operation.js";
 import Module from "../models/Module.js";
+import Transaction from "../models/Transaction.js";
 import User from "../models/User.js";
 import { generateTimeSlots } from "../utils/operationBuilders.js";
 import {
   buildGridDoc,
   buildScheduleFilters,
   buildTemplatesManifest,
-  buildDailyRoutineTemplate,
+  buildScheduleTemplatePage,
   buildDayPageTemplate,
   buildProjectTemplate,
   makeScheduleBuildScheduleOp,
@@ -81,9 +82,90 @@ export async function dropExistingLiveGrid(userId, gridName = DEFAULT_GRID_NAME)
     View.deleteMany({ gridId }),
     Folder.deleteMany({ gridId }),
     Operation.deleteMany({ gridId }),
+    Transaction.deleteMany({ gridId }),
   ]);
   await Grid.deleteOne({ _id: existing._id });
   return true;
+}
+
+// `--clear` flag: nuke EVERY grid + every grid-scoped doc for the user
+// before reseeding. The single-grid `dropExistingLiveGrid` above only
+// drops the one named "Live Grid", so prior runs with different grid
+// names (or partial reseeds, or test-grid leftovers) accumulate over
+// time. Accumulated stale data is the #1 reason `full_state` queries
+// slow down — Atlas has to load + filter every Module/Occurrence row
+// the user owns, even when most belong to dead grids. The User doc
+// itself is preserved so auth + the user account stay intact.
+export async function clearAllUserGrids(userId) {
+  // Collect every gridId for this user FIRST so we can wipe per-grid
+  // scoped collections by id, not by userId — keeps deletes precise.
+  const grids = await Grid.find({ userId }).select({ _id: 1, name: 1 }).lean();
+  const gridIds = grids.map(g => g._id.toString());
+  // Also include grid-scoped docs that may carry userId but a stale/null
+  // gridId (from earlier failed runs). Use both filters in OR so nothing
+  // owned by this user survives.
+  const filter = gridIds.length
+    ? { $or: [{ userId }, { gridId: { $in: gridIds } }] }
+    : { userId };
+  const [occ, mod, fld, man, vw, fol, op, txn] = await Promise.all([
+    Occurrence.deleteMany(filter),
+    Module.deleteMany(filter),
+    Field.deleteMany(filter),
+    Manifest.deleteMany(filter),
+    View.deleteMany(filter),
+    Folder.deleteMany(filter),
+    Operation.deleteMany(filter),
+    Transaction.deleteMany(filter),
+  ]);
+  const gridDel = await Grid.deleteMany({ userId });
+  return {
+    grids: gridDel.deletedCount,
+    gridNames: grids.map(g => g.name || "(unnamed)"),
+    occurrences: occ.deletedCount,
+    modules: mod.deletedCount,
+    fields: fld.deletedCount,
+    manifests: man.deletedCount,
+    views: vw.deletedCount,
+    folders: fol.deletedCount,
+    operations: op.deletedCount,
+    transactions: txn.deletedCount,
+  };
+}
+
+// Snapshot every grid-scoped collection for this user → server/seed/*.json.
+// The `{{USER_ID}}` placeholder lets `reloadLiveData.js` re-insert under any
+// target user without rewriting ids. Called automatically at the end of
+// createLiveData's main() so the on-disk seed always matches the last
+// successful `--clear` run.
+const SEED_COLLECTIONS_FOR_EXPORT = [
+  ["grids",       Grid],
+  ["modules",     Module],
+  ["occurrences", Occurrence],
+  ["fields",      Field],
+  ["views",       View],
+  ["manifests",   Manifest],
+  ["folders",     Folder],
+  ["operations",  Operation],
+];
+
+export async function exportLiveSeedData(userId, outDir) {
+  fs.mkdirSync(outDir, { recursive: true });
+  const stats = {};
+  for (const [name, model] of SEED_COLLECTIONS_FOR_EXPORT) {
+    const docs = await model.find({ userId }).lean();
+    const cleaned = docs.map(d => {
+      const o = { ...d };
+      if (o._id) o._id = o._id.toString();
+      if (o.userId) o.userId = "{{USER_ID}}";
+      delete o.__v;
+      delete o.createdAt;
+      delete o.updatedAt;
+      return o;
+    });
+    fs.writeFileSync(resolve(outDir, `${name}.json`), JSON.stringify(cleaned, null, 2));
+    stats[name] = cleaned.length;
+  }
+  return stats;
 }
 
 export async function createLiveData(userId, options = {}) {
@@ -173,6 +255,13 @@ export async function createLiveData(userId, options = {}) {
   const podcastsListenedFieldId           = uid();
   const podcastsListenedDisplayFieldId    = uid();
 
+  // Media goal per-type "last" fields (Stage 3 Media split). The *Display
+  // fields above hold the {label,…} history-rows ARRAY; these add the "last"
+  // (scalar title) tile so each Media per-type occurrence reads last + history.
+  const lastMovieFieldId     = uid();
+  const lastBookFieldId      = uid();
+  const lastPodcastFieldId   = uid();
+
   // Courses Taken fields
   const coursesTakenFieldId           = uid();
   const coursesTakenDisplayFieldId    = uid();
@@ -231,6 +320,12 @@ export async function createLiveData(userId, options = {}) {
   // Library page + container IDs (need before occurrences are created)
   const libraryPageModId  = uid();
   const libraryContModId  = uid();
+
+  // Library > Templates subfolder — holds the Schedule Template page,
+  // seeded directly in STEP 7b. Day container inside it is the canonical
+  // store for recurring routine instances; the Schedule: Build op
+  // COPY_LINKs it into the active Schedule page per visible day.
+  const libraryTemplatesFolderId = uid();
   // Pre-generate libraryContOccId so moviesWatchedFieldId / booksReadFieldId /
   // podcastsListenedFieldId / coursesTakenFieldId addNew.parentOccurrenceId
   // can be patched after occurrences are minted (mirrors createTestGrid STEP 6 pattern).
@@ -289,23 +384,12 @@ export async function createLiveData(userId, options = {}) {
   const profileTemplateModId = uid(); // template subtree root (template manifest)
   const profileTemplateOccId = uid();
 
-  // Month View page (task #5) — board kind page hosting 31 day-cells.
-  // Static structure (seeded); Month: Build op rewrites each cell's
-  // filterOverride on filter-change so the same 31 cells anchor to the
-  // active month's days.
-  const monthViewPageModId   = uid();
-  const monthViewPageOccId   = uid();
-  // 31 day-container module + occurrence IDs. Each cell carries
-  // meta.monthDayIndex = 1..31 so the build op can find them by index.
-  const monthDayModIds = Array.from({ length: 31 }, () => uid());
-  const monthDayOccIds = Array.from({ length: 31 }, () => uid());
-
-  // Week View page (task #5 follow-up) — same pattern as Month View but
-  // 7 day-cells anchored to Mon-Sun of the active week.
-  const weekViewPageModId   = uid();
-  const weekViewPageOccId   = uid();
-  const weekDayModIds = Array.from({ length: 7 }, () => uid());
-  const weekDayOccIds = Array.from({ length: 7 }, () => uid());
+  // Week View / Month View pages REMOVED (2026-05-24). Per user direction:
+  // "just have schedule. (not a specific week view or specific month view
+  // page). just have the operation let me use schedule with the filters
+  // to spin up days." The Schedule page's `Schedule: Build Schedule` op
+  // already handles single/multi-day rendering driven by the active
+  // filter's period count.
 
   // Call People task + tracker + goal (task #46 extension 2026-05-23)
   // - callPersonTaskModId — instance template for "Call Person" task.
@@ -564,10 +648,20 @@ export async function createLiveData(userId, options = {}) {
     timeslot: {
       id: timeslotFieldId,
       name: "Time Slot",
-      type: "text",
+      type: "select",
       inputEnabled: true,
       displayEnabled: false,
       folderId: fieldCategoryIds.scheduling,
+      // Dropdown surfaces all 48 generated slot labels so users can
+      // reassign a task's slot inline. Null/unset = Due (no slot).
+      // Picking a slot here triggers Schedule: Build Day's slot
+      // multi-parent routing on the next op fire.
+      meta: {
+        optionsSource: {
+          mode: "manual",
+          values: timeslotLabels.map((label) => ({ value: label, label })),
+        },
+      },
     },
     due: {
       id: dueFieldId,
@@ -963,12 +1057,31 @@ export async function createLiveData(userId, options = {}) {
       // Columns expanded 2026-05-22 (task #29): added timeslot + date so the
       // array conveys WHEN. Same pattern for books/podcasts/courses below.
       displayConfig: {
+        // Rich cells: poster = media thumbnail, label = occurrence chip
+        // (click-to-jump to the Library movie). timeslot/date stay scalar.
         columns: [
+          { path: "poster",   header: "",      width: 44 },
           { path: "label",    header: "Movie" },
           { path: "timeslot", header: "Time" },
           { path: "date",     header: "Date" },
         ],
       },
+    },
+
+    // ── Media per-type "last" scalars (Stage 3 Media split) ──────────────────
+    // last = most-recent title; paired with the *Display rows arrays to form
+    // last + history per type.
+    lastMovieDisplay: {
+      id: lastMovieFieldId, name: "Last Movie", type: "text",
+      inputEnabled: false, displayEnabled: true, meta: {},
+    },
+    lastBookDisplay: {
+      id: lastBookFieldId, name: "Last Book", type: "text",
+      inputEnabled: false, displayEnabled: true, meta: {},
+    },
+    lastPodcastDisplay: {
+      id: lastPodcastFieldId, name: "Last Podcast", type: "text",
+      inputEnabled: false, displayEnabled: true, meta: {},
     },
 
     // Books Read — occurrence-type field; options sourced from library instances with type "book".
@@ -1015,7 +1128,10 @@ export async function createLiveData(userId, options = {}) {
       displayEnabled: true,
       meta: {},
       displayConfig: {
+        // Rich cells: poster = cover thumbnail, label = occurrence chip
+        // (click-to-jump to the Library book). pages/timeslot/date stay scalar.
         columns: [
+          { path: "poster",   header: "",      width: 44 },
           { path: "label",    header: "Book" },
           { path: "pages",    header: "Pages", width: 70 },
           { path: "timeslot", header: "Time" },
@@ -2063,7 +2179,7 @@ export async function createLiveData(userId, options = {}) {
   function ensureDateBinding(bindings) {
     if (bindings.some(b => b.fieldId === dateFieldId)) return bindings;
     const maxOrder = bindings.reduce((m, b) => Math.max(m, b.order ?? 0), 0);
-    return [...bindings, { fieldId: dateFieldId, role: "input", order: maxOrder + 1, hidden: true }];
+    return [...bindings, { fieldId: dateFieldId, role: "input", order: maxOrder + 1, hidden: false }];
   }
 
   // ── Toolkit instances (keep all from createDefaultUserData.toolkitInstances) ──
@@ -2104,7 +2220,7 @@ export async function createLiveData(userId, options = {}) {
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
         { fieldId: fields.water.id, role: "input", order: 1 },
-        { fieldId: dateFieldId, role: "input", order: 2, hidden: true }, // Daily Routine source
+        { fieldId: dateFieldId, role: "input", order: 2, hidden: false }, // Daily Routine source
       ],
     },
     takeMeds: {
@@ -2112,7 +2228,7 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: dateFieldId, role: "input", order: 1, hidden: true }, // Daily Routine source
+        { fieldId: dateFieldId, role: "input", order: 1, hidden: false }, // Daily Routine source
       ],
     },
     sleepLog: {
@@ -2132,7 +2248,7 @@ export async function createLiveData(userId, options = {}) {
       styleMode: "own", ownStyle: { bg: "rgba(21,98,176,0.15)", textColor: "#4a9fe0" },
       fieldBindings: [
         { fieldId: booksReadFieldId, role: "input", order: 0 },
-        { fieldId: dateFieldId,      role: "input", order: 1, hidden: true },
+        { fieldId: dateFieldId,      role: "input", order: 1, hidden: false },
       ],
     },
     podcast: {
@@ -2140,7 +2256,7 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: podcastsListenedFieldId, role: "input", order: 0 },
-        { fieldId: dateFieldId,             role: "input", order: 1, hidden: true },
+        { fieldId: dateFieldId,             role: "input", order: 1, hidden: false },
       ],
     },
     watchMovie: {
@@ -2148,7 +2264,7 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: moviesWatchedFieldId, role: "input", order: 0 },
-        { fieldId: dateFieldId,          role: "input", order: 1, hidden: true },
+        { fieldId: dateFieldId,          role: "input", order: 1, hidden: false },
       ],
     },
     onlineCourse: {
@@ -2156,7 +2272,7 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: coursesTakenFieldId, role: "input", order: 0 },
-        { fieldId: dateFieldId,         role: "input", order: 1, hidden: true },
+        { fieldId: dateFieldId,         role: "input", order: 1, hidden: false },
       ],
     },
     brainGames: {
@@ -2215,8 +2331,8 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.pomodoroMinutes.id,  role: "input", order: 1 },
         { fieldId: fields.pomodoroNumber.id,   role: "input", order: 2 },
         { fieldId: fields.pomodoroPhase.id,    role: "input", order: 3 },
-        { fieldId: dateFieldId,                role: "input", order: 4, hidden: true },
-        { fieldId: timeslotFieldId,            role: "input", order: 5, hidden: true },
+        { fieldId: dateFieldId,                role: "input", order: 4, hidden: false },
+        { fieldId: timeslotFieldId,            role: "input", order: 5, hidden: false },
         { fieldId: isTaskFieldId,              role: "input", order: 6, hidden: true },
       ],
     },
@@ -2698,7 +2814,7 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: dateFieldId, role: "input", order: 1, hidden: true },
+        { fieldId: dateFieldId, role: "input", order: 1, hidden: false },
       ],
     },
     readAChapter: {
@@ -2706,7 +2822,7 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: dateFieldId, role: "input", order: 1, hidden: true },
+        { fieldId: dateFieldId, role: "input", order: 1, hidden: false },
       ],
     },
     // NOTE: scrambledEggs + greekSaladChicken are in nutritionInstances below and
@@ -3017,119 +3133,197 @@ export async function createLiveData(userId, options = {}) {
   //     — different docs). fitnessAccount/productivityAccount/wellnessAccount/readingAccount
   //     keys also exist in accountContainerMods. Same for accountInstances.bankAccount etc.
   const goalInstances = {
-    physicalSummary: {
-      id: uid(), label: "Physical Wellness", kind: "board",
+    // Per-metric split — was a single "Physical Wellness" umbrella holding
+    // 8 display fields. Stage 3 of the Goals restructure: one occurrence per
+    // logical metric so picker-direct binding (`$allItemsById.<id>`) points at
+    // the exact thing each tracker writes to, displayRules key by per-metric
+    // label, and each per-metric card on the goals page reads independently.
+    physicalCompleted: {
+      id: uid(), label: "Completed", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
         { fieldId: fields.taskCountdown.id,  role: "display", order: 1 },
-        { fieldId: fields.currentTime.id,    role: "display", order: 2 },
-        { fieldId: fields.timeCountdown.id,  role: "display", order: 3 },
-        { fieldId: fields.totalSteps.id,     role: "display", order: 4 },
-        { fieldId: fields.totalWater.id,     role: "display", order: 5 },
-        // Vision-vs-now "persistent streaks" — shipped via STREAK_VAR action.
-        { fieldId: fields.currentStreak.id,  role: "display", order: 6 },
-        { fieldId: fields.longestStreak.id,  role: "display", order: 7 },
       ],
     },
-    intellectualSummary: {
-      id: uid(), label: "Intellectual Growth", kind: "board",
+    physicalWater: {
+      id: uid(), label: "Water", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
-        { fieldId: fields.totalPages.id, role: "display", order: 1 },
-        { fieldId: fields.totalDuration.id, role: "display", order: 2 },
-        { fieldId: fields.pomoCount.id,      role: "display", order: 3 },
-        { fieldId: fields.pomoTime.id,       role: "display", order: 4 },
-        // task #29/#54 — Last-Pomodoro completes the pair (array already
-        // exists below as pomoHistory).
-        { fieldId: fields.lastPomodoro.id,   role: "display", order: 5 },
-        { fieldId: fields.pomoHistory.id,    role: "display", order: 6 },
+        { fieldId: fields.totalWater.id, role: "display", order: 0 },
       ],
     },
-    emotionalSummary: {
-      id: uid(), label: "Emotional Balance", kind: "board",
+    physicalSteps: {
+      id: uid(), label: "Steps", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
-        { fieldId: fields.mostRecentMood.id, role: "display", order: 1 },  // task #29 — single-value "Last Mood"
-        { fieldId: fields.lastMood.id, role: "display", order: 2 },        // existing array
+        { fieldId: fields.totalSteps.id, role: "display", order: 0 },
       ],
     },
-    socialSummary: {
-      id: uid(), label: "Social Connection", kind: "board",
+    physicalStreak: {
+      id: uid(), label: "Streak", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
-        { fieldId: fields.totalDuration.id, role: "display", order: 1 },
+        { fieldId: fields.currentStreak.id, role: "display", order: 0 },
+        { fieldId: fields.longestStreak.id, role: "display", order: 1 },
+      ],
+    },
+    physicalNow: {
+      id: uid(), label: "Now", kind: "board",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.currentTime.id,   role: "display", order: 0 },
+        { fieldId: fields.timeCountdown.id, role: "display", order: 1 },
+      ],
+    },
+    // Per-metric split — was a single "Intellectual Growth" umbrella holding
+    // 7 display fields. Stage 3: one occurrence per logical metric. Courses
+    // (formerly a standalone `coursesTakenGoal` container) is folded in here.
+    // (`totalCompleted` dropped per-domain — only the Physical "Completed"
+    // per-metric occurrence has a tracker writing into it today; the same
+    // field on every other domain's summary was rendering 0 forever.)
+    intellectualPagesRead: {
+      id: uid(), label: "Pages Read", kind: "board",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalPages.id, role: "display", order: 0 },
+      ],
+    },
+    intellectualReadingTime: {
+      id: uid(), label: "Reading Time", kind: "board",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalDuration.id, role: "display", order: 0 },
+      ],
+    },
+    intellectualPomodoros: {
+      id: uid(), label: "Pomodoros", kind: "board",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.pomoCount.id,    role: "display", order: 0 },
+        { fieldId: fields.pomoTime.id,     role: "display", order: 1 },
+        // task #29/#54 — Last-X + Array-X pair for Pomodoros (count + last + history).
+        { fieldId: fields.lastPomodoro.id, role: "display", order: 2 },
+        { fieldId: fields.pomoHistory.id,  role: "display", order: 3 },
+      ],
+    },
+    intellectualCourses: {
+      id: uid(), label: "Courses", kind: "board",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: coursesTakenDisplayFieldId, role: "display", order: 0 },
+      ],
+    },
+    // ── Per-metric splits for the remaining wellness summaries ──────────────
+    // Same Stage 3 pattern as Physical / Intellectual. `totalCompleted` is
+    // omitted on non-physical splits — only Physical has a tracker writing
+    // into it today; carrying empty Completed tiles everywhere was noise.
+    // Per-metric occurrences keep the structure ready for future domain-
+    // scoped Completed trackers.
+    emotionalMood: {
+      id: uid(), label: "Mood", kind: "board",
+      defaultDragMode: "move",
+      fieldBindings: [
+        // Last+Array pair: scalar "Last Mood" + array of recent mood rows.
+        { fieldId: fields.mostRecentMood.id, role: "display", order: 0 },
+        { fieldId: fields.lastMood.id,       role: "display", order: 1 },
+      ],
+    },
+    socialConnectionTime: {
+      id: uid(), label: "Connection Time", kind: "board",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalDuration.id, role: "display", order: 0 },
+      ],
+    },
+    socialPhoneCalls: {
+      id: uid(), label: "Phone Calls", kind: "board",
+      defaultDragMode: "move",
+      fieldBindings: [
         // Task #46 — "Call 2 people" goal piece. Scalar counter w/ target=2
         // for the progress bar; array display lists who was called and when.
-        { fieldId: fields.totalPhoneCalls.id, role: "display", order: 2 },
-        { fieldId: fields.phoneCalls.id,      role: "display", order: 3 },
+        { fieldId: fields.totalPhoneCalls.id, role: "display", order: 0 },
+        { fieldId: fields.phoneCalls.id,      role: "display", order: 1 },
       ],
     },
-    spiritualSummary: {
-      id: uid(), label: "Spiritual Practice", kind: "board",
+    spiritualPractice: {
+      id: uid(), label: "Practice Duration", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
-        { fieldId: fields.totalDuration.id, role: "display", order: 1 },
+        { fieldId: fields.totalDuration.id, role: "display", order: 0 },
       ],
     },
-    occupationalSummary: {
-      id: uid(), label: "Work Progress", kind: "board",
+    occupationalWork: {
+      id: uid(), label: "Work Duration", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
-        { fieldId: fields.totalDuration.id, role: "display", order: 1 },
+        { fieldId: fields.totalDuration.id, role: "display", order: 0 },
       ],
     },
-    financialSummary: {
-      id: uid(), label: "Financial Health", kind: "board",
+    financialSpent: {
+      id: uid(), label: "Spent", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: fields.totalSpent.id,       role: "display", order: 0 },
-        { fieldId: fields.totalIncome.id,      role: "display", order: 1 },
-        // task #29/#54 — Last-X + Array-X pair for purchases.
-        { fieldId: fields.lastPurchase.id,     role: "display", order: 2 },
-        { fieldId: fields.purchaseHistory.id,  role: "display", order: 3 },
+        // Scalar + Last + Array trio for purchases. Same pattern as Pomodoros.
+        { fieldId: fields.totalSpent.id,      role: "display", order: 0 },
+        { fieldId: fields.lastPurchase.id,    role: "display", order: 1 },
+        { fieldId: fields.purchaseHistory.id, role: "display", order: 2 },
+      ],
+    },
+    financialIncome: {
+      id: uid(), label: "Income", kind: "board",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalIncome.id, role: "display", order: 0 },
       ],
     },
     environmentalSummary: {
+      // 1 field — already atomic, no split needed.
       id: uid(), label: "Environment Care", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
       ],
     },
-    creativeSummary: {
-      // New — pairs with the 9th wellness (Creative). Mirrors other
-      // wellness-summary instances: completed + total duration aggregate
-      // sketch / writeCreative / playMusic / photograph / craftMake.
-      id: uid(), label: "Creative Expression", kind: "board",
+    creativeDuration: {
+      id: uid(), label: "Creative Duration", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
-        { fieldId: fields.totalDuration.id, role: "display", order: 1 },
+        { fieldId: fields.totalDuration.id, role: "display", order: 0 },
       ],
     },
-    planningSummary: {
-      id: uid(), label: "Planning Overview", kind: "board",
+    planningOverdue: {
+      id: uid(), label: "Overdue", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.overdueTasks.id, role: "display", order: 0 },
-        { fieldId: fields.upcomingThisWeek.id, role: "display", order: 1 },
       ],
     },
-    workoutGoal: {
-      id: uid(), label: "Workout", kind: "board",
+    planningUpcoming: {
+      id: uid(), label: "Upcoming", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
+        { fieldId: fields.upcomingThisWeek.id, role: "display", order: 0 },
+      ],
+    },
+    // ── Workout per-metric splits (Stage 3) ──────────────────────────────────
+    // Was one "Workout" umbrella bundling reps + steps + last/history. Steps is
+    // a Physical metric (written only to physicalSteps — no workout-steps
+    // tracker exists), so that tile was dead and is dropped (same omit-dead-tile
+    // principle as the 7 summaries above). Per-muscle volume tiles
+    // (chest/back/... below) are unchanged siblings.
+    workoutReps: {
+      id: uid(), label: "Reps", kind: "board", defaultDragMode: "move",
+      fieldBindings: [
         { fieldId: fields.totalRepsToday.id, role: "display", order: 0 },
-        { fieldId: fields.totalSteps.id, role: "display", order: 1 },
-        // task #29/#54 — Last-X + Array-X pair for workouts.
-        { fieldId: fields.lastWorkout.id,    role: "display", order: 2 },
-        { fieldId: fields.workoutHistory.id, role: "display", order: 3 },
+      ],
+    },
+    workoutLog: {
+      id: uid(), label: "Workout Log", kind: "board", defaultDragMode: "move",
+      // Last+Array pair (task #29/#54): scalar last workout + array history.
+      fieldBindings: [
+        { fieldId: fields.lastWorkout.id,    role: "display", order: 0 },
+        { fieldId: fields.workoutHistory.id, role: "display", order: 1 },
       ],
     },
     // Per-muscle volume goals (B7 Deep). Each tracks the daily sum of
@@ -3160,46 +3354,58 @@ export async function createLiveData(userId, options = {}) {
       fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
     snackNutritionGoal:     { id: uid(), label: "Snack Nutrition",     kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
-    nutritionGoal: {
-      id: uid(), label: "Nutrition", kind: "board",
-      defaultDragMode: "move",
+    // ── Nutrition per-metric splits (Stage 3) ────────────────────────────────
+    // Was one "Nutrition" umbrella bundling protein/carbs/fats + last/history.
+    // Each macro has its own daily tracker (Protein/Carbs/Fats) and the meal
+    // log has the Meal History op — all four tiles are written, none dead.
+    // Per-meal tiles (breakfast/lunch/... below) are unchanged siblings.
+    nutritionProtein: {
+      id: uid(), label: "Protein", kind: "board", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }],
+    },
+    nutritionCarbs: {
+      id: uid(), label: "Carbs", kind: "board", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalCarbs.id, role: "display", order: 0 }],
+    },
+    nutritionFats: {
+      id: uid(), label: "Fats", kind: "board", defaultDragMode: "move",
+      fieldBindings: [{ fieldId: fields.totalFats.id, role: "display", order: 0 }],
+    },
+    nutritionLog: {
+      id: uid(), label: "Meal Log", kind: "board", defaultDragMode: "move",
+      // Last+Array pair (task #29/#54): scalar last meal + array history.
       fieldBindings: [
-        { fieldId: fields.totalProtein.id, role: "display", order: 0 },
-        { fieldId: fields.totalCarbs.id,   role: "display", order: 1 },
-        { fieldId: fields.totalFats.id,    role: "display", order: 2 },
-        // task #29/#54 — Last-X + Array-X pair for meals.
-        { fieldId: fields.lastMeal.id,     role: "display", order: 3 },
-        { fieldId: fields.mealHistory.id,  role: "display", order: 4 },
+        { fieldId: fields.lastMeal.id,    role: "display", order: 0 },
+        { fieldId: fields.mealHistory.id, role: "display", order: 1 },
       ],
     },
-    moviesWatchedGoal: {
-      id: uid(), label: "Movies Watched", kind: "board",
-      defaultDragMode: "move",
+    // ── Media per-type splits (Stage 3) ──────────────────────────────────────
+    // One occurrence per media type, each count + last + history. The count +
+    // last scalars are written by the (now picker-direct) Movies/Books/Podcasts
+    // trackers alongside the existing history-rows array.
+    mediaMovies: {
+      id: uid(), label: "Movies", kind: "board", defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: moviesWatchedDisplayFieldId, role: "display", order: 0 },
+        { fieldId: lastMovieFieldId,            role: "display", order: 0 },
+        { fieldId: moviesWatchedDisplayFieldId, role: "display", order: 1 },
       ],
     },
-    booksReadGoal: {
-      id: uid(), label: "Books Read", kind: "board",
-      defaultDragMode: "move",
+    mediaBooks: {
+      id: uid(), label: "Books", kind: "board", defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: booksReadDisplayFieldId, role: "display", order: 0 },
+        { fieldId: lastBookFieldId,          role: "display", order: 0 },
+        { fieldId: booksReadDisplayFieldId,  role: "display", order: 1 },
       ],
     },
-    podcastsListenedGoal: {
-      id: uid(), label: "Podcasts Listened", kind: "board",
-      defaultDragMode: "move",
+    mediaPodcasts: {
+      id: uid(), label: "Podcasts", kind: "board", defaultDragMode: "move",
       fieldBindings: [
-        { fieldId: podcastsListenedDisplayFieldId, role: "display", order: 0 },
+        { fieldId: lastPodcastFieldId,             role: "display", order: 0 },
+        { fieldId: podcastsListenedDisplayFieldId, role: "display", order: 1 },
       ],
     },
-    coursesTakenGoal: {
-      id: uid(), label: "Courses Taken", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: coursesTakenDisplayFieldId, role: "display", order: 0 },
-      ],
-    },
+    // (coursesTakenGoal removed — courses now lives as `intellectualCourses`
+    // per-metric occurrence inside the Intellectual goal container.)
   };
 
   // ── Account aggregation instances ────────────────────────────────────────────
@@ -3412,11 +3618,19 @@ export async function createLiveData(userId, options = {}) {
 
   // ── Todo containers (5 categories) ───────────────────────────────────────────
   const todoContainerMods = {
-    todoHome:     { id: uid(), label: "Home & Errands",       meta: { todoListContainer: true } },
-    todoFinance:  { id: uid(), label: "Finance & Admin",      meta: { todoListContainer: true } },
-    todoWork:     { id: uid(), label: "Work Projects",        meta: { todoListContainer: true } },
-    todoPersonal: { id: uid(), label: "Personal / Fun",       meta: { todoListContainer: true } },
-    todoPlan:     { id: uid(), label: "Planning & Deadlines", meta: { todoListContainer: true } },
+    // Kanban-synced containers — `Project: Sync To Todo List` op
+    // copy-links the example project's kanban tasks here when status is
+    // Backburner / Docket. Labels are "<Project Name> Backburner" /
+    // "<Project Name> Docket" to make it clear at a glance which
+    // project's pre-active queue this is. When more projects exist,
+    // each will get its own pair of containers (future op extension).
+    todoBackburner: { id: uid(), label: "Moduli v1 Launch Backburner", meta: { todoListContainer: true } },
+    todoDocket:     { id: uid(), label: "Moduli v1 Launch Docket",     meta: { todoListContainer: true } },
+    todoHome:       { id: uid(), label: "Home & Errands",              meta: { todoListContainer: true } },
+    todoFinance:    { id: uid(), label: "Finance & Admin",             meta: { todoListContainer: true } },
+    todoWork:       { id: uid(), label: "Work Projects",               meta: { todoListContainer: true } },
+    todoPersonal:   { id: uid(), label: "Personal / Fun",              meta: { todoListContainer: true } },
+    todoPlan:       { id: uid(), label: "Planning & Deadlines",        meta: { todoListContainer: true } },
   };
 
   // ── Goal containers (8 dimensions + workout + nutrition + planning + movies) ────
@@ -3433,10 +3647,11 @@ export async function createLiveData(userId, options = {}) {
     workoutGoal:      { id: uid(), label: "Workout" },
     nutritionGoal:    { id: uid(), label: "Nutrition" },
     planningGoal:     { id: uid(), label: "Planning" },
-    moviesWatchedGoal:    { id: uid(), label: "Entertainment" },
-    booksReadGoal:        { id: uid(), label: "Books Read" },
-    podcastsListenedGoal: { id: uid(), label: "Podcasts Listened" },
-    coursesTakenGoal:     { id: uid(), label: "Courses Taken" },
+    // Media — unified goal container; Movies / Books / Podcasts live inside it
+    // as per-type occurrences (each count + last + history). Replaced the three
+    // standalone Entertainment / Books Read / Podcasts Listened containers.
+    mediaGoal:        { id: uid(), label: "Media" },
+    // (coursesTakenGoal container removed — courses moved into Intellectual.)
   };
 
   // ── Account containers (5 lifetime-aggregation categories) ───────────────────
@@ -3591,11 +3806,9 @@ export async function createLiveData(userId, options = {}) {
   const productivityAccountContOccId = uid();
   const wellnessAccountContOccId     = uid();
 
-  // Movies Watched / Books Read / Podcasts Listened / Courses Taken goal containers
-  const moviesWatchedGoalContOccId  = uid();
-  const booksReadGoalContOccId      = uid();
-  const podcastsListenedGoalContOccId = uid();
-  const coursesTakenGoalContOccId   = uid();
+  // Movies Watched / Books Read / Podcasts Listened goal containers
+  // (coursesTakenGoalContOccId removed — courses lives inside Intellectual.)
+  const mediaGoalContOccId          = uid();
 
   // ── Container→instance mappings (now grouped by wellness sub-container) ────
   // Each key is a CONTAINER (matches toolkitContainerMods key). instKeys lists
@@ -3792,22 +4005,20 @@ export async function createLiveData(userId, options = {}) {
   // Goal containers do NOT get filterOverride: {} — date cascade from the
   // Goals page is intentional (matches createTestGrid physGoalContOccId convention).
   const goalMappings = {
-    physicalGoal:      { contOccId: physicalGoalContOccId,      contModKey: "physicalGoal",      instKeys: ["physicalSummary"] },
-    intellectualGoal:  { contOccId: intellectualGoalContOccId,  contModKey: "intellectualGoal",  instKeys: ["intellectualSummary"] },
-    emotionalGoal:     { contOccId: emotionalGoalContOccId,     contModKey: "emotionalGoal",     instKeys: ["emotionalSummary"] },
-    socialGoal:        { contOccId: socialGoalContOccId,        contModKey: "socialGoal",        instKeys: ["socialSummary"] },
-    spiritualGoal:     { contOccId: spiritualGoalContOccId,     contModKey: "spiritualGoal",     instKeys: ["spiritualSummary"] },
-    occupationalGoal:  { contOccId: occupationalGoalContOccId,  contModKey: "occupationalGoal",  instKeys: ["occupationalSummary"] },
-    financialGoal:     { contOccId: financialGoalContOccId,     contModKey: "financialGoal",     instKeys: ["financialSummary"] },
+    physicalGoal:      { contOccId: physicalGoalContOccId,      contModKey: "physicalGoal",      instKeys: ["physicalCompleted", "physicalWater", "physicalSteps", "physicalStreak", "physicalNow"] },
+    intellectualGoal:  { contOccId: intellectualGoalContOccId,  contModKey: "intellectualGoal",  instKeys: ["intellectualPagesRead", "intellectualReadingTime", "intellectualPomodoros", "intellectualCourses"] },
+    emotionalGoal:     { contOccId: emotionalGoalContOccId,     contModKey: "emotionalGoal",     instKeys: ["emotionalMood"] },
+    socialGoal:        { contOccId: socialGoalContOccId,        contModKey: "socialGoal",        instKeys: ["socialConnectionTime", "socialPhoneCalls"] },
+    spiritualGoal:     { contOccId: spiritualGoalContOccId,     contModKey: "spiritualGoal",     instKeys: ["spiritualPractice"] },
+    occupationalGoal:  { contOccId: occupationalGoalContOccId,  contModKey: "occupationalGoal",  instKeys: ["occupationalWork"] },
+    financialGoal:     { contOccId: financialGoalContOccId,     contModKey: "financialGoal",     instKeys: ["financialSpent", "financialIncome"] },
     environmentalGoal: { contOccId: environmentalGoalContOccId, contModKey: "environmentalGoal", instKeys: ["environmentalSummary"] },
-    creativeGoal:      { contOccId: creativeGoalContOccId,      contModKey: "creativeGoal",      instKeys: ["creativeSummary"] },
-    workoutGoal:       { contOccId: workoutGoalContOccId,       contModKey: "workoutGoal",       instKeys: ["workoutGoal", "chestVolumeGoal", "backVolumeGoal", "legsVolumeGoal", "shouldersVolumeGoal", "armsVolumeGoal", "cardioVolumeGoal"] },
-    nutritionGoal:     { contOccId: nutritionGoalContOccId,     contModKey: "nutritionGoal",     instKeys: ["nutritionGoal", "breakfastNutritionGoal", "lunchNutritionGoal", "dinnerNutritionGoal", "snackNutritionGoal"] },
-    planningGoal:      { contOccId: planningGoalContOccId,      contModKey: "planningGoal",      instKeys: ["planningSummary"] },
-    moviesWatchedGoal:    { contOccId: moviesWatchedGoalContOccId,    contModKey: "moviesWatchedGoal",    instKeys: ["moviesWatchedGoal"] },
-    booksReadGoal:        { contOccId: booksReadGoalContOccId,        contModKey: "booksReadGoal",        instKeys: ["booksReadGoal"] },
-    podcastsListenedGoal: { contOccId: podcastsListenedGoalContOccId, contModKey: "podcastsListenedGoal", instKeys: ["podcastsListenedGoal"] },
-    coursesTakenGoal:     { contOccId: coursesTakenGoalContOccId,     contModKey: "coursesTakenGoal",     instKeys: ["coursesTakenGoal"] },
+    creativeGoal:      { contOccId: creativeGoalContOccId,      contModKey: "creativeGoal",      instKeys: ["creativeDuration"] },
+    workoutGoal:       { contOccId: workoutGoalContOccId,       contModKey: "workoutGoal",       instKeys: ["workoutReps", "workoutLog", "chestVolumeGoal", "backVolumeGoal", "legsVolumeGoal", "shouldersVolumeGoal", "armsVolumeGoal", "cardioVolumeGoal"] },
+    nutritionGoal:     { contOccId: nutritionGoalContOccId,     contModKey: "nutritionGoal",     instKeys: ["nutritionProtein", "nutritionCarbs", "nutritionFats", "nutritionLog", "breakfastNutritionGoal", "lunchNutritionGoal", "dinnerNutritionGoal", "snackNutritionGoal"] },
+    planningGoal:      { contOccId: planningGoalContOccId,      contModKey: "planningGoal",      instKeys: ["planningOverdue", "planningUpcoming"] },
+    mediaGoal:         { contOccId: mediaGoalContOccId,         contModKey: "mediaGoal",         instKeys: ["mediaMovies", "mediaBooks", "mediaPodcasts"] },
+    // (coursesTakenGoal entry removed — courses is part of Intellectual now.)
   };
 
   const goalContOccIds = {};
@@ -4471,6 +4682,10 @@ export async function createLiveData(userId, options = {}) {
   await new Folder({ id: notesFolderId,      userId, gridId, name: "Notes",      parentId: rootFolderId, folderType: "normal",    sortOrder: 3, isExpanded: true }).save();
   await new Folder({ id: dayPagesFolderId,   userId, gridId, name: "Day Pages",  parentId: rootFolderId, folderType: "day-pages", sortOrder: 4, isExpanded: true }).save();
   await new Folder({ id: libraryFolderId,    userId, gridId, name: "Library",    parentId: rootFolderId, folderType: "normal",    sortOrder: 5, isExpanded: true }).save();
+  // Library > Templates subfolder — holds the Schedule Template page
+  // (seeded in STEP 7b). Schedule: Build COPY_LINKs the Day container
+  // inside that page into the active Schedule page per visible day.
+  await new Folder({ id: libraryTemplatesFolderId, userId, gridId, name: "Templates", parentId: libraryFolderId, folderType: "normal", sortOrder: 0, isExpanded: true }).save();
   // Projects folder — root of every per-project page. Demo data seeds one
   // project (Moduli v1 Launch); future projects mint sibling pages here.
   await new Folder({ id: projectsFolderId,   userId, gridId, name: "Projects", parentId: rootFolderId, folderType: "normal",    sortOrder: 6, isExpanded: true }).save();
@@ -4522,9 +4737,15 @@ export async function createLiveData(userId, options = {}) {
     "6:00pm": [{ sourceModId: instanceMods.readAChapter.id,      label: "Read a chapter" }],
   };
 
-  await buildDailyRoutineTemplate({
+  // Schedule Template page lives in Library > Templates (NOT in the
+  // templates manifest). It IS the canonical store for the recurring
+  // routine instances — the Schedule: Build op COPY_LINKs the Day
+  // container from here into the active Schedule page per visible day.
+  // Returns the Day container's occurrence id so the op can reference it
+  // via picker-direct binding ($allItemsById.<id>) instead of FIND-by-label.
+  const { dayContainerOccId } = await buildScheduleTemplatePage({
     userId, gridId, timeSlots, timeslotFieldId, routineBySlot,
-    tplManifestRootFolderId, mkOcc, Module,
+    libraryTemplatesFolderId, mkOcc, Module,
     findModule: (q) => Module.findOne(q).lean(),
     scheduleFormatFieldId,
   });
@@ -5074,6 +5295,11 @@ export async function createLiveData(userId, options = {}) {
     filterNavConfig: { filter_daily: { visible: false } },
   });
 
+  // Schedule Template page is seeded earlier (STEP 7b) under
+  // libraryTemplatesFolderId. The Schedule page above starts EMPTY;
+  // "Schedule: Build Schedule" COPY_LINKs the Day container from the
+  // template page into here per visible day in the active period.
+
   // Daily Journal Questions page — pinned in Library folder alongside the
   // main Library page. Lets the user manage the question pool the Rotator
   // op + 🎲 randomize button draw from, without scrolling past movies /
@@ -5241,97 +5467,10 @@ export async function createLiveData(userId, options = {}) {
     filterNavConfig: { filter_daily: { visible: false } },
   });
 
-  // ── Month View page (task #5, 2026-05-23) ─────────────────────────────────
-  // role:"page" kind:"board" — 31 day-cells. Each cell is a container with
-  // `meta.monthDayIndex` (1..31) and a `filterOverride.dateFieldId` set to
-  // that day of the active month. The "Month: Build" op rewrites each
-  // cell's filterOverride on filter-change so the same 31 cells anchor to
-  // whichever month the user is viewing.
-  //
-  // V1 ships the structure + filter-driven date stamping. Future polish:
-  // COPY_LINK Schedule tasks for each day into the cells for bidirectional
-  // sync (per user direction "drag-into-month creates task w/ null timeslot").
-  await new Module({ id: monthViewPageModId, userId, gridId, role: "page", kind: "board", label: "Month View" }).save();
-  // 31 day-cell modules + occurrences. Labels start as "Day 1"…"Day 31";
-  // the build op rewrites them to the actual dated form ("Mon May 5", etc.)
-  // when the filter changes.
-  for (let i = 0; i < 31; i++) {
-    const dayNum = i + 1;
-    await new Module({
-      id: monthDayModIds[i], userId, gridId,
-      role: "container", kind: "board",
-      label: `Day ${dayNum}`,
-      defaultDragMode: "move",
-      meta: { monthDayIndex: dayNum },
-      fieldBindings: [],
-    }).save();
-    await mkOcc({
-      id: monthDayOccIds[i],
-      moduleId: monthDayModIds[i],
-      parentId: monthViewPageOccId,
-      sortOrder: i,
-      occurrences: [],
-      iteration: { mode: "persistent" },
-      fields: {},
-      // No filterOverride yet — Month: Build sets it on first fire.
-      filterOverride: {},
-      filterNavConfig: { filter_daily: { visible: false } },
-      meta: { monthDayIndex: dayNum },
-    });
-  }
-  await mkOcc({
-    id: monthViewPageOccId,
-    moduleId: monthViewPageModId,
-    parentId: interfacesFolderId,
-    sortOrder: 3,
-    occurrences: monthDayOccIds.slice(),
-    iteration: { mode: "persistent" },
-    fields: {},
-    // Page itself owns no filter override; the build op reads the active
-    // grid filter (month unit) and writes per-day overrides on cells.
-    filterOverride: {},
-    filterNavConfig: { filter_daily: { visible: true } },
-  });
-
-  // ── Week View page (task #5 follow-up, 2026-05-23) ────────────────────────
-  // Mirror of Month View at week granularity — 7 day-cells anchored Mon-Sun
-  // of the active week. Cells are labeled "Mon 5" / "Tue 6" / etc. by the
-  // Week: Build op via DATE_FORMAT.
-  await new Module({ id: weekViewPageModId, userId, gridId, role: "page", kind: "board", label: "Week View" }).save();
-  const WEEKDAY_INITIAL_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  for (let i = 0; i < 7; i++) {
-    await new Module({
-      id: weekDayModIds[i], userId, gridId,
-      role: "container", kind: "board",
-      label: WEEKDAY_INITIAL_LABELS[i],
-      defaultDragMode: "move",
-      meta: { weekDayIndex: i + 1 }, // 1=Mon..7=Sun (ISO weekday)
-      fieldBindings: [],
-    }).save();
-    await mkOcc({
-      id: weekDayOccIds[i],
-      moduleId: weekDayModIds[i],
-      parentId: weekViewPageOccId,
-      sortOrder: i,
-      occurrences: [],
-      iteration: { mode: "persistent" },
-      fields: {},
-      filterOverride: {},
-      filterNavConfig: { filter_daily: { visible: false } },
-      meta: { weekDayIndex: i + 1 },
-    });
-  }
-  await mkOcc({
-    id: weekViewPageOccId,
-    moduleId: weekViewPageModId,
-    parentId: interfacesFolderId,
-    sortOrder: 4,
-    occurrences: weekDayOccIds.slice(),
-    iteration: { mode: "persistent" },
-    fields: {},
-    filterOverride: {},
-    filterNavConfig: { filter_daily: { visible: true } },
-  });
+  // Month View / Week View pages REMOVED (2026-05-24). Schedule page's
+  // own filter (week/month unit) drives multi-day rendering via the
+  // existing `Schedule: Build Schedule` op (Phase 4b/4c). No separate
+  // page modules needed.
 
   // Patch accountRef predicate to resolve against instances under the
   // Accounts page (so the bill instances' Account dropdown lists Checking,
@@ -5394,7 +5533,7 @@ export async function createLiveData(userId, options = {}) {
           // have their own columns). hideLabel false — we want to see the
           // task name in this column.
           { id: STBL_COLS.task, title: "Task", width: 240, displayFieldId: null, sort: null, filter: null,
-            fieldVisibility: { mode: "hide", fieldIds: [dateFieldId, timeslotFieldId] }, hideLabel: false },
+            fieldVisibility: null, hideLabel: false }, // TEMP: was {mode:"hide", fieldIds:[date,timeslot]} — flipped for stamp-debug visibility
           // Date / Time: render the FULL ModuleInstance for the copy, but
           // filter to a single field via fieldVisibility "show" mode, and
           // hide the label (the row's task name is already in the Task col).
@@ -5655,14 +5794,14 @@ export async function createLiveData(userId, options = {}) {
   // ── DAILY TASK / WELLNESS ──
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Completed",
-    goalLabel: "Physical Wellness", goalOccurrenceId: goalOccIds.physicalSummary, goalFieldId: fields.totalCompleted.id,
+    goalLabel: "Completed", goalOccurrenceId: goalOccIds.physicalCompleted, goalFieldId: fields.totalCompleted.id,
     agg: "countTrue", timeFilter: "daily",
-    // Paired with Task Countdown on the same goal: this counts UP as
-    // tasks complete. Target rules carry the met/notMet signal when a
-    // target is set on totalCompleted; value-fallback covers untargeted
-    // days. ArrowUp throughout (more done = good direction).
+    // Paired with Task Countdown on the same per-metric occurrence: this
+    // counts UP as tasks complete. Target rules carry the met/notMet
+    // signal when a target is set on totalCompleted; value-fallback covers
+    // untargeted days. ArrowUp throughout (more done = good direction).
     displayRules: {
-      "Physical Wellness": [
+      "Completed": [
         { when: { target: "met" },     color: "rgb(134,239,172)", icon: "ArrowUp" },
         { when: { target: "notMet" },  color: "rgb(252,165,165)", icon: "ArrowUp" },
         { when: { value: "null" },     color: "rgb(96,165,250)" },
@@ -5675,14 +5814,14 @@ export async function createLiveData(userId, options = {}) {
   // ── Tracker: Task Countdown ────────────────────────────────────────────────
   // Same loop as "Tracker: Completed" (countTrue completed tasks under
   // Schedule for the active day) but writes (10 - count) into the
-  // taskCountdown display field on Physical Wellness. Pairs with
-  // Tracker: Completed: completing a task fires both — totalCompleted goes
-  // +1, taskCountdown goes -1. Custom pipeline (makeTrackerOp can't write a
-  // derived value to a different goalFieldId).
+  // taskCountdown display field on the Completed per-metric occurrence.
+  // Pairs with Tracker: Completed: completing a task fires both —
+  // totalCompleted goes +1, taskCountdown goes -1. Custom pipeline
+  // (makeTrackerOp can't write a derived value to a different goalFieldId).
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
     name: "Task Countdown",
-    description: "Count completed tasks under Schedule for the active day; write (10 - count) to Physical Wellness's taskCountdown display.",
+    description: "Count completed tasks under Schedule for the active day; write (10 - count) to the Completed per-metric occurrence's taskCountdown display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field", targetId: completedFieldId, priority: 3 },
@@ -5696,20 +5835,20 @@ export async function createLiveData(userId, options = {}) {
       steps: [
         // $displayRules — countdown semantic: any positive value reads as
         // "still work to do" (red), zero reads as "complete" (green +
-        // checkmark). Null = goal not yet evaluated (blue). Targets the
-        // Physical Wellness occurrence label since taskCountdown lives
-        // on that instance — Water + Tasks Completed trackers run their
-        // own $displayRules in their own pipeline frames, so this rule
-        // only decorates writes from THIS op.
+        // checkmark). Null = goal not yet evaluated (blue). Keyed by the
+        // per-metric "Completed" label since taskCountdown lives on that
+        // occurrence — sibling Water/Steps/Streak trackers run their own
+        // $displayRules in their own pipeline frames, so this rule only
+        // decorates writes from THIS op.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$displayRules", expr: `json:${JSON.stringify({
-          "Physical Wellness": [
+          "Completed": [
             { when: { value: "null" },     color: "rgb(96,165,250)" },
             { when: { value: "zero" },     color: "rgb(134,239,172)", icon: "Check" },
             { when: { value: "positive" }, color: "rgb(252,165,165)", icon: "ArrowDown", suffix: "left" },
           ],
         })}` } },
-        // 1. Picker-style direct binding to Physical Wellness goal instance.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",   expr: `$allItemsById.${goalOccIds.physicalSummary}` } },
+        // 1. Picker-style direct binding to Completed per-metric occurrence.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",   expr: `$allItemsById.${goalOccIds.physicalCompleted}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItemId", expr: "$goalItem.id" } },
         { id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$goalItemId", comparator: "IS_NOT_EMPTY", right: "" }] },
@@ -5742,7 +5881,7 @@ export async function createLiveData(userId, options = {}) {
                 },
               ],
             },
-            // 6. Write countdown value to taskCountdown field on Physical Wellness.
+            // 6. Write countdown value to taskCountdown field on the Completed per-metric occurrence.
             { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.taskCountdown.id}.value`, value: "$countdown" } },
           ],
           else: [],
@@ -5755,17 +5894,18 @@ export async function createLiveData(userId, options = {}) {
   // Tracker: Today's Moods — replaces the prior "Latest Mood" agg:"last".
   // Builds an array of {mood, date} rows for every mood-bearing occurrence
   // in $goalPeriod (day/week/month/year — broader windows return multiple
-  // rows). Trigger surface matches makeTrackerOp's surface so onLoad / Nav /
-  // onChange / onAdd / onDelete all re-aggregate.
+  // rows). Writes into the per-metric "Mood" occurrence under Emotional.
+  // Trigger surface matches makeTrackerOp's so onLoad / Nav / onChange /
+  // onAdd / onDelete all re-aggregate.
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
     name: "Moods",
-    description: "Build a [{mood, date}] row list for every mood-bearing item in the goal's selected period and write it to Emotional Balance's Moods display.",
+    description: "Build a [{mood, date}] row list for every mood-bearing item in the goal's selected period and write it to the Mood per-metric occurrence under Emotional.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: fields.mood.id, priority: 3 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
@@ -5773,14 +5913,11 @@ export async function createLiveData(userId, options = {}) {
     pipeline: {
       sources: [],
       steps: [
-        // 1. Find the Emotional Balance goal instance (Latest Mood's host).
-        { type: "action", action: "FIND",
-          cfg: {
-            over: "$allInstances",
-            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Emotional Balance" }] },
-            itemVar: "$goalItem", itemIdVar: "$goalItemId",
-          },
-        },
+        // 1. Picker-direct binding to the Mood per-metric occurrence under
+        //    Emotional (was FIND-by-label "Emotional Balance" — replaced
+        //    when the umbrella summary was split Stage 3).
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItem", expr: `$allItemsById.${goalOccIds.emotionalMood}` } },
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItemId", expr: "$goalItem.id" } },
         // 2. Resolve $goalPeriod from the goal item's effective filter (full
         // {value, unit} object form — DATE_IN_PERIOD reads both shapes).
         { type: "action", action: "INIT_VAR",
@@ -5858,13 +5995,13 @@ export async function createLiveData(userId, options = {}) {
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
     name: "Phone Calls",
-    description: "Build a [{name, timeslot, date}] row list of completed Call-Person tasks for the goal's selected period and write to Social Connection. Also writes a scalar count for the 2-person target.",
+    description: "Build a [{name, timeslot, date}] row list of completed Call-Person tasks for the goal's selected period and write to the Phone Calls per-metric occurrence under Social. Also writes a scalar count for the 2-person target.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: peopleAssignedFieldId, priority: 3 },
       { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId,      priority: 3 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
@@ -5872,14 +6009,11 @@ export async function createLiveData(userId, options = {}) {
     pipeline: {
       sources: [],
       steps: [
-        // 1. Find the Social Connection goal instance (Phone Calls' host).
-        { type: "action", action: "FIND",
-          cfg: {
-            over: "$allInstances",
-            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Social Connection" }] },
-            itemVar: "$goalItem", itemIdVar: "$goalItemId",
-          },
-        },
+        // 1. Picker-direct binding to the Phone Calls per-metric occurrence
+        //    under Social (was FIND-by-label "Social Connection" — replaced
+        //    when the umbrella was split Stage 3).
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItem", expr: `$allItemsById.${goalOccIds.socialPhoneCalls}` } },
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItemId", expr: "$goalItem.id" } },
         // 2. Resolve $goalPeriod from the goal item's effective filter.
         { type: "action", action: "INIT_VAR",
           cfg: { name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
@@ -5946,13 +6080,13 @@ export async function createLiveData(userId, options = {}) {
   // ── DAILY ACTIVITY ──
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Steps",
-    goalLabel: "Physical Wellness", goalOccurrenceId: goalOccIds.physicalSummary, goalFieldId: fields.totalSteps.id,
+    goalLabel: "Steps", goalOccurrenceId: goalOccIds.physicalSteps, goalFieldId: fields.totalSteps.id,
     sourceFieldId: fields.steps.id, agg: "sum", timeFilter: "daily",
     // Target rules win when a target is set on the display field; the
     // value-fallback rules catch the no-target case (or any day with no
     // step entries). Same pattern Time Spent / Pages use.
     displayRules: {
-      "Physical Wellness": [
+      "Steps": [
         { when: { target: "met" },     color: "rgb(134,239,172)", icon: "ArrowUp" },
         { when: { target: "notMet" },  color: "rgb(252,165,165)", icon: "ArrowUp" },
         { when: { value: "null" },     color: "rgb(96,165,250)" },
@@ -5963,15 +6097,15 @@ export async function createLiveData(userId, options = {}) {
   })).save();
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Water",
-    goalLabel: "Physical Wellness", goalOccurrenceId: goalOccIds.physicalSummary, goalFieldId: fields.totalWater.id,
+    goalLabel: "Water", goalOccurrenceId: goalOccIds.physicalWater, goalFieldId: fields.totalWater.id,
     sourceFieldId: fields.water.id, agg: "sum", timeFilter: "daily",
     // Goal-with-target rules: green ArrowUp when hitting target, red
     // ArrowUp when not. The arrow direction is the SAME (up = good for
-    // water) — color carries the met/notMet signal. Rule keys off the
-    // Physical Wellness container label since that's where the
-    // totalWater display field lives.
+    // water) — color carries the met/notMet signal. Keyed off the
+    // per-metric Water occurrence label since that's where the totalWater
+    // display field now lives.
     displayRules: {
-      "Physical Wellness": [
+      "Water": [
         { when: { target: "met" },    color: "rgb(134,239,172)", icon: "ArrowUp" },
         { when: { target: "notMet" }, color: "rgb(252,165,165)", icon: "ArrowUp" },
       ],
@@ -5979,11 +6113,11 @@ export async function createLiveData(userId, options = {}) {
   })).save();
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Time Spent",
-    goalLabel: "Intellectual Growth", goalOccurrenceId: goalOccIds.intellectualSummary, goalFieldId: fields.totalDuration.id,
+    goalLabel: "Reading Time", goalOccurrenceId: goalOccIds.intellectualReadingTime, goalFieldId: fields.totalDuration.id,
     sourceFieldId: fields.duration.id, agg: "sum", timeFilter: "daily",
     // Pages-style neutral counter — more is good but less isn't bad.
     displayRules: {
-      "Intellectual Growth": [
+      "Reading Time": [
         { when: { value: "null" },     color: "rgb(96,165,250)" },
         { when: { value: "zero" },     color: "rgb(96,165,250)" },
         { when: { value: "positive" }, color: "rgb(134,239,172)" },
@@ -5992,33 +6126,33 @@ export async function createLiveData(userId, options = {}) {
   })).save();
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Pages",
-    goalLabel: "Intellectual Growth", goalOccurrenceId: goalOccIds.intellectualSummary, goalFieldId: fields.totalPages.id,
+    goalLabel: "Pages Read", goalOccurrenceId: goalOccIds.intellectualPagesRead, goalFieldId: fields.totalPages.id,
     sourceFieldId: fields.pages.id, agg: "sum", timeFilter: "daily",
     // Untargeted counter rule (no positive/negative connotation per
     // user spec): blue at 0/null, green when filled. No icon — pages
     // read has no "good direction" because not reading is neutral.
     displayRules: {
-      "Intellectual Growth": [
+      "Pages Read": [
         { when: { value: "null" },     color: "rgb(96,165,250)" },
         { when: { value: "zero" },     color: "rgb(96,165,250)" },
         { when: { value: "positive" }, color: "rgb(134,239,172)" },
       ],
     },
   })).save();
-  // Pomodoro daily aggregations — both write into the Intellectual Growth
-  // goal alongside Time Spent + Pages. Source data: Pomodoro session
-  // occurrences COPY_LINKed into Schedule slots by Pomodoro: Start (then
-  // marked completed by Pomodoro: Complete). Pomodoro History is a
-  // row-builder (custom pipeline) and lives further down with the other
-  // PUSH_TO_ARRAY trackers (Moods / Movies / Books).
+  // Pomodoro daily aggregations — count + minutes + lastPomodoro + history
+  // all write into the SAME per-metric "Pomodoros" occurrence under
+  // Intellectual. Source data: Pomodoro session occurrences COPY_LINKed into
+  // Schedule slots by Pomodoro: Start (then marked completed by Pomodoro:
+  // Complete). Pomodoro History is a row-builder (custom pipeline) and lives
+  // further down with the other PUSH_TO_ARRAY trackers.
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Pomodoros Today",
-    goalLabel: "Intellectual Growth", goalOccurrenceId: goalOccIds.intellectualSummary, goalFieldId: fields.pomoCount.id,
+    goalLabel: "Pomodoros", goalOccurrenceId: goalOccIds.intellectualPomodoros, goalFieldId: fields.pomoCount.id,
     agg: "countTrue", timeFilter: "daily", isTaskFieldId,
     // Pomodoros has a daily target (3) on its display field — apply
     // the Water pattern: green ArrowUp on met, red ArrowUp on notMet.
     displayRules: {
-      "Intellectual Growth": [
+      "Pomodoros": [
         { when: { target: "met" },    color: "rgb(134,239,172)", icon: "ArrowUp" },
         { when: { target: "notMet" }, color: "rgb(252,165,165)", icon: "ArrowUp" },
       ],
@@ -6026,7 +6160,7 @@ export async function createLiveData(userId, options = {}) {
   })).save();
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Pomodoro Time",
-    goalLabel: "Intellectual Growth", goalOccurrenceId: goalOccIds.intellectualSummary, goalFieldId: fields.pomoTime.id,
+    goalLabel: "Pomodoros", goalOccurrenceId: goalOccIds.intellectualPomodoros, goalFieldId: fields.pomoTime.id,
     sourceFieldId: fields.pomodoroMinutes.id, agg: "sum", timeFilter: "daily",
     // Pages-style neutral counter — no target. (The docket's
     // state-based rule scheme — red on "paused" / green on "running"
@@ -6035,7 +6169,7 @@ export async function createLiveData(userId, options = {}) {
     // values, not a running/paused state. Switching to neutral rule
     // until / unless that shape is added.)
     displayRules: {
-      "Intellectual Growth": [
+      "Pomodoros": [
         { when: { value: "null" },     color: "rgb(96,165,250)" },
         { when: { value: "zero" },     color: "rgb(96,165,250)" },
         { when: { value: "positive" }, color: "rgb(134,239,172)" },
@@ -6046,12 +6180,12 @@ export async function createLiveData(userId, options = {}) {
   // ── DAILY FINANCE ──
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Spent",
-    goalLabel: "Financial Health", goalOccurrenceId: goalOccIds.financialSummary, goalFieldId: fields.totalSpent.id,
+    goalLabel: "Spent", goalOccurrenceId: goalOccIds.financialSpent, goalFieldId: fields.totalSpent.id,
     sourceFieldId: fields.amount.id, agg: "sum", flow: "out", timeFilter: "daily",
     // Money OUT — "negative connotation" per user spec: any positive
     // amount spent reads red regardless of sign. 0/null is blue.
     displayRules: {
-      "Financial Health": [
+      "Spent": [
         { when: { value: "null" },     color: "rgb(96,165,250)" },
         { when: { value: "zero" },     color: "rgb(96,165,250)" },
         { when: { value: "positive" }, color: "rgb(252,165,165)", icon: "ArrowDown" },
@@ -6060,15 +6194,15 @@ export async function createLiveData(userId, options = {}) {
   })).save();
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Earned",
-    goalLabel: "Financial Health", goalOccurrenceId: goalOccIds.financialSummary, goalFieldId: fields.totalIncome.id,
+    goalLabel: "Income", goalOccurrenceId: goalOccIds.financialIncome, goalFieldId: fields.totalIncome.id,
     sourceFieldId: fields.income.id, agg: "sum", flow: "in", timeFilter: "daily",
     // Money IN — positive complement to Spent. null/zero blue (no
     // income, no signal), positive green with ArrowUp ("money flowing
-    // in is good"). Mirrors Spent's structure (red + ArrowDown) so
-    // the two trackers on the Financial Health goal read as a paired
-    // signal.
+    // in is good"). Mirrors Spent's structure (red + ArrowDown) so the two
+    // per-metric tiles (Spent + Income) on the Financial goal read as a
+    // paired signal.
     displayRules: {
-      "Financial Health": [
+      "Income": [
         { when: { value: "null" },     color: "rgb(96,165,250)" },
         { when: { value: "zero" },     color: "rgb(96,165,250)" },
         { when: { value: "positive" }, color: "rgb(134,239,172)", icon: "ArrowUp" },
@@ -6083,10 +6217,10 @@ export async function createLiveData(userId, options = {}) {
   // null/zero blue as a no-signal fallback when the day's intake is empty.
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Protein",
-    goalLabel: "Nutrition", goalOccurrenceId: goalOccIds.nutritionGoal, goalFieldId: fields.totalProtein.id,
+    goalLabel: "Protein", goalOccurrenceId: goalOccIds.nutritionProtein, goalFieldId: fields.totalProtein.id,
     sourceFieldId: fields.protein.id, agg: "sum", timeFilter: "daily",
     displayRules: {
-      "Nutrition": [
+      "Protein": [
         { when: { target: "met" },     color: "rgb(134,239,172)", icon: "ArrowUp" },
         { when: { target: "notMet" },  color: "rgb(252,165,165)", icon: "ArrowUp" },
         { when: { value: "null" },     color: "rgb(96,165,250)" },
@@ -6097,10 +6231,10 @@ export async function createLiveData(userId, options = {}) {
   })).save();
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Carbs",
-    goalLabel: "Nutrition", goalOccurrenceId: goalOccIds.nutritionGoal, goalFieldId: fields.totalCarbs.id,
+    goalLabel: "Carbs", goalOccurrenceId: goalOccIds.nutritionCarbs, goalFieldId: fields.totalCarbs.id,
     sourceFieldId: fields.carbs.id, agg: "sum", timeFilter: "daily",
     displayRules: {
-      "Nutrition": [
+      "Carbs": [
         { when: { target: "met" },     color: "rgb(134,239,172)", icon: "ArrowUp" },
         { when: { target: "notMet" },  color: "rgb(252,165,165)", icon: "ArrowUp" },
         { when: { value: "null" },     color: "rgb(96,165,250)" },
@@ -6111,10 +6245,10 @@ export async function createLiveData(userId, options = {}) {
   })).save();
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Fats",
-    goalLabel: "Nutrition", goalOccurrenceId: goalOccIds.nutritionGoal, goalFieldId: fields.totalFats.id,
+    goalLabel: "Fats", goalOccurrenceId: goalOccIds.nutritionFats, goalFieldId: fields.totalFats.id,
     sourceFieldId: fields.fats.id, agg: "sum", timeFilter: "daily",
     displayRules: {
-      "Nutrition": [
+      "Fats": [
         { when: { target: "met" },     color: "rgb(134,239,172)", icon: "ArrowUp" },
         { when: { target: "notMet" },  color: "rgb(252,165,165)", icon: "ArrowUp" },
         { when: { value: "null" },     color: "rgb(96,165,250)" },
@@ -6127,14 +6261,14 @@ export async function createLiveData(userId, options = {}) {
   // ── DAILY WORKOUT (multi-source roll-up) ──
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Total Reps",
-    goalLabel: "Workout", goalOccurrenceId: goalOccIds.workoutGoal, goalFieldId: fields.totalRepsToday.id,
+    goalLabel: "Reps", goalOccurrenceId: goalOccIds.workoutReps, goalFieldId: fields.totalRepsToday.id,
     sourceFieldIds: [fields.set1Reps.id, fields.set2Reps.id, fields.set3Reps.id],
     agg: "multiSum", timeFilter: "daily",
     // Steps-style: target rules + value-fallback. The per-muscle Volume
     // trackers below run their own custom pipelines so this only
     // decorates writes to the top-level Workout goal.
     displayRules: {
-      "Workout": [
+      "Reps": [
         { when: { target: "met" },     color: "rgb(134,239,172)", icon: "ArrowUp" },
         { when: { target: "notMet" },  color: "rgb(252,165,165)", icon: "ArrowUp" },
         { when: { value: "null" },     color: "rgb(96,165,250)" },
@@ -6362,10 +6496,10 @@ export async function createLiveData(userId, options = {}) {
 
   // ── WEEKLY SUMMARY ──
   // Legacy "Time Spent This Week" reused the totalDuration display field. In the
-  // live port totalDuration is bound by both "Intellectual Growth" (daily, above)
-  // and "Productivity" (productivityAccount order 1). Targeting "Productivity"
-  // here keeps the weekly value off the daily "Intellectual Growth" tile so the
-  // two don't clobber each other. KNOWN LIMITATION (Task 13 rule 4):
+  // live port totalDuration is bound by both "Reading Time" (daily per-metric,
+  // above) and "Productivity" (productivityAccount order 1). Targeting
+  // "Productivity" here keeps the weekly value off the daily "Reading Time"
+  // tile so the two don't clobber each other. KNOWN LIMITATION (Task 13 rule 4):
   // makeTrackerOp's weekly loop gate uses real SAME_WEEK, but the per-event
   // trigger date sub-rule stays SAME_DAY — onLoad/Nav bulk triggers self-heal.
   await new Operation(makeTrackerOp({
@@ -6399,23 +6533,19 @@ export async function createLiveData(userId, options = {}) {
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: moviesWatchedFieldId, priority: 3 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     pipeline: {
       sources: [],
       steps: [
-        // 1. Find the Movies Watched goal instance
-        {
-          type: "action", action: "FIND",
-          cfg: {
-            over: "$allInstances",
-            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Movies Watched" }] },
-            itemVar: "$goalItem", itemIdVar: "$goalItemId",
-          },
-        },
+        // 1. Picker-direct binding to the Movies per-type occurrence under Media
+        //    (was FIND-by-label "Movies Watched" — replaced when the standalone
+        //    goal folded into the Media container, Stage 3).
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItem",   expr: `$allItemsById.${goalOccIds.mediaMovies}` } },
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItemId", expr: "$goalItem.id" } },
         // 2. Bail if goal not found
         {
           type: "if",
@@ -6451,13 +6581,13 @@ export async function createLiveData(userId, options = {}) {
             ]},
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
-              { left: "$trigger.fieldId", comparator: "IS", right: moviesWatchedFieldId },
               { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
           ]},
           then: [
-            // 5a. Init rows accumulator
+            // 5a. Init rows accumulator + count + last-title scalars.
             { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
+            { type: "action", action: "INIT_VAR", cfg: { name: "$lastTitle", value: "" } },
             // 5b. Loop over Watch Movie occurrences in $goalPeriod under Schedule
             {
               type: "loop",
@@ -6500,12 +6630,14 @@ export async function createLiveData(userId, options = {}) {
                               cfg: {
                                 name: "$rows",
                                 value: {
-                                  label:    "$movie.label",
+                                  poster:   { kind: "media", id: "$movie.id", fieldId: posterUrlFieldId },
+                                  label:    { kind: "occurrence", id: "$movie.id" },
                                   timeslot: `$watchInst.fields.${timeslotFieldId}.value`,
                                   date:     `$watchInst.fields.${dateFieldId}.value`,
                                 },
                               },
                             },
+                            { type: "action", action: "SET_VAR", cfg: { name: "$lastTitle", expr: "$movie.label" } },
                           ],
                           else: [],
                         },
@@ -6516,11 +6648,12 @@ export async function createLiveData(userId, options = {}) {
                 },
               ],
             },
-            // 5c. Write the rows array to the multi-column display field.
+            // 5c. Write history rows + last-title to the Movies occ.
             {
               type: "action", action: "UPDATE",
               cfg: { path: `$goalItemId.fields.${moviesWatchedDisplayFieldId}.value`, value: "$rows" },
             },
+            { type: "action", action: "UPDATE", cfg: { path: `$goalItemId.fields.${lastMovieFieldId}.value`, value: "$lastTitle" } },
           ],
           else: [],
         },
@@ -6539,23 +6672,18 @@ export async function createLiveData(userId, options = {}) {
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: booksReadFieldId, priority: 3 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     pipeline: {
       sources: [],
       steps: [
-        // 1. Find the Books Read goal instance
-        {
-          type: "action", action: "FIND",
-          cfg: {
-            over: "$allInstances",
-            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Books Read" }] },
-            itemVar: "$goalItem", itemIdVar: "$goalItemId",
-          },
-        },
+        // 1. Picker-direct binding to the Books per-type occurrence under Media
+        //    (was FIND-by-label "Books Read" — folded into Media, Stage 3).
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItem",   expr: `$allItemsById.${goalOccIds.mediaBooks}` } },
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItemId", expr: "$goalItem.id" } },
         // 2. Bail if goal not found
         {
           type: "if",
@@ -6588,13 +6716,13 @@ export async function createLiveData(userId, options = {}) {
             ]},
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
-              { left: "$trigger.fieldId", comparator: "IS", right: booksReadFieldId },
               { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
           ]},
           then: [
-            // 5a. Init output accumulator as an empty array (rows for the multi-dim display)
+            // 5a. Init rows accumulator + count + last-title scalars.
             { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
+            { type: "action", action: "INIT_VAR", cfg: { name: "$lastTitle", value: "" } },
             // 5b. Loop over Reading occurrences in $goalPeriod under Schedule
             {
               type: "loop",
@@ -6637,13 +6765,15 @@ export async function createLiveData(userId, options = {}) {
                               cfg: {
                                 name: "$rows",
                                 value: {
-                                  label:    "$book.label",
+                                  poster:   { kind: "media", id: "$book.id", fieldId: posterUrlFieldId },
+                                  label:    { kind: "occurrence", id: "$book.id" },
                                   pages:    `$book.fields.${pagesFieldId}.value`,
                                   timeslot: `$readInst.fields.${timeslotFieldId}.value`,
                                   date:     `$readInst.fields.${dateFieldId}.value`,
                                 },
                               },
                             },
+                            { type: "action", action: "SET_VAR", cfg: { name: "$lastTitle", expr: "$book.label" } },
                           ],
                           else: [],
                         },
@@ -6654,11 +6784,12 @@ export async function createLiveData(userId, options = {}) {
                 },
               ],
             },
-            // 5c. Write the array of rows to the display field on the goal item.
+            // 5c. Write history rows + last-title to the Books occ.
             {
               type: "action", action: "UPDATE",
               cfg: { path: `$goalItemId.fields.${booksReadDisplayFieldId}.value`, value: "$rows" },
             },
+            { type: "action", action: "UPDATE", cfg: { path: `$goalItemId.fields.${lastBookFieldId}.value`, value: "$lastTitle" } },
           ],
           else: [],
         },
@@ -6677,8 +6808,8 @@ export async function createLiveData(userId, options = {}) {
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: podcastsListenedFieldId, priority: 3 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
@@ -6687,13 +6818,11 @@ export async function createLiveData(userId, options = {}) {
       steps: [
         // 1. Find the Podcasts Listened goal instance
         {
-          type: "action", action: "FIND",
-          cfg: {
-            over: "$allInstances",
-            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Podcasts Listened" }] },
-            itemVar: "$goalItem", itemIdVar: "$goalItemId",
-          },
+          type: "action", action: "INIT_VAR", cfg: { name: "$goalItem", expr: `$allItemsById.${goalOccIds.mediaPodcasts}` },
         },
+        // (Picker-direct binding to the Podcasts per-type occurrence under Media
+        //  — was FIND-by-label "Podcasts Listened" — folded into Media, Stage 3.)
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItemId", expr: "$goalItem.id" } },
         // 2. Bail if goal not found
         {
           type: "if",
@@ -6726,13 +6855,13 @@ export async function createLiveData(userId, options = {}) {
             ]},
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
-              { left: "$trigger.fieldId", comparator: "IS", right: podcastsListenedFieldId },
               { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
           ]},
           then: [
-            // 5a. Init rows accumulator
+            // 5a. Init rows accumulator + count + last-title scalars.
             { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
+            { type: "action", action: "INIT_VAR", cfg: { name: "$lastTitle", value: "" } },
             // 5b. Loop over Listen to Podcast occurrences in $goalPeriod under Schedule
             {
               type: "loop",
@@ -6775,12 +6904,13 @@ export async function createLiveData(userId, options = {}) {
                               cfg: {
                                 name: "$rows",
                                 value: {
-                                  label:    "$podcast.label",
+                                  label:    { kind: "occurrence", id: "$podcast.id" },
                                   timeslot: `$podcastInst.fields.${timeslotFieldId}.value`,
                                   date:     `$podcastInst.fields.${dateFieldId}.value`,
                                 },
                               },
                             },
+                            { type: "action", action: "SET_VAR", cfg: { name: "$lastTitle", expr: "$podcast.label" } },
                           ],
                           else: [],
                         },
@@ -6791,11 +6921,12 @@ export async function createLiveData(userId, options = {}) {
                 },
               ],
             },
-            // 5c. Write the rows array to the multi-column display field.
+            // 5c. Write history rows + last-title to the Podcasts occ.
             {
               type: "action", action: "UPDATE",
               cfg: { path: `$goalItemId.fields.${podcastsListenedDisplayFieldId}.value`, value: "$rows" },
             },
+            { type: "action", action: "UPDATE", cfg: { path: `$goalItemId.fields.${lastPodcastFieldId}.value`, value: "$lastTitle" } },
           ],
           else: [],
         },
@@ -6805,32 +6936,29 @@ export async function createLiveData(userId, options = {}) {
   }).save();
 
   // ── Tracker: Courses Taken ─────────────────────────────────────────────────
-  // Same pipeline shape as Tracker: Movies Watched but for courses.
-  // Trigger gate added to match makeTrackerOp surface.
+  // Same pipeline shape as Tracker: Movies Watched but for courses. Writes
+  // into the per-metric "Courses" occurrence under Intellectual (moved from
+  // the standalone Courses Taken container when Stage 3 split the goals
+  // occurrence-wise).
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
     name: "Courses Taken",
-    description: "Build a label list of courses taken today and update the Courses Taken goal display.",
+    description: "Build a label list of courses taken today and update the Courses per-metric occurrence's display field under Intellectual.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: coursesTakenFieldId, priority: 3 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     pipeline: {
       sources: [],
       steps: [
-        // 1. Find the Courses Taken goal instance
-        {
-          type: "action", action: "FIND",
-          cfg: {
-            over: "$allInstances",
-            predicate: { conjunction: "AND", rules: [{ left: "label", comparator: "IS", right: "Courses Taken" }] },
-            itemVar: "$goalItem", itemIdVar: "$goalItemId",
-          },
-        },
+        // 1. Picker-direct binding to the Courses per-metric occurrence
+        //    under Intellectual (was FIND-by-label "Courses Taken").
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItem", expr: `$allItemsById.${goalOccIds.intellectualCourses}` } },
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItemId", expr: "$goalItem.id" } },
         // 2. Bail if goal not found
         {
           type: "if",
@@ -6863,7 +6991,6 @@ export async function createLiveData(userId, options = {}) {
             ]},
             { operator: "AND", rules: [
               { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
-              { left: "$trigger.fieldId", comparator: "IS", right: coursesTakenFieldId },
               { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
             ]},
           ]},
@@ -7555,7 +7682,7 @@ export async function createLiveData(userId, options = {}) {
                             [accountRefFieldId]:  `$bill.fields.${accountRefFieldId}.value`,
                             [fields.amount.id]:   `$bill.fields.${fields.amount.id}.value`,
                           },
-                          fieldHidden: { [dateFieldId]: true },
+                          fieldHidden: { [dateFieldId]: false },
                         } },
                       ],
                       else: [],
@@ -7728,7 +7855,7 @@ export async function createLiveData(userId, options = {}) {
                 [completedFieldId]:        false,
                 [isTaskFieldId]:           true,
               },
-              fieldHidden: { [dateFieldId]: true, [timeslotFieldId]: true, [isTaskFieldId]: true },
+              fieldHidden: { [dateFieldId]: false, [timeslotFieldId]: false, [isTaskFieldId]: true },
             } },
           ],
           else: [],
@@ -7826,12 +7953,13 @@ export async function createLiveData(userId, options = {}) {
   // ── POMODORO: History tracker ───────────────────────────────────────────────
   // Builds a [{when, minutes, label}] row list for every completed Pomodoro
   // under Schedule in the goal's selected period (D/W/M/Y) and writes it to
-  // Intellectual Growth's pomoHistory display. Custom because makeTrackerOp
-  // is numeric — this is a row-builder (same shape as Today's Moods).
+  // the Pomodoros per-metric occurrence's pomoHistory display. Custom because
+  // makeTrackerOp is numeric — this is a row-builder (same shape as Today's
+  // Moods).
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
     name: "Pomodoro History",
-    description: "Build a [{when, minutes, label}] row list for every completed Pomodoro under Schedule in the active period and write it to Intellectual Growth's pomoHistory display.",
+    description: "Build a [{when, minutes, label}] row list for every completed Pomodoro under Schedule in the active period and write it to the Pomodoros per-metric occurrence's pomoHistory display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: fields.pomodoroMinutes.id, priority: 3 },
@@ -7847,7 +7975,7 @@ export async function createLiveData(userId, options = {}) {
       sources: [],
       steps: [
         { id: uid(), type: "action", config: {
-          type: "INIT_VAR", name: "$goalItem", expr: `$allItemsById.${goalOccIds.intellectualSummary}`,
+          type: "INIT_VAR", name: "$goalItem", expr: `$allItemsById.${goalOccIds.intellectualPomodoros}`,
         } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItemId", expr: "$goalItem.id" } },
         // Picker-direct binding (was FIND-by-label "Schedule" — replaced 2026-05-22).
@@ -7898,11 +8026,12 @@ export async function createLiveData(userId, options = {}) {
   // ── Tracker: Current Streak (vision-vs-now persistent-streaks gap) ──────────
   // Walks back from $today counting consecutive days where at least one task
   // was completed under Schedule. Uses the new STREAK_VAR action (no while/
-  // break primitive needed). Writes to Physical Wellness's currentStreak.
+  // break primitive needed). Writes to the Streak per-metric occurrence's
+  // currentStreak field.
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
     name: "Current Streak",
-    description: "Count consecutive days backward from today where at least one task under Schedule was completed. Writes to Physical Wellness's currentStreak display.",
+    description: "Count consecutive days backward from today where at least one task under Schedule was completed. Writes to the Streak per-metric occurrence's currentStreak display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId, priority: 3 },
@@ -7919,13 +8048,11 @@ export async function createLiveData(userId, options = {}) {
         // Achievement-style display rules per milestone. Earlier rules in
         // an array win — so 30+ matches BEFORE 7+ BEFORE 1+. Each rule
         // changes the display color, prepends an icon, and appends a
-        // celebratory suffix when the user crosses the threshold.
-        // Note: keyed by occurrence label ("Physical Wellness") since
-        // displayRules match per-host. Other ops' rules on the same host
-        // still apply to their own writes — the rule engine picks the
-        // first match per (host, field) update.
+        // celebratory suffix when the user crosses the threshold. Keyed
+        // by the per-metric "Streak" occurrence label since both
+        // currentStreak and longestStreak displays now live there.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$displayRules", expr: `json:${JSON.stringify({
-          "Physical Wellness": [
+          "Streak": [
             { when: { value: "zero" },                       color: "rgb(148,163,184)" },                                       // grey "0 day streak"
             { when: { value: { comp: "GTE", right: 100 } },  color: "rgb(255,215,0)",  icon: "Star",   suffix: " 🌟 LEGEND" },
             { when: { value: { comp: "GTE", right: 30 } },   color: "rgb(251,191,36)", icon: "Star",   suffix: " 🌟 30+ days!" },
@@ -7935,7 +8062,7 @@ export async function createLiveData(userId, options = {}) {
             { when: { value: { comp: "GTE", right: 1 } },    color: "rgb(186,230,253)" },
           ],
         })}` } },
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",    expr: `$allItemsById.${goalOccIds.physicalSummary}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",    expr: `$allItemsById.${goalOccIds.physicalStreak}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItemId",  expr: "$goalItem.id" } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
@@ -8012,7 +8139,7 @@ export async function createLiveData(userId, options = {}) {
     pipeline: {
       sources: [],
       steps: [
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",    expr: `$allItemsById.${goalOccIds.workoutGoal}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",    expr: `$allItemsById.${goalOccIds.workoutLog}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItemId",  expr: "$goalItem.id" } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
@@ -8071,7 +8198,7 @@ export async function createLiveData(userId, options = {}) {
     pipeline: {
       sources: [],
       steps: [
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",    expr: `$allItemsById.${goalOccIds.nutritionGoal}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",    expr: `$allItemsById.${goalOccIds.nutritionLog}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItemId",  expr: "$goalItem.id" } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
@@ -8116,7 +8243,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
     name: "Purchase History",
-    description: "Build a [{label, amount, timeslot, date}] row list for every spending instance under Schedule in the active period; write to Financial Health's purchaseHistory + lastPurchase.",
+    description: "Build a [{label, amount, timeslot, date}] row list for every spending instance under Schedule in the active period; write to the Spent per-metric occurrence's purchaseHistory + lastPurchase displays under Financial.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: fields.amount.id, priority: 3 },
@@ -8130,7 +8257,7 @@ export async function createLiveData(userId, options = {}) {
     pipeline: {
       sources: [],
       steps: [
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",    expr: `$allItemsById.${goalOccIds.financialSummary}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItem",    expr: `$allItemsById.${goalOccIds.financialSpent}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalItemId",  expr: "$goalItem.id" } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
@@ -8173,7 +8300,10 @@ export async function createLiveData(userId, options = {}) {
   // "Completed" + "Water") — the Trackers folder gives them their category.
   // createTestGrid still uses the longer prefixed names. Pass the matching
   // names so Build Day's tail RUN_OPERATION resolves them.
-  await new Operation(makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId, completedTrackerName: "Completed", waterTrackerName: "Water", goalsPageOccId, schedulePageOccId: schedPageOccId })).save();
+  // dayContainerOccId is the Day container inside the Schedule Template
+  // page (seeded above via buildScheduleTemplatePage). The op COPY_LINKs
+  // it into the Schedule page per active day — picker-direct, no FIND.
+  await new Operation(makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId, completedTrackerName: "Completed", waterTrackerName: "Water", goalsPageOccId, schedulePageOccId: schedPageOccId, dayContainerOccId })).save();
   // Extend Stamp Date & Time Slot to also stamp lastSeen on every dropped occurrence.
   await new Operation(makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar: panelOccIds.notebook, goalsPageOccId, schedulePageOccId: schedPageOccId })).save();
   // Body-seeds the Tasks Completed container minted by buildDayPageTemplate.
@@ -8190,7 +8320,138 @@ export async function createLiveData(userId, options = {}) {
   // kanban columns on the same project page. Idempotent + same-project-only
   // (anchored on the task's kanban board, not a global routing table).
   await new Operation(makeProjectStatusRouterOp({ userId, gridId, statusFieldId })).save();
-  await new Operation(makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, lastSeenFieldId, hubPanelModuleId: panelModuleIds.notebook })).save();
+  // Project: Sync To Todo List — onChange of statusFieldId mirrors kanban
+  // tasks into the Todo List page's Backburner / Docket containers via
+  // COPY_LINK. Bidirectional field sync is automatic through the shared
+  // linkedGroupId (server's update_occurrence fans out). When status
+  // leaves Backburner/Docket, the Todo List copy is deleted so the view
+  // stays focused on "what's not yet in motion". The kanban task itself
+  // is untouched by this op (Status Router handles kanban moves).
+  await new Operation({
+    id: uid(), userId, gridId, priority: 5,
+    name: "Project: Sync To Todo List",
+    description: "Mirror kanban tasks into Todo List Backburner/Docket containers via COPY_LINK when their status hits those values, and remove the mirror when status moves elsewhere. Field sync is automatic through linkedGroupId.",
+    triggerTypes: ["onChange"],
+    triggerObjects: [
+      { eventType: "onChange", subjectType: "field", targetId: statusFieldId, priority: 5 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // Bind the task that changed.
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          predicate: { operator: "AND", rules: [
+            { id: uid(), left: "id", comparator: "IS", right: "$trigger.occurrenceId" },
+          ]},
+          itemVar: "$task",
+        }},
+        // Read the task's linkedGroupId — if absent, the task isn't a
+        // copylink yet; COPY_LINK below will mint one and stamp the
+        // source. Treat undefined / null as "no group" so the find for
+        // an existing mirror returns empty.
+        { id: uid(), type: "action", config: {
+          type: "INIT_VAR", name: "$lgId",
+          expr: "$task.linkedGroupId",
+        }},
+        // Look for an existing Todo List mirror — any instance under
+        // todoPage sharing the task's linkedGroupId. Skips itself
+        // because the task lives on the kanban, not under todoPage.
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allInstances",
+          predicate: { operator: "AND", rules: [
+            { id: uid(), left: "linkedGroupId", comparator: "IS", right: "$lgId" },
+            { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: todoPageOccId },
+            { id: uid(), left: "$lgId", comparator: "IS_NOT_EMPTY", right: "" },
+          ]},
+          itemVar: "$mirror",
+          itemIdVar: "$mirrorId",
+        }},
+        // Status went to Backburner → mirror in todoBackburner container.
+        // MeasureOp carries `fields: { [fid]: { value, flow } }` (coalesced
+        // shape), so the new status value lives at `$trigger.fields.<fid>.value`.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: `$trigger.fields.${statusFieldId}.value`, comparator: "IS", right: "Backburner" },
+          ]},
+          then: [
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$mirrorId", comparator: "IS_EMPTY", right: "" },
+              ]},
+              then: [
+                // No mirror yet — mint a fresh COPY_LINK into Backburner.
+                { id: uid(), type: "action", config: {
+                  type: "COPY_LINK",
+                  sourceId: "$task.id",
+                  parent: todoContOccIds.todoBackburner,
+                }},
+              ],
+              else: [
+                // Mirror exists — make sure it's in Backburner. MOVE is a
+                // no-op when it's already the right parent.
+                { id: uid(), type: "action", config: {
+                  type: "MOVE_OCCURRENCE",
+                  occurrenceIdExpr: "$mirrorId",
+                  toContainerId: todoContOccIds.todoBackburner,
+                }},
+              ],
+            },
+          ],
+          else: [],
+        },
+        // Status went to Docket → mirror in todoDocket container.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: `$trigger.fields.${statusFieldId}.value`, comparator: "IS", right: "Docket" },
+          ]},
+          then: [
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$mirrorId", comparator: "IS_EMPTY", right: "" },
+              ]},
+              then: [
+                { id: uid(), type: "action", config: {
+                  type: "COPY_LINK",
+                  sourceId: "$task.id",
+                  parent: todoContOccIds.todoDocket,
+                }},
+              ],
+              else: [
+                { id: uid(), type: "action", config: {
+                  type: "MOVE_OCCURRENCE",
+                  occurrenceIdExpr: "$mirrorId",
+                  toContainerId: todoContOccIds.todoDocket,
+                }},
+              ],
+            },
+          ],
+          else: [],
+        },
+        // Status moved OUT of Backburner/Docket → drop the mirror. The
+        // kanban task stays put (Status Router handles its column move);
+        // we just clean up the Todo List view so it only shows pre-
+        // active work.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: `$trigger.fields.${statusFieldId}.value`, comparator: "IS_NOT", right: "Backburner" },
+            { id: uid(), left: `$trigger.fields.${statusFieldId}.value`, comparator: "IS_NOT", right: "Docket" },
+            { id: uid(), left: "$mirrorId", comparator: "IS_NOT_EMPTY", right: "" },
+          ]},
+          then: [
+            { id: uid(), type: "action", config: {
+              type: "DELETE",
+              itemIdExpr: "$mirrorId",
+            }},
+          ],
+          else: [],
+        },
+      ],
+    },
+  }).save();
+  await new Operation(makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, dateFieldId, lastSeenFieldId, hubPanelModuleId: panelModuleIds.notebook })).save();
   await new Operation(makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId })).save();
 
   // ── Import from Wikipedia (manual; demonstrates GET_USER_INPUT chain) ─────
@@ -8361,18 +8622,19 @@ export async function createLiveData(userId, options = {}) {
   await new Operation({
     id: uid(), userId, gridId, priority: 8,
     name: "Table: Build",
-    description: "Mirror the Schedule into the Schedule Table page. Per task on the active day: 3 copy-linked occurrences parented under the table (col0 main w/ date+timeslot hidden via the column's fieldVisibility, col1 date-only projection, col2 timeslot-only projection) + a shared copy-linked Physical Wellness goal (col3, all fields). Row-level existence dedup using Schedule: Build Day's exact predicate (templateId IS task AND _ancestors HAS_ANCESTOR table AND fields.<date> SAME_DAY schedDate) — row present → skip, absent → create. $r appends from the table's current rowCount. Idempotent + per-date + self-healing, no flags, no stamped markers.",
+    description: "Mirror the Schedule into the Schedule Table page. Per task on the active day: 3 copy-linked occurrences parented under the table (col0 main w/ date+timeslot hidden via the column's fieldVisibility, col1 date-only projection, col2 timeslot-only projection) + a shared copy-linked Completed per-metric occurrence (col3, all fields). Row-level existence dedup using Schedule: Build Day's exact predicate (templateId IS task AND _ancestors HAS_ANCESTOR table AND fields.<date> SAME_DAY schedDate) — row present → skip, absent → create. $r appends from the table's current rowCount. Idempotent + per-date + self-healing, no flags, no stamped markers.",
     triggerTypes: ["onAdd", "onDelete", "onChange", "onFilterChange", "onLoad"],
     triggerObjects: [
-      // Container add/delete (e.g. slot or page-level edits).
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", priority: 8 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", priority: 8 },
-      // Instance add/delete — drag a task into / out of a Schedule slot.
-      // Without these, dragging a task into Schedule didn't refire the table
-      // build, so the new task never appeared in the Schedule Table mirror
-      // until a full reload.
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 8 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 8 },
+      // Container/instance add/delete — narrowed to ancestorLabel:"Schedule"
+      // so the executor's matchAncestorScope drops the op from the match list
+      // entirely when a CRUD event happened outside the Schedule subtree.
+      // This replaces the inclusive scope guard the pipeline used to need at
+      // its top (still kept in the pipeline as a belt-and-suspenders no-op
+      // for cross-trigger paths).
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 8 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 8 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 8 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 8 },
       // Date field change — Schedule: Stamp Date & Time Slot writes
       // dateFieldId immediately after the drop, so subscribing to that field
       // catches both new drops AND date-edits on existing tasks.
@@ -8417,10 +8679,11 @@ export async function createLiveData(userId, options = {}) {
               else: [],
             },
             // 5. Find the goal these tasks roll up to (col3 source). Every
-            //    completed schedule task increments Physical Wellness via
-            //    Tracker: Completed Today, so it's the canonical per-row goal.
+            //    completed schedule task increments the Completed per-metric
+            //    occurrence via Tracker: Completed, so it's the canonical
+            //    per-row goal display.
             { id: uid(), type: "action", config: {
-                type: "INIT_VAR", name: "$goalItem", expr: `$allItemsById.${goalOccIds.physicalSummary}`,
+                type: "INIT_VAR", name: "$goalItem", expr: `$allItemsById.${goalOccIds.physicalCompleted}`,
             }},
             { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalOccId", expr: "$goalItem.id" } },
             { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalTpl", expr: "$goalItem.templateId" } },
@@ -8459,72 +8722,217 @@ export async function createLiveData(userId, options = {}) {
             //    task into Schedule), OccurrenceDeleteOp (remove a task),
             //    MeasureOp (field write) — always rebuilds so the table mirror
             //    catches the new/removed task.
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$existingRowCount", expr: "$tbl.meta.table.rowCount" } },
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerType",      expr: "$trigger.type" } },
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerOccId", expr: "$trigger.occurrenceId" } },
+            // SCOPE GUARD (2026-05-25 part 2 — replaces the self-trigger
+            // guard). The previous guard skipped only Table:Build's OWN
+            // row deletes, but Canvas:Build's and People Table:Build's
+            // own row/card add/deletes also fire OccurrenceCreateOp/
+            // OccurrenceDeleteOp at every entity, each one matching our
+            // unscoped onAdd/onDelete instance trigger. Without scoping
+            // we'd rebuild on every other rebuild op's CRUD too — the
+            // cross-rebuild cascade visible in
+            // console-export-2026-5-25_18-16-8 (Table:Build fires →
+            // Canvas:Build at depth=2 fires per Table delete →
+            // Canvas:Build's creates re-fire Table:Build at depth=1,
+            // and round and round through trackers).
+            //
+            // The op should rebuild only when the trigger is one we
+            // actually care about: either a bulk fire (onLoad /
+            // onFilterChange / no occurrence on the trigger) OR a real
+            // change to a Schedule task (the trigger occurrence has
+            // Schedule as an ancestor). Triggers from canvas cards,
+            // people-table rows, or our own row copies all fall through
+            // to the THEN no-op.
             { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [
-                { id: uid(), left: "$existingRowCount", comparator: "GREATER_THAN", right: 0 },
-                { id: uid(), left: "$triggerType",      comparator: "IS_EMPTY",     right: ""             },
+              condition: { operator: "OR", rules: [
+                { id: uid(), left: "$triggerOccId",                   comparator: "IS_EMPTY",     right: ""             },
+                { id: uid(), left: "$trigger.occurrence._ancestors",  comparator: "HAS_ANCESTOR", right: "$schedPageId" },
               ] },
               then: [
-                // Already built + not a date nav → no-op, leave existing rows + cells alone.
-              ],
-              else: [
-                // Step 7a: delete every task copy parented under $tbl
-                // (everything except the goal copy, which is dedup'd above).
+                // DIFF MODE (2026-05-25) — replaces clean-and-rebuild.
+                //
+                // Pre-refactor: every fire wiped 50+ row copies and re-COPY_LINK'd
+                // them all (3 copies per task), emitting ~54 create_occurrence
+                // events per drop AND per filter change. That pegged the browser
+                // even though the synchronous self-trigger guard prevented true
+                // recursion — the depth cap couldn't help because each fire's
+                // work was individually huge, not infinite.
+                //
+                // Mirrors Canvas:Build's diff pattern + People Table:Build's
+                // one-copy-per-row collapse. The previous 3-copies-per-row layout
+                // was redundant: all 3 shared moduleId + linkedGroupId and the
+                // column projections via fieldVisibility apply to whatever embed
+                // doc lives in the cell regardless of how many occurrences exist.
+                // One COPY_LINK per task is enough; each cell embed-doc points to
+                // the same row copy and the column's fieldVisibility projects
+                // different fields per column.
+                //
+                // Phase 1 — orphan sweep: DELETE copies whose source task is gone
+                // from Schedule for $schedDate. Bumps $changed.
+                // Phase 2 — per-task existence check: COPY_LINK ONLY when no
+                // copy yet exists (linkedGroupId match). Bumps $changed.
+                // Phase 3 — cells rebuild: gated on $changed > 0. Wipes cells
+                // and rewrites in $r=0..N order so rows are densely packed even
+                // after orphan deletions. SKIPPED in steady state — fire emits
+                // zero effects when nothing changed.
+                //
+                // Steady state: 0 emits. Single task add: 1 create + ~74 update
+                // emits. Single task remove: 1 delete + ~69 update emits.
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$changed", expr: "literal:0" } },
+
+                // Phase 1 — orphan sweep.
                 {
-                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$orphan",
+                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$existing",
                   body: [
                     { id: uid(), type: "if",
                       condition: { operator: "AND", rules: [
-                        { id: uid(), left: "$orphan._ancestors", comparator: "HAS_ANCESTOR", right: "$tblId" },
-                        { id: uid(), left: "$orphan.id",         comparator: "IS_NOT",       right: "$cg"    },
+                        { id: uid(), left: "$existing._ancestors",     comparator: "HAS_ANCESTOR", right: "$tblId" },
+                        { id: uid(), left: "$existing.id",             comparator: "IS_NOT",       right: "$cg"    },
+                        { id: uid(), left: "$existing.linkedGroupId",  comparator: "IS_NOT_EMPTY", right: ""       },
                       ] },
                       then: [
-                        { id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$orphan.id" } },
+                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$srcFound", expr: "literal:0" } },
+                        {
+                          id: uid(), type: "loop", overExpr: "$allInstances", as: "$srcProbe",
+                          body: [
+                            { id: uid(), type: "if",
+                              condition: { operator: "AND", rules: [
+                                { id: uid(), left: "$srcProbe._ancestors",                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                                { id: uid(), left: "$srcProbe.linkedGroupId",                    comparator: "IS",           right: "$existing.linkedGroupId" },
+                                { id: uid(), left: `$srcProbe.fields.${dateFieldId}.value`,      comparator: "SAME_DAY",     right: "$schedDate" },
+                                { id: uid(), left: "$srcProbe.label",                            comparator: "IS_NOT_EMPTY", right: "" },
+                              ] },
+                              then: [{ id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$srcFound" } }],
+                              else: [],
+                            },
+                          ],
+                        },
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [{ id: uid(), left: "$srcFound", comparator: "IS", right: 0 }] },
+                          then: [
+                            { id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$existing.id" } },
+                            { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$changed" } },
+                          ],
+                          else: [],
+                        },
                       ],
                       else: [],
                     },
                   ],
                 },
-                // Step 7b: reset cells and rowCount.
-                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells",    value: {} } },
-                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.rowCount", value: 0  } },
-                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$r", expr: "literal:0" } },
 
-                // 8. One row per schedule task on $schedDate under the Schedule
-                //    page. No dedup (handled by step 7's wipe) — every matching
-                //    task gets 3 fresh copy-linked occurrences + cells + goal.
+                // Phase 2 — per-task existence check + mint when missing.
                 {
                   id: uid(), type: "loop", overExpr: "$allInstances", as: "$task",
                   body: [
-                    {
-                      id: uid(), type: "if",
+                    { id: uid(), type: "if",
                       condition: { operator: "AND", rules: [
-                        { id: uid(), left: "$task._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                        { id: uid(), left: `$task.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
-                        { id: uid(), left: "$task.label", comparator: "IS_NOT_EMPTY", right: "" },
+                        { id: uid(), left: "$task._ancestors",                    comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                        { id: uid(), left: `$task.fields.${dateFieldId}.value`,   comparator: "SAME_DAY",     right: "$schedDate"   },
+                        { id: uid(), left: "$task.label",                          comparator: "IS_NOT_EMPTY", right: ""             },
                       ] },
                       then: [
-                        // 3 task copies parented under $tbl (Build Day pattern:
-                        // COPY_LINK with `parent`). copyFields default true so
-                        // the cells render the task's current field values.
-                        { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$tblId", itemIdVar: "$c0" } },
-                        { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$tblId", itemIdVar: "$c1" } },
-                        { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$tblId", itemIdVar: "$c2" } },
-                        // Position the row's 4 cells ($var leaves deep-resolved).
-                        { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:0", value: stCellDoc("$c0") } },
-                        { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:1", value: stCellDoc("$c1") } },
-                        { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:2", value: stCellDoc("$c2") } },
-                        { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:3", value: stCellDoc("$cg") } },
-                        { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$r" } },
+                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$copyExists", expr: "literal:0" } },
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: "$task.linkedGroupId", comparator: "IS_NOT_EMPTY", right: "" },
+                          ] },
+                          then: [
+                            {
+                              id: uid(), type: "loop", overExpr: "$allInstances", as: "$copyProbe",
+                              body: [
+                                { id: uid(), type: "if",
+                                  condition: { operator: "AND", rules: [
+                                    { id: uid(), left: "$copyProbe._ancestors",     comparator: "HAS_ANCESTOR", right: "$tblId" },
+                                    { id: uid(), left: "$copyProbe.linkedGroupId",  comparator: "IS",           right: "$task.linkedGroupId" },
+                                    { id: uid(), left: "$copyProbe.id",             comparator: "IS_NOT",       right: "$cg" },
+                                  ] },
+                                  then: [{ id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$copyExists" } }],
+                                  else: [],
+                                },
+                              ],
+                            },
+                          ],
+                          else: [],
+                        },
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [{ id: uid(), left: "$copyExists", comparator: "IS", right: 0 }] },
+                          then: [
+                            { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$tblId" } },
+                            { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$changed" } },
+                          ],
+                          else: [],
+                        },
                       ],
                       else: [],
                     },
                   ],
                 },
-                // 9. Publish the row count.
-                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.rowCount", value: "$r" } },
+
+                // Phase 3 — cells rebuild, gated on $changed > 0. In steady
+                // state this whole block is a no-op.
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$changed", comparator: "GREATER", right: 0 },
+                  ] },
+                  then: [
+                    { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells",    value: {} } },
+                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$r", expr: "literal:0" } },
+                    {
+                      id: uid(), type: "loop", overExpr: "$allInstances", as: "$task2",
+                      body: [
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: "$task2._ancestors",                    comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                            { id: uid(), left: `$task2.fields.${dateFieldId}.value`,   comparator: "SAME_DAY",     right: "$schedDate"   },
+                            { id: uid(), left: "$task2.label",                          comparator: "IS_NOT_EMPTY", right: ""             },
+                          ] },
+                          then: [
+                            // Find the row copy under $tbl for this task. First
+                            // match wins (collapsed-to-one-copy contract); any
+                            // legacy extra copies from the pre-2026-05-25
+                            // 3-copies-per-row era are ignored by cells but stay
+                            // in the store as harmless ghosts.
+                            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$rowOccId", expr: "literal:" } },
+                            {
+                              id: uid(), type: "loop", overExpr: "$allInstances", as: "$copy",
+                              body: [
+                                { id: uid(), type: "if",
+                                  condition: { operator: "AND", rules: [
+                                    { id: uid(), left: "$copy._ancestors",     comparator: "HAS_ANCESTOR", right: "$tblId" },
+                                    { id: uid(), left: "$copy.linkedGroupId",  comparator: "IS",           right: "$task2.linkedGroupId" },
+                                    { id: uid(), left: "$copy.id",             comparator: "IS_NOT",       right: "$cg" },
+                                    { id: uid(), left: "$rowOccId",            comparator: "IS_EMPTY",     right: "" },
+                                  ] },
+                                  then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$rowOccId", expr: "$copy.id" } }],
+                                  else: [],
+                                },
+                              ],
+                            },
+                            { id: uid(), type: "if",
+                              condition: { operator: "AND", rules: [{ id: uid(), left: "$rowOccId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                              then: [
+                                // All four cell embeds reference the same row
+                                // occurrence; column-level fieldVisibility (set
+                                // on the table meta.table.columns config) does
+                                // the per-column projection.
+                                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:0", value: stCellDoc("$rowOccId") } },
+                                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:1", value: stCellDoc("$rowOccId") } },
+                                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:2", value: stCellDoc("$rowOccId") } },
+                                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:3", value: stCellDoc("$cg") } },
+                                { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$r" } },
+                              ],
+                              else: [],
+                            },
+                          ],
+                          else: [],
+                        },
+                      ],
+                    },
+                    { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.rowCount", value: "$r" } },
+                  ],
+                  else: [],
+                },
               ],
             },
           ],
@@ -8552,8 +8960,8 @@ export async function createLiveData(userId, options = {}) {
     description: "Mirror Schedule tasks for the active day onto the Schedule Canvas page. Each task → one copy-linked occurrence stamped with meta.x/y so cards stack vertically on the canvas. Idempotent + per-date + self-healing.",
     triggerTypes: ["onAdd", "onDelete", "onChange", "onFilterChange", "onLoad"],
     triggerObjects: [
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 8 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 8 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 8 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 8 },
       { eventType: "onChange",       subjectType: "field",     targetId: dateFieldId,    priority: 8 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule", priority: 8 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 8 },
@@ -8592,38 +9000,53 @@ export async function createLiveData(userId, options = {}) {
               then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
               else: [],
             },
-            // 4. Idempotency guard — only rebuild on explicit triggers OR
-            // when canvas is empty OR when ANY existing child lacks a
-            // meta.x/y stamp (signals stale data from a prior version of
-            // this op that didn't position cards). The lacks-position
-            // probe stops "all cards overlap at (0,0)" from persisting
-            // across reloads silently.
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$existingChildCount", expr: "$canvas.occurrences.length" } },
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerType",        expr: "$trigger.type" } },
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$missingPositions",   expr: "literal:0" } },
-            {
-              id: uid(), type: "loop", overExpr: "$allInstances", as: "$probe",
-              body: [
-                { id: uid(), type: "if",
-                  condition: { operator: "AND", rules: [
-                    { id: uid(), left: "$probe._ancestors", comparator: "HAS_ANCESTOR", right: "$canvasId" },
-                    { id: uid(), left: "$probe.meta.y",     comparator: "IS_EMPTY",     right: "" },
-                  ] },
-                  then: [
-                    { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$missingPositions" } },
-                  ],
-                  else: [],
-                },
-              ],
+            // 4. SCOPE GUARD (2026-05-25 part 3 — INCLUSIVE, replaces the
+            // exclusive self-trigger guard). The old guard tried to skip the
+            // rebuild only when it could PROVE the trigger was one of THIS
+            // canvas's own cards (`$trigger.occurrence._ancestors
+            // HAS_ANCESTOR $canvasId`). That proof is impossible for a
+            // DELETE: the card is already gone from the store, so its
+            // `_ancestors` resolve empty and HAS_ANCESTOR is false → the
+            // rebuild ran on the op's OWN orphan-sweep deletes → each delete
+            // fired OccurrenceDeleteOp → re-ran this op → deleted/created
+            // more → the flat depth-2 cascade in
+            // console-export-2026-5-25_18-16-8 (Canvas: Build fired 57x while
+            // the already-scope-guarded Schedule Table: Build fired only 6x —
+            // same trigger surface, opposite outcome: the proof).
+            //
+            // Flip to INCLUSIVE: rebuild ONLY when the trigger is positively a
+            // Schedule change — a bulk fire (no trigger occurrence: onLoad /
+            // onFilterChange) OR a trigger occurrence that lives under the
+            // Schedule page. A deleted/created canvas card can't prove it's a
+            // Schedule task, so the op no-ops and the cascade dies at the
+            // source. Mirrors Schedule Table: Build's guard (this file, the
+            // `$triggerOccId`/`$schedPageId` IF). The old missing-position
+            // self-heal probe is dropped — a bulk onLoad now always reaches
+            // the diff body, which positions any unpositioned new cards
+            // anyway (and diff mode intentionally preserves existing
+            // drag positions, so a forced rebuild never repositioned them).
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerOccId",   expr: "$trigger.occurrenceId" } },
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$isSourceChange", expr: "literal:0" } },
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$triggerOccId", comparator: "IS_EMPTY", right: "" }] },
+              then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
+              else: [],
             },
             { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [
-                { id: uid(), left: "$existingChildCount", comparator: "GREATER_THAN", right: 0 },
-                { id: uid(), left: "$triggerType",        comparator: "IS_EMPTY",     right: ""  },
-                { id: uid(), left: "$missingPositions",   comparator: "IS",           right: 0   },
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$trigger.occurrence._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" }] },
+              then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
+              else: [],
+            },
+            { id: uid(), type: "if",
+              condition: { operator: "OR", rules: [
+                // Not a Schedule source change → leave the canvas alone. This
+                // is the no-op branch; the diff body lives in `else`.
+                { id: uid(), left: "$isSourceChange", comparator: "IS", right: 0 },
               ] },
               then: [
-                // Already built + bulk onLoad + all cards have positions → no-op.
+                // No-op: either no genuine trigger, or an explicit trigger
+                // whose occurrence isn't a Schedule task (our own card
+                // add/delete, or another mirror op's CRUD).
               ],
               else: [
                 // DIFF MODE (2026-05-21) — replaces clean-then-rebuild.
@@ -8761,163 +9184,70 @@ export async function createLiveData(userId, options = {}) {
     },
   }).save();
 
-  // ── Month: Build (task #5, 2026-05-23) ────────────────────────────────────
-  // Rewrites every Month View day-cell's filterOverride.dateFieldId to the
-  // matching day of the active month. Triggers on onLoad + onFilterChange
-  // ancestored under "Month View" (so navigating the month-filter rebuilds
-  // automatically). DATE_ADD does the per-day arithmetic — no special
-  // primitive needed.
-  await new Operation({
-    id: uid(), userId, gridId, priority: 5,
-    name: "Month: Build",
-    description: "Stamp each Month View day-cell's filterOverride with the matching day-of-month date. Re-runs on month filter changes.",
-    triggerTypes: ["onLoad", "onFilterChange"],
-    triggerObjects: [
-      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 5 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Month View", priority: 5 },
-    ],
-    enabled: true,
-    pipeline: {
-      sources: [],
-      steps: [
-        // Resolve the month anchor. Read the active grid filter date (or
-        // fall back to $today). DATE_ADD with setDay:1 snaps to first of
-        // month, giving us a stable base for the 31 per-day offsets.
-        { id: uid(), type: "action", config: {
-          type: "INIT_VAR", name: "$activeDate",
-          expr: `$grid.activeFilterValues.${dateFieldId}`,
-          fallback: "$today",
-        } },
-        // First-of-month base: DATE_ADD base:$activeDate amount:0 setDay:1.
-        // resultVar:$monthStart binds the ISO string for downstream use.
-        { id: uid(), type: "action", config: {
-          type: "DATE_ADD",
-          base: "$activeDate",
-          amount: 0, unit: "month",
-          setDay: 1,
-          resultVar: "$monthStart",
-        } },
-        // Loop the 31 day-cells. Each iteration computes its target date
-        // via DATE_ADD($monthStart + (dayIndex-1) days) and UPDATEs the
-        // cell's filterOverride.<dateFieldId> to that ISO date string.
-        // Cells whose day-number exceeds the month's day count still get
-        // a date stamped (DATE_ADD just rolls over to next month), but
-        // those rollover-cells render harmlessly empty — no tasks match
-        // a future month's date in the current month's view.
-        ...monthDayOccIds.map((occId, i) => ({
-          id: uid(), type: "action", config: {
-            type: "DATE_ADD",
-            base: "$monthStart",
-            amount: i, unit: "day",
-            resultVar: `$d${i}`,
-          },
-        })),
-        // Per-cell DATE_FORMAT — turn each $dN ISO into "EEE d" form
-        // (e.g. "Mon 5"). Cheap enough to inline.
-        ...monthDayOccIds.map((occId, i) => ({
-          id: uid(), type: "action", config: {
-            type: "DATE_FORMAT",
-            date: `$d${i}`,
-            format: "EEE d",
-            to: `$lbl${i}`,
-          },
-        })),
-        // Per-cell UPDATE of filterOverride. Path syntax: $allItemsById
-        // gives us the live cell occurrence; we patch its filterOverride
-        // map for the date field. (UPDATE writes back to the executor
-        // overlay AND emits an effect.)
-        ...monthDayOccIds.map((occId, i) => ({
-          id: uid(), type: "action", config: {
-            type: "UPDATE",
-            path: `$allItemsById.${occId}.filterOverride.${dateFieldId}`,
-            value: `$d${i}`,
-          },
-        })),
-        // Per-cell UPDATE of the underlying module's label. Modules live
-        // in modulesById (not occurrencesById); the executor's UPDATE
-        // resolver handles both via the $allItems / $allTemplates routes.
-        ...monthDayOccIds.map((occId, i) => ({
-          id: uid(), type: "action", config: {
-            type: "UPDATE_MODULE",
-            moduleId: monthDayModIds[i],
-            patch: { label: `$lbl${i}` },
-          },
-        })),
-      ],
-    },
-  }).save();
 
-  // ── Week: Build (task #5 follow-up, 2026-05-23) ────────────────────────────
-  // Same pattern as Month: Build but 7 cells anchored to Monday-Sunday of
-  // the active week. Uses DATE_ADD's `setDay:1 unit:"week"` snap to find
-  // Monday of the current week, then walks 7 days forward.
+  // ── Schedule: Route by Timeslot (task #5 follow-up, 2026-05-24) ───────────
+  // Fires when a task's timeslot field changes. Routes the task into the
+  // matching slot container of the Schedule page on the task's date. Lets
+  // the user reassign a task by picking from the Time Slot dropdown — the
+  // task moves into the matching 9:30am / 10:00am / etc. slot automatically.
+  // Slot containers are identified data-driven: fields.scheduleFormat IS
+  // "slot" AND fields.timeslot IS $trigger.value, scoped to the Schedule
+  // page via _ancestors. Null timeslot ⇒ no routing (task stays where it
+  // is; Schedule: Build Day handles parking it in Due on next fire).
   await new Operation({
-    id: uid(), userId, gridId, priority: 5,
-    name: "Week: Build",
-    description: "Stamp each Week View day-cell's filterOverride + label to Mon-Sun of the active week. Re-runs on week filter changes.",
-    triggerTypes: ["onLoad", "onFilterChange"],
+    id: uid(), userId, gridId, priority: 3,
+    name: "Schedule: Route by Timeslot",
+    description: "When a task's Time Slot field changes, move the task into the matching slot container under the Schedule page for that task's date. Lets users pick a slot from the dropdown to assign a task without dragging.",
+    triggerTypes: ["onChange"],
     triggerObjects: [
-      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 5 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Week View", priority: 5 },
+      { eventType: "onChange", subjectType: "field", targetId: timeslotFieldId, priority: 3 },
     ],
     enabled: true,
     pipeline: {
       sources: [],
       steps: [
-        { id: uid(), type: "action", config: {
-          type: "INIT_VAR", name: "$activeDate",
-          expr: `$grid.activeFilterValues.${dateFieldId}`,
-          fallback: "$today",
-        } },
-        // Snap to Monday of the active week. DATE_ADD setDay:1 unit:"week"
-        // jumps forward to the nearest Monday — to anchor on THIS week's
-        // Monday (back-tracking when needed), we go: -1 week + setDay:1.
-        // The amount:-1 + setDay:1 + unit:"week" finds Monday of the
-        // PREVIOUS week, then we DATE_ADD +0 days no-op? Simpler: use
-        // amount:0 unit:"week" setDay:1 — that snaps the current week's
-        // Monday for current/forward dates, but rolls back if today IS
-        // Monday. Testing shows this works for the common case.
-        { id: uid(), type: "action", config: {
-          type: "DATE_ADD",
-          base: "$activeDate",
-          amount: 0, unit: "week",
-          setDay: 1,
-          resultVar: "$weekStart",
-        } },
-        // 7 per-day date computations.
-        ...weekDayOccIds.map((occId, i) => ({
-          id: uid(), type: "action", config: {
-            type: "DATE_ADD",
-            base: "$weekStart",
-            amount: i, unit: "day",
-            resultVar: `$wd${i}`,
-          },
-        })),
-        // 7 per-day formatted labels ("Mon 5", "Tue 6", etc.).
-        ...weekDayOccIds.map((occId, i) => ({
-          id: uid(), type: "action", config: {
-            type: "DATE_FORMAT",
-            date: `$wd${i}`,
-            format: "EEE d",
-            to: `$wlbl${i}`,
-          },
-        })),
-        // 7 per-day UPDATEs of filterOverride.
-        ...weekDayOccIds.map((occId, i) => ({
-          id: uid(), type: "action", config: {
-            type: "UPDATE",
-            path: `$allItemsById.${occId}.filterOverride.${dateFieldId}`,
-            value: `$wd${i}`,
-          },
-        })),
-        // 7 per-day UPDATE_MODULE label rewrites.
-        ...weekDayOccIds.map((occId, i) => ({
-          id: uid(), type: "action", config: {
-            type: "UPDATE_MODULE",
-            moduleId: weekDayModIds[i],
-            patch: { label: `$wlbl${i}` },
-          },
-        })),
+        // MeasureOp carries `fields: { [fid]: { value, flow } }` (coalesced
+        // shape) — the new timeslot value lives at
+        // `$trigger.fields.<timeslotFieldId>.value`.
+        // Bail when the new value is empty/null — no slot to route to.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: `$trigger.fields.${timeslotFieldId}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+          ]},
+          then: [
+            // FIND the slot container: live data identifies slots via
+            // fields.scheduleFormat="slot" + fields.timeslot=<label>,
+            // anchored under the Schedule page. Slot containers are
+            // persistent (no per-day duplicates) — Schedule: Build
+            // multi-parents them into per-day day-cols on the next fire.
+            { id: uid(), type: "action", config: {
+              type: "FIND",
+              over: "$allContainers",
+              predicate: { operator: "AND", rules: [
+                { id: uid(), left: `fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "slot" },
+                { id: uid(), left: `fields.${timeslotFieldId}.value`, comparator: "IS", right: `$trigger.fields.${timeslotFieldId}.value` },
+                { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: schedPageOccId },
+              ]},
+              itemIdVar: "$targetSlotId",
+            }},
+            // Move the task into the matching slot. The default
+            // occurrenceIdExpr ($trigger.occurrenceId) is the task that
+            // just changed — exactly what we want to move.
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$targetSlotId", comparator: "IS_NOT_EMPTY", right: "" },
+              ]},
+              then: [
+                { id: uid(), type: "action", config: {
+                  type: "MOVE_OCCURRENCE",
+                  toContainerIdExpr: "$targetSlotId",
+                }},
+              ],
+              else: [],
+            },
+          ],
+          else: [],
+        },
       ],
     },
   }).save();
@@ -8937,8 +9267,12 @@ export async function createLiveData(userId, options = {}) {
     description: "Mirror Library person occurrences into the People-table container. Per person → one copy-linked occurrence parented under the table. Idempotent: existing rows are skipped via templateId dedup; new rows append from current rowCount.",
     triggerTypes: ["onAdd", "onDelete", "onLoad"],
     triggerObjects: [
-      { eventType: "onAdd",    subjectType: "module", subjectRole: "instance", targetId: "", priority: 8 },
-      { eventType: "onDelete", subjectType: "module", subjectRole: "instance", targetId: "", priority: 8 },
+      // Narrowed to ancestorLabel:"Library" so an instance add anywhere else
+      // (Schedule task drop, Daily Toolkit edit) doesn't pay the People Table
+      // rebuild match cost. Library is the only legitimate source of changes
+      // this op needs to react to.
+      { eventType: "onAdd",    subjectType: "module", subjectRole: "instance", targetId: "", ancestorLabel: "Library", priority: 8 },
+      { eventType: "onDelete", subjectType: "module", subjectRole: "instance", targetId: "", ancestorLabel: "Library", priority: 8 },
       { eventType: "onLoad",   subjectType: "grid",   targetId: "",            priority: 8 },
     ],
     enabled: true,
@@ -8950,6 +9284,30 @@ export async function createLiveData(userId, options = {}) {
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tbl",   expr: `$allItemsById.${peopleTableOccId}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tblId", expr: "$tbl.id" } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$r",     expr: "$tbl.meta.table.rowCount" } },
+        // SCOPE GUARD (2026-05-25 part 3 — inclusive). Rebuild ONLY on a
+        // genuine Library change: a bulk fire (no trigger occurrence) OR a
+        // trigger occurrence that lives under the Library container (a real
+        // person add/remove). The table's OWN rows are COPY_LINK copies that
+        // ALSO carry library:"person", but they're parented under the table
+        // (not the Library container), so they fail this ancestor check — which
+        // is what stops People Table: Build from re-firing on its own (and
+        // every other mirror op's) row CRUD. Same fix as Canvas: Build /
+        // Schedule Table: Build. Library container id is baked in at seed time.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerOccId",   expr: "$trigger.occurrenceId" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$isSourceChange", expr: "literal:0" } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$triggerOccId", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
+          else: [],
+        },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$trigger.occurrence._ancestors", comparator: "HAS_ANCESTOR", right: libraryContOccId }] },
+          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
+          else: [],
+        },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$isSourceChange", comparator: "IS", right: 1 }] },
+          then: [
         // Loop every library:"person" occurrence in $allInstances.
         { id: uid(), type: "loop", overExpr: "$allInstances", as: "$person",
           body: [
@@ -9003,6 +9361,9 @@ export async function createLiveData(userId, options = {}) {
         },
         // Persist final rowCount.
         { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.rowCount", value: "$r" } },
+          ],
+          else: [],
+        },
       ],
     },
   }).save();
@@ -9146,21 +9507,65 @@ export async function createLiveData(userId, options = {}) {
 }
 
 async function main() {
-  const targetEmail = process.argv[2] || DEFAULT_USER_EMAIL;
-  console.log(`🔄 Creating live data grid for ${targetEmail}...\n`);
+  // Args (order-independent except --clear is a switch, not a value):
+  //   node createLiveData.js [email] [--clear]
+  const positionals = process.argv.slice(2).filter(a => !a.startsWith("--"));
+  const flags = new Set(process.argv.slice(2).filter(a => a.startsWith("--")));
+  const targetEmail = positionals[0] || DEFAULT_USER_EMAIL;
+  const clearAll = flags.has("--clear");
+
+  console.log(`🔄 Creating live data grid for ${targetEmail}${clearAll ? " (--clear: WIPING ALL USER GRIDS first)" : ""}...\n`);
   try {
     await mongoose.connect(process.env.MONGO_URI);
     console.log("✅ Connected\n");
+
+    // Ensure every schema-declared index exists on Atlas. Mongoose creates
+    // missing indexes lazily on first model use, but doesn't backfill an
+    // existing collection when a new index is added to a schema later.
+    // `syncIndexes()` is idempotent + cheap when the indexes already exist
+    // — Atlas just verifies and returns ms-fast. Slow path only runs when
+    // a NEW index needs building (one-time cost per deploy).
+    {
+      const t0 = Date.now();
+      const models = [
+        ["Module", Module], ["Occurrence", Occurrence], ["View", View],
+        ["Field", Field], ["Folder", Folder], ["Operation", Operation],
+        ["Manifest", Manifest], ["Grid", Grid],
+      ];
+      for (const [name, model] of models) {
+        try {
+          await model.syncIndexes();
+        } catch (err) {
+          console.warn(`  ⚠️  ${name}.syncIndexes failed: ${err.message}`);
+        }
+      }
+      console.log(`✅ Indexes synced (${Date.now() - t0}ms)\n`);
+    }
 
     const user = await User.findOne({ email: targetEmail });
     if (!user) throw new Error(`User not found: ${targetEmail}`);
     const userId = user._id.toString();
     console.log(`✅ Found user: ${userId}\n`);
 
-    const dropped = await dropExistingLiveGrid(userId);
-    console.log(dropped
-      ? `🗑️  Dropped existing "${DEFAULT_GRID_NAME}" + scoped data\n`
-      : `🆕 No existing "${DEFAULT_GRID_NAME}" to drop\n`);
+    if (clearAll) {
+      const stats = await clearAllUserGrids(userId);
+      console.log(`🔥 --clear wiped:`);
+      console.log(`   Grids:        ${stats.grids}${stats.gridNames.length ? ` (${stats.gridNames.join(", ")})` : ""}`);
+      console.log(`   Occurrences:  ${stats.occurrences}`);
+      console.log(`   Modules:      ${stats.modules}`);
+      console.log(`   Fields:       ${stats.fields}`);
+      console.log(`   Operations:   ${stats.operations}`);
+      console.log(`   Views:        ${stats.views}`);
+      console.log(`   Folders:      ${stats.folders}`);
+      console.log(`   Manifests:    ${stats.manifests}`);
+      console.log(`   Transactions: ${stats.transactions}`);
+      console.log(`   (User doc preserved)\n`);
+    } else {
+      const dropped = await dropExistingLiveGrid(userId);
+      console.log(dropped
+        ? `🗑️  Dropped existing "${DEFAULT_GRID_NAME}" + scoped data\n`
+        : `🆕 No existing "${DEFAULT_GRID_NAME}" to drop\n`);
+    }
 
     const result = await createLiveData(userId);
 
@@ -9191,6 +9596,23 @@ async function main() {
     console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Interfaces folder-page (${result.notebookFolderPageOccId}); tabs=[Interfaces, Schedule, Canvas, Schedule Table, Schedule Canvas]`);
     console.log(`   Toolkit hub:    active=Daily Toolkit folder-page (${result.toolkitFolderPageOccId}); tabs=[Daily Toolkit, ...11 wellness pages]`);
     console.log("=".repeat(50));
+
+    // ── Snapshot to server/seed/*.json (skipped with --no-export) ──
+    // The on-disk seed acts as the canonical fixture for fast restores
+    // via `reloadLiveData.js`. Default = always export so the JSON
+    // stays in sync with the last successful create. Skip with
+    // `--no-export` when iterating on the create script itself and
+    // you don't want to overwrite the saved seed.
+    if (!flags.has("--no-export")) {
+      const seedDir = resolve(__dirname, "../seed");
+      console.log(`\n📦 Exporting seed → ${seedDir}/`);
+      const t0 = Date.now();
+      const stats = await exportLiveSeedData(userId, seedDir);
+      for (const [name, count] of Object.entries(stats)) {
+        console.log(`   ${name.padEnd(12)} ${count} docs`);
+      }
+      console.log(`✅ Exported in ${Date.now() - t0}ms\n`);
+    }
   } catch (err) {
     console.error("❌ Failed:", err);
     process.exit(1);

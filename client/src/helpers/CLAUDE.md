@@ -2,6 +2,123 @@
 
 _Updated: 2026-05-21. Check this file before re-reading source._
 
+## Recent Changes (2026-05-26 — filter-change cascade dedup: the date-switch 5-10s freeze)
+- **Root cause (from `console-export-2026-5-26_9-7-15.log`):** switching the
+  date *on the Schedule page* runs `updateOccurrenceFilterOverride`, which fans
+  out a separate `NavigationOp` for the source page **plus every inheriting
+  descendant** (~50 slots/containers/tasks). Each carries "Schedule" in its
+  `_ancestorLabels`, so the ancestor-scoped page-rebuild ops (`Table: Build`,
+  `Canvas: Build`, `Schedule: Build Schedule` — `onFilterChange
+  ancestorLabel:"Schedule"`) matched **all ~50** and re-ran — `DELETE_ITEM=6`
+  each, ~50×. Individual op fires are fast (40-70ms); 50× = the 5-10s freeze,
+  and the rebuild never settled ("schedule doesn't build").
+- **`operationExecutor.js` (`runMatchingOperations`)** now reads
+  `context.cascadeFiredOps` (a Set or null): ops already in it are skipped in
+  the match loop, and every op is added as it executes. So an op matching many
+  transactions in one cascade runs ONCE. Safe because the rebuild ops resolve
+  their working date from `operation.targetOccurrenceId`, not the triggering
+  occurrence (verified: no seed op reads `$trigger.occurrence` for NavigationOp
+  behavior).
+- **`CommitHelpers.js` (`updateOccurrenceFilterOverride`)** now collects the
+  source + descendant `NavigationOp` transactions into one array and fires them
+  via `operationsBridge.fireOperationsBatch("NavigationOp", transactions)`
+  (falls back to per-transaction `fireOperations` when the bridge is unwired,
+  e.g. unit tests). `fireOperationsBatch` (bindSocketToStore — see
+  state/CLAUDE.md) wraps the burst in a fresh dedup Set.
+- Descendant `NavigationOp`s still FIRE (a hypothetical descendant-specific
+  trigger would still match for its first occurrence) — they just no-op for
+  already-fired ops, which is cheap. Independent date switches use a fresh Set
+  so they never dedup against each other.
+- Regression: `__tests__/operationExecutor.test.js` ("cascadeFiredOps dedups an
+  op across a multi-transaction cascade"). Client-only, no re-seed. 175
+  operationExecutor + 30 CommitHelpers tests green.
+- **Still open (secondary):** even firing once, the Build ops delete-then-
+  rebuild rows instead of replacing in place; the in-batch overlay
+  `Object.assign({}, base, localOccsById)` (bindSocketToStore.js ~1267) can't
+  represent a deletion, so within one cascade each fire re-sees stale rows from
+  the base cache. An in-place replace/upsert is the follow-up cleanup.
+
+## Recent Changes (2026-05-25 part 3 — deleteOccurrence fireTrigger: cycle-breaker sync path)
+- **`CommitHelpers.js` (`deleteOccurrence`)** — new `fireTrigger = true`
+  option. When `false`, the occurrence is still deleted (cache evict +
+  dispatch + `delete_occurrence` emit) but the synchronous
+  `OccurrenceDeleteOp` trigger + the rAF per-field `MeasureOp`
+  re-aggregation are SKIPPED. `bindSocketToStore`'s `DELETE_ITEM` /
+  `REMOVE_OCCURRENCE` effect handlers pass `fireTrigger: false` because
+  those delete DERIVED data (mirror-op row/card copies). Re-aggregating
+  trackers over a deleted derived row is a no-op on the value (the row
+  isn't under the tracker's `$schedPageId` scope) — so it was pure waste:
+  17 `OccurrenceDeleteOp` × ~300ms (42 tracker effects each) = the ~5s
+  freeze that REMAINED after the infinite loop was fixed (the loop was a
+  separate issue — see the inclusive scope guards in server/CLAUDE.md +
+  the async `opEmittedOccIds` breaker in state/CLAUDE.md). User-initiated
+  deletes keep `fireTrigger:true` so trackers update normally. Regression:
+  `__tests__/CommitHelpers.test.js` ("deleteOccurrence with fireTrigger:false
+  still deletes but skips the OccurrenceDeleteOp fire"). Client-only, no
+  re-seed.
+
+## Recent Changes (2026-05-25 — self-trigger guard: client-only freeze fix, NO reseed)
+- **`operationExecutor.js`** — new module-level `_opsApplyingEffects` Set
+  + exports `setOpApplyingEffects(opId, on)` / `isOpApplyingEffects(opId)`.
+  `runMatchingOperations` skips any op currently in the set (checked before
+  `computeTriggerMatch`). Each returned effect is tagged `_sourceOpId = op.id`.
+  **`state/bindSocketToStore.js`** marks the producing op applying around each
+  `applyOperationEffect(eff)` (set→apply→clear, spanning nested fires). Net
+  effect: an op CANNOT be re-triggered by the OccurrenceDeleteOp/CreateOp that
+  its OWN delete/create effects synchronously fire. This is the definitive,
+  seed-independent fix for the drop-into-Schedule freeze (Table/Canvas Build
+  delete their own rows/cards → each delete re-fired the op → exponential
+  cascade). Cross-loops (A→B→A) covered too — both stay marked while on the
+  stack. Linear A→B→C chains untouched (each op once); RUN_OPERATION recursion
+  keeps its own depth cap. Requires only a client rebuild — no re-seed.
+  Regression: `__tests__/operationExecutor.test.js` ("ops marked
+  applying-effects are skipped (self-trigger guard)").
+- **`operationIntrospection.js` (DELETE handler)** — now also inspects
+  `itemIdExpr` / `itemIdVar` / `targetExpr` (the dynamic-target keys the
+  Build ops use, e.g. `itemIdExpr:"$orphan.id"`). Previously only
+  `itemId/target/occurrenceId` → `occurrences_written` came back empty for
+  these ops → the depth-cap warning's `suspects:[]` never named the loopers.
+  Now the warning identifies the culprit op(s).
+
+## Recent Changes (2026-05-25 — deleteOccurrence snapshots occ for $trigger enrichment)
+- **`CommitHelpers.js` (`deleteOccurrence`)** — now snapshots the
+  occurrence via `operationsBridge.getLocalOcc(occurrenceId)` BEFORE
+  eviction when the caller didn't pass `occurrence`, and passes it as
+  `occurrencesOverride` on the `OccurrenceDeleteOp` fire (also sources
+  `instanceId`/`containerId`/`fields` from the snapshot). Without this,
+  operation-effect deletes (`applyOperationEffect → DELETE_ITEM`, which
+  pass no `occurrence`) fired `OccurrenceDeleteOp` with no override, so
+  the executor couldn't enrich `$trigger.occurrence` — and the
+  Table/Canvas Build self-trigger guard (`$trigger.occurrence._ancestors
+  HAS_ANCESTOR <ownPageId>`) silently never matched on the SYNCHRONOUS
+  cascade path (it only worked on the async server-echo path, which
+  already passed an override). This was the missing half of the
+  drop-into-Schedule freeze fix. Regression test in
+  `__tests__/CommitHelpers.test.js` ("deleteOccurrence sources snapshot
+  from cache and passes it as override"). NOTE: `removeOccurrence` still
+  requires the caller to pass `occurrence` — its callers already do.
+  NOTE: `operationIntrospection.js`'s DELETE handler only inspects
+  `cfg.itemId/target/occurrenceId`, not `cfg.itemIdExpr`, so the
+  fire-depth-cap warning's `suspects:[]` is a blind spot — it does NOT
+  mean no op is looping. Cosmetic; the guard is the real fix.
+
+## Recent Changes (2026-05-25 — $trigger.occurrence._ancestors enrichment)
+- **`operationExecutor.js` ($trigger enrichment, ~line 1094)** — the
+  enriched `$trigger.occurrence` now carries `_ancestors`
+  (`ancestorsFor(occ.id)`, closest-first id array) alongside
+  `id/moduleId/parentId/fields`. Lets a rebuild op distinguish "the
+  source changed" from "I just added/deleted my OWN derived copy" via
+  `$trigger.occurrence._ancestors HAS_ANCESTOR <ownPageId>`. Enables
+  the self-trigger guard added to `Table: Build` + `Canvas: Build` in
+  createLiveData.js (see server/CLAUDE.md) — root-cause fix for the
+  exponential OccurrenceDeleteOp cascade that froze the app when
+  dropping a toolkit item onto Schedule (both Build ops trigger on
+  unscoped onAdd/onDelete AND delete their own rows/cards in an orphan
+  sweep, so each cleanup delete re-fired them until the depth cap).
+  Additive + null-safe (no trigger occurrence → undefined → guard
+  fails closed). Regression test in `__tests__/operationExecutor.test.js`
+  ("$trigger.occurrence._ancestors is populated for HAS_ANCESTOR guard").
+
 ## Recent Changes (2026-05-21 — StyleHelpers cascade walker)
 - **`StyleHelpers.js`** — Added `STYLE_FIELDS_BY_KIND` (per-entity-type
   field whitelist driving the editor's kind-aware UI),

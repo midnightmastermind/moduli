@@ -4,7 +4,7 @@
 // into the module's own RadialMenu via extraItems — no separate wrapper handle.
 import { NodeViewWrapper } from "@tiptap/react";
 import { useContext, useRef, useCallback, useState, useMemo, useEffect } from "react";
-import { GridActionsContext } from "../GridActionsContext.js";
+import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
 import Container from "../modules/ModuleContainer.jsx";
 import ModuleInstance from "../modules/ModuleInstance.jsx";
 import ArtifactContent from "../modules/ArtifactContent.jsx";
@@ -28,7 +28,7 @@ function alignStyle(align, width) {
 }
 
 export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos, deleteNode }) {
-  const { occurrencesById, modulesById, viewsById, dispatch, socket, fieldsById } = useContext(GridActionsContext) || {};
+  const { occurrencesById, modulesById, viewsById, dispatch, socket, fieldsById } = useGridActions() || {};
   // Cell-mode projection: set by the enclosing cell <Editor> when the column
   // has a displayFieldId configured. Null/undefined = full doc-mode render.
   const { displayFieldId, hideLabel: cellHideLabel } = useContext(CellEmbedContext) || {};

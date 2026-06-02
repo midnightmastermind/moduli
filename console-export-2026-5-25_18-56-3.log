@@ -1,0 +1,748 @@
+Layout was forced before the page was fully loaded. If stylesheets are not yet loaded this may cause a flash of unstyled content. node.js:416:1
+[socket] full_state received: 
+Object { gridId: "6a14e0025101adcf672c6f62", grid: {…}, modules: (639) […], occurrences: (678) […], fields: (123) […], manifests: (2) […], views: (10) […], folders: (27) […], operations: (67) […], grids: (1) […] }
+PagePreviewApp-C4aUgALP.js:3:111472
+[full_state-client] +4ms reducer dispatched (678 occs, 639 mods) PagePreviewApp-C4aUgALP.js:3:111393
+[full_state-client] runMatchingOperations: 634ms — 67 ops, 191 effects, 0 display updates PagePreviewApp-C4aUgALP.js:3:113676
+[op-fire] depth=1 MeasureOp occ=B_S9gV6q 5 PagePreviewApp-C4aUgALP.js:3:128638
+[full_state-client] applied effects in 15ms PagePreviewApp-C4aUgALP.js:3:113878
+[op-fire] depth=1 MeasureOp — 5 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 OccurrenceCreateOp occ=17797533 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=1 "Schedule: Stamp Date & Time Slot" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Day Page: Build Tasks Completed" UPDATE_ITEM_TEXTMAP=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=8 CREATE_ITEM=9 UPDATE_OCCURRENCE=9 UPDATE_ITEM_META=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=1 "Canvas: Build" CREATE_ITEM=1 UPDATE_ITEM_META=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire] depth=2 MeasureOp occ=17797533 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Schedule: Route by Timeslot" MOVE_OCCURRENCE=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 MeasureOp 8ms total=1 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 MeasureOp occ=17797533 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=2 OccurrenceDeleteOp occ=a0d8f3b3 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=2 OccurrenceDeleteOp occ=1886c33d PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=2 OccurrenceDeleteOp occ=27e8289c PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=2 OccurrenceDeleteOp occ=12602f93 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=2 OccurrenceDeleteOp occ=a4162c4e PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=2 OccurrenceDeleteOp occ=129a8c1b PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=2 OccurrenceDeleteOp occ=f424db7d PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=2 OccurrenceDeleteOp occ=9a7018c3 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire-done] depth=1 OccurrenceCreateOp 872ms total=76 display=11 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=1 MeasureOp occ=17797533 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=17 CREATE_ITEM=9 UPDATE_OCCURRENCE=9 UPDATE_ITEM_META=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire] depth=2 OccurrenceDeleteOp occ=a0d8f3b3 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 335ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=1886c33d PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 328ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=27e8289c PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 276ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=12602f93 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 286ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=a4162c4e PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 276ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=129a8c1b PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 271ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=f424db7d PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 278ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=9a7018c3 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 291ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=42078aa6 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 322ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=62795488 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 400ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=68c9ce69 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 285ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=badf3a16 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 267ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=35ec14c1 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 268ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=786691c8 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 324ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=65725254 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 276ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=8f961b5f PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 289ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=2 OccurrenceDeleteOp occ=450273c7 PagePreviewApp-C4aUgALP.js:3:128638
+[op-effects] depth=2 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-effects] depth=2 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-C4aUgALP.js:3:129217
+[op-fire-done] depth=2 OccurrenceDeleteOp 288ms total=42 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire-done] depth=1 MeasureOp 5172ms total=37 display=0 PagePreviewApp-C4aUgALP.js:3:129476
+[op-fire] depth=1 MeasureOp occ=a0d8f3b3 2 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=1886c33d 2 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=27e8289c 2 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=12602f93 2 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=a4162c4e 2 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=129a8c1b 2 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=f424db7d 3 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=9a7018c3 3 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=42078aa6 2 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=62795488 2 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=68c9ce69 2 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=badf3a16 2 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=35ec14c1 2 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=786691c8 2 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=65725254 3 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=8f961b5f 3 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp occ=450273c7 3 PagePreviewApp-C4aUgALP.js:3:128638
+[op-fire] depth=1 MeasureOp — 3 PagePreviewApp-C4aUgALP.js:3:128638

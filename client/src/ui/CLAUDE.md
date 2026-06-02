@@ -1,6 +1,76 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-05-21. Check this file before re-reading source._
+_Updated: 2026-05-27. Check this file before re-reading source._
+
+## Recent Changes (2026-05-27 — Field.jsx: arbitrary array-cell content via ArrayCell)
+- **`Field.jsx` (NEW exported `ArrayCell`)** — the columnar array-display
+  branch (`displayConfig.columns` + array value) used to render every cell as
+  `String(row[c.path])`. Now each cell value can be EITHER a scalar (text, as
+  before — fully back-compat) OR a descriptor object `{ kind, ... }` so any cell
+  can hold arbitrary content independent of its column:
+  - `{ kind: "occurrence", id }` → `RepresentationView` chip (icon + label +
+    click-to-jump via `jumpToOccurrence`). Falls back to the raw id when the occ
+    is missing.
+  - `{ kind: "field", id, fieldId }` → projects a field value off the referenced
+    occurrence (`occ.fields[fieldId].value`; arrays render `N selected`).
+  - `{ kind: "media", src } | { id, fieldId? }` → image thumbnail (explicit URL,
+    or a media-role field on the occ — resolved via `resolveOccCard` +
+    `resolveFileRef`).
+  - `{ kind: "text", text }` → explicit free text / note.
+  - anything else → `String(value)`.
+  The array branch passes `occMaps` (occurrencesById/modulesById/fieldsById,
+  already in scope) and relaxes the clip style for rich (object) cells. New
+  imports: `RepresentationView` (default), `jumpToOccurrence`.
+- **Consumer (seed):** the Media goal's Movies/Books/Podcasts history trackers
+  in `server/scripts/createLiveData.js` now `PUSH_TO_ARRAY` descriptor rows
+  (`label` = occurrence chip, `poster` = media) instead of flat strings —
+  `deepResolveExpr` resolves the `$movie.id`/`$book.id`/`$podcast.id` leaves
+  inside the nested descriptor objects.
+- **Tests:** `__tests__/ArrayCell.test.jsx` — 9 cases (scalar/null/text/
+  occurrence/missing-occ/field-scalar/field-array/media-explicit/media-from-
+  field). Mocks `RepresentationView` + `jumpToOccurrence` to isolate the
+  dispatch. Build green; `viewMode` 14/14 still pass.
+
+## Recent Changes (2026-05-26 — Date picker "on/link/off" model + day/range listing)
+- **`daySelectionCycle.js` (NEW)** — pure tri-state day-selection reducer for
+  the filter calendar. Each day cycles by repeated clicks:
+  `unselected → distinct → range → off`. `cycleDay(state, isoDay)` is the core;
+  state is `{ keys: sortedISO[], kind: {iso: "distinct"|"range"} }`. Rules:
+  clicking a fresh day → distinct; clicking a distinct day → fills to the
+  nearest selected neighbor on EACH side (bridges both if both exist; if none →
+  off); clicking a ranged day → removes just that day (trim/punch-hole), and a
+  lone range remnant demotes to distinct. `seedSelection(dates)` re-derives
+  state from a flat ISO list (contiguous≥2 → range, isolated → distinct).
+  `barPosition` reports start/mid/end for bar rendering. 12 tests in
+  `__tests__/daySelectionCycle.test.js` encode every confirmed scenario.
+- **`filterSummary.js` (NEW)** — `summarizeDays(isoList)` / `summarizeSelection(shape)`
+  list distinct days + contiguous ranges ("May 6, May 9–12, May 20") instead of
+  "N selected". Caps at `maxSegments` with "+N more". 11 tests in
+  `__tests__/filterSummary.test.js`.
+- **`NavPickerPopover.jsx`** — REWRITTEN interaction. Dropped the
+  `range multiple` Calendar mode (which made click-to-deselect impossible and
+  single-day awkward). Now `multiple` mode + `mapDays`: day clicks are handled
+  by us via `cycleDay` (the library's default selection is bypassed); a
+  `clickGuard` ref keeps the library's `onChange` (fired only by the side-panel
+  × / toolbar deselect) from clobbering our click. `mapDays` also stamps
+  per-day classes (`moduli-today` / `moduli-distinct` / `moduli-ranged` +
+  `moduli-range-start|mid|end`). Working state seeded from the persisted shape
+  on open; commits classify back to the existing `{kind,value,span,dates,unit}`
+  shape (mixed selections → multi). `formatSummary` now uses `summarizeSelection`.
+  Fixed a latent bug: `hydrateSelection` referenced `DateObject` which was never
+  imported (now imported).
+- **`HeaderChevron.jsx` + `FilterNavWidgets.jsx`** — both summary spots now call
+  `summarizeSelection` for multi / multi-day selections (header pill: maxSegments 2;
+  arrow-nav label: 3). Single day keeps the weekday form; week/month/year keep
+  their period labels.
+- **`filterCalendar.css`** — new selection visual language driven by the
+  moduli-* classes: TODAY = square marker (reserved), DISTINCT = bright circle,
+  RANGED = connected bar (cell bg = connector, end-caps are bright circles).
+  Replaced the old rmdp-selected/rmdp-range styling.
+- **NEEDS IN-BROWSER VERIFICATION**: the `mapDays` onClick override behavior and
+  the connected-bar CSS are not unit-testable; the pure reducer + formatter ARE
+  fully tested. Build clean, 1063/1063 client tests pass.
+
 
 ## Recent Changes (2026-05-21 — Panel own-style + cascade wiring on LayoutForm)
 - **`LayoutForm.jsx`** — pulls `state` from GridActionsContext and

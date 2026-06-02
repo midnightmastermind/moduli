@@ -11,7 +11,7 @@ import DrilldownPicker from "./DrilldownPicker";
 import EditorBindingSection from "./EditorBindingSection.jsx";
 import StyleEditor from "./StyleEditor";
 import LayoutCascadeSection from "./LayoutCascadeSection";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
 import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
 import * as CommitHelpers from "../helpers/CommitHelpers";
@@ -43,7 +43,7 @@ export default function InstanceForm({
   dispatch,
   socket,
 }) {
-  const { fieldsById, containersById, panelsById, occurrencesById, modulesById, state } = useContext(GridActionsContext);
+  const { fieldsById, containersById, panelsById, occurrencesById, modulesById, state } = useGridActions();
 
   // Cascade context — walks from THIS instance occurrence up through
   // Container → Page → Panel → Grid so the StyleEditor's "Inherited
@@ -396,7 +396,7 @@ function BodyBindingPicker({ instance, occurrence, fields, dispatch, socket }) {
  * SiblingLinksSection - Manage sibling link IDs on an instance.
  */
 function SiblingLinksSection({ instance, dispatch, socket }) {
-  const { instancesById } = useContext(GridActionsContext);
+  const { instancesById } = useGridActions();
   const [search, setSearch] = useState("");
   const [showPicker, setShowPicker] = useState(false);
 

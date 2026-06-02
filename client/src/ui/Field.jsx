@@ -40,7 +40,9 @@ import {
 } from "../helpers/CalculationHelpers";
 import { createLeafInstanceInParent } from "../helpers/CommitHelpers";
 import { resolveFileRef } from "../helpers/fileRef";
-import { GridActionsContext } from "../GridActionsContext";
+import RepresentationView from "./RepresentationView";
+import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { runMatchingOperations } from "../helpers/operationExecutor";
 import { setComputedValuesAction } from "../state/actions";
 
@@ -428,6 +430,49 @@ function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null }) {
   );
 }
 
+// ─── ArrayCell — one cell of a columnar array-display field ──────────────────
+// A cell value is either a scalar (rendered as text — the default, fully
+// back-compatible) OR a descriptor object `{ kind, ... }` so any cell can be
+// filled with arbitrary content independent of its column:
+//   { kind: "occurrence", id }                 → RepresentationView chip (click-to-jump)
+//   { kind: "field", id, fieldId }             → a projected field value off that occ
+//   { kind: "media", src } | { id, fieldId? }  → image thumbnail (explicit src OR
+//                                                 a media-role field on the occ)
+//   { kind: "text", text }                     → explicit free text / note
+// Anything unrecognized falls through to String(value).
+export function ArrayCell({ value, maps }) {
+  if (value && typeof value === "object" && !Array.isArray(value) && value.kind) {
+    const occurrencesById = maps?.occurrencesById;
+    switch (value.kind) {
+      case "occurrence": {
+        const occ = occurrencesById?.[value.id];
+        if (!occ) return value.id ?? "";
+        return <RepresentationView occurrence={occ} size="sm" onJump={() => jumpToOccurrence(occ.id)} />;
+      }
+      case "field": {
+        const occ = occurrencesById?.[value.id];
+        const raw = occ?.fields?.[value.fieldId]?.value;
+        if (raw == null || raw === "") return "";
+        return Array.isArray(raw) ? `${raw.length} selected` : String(raw);
+      }
+      case "media": {
+        let src = value.src;
+        if (!src && value.id != null) {
+          const occ = occurrencesById?.[value.id];
+          src = value.fieldId ? occ?.fields?.[value.fieldId]?.value : resolveOccCard(value.id, maps)?.mediaVal;
+        }
+        if (!src) return "";
+        return <img src={resolveFileRef(src)} alt="" style={{ height: 28, maxWidth: "100%", objectFit: "cover", borderRadius: 3, display: "block" }} />;
+      }
+      case "text":
+        return value.text == null ? "" : String(value.text);
+      default:
+        return String(value);
+    }
+  }
+  return value == null ? "" : String(value);
+}
+
 // ══════════════════════════════════════════════════════════════
 // MAIN: Field
 // ══════════════════════════════════════════════════════════════
@@ -546,7 +591,7 @@ function Field({
   const inputRef = useRef(null);
 
   // Context needed for occurrence add-new: create a new instance in the library container
-  const { dispatch, socket, gridId, userId, occurrencesById, modulesById, fieldsById, operationsById, state: ctxState } = useContext(GridActionsContext);
+  const { dispatch, socket, gridId, userId, occurrencesById, modulesById, fieldsById, operationsById, state: ctxState } = useGridActions();
   // Use the prop-passed state when present, fall back to context's. Most
   // callers thread the latest state via prop; the context is the safe net.
   const effectiveOpState = state ?? ctxState;
@@ -1556,11 +1601,20 @@ function Field({
             </div>
           ))}
           {rawDisplayValue.map((row, ri) =>
-            cols.map((c, ci) => (
-              <div key={`${ri}-${ci}`} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}>
-                {row[c.path] == null ? "" : String(row[c.path])}
-              </div>
-            ))
+            cols.map((c, ci) => {
+              const cell = row?.[c.path];
+              const rich = cell && typeof cell === "object" && !Array.isArray(cell) && cell.kind;
+              return (
+                <div
+                  key={`${ri}-${ci}`}
+                  style={rich
+                    ? { minWidth: 0, color: "var(--text-primary)", display: "flex", alignItems: "center" }
+                    : { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}
+                >
+                  <ArrayCell value={cell} maps={occMaps} />
+                </div>
+              );
+            })
           )}
         </div>
       </div>

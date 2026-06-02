@@ -5,7 +5,7 @@ import React, { useContext, useState, useEffect, useCallback, useMemo } from "re
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Check, ChevronDown, ChevronRight, Navigation } from "lucide-react";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { uid } from "../../uid";
 import { COMPARATOR_OPTIONS } from "../../helpers/comparators";
@@ -25,7 +25,7 @@ const inputCls = "w-full h-7 text-[11px] px-2 rounded bg-backgroundScale-0 borde
 const selectCls = "h-6 text-[11px] px-1 rounded bg-backgroundScale-0 border border-borderScale-1 text-foreground outline-none focus:border-primary cursor-pointer";
 
 export function GridSettingsTab() {
-  const { state, dispatch, socket, fieldsById } = useContext(GridActionsContext);
+  const { state, dispatch, socket, fieldsById } = useGridActions();
   const grid = state?.grid;
   const gridId = state?.gridId || grid?._id;
 

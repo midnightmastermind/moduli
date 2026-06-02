@@ -5,41 +5,52 @@
 // ============================================================
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Search } from "lucide-react";
+import {
+  Search,
+  Heading1, Heading2, Heading3,
+  Bold, Italic, Strikethrough, Code,
+  List, ListOrdered, ListChecks,
+  Quote, Code2, Minus, Table as TableIcon,
+  Box, Hash, Link2, FileText,
+  Calendar, Clock, Superscript,
+} from "lucide-react";
 
-// Command categories and items
+// Command categories and items. Icons are Lucide components for visual
+// parity with the rest of the app (ModulePanel headers, ManifestTree,
+// QuickAddMenu); renderer below detects component-vs-string.
 const COMMANDS = [
   // Headings
-  { id: "h1", label: "Heading 1", shortcut: "# ", category: "Formatting", icon: "H1", action: "heading", level: 1 },
-  { id: "h2", label: "Heading 2", shortcut: "## ", category: "Formatting", icon: "H2", action: "heading", level: 2 },
-  { id: "h3", label: "Heading 3", shortcut: "### ", category: "Formatting", icon: "H3", action: "heading", level: 3 },
+  { id: "h1", label: "Heading 1", shortcut: "# ", category: "Formatting", icon: Heading1, action: "heading", level: 1 },
+  { id: "h2", label: "Heading 2", shortcut: "## ", category: "Formatting", icon: Heading2, action: "heading", level: 2 },
+  { id: "h3", label: "Heading 3", shortcut: "### ", category: "Formatting", icon: Heading3, action: "heading", level: 3 },
 
   // Text formatting
-  { id: "bold", label: "Bold", shortcut: "**text**", category: "Formatting", icon: "B", action: "bold" },
-  { id: "italic", label: "Italic", shortcut: "*text*", category: "Formatting", icon: "I", action: "italic" },
-  { id: "strike", label: "Strikethrough", shortcut: "~~text~~", category: "Formatting", icon: "S", action: "strike" },
-  { id: "code", label: "Inline Code", shortcut: "`code`", category: "Formatting", icon: "</>", action: "code" },
+  { id: "bold", label: "Bold", shortcut: "**text**", category: "Formatting", icon: Bold, action: "bold" },
+  { id: "italic", label: "Italic", shortcut: "*text*", category: "Formatting", icon: Italic, action: "italic" },
+  { id: "strike", label: "Strikethrough", shortcut: "~~text~~", category: "Formatting", icon: Strikethrough, action: "strike" },
+  { id: "code", label: "Inline Code", shortcut: "`code`", category: "Formatting", icon: Code, action: "code" },
 
   // Lists
-  { id: "bullet", label: "Bullet List", shortcut: "- ", category: "Lists", icon: "•", action: "bulletList" },
-  { id: "numbered", label: "Numbered List", shortcut: "1. ", category: "Lists", icon: "1.", action: "orderedList" },
-  { id: "todo", label: "Task List", shortcut: "[ ] ", category: "Lists", icon: "☐", action: "taskList" },
+  { id: "bullet", label: "Bullet List", shortcut: "- ", category: "Lists", icon: List, action: "bulletList" },
+  { id: "numbered", label: "Numbered List", shortcut: "1. ", category: "Lists", icon: ListOrdered, action: "orderedList" },
+  { id: "todo", label: "Task List", shortcut: "[ ] ", category: "Lists", icon: ListChecks, action: "taskList" },
 
   // Blocks
-  { id: "quote", label: "Blockquote", shortcut: "> ", category: "Blocks", icon: "❝", action: "blockquote" },
-  { id: "codeblock", label: "Code Block", shortcut: "```", category: "Blocks", icon: "{ }", action: "codeBlock" },
-  { id: "divider", label: "Divider", shortcut: "---", category: "Blocks", icon: "—", action: "horizontalRule" },
-  { id: "table", label: "Table", shortcut: "", category: "Blocks", icon: "⊞", action: "insertTable" },
-  { id: "embed", label: "Embed Container", shortcut: "@:", category: "Insert", icon: "⧉", action: "embedContainer" },
+  { id: "quote", label: "Blockquote", shortcut: "> ", category: "Blocks", icon: Quote, action: "blockquote" },
+  { id: "codeblock", label: "Code Block", shortcut: "```", category: "Blocks", icon: Code2, action: "codeBlock" },
+  { id: "divider", label: "Divider", shortcut: "---", category: "Blocks", icon: Minus, action: "horizontalRule" },
+  { id: "table", label: "Table", shortcut: "", category: "Blocks", icon: TableIcon, action: "insertTable" },
+  { id: "embed", label: "Embed Container", shortcut: "@:", category: "Insert", icon: Box, action: "embedContainer" },
 
   // Insert
-  { id: "field", label: "Insert Field", shortcut: "@", category: "Insert", icon: "📊", action: "field" },
-  { id: "link", label: "Insert Link", shortcut: "[text](url)", category: "Insert", icon: "🔗", action: "link" },
-  { id: "doclink", label: "Link to Document", shortcut: "[[doc]]", category: "Insert", icon: "📄", action: "docLink" },
+  { id: "field", label: "Insert Field", shortcut: "@", category: "Insert", icon: Hash, action: "field" },
+  { id: "link", label: "Insert Link", shortcut: "[text](url)", category: "Insert", icon: Link2, action: "link" },
+  { id: "doclink", label: "Link to Document", shortcut: "[[doc]]", category: "Insert", icon: FileText, action: "docLink" },
+  { id: "footnote", label: "Footnote", shortcut: "[^N]", category: "Insert", icon: Superscript, action: "footnote" },
 
   // Special
-  { id: "today", label: "Today's Date", shortcut: "", category: "Insert", icon: "📅", action: "insertDate" },
-  { id: "time", label: "Current Time", shortcut: "", category: "Insert", icon: "🕐", action: "insertTime" },
+  { id: "today", label: "Today's Date", shortcut: "", category: "Insert", icon: Calendar, action: "insertDate" },
+  { id: "time", label: "Current Time", shortcut: "", category: "Insert", icon: Clock, action: "insertTime" },
 ];
 
 const renderCmdIcon = (icon) => {
@@ -193,12 +204,32 @@ export default function CommandPalette({
           // Insert @: to trigger the embed picker
           editor.chain().focus().insertContent("@:").run();
           break;
-        case "insertDate":
-          editor.chain().focus().insertContent(new Date().toLocaleDateString()).run();
+        case "footnote":
+          // Insert an empty footnote marker; node view auto-numbers by
+          // doc position and opens the inline editor on click.
+          editor.chain().focus().insertFootnote({ text: "" }).run();
           break;
-        case "insertTime":
-          editor.chain().focus().insertContent(new Date().toLocaleTimeString()).run();
+        case "insertDate": {
+          // Local-tz YYYY-MM-DD — same format used by the filter system
+          // (date fields, $today, etc.) so inserted dates round-trip
+          // cleanly through pickers and field comparators.
+          const d = new Date();
+          const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          editor.chain().focus().insertContent(iso).run();
           break;
+        }
+        case "insertTime": {
+          // 12-hour AM/PM to match the app's `formatTimeOfDay` convention
+          // (Field.jsx Now field). Avoids the locale-default 24-hour
+          // output that doesn't match what users see elsewhere.
+          const d = new Date();
+          const h24 = d.getHours();
+          const ampm = h24 >= 12 ? "PM" : "AM";
+          const h12 = h24 % 12 || 12;
+          const mm = String(d.getMinutes()).padStart(2, "0");
+          editor.chain().focus().insertContent(`${h12}:${mm} ${ampm}`).run();
+          break;
+        }
         default:
           break;
       }

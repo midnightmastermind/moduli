@@ -2,10 +2,10 @@
 
 import React, { useState, useContext } from "react";
 import { Save } from "lucide-react";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 
 export function UserSettingsTab() {
-  const { state } = useContext(GridActionsContext);
+  const { state } = useGridActions();
   const userId = state?.userId;
   const [displayName, setDisplayName] = useState(() => localStorage.getItem("moduli-displayName") || "");
 

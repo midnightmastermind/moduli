@@ -29,6 +29,7 @@ import { runMatchingOperations } from "./operationExecutor";
 import { batchUpdateModulesAction } from "../state/actions";
 import { routeDrop } from "./dropHandlers";
 import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND } from "./dragHitTesting";
+import { snapshotRenders, diffRenders } from "./renderProbe";
 
 // ============================================================
 // UTILITIES
@@ -72,6 +73,97 @@ function makeUUID() {
 }
 
 // ============================================================
+// DIRECT-DOM DROP INDICATORS (zero re-render)
+// ============================================================
+// Two singleton overlay elements positioned via direct DOM (no React state, no
+// re-renders — same spirit as the `data-drop-active` outline), updated each
+// rAF tick of handleDragMove:
+//   • drop-area BOX  — a border around the hovered container (the "drop area"),
+//     so you always see WHICH container you're dropping into. Stable: it just
+//     repositions to the new container as you cross — never flickers on/off
+//     (unlike the React `isOver` page outline, which sputtered).
+//   • insertion LINE — a thin line at the computed gap between cards, so you
+//     see WHERE within the container it lands. Hidden for empty containers
+//     (the box alone is the indicator there). Box sits ABOVE the line (z).
+// The per-element pragmatic closestEdge indicators only fired directly over a
+// card (never in the gaps where users aim) and churned re-renders — this
+// replaces them for leaf drags.
+const _LINE_CSS =
+  "position:fixed;z-index:9998;pointer-events:none;display:none;" +
+  "background:rgb(50,150,255);border-radius:2px;" +
+  "box-shadow:0 0 6px rgba(50,150,255,0.85);will-change:left,top,width,height;";
+const _AREA_CSS =
+  "position:fixed;z-index:9999;pointer-events:none;display:none;box-sizing:border-box;" +
+  "border:2px solid rgba(50,150,255,0.9);border-radius:8px;" +
+  "box-shadow:0 0 0 3px rgba(50,150,255,0.16);will-change:left,top,width,height;";
+
+function _getEl(id, css) {
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = id;
+    el.style.cssText = css;
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function hideDropIndicators() {
+  const l = document.getElementById("__moduli_insert_line");
+  if (l) l.style.display = "none";
+  const a = document.getElementById("__moduli_drop_area");
+  if (a) a.style.display = "none";
+}
+
+// Outline the hovered container (drop area) + draw the insertion line at the
+// computed gap. Returns { index } or null when there's no container.
+function showDropIndicators(containerEl, x, y) {
+  if (!containerEl) { hideDropIndicators(); return null; }
+  const area = _getEl("__moduli_drop_area", _AREA_CSS);
+  const line = _getEl("__moduli_insert_line", _LINE_CSS);
+
+  // Drop-area border around the hovered container (box-sizing:border-box so the
+  // 2px border draws inside the rect — visually flush with the container edge).
+  const cr = containerEl.getBoundingClientRect();
+  Object.assign(area.style, {
+    display: "block",
+    left: `${cr.left}px`, top: `${cr.top}px`,
+    width: `${cr.width}px`, height: `${cr.height}px`,
+  });
+
+  // Only direct cards of THIS container (exclude nested-container children).
+  const cards = Array.from(containerEl.querySelectorAll(".instance-wrap"))
+    .filter((c) => c.closest("[data-container-id]") === containerEl);
+  if (cards.length === 0) {
+    // Empty container — the box border IS the indicator; no line.
+    line.style.display = "none";
+    return { index: 0 };
+  }
+
+  // Detect layout axis from the first two cards (board can be row OR column).
+  const r0 = cards[0].getBoundingClientRect();
+  const r1 = cards.length > 1 ? cards[1].getBoundingClientRect() : null;
+  const horizontal = r1 ? Math.abs(r1.left - r0.left) > Math.abs(r1.top - r0.top) : false;
+
+  let index = cards.length;
+  for (let i = 0; i < cards.length; i++) {
+    const r = cards[i].getBoundingClientRect();
+    const mid = horizontal ? r.left + r.width / 2 : r.top + r.height / 2;
+    if ((horizontal ? x : y) < mid) { index = i; break; }
+  }
+
+  const ref = (index < cards.length ? cards[index] : cards[cards.length - 1]).getBoundingClientRect();
+  if (horizontal) {
+    const lineX = index < cards.length ? ref.left - 2 : ref.right - 1;
+    Object.assign(line.style, { display: "block", left: `${lineX}px`, top: `${ref.top}px`, width: "3px", height: `${ref.height}px` });
+  } else {
+    const lineY = index < cards.length ? ref.top - 2 : ref.bottom - 1;
+    Object.assign(line.style, { display: "block", left: `${ref.left}px`, top: `${lineY}px`, width: `${ref.width}px`, height: "3px" });
+  }
+  return { index };
+}
+
+// ============================================================
 // DRAG PROVIDER
 // ============================================================
 export function DragProvider({
@@ -104,6 +196,20 @@ export function DragProvider({
   // "Convert HTML → modules" chip near the cursor so the user knows the
   // import pipeline will run when they release.
   const [externalImportPreview, setExternalImportPreview] = useState(null);
+
+  // Internal-drag preview pill. Mirrors `externalImportPreview` but for
+  // Pragmatic DnD drags of occurrences/containers/panels/artifacts —
+  // says "Move X here", "Copy X here", "Link X here" instead of the
+  // external "Convert text".
+  //
+  // State holds only the QUALITATIVE shape (action / source label /
+  // destination). The pixel POSITION is in a ref and pushed straight
+  // to the DOM via a direct style write on each rAF tick — avoids
+  // 60-Hz React re-renders that cascade through the DragProvider
+  // subtree and cause drop-highlight CSS classes to flicker.
+  const [internalDragPreview, setInternalDragPreview] = useState(null);
+  const internalPreviewElRef = useRef(null);
+  const internalPreviewPosRef = useRef({ x: 0, y: 0 });
 
   const activeType = activePayload?.type || null;
   const activeId = activePayload?.id || null;
@@ -150,6 +256,10 @@ export function DragProvider({
   }, []);
   // Track last hot target to skip redundant DOM updates on every mouse-move
   const lastHotRef = useRef({ panelId: null, containerId: null, instanceId: null });
+  // Sticky deepest-leaf container the drop-area box is on — prevents the box
+  // jumping to the outer parent container when the cursor crosses gaps between
+  // child containers (the "outer schedule container border sputter").
+  const dropBoxElRef = useRef(null);
   // B2: Cache last preview target to skip redundant draft mutations
   const lastPreviewRef = useRef({ containerId: null, instanceId: null, panelId: null });
 
@@ -169,8 +279,13 @@ export function DragProvider({
           ?.removeAttribute("data-drop-active");
       }
       if (id) {
-        document.querySelector(`[${attr}="${id}"]`)
-          ?.setAttribute("data-drop-active", "true");
+        const matchCount = document.querySelectorAll(`[${attr}="${id}"]`).length;
+        const target = document.querySelector(`[${attr}="${id}"]`);
+        if (window.__dragDiag === true) {
+          console.log("[dragDiag] highlight", { attr, id, found: !!target, matchCount });
+          if (matchCount > 1) console.warn("[dragDiag] highlight AMBIGUOUS — querySelector lights the FIRST of", matchCount, "elements with", attr, "=", id, "(may not be the hovered one)");
+        }
+        target?.setAttribute("data-drop-active", "true");
       }
       highlightedRef.current = { id, attr };
     });
@@ -281,7 +396,7 @@ export function DragProvider({
   // which silently picks the wrong day.
   const getHoveredIds = useCallback((x, y) => {
     const elements = document.elementsFromPoint(x, y);
-    let panelId = null, containerId = null, containerOccId = null, instanceId = null, instanceOccId = null;
+    let panelId = null, containerId = null, containerOccId = null, containerEl = null, instanceId = null, instanceOccId = null;
     for (const el of elements) {
       if (!panelId) { const v = el.getAttribute("data-panel-id"); if (v) panelId = v; }
       if (!containerId) {
@@ -289,6 +404,7 @@ export function DragProvider({
         if (v) {
           containerId = v;
           containerOccId = el.getAttribute("data-occ-id") || null;
+          containerEl = el;
         }
       }
       if (!instanceId) {
@@ -300,7 +416,7 @@ export function DragProvider({
       }
       if (panelId && containerId && instanceId) break;
     }
-    return { panelId, containerId, containerOccId, instanceId, instanceOccId };
+    return { panelId, containerId, containerOccId, containerEl, instanceId, instanceOccId };
   }, []);
 
   // Keep individual getters for one-off callers (e.g. handleDrop fallbacks)
@@ -385,6 +501,10 @@ export function DragProvider({
   }, [removeEdgeBarriers]);
 
   const clearSession = useCallback(() => {
+    // Release the interaction flag so op-run-log persistence drain can
+    // resume. See handleDragStart for the pairing.
+    if (typeof window !== "undefined") window.__moduli_interacting = false;
+
     // Restore touch-action + overscroll-behavior on document (set during drag start on mobile)
     document.documentElement.style.touchAction = '';
     document.documentElement.style.overscrollBehavior = '';
@@ -402,9 +522,12 @@ export function DragProvider({
 
     setActivePayload(null);
     setPanelOverCellId(null);
+    setInternalDragPreview(null);
     lastHotRef.current = { panelId: null, containerId: null, instanceId: null };
     lastPreviewRef.current = { containerId: null, instanceId: null, panelId: null };
     setDropHighlight(null);
+    hideDropIndicators();
+    dropBoxElRef.current = null;
 
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = 0;
@@ -486,6 +609,12 @@ export function DragProvider({
   const handleDragStart = useCallback((payload, clientX, clientY, options = {}) => {
     pointerRef.current = { x: clientX, y: clientY };
 
+    // Signal to background tasks (op-run-log persistence) that the user
+    // is actively interacting. The idle-callback drain in operationExecutor
+    // checks this and skips when set, so a multi-MB JSON.stringify can't
+    // hiccup mid-drag. Cleared in clearSession on drop / drag-end.
+    if (typeof window !== "undefined") window.__moduli_interacting = true;
+
     // Prevent Android split-screen gesture from intercepting drags on mobile.
     if (dragConfigRef.current.isMobile) {
       document.documentElement.style.touchAction = 'none';
@@ -496,6 +625,9 @@ export function DragProvider({
     // Determine initial mode from options or default to 'move'
     // Alt/Option key = copy mode
     const initialMode = options.mode || 'move';
+    if (window.__dragDiag === true) {
+      console.log("[dragDiag] dragStart", { type: payload?.type, mode: initialMode, label: payload?.data?.label || payload?.id });
+    }
     startSession(payload, initialMode);
 
     const cell = getCellFromPoint(clientX, clientY);
@@ -516,7 +648,7 @@ export function DragProvider({
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = 0;
 
-      const { panelId, containerId: rawContainerId, containerOccId: rawContainerOccId, instanceId, instanceOccId } = getHoveredIds(clientX, clientY);
+      const { panelId, containerId: rawContainerId, containerOccId: rawContainerOccId, containerEl: rawContainerEl, instanceId, instanceOccId } = getHoveredIds(clientX, clientY);
       const cell = getCellFromPoint(clientX, clientY);
 
       // Sticky container highlight — when cursor passes over gaps/margins within
@@ -526,23 +658,113 @@ export function DragProvider({
       const containerId = stickyToLast ? last.containerId : rawContainerId;
       const containerOccId = stickyToLast ? last.containerOccId : rawContainerOccId;
 
-      // Update highlight when the relevant target changes.
-      // Page drags highlight the destination PANEL (where the page tab will
-      // land); leaf drags (instance/module/external/file) highlight the
-      // CONTAINER they're dropping into; container/panel drags get edge
-      // indicators via useDragDrop's closestEdge instead, no panel/container
-      // outline.
       const t = s.payload?.type;
-      if (t === DragType.PAGE) {
-        if (last.panelId !== panelId) {
-          setDropHighlight(panelId || null, "data-panel-id");
+      // Leaf-ish drags (instance/module/artifact/external/file/text/url) get a
+      // direct-DOM INSERTION LINE inside the hovered container instead of the
+      // coarse, hopping container outline. Precise (works in the gaps between
+      // cards), smooth (no class-hopping = no sputter), zero re-render. The
+      // outline is suppressed so the line is the sole indicator.
+      const isLeafDrag = t === DragType.INSTANCE || t === DragType.MODULE || t === DragType.ARTIFACT
+        || t === DragType.EXTERNAL || t === DragType.FILE || t === DragType.TEXT || t === DragType.URL;
+
+      if (isLeafDrag) {
+        // Only box a LEAF drop container (no nested container inside it). A
+        // parent like the Schedule's outer container shouldn't get the box —
+        // that was the flicker as the cursor crossed timeslot gaps. When over a
+        // parent, keep the last leaf box (sticky) so it never jumps to the big
+        // outer border.
+        let boxEl = rawContainerEl;
+        if (boxEl && boxEl.querySelector("[data-container-id]")) {
+          const lastEl = dropBoxElRef.current;
+          boxEl = (lastEl && lastEl.isConnected && boxEl.contains(lastEl)) ? lastEl : null;
         }
-      } else if (last.containerId !== containerId) {
-        const shouldHL = t !== DragType.PANEL && t !== DragType.CONTAINER;
-        setDropHighlight(shouldHL ? (containerId || null) : null);
+        if (boxEl) { showDropIndicators(boxEl, clientX, clientY); dropBoxElRef.current = boxEl; }
+        else { hideDropIndicators(); dropBoxElRef.current = null; }
+        setDropHighlight(null); // idempotent — clears any leftover outline
+      } else if (t === DragType.PAGE) {
+        hideDropIndicators();
+        if (last.panelId !== panelId) setDropHighlight(panelId || null, "data-panel-id");
+      } else {
+        // container / panel drags — edge indicators come from useDragDrop's
+        // closestEdge; no outline or line here.
+        hideDropIndicators();
       }
       if (last.panelId !== panelId || last.containerId !== containerId || last.instanceId !== instanceId) {
+        if (window.__dragDiag === true) {
+          console.log("[dragDiag] hover", {
+            type: t, panelId, rawContainerId, stickyToLast,
+            containerId, instanceId,
+          });
+        }
         lastHotRef.current = { panelId, containerId, containerOccId, instanceId, instanceOccId };
+      }
+
+      // ── Internal drag preview pill update ─────────────────────────
+      // Two paths:
+      //   1. Position (x/y) — ref + direct DOM write. Every tick.
+      //      Bypasses React entirely, so the 60-Hz move stream doesn't
+      //      cause re-renders that ripple into drop-highlight code
+      //      (was making highlights flicker on mouse-move).
+      //   2. Qualitative shape (action / source label / destination) —
+      //      React state. setInternalDragPreview only fires when one
+      //      of those actually changes (rarely — when the user crosses
+      //      into a different container or page), so re-renders are
+      //      bounded by destination transitions, not by mouse pixels.
+      {
+        const payload = s.payload;
+        if (payload) {
+          // Write position directly to the DOM (cheap; no React).
+          internalPreviewPosRef.current.x = clientX;
+          internalPreviewPosRef.current.y = clientY;
+          const el = internalPreviewElRef.current;
+          if (el) {
+            el.style.left = `${clientX + 14}px`;
+            el.style.top = `${clientY + 14}px`;
+          }
+
+          const mode = s.mode || "move";
+          const action =
+            mode === "copy"     ? "Copy"
+            : mode === "copylink" ? "Link"
+            :                       "Move";
+          const sourceLabel =
+            payload.data?.label
+            || payload.data?.name
+            || payload.meta?.label
+            || payload.id
+            || "item";
+          let destination = null;
+          if (containerId) {
+            const c = baseContainers.find(c => c.id === containerId);
+            if (c) destination = { kind: "container", label: c.label || "container" };
+          }
+          if (!destination) {
+            const hoverEl = document.elementFromPoint?.(clientX, clientY);
+            const pageNode = hoverEl?.closest?.("[data-page-occ-id]");
+            const pageOccId = pageNode?.getAttribute?.("data-page-occ-id");
+            if (pageOccId && occurrencesById[pageOccId]) {
+              const pageOcc = occurrencesById[pageOccId];
+              const pageMod = state?.modulesById?.[pageOcc.moduleId];
+              destination = { kind: "page", label: pageMod?.label || "page" };
+            }
+          }
+          if (!destination && cell) {
+            destination = { kind: "cell", label: "new panel" };
+          }
+          // Qualitative diff — only state-update when something the
+          // user can SEE in the pill changes.
+          setInternalDragPreview(prev => {
+            if (prev
+              && prev.action === action
+              && prev.sourceLabel === sourceLabel
+              && prev.destination?.kind === destination?.kind
+              && prev.destination?.label === destination?.label) return prev;
+            if (window.__dragDiag === true) {
+              console.log("[dragDiag] preview set", { firstShow: !prev, action, sourceLabel, destination });
+            }
+            return { action, sourceLabel, destination };
+          });
+        }
       }
 
       if (s.payload?.type === DragType.PANEL) {
@@ -827,16 +1049,24 @@ export function DragProvider({
     const t = s.payload?.type;
     if (t === DragType.PAGE) {
       setDropHighlight(newPanelId || null, "data-panel-id");
-    } else {
-      const shouldHighlight = t !== DragType.PANEL && t !== DragType.CONTAINER;
-      setDropHighlight(shouldHighlight ? (newContainerId || null) : null);
     }
+    // Leaf/container drags: do NOT set the data-drop-active outline here. This
+    // path is driven by useDroppable LIST targets — including the OUTER
+    // container's list (active during instance drags) — so it highlighted the
+    // outer shell and fought handleDragMove. Leaf-drag feedback is now owned
+    // entirely by handleDragMove's direct-DOM drop-area box + insertion line.
   }, []);
 
   // ============================================================
   // DROP HANDLER - COMMITS CHANGES
   // ============================================================
   const handleDrop = useCallback((dropTarget) => {
+    // STOPWATCH — instrument the drop pipeline so we can see where time goes
+    // between "user releases mouse" and "browser paints the result".
+    const _dropT0 = performance.now();
+    const _lap = (label) => console.log(`[drop] +${Math.round(performance.now() - _dropT0)}ms ${label}`);
+    const _renders0 = snapshotRenders();
+    _lap("handleDrop entry");
     const s = sessionRef.current;
     if (s.dropHandled) return;
     const payload = s?.payload || dropTarget?.source;
@@ -879,6 +1109,7 @@ export function DragProvider({
       getCellFromPoint,
     });
     if (!rawEvent) return;
+    _lap("rawEvent built");
 
     const hoveredOccId = rawEvent.hover.dropTargetData?.occurrenceId;
     if (hoveredOccId) {
@@ -891,6 +1122,7 @@ export function DragProvider({
 
     const dropContext = buildDropContext(rawEvent, { occurrencesById, modulesById });
     if (!dropContext) return;
+    _lap(`dropContext built (target=${dropContext?.target?.kind || "?"} mode=${s?.mode || "?"})`);
 
     s.dropHandled = true;
     routeDrop(dropContext, {
@@ -899,7 +1131,23 @@ export function DragProvider({
       occurrencesById, baseAllPanels, baseContainers,
       clearSession, sessionRef, getCellFromPoint,
     });
+    _lap("routeDrop returned (sync mutations + op fires done)");
     clearSession();
+    _lap("clearSession done — handleDrop synchronous end");
+    // The browser can't paint until this synchronous task finishes. React then
+    // commits the dispatched state and the browser lays out + paints. Measure
+    // that tail separately: rAF fires just before the next paint; a follow-up
+    // setTimeout(0) fires after that frame has been committed. The gap between
+    // "handleDrop synchronous end" and "first frame after commit" is render +
+    // paint cost — i.e. time that is NOT operations.
+    requestAnimationFrame(() => {
+      _lap("rAF #1 (pre-paint of next frame)");
+      requestAnimationFrame(() => {
+        _lap("rAF #2 (next frame painted)");
+        const d = diffRenders(_renders0);
+        console.log(`[drop-renders] panel=${d.panel} container=${d.container} instance=${d.instance} page=${d.page} field=${d.field || 0}`);
+      });
+    });
   }, [dispatch, socket, getCellFromPoint, getHoveredIds, baseAllPanels, baseContainers, occurrencesById, modulesById, clearSession, state]);
 
   const handleDragEnd = useCallback(() => {
@@ -988,10 +1236,18 @@ export function DragProvider({
     const gridFrame = document.querySelector(".grid-frame");
     if (!gridFrame) return;
     const onDragOver = (e) => {
+      // Skip when an internal Pragmatic DnD session is active. Two
+      // checks because dataTransfer.types may not yet include
+      // NATIVE_DND_MIME on the FIRST few dragover events (Pragmatic
+      // DnD writes external dataTransfer lazily via
+      // `getInitialDataForExternal`, which fires only when the drag
+      // crosses the app boundary). Session ref is the authoritative
+      // "internal drag in progress" signal — checking both is
+      // defense-in-depth.
+      if (sessionRef.current?.dragging) return;
       const types = e.dataTransfer?.types || [];
+      if (types.includes(NATIVE_DND_MIME)) return;
       // Files OR rich text from another tab OR a plain-text selection.
-      // For internal Pragmatic DnD drags the grid-frame listener stays
-      // silent because the inner dropTargetForElements handle them.
       const isFile = types.includes("Files");
       const isHtml = !isFile && types.includes("text/html");
       const isText = !isFile && !isHtml && types.includes("text/plain");
@@ -1267,6 +1523,19 @@ export function DragProvider({
             destination={externalImportPreview.destination}
           />
         )}
+        {internalDragPreview && (
+          <InternalDragPreview
+            innerRef={internalPreviewElRef}
+            initialX={internalPreviewPosRef.current.x}
+            // Stack below the external preview's reserved 28px slot
+            // when both are visible (shouldn't normally overlap once
+            // the dragover guard is wired, but defensive).
+            initialY={internalPreviewPosRef.current.y + (externalImportPreview ? 28 : 0)}
+            action={internalDragPreview.action}
+            sourceLabel={internalDragPreview.sourceLabel}
+            destination={internalDragPreview.destination}
+          />
+        )}
       </DragHotContext.Provider>
     </DragContext.Provider>
   );
@@ -1310,6 +1579,53 @@ function ExternalImportPreview({ x, y, format, destination }) {
       }}
     >
       <span>{action}</span>
+      {dest && (
+        <span style={{ opacity: 0.7, fontWeight: 400 }}>{dest}</span>
+      )}
+    </div>
+  );
+}
+
+// Floating preview pill rendered near the cursor during an INTERNAL
+// Pragmatic DnD drag (occurrence / container / panel / artifact /
+// textblock). Mirrors ExternalImportPreview's chrome but reads the
+// action verb from the drag session's mode (move / copy / copylink)
+// and the source label from the payload data. Sibling to the
+// external pill; both stay position:fixed + pointer-events:none so
+// neither intercepts the drop.
+function InternalDragPreview({ innerRef, initialX, initialY, action, sourceLabel, destination }) {
+  const dest = destination
+    ? (destination.kind === "cell"
+        ? "→ new panel in this cell"
+        : `→ into ${destination.label}`)
+    : null;
+  return (
+    <div
+      ref={innerRef}
+      style={{
+        position: "fixed",
+        left: initialX + 14,
+        top: initialY + 14,
+        zIndex: 9999,
+        pointerEvents: "none",
+        padding: "4px 10px",
+        borderRadius: 999,
+        fontSize: 11,
+        fontFamily: "var(--font-mono)",
+        fontWeight: 500,
+        background: "rgba(15, 25, 40, 0.92)",
+        color: "rgb(180, 225, 245)",
+        border: "1px solid rgba(120, 170, 220, 0.45)",
+        boxShadow: "0 4px 14px rgba(0,0,0,0.45)",
+        whiteSpace: "nowrap",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        maxWidth: 360,
+      }}
+    >
+      <span>{action}</span>
+      <span style={{ opacity: 0.92, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>{sourceLabel}</span>
       {dest && (
         <span style={{ opacity: 0.7, fontWeight: 400 }}>{dest}</span>
       )}

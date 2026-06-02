@@ -63,4 +63,6 @@ FolderSchema.set("toJSON", {
   },
 });
 
+FolderSchema.index({ userId: 1, gridId: 1 });
+
 export default mongoose.model("Folder", FolderSchema);

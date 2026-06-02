@@ -1,8 +1,9 @@
 // client/src/ui/HeaderChevron.jsx
 import React, { useContext, useMemo } from "react";
 import { Filter } from "lucide-react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
+import { summarizeSelection } from "./filterSummary";
 
 // Muted swatches per user request — readable but not loud.
 // active: any filter is effectively applied at this occurrence
@@ -24,11 +25,10 @@ function formatFilterValue(fieldId, value, fieldsById) {
   const field = fieldsById?.[fieldId];
   const isDate = field?.type === "date";
   // Multi-shape detection: { kind: "multi", dates: ["YYYY-MM-DD", ...] }
-  // Show "N days" without resolving to any individual date.
+  // List the actual days and contiguous ranges ("May 6, May 9–12, May 20").
   if (value && typeof value === "object" && value.kind === "multi" && Array.isArray(value.dates)) {
-    const n = value.dates.length;
-    if (!n) return null;
-    return `${n} day${n === 1 ? "" : "s"}`;
+    if (!value.dates.length) return null;
+    return summarizeSelection({ unit: "day", value: value.dates[0], dates: value.dates }, { maxSegments: 2 });
   }
   // Period-shape detection: { value: "YYYY-MM-DD", unit: "day|week|month|year" }
   const isPeriod = value && typeof value === "object" && "value" in value;
@@ -36,14 +36,15 @@ function formatFilterValue(fieldId, value, fieldsById) {
     const dateStr = isPeriod ? value.value : value;
     const unit = isPeriod ? (value.unit || "day") : "day";
     if (typeof dateStr !== "string") return null;
-    // Normalize bare YYYY-MM-DD to local midnight; full ISO parses as-is.
+    const span = isPeriod ? value.span : 1;
+    const dates = isPeriod && Array.isArray(value.dates) ? value.dates : null;
+    // Multi-day span / non-day period → shared listing (lists ranges + days).
+    if (unit !== "day" || (span && span > 1) || (dates && dates.length)) {
+      return summarizeSelection({ value: dateStr, unit, span, dates }, { maxSegments: 2 });
+    }
+    // Plain single day → keep the weekday for at-a-glance context.
     const d = new Date(dateStr.length === 10 ? `${dateStr}T00:00:00` : dateStr);
     if (isNaN(d.getTime())) return null;
-    if (unit === "year")  return String(d.getFullYear());
-    if (unit === "month") return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-    if (unit === "week") {
-      return `wk ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
-    }
     return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   }
   if (typeof value === "object") {
@@ -84,7 +85,7 @@ function computeFilterState(occurrence, grid, ownEffectiveFilter) {
 }
 
 export default function HeaderChevron({ onClick, isOpen, occurrence = null }) {
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const grid = ctx?.state?.grid;
   const occurrencesById = ctx?.occurrencesById;
   const fieldsById = ctx?.fieldsById;

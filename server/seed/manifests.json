@@ -1,15 +1,26 @@
 [
   {
-    "_id": "69c28b78e56661f84e2e3209",
-    "id": "RupKW9LxYQEI",
+    "_id": "6a1ecc9b27aa50e8595e830f",
+    "id": "Usr9KvPpqry1",
     "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
     "name": "Files",
-    "rootFolderId": "0Lzt7izmnMep",
-    "manifestType": "files",
+    "rootFolderId": "YOk61lbY1rqf",
+    "manifestType": "user",
     "icon": "folder-tree",
     "sortOrder": 0,
-    "meta": {},
-    "createdAt": "2026-03-24T13:02:48.981Z",
-    "updatedAt": "2026-03-24T13:02:48.981Z"
+    "meta": {}
+  },
+  {
+    "_id": "6a1ecc9c27aa50e8595e8347",
+    "id": "Irs1SRUEarhZ",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a1ecc8627aa50e8595e78ee",
+    "name": "Templates",
+    "rootFolderId": "CY-BO33Yhde4",
+    "manifestType": "templates",
+    "icon": "folder-tree",
+    "sortOrder": 0,
+    "meta": {}
   }
 ]

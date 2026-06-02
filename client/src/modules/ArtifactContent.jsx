@@ -5,7 +5,7 @@
 // viewType: "code" → syntax-highlighted code block (fetches raw file content)
 // view: passed from Panel — used to trigger scrollAnchor scroll in the editor
 import { useContext, useRef, useEffect, useState, useCallback, useMemo } from "react";
-import { GridActionsContext } from "../GridActionsContext.js";
+import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
 import Editor from "../ui/Editor.jsx";
 import { hexToRgba } from "../helpers/colorHelpers.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
@@ -485,7 +485,7 @@ function OcrButton({ imageUrl, hostOccurrence, dispatch, socket, gridId, userId,
 }
 
 export default function ArtifactContent({ occurrence, viewType, artifactType, embedded = false, dispatch, socket, view, onScrollHighlight }) {
-  const { modulesById, occurrencesById, gridId, userId } = useContext(GridActionsContext);
+  const { modulesById, occurrencesById, gridId, userId } = useGridActions();
   const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const fileRef = module?.fileRef;
   const docAccentBg = hexToRgba(module?.ownStyle?.bg, 0.1) ?? null;

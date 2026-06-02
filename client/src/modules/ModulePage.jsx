@@ -11,6 +11,7 @@ import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Trash2, Copy, FileText, ArrowLeft, ChevronLeft, ChevronRight, ClipboardPaste } from "lucide-react";
 import HeaderChevron from "../ui/HeaderChevron";
+import { bumpRender } from "../helpers/renderProbe";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
 import SortSection from "../ui/SortSection";
@@ -39,7 +40,7 @@ import { getEffectiveViewMode } from "../helpers/viewMode";
 import { resolveEffectiveViewModeFromCascade, classifyOccurrenceContext } from "../helpers/layoutCascade";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 
-import { GridActionsContext } from "../GridActionsContext";
+import { useGridActionsSelector } from "../GridActionsContext";
 import { GridDataContext } from "../GridDataContext";
 import { GridLiveContext } from "../GridLiveContext";
 import { SelectionContext } from "../state/SelectionContext";
@@ -75,7 +76,13 @@ function Page({
   drilldownTarget,
   onDrilldownComplete,
 }) {
-  const { occurrencesById, modulesById, containersById, viewsById, foldersById, childrenByParentId } = useContext(GridActionsContext);
+  bumpRender("page");
+  const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
+  const modulesById = useGridActionsSelector(s => s.modulesById);
+  const containersById = useGridActionsSelector(s => s.containersById);
+  const viewsById = useGridActionsSelector(s => s.viewsById);
+  const foldersById = useGridActionsSelector(s => s.foldersById);
+  const childrenByParentId = useGridActionsSelector(s => s.childrenByParentId);
   const { state } = useContext(GridDataContext);
   const { isMobile, fullStateLoaded } = useContext(GridLiveContext);
   const selection = useContext(SelectionContext);
@@ -463,10 +470,13 @@ function Page({
     occurrencesById,
     modulesById,
   });
+  // D4 (2026-05-24): top-level pages also accept `actual-converted` so
+  // users can collapse the page into a container-styled render in place.
   const isNestedAsContainer =
     (pageContextKind === "nestedInPage" && pageViewMode === "actual") ||
     (pageContextKind === "nestedInPage" && pageViewMode === "actual-converted") ||
-    (pageContextKind === "nestedInContainer" && pageViewMode === "actual-converted");
+    (pageContextKind === "nestedInContainer" && pageViewMode === "actual-converted") ||
+    (pageContextKind === "topLevel" && pageViewMode === "actual-converted");
 
   return (
     <div

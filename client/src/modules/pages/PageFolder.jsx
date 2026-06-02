@@ -9,7 +9,7 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import PreviewNode from "../PreviewNode.jsx";
 import useDrilldown, { getCardAnimStyle } from "../../hooks/useDrilldown.js";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 
 export default function PageFolder({
@@ -27,7 +27,7 @@ export default function PageFolder({
   onAutoNavigateComplete,
 }) {
   const folderRef = useRef(null);
-  const { occurrencesById, fieldsById } = useContext(GridActionsContext);
+  const { occurrencesById, fieldsById } = useGridActions();
 
   // F5-ext (2026-05-24) — search-in-folder. Filters cards by label OR
   // field values OR occurrence content. Defaults to all three scopes; the

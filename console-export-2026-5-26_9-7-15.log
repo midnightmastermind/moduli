@@ -1,0 +1,276 @@
+[socket] full_state received: 
+Object { gridId: "6a15a33106e260735d3b1a86", grid: {…}, modules: (618) […], occurrences: (615) […], fields: (123) […], manifests: (2) […], views: (7) […], folders: (27) […], operations: (67) […], grids: (1) […] }
+PagePreviewApp-DII6CScI.js:3:113968
+[full_state-client] +1ms reducer dispatched (615 occs, 618 mods) PagePreviewApp-DII6CScI.js:3:113889
+[full_state-client] runMatchingOperations: 432ms — 67 ops, 292 effects, 0 display updates PagePreviewApp-DII6CScI.js:3:116172
+[op-fire] depth=1 MeasureOp occ=1w_XP0tt 4 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=XG0z_JBj 4 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=VnKK2QEh 2 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=iN8FYBsv 3 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=_SbzwX76 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=JR25oYsi PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=9xuhKLoJ PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=3GD2h5yU PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=TCzN9M0R PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=uVL5OyPg PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=rLV3AgYF PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=uZH83N-l PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=OHIt3T6C PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=hNmQMH03 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=GpCfQz92 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=fO7viRrZ PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Net Worth" UPDATE_ITEM_FIELD=1 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire] depth=2 MeasureOp occ=HOhGPmOC PagePreviewApp-DII6CScI.js:3:131284
+[op-fire-done] depth=1 MeasureOp 8ms total=1 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 MeasureOp occ=KpIKE6R7 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Net Worth" UPDATE_ITEM_FIELD=1 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 MeasureOp 6ms total=1 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 MeasureOp occ=-DlbaN_n PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=g-VqT2fd PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=Hji8S0VQ 2 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=XG0z_JBj 2 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=1w_XP0tt 2 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=_SbzwX76 2 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=iN8FYBsv 2 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=VnKK2QEh 2 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 MeasureOp occ=bGT4Stqv PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire] depth=2 MeasureOp occ=Lcph1_Pe PagePreviewApp-DII6CScI.js:3:131284
+[op-fire-done] depth=1 MeasureOp 29ms total=6 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[full_state-client] applied effects in 62ms PagePreviewApp-DII6CScI.js:3:116374
+[table] 
+Object { occId: "AZscWJb3G1eK", label: "Schedule Table", rowCount: 0, columns: 4, cellsPersisted: 0, hasMetaTable: true }
+PagePreviewApp-DII6CScI.js:74:59853
+[op-fire] depth=1 MeasureOp — 43 PagePreviewApp-DII6CScI.js:3:131284
+[op-fire] depth=1 NavigationOp occ=vi8Wj9cP PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Schedule: Build Schedule" UPDATE_ITEM_META=1 UPDATE_ITEM_FIELD=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 73ms total=3 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=372bad7f PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 52ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=29e6baaf PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 44ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=b6b9242d PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 57ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=01b47d7f PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 73ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=6facc29d PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 62ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=d0ef2f58 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 48ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=c6566c76 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 48ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=d5656605 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 43ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=8ae3354c PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 49ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=d1e6999c PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 41ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=8de73ae8 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 48ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=cc681dca PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 49ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=a470903b PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 41ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=0b9b0e26 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 47ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=b6ac9f20 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 46ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=33ed1c3a PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 42ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=3d6c4f77 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 51ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=b1d27f69 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 48ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=f1ba84f7 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 41ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=63bebcb5 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 50ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=ec639fae PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 52ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=0945a2d7 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 43ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=f1c3a0d0 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 47ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=c6354989 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 43ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=30149658 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 48ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=c4aad9d1 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 43ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=a7c3629a PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 46ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=5d5b7f18 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 48ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=8e8bd996 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 55ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=466356a1 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 79ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=4a47d89d PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 70ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=26640487 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 58ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=750c1da8 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 73ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=e25c65ab PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 53ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=636af18e PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 45ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=beeb61a5 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 46ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=a1b488e6 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 41ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=dc95251e PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 44ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=45f5a56b PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 42ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=03556dfe PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 48ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=3ea9c2de PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 42ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=ef4e5331 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 47ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=2f3e15a9 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 43ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=1e8eaca7 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 47ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=0ee36c47 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 42ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=7d342027 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 46ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=2b6f50d5 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 42ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=ce74de58 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 46ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=84743ff7 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 41ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=f5fd7907 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 44ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=a045949c PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 44ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=c69048ef PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 47ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=487263be PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 42ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=2d0f738f PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 45ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=14cdcb37 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 42ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 NavigationOp occ=b2f5e854 PagePreviewApp-DII6CScI.js:3:131284
+[op-effects] depth=1 "Table: Build" DELETE_ITEM=6 UPDATE_ITEM_META=2 PagePreviewApp-DII6CScI.js:3:131863
+[op-effects] depth=1 "Canvas: Build" DELETE_ITEM=6 PagePreviewApp-DII6CScI.js:3:131863
+[op-fire-done] depth=1 NavigationOp 45ms total=14 display=0 PagePreviewApp-DII6CScI.js:3:132122
+[op-fire] depth=1 ScheduleOp — 4 PagePreviewApp-DII6CScI.js:3:131284

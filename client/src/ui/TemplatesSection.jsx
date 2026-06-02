@@ -5,7 +5,7 @@
 //   - Save the current subtree over the template it was applied from (if any)
 
 import React, { useContext, useMemo, useState } from "react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { templatesByKind, rootFolderForTemplates } from "../helpers/templateHelpers";
 import {
   commitApplyTemplate,
@@ -14,7 +14,7 @@ import {
 } from "../helpers/CommitHelpers";
 
 export default function TemplatesSection({ occurrence }) {
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const { socket, state, modulesById, occurrencesById, manifestsById, foldersById } = ctx;
   const gridId = state?.grid?._id || state?.gridId;
   const lookups = useMemo(

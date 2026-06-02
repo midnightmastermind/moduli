@@ -33,6 +33,7 @@ import { useAnimations } from "./hooks/useAnimations";
 import { useScheduler } from "./state/useScheduler";
 import { useTheme } from "./helpers/useTheme";
 import { useMobileDetect } from "./hooks/useMobileDetect";
+import { installMobileInputAutoScroll } from "./hooks/useMobileKeyboard";
 
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import * as LayoutHelpers from "./helpers/LayoutHelpers";
@@ -155,6 +156,37 @@ export default function App() {
     return idx;
   }, [state.occurrences]);
 
+  // #24 perf — pre-index occurrences by `moduleId`. Every container's
+  // `containerOccurrence` memo, every getOtherOccurrences call, every
+  // panel-occ resolver previously did `Object.values(occurrencesById)
+  // .find(o => o.moduleId === id)` — an O(N) scan per render, per
+  // container. With 50 containers × 500 occurrences that's 25k
+  // comparisons every paint. Indexing once at the state layer
+  // collapses each lookup to O(1).
+  const occurrencesByModuleId = useMemo(() => {
+    const idx = Object.create(null);
+    for (const occ of state.occurrences || []) {
+      const mid = occ?.moduleId;
+      if (!mid) continue;
+      (idx[mid] || (idx[mid] = [])).push(occ);
+    }
+    return idx;
+  }, [state.occurrences]);
+
+  // #24 perf — parent-by-child reverse map built from `occurrences[]`.
+  // Used by ModuleContainer's removeMe, dragHitTesting,
+  // getEffectiveFilterForOccurrence, FiltersSection ancestor walk —
+  // each previously built or scanned this map on demand. Memoizing
+  // once at App level eliminates the O(N) scan per consumer.
+  const parentByChildId = useMemo(() => {
+    const map = Object.create(null);
+    for (const occ of state.occurrences || []) {
+      if (!Array.isArray(occ?.occurrences)) continue;
+      for (const childId of occ.occurrences) map[childId] = occ.id;
+    }
+    return map;
+  }, [state.occurrences]);
+
   const containersById = useMemo(
     () => buildLookup(state.containers),
     [state.containers]
@@ -235,6 +267,12 @@ export default function App() {
 
   // Mobile grid navigation state
   const { isMobile } = useMobileDetect();
+
+  // #23 mobile: install one-time global focusin → scrollIntoView so
+  // typing into a field never leaves the cursor under the virtual
+  // keyboard. Idempotent + safely no-ops on desktop / unsupported
+  // browsers (the helper guards on visualViewport availability).
+  useEffect(() => { installMobileInputAutoScroll(); }, []);
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
   const [zoomedOut, setZoomedOut] = useState(false);
   const [gridSwitchRetrying, setGridSwitchRetrying] = useState(false);
@@ -331,44 +369,6 @@ export default function App() {
   });
 
   // Filter system — reads directly from grid state (no local copy needed — grid is source of truth)
-
-  // Global toolbar date nav — steps all isNav conditions' fields by the active
-  // unit. Filter values can be either a bare "YYYY-MM-DD" string OR
-  // `{value: "YYYY-MM-DD", unit: "day"|"week"|"month"|"year"}` — when the active
-  // value carries a unit, that wins over the filter's static `timeUnit`.
-  const handleFilterNav = useCallback((dir) => {
-    const grid = state.grid;
-    const activeFilter = (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId);
-    const navConditions = (activeFilter?.conditions || []).filter(c => c.isNav && c.fieldId);
-    if (!navConditions.length) return;
-    const readValue = (v) => (v && typeof v === "object" ? v.value : v);
-    const readUnit  = (v) => (v && typeof v === "object" ? v.unit : null);
-    // Use first nav field as the reference for current value
-    const refFieldId = navConditions[0].fieldId;
-    const currentRaw = grid?.activeFilterValues?.[refFieldId];
-    const currentVal = readValue(currentRaw);
-    const unit = readUnit(currentRaw) || activeFilter?.timeUnit || "day";
-    const base = currentVal ? new Date(currentVal + "T00:00:00") : new Date();
-    if (unit === "week")       base.setDate(base.getDate() + dir * 7);
-    else if (unit === "month") base.setMonth(base.getMonth() + dir);
-    else if (unit === "year")  base.setFullYear(base.getFullYear() + dir);
-    else                       base.setDate(base.getDate() + dir);
-    const nextDateStr = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
-    // Preserve the unit if the value was already in object form; otherwise
-    // write a bare string so existing day-only callers stay byte-identical.
-    const writeNext = (prev) => (prev && typeof prev === "object" && prev.unit)
-      ? { value: nextDateStr, unit: prev.unit }
-      : nextDateStr;
-    const updatedValues = navConditions.reduce((acc, c) => {
-      acc[c.fieldId] = writeNext(grid?.activeFilterValues?.[c.fieldId]);
-      return acc;
-    }, { ...(grid.activeFilterValues || {}) });
-    CommitHelpers.updateGrid({
-      dispatch, socket,
-      gridId: state.gridId,
-      grid: { activeFilterValues: updatedValues },
-    });
-  }, [state.grid, state.gridId, dispatch, socket]);
 
   // Legacy filterNavState NavigationOp (for occurrences still using the old filters[] system)
   useEffect(() => {
@@ -554,7 +554,7 @@ export default function App() {
   }, [dispatch, state.gridId, state.grid, state.panels, state.userId]);
 
   const addContainerToPanel = useCallback(
-    (panelId, kind = "list") => {
+    (panelId, kind = "board") => {
       if (!panelId || !state.gridId || !state.userId) return;
 
       const id = crypto.randomUUID();
@@ -702,6 +702,8 @@ export default function App() {
       occurrencesById,
       linkedGroupIndex,
       childrenByParentId,
+      occurrencesByModuleId,
+      parentByChildId,
       containersById,
       fieldsById,
       pagesById,
@@ -738,6 +740,8 @@ export default function App() {
       occurrencesById,
       linkedGroupIndex,
       childrenByParentId,
+      occurrencesByModuleId,
+      parentByChildId,
       containersById,
       fieldsById,
       pagesById,
@@ -804,7 +808,6 @@ export default function App() {
           onAddPanel={addNewPanel}
           grid={state?.grid}
           fieldsById={fieldsById}
-          onFilterNav={handleFilterNav}
           onCommandCenter={() => setCommandCenterOpen((prev) => !prev)}
           commandCenterOpen={commandCenterOpen}
           onHistory={() => setHistoryOpen((prev) => !prev)}

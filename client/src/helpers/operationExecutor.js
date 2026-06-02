@@ -72,6 +72,141 @@ export function getOpRunHistory(opId) {
   return runHistory.get(opId) || [];
 }
 
+// Browser-console accessor — paste-friendly run-log dumps without needing
+// the in-app OperationLogPanel. Resolves ops by name (case-insensitive
+// substring match) against window.__moduli_state__.operations so callers
+// don't have to chase opIds. Returns a structured-clone-safe JSON dump.
+//
+// Usage from devtools:
+//   __moduli_runs("Table: Build")          // last 3 runs of that op
+//   __moduli_runs("Table: Build", 1)       // most recent run only
+//   __moduli_runs()                         // index of all ops that have runs
+//
+// Pipe the result through JSON.stringify(_, null, 2) and paste.
+if (typeof window !== "undefined") {
+  window.__moduli_runs = function (opNameOrId, limit = 3) {
+    const ops = window.__moduli_state__?.operations || [];
+    const byId = new Map(ops.map(o => [o.id, o]));
+
+    // No arg → index summary
+    if (opNameOrId == null) {
+      const out = [];
+      for (const [opId, runs] of runHistory.entries()) {
+        const op = byId.get(opId);
+        out.push({ name: op?.name || `(unknown ${opId.slice(0, 8)})`, opId, runCount: runs.length, lastRunAt: runs[0]?.runAt ? new Date(runs[0].runAt).toISOString() : null });
+      }
+      out.sort((a, b) => (b.lastRunAt || "").localeCompare(a.lastRunAt || ""));
+      return out;
+    }
+
+    // Resolve to opId — try id first, then case-insensitive name substring.
+    let opId = byId.has(opNameOrId) ? opNameOrId : null;
+    if (!opId) {
+      const needle = String(opNameOrId).toLowerCase();
+      const matches = ops.filter(o => (o.name || "").toLowerCase().includes(needle));
+      if (matches.length === 0) return { error: `no op matches "${opNameOrId}"`, hint: 'call __moduli_runs() with no args to see all ops with runs' };
+      if (matches.length > 1) return { error: `multiple ops match "${opNameOrId}"`, candidates: matches.map(o => o.name) };
+      opId = matches[0].id;
+    }
+
+    const runs = (runHistory.get(opId) || []).slice(0, limit);
+    return _shapeOpDump(opId, byId.get(opId)?.name || null, runHistory.get(opId) || [], runs);
+  };
+
+  // Trigger a JSON file download of either a single op's runs or ALL ops.
+  //
+  // Defaults are calibrated to NOT blow Firefox's string allocation limit
+  // (~256MB on this machine — `Uncaught InternalError: allocation size
+  // overflow` on JSON.stringify if exceeded). With ~70 ops × 20 in-memory
+  // runs and per-step varsBefore snapshots of $allItems / $allOccurrences
+  // each, a full dump is easily multi-GB. So:
+  //   - "All ops" mode (no arg) is COMPACT: 3 runs per op + entries
+  //     stripped of `varsBefore` and other heavy payload, just kind +
+  //     action.config.type + action.boundVars + effects-by-type summary.
+  //   - Single-op mode keeps FULL entries so deep dives stay debuggable.
+  //
+  // Usage:
+  //   __moduli_download_runs()                     compact, all ops, 3 each
+  //   __moduli_download_runs(null, 10)             compact, all ops, 10 each
+  //   __moduli_download_runs("Table: Build")       FULL data, 20 runs
+  //   __moduli_download_runs("Table: Build", 3)    FULL data, last 3 runs
+  //   __moduli_download_runs(null, 20, { full: true })  ⚠ may OOM
+  window.__moduli_download_runs = function (opNameOrId, limit, opts) {
+    const ops = window.__moduli_state__?.operations || [];
+    const byId = new Map(ops.map(o => [o.id, o]));
+    const isAllOps = opNameOrId == null;
+    const lim = Math.max(1, Math.min(Number(limit) || (isAllOps ? 3 : 20), 1000));
+    const full = opts?.full === true || !isAllOps; // single-op defaults to full
+
+    const dump = {};
+    if (isAllOps) {
+      for (const [opId, allRuns] of runHistory.entries()) {
+        const op = byId.get(opId);
+        dump[op?.name || opId] = _shapeOpDump(opId, op?.name || null, allRuns, allRuns.slice(0, lim), { full });
+      }
+    } else {
+      let opId = byId.has(opNameOrId) ? opNameOrId : null;
+      if (!opId) {
+        const needle = String(opNameOrId).toLowerCase();
+        const matches = ops.filter(o => (o.name || "").toLowerCase().includes(needle));
+        if (matches.length === 0) { console.warn(`No op matches "${opNameOrId}"`); return; }
+        if (matches.length > 1) { console.warn(`Multiple matches for "${opNameOrId}":`, matches.map(o => o.name)); return; }
+        opId = matches[0].id;
+      }
+      const allRuns = runHistory.get(opId) || [];
+      dump[byId.get(opId)?.name || opId] = _shapeOpDump(opId, byId.get(opId)?.name || null, allRuns, allRuns.slice(0, lim), { full });
+    }
+
+    // Stringify with try/catch so the user sees a useful message instead
+    // of the raw `allocation size overflow` from JSON.stringify.
+    let json;
+    try {
+      json = JSON.stringify(dump, null, 2);
+    } catch (err) {
+      console.error(
+        `[__moduli_download_runs] Output too large to serialize (${err.message}). ` +
+        `Try a single op (__moduli_download_runs("Table: Build")) or a smaller limit.`
+      );
+      return;
+    }
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `moduli-runs-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    console.log(`Downloaded ${Object.keys(dump).length} op(s), ${(json.length / 1024).toFixed(1)} KB${full ? "" : " (compact)"}.`);
+  };
+}
+
+// Private helper used by both __moduli_runs and __moduli_download_runs to
+// shape a single op's run history for output (consistent across both
+// surfaces). Pulls trigger metadata from the "start" log entry so the
+// caller doesn't have to hunt for it.
+function _shapeOpDump(opId, opName, allRuns, runs) {
+  return {
+    opId,
+    opName,
+    totalRunsInMemory: allRuns.length,
+    runs: runs.map(r => {
+      // The trigger info is on the "start" log entry, not the run-log
+      // top level (RunLog shape is { runAt, durationMs, entries }).
+      const startEntry = (r.entries || []).find(e => e.kind === "start") || {};
+      return {
+        runAt: new Date(r.runAt).toISOString(),
+        durationMs: r.durationMs,
+        transactionType: startEntry.transactionType || null,
+        trigger: startEntry.trigger || null,
+        matchedTriggerObject: startEntry.matchedTriggerObject || null,
+        entries: r.entries, // full step-by-step log: action / if / loop_iter etc.
+      };
+    }),
+  };
+}
+
 // Back-compat: returns the most recent run (or null)
 export function getLastOpLog(opId) {
   const list = runHistory.get(opId);
@@ -339,14 +474,19 @@ function matchesTrigger(t, operation, transactionType, transaction) {
 }
 
 /**
- * Optional ancestor scoping for onFilterChange / onNavigation triggers.
- * When ancestorId or ancestorLabel is set on the trigger object, only fire
- * when the changed-filter source occurrence is the chosen ancestor or one of
- * its own ancestors. Grid-level filter changes carry no ancestor data and
- * are treated as out-of-scope.
+ * Optional ancestor scoping for event triggers.
+ * When `ancestorId` or `ancestorLabel` is set on the trigger object, only fire
+ * when the event's source occurrence is the chosen ancestor or one of its own
+ * ancestors. Applies to:
+ *   - onFilterChange / onNavigation (filter cascade)
+ *   - onAdd / onDelete / onMove / onCreate / onRemove (occurrence lifecycle)
+ *   - onChange (MeasureOp — when transaction carries _ancestorIds)
+ * Transactions without ancestor data (grid-level filter changes, legacy fires
+ * that pre-date the enrichment) bypass scoping when no ancestor is declared,
+ * and fail-closed when an ancestor IS declared (the trigger explicitly asked
+ * for scope; refuse to fire on un-scoped transactions).
  */
 function matchAncestorScope(to, eventType, transaction) {
-  if (eventType !== "onFilterChange" && eventType !== "onNavigation") return true;
   const { ancestorId, ancestorLabel } = to || {};
   if (!ancestorId && !ancestorLabel) return true;
   const ids = transaction?._ancestorIds || [];
@@ -389,7 +529,12 @@ function matchSubjectFilter(to, eventType, transaction) {
 
   if (!targetId) return true;
 
-  if (subjectType === "field") return transaction?.fieldId === targetId;
+  if (subjectType === "field") {
+    // MeasureOps now always carry a `fields: { [fid]: value }` map (coalesced
+    // shape — see CommitHelpers + dropHandlers fire sites). Match the trigger
+    // when the configured targetId is among the changed fields.
+    return !!(transaction?.fields && Object.prototype.hasOwnProperty.call(transaction.fields, targetId));
+  }
   if (subjectType === "grid" || subjectType === "filterNav") return true;
   if (subjectType === "module") {
     if (subjectRole === "instance") return transaction?.instanceId === targetId;
@@ -669,14 +814,51 @@ function traverseStatements(block, ctx) {
  * @param {Object} context        — { state, fieldsById, occurrencesById }
  * @returns {Array} [{ fieldId, occurrenceId?, value }]
  */
+// ── Synchronous self-trigger guard ───────────────────────────────────────────
+// An operation must not be re-triggered while its OWN effects are mid-application
+// on the current synchronous fire stack. A "rebuild" op (Table/Canvas Build) that
+// deletes its own derived rows via DELETE effects would otherwise have each
+// delete fire OccurrenceDeleteOp → re-match the same op → delete again →
+// exponential fan-out (bounded only by the depth cap → browser freeze). The fire
+// layer (bindSocketToStore) marks an op id here for the duration of applying that
+// op's effects (spanning nested fires); runMatchingOperations skips any op
+// currently in the set. Cross-loops (A→B→A) are covered too: both A and B stay
+// marked while their effects are on the stack. This breaks cycles only — a linear
+// A→B→C chain (each op once) is untouched, and explicit RUN_OPERATION recursion
+// has its own depth cap.
+const _opsApplyingEffects = new Set();
+export function setOpApplyingEffects(opId, on) {
+  if (!opId) return;
+  if (on) _opsApplyingEffects.add(opId);
+  else _opsApplyingEffects.delete(opId);
+}
+export function isOpApplyingEffects(opId) {
+  return !!opId && _opsApplyingEffects.has(opId);
+}
+
 export function runMatchingOperations(operations, transactionType, transaction, context, { onError } = {}) {
   const updates = [];
   // Priority is per-trigger (1–10, default 5). Pre-match every op so we can sort
   // by the priority of the triggerObject that actually matched — an op with two
   // triggers can carry different priorities for each, and the matching one wins.
   // Tiebreaker: sortOrder. Ops that don't match are filtered out before sort.
+  // Optional cascade-dedup set (shared across the burst of NavigationOp fires
+  // a single filter change emits — one per inheriting descendant). An op that
+  // already ran for an earlier transaction in the same cascade is skipped here,
+  // so page-rebuild ops (Table: Build, Canvas: Build, Build Schedule — all
+  // ancestor-scoped to a page and matching every descendant under it) run ONCE
+  // per filter change instead of once per descendant (~50× on the Schedule
+  // page). Safe because these ops resolve their working date from
+  // operation.targetOccurrenceId, not the triggering occurrence — so which
+  // descendant first matched is immaterial. See CommitHelpers.fireOperationsBatch.
+  const cascadeFiredOps = context?.cascadeFiredOps || null;
   const matched = [];
   for (const op of operations) {
+    // Skip ops whose own effects are mid-application on this sync stack —
+    // prevents a rebuild op's delete/create effects from re-triggering it
+    // (the OccurrenceDeleteOp freeze cascade). See _opsApplyingEffects above.
+    if (isOpApplyingEffects(op.id)) continue;
+    if (cascadeFiredOps && cascadeFiredOps.has(op.id)) continue;
     const m = computeTriggerMatch(op, transactionType, transaction);
     if (!m) continue;
     matched.push({ op, match: m });
@@ -697,7 +879,15 @@ export function runMatchingOperations(operations, transactionType, transaction, 
   const liveOccs = { ...(context.occurrencesById || {}) };
   const liveCtx = { ...context, occurrencesById: liveOccs };
 
+  // Per-op timing breakdown — surfaces which op is the slowest in a sync fan-out
+  // (drop, filter change, MeasureOp burst). Prints a single sorted summary line
+  // at the end so the slowest offender is obvious without trawling logs.
+  const _opTimings = [];
+
   for (const { op, match } of matched) {
+    // Mark fired for the cascade BEFORE running so a later transaction in the
+    // same filter-change burst won't re-run it (even if this run errors).
+    if (cascadeFiredOps) cascadeFiredOps.add(op.id);
     const startedAt = Date.now();
     const logger = makeLogger();
     logger.add("start", {
@@ -707,14 +897,19 @@ export function runMatchingOperations(operations, transactionType, transaction, 
       trigger: transaction ? { ...transaction } : null,
       matchedTriggerObject: match.triggerObject,
     });
+    let results;
     try {
-      let results;
       if (op.pipeline) {
         results = executePipeline(op, liveCtx, transaction, undefined, logger);
       } else {
         results = executeOperation(op, transactionType, transaction, liveCtx);
       }
       applyEffectsToLiveOccs(liveOccs, results);
+      // Tag each effect with its source op so the fire layer can mark the op
+      // "applying" while the effect is applied (self-trigger guard above).
+      for (const r of results) {
+        if (r && typeof r === "object" && r._sourceOpId === undefined) r._sourceOpId = op.id;
+      }
       updates.push(...results);
       logger.add("end", { updates: results, durationMs: Date.now() - startedAt });
     } catch (err) {
@@ -724,8 +919,83 @@ export function runMatchingOperations(operations, transactionType, transaction, 
     }
     const runLog = { runAt: startedAt, durationMs: Date.now() - startedAt, entries: logger.entries };
     recordRunLog(op.id, runLog);
+    _opTimings.push({ name: op.name, durationMs: runLog.durationMs, effects: results?.length || 0 });
+
+    // No automatic wire persistence (2026-05-26). Previous designs all
+    // had hidden costs: setTimeout(0) blocked the main thread with
+    // synchronous JSON.stringify, requestIdleCallback hiccuped during
+    // drag, and the socket-emit/server-write pipeline added per-op
+    // latency. Logs stay in-memory only via runHistory above (capped
+    // at 20 per op). When you want to ship them to disk, run
+    // `__moduli_download_runs()` in the browser console — file saves
+    // to ~/Downloads/, then `node server/scripts/dumpOpRunLogs.js
+    // ~/Downloads/moduli-runs-*.json` consumes it.
   }
+
+  // Per-op timing summary — only emits if the batch took >20ms or any single
+  // op took >10ms (cheap fan-outs stay quiet). Sorted slowest-first so the
+  // worst offender is at the top.
+  const totalMs = _opTimings.reduce((s, t) => s + t.durationMs, 0);
+  const worstMs = _opTimings.reduce((m, t) => Math.max(m, t.durationMs), 0);
+  if (_opTimings.length > 0 && (totalMs > 20 || worstMs > 10)) {
+    const sorted = [..._opTimings].sort((a, b) => b.durationMs - a.durationMs);
+    const lines = sorted.map(t => `  ${String(t.durationMs).padStart(5)}ms  ${String(t.effects).padStart(3)}fx  ${t.name}`).join("\n");
+    console.log(`[op-timing] ${transactionType} total=${totalMs}ms ops=${_opTimings.length}\n${lines}`);
+  }
+
   return updates;
+}
+
+// Strip the heaviest fields preemptively rather than discovering they're
+// too big via multiple JSON.stringify passes. Previous design ran up to
+// 4 stringify passes against multi-MB payloads (each 50-100ms of CPU);
+// most logs are big precisely because of these fields, so stripping
+// first + serializing once is dramatically cheaper. We still mark
+// `_trimmed: true` so the dump script can show ⚠.
+//
+// Fields stripped:
+//   - varsBefore: $vars snapshots taken before each action. Usually the
+//     largest single field — can hold a full $allItems / $allOccurrences
+//     dump (615 occurrences × all fields) per action entry.
+//   - candidates: per-record evaluation breakdown for FIND actions. Up
+//     to 25 candidates per FIND × N FINDs per op = thousands of nested
+//     objects.
+//   - resolvedConfig: expanded action config with all $-refs resolved.
+//     Useful but verbose; the action.config raw form is kept.
+//   - loop_iter.item: full occurrence object on each loop iteration.
+//     Loops over $allInstances mean ~600 occurrence copies per loop.
+function trimRunForWire(payload) {
+  if (!Array.isArray(payload.entries)) return payload;
+
+  const trimmed = { ...payload, entries: payload.entries.map(e => {
+    let touched = false;
+    let copy = e;
+    if (e.varsBefore || e.candidates || e.resolvedConfig) {
+      copy = { ...e };
+      if (e.varsBefore) { delete copy.varsBefore; touched = true; }
+      if (e.candidates) { delete copy.candidates; touched = true; }
+      if (e.resolvedConfig) { delete copy.resolvedConfig; touched = true; }
+    }
+    if (e.kind === "loop_iter" && e.item) {
+      if (copy === e) copy = { ...e };
+      copy.item = "(trimmed)";
+      touched = true;
+    }
+    if (touched) copy._trimmed = true;
+    return copy;
+  })};
+
+  // Hard truncate runaway entry counts (rare but possible with deep loops
+  // over $allItems). 1000 entries is enough for forensics.
+  if (trimmed.entries.length > 1000) {
+    const dropped = trimmed.entries.length - 1000;
+    trimmed.entries = [
+      ...trimmed.entries.slice(0, 1000),
+      { kind: "_truncated", droppedEntryCount: dropped },
+    ];
+  }
+
+  return trimmed;
 }
 
 // Apply pipeline effects to the in-batch occurrence overlay so the next op
@@ -1096,6 +1366,10 @@ export function executePipeline(operation, context, transaction, extraVars, exte
         moduleId: occ.moduleId,
         parentId: occ.parentId,
         fields,
+        // Ordered ancestor occurrence IDs (closest first). Lets a rebuild op
+        // tell "the Schedule source changed" apart from "I just deleted my own
+        // derived copy" via `$trigger.occurrence._ancestors HAS_ANCESTOR <ownPageId>`.
+        _ancestors: ancestorsFor(occ.id),
       };
     }
     $vars["$trigger"] = enriched;

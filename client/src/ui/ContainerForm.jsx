@@ -5,7 +5,7 @@ import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
 import StyleEditor from "./StyleEditor";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
 import EditorBindingSection from "./EditorBindingSection.jsx";
 import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
@@ -34,7 +34,7 @@ export default function ContainerForm({
   onOccurrenceStyleChange, // (style|null) => void — writes occurrence.ownStyle
 }) {
   const iter = iteration || { mode: "inherit", timeFilter: "daily" };
-  const { occurrencesById, modulesById, fieldsById, state } = useContext(GridActionsContext);
+  const { occurrencesById, modulesById, fieldsById, state } = useGridActions();
 
   // Cascade context for the StyleEditor — shows what every ancestor
   // (Grid → Panel → Page) is pushing down so the user can see WHY this

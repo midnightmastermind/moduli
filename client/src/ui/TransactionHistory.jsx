@@ -38,7 +38,7 @@ import {
   Check,
   X,
 } from "lucide-react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { toast } from "../components/ui/sonner";
 import { getTransactions, undoTransaction, redoTransaction } from "../helpers/TransactionHelpers";
 import { formatDistanceToNow } from "date-fns";
@@ -275,7 +275,7 @@ export default function TransactionHistory({
   gridId,
   moduleId,   // optional — when set, filters to transactions affecting this module
 }) {
-  const { socket, instancesById, containersById, panelsById, fieldsById } = useContext(GridActionsContext);
+  const { socket, instancesById, containersById, panelsById, fieldsById } = useGridActions();
 
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);

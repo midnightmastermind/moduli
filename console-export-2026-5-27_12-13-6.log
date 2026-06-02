@@ -1,0 +1,792 @@
+[socket] full_state received: 
+Object { gridId: "6a1720d4cc3c304df0fad46e", grid: {…}, modules: (628) […], occurrences: (625) […], fields: (126) […], manifests: (2) […], views: (7) […], folders: (27) […], operations: (67) […], grids: (1) […] }
+PagePreviewApp-CL_7S1az.js:5:20375
+[full_state-client] +2ms reducer dispatched (625 occs, 628 mods) PagePreviewApp-CL_7S1az.js:5:20297
+[op-timing] null total=477ms ops=55
+     99ms  108fx  Schedule: Build Schedule
+     30ms   16fx  Table: Build
+     28ms   91fx  People Table: Build
+     22ms    1fx  Day Page: Build Tasks Completed
+     15ms   18fx  Canvas: Build
+     13ms    1fx  Steps
+     11ms    1fx  Pomodoros Today
+     10ms    1fx  Completed
+      9ms    1fx  Total Reading Time
+      8ms    1fx  Protein
+      8ms    1fx  Completion Rate
+      8ms    0fx  Due: Seed
+      8ms    1fx  Net Worth
+      7ms    0fx  Phone Calls
+      7ms    1fx  Earned
+      7ms    1fx  Back Volume
+      7ms    1fx  Checking Balance
+      7ms    1fx  Time Spent This Week
+      7ms    9fx  Project: Create
+      6ms    0fx  Moods
+      6ms    1fx  Water
+      6ms    1fx  Time Spent
+      6ms    1fx  Pages
+      6ms    1fx  Pomodoro Time
+      6ms    1fx  Carbs
+      6ms    1fx  Fats
+      6ms    1fx  Total Reps
+      6ms    1fx  Snack Nutrition
+      6ms    0fx  Courses Taken
+      6ms    1fx  Monthly Bills
+      5ms    6fx  Day Page: Build
+      5ms    1fx  Spent
+      5ms    1fx  Total Workouts
+      5ms    0fx  Podcasts Listened
+      5ms    2fx  Current Streak
+      5ms    2fx  Purchase History
+      5ms    1fx  Total Subscriptions
+      4ms    1fx  Task Countdown
+      4ms    1fx  Chest Volume
+      4ms    1fx  Legs Volume
+      4ms    1fx  Arms Volume
+      4ms    1fx  Cardio Volume
+      4ms    1fx  Lunch Nutrition
+      4ms    1fx  Mom's Account Balance
+      4ms    0fx  Movies Watched
+      4ms    2fx  Pomodoro History
+      4ms    2fx  Meal History
+      4ms    0fx  Mark Passed Timeslots
+      3ms    1fx  Shoulders Volume
+      3ms    1fx  Breakfast Nutrition
+      3ms    1fx  Dinner Nutrition
+      3ms    0fx  Books Read
+      3ms    0fx  Daily Question Rotator
+      3ms    2fx  Workout History
+      3ms    0fx  Compute Next Due PagePreviewApp-CL_7S1az.js:4:12
+[full_state-client] runMatchingOperations: 479ms — 67 ops, 292 effects, 0 display updates PagePreviewApp-CL_7S1az.js:5:22539
+[op-fire] depth=1 MeasureOp occ=j6lfp__1 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=pEzpR8bd 2 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=QLNPbttX PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=cl6fiDxr PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=CxsbrHR0 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=kMTO9VRU 2 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=-56s1DSQ PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=og4Mg7Dp PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=YzHf8GTT PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=gVJJ6dRf PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=XI441n-p PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=Lo66_rhv PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=Qca17NR7 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=BfM1CN6O PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=sT2HxDuv PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=T3eAtJuV PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=MEhehh0o PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=ryNt36mU PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=iBCkx-1M PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=QewA4nvX PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=HOapz2l_ PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=0P_MEF3n PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=-6QalXdF PagePreviewApp-CL_7S1az.js:5:37913
+[op-effects] depth=1 "Net Worth" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-fire] depth=2 MeasureOp occ=O0Sw11PM PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire-done] depth=1 MeasureOp 8ms total=1 display=0 PagePreviewApp-CL_7S1az.js:5:38786
+[op-fire] depth=1 MeasureOp occ=KPrTN_ih PagePreviewApp-CL_7S1az.js:5:37913
+[op-effects] depth=1 "Net Worth" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-fire-done] depth=1 MeasureOp 9ms total=1 display=0 PagePreviewApp-CL_7S1az.js:5:38786
+[op-fire] depth=1 MeasureOp occ=s2Q9acBA PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=3j9YumK1 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=Oc70GDB0 2 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=kMTO9VRU 2 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=OiF13C8A 2 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=Gi2ZFa8Z 2 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=Qbcd1LYR 2 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=-56s1DSQ 2 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire] depth=1 MeasureOp occ=mCtRNbLp PagePreviewApp-CL_7S1az.js:5:37913
+[op-timing] MeasureOp total=30ms ops=6
+      7ms    1fx  Checking Balance
+      6ms    1fx  Mom's Account Balance
+      5ms    2fx  Purchase History
+      5ms    1fx  Total Subscriptions
+      5ms    1fx  Monthly Bills
+      2ms    0fx  Spent PagePreviewApp-CL_7S1az.js:4:12
+[op-effects] depth=1 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-fire] depth=2 MeasureOp occ=A_ZNZiWr PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire-done] depth=1 MeasureOp 33ms total=6 display=0 PagePreviewApp-CL_7S1az.js:5:38786
+[full_state-client] applied effects in 88ms PagePreviewApp-CL_7S1az.js:5:22741
+[table] 
+Object { occId: "274ayMeLBCuy", label: "Schedule Table", rowCount: 0, columns: 4, cellsPersisted: 0, hasMetaTable: true }
+PagePreviewApp-CL_7S1az.js:56:59831
+[op-fire] depth=1 MeasureOp — 43 PagePreviewApp-CL_7S1az.js:5:37913
+[dragDiag] genPreview (native ghost) 
+Object { type: "instance", id: "BzSxcYYBMFxA", nativeEnabled: true }
+PagePreviewApp-CL_7S1az.js:34:177655
+[dragDiag] dragStart 
+Object { type: "instance", mode: "copy", label: "Morning Workout" }
+App-HbifqVtd.js:1:131898
+[dragDiag] drop LEAVE 
+Object { type: "instance", id: "BzSxcYYBMFxA" }
+PagePreviewApp-CL_7S1az.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "instance", id: "k1V6GIf7NbKw", edge: "bottom" }
+PagePreviewApp-CL_7S1az.js:34:178376
+[dragDiag] drop LEAVE 
+Object { type: "instance", id: "k1V6GIf7NbKw" }
+PagePreviewApp-CL_7S1az.js:34:178827
+[dragDiag] drop ENTER 
+Object { type: "instance", id: "rsLLZHqXlCQc", edge: "top" }
+PagePreviewApp-CL_7S1az.js:34:178376
+[dragDiag] drop LEAVE 
+Object { type: "instance", id: "rsLLZHqXlCQc" }
+PagePreviewApp-CL_7S1az.js:34:178827
+[dragDiag] preview set 
+Object { firstShow: true, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-HbifqVtd.js:1:133648
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "nUaLdjA_whqN", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "zuNYNV3Figry", stickyToLast: false, containerId: "zuNYNV3Figry", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-HbifqVtd.js:1:133648
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "zuNYNV3Figry", stickyToLast: false, containerId: "zuNYNV3Figry", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-HbifqVtd.js:1:133648
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-HbifqVtd.js:1:133648
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-HbifqVtd.js:1:133648
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-HbifqVtd.js:1:133648
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-HbifqVtd.js:1:133648
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-HbifqVtd.js:1:133648
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "fno9zjikZduH", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "fno9zjikZduH", stickyToLast: false, containerId: "fno9zjikZduH", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-HbifqVtd.js:1:133648
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "3LNMTQ8aUF1O", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "3LNMTQ8aUF1O", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "3LNMTQ8aUF1O", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "3LNMTQ8aUF1O", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "3LNMTQ8aUF1O", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "3LNMTQ8aUF1O", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "3LNMTQ8aUF1O", stickyToLast: false, containerId: "3LNMTQ8aUF1O", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-HbifqVtd.js:1:133648
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "aYvpvyuQAdF9", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "aYvpvyuQAdF9", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "aYvpvyuQAdF9", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "aYvpvyuQAdF9", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "aYvpvyuQAdF9", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "aYvpvyuQAdF9", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "aYvpvyuQAdF9", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "aYvpvyuQAdF9", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "aYvpvyuQAdF9", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "aYvpvyuQAdF9", stickyToLast: false, containerId: "aYvpvyuQAdF9", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] preview set 
+Object { firstShow: false, action: "Copy", sourceLabel: "Morning Workout", destination: {…} }
+App-HbifqVtd.js:1:133648
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "c6d3d3eeBC_U", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[dragDiag] hover 
+Object { type: "instance", panelId: "aGKbyJPgTHev", rawContainerId: "c6d3d3eeBC_U", stickyToLast: false, containerId: "c6d3d3eeBC_U", instanceId: null }
+App-HbifqVtd.js:1:132657
+[dragDiag] highlight 
+Object { attr: "data-container-id", id: "d20b19d2-b188-4704-8952-034257eee00c", found: true, matchCount: 1 }
+App-HbifqVtd.js:1:126114
+[drop] +0ms handleDrop entry App-HbifqVtd.js:1:138224
+[drop] +0ms rawEvent built App-HbifqVtd.js:1:138224
+[drop] +1ms dropContext built (target=occurrence mode=copy) App-HbifqVtd.js:1:138224
+[op-fire] depth=1 OccurrenceCreateOp occ=17799019 PagePreviewApp-CL_7S1az.js:5:37913
+[op-timing] OccurrenceCreateOp total=389ms ops=49
+     54ms   28fx  Table: Build
+     30ms    3fx  Canvas: Build
+     21ms    1fx  Day Page: Build Tasks Completed
+     15ms    1fx  Steps
+     13ms    1fx  Spent
+     11ms    1fx  Fats
+      9ms    3fx  Schedule: Stamp Date & Time Slot
+      9ms    1fx  Completed
+      9ms    1fx  Earned
+      9ms    1fx  Time Spent This Week
+      8ms    1fx  Water
+      8ms    1fx  Pomodoro Time
+      8ms    1fx  Checking Balance
+      8ms    1fx  Total Workouts
+      8ms    1fx  Completion Rate
+      8ms    2fx  Workout History
+      7ms    1fx  Time Spent
+      7ms    1fx  Pages
+      7ms    1fx  Pomodoros Today
+      7ms    1fx  Protein
+      7ms    1fx  Total Reps
+      7ms    1fx  Legs Volume
+      7ms    1fx  Dinner Nutrition
+      7ms    0fx  Due: Seed
+      7ms    1fx  Monthly Bills
+      6ms    1fx  Carbs
+      6ms    1fx  Mom's Account Balance
+      6ms    1fx  Total Reading Time
+      6ms    1fx  Total Subscriptions
+      5ms    0fx  Moods
+      5ms    0fx  Phone Calls
+      5ms    1fx  Chest Volume
+      5ms    1fx  Snack Nutrition
+      5ms    2fx  Purchase History
+      5ms   11fx  Compute Next Due
+      4ms    1fx  Task Countdown
+      4ms    1fx  Back Volume
+      4ms    1fx  Shoulders Volume
+      4ms    1fx  Cardio Volume
+      4ms    1fx  Breakfast Nutrition
+      4ms    2fx  Pomodoro History
+      3ms    1fx  Arms Volume
+      3ms    1fx  Lunch Nutrition
+      3ms    0fx  Movies Watched
+      3ms    2fx  Current Streak
+      3ms    2fx  Meal History
+      2ms    0fx  Books Read
+      2ms    0fx  Podcasts Listened
+      1ms    0fx  Courses Taken PagePreviewApp-CL_7S1az.js:4:12
+[op-effects] depth=1 "Schedule: Stamp Date & Time Slot" UPDATE_ITEM_FIELD=3 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Completed" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Task Countdown" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Steps" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Water" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Time Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Pages" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Pomodoros Today" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Pomodoro Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Spent" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Earned" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Protein" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Carbs" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Fats" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Total Reps" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Chest Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Back Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Legs Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Shoulders Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Arms Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Cardio Volume" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Breakfast Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Lunch Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Dinner Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Snack Nutrition" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Checking Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Mom's Account Balance" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Total Workouts" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Total Reading Time" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Completion Rate" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Time Spent This Week" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Pomodoro History" UPDATE_ITEM_FIELD=2 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Current Streak" UPDATE_ITEM_FIELD=2 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Workout History" UPDATE_ITEM_FIELD=2 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Meal History" UPDATE_ITEM_FIELD=2 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Purchase History" UPDATE_ITEM_FIELD=2 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Day Page: Build Tasks Completed" UPDATE_ITEM_TEXTMAP=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Total Subscriptions" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Monthly Bills" UPDATE_ITEM_FIELD=1 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Table: Build" CREATE_ITEM=1 UPDATE_OCCURRENCE=1 UPDATE_ITEM_META=26 PagePreviewApp-CL_7S1az.js:5:38530
+[op-effects] depth=1 "Canvas: Build" CREATE_ITEM=1 UPDATE_ITEM_META=2 PagePreviewApp-CL_7S1az.js:5:38530
+[op-fire] depth=2 MeasureOp occ=17799019 2 PagePreviewApp-CL_7S1az.js:5:37913
+[op-fire-done] depth=1 OccurrenceCreateOp 406ms total=77 display=11 PagePreviewApp-CL_7S1az.js:5:38786
+[drop] +409ms routeDrop returned (sync mutations + op fires done) App-HbifqVtd.js:1:138224
+[drop] +409ms clearSession done — handleDrop synchronous end App-HbifqVtd.js:1:138224
+[drop] +0ms handleDrop entry 2 App-HbifqVtd.js:1:138224
+[drop] +821ms rAF #1 (pre-paint of next frame) App-HbifqVtd.js:1:138224
+[drop] +880ms rAF #2 (next frame painted) App-HbifqVtd.js:1:138224
+[drop-renders] panel=10 container=154 instance=164 page=10 field=0 App-HbifqVtd.js:1:139818
+[op-fire] depth=1 MeasureOp — 3 PagePreviewApp-CL_7S1az.js:5:37913

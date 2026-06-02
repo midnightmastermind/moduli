@@ -2,7 +2,7 @@ import React, { useState, useContext, useMemo } from "react";
 import DrilldownPicker from "../DrilldownPicker";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig } from "../categoryRegistry";
 import ConditionGroup from "../../blocks/ConditionGroup";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import { resolveOptions } from "../../helpers/optionsResolver";
 
 const MODES = [
@@ -61,7 +61,7 @@ export default function SelectOptionsSourceEditor({ source, onChange, fieldType 
 // chip; empty everything + showLabel:false is a "blank" chip (probably bad
 // but allowed — UX feedback comes from the live preview).
 function ChipDisplayBody({ source, onChange }) {
-  const { fieldsById } = useContext(GridActionsContext);
+  const { fieldsById } = useGridActions();
   const cd = source?.chipDisplay || { fieldIds: [], showMedia: true, showLabel: true };
   const fields = useMemo(
     () => Object.values(fieldsById || {})
@@ -235,7 +235,7 @@ function RangeBody({ source, onChange }) {
   );
 }
 function FindBody({ source, onChange }) {
-  const ctx = useContext(GridActionsContext);
+  const ctx = useGridActions();
   const { fieldsById, modulesById, occurrencesById, foldersById } = ctx;
 
   const find = source?.find || { over: "$allInstances", predicate: { rules: [] }, valuePath: "label" };

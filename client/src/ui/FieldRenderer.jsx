@@ -12,7 +12,7 @@
 import React, { useCallback, useContext, useMemo, useRef, useState, useEffect } from "react";
 import Field from "./Field";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { GridLiveContext } from "../GridLiveContext";
 import { resolveOptions } from "../helpers/optionsResolver";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
@@ -29,7 +29,7 @@ function FieldRenderer({
   compact = false,
   disabled = false,
 }) {
-  const { occurrencesById, modulesById, fieldsById, foldersById } = useContext(GridActionsContext);
+  const { occurrencesById, modulesById, fieldsById, foldersById } = useGridActions();
   const { computedValues } = useContext(GridLiveContext);
 
   // Resolve dynamic options for select and occurrence fields via optionsResolver.

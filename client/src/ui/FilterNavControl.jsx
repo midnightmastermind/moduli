@@ -9,7 +9,7 @@
 
 import React, { useContext, useCallback } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { setFilterNavAction } from "../state/actions";
 import { resolveOptions } from "../helpers/optionsResolver";
 
@@ -30,7 +30,7 @@ function formatDate(isoDate) {
 }
 
 export default function FilterNavControl({ filter, navValue, dispatch }) {
-  const { fieldsById, occurrencesById, modulesById, foldersById } = useContext(GridActionsContext);
+  const { fieldsById, occurrencesById, modulesById, foldersById } = useGridActions();
   const field = filter?.fieldId ? fieldsById?.[filter.fieldId] : null;
   const fieldType = field?.type || "text";
 

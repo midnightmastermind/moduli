@@ -11,7 +11,7 @@
 // button (replaces the desktop hide button). Items render grouped vertically
 // inside the dropdown panel.
 
-import React, { useRef, useState, useCallback, useEffect, useLayoutEffect } from "react";
+import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 import { MousePointer2, Hand, Pencil, Highlighter, PaintBucket, Square, Circle, Minus, Eraser, Undo2, Redo2, ChevronUp, ChevronDown, Crosshair, Link2, Type } from "lucide-react";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useMobileDetect } from "../hooks/useMobileDetect";

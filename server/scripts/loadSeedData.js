@@ -58,6 +58,19 @@ async function loadSeedData() {
     await mongoose.connect(MONGO_URI);
     console.log("✅ Connected to MongoDB\n");
 
+    // Sync indexes BEFORE the wipe so the upcoming bulk inserts hit a
+    // compound (userId, gridId) index — without it, the post-insert
+    // full_state query takes 5–9s on Atlas Serverless. Idempotent + cheap
+    // when the indexes already exist (just verifies and returns).
+    {
+      const t0 = Date.now();
+      for (const { name, model } of collections) {
+        try { await model.syncIndexes(); }
+        catch (err) { console.warn(`  ⚠️  ${name}.syncIndexes failed: ${err.message}`); }
+      }
+      console.log(`✅ Indexes synced (${Date.now() - t0}ms)\n`);
+    }
+
     // Find target user
     const user = await User.findOne({ email: TARGET_USER_EMAIL });
     if (!user) throw new Error(`User not found: ${TARGET_USER_EMAIL}`);

@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef, useMemo, useContext, useCallback } from "react";
 import { FileText, Calendar, Search } from "lucide-react";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 
 /**
  * DocLinkSuggestion - Popup for [[ document link suggestions
@@ -23,7 +23,7 @@ export default function DocLinkSuggestion({
   onSelect,
   onClose,
 }) {
-  const { containersById = {}, occurrencesById = {}, viewsById = {} } = useContext(GridActionsContext) || {};
+  const { containersById = {}, occurrencesById = {}, viewsById = {} } = useGridActions() || {};
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef(null);
 

@@ -3,7 +3,7 @@
 // Shows Grid / Pages / Documents in three collapsible folder sections.
 import { useContext, useMemo, useState } from "react";
 import { LayoutPanelLeft } from "lucide-react";
-import { GridActionsContext } from "../GridActionsContext.js";
+import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
 
 const FOLDER_HEADER_STYLE = {
   padding: "4px 8px 2px 6px",
@@ -26,7 +26,7 @@ function kindGlyph(kind) {
 }
 
 export default function GlobalTree({ onNavigate }) {
-  const ctx = useContext(GridActionsContext) || {};
+  const ctx = useGridActions() || {};
   const { state, modulesById, occurrencesById, manifestsById, foldersById } = ctx;
 
   const [search, setSearch] = useState("");

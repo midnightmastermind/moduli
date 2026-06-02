@@ -18,7 +18,7 @@ import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, fillRange, firstEmbedOccId } from "../../helpers/tableCells";
 import { assignLinkedGroup } from "../../helpers/LayoutHelpers";
 import { COMPARATOR_OPTIONS, UNARY_COMPARATORS } from "../../helpers/comparators";
-import { GridActionsContext } from "../../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import { getEffectiveFieldVisibilityForOccurrence } from "../../state/selectors";
 import {
   autoAppendFieldsToAncestorsShowMode,
@@ -170,7 +170,7 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
   // + hovered cell is a real editor; everything else is a plain ModuleInstance
   // (still interactive — checkboxes/fields work). Free-text cells (no embed)
   // always use the editor so typed content keeps working.
-  const { occurrencesById, modulesById } = useContext(GridActionsContext) || {};
+  const { occurrencesById, modulesById } = useGridActions() || {};
   const [hovered, setHovered] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const cellElRef = useRef(null);
@@ -377,7 +377,7 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
 }
 
 export default function ContainerTable({ occurrence, dispatch, socket }) {
-  const { occurrencesById, modulesById, fieldsById } = useContext(GridActionsContext);
+  const { occurrencesById, modulesById, fieldsById } = useGridActions();
 
   // Normalize: cells/columns can come back null from the server if a prior
   // partial write stored `null` (e.g. Mongoose Mixed-type quirks on empty

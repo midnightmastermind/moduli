@@ -5,6 +5,9 @@ import os from "os";
 
 export default defineConfig({
   plugins: [react()],
+  // Vitest's per-project cache lives under `<cacheDir>/vitest`. Top-level
+  // `cacheDir` replaces the deprecated `test.cache.dir`.
+  cacheDir: path.join(os.tmpdir(), "vitest-client"),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
@@ -12,18 +15,37 @@ export default defineConfig({
   },
   build: {
     sourcemap: true,
-    chunkSizeWarningLimit: 800,
+    // Bumped from 800 kB. The two remaining large chunks are intentional
+    // lazy splits, not initial-load cost:
+    //   - highlight.js (~969 kB) — only loaded when user opens a code
+    //     file in ArtifactContent's CodeViewer
+    //   - ModulePage  (~761 kB) — only loaded after React.lazy resolves
+    //     on first grid render
+    // Initial entry is ~3 kB; the app shell is split across react /
+    // radix / dnd / App chunks each well under the warning threshold.
+    chunkSizeWarningLimit: 1024,
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // TipTap editor — only loaded when a doc container is opened
+          // ── Big editor / viewer libs (lazy when not opened) ────────────
           if (id.includes("@tiptap/")) return "tiptap";
-          // Lucide icons — large icon library
+          if (id.includes("pdfjs-dist")) return "pdf";
+          if (id.includes("wavesurfer.js")) return "wavesurfer";
+          if (id.includes("highlight.js")) return "highlight";
+          if (id.includes("tesseract.js")) return "tesseract";
+          // ── Vendor UI / DnD ────────────────────────────────────────────
           if (id.includes("lucide-react")) return "lucide";
-          // Radix UI primitives
           if (id.includes("@radix-ui/")) return "radix";
-          // Pragmatic DnD
           if (id.includes("@atlaskit/pragmatic-drag-and-drop")) return "dnd";
+          // Date picker (and its plugins / styles)
+          if (id.includes("react-multi-date-picker")) return "datepicker";
+          // ── React core split out so route/lazy chunks don't duplicate ──
+          if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/") || id.includes("node_modules/scheduler/")) {
+            return "react";
+          }
+          // ── Socket / state libs ────────────────────────────────────────
+          if (id.includes("socket.io-client") || id.includes("engine.io-client")) return "socketio";
+          if (id.includes("sonner")) return "toast";
         },
       },
     },
@@ -55,9 +77,6 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/__tests__/setup.js"],
     include: ["src/__tests__/**/*.test.{js,jsx}"],
-    cache: {
-      dir: path.join(os.tmpdir(), "vitest-client"),
-    },
     coverage: {
       reporter: ["text", "json", "html"],
     },

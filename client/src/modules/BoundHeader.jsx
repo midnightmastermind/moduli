@@ -12,7 +12,7 @@
 // the selfField AND the field has no resolvable options.
 import React, { useContext, useMemo, useCallback } from "react";
 import { Dices, Link2, Unlink2 } from "lucide-react";
-import { GridActionsContext } from "../GridActionsContext.js";
+import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
 import { resolveOptions } from "../helpers/optionsResolver.js";
 import { propagateBoundFieldWrite } from "../helpers/boundFieldSync.js";
 import { findLinkedSiblings } from "../state/editorBindings.js";
@@ -47,7 +47,7 @@ function BindingBadge({ field, isLinked }) {
 }
 
 export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = "", label = "" }) {
-  const ctx = useContext(GridActionsContext) || {};
+  const ctx = useGridActions() || {};
   const { occurrencesById, fieldsById, modulesById, dispatch, socket } = ctx;
   const field = fieldsById?.[binding?.selfField];
 

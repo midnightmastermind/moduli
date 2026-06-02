@@ -148,6 +148,12 @@ const ModuleSchema = new mongoose.Schema(
   { timestamps: true, minimize: false }
 );
 
+// Compound (userId, gridId) — `Module.find({ userId, gridId })` is the
+// hot path on full_state. Without this, Mongo picks the userId index and
+// in-memory-filters gridId; Atlas Serverless ran the query in 4.9s for
+// 618 docs against single-field indexes only.
+ModuleSchema.index({ userId: 1, gridId: 1 });
+
 ModuleSchema.set("toJSON", {
   virtuals: true,
   versionKey: false,

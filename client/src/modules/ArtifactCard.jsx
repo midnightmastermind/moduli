@@ -9,11 +9,11 @@ import { Spinner } from "../components/ui/spinner.jsx";
 import { resolveFileRef } from "../helpers/fileRef";
 import { getUploadController } from "../helpers/uploadWithProgress";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { GridActionsContext } from "../GridActionsContext.js";
+import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
 
 export default function ArtifactCard({ module, label, occurrence }) {
   const [expanded, setExpanded] = useState(false);
-  const { dispatch, socket, occurrencesById } = useContext(GridActionsContext) || {};
+  const { dispatch, socket, occurrencesById } = useGridActions() || {};
   const fileRef = module?.fileRef;
   const kind = module?.kind;
   const status = module?.meta?.uploadStatus;

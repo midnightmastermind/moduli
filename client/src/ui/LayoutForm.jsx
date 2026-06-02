@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import StyleEditor from "./StyleEditor";
 import LayoutCascadeSection from "./LayoutCascadeSection";
-import { GridActionsContext } from "../GridActionsContext";
+import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { resolveStyleCascade } from "../helpers/StyleHelpers";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
@@ -286,7 +286,7 @@ export default function LayoutForm({
 }) {
   const v = ensureLockDefaults(value);
   const iter = iteration || { mode: "inherit", timeFilter: "daily" };
-  const { state } = useContext(GridActionsContext);
+  const { state } = useGridActions();
 
   // Cascade for panel's own style — just Grid → Panel (no page /
   // container / instance below since this editor is at the panel
@@ -376,11 +376,11 @@ export default function LayoutForm({
             <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground font-semibold uppercase">View Type</label>
               <select
-                value={currentViewType || "list"}
+                value={currentViewType || "board"}
                 onChange={onViewTypeChange}
                 className="w-full text-xs bg-muted border border-border rounded px-2 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
               >
-                <option value="list">List</option>
+                <option value="board">Board</option>
                 <option value="notebook">Notebook</option>
                 <option value="artifact-viewer">Artifact Viewer</option>
                 <option value="doc-viewer">Doc Viewer</option>
