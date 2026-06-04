@@ -5,8 +5,8 @@
 // ============================================================
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { toast } from "../components/ui/sonner";
 import { getUndoState, undoTransaction, redoTransaction } from "../helpers/TransactionHelpers";
+import { pushTxNotification } from "../state/notificationStore";
 
 /**
  * useUndoRedo - Hook for managing undo/redo state
@@ -42,7 +42,7 @@ export function useUndoRedo(socket, gridId, onUndoAnimation) {
       setIsProcessing(false);
 
       if (success) {
-        toast.success("Undone", { duration: 1500 });
+        pushTxNotification({ kind: "success", label: "Undone" });
 
         // Trigger animation if there are move operations to animate
         if (animate && onUndoAnimation && reversedOps) {
@@ -55,7 +55,7 @@ export function useUndoRedo(socket, gridId, onUndoAnimation) {
         // Refresh undo state
         refreshUndoState();
       } else {
-        toast.error(`Undo failed: ${error || "Unknown error"}`);
+        pushTxNotification({ kind: "error", label: `Undo failed: ${error || "Unknown error"}` });
       }
     };
 
@@ -63,10 +63,10 @@ export function useUndoRedo(socket, gridId, onUndoAnimation) {
       setIsProcessing(false);
 
       if (success) {
-        toast.success("Redone", { duration: 1500 });
+        pushTxNotification({ kind: "success", label: "Redone" });
         refreshUndoState();
       } else {
-        toast.error(`Redo failed: ${error || "Unknown error"}`);
+        pushTxNotification({ kind: "error", label: `Redo failed: ${error || "Unknown error"}` });
       }
     };
 

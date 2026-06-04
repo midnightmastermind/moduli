@@ -5197,16 +5197,14 @@ export async function createLiveData(userId, options = {}) {
     parentId: trackersFolderId, sortOrder: 0,
     occurrences: Object.values(goalContOccIds),
     iteration: { mode: "persistent" }, fields: {},
-    // Daily date filter with a visible LocalFilterNav so the user can browse
-    // goals for different dates from the Trackers page without touching the
-    // global toolbar.  Condition mirrors Schedule's filter (DATE_EQUALS OR empty)
-    // so persistent goal display items always show regardless of date.
+    // Date filter is configured but defaults to OFF — trackers default to
+    // "show totals" (no date filter). The user can toggle the filter on
+    // via the LocalFilterNav when they want to focus on a single period.
     filters: [
       {
-        id: goalsFilterId, fieldId: dateFieldId, active: true, showNav: true,
-        timeUnit: "day", defaultNavValue: "today",
-        // D/W/M/Y unit toggle on the Daily Goals LocalFilterNav — trackers
-        // re-aggregate over the full selected period via DATE_IN_PERIOD.
+        id: goalsFilterId, fieldId: dateFieldId, active: false, showNav: true,
+        timeUnit: "day", defaultNavValue: null,
+        // D/W/M/Y unit toggle stays available when the user enables the filter.
         units: ["day", "week", "month", "year"],
         condition: { operator: "OR", rules: [
           { left: "$field.value", comparator: "DATE_EQUALS", right: "$nav" },
@@ -5223,14 +5221,13 @@ export async function createLiveData(userId, options = {}) {
     parentId: trackersFolderId, sortOrder: 1,
     occurrences: Object.values(accountContOccIds),
     iteration: { mode: "persistent" }, fields: {},
-    // D/W/M/Y filter (mirrors Daily Goals) so account aggregations can be
-    // viewed over different periods. Condition matches goals/schedule:
-    // DATE_EQUALS OR IS_EMPTY so all-time aggregation rows (no date) still
-    // appear regardless of the active period.
+    // Date filter is configured but defaults to OFF — accounts default to
+    // "show totals" (all-time aggregation). User can opt into a period via
+    // the LocalFilterNav.
     filters: [
       {
-        id: accountsFilterId, fieldId: dateFieldId, active: true, showNav: true,
-        timeUnit: "day", defaultNavValue: "today",
+        id: accountsFilterId, fieldId: dateFieldId, active: false, showNav: true,
+        timeUnit: "day", defaultNavValue: null,
         units: ["day", "week", "month", "year"],
         condition: { operator: "OR", rules: [
           { left: "$field.value", comparator: "DATE_EQUALS", right: "$nav" },
@@ -6425,6 +6422,9 @@ export async function createLiveData(userId, options = {}) {
     goalLabel: "Checking Account", goalOccurrenceId: accountOccIds.bankAccount, goalFieldId: fields.checkingBalance.id,
     incomeFieldId: fields.income.id, spentFieldId: fields.amount.id,
     agg: "net", timeFilter: "all",
+    // Scope by accountRef instead of page — Todo List / Bills tasks
+    // pointing at Checking should affect this balance.
+    accountRefFieldId: accountRefFieldId, accountOccurrenceId: accountOccIds.bankAccount,
     // Account balance can swing positive OR negative — mirrors Net Worth
     // (in the goals docket). Negative reads red w/ ArrowDown ("in the
     // hole"), positive reads green w/ ArrowUp, zero/null blue (no
@@ -6442,6 +6442,9 @@ export async function createLiveData(userId, options = {}) {
     ...trackerArgs, name: "Mom's Account Balance",
     goalLabel: "Mom's Account", goalOccurrenceId: accountOccIds.momsAccount, goalFieldId: fields.momsAccountBalance.id,
     sourceFieldId: fields.amount.id, agg: "sum", timeFilter: "all",
+    // Scope by accountRef — Todo List / Bills tasks tagged Mom's
+    // contribute regardless of which page they live on.
+    accountRefFieldId: accountRefFieldId, accountOccurrenceId: accountOccIds.momsAccount,
     // Same negative/zero/positive pattern as the main Checking Account.
     displayRules: {
       "Mom's Account": [
@@ -7822,19 +7825,27 @@ export async function createLiveData(userId, options = {}) {
           predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Pomodoro" }] },
           itemVar: "$pomoSrc", itemIdVar: "$pomoSrcId",
         } },
-        // 3. Find slot container under Schedule whose timeslot field matches
-        //    the timer-supplied label (e.g. "9:00am"). Identity is field-based:
-        //    scheduleFormat="slot" + timeslot field value = $trigger.slotLabel.
-        { id: uid(), type: "action", config: {
-          type: "FIND",
-          over: "$allContainers",
-          predicate: { operator: "AND", rules: [
-            { id: uid(), left: "_ancestors",                                   comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-            { id: uid(), left: `fields.${scheduleFormatFieldId}.value`,        comparator: "IS",           right: "slot" },
-            { id: uid(), left: `fields.${timeslotFieldId}.value`,              comparator: "IS",           right: "$trigger.slotLabel" },
-          ] },
-          itemIdVar: "$slotId",
-        } },
+        // 3a. When the user has picked a specific destination in the
+        //     PomodoroTimer dropdown, route there directly.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$slotId", expr: "$trigger.targetContainerId" } },
+        // 3b. Otherwise fall back to the slot-label FIND under Schedule:
+        //     timeslot field matches the timer-supplied label (e.g. "9:00am").
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$slotId", comparator: "IS_EMPTY", right: "" }] },
+          then: [
+            { id: uid(), type: "action", config: {
+              type: "FIND",
+              over: "$allContainers",
+              predicate: { operator: "AND", rules: [
+                { id: uid(), left: "_ancestors",                                   comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: `fields.${scheduleFormatFieldId}.value`,        comparator: "IS",           right: "slot" },
+                { id: uid(), left: `fields.${timeslotFieldId}.value`,              comparator: "IS",           right: "$trigger.slotLabel" },
+              ] },
+              itemIdVar: "$slotId",
+            } },
+          ],
+          else: [],
+        },
         // 4. Guard: only COPY_LINK if all three resolved.
         { id: uid(), type: "if",
           condition: { operator: "AND", rules: [
@@ -8622,7 +8633,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation({
     id: uid(), userId, gridId, priority: 8,
     name: "Table: Build",
-    description: "Mirror the Schedule into the Schedule Table page. Per task on the active day: 3 copy-linked occurrences parented under the table (col0 main w/ date+timeslot hidden via the column's fieldVisibility, col1 date-only projection, col2 timeslot-only projection) + a shared copy-linked Completed per-metric occurrence (col3, all fields). Row-level existence dedup using Schedule: Build Day's exact predicate (templateId IS task AND _ancestors HAS_ANCESTOR table AND fields.<date> SAME_DAY schedDate) — row present → skip, absent → create. $r appends from the table's current rowCount. Idempotent + per-date + self-healing, no flags, no stamped markers.",
+    description: "Mirror the Schedule into the Schedule Table page. Per task in the active PERIOD (DATE_IN_PERIOD $schedPeriod — day/week/month/year/multi, resolved from the Schedule page's effective filter): one copy-linked occurrence parented under the table, projected per column via fieldVisibility (col0 main w/ date+timeslot hidden, col1 date-only, col2 timeslot-only) + a shared copy-linked Completed per-metric occurrence (col3, all fields). Diff mode: orphan-sweep rows whose source task left the period, COPY_LINK rows for newly-in-period tasks, rebuild cells only when $changed>0. Idempotent + period-aware + self-healing, no flags, no stamped markers. (Migrated from single-date SAME_DAY to DATE_IN_PERIOD 2026-06-03 — SAME_DAY against the picker's period object matched nothing, so the table produced zero rows.)",
     triggerTypes: ["onAdd", "onDelete", "onChange", "onFilterChange", "onLoad"],
     triggerObjects: [
       // Container/instance add/delete — narrowed to ancestorLabel:"Schedule"
@@ -8665,17 +8676,27 @@ export async function createLiveData(userId, options = {}) {
                 type: "INIT_VAR", name: "$schedPage", expr: `$allItemsById.${schedPageOccId}`,
             }},
             { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
-            // 4. Resolve the active schedule date: $trigger.date →
-            //    Schedule page effective filter → today.
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$trigger.date" } },
+            // 4. Resolve the active schedule PERIOD (full filter object —
+            //    {value,unit} or {kind:"multi",dates:[]} — NOT a flattened
+            //    single date). Page effective filter is PRIMARY so week/month/
+            //    multi views mirror their whole window; $trigger.date / $today
+            //    are bare-string fallbacks (DATE_IN_PERIOD treats a bare
+            //    YYYY-MM-DD as day-unit). Mirrors the trackers' $goalPeriod
+            //    chain — the same migration that fixed the multi-day Schedule.
+            //    The pre-multiday code resolved a single $schedDate and matched
+            //    tasks with SAME_DAY; once the picker started writing period
+            //    OBJECTS into the effective filter, SAME_DAY compared a date
+            //    string against an object and silently matched nothing — which
+            //    is why the table produced zero rows after the refactor.
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPeriod", expr: `$schedPage._effectiveFilter.${dateFieldId}` } },
             { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
-              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } }],
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPeriod", comparator: "IS_EMPTY", right: "" }] },
+              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPeriod", expr: "$trigger.date" } }],
               else: [],
             },
             { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
-              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPeriod", comparator: "IS_EMPTY", right: "" }] },
+              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPeriod", expr: "$today" } }],
               else: [],
             },
             // 5. Find the goal these tasks roll up to (col3 source). Every
@@ -8799,7 +8820,7 @@ export async function createLiveData(userId, options = {}) {
                               condition: { operator: "AND", rules: [
                                 { id: uid(), left: "$srcProbe._ancestors",                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                                 { id: uid(), left: "$srcProbe.linkedGroupId",                    comparator: "IS",           right: "$existing.linkedGroupId" },
-                                { id: uid(), left: `$srcProbe.fields.${dateFieldId}.value`,      comparator: "SAME_DAY",     right: "$schedDate" },
+                                { id: uid(), left: `$srcProbe.fields.${dateFieldId}.value`,      comparator: "DATE_IN_PERIOD", right: "$schedPeriod" },
                                 { id: uid(), left: "$srcProbe.label",                            comparator: "IS_NOT_EMPTY", right: "" },
                               ] },
                               then: [{ id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$srcFound" } }],
@@ -8828,7 +8849,7 @@ export async function createLiveData(userId, options = {}) {
                     { id: uid(), type: "if",
                       condition: { operator: "AND", rules: [
                         { id: uid(), left: "$task._ancestors",                    comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                        { id: uid(), left: `$task.fields.${dateFieldId}.value`,   comparator: "SAME_DAY",     right: "$schedDate"   },
+                        { id: uid(), left: `$task.fields.${dateFieldId}.value`,   comparator: "DATE_IN_PERIOD", right: "$schedPeriod" },
                         { id: uid(), left: "$task.label",                          comparator: "IS_NOT_EMPTY", right: ""             },
                       ] },
                       then: [
@@ -8884,7 +8905,7 @@ export async function createLiveData(userId, options = {}) {
                         { id: uid(), type: "if",
                           condition: { operator: "AND", rules: [
                             { id: uid(), left: "$task2._ancestors",                    comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                            { id: uid(), left: `$task2.fields.${dateFieldId}.value`,   comparator: "SAME_DAY",     right: "$schedDate"   },
+                            { id: uid(), left: `$task2.fields.${dateFieldId}.value`,   comparator: "DATE_IN_PERIOD", right: "$schedPeriod" },
                             { id: uid(), left: "$task2.label",                          comparator: "IS_NOT_EMPTY", right: ""             },
                           ] },
                           then: [
@@ -8957,7 +8978,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation({
     id: uid(), userId, gridId, priority: 8,
     name: "Canvas: Build",
-    description: "Mirror Schedule tasks for the active day onto the Schedule Canvas page. Each task → one copy-linked occurrence stamped with meta.x/y so cards stack vertically on the canvas. Idempotent + per-date + self-healing.",
+    description: "Mirror Schedule tasks in the active PERIOD (DATE_IN_PERIOD $schedPeriod — day/week/month/year/multi, resolved from the Schedule page's effective filter) onto the Schedule Canvas page. Each task → one copy-linked occurrence stamped with meta.x/y + meta.viewMode:'representation' (compact preview node). Cards are threaded into a mindmap chain via auto-generated edges on the canvas page's meta.edges (deterministic 'auto-' ids; hand-drawn connect-tool edges are preserved across rebuilds). Diff mode preserves drag positions across re-fires. Idempotent + period-aware + self-healing. (Migrated from single-date SAME_DAY to DATE_IN_PERIOD + mindmap layer 2026-06-03 — SAME_DAY against the picker's period object matched nothing, so the canvas produced zero cards.)",
     triggerTypes: ["onAdd", "onDelete", "onChange", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 8 },
@@ -8988,16 +9009,23 @@ export async function createLiveData(userId, options = {}) {
                 type: "INIT_VAR", name: "$schedPage", expr: `$allItemsById.${schedPageOccId}`,
             }},
             { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
-            // 3. Resolve active schedule date (same chain as Schedule Table: Build).
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$trigger.date" } },
+            // 3. Resolve the active schedule PERIOD (same period model as
+            //    Table: Build — page effective filter is PRIMARY so week/month/
+            //    multi views mirror their whole window). The full filter object
+            //    ({value,unit} / {kind:"multi",dates}) is kept, NOT flattened to
+            //    a single day — SAME_DAY against the picker's period object
+            //    matched nothing, which is why the canvas produced zero cards
+            //    after the multi-day refactor. DATE_IN_PERIOD reads day/week/
+            //    month/year/multi and treats a bare YYYY-MM-DD as day-unit.
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPeriod", expr: `$schedPage._effectiveFilter.${dateFieldId}` } },
             { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
-              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } }],
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPeriod", comparator: "IS_EMPTY", right: "" }] },
+              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPeriod", expr: "$trigger.date" } }],
               else: [],
             },
             { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedDate", comparator: "IS_EMPTY", right: "" }] },
-              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedDate", expr: "$today" } }],
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPeriod", comparator: "IS_EMPTY", right: "" }] },
+              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPeriod", expr: "$today" } }],
               else: [],
             },
             // 4. SCOPE GUARD (2026-05-25 part 3 — INCLUSIVE, replaces the
@@ -9080,7 +9108,7 @@ export async function createLiveData(userId, options = {}) {
                               condition: { operator: "AND", rules: [
                                 { id: uid(), left: "$srcProbe._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                                 { id: uid(), left: "$srcProbe.linkedGroupId", comparator: "IS", right: "$existing.linkedGroupId" },
-                                { id: uid(), left: `$srcProbe.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+                                { id: uid(), left: `$srcProbe.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$schedPeriod" },
                               ] },
                               then: [
                                 { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$srcFound" } },
@@ -9103,10 +9131,33 @@ export async function createLiveData(userId, options = {}) {
                     },
                   ],
                 },
-                // 5b. Reset row counter — used for seed positions of
-                //     newly-COPY_LINKed cards. Existing cards keep
-                //     their drag positions.
+                // 5b. Reset counters + seed the edge list for the mindmap chain.
+                //     $r drives seed positions for newly-minted cards (existing
+                //     cards keep their drag positions). $prevCardId threads the
+                //     chain task→task. $edges starts from the canvas's CURRENT
+                //     edges minus the op's own "auto-" chain (regenerated every
+                //     rebuild) — so connect-tool edges the user drew BY HAND
+                //     (ids like "e-…", which never contain "auto-") survive,
+                //     while the schedule chain stays in sync with the task set.
+                //     Looping a possibly-undefined meta.edges is safe — the loop
+                //     coerces a non-array overExpr to [] (operationExecutor:663).
                 { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$r", expr: "literal:0" } },
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$prevCardId", expr: "literal:" } },
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$edges", expr: "json:[]" } },
+                {
+                  id: uid(), type: "loop", overExpr: "$canvas.meta.edges", as: "$ee",
+                  body: [
+                    { id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: "$ee.id", comparator: "CONTAINS", right: "auto-" },
+                      ] },
+                      then: [],
+                      else: [
+                        { id: uid(), type: "action", config: { type: "PUSH_TO_ARRAY", name: "$edges", value: { id: "$ee.id", from: "$ee.from", to: "$ee.to" } } },
+                      ],
+                    },
+                  ],
+                },
                 // 6. One copy per schedule task on $schedDate under the
                 //    Schedule page — IFF a canvas copy doesn't already
                 //    exist (existence checked via linkedGroupId match).
@@ -9120,14 +9171,14 @@ export async function createLiveData(userId, options = {}) {
                       id: uid(), type: "if",
                       condition: { operator: "AND", rules: [
                         { id: uid(), left: "$task._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                        { id: uid(), left: `$task.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+                        { id: uid(), left: `$task.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$schedPeriod" },
                         { id: uid(), left: "$task.label", comparator: "IS_NOT_EMPTY", right: "" },
                       ] },
                       then: [
-                        // Existence check — does a canvas copy with
-                        // matching linkedGroupId already exist? Count
-                        // matches via inner loop (PUSH_TO_VAR int).
-                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$copyExists", expr: "literal:0" } },
+                        // Resolve this task's canvas card id. Scan canvas
+                        // children for the first copy whose linkedGroupId
+                        // matches; empty $curCardId means none exists yet.
+                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$curCardId", expr: "literal:" } },
                         { id: uid(), type: "if",
                           condition: { operator: "AND", rules: [
                             { id: uid(), left: "$task.linkedGroupId", comparator: "IS_NOT_EMPTY", right: "" },
@@ -9140,9 +9191,10 @@ export async function createLiveData(userId, options = {}) {
                                   condition: { operator: "AND", rules: [
                                     { id: uid(), left: "$copyProbe._ancestors", comparator: "HAS_ANCESTOR", right: "$canvasId" },
                                     { id: uid(), left: "$copyProbe.linkedGroupId", comparator: "IS", right: "$task.linkedGroupId" },
+                                    { id: uid(), left: "$curCardId", comparator: "IS_EMPTY", right: "" },
                                   ] },
                                   then: [
-                                    { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$copyExists" } },
+                                    { id: uid(), type: "action", config: { type: "SET_VAR", name: "$curCardId", expr: "$copyProbe.id" } },
                                   ],
                                   else: [],
                                 },
@@ -9151,12 +9203,12 @@ export async function createLiveData(userId, options = {}) {
                           ],
                           else: [],
                         },
-                        // Only COPY_LINK + stamp position when no
-                        // existing canvas copy was found. Preserves
-                        // every drag-positioned card across op fires.
+                        // Mint when missing — COPY_LINK + stamp seed position +
+                        // representation view. Existing cards keep their drag
+                        // positions (this branch is skipped when $curCardId is set).
                         { id: uid(), type: "if",
                           condition: { operator: "AND", rules: [
-                            { id: uid(), left: "$copyExists", comparator: "IS", right: 0 },
+                            { id: uid(), left: "$curCardId", comparator: "IS_EMPTY", right: "" },
                           ] },
                           then: [
                             { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$canvasId", itemVar: "$copy", itemIdVar: "$copyId" } },
@@ -9166,9 +9218,156 @@ export async function createLiveData(userId, options = {}) {
                             { id: uid(), type: "action", config: { type: "ADD_TO_VAR",   name: "$y", expr: "literal:60" } },
                             { id: uid(), type: "action", config: { type: "UPDATE", path: "$copy.meta.x", value: 60 } },
                             { id: uid(), type: "action", config: { type: "UPDATE", path: "$copy.meta.y", value: "$y" } },
+                            // Mindmap preview node — render the canvas card as a
+                            // compact representation chip (label + type icon), not
+                            // a full inline instance. meta is canvas-local (excluded
+                            // from the linkedGroupId fan-out, same as meta.x/y), so
+                            // the Schedule source keeps its own (actual) view mode.
+                            // Only stamped on a freshly-minted card (this branch is
+                            // guarded by the no-existing-copy check), so a user who
+                            // flips a card back to actual/preview keeps that choice
+                            // across op re-fires.
+                            { id: uid(), type: "action", config: { type: "UPDATE", path: "$copy.meta.viewMode", value: "representation" } },
                             { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$r" } },
+                            { id: uid(), type: "action", config: { type: "SET_VAR", name: "$curCardId", expr: "$copyId" } },
                           ],
                           else: [],
+                        },
+                        // Thread the mindmap chain: edge from the previous task's
+                        // card to this one. Deterministic "auto-" id so the
+                        // preserve-pass above recognizes + regenerates it without
+                        // ever colliding with a hand-drawn edge. The client renders
+                        // it as a bezier connector and lazily prunes it if either
+                        // endpoint card is later deleted.
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: "$prevCardId", comparator: "IS_NOT_EMPTY", right: "" },
+                            { id: uid(), left: "$curCardId",  comparator: "IS_NOT_EMPTY", right: "" },
+                          ] },
+                          then: [
+                            { id: uid(), type: "action", config: { type: "PUSH_TO_ARRAY", name: "$edges", value: { id: "auto-${$prevCardId}-${$curCardId}", from: "$prevCardId", to: "$curCardId" } } },
+                          ],
+                          else: [],
+                        },
+                        { id: uid(), type: "action", config: { type: "SET_VAR", name: "$prevCardId", expr: "$curCardId" } },
+                      ],
+                      else: [],
+                    },
+                  ],
+                },
+                // 7. Persist the rebuilt edge set (preserved manual edges + the
+                //    regenerated schedule chain) onto the canvas page occurrence.
+                //    One UPDATE per rebuild; the client renders bezier connectors
+                //    between the cards' meta.x/y anchors.
+                { id: uid(), type: "action", config: { type: "UPDATE", path: "$canvas.meta.edges", value: "$edges" } },
+              ],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+  }).save();
+
+
+  // ── Schedule: Mark Passed Slots (time-based, 2026-06-03) ──────────────────
+  // Tints schedule slots whose time is in the past. TIME-BASED op (uses the
+  // `schedule` field + the useScheduler tick, NOT event triggers) so the tint
+  // advances through the day on its own. Every 5 min (≥ the 60s persistent-
+  // effect floor, since it writes occurrence style).
+  //
+  // Per-day-column correctness: day-col slot containers are PER-DAY COPY_LINK
+  // copies parented under each day-col (Build Schedule clones them), so styling
+  // one column's slot never touches another day. A slot counts as "passed"
+  // when:
+  //   • its day-col date is BEFORE today (whole past day → every slot), OR
+  //   • its day-col date IS today AND its timeslot is TIME_BEFORE $currentTime.
+  // Future day-cols are left untouched.
+  //
+  // The op holds ZERO schedule knowledge in any component — it writes the
+  // generic `occurrence.ownStyle.bg` (which `resolveContainerStyle` already
+  // overlays for any container), referencing the timeslot / scheduleFormat /
+  // date fields BY ID. Dedup'd: a fire only writes a slot whose passed-state
+  // actually flipped (compares the current ownStyle.bg before writing), so
+  // steady-state fires emit ~zero socket writes.
+  const passedSlotColor = "rgba(248,113,113,0.10)";
+  await new Operation({
+    id: uid(), userId, gridId, priority: 5,
+    name: "Schedule: Mark Passed Slots",
+    description: "Time-based (every 5 min). Tints schedule slots whose time has passed — all slots in a past day-column, and slots before the current time in today's day-column; future days untouched. Writes the generic occurrence.ownStyle.bg the container already renders (no schedule knowledge in any component); references the timeslot/scheduleFormat/date fields by id; uses TIME_BEFORE + DATE_BEFORE comparators. Dedup'd so a fire only writes slots whose passed-state flipped.",
+    triggerTypes: [],
+    triggerObjects: [],
+    enabled: true,
+    schedule: { kind: "interval", every: 5, unit: "minute", lastFiredAt: null },
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage", expr: `$allItemsById.${schedPageOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
+        {
+          id: uid(), type: "loop", overExpr: "$allContainers", as: "$dayCol",
+          body: [
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$dayCol._ancestors",                          comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: `$dayCol.fields.${scheduleFormatFieldId}.value`, comparator: "IS",           right: "day-col" },
+              ] },
+              then: [
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$colDate", expr: `$dayCol.fields.${dateFieldId}.value` } },
+                // Whole-day-passed (past day-col) + is-today flags.
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayPast", expr: "literal:0" } },
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [{ id: uid(), left: "$colDate", comparator: "DATE_BEFORE", right: "$today" }] },
+                  then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$dayPast", expr: "literal:1" } }],
+                  else: [],
+                },
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayIsToday", expr: "literal:0" } },
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [{ id: uid(), left: "$colDate", comparator: "SAME_DAY", right: "$today" }] },
+                  then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$dayIsToday", expr: "literal:1" } }],
+                  else: [],
+                },
+                {
+                  id: uid(), type: "loop", overExpr: "$dayCol.occurrences", as: "$slotId",
+                  body: [
+                    { id: uid(), type: "action", config: { type: "SET_VAR", name: "$slot", expr: "$allItemsById.${$slotId}" } },
+                    { id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: `$slot.fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "slot" },
+                      ] },
+                      then: [
+                        // passed? past day → yes; today → timeslot before now.
+                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$passed", expr: "literal:0" } },
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayPast", comparator: "IS", right: 1 }] },
+                          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$passed", expr: "literal:1" } }],
+                          else: [],
+                        },
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: "$dayIsToday",                            comparator: "IS",          right: 1 },
+                            { id: uid(), left: `$slot.fields.${timeslotFieldId}.value`,  comparator: "TIME_BEFORE", right: "$currentTime" },
+                          ] },
+                          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$passed", expr: "literal:1" } }],
+                          else: [],
+                        },
+                        // Apply with dedup — only write when state flips.
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [{ id: uid(), left: "$passed", comparator: "IS", right: 1 }] },
+                          then: [
+                            { id: uid(), type: "if",
+                              condition: { operator: "AND", rules: [{ id: uid(), left: "$slot.ownStyle.bg", comparator: "IS_NOT", right: passedSlotColor }] },
+                              then: [{ id: uid(), type: "action", config: { type: "UPDATE", path: "$slot.ownStyle.bg", value: passedSlotColor } }],
+                              else: [],
+                            },
+                          ],
+                          else: [
+                            { id: uid(), type: "if",
+                              condition: { operator: "AND", rules: [{ id: uid(), left: "$slot.ownStyle.bg", comparator: "IS_NOT_EMPTY", right: "" }] },
+                              then: [{ id: uid(), type: "action", config: { type: "UPDATE", path: "$slot.ownStyle.bg", value: "" } }],
+                              else: [],
+                            },
+                          ],
                         },
                       ],
                       else: [],
@@ -9176,9 +9375,9 @@ export async function createLiveData(userId, options = {}) {
                   ],
                 },
               ],
+              else: [],
             },
           ],
-          else: [],
         },
       ],
     },

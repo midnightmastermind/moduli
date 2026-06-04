@@ -1,488 +1,327 @@
-# Jarvis — Implementation & Testing Guide
+# Jonah — The Assistant Guide (start-from-scratch)
 
-This is a **teaching guide** for the Moduli assistant ("Jarvis"). It
-walks through what an AI assistant actually IS in implementation terms,
-how the pieces fit, what setup you need to do, and how to test each
-layer. Read it top-to-bottom on first run; come back to sections 5–7
-when you're building or debugging.
+This is the **teaching + setup + testing** guide for the Moduli assistant.
+It assumes **no prior AI experience**. By the end you'll understand what an
+LLM actually is, how an "AI agent" is built from plain parts, how to run one
+**offline on your own machine**, and how this project wires it up.
 
-Companion to `docs/assistant-plan.md` (the design) and
-`docs/api-testing.md` (the API surface Jarvis sits on top of).
+It consolidates three older docs:
+
+- `docs/assistant-plan.md` — the design/roadmap (still the authoritative plan)
+- `docs/aispecs.md` — the original offline-LLM spec (now **historical**; its
+  code-agent vision lives on as the "system pack", see §9)
+- the previous version of this guide
+
+> **The big picture.** This assistant is meant to grow into *your own overall
+> AI system*. **Moduli's chatbox is one "port" into it** — a surface that only
+> sees Moduli's commands + your grid as context. It lives in this repo for now
+> but is structured to be lifted out later. Keep that in mind: the *core* is
+> general; the *Moduli part* is just one adapter.
 
 ---
 
 ## Table of contents
 
-1. [What an "AI assistant" actually is](#1-what-an-ai-assistant-actually-is)
-2. [Architecture in one diagram](#2-architecture-in-one-diagram)
-3. [The two operating modes](#3-the-two-operating-modes)
-4. [Setup — do this once](#4-setup--do-this-once)
-5. [Step-by-step test — what to type, what you should see](#5-step-by-step-test--what-to-type-what-you-should-see)
-6. [How each layer works](#6-how-each-layer-works)
+0. [Crash course: how LLMs & AI actually work](#0-crash-course-how-llms--ai-actually-work)
+1. [What an "AI assistant" is made of](#1-what-an-ai-assistant-is-made-of)
+2. [Architecture: core engine, tool packs, ports](#2-architecture-core-engine-tool-packs-ports)
+3. [The backends: offline (Ollama) vs cloud (Anthropic) vs none](#3-the-backends)
+4. [Setup — offline first](#4-setup--offline-first)
+5. [Test it — what to type, what you should see](#5-test-it)
+6. [How each layer works (and how to extend it)](#6-how-each-layer-works)
 7. [Build your own tool](#7-build-your-own-tool)
-8. [Troubleshooting](#8-troubleshooting)
-9. [What's deferred](#9-whats-deferred)
+8. [Memory (future)](#8-memory-future)
+9. [The system pack — file & command execution (advanced, off by default)](#9-the-system-pack)
+10. [Troubleshooting](#10-troubleshooting)
+11. [Glossary + where to learn more](#11-glossary--where-to-learn-more)
 
 ---
 
-## 1. What an "AI assistant" actually is
+## 0. Crash course: how LLMs & AI actually work
 
-You can build a real AI assistant from **four ingredients**. None of
-them are magic. Most are plain HTTP.
+You don't need math to use this, but a correct mental model saves you hours.
 
-### Ingredient 1: a language model
+### What a language model *is*
 
-A language model is a black box that takes text in and returns text out.
-For Jarvis we use either:
+An **LLM (Large Language Model)** is one giant function that does exactly one
+thing: **given some text, predict the next chunk of text.** That's it. It has
+no memory, no goals, no internet — just "what word probably comes next."
 
-- **Anthropic Claude** (cloud, costs ~$0.10/day per active user) — set
-  `ANTHROPIC_API_KEY` in `server/.env`
-- **Ollama** (local, free, slower) — install via `brew install ollama`
-  and run `ollama serve` — _next session_
+It learned this by reading an enormous amount of text during **training** and
+adjusting billions of internal numbers (**weights** / **parameters**) until its
+next-word guesses got good. Training already happened; when you *run* the model
+("**inference**") the weights are frozen. A "7B" model has ~7 **billion**
+weights. Bigger = smarter but slower and needs more memory.
 
-The model doesn't know anything about Moduli specifically. It only
-knows what we tell it in two places:
+Everything clever an LLM appears to do — answering, summarizing, writing code —
+is that one next-token trick applied over and over, very fast.
 
-- **System prompt** — a paragraph that explains its role and rules.
-  Always sent. Lives in `server/services/assistantAgent.js` as
-  `SYSTEM_PROMPT`.
-- **Tool catalog** — a list of structured "things you can do" with
-  JSON schemas. Sent on every turn.
+### Tokens
 
-### Ingredient 2: tools (function calling)
+Models don't see words; they see **tokens** — pieces of words (`"Eminem"`
+might be `Em|in|em`). Two practical consequences:
 
-A "tool" is just a function the model can ask us to run. The model
-emits something like:
+- **You pay/wait per token.** Cost and speed scale with how many tokens go in
+  (your prompt) and come out (the reply).
+- **The context window** — the max tokens a model can "see" at once (its
+  short-term memory) — is finite (e.g. 8k–128k tokens). Go over it and the
+  oldest text falls off. This is why we re-send the chat history every turn and
+  keep prompts lean.
+
+### Temperature (randomness)
+
+When picking the next token the model can play it safe or take risks.
+**Temperature** is that dial: `0` = deterministic/repeatable (good for tools &
+code), higher = more varied/creative (good for brainstorming). For an agent that
+calls tools you generally want it low.
+
+### Why it "hallucinates"
+
+Because it predicts *plausible* text, not *true* text. With no source, a model
+will confidently invent facts. The fix is **grounding**: give it real data (a
+Wikipedia summary, your grid state) and tell it to answer *from that*. That's a
+big reason this assistant has lookup tools instead of relying on the model's
+memory.
+
+### What "tool calling" actually is
+
+This is the key trick that turns a text-predictor into an **agent**. We tell the
+model, in a structured way, "here are some functions you may use." Instead of
+answering in prose, the model can emit a structured request like:
 
 ```json
-{ "tool_use": { "name": "wikipedia_import", "input": { "query": "giraffe" } } }
+{ "name": "wikipedia_import", "input": { "query": "Eminem" } }
 ```
 
-We see that, run our `wikipedia_import` function, and feed the result
-back to the model:
+Our code sees that, **runs the real function**, and feeds the result back as
+more text. The model reads the result and decides what to do next. Loop that and
+you have an agent: **LLM = brain, tools = hands, loop = the agent.** The model
+never runs anything itself — it only *asks*; your backend decides whether and
+how to act. That boundary is the whole safety story.
 
-```json
-{ "tool_result": { "rootOccurrenceId": "abc-123", "stats": {...} } }
-```
+### Embeddings & RAG (preview — see §8)
 
-The model then decides whether to call another tool or write a final
-response. This back-and-forth is the **agent loop**.
+A second AI trick: an **embedding** turns a piece of text into a list of numbers
+(a vector) where *similar meaning = nearby numbers*. Store many and you can
+"find the most relevant snippet to this question" by math. Feeding those
+snippets into the prompt is **RAG (Retrieval-Augmented Generation)** — how you'd
+later let the assistant answer questions about your own files/grid. We don't use
+it yet; it's the future "deep memory."
 
-In Jarvis, every tool is a thin wrapper over an existing `/api/v1`
-endpoint. Jarvis has no special powers — it makes the same HTTP calls
-your own Zapier integration would.
+### The one rule
 
-### Ingredient 3: a chat transcript
-
-The model is **stateless**. It doesn't remember what you said
-yesterday. To give it continuity, we replay the whole conversation
-on every turn:
-
-```json
-[
-  { "role": "user",      "content": "look up giraffes" },
-  { "role": "assistant", "content": "Imported. 17 containers..." },
-  { "role": "user",      "content": "now do octopuses" }
-]
-```
-
-Jarvis stores this in `localStorage["moduli_assistant_history"]` so
-the user can close and reopen the drawer without losing context.
-
-### Ingredient 4: an avatar + drawer
-
-Pure UI. A floating button bottom-right, click → side panel slides in,
-chat history renders, input at the bottom. No magic — just React.
-Personality lives in the **system prompt** and the visual sprite, not
-in the tool layer.
-
-That's it. Four ingredients. The rest is plumbing.
+> **The model generates *intent*. Your backend enforces *reality*.**
+> Break that rule and the system becomes unsafe and unpredictable.
 
 ---
 
-## 2. Architecture in one diagram
+## 1. What an "AI assistant" is made of
 
-```
-┌───────────────────────────────────────────────────────────────────┐
-│  Browser                                                          │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │  AssistantDrawer (client/src/ui/AssistantDrawer.jsx)        │  │
-│  │  ─ floating "J" button, click → drawer                       │  │
-│  │  ─ chat transcript + input                                   │  │
-│  │  ─ Bearer token in localStorage                              │  │
-│  └────────────┬────────────────────────────────────────────────┘  │
-└───────────────│───────────────────────────────────────────────────┘
-                │ POST /api/v1/assistant/chat
-                │ { messages, gridId }
-                ↓
-┌───────────────────────────────────────────────────────────────────┐
-│  Server: routes/apiV1.js (chat handler)                           │
-│        ↓                                                          │
-│  Server: services/assistantAgent.js                               │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │  if ANTHROPIC_API_KEY → llmLoop (real Claude)                │  │
-│  │  else → deterministicDispatch (pattern matcher)             │  │
-│  │                                                              │  │
-│  │  Both modes call tools:                                      │  │
-│  │  ─ wikipedia_search / _import                                │  │
-│  │  ─ import_markdown                                           │  │
-│  │  ─ list_operations / run_operation                           │  │
-│  └────────────┬────────────────────────────────────────────────┘  │
-│               │                                                   │
-│               ↓                                                   │
-│  Each tool calls a /api/v1/* endpoint with the user's token       │
-│  ─ Real fetch() back to localhost/api/v1 — no in-process magic    │
-│  ─ Same auth/scope/rate-limit/idempotency as any other caller    │
-└───────────────────────────────────────────────────────────────────┘
-                ↓                              ↑
-┌───────────────────────────────────────────────────────────────────┐
-│  Existing /api/v1 surface (Phases 1–4, all shipped)              │
-│  ─ /research/wikipedia/*  ← hits en.wikipedia.org/api            │
-│  ─ /import/markdown        ← deterministic md → entities         │
-│  ─ /operations/:id/run     ← server- or client-side executor     │
-│  ─ /modules /occurrences /fields /...                            │
-└───────────────────────────────────────────────────────────────────┘
-```
+Four ingredients. None are magic; most are plain HTTP.
 
-**Key insight:** the assistant has zero direct database access. Every
-mutation flows through the public REST API. That means anything you
-can demo with `curl` you can demo through Jarvis — and the security
-boundary is exactly the user's Bearer token.
+1. **A model** — Ollama (local) or Claude (cloud). Takes text, returns text.
+   Knows nothing about Moduli except what we tell it each turn.
+2. **Tools** — functions the model may ask us to run (§0 "tool calling"). Each
+   is a thin wrapper over our REST API or a sandboxed system call.
+3. **A transcript** — the model is stateless, so we replay the whole
+   conversation every turn. Stored in the browser's `localStorage` so the drawer
+   survives a reload.
+4. **An avatar + drawer** — pure UI. The personality is a **sophisticated turtle
+   butler with a Gandalf-like beard** named **Jonah** — wise, dry, precise.
+   Personality lives only in the system prompt + the avatar art, never in the
+   tool layer.
 
 ---
 
-## 3. The two operating modes
+## 2. Architecture: core engine, tool packs, ports
 
-Same chat endpoint, two backends, picked automatically by whether the
-server has an Anthropic API key.
+The assistant is built in three layers so the Moduli-specific part stays small
+and the rest can become your standalone system.
 
-### Mode A — deterministic dispatcher (default, no LLM)
+```
+                         ┌───────────────────────────────────────────┐
+   A "PORT" assembles →  │  Moduli chatbox port (routes/apiV1.js +    │
+   which tools + context │  assistantChat in assistantAgent.js)       │
+                         │   • includes the Moduli tool pack          │
+                         │   • includes the System pack ONLY if       │
+                         │     ASSISTANT_EXEC=1                        │
+                         └───────────────┬───────────────────────────┘
+                                         │ hands a tool list + messages to…
+                                         ↓
+   CORE ENGINE          ┌───────────────────────────────────────────┐
+   (domain-agnostic)    │  assistantAgent.js                         │
+                        │   • picks a backend (Ollama→Claude→none)   │
+                        │   • runs the agent loop (call tools, feed  │
+                        │     results back, repeat, cap at 6)        │
+                        └───────────────┬───────────────────────────┘
+                                        │ runs tools from…
+                                        ↓
+   TOOL PACKS           ┌───────────────────────────────────────────┐
+   (assistantTools.js)  │  moduliToolPack  → research/lookup + grid  │
+                        │                    commands (scoped to the │
+                        │                    user's token + grid)    │
+                        │  systemToolPack  → file/command execution  │
+                        │                    (general; off unless    │
+                        │                    ASSISTANT_EXEC=1)        │
+                        └───────────────────────────────────────────┘
+```
 
-When `ANTHROPIC_API_KEY` is **not** set, the server runs a tiny
-pattern matcher instead of an LLM. Recognized inputs:
+**Why this shape?**
 
-| You type | Jarvis does |
-|---|---|
-| `wiki <topic>` | Wikipedia search → top results |
-| `look up <topic>` | Wikipedia full article → import as Moduli page |
-| `research <topic>` | same |
-| `page on <topic>` | same |
-| `import wiki <topic>` | same |
-| `import:\n<markdown>` | turn pasted markdown into a Moduli page |
-| `list ops` | list runnable operations |
-| anything else | "I don't have an LLM, set ANTHROPIC_API_KEY for natural language" |
+- The **core** doesn't know what Moduli is. Later you point a different port
+  (a CLI, another app) at the same core with a different pack — that's the
+  "bigger system."
+- A **port** decides scope. The Moduli chatbox port only loads Moduli commands +
+  *your* grid as context, so the assistant can't wander outside it.
+- **Packs** are just lists of tools. Add a pack, the model can use it; remove it,
+  it can't. No core changes.
 
-**Why this exists.** It lets you demo the entire pipeline end-to-end
-without paying for or installing any AI provider. The doc-import
-side, the Wikipedia side, the persistence side — all testable in
-dev with no LLM.
-
-### Mode B — full LLM (Anthropic Claude)
-
-When `ANTHROPIC_API_KEY` is set, the server runs an agent loop with
-Claude Haiku (default) or whatever model you set via
-`ANTHROPIC_MODEL`. The loop:
-
-1. Send user message + system prompt + tool catalog + chat history to Claude
-2. Claude emits text + optional tool calls
-3. If tool calls: we run them, feed results back, GOTO 1
-4. If no tool calls: this is the final response, return it
-5. Max 6 iterations to prevent runaway loops
-
-The model sees the **tools you've registered**. To add a new
-capability, you register a new tool (section 7) and Claude can pick
-it on the next turn without code changes elsewhere.
+**The assistant has zero direct database access.** Every Moduli action goes
+through the public `/api/v1` REST surface with *your* Bearer token. Anything you
+can do with `curl`, the assistant can do — and the security boundary is exactly
+that token (delete it to revoke access).
 
 ---
 
-## 4. Setup — do this once
+## 3. The backends
 
-### Step 1 — Mint an API token
+Same chat endpoint; the core auto-selects (override with `ASSISTANT_BACKEND`):
 
-The drawer uses the same Bearer token as any other integration.
+| Order | Backend | What it is | When |
+|---|---|---|---|
+| 1 | **Ollama** (local) | A free program that runs models *on your machine*. Private, offline, no per-call cost. | **Preferred.** Used whenever `ollama serve` is reachable. |
+| 2 | **Anthropic Claude** (cloud) | Hosted model via API key. Smarter/faster, costs ~cents/session, sends data to Anthropic. | Fallback when Ollama is down **and** `ANTHROPIC_API_KEY` is set. |
+| 3 | **Deterministic** (no model) | A tiny pattern-matcher (regex → tool). No AI at all. | When neither model is available — demos, CI, "I have nothing installed." |
+
+Offline-first is deliberate: the whole point is it can run with **no cloud and
+no key**.
+
+---
+
+## 4. Setup — offline first
+
+### Step A — install Ollama (the local model runtime)
+
+Ollama is a small program that downloads + runs models locally and exposes an
+HTTP API at `http://localhost:11434`.
+
+```bash
+# macOS / Linux
+curl -fsSL https://ollama.com/install.sh | sh
+# (or: brew install ollama / download from ollama.com)
+```
+
+### Step B — pull a tool-capable model
+
+We default to `qwen2.5-coder:7b` — small, fast, good at structured/JSON output
+and tool calling. The `:7b` is the size; `7b` needs ~5–6 GB of RAM/VRAM. If your
+machine is small, try `qwen2.5-coder:1.5b`; if it's big, `:14b` is smarter.
+
+```bash
+ollama pull qwen2.5-coder:7b
+```
+
+### Step C — run the model server
+
+```bash
+ollama serve     # leave this running in its own terminal
+# sanity check:
+ollama run qwen2.5-coder:7b "say hello"
+```
+
+That's the entire offline AI setup. **No account, no key, no internet** after
+the model is downloaded.
+
+### Step D — point the app at it (optional env)
+
+Defaults already match a local Ollama, so usually nothing to do. To customize,
+add to `server/.env`:
+
+```bash
+# Offline (defaults shown — only set to change them)
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5-coder:7b
+
+# Optional cloud fallback (skip for pure offline)
+# ANTHROPIC_API_KEY=sk-ant-...
+# ANTHROPIC_MODEL=claude-haiku-4-5-20251001
+
+# Force a backend instead of auto-select: ollama | anthropic | deterministic
+# ASSISTANT_BACKEND=ollama
+```
+
+### Step E — mint an API token (the assistant's key to your grid)
+
+The drawer talks to the grid with the same Bearer token any integration uses:
 
 ```bash
 node --env-file=server/.env server/scripts/createApiToken.js \
-  josh@jpoms.com 'read,write' 'jarvis'
+  jtpomerenke@gmail.com 'read,write' 'jeeves'
 ```
 
-You'll see something like:
+Copy the `moduli_..._...` token it prints (shown once).
 
-```
-  Raw token (SAVE THIS — it won't be shown again):
-  moduli_<...>_<...>
-```
-
-Copy it. You'll paste it into the drawer settings in step 4.
-
-### Step 2 — (Optional) Configure Anthropic Claude
-
-Skip this if you want to start with Mode A (deterministic). Add to
-`server/.env`:
+### Step F — run the app, open the drawer, paste the token
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-...
-# Optional — defaults to Haiku, which is fast and cheap
-ANTHROPIC_MODEL=claude-haiku-4-5-20251001
+npm run dev        # client :5173, server :5000
 ```
 
-You can get a key at [console.anthropic.com](https://console.anthropic.com).
-Haiku is ~$1/million input tokens — a long Jarvis session costs cents.
-
-### Step 3 — Start the server + client
-
-```bash
-# From repo root
-npm run dev
-```
-
-Server on port 5000, client on 5173. Open `http://localhost:5173` in
-your browser and log in.
-
-### Step 4 — Open Jarvis + paste the token
-
-In the bottom-right corner of the grid you'll see a small dark
-circular **"J"** button. Click it. The chat drawer slides in.
-
-Click the **⚙** (gear) icon in the drawer header. Paste your Bearer
-token in the field. It saves to localStorage automatically — you'll
-only do this once per browser.
-
-You're set.
+Open the app, find the floating assistant button bottom-right, click the **⚙**
+in the drawer, paste your token. Saved to `localStorage` — once per browser.
 
 ---
 
-## 5. Step-by-step test — what to type, what you should see
+## 5. Test it
 
-These tests prove each layer of the stack is wired up. They work in
-either mode (deterministic or LLM) unless noted.
+Each test proves a layer is wired. They work in any backend unless noted.
 
-### Test 1 — basic chat is wired
+| Type this | What it proves | What you should see |
+|---|---|---|
+| `wiki photosynthesis` | UI → server → tool → Wikipedia round-trip | a search-results list |
+| `what is Eminem` | the **general-info / lookup** path (summary, no page) | a short summary paragraph |
+| `create a doc page of the Wikipedia article for Eminem` | the **research → page** pipeline | an "Imported … N containers/instances" message; refresh the grid and an *Eminem* subtree appears |
+| `import:` + a markdown block | the deterministic markdown importer | a new subtree from your markdown |
+| `list ops` | grid read path | your runnable operations |
+| (Ollama/Claude only) `make me a quick page on octopus intelligence` | natural-language understanding picks the right tool | same import flow, no magic prefix |
 
-Type: `wiki photosynthesis`
-
-You should see: a tool block with Wikipedia search hits, then a Jarvis
-response listing 5 results.
-
-**What this proves.** UI → server → assistant agent → wikipedia_search
-tool → en.wikipedia.org/api round-trip → back to UI.
-
-### Test 2 — research-to-page composite
-
-Type: `look up giraffes`
-
-You should see: a tool block with `wikipedia_import` output (stats like
-`{ containers: 17, instances: 58, textblocks: 32 }`), then a Jarvis
-response confirming the page was created with a URL.
-
-After it finishes, refresh the Moduli grid — you should see a new
-"Giraffe" subtree appear (look in your folder tree for a Giraffe
-container with sections inside).
-
-**What this proves.** The whole pipeline: search → full-article fetch →
-HTML → markdown → Phase A importer → entities → socket broadcast → UI
-sync. Everything from "type a word" to "see a page" in one chain.
-
-### Test 3 — direct markdown import
-
-Type the message exactly:
-
-```
-import:
-# Notes on Coffee
-
-## Process
-
-- Roast beans
-- Grind
-- Brew
-
-## Equipment
-
-- French press
-- Burr grinder
-```
-
-You should see: a tool block + a Jarvis response with stats. A "Notes
-on Coffee" subtree should appear in your grid.
-
-**What this proves.** The deterministic markdown importer handles
-arbitrary user-supplied docs. The "import:" prefix tells Jarvis to
-treat everything after as markdown, not a question.
-
-### Test 4 — discovery
-
-Type: `list ops`
-
-You should see: a tool block + Jarvis showing 10 runnable operations
-from your grid.
-
-### Test 5 — natural language (Mode B only)
-
-If you set `ANTHROPIC_API_KEY`, try:
-
-```
-make me a quick page on octopus intelligence
-```
-
-The LLM will parse the intent, pick the `wikipedia_import` tool, and
-do the same import flow as Test 2 — but without you using a magic
-prefix.
-
-If you don't have a key, this will return the "I don't have an LLM"
-message — that's expected.
+If you have **no model** running, the natural-language ones return a help
+message listing the set patterns — that's expected (deterministic mode).
 
 ---
 
 ## 6. How each layer works
 
-Read this when you want to understand WHY something works or HOW to
-extend it.
-
-### 6.1 The system prompt (`assistantAgent.js` line ~20)
-
-A few short paragraphs that describe Jarvis's tone and rules. It's
-the first thing Claude sees every turn. Three sections:
-
-1. **Persona** — "dry, efficient English manservant"
-2. **Tool list** — names + one-line descriptions (full schema sent
-   separately via the tools array)
-3. **Discipline** — "always emit tool calls", "ask one question, not
-   three", "summarize results in one sentence"
-
-To change Jarvis's personality, edit `SYSTEM_PROMPT`. No other code
-changes needed.
-
-### 6.2 The tool catalog (`assistantAgent.js` `buildTools()`)
-
-Each tool has four parts:
-
-```js
-{
-  name: "wikipedia_import",            // unique id
-  description: "Research a topic...",  // shown to the model
-  input_schema: { ... },               // JSON Schema for the input
-  destructive: false,                  // future: needs user confirm
-  run: async (input) => { ... },       // what to do when called
-}
-```
-
-The `run` function gets the input object the model produced and
-returns whatever — an object, an array, a string. The agent
-serializes it to JSON and feeds it back.
-
-`run` is just a plain async function. It usually calls a public REST
-endpoint via `fetch()` with the caller's token. **No special
-privileges.** Same auth surface as Zapier.
-
-### 6.3 The agent loop (`assistantAgent.js` `llmLoop()`)
-
-```
-while toolIterations < 6:
-  resp = client.messages.create(...)
-  push assistant turn to transcript
-  if no tool_use blocks:
-    break  ← model is done, return
-  for each tool_use block:
-    run the tool
-    push result to transcript
-  push results back as a "user" message
-  toolIterations += 1
-```
-
-The `MAX_TOOL_ITERATIONS = 6` cap is critical — without it, a model
-that calls tools in a circle would burn tokens forever.
-
-### 6.4 The deterministic dispatcher (`assistantAgent.js` `deterministicDispatch()`)
-
-Same shape as `llmLoop` but the "agent" is a series of regex checks:
-
-```js
-if (/^look\s*up\s+(.+)$/i.test(text)) {
-  await runTool("wikipedia_import", { query: m[1] });
-  return reply(...);
-}
-```
-
-Easy to extend — add a new pattern, point it at a tool. No model
-required. Useful for:
-
-- Demos without an LLM key
-- CI tests (no model = deterministic output)
-- Fixed-format input where natural language is overkill (e.g.
-  "remind me in 5 min")
-
-### 6.5 The drawer (`client/src/ui/AssistantDrawer.jsx`)
-
-Three pieces of state, all local:
-
-- `token` — Bearer token, in localStorage
-- `messages` — chat history, in localStorage so reload doesn't wipe
-- `input` — the textarea
-
-`send()` POSTs `{ messages, gridId }` to `/api/v1/assistant/chat`,
-appends the response transcript, scrolls. That's it.
-
-Avatar polish (animations, sprites, hover states) all goes in this
-file. The chat protocol doesn't change.
-
-### 6.6 The Wikipedia tools (`services/wikipediaTools.js`)
-
-Three functions:
-
-- `search(query)` — hits the MediaWiki search API
-- `summary(title)` — hits the REST `/page/summary/<title>` endpoint
-- `fullMarkdown(title)` — hits the REST `/page/html/<title>` endpoint,
-  runs a small HTML → markdown converter
-
-The HTML → markdown converter is **not** a general-purpose library.
-It's tuned for Wikipedia's specific output: strips infoboxes, navboxes,
-references, images; keeps headings + paragraphs + lists + inline marks.
-Good enough for the Phase A importer to chew on.
-
-### 6.7 The Phase A importer (`services/markdownImporter.js`)
-
-A pure markdown parser. Headings → containers (nested by depth),
-list items → instances, paragraphs → textblocks with TipTap JSON,
-fenced code → code-block textblocks, inline marks (`**bold**`,
-`*italic*`, `` `code` ``, `[text](url)`) → TipTap marks.
-
-**No LLM involved.** This is just a markdown-to-entities translator.
-The composite `wikipedia_import` flow is `wikipedia.fullMarkdown` →
-`markdownImporter`. Two deterministic functions composed.
-
-Phase B (future) replaces `wikipedia.fullMarkdown` with "feed any
-unstructured text to an LLM and ask it to produce markdown" — then
-the same Phase A importer chews on the LLM's output.
+- **System prompt** (`assistantAgent.js`, `SYSTEM_PROMPT`): a short paragraph
+  giving Jonah his persona + rules + the tool list. First thing the model sees
+  every turn. Edit it to change personality or discipline — nothing else.
+- **Tool packs** (`assistantTools.js`): `moduliToolPack` (lookup + grid) and
+  `systemToolPack` (file/command, gated). Each tool = `{ name, description,
+  input_schema, destructive, run }`. The model reads the **description** to pick
+  a tool, so descriptions must be specific.
+- **The agent loop** (`ollamaLoop` / `llmLoop`): send messages+tools → model
+  may emit tool calls → run them → feed results back → repeat. Hard cap
+  `MAX_TOOL_ITERATIONS = 6` so a model calling tools in a circle can't run
+  forever.
+- **Backend selection** (`pickBackend`): Ollama if reachable, else Claude if
+  keyed, else deterministic. `ASSISTANT_BACKEND` overrides.
+- **Deterministic dispatcher** (`deterministicDispatch`): regex → tool, no model.
+  Handles `what is X` (summary), `create a doc page of X` (import), `wiki X`
+  (search), `import:`, `list ops`.
+- **The drawer** (`client/src/ui/AssistantDrawer.jsx`): pure UI — token,
+  messages, input; POSTs to `/api/v1/assistant/chat`.
 
 ---
 
 ## 7. Build your own tool
 
-Two-minute tutorial.
-
-### Example: weather lookup
-
-Say you want Jarvis to fetch the weather. Steps:
-
-**Step 1.** Add a new REST endpoint in `server/routes/apiV1.js`:
+Two minutes. Example: a weather tool for the Moduli pack.
 
 ```js
-router.get("/research/weather", authAndLimit({ requireScope: "read" }), async (req, res) => {
-  const { lat, lon } = req.query;
-  const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m`);
-  const j = await r.json();
-  res.json({ ok: true, ...j.current });
-});
-```
-
-**Step 2.** Add a tool in `server/services/assistantAgent.js`
-`buildTools()`:
-
-```js
+// in assistantTools.js → moduliToolPack(...)'s returned array
 {
   name: "get_weather",
-  description: "Get current weather for a latitude/longitude.",
+  description: "Current weather for a latitude/longitude. Use for 'weather in X'.",
   input_schema: {
     type: "object",
     properties: { lat: { type: "number" }, lon: { type: "number" } },
@@ -496,122 +335,116 @@ router.get("/research/weather", authAndLimit({ requireScope: "read" }), async (r
 }
 ```
 
-**Step 3.** Optionally add a deterministic pattern in
-`deterministicDispatch()` so people without an LLM key can use it:
+Add the matching `/api/v1/research/weather` endpoint, restart the server, done.
+Both Ollama and Claude now see `get_weather` in the catalog and can pick it.
 
-```js
-const wm = /^weather\s+(.+)$/i.exec(text);
-if (wm) {
-  // hardcoded for demo
-  const output = await runTool("get_weather", { lat: 41.88, lon: -87.63 });
-  return reply(`Currently ${output.temperature_2m}°C.`, ...);
-}
-```
-
-**Step 4.** Restart the server. Done.
-
-In LLM mode, Claude now sees `get_weather` in the tool catalog and
-will call it on prompts like "what's the temperature in Chicago".
-
-In deterministic mode, the user can type `weather chicago` to invoke
-it directly.
-
-### Important: keep tools narrow
-
-A common newbie mistake is to make tools generic ("run any SQL").
-Don't. Each tool should have a specific, narrow shape with a clear
-input schema. The model picks tools by reading their descriptions —
-narrow, specific descriptions get the right tool picked. Generic
-"do anything" tools are essentially un-pickable.
-
-### Important: never trust LLM input blindly
-
-If your tool runs anything based on model input — a query, a path,
-a script — validate it. The model can produce anything, including
-adversarial prompts injected via Wikipedia content or pasted markdown.
-
-Safe operations (read APIs, structured CRUD): just validate the input
-schema (which we do automatically).
-
-Risky operations (run shell commands, eval code, write to arbitrary
-file paths): require an explicit user confirmation card before the
-tool runs. We have the `destructive: true` flag for this; the UI
-should render a confirm card. (TBD as of this writing — see Phase 3
-of `docs/assistant-plan.md`.)
+**Two rules:** keep tools **narrow** (specific shape + description — generic
+"do anything" tools are un-pickable), and **never trust model input blindly**
+(validate; risky ops require confirmation — see §9).
 
 ---
 
-## 8. Troubleshooting
+## 8. Memory (future)
+
+Right now Jonah only "remembers" within one conversation (the replayed
+transcript). Two planned upgrades, in order:
+
+1. **Preference memory (start here).** A tiny local store (SQLite or a JSON
+   file) of durable facts — *"I track water in oz", "default to my Library
+   folder"*. Injected into the system prompt each turn. Low effort, high value.
+2. **RAG over your stuff (later).** Embed your files/grid (§0), retrieve the
+   most relevant snippets per question, inject them. Lets the assistant answer
+   *"how does my schedule build work?"* grounded in real content. Heavier;
+   only worth it once preference memory is in.
+
+---
+
+## 9. The system pack
+
+> **Advanced. Off by default. This is the general "code-agent" capability from
+> the original spec — part of your bigger system, not Moduli.**
+
+When you set `ASSISTANT_EXEC=1`, `systemToolPack` registers filesystem +
+command tools: `list_dir`, `read_file`, `write_file`, `run_command`,
+`sandbox_info`. They let the assistant read/write files and run programs — the
+"execute Node commands" idea from `aispecs.md`.
+
+**Every safety control from that spec is enforced in `execSandbox.js`:**
+
+- **Path jail** — all file ops + the command working directory are confined to
+  one sandbox dir (`.assistant-sandbox/` by default, or `ASSISTANT_SANDBOX_DIR`).
+  Paths that resolve outside it are rejected. The assistant can't touch your
+  source.
+- **Binary allow-list** — `run_command` only runs leading binaries you opt into
+  (`node,npm,npx,ls,cat,echo,mkdir,touch` by default; extend with
+  `ASSISTANT_EXEC_ALLOW`).
+- **Metacharacter block** — no `; | & \` $ > < ( )`, so a whitelisted binary
+  can't be chained into something else.
+- **Timeout + output cap**, and a hard block on recursive `rm`.
+
+These tools are flagged `destructive` / `requires_confirm`. **Before you rely on
+this in earnest, build the approval-card UI** (the drawer should show a "Jonah
+wants to run `npm test` — Approve/Reject" card before executing). The flag and
+metadata are in place; the card is the tracked follow-up. The strongest future
+hardening is running commands inside a **Docker** container instead of a path
+jail (see `assistant-plan.md`).
+
+> Until that confirm UI exists, treat `ASSISTANT_EXEC=1` as a *you, locally,
+> deliberately* switch — exactly why it's off by default and absent from the
+> Moduli chatbox.
+
+---
+
+## 10. Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
-| "no Bearer token" error in drawer | Click ⚙ in drawer header, paste the token from step 1 of setup. |
-| 401 unauthorized | Token expired or wrong scope. Mint a fresh one with `read,write` scopes. |
-| Drawer says "deterministic" even though I set ANTHROPIC_API_KEY | Server didn't pick up the env var. Restart the server. |
-| Wikipedia import says "no matches" | Try a more specific query. The search hits English Wikipedia; non-English content needs the title verbatim. |
-| Import works but page doesn't appear in UI | Refresh the tab. The broadcast is fire-and-forget; if the client wasn't connected when the import landed it'll show after reload. |
-| Claude returns text but doesn't call tools | Check your tool descriptions. Vague descriptions like "do stuff" don't get picked. Make them specific. |
-| Tool runs but model never sees the result | Make sure `run` returns serializable JSON (not a Mongoose Document — call `.toObject()` first). |
-| 429 rate-limited | Default is 600 req/min per token. Wait for the `Retry-After`. |
-| Chat history doesn't persist | localStorage might be cleared on incognito reload. By design. |
-| Jarvis confabulates content | Mode B only. Claude can make things up — anchor responses to real tool calls (research_wikipedia returns real URLs). Tighten the system prompt. |
-| `wikipedia_import` mints a wrong-looking page | Wikipedia's HTML structure can be unusual on niche articles. The HTML→md converter handles common cases. Edit `services/wikipediaTools.js` to refine. |
+| Drawer says "deterministic" but I installed Ollama | Is `ollama serve` running? Probe it: `curl localhost:11434/api/tags`. The model must also be pulled (`ollama pull qwen2.5-coder:7b`). |
+| Ollama is up but replies are slow | `7b` on CPU is slow; it's much faster with a GPU. Try `qwen2.5-coder:1.5b` for speed, or use the Anthropic fallback. |
+| Model answers but never calls tools | The model may not support tool calling, or descriptions are vague. Use a tool-capable model (qwen2.5-coder, llama3.1) and make descriptions specific. |
+| "no Bearer token" | Click ⚙ in the drawer, paste the token from setup step E. |
+| 401 unauthorized | Token expired/wrong scope. Mint a fresh `read,write` token. |
+| Import works but page doesn't appear | Refresh the tab — the broadcast is fire-and-forget. |
+| `run_command` says "not in allow-list" | Add the binary to `ASSISTANT_EXEC_ALLOW` (and make sure `ASSISTANT_EXEC=1`). |
+| Model confabulates facts | Ground it: prefer `wikipedia_summary` (real source) and keep temperature low. |
+| Tool result never reaches the model | `run` must return serializable JSON (call `.toObject()` on Mongoose docs). |
 
 ---
 
-## 9. What's deferred (Phase 2+ of the assistant plan)
+## 11. Glossary + where to learn more
 
-Currently shipped:
+**Glossary**
 
-- ✅ Wikipedia search / summary / full article fetch
-- ✅ Markdown import (Phase A — deterministic)
-- ✅ Composite research → page
-- ✅ Assistant chat endpoint with both modes
-- ✅ Drawer UI
+- **LLM** — large language model; a next-token predictor with billions of weights.
+- **Token** — a chunk of text the model reads/writes; cost & context are measured in these.
+- **Context window** — max tokens the model can see at once (its working memory).
+- **Inference** — running a trained model to get output (vs. training it).
+- **Weights / parameters** — the learned numbers inside the model ("7B" = 7 billion).
+- **Temperature** — randomness dial; low = deterministic, high = creative.
+- **Tool / function calling** — the model emitting a structured request your code runs.
+- **Agent loop** — call model → run tools → feed results back → repeat.
+- **Hallucination** — confident but false output; countered by grounding.
+- **Embedding** — text turned into a vector so "similar meaning = nearby".
+- **RAG** — retrieval-augmented generation; fetch relevant text, put it in the prompt.
+- **Ollama** — a local runtime that downloads & serves models with an HTTP API.
+- **System prompt** — the always-sent instructions that set role + rules.
 
-Not shipped (in roughly priority order):
+**Where to learn more (beginner → deeper)**
 
-1. **Write-tool confirmation cards** — for destructive tools
-   (delete_module, update_operation), show a preview card the user
-   must approve before the tool runs. Plumbing exists (the
-   `destructive` flag); UI doesn't render approval cards yet.
-2. **`create_operation` tool** — LLM generates a full pipeline from
-   natural-language description. Needs few-shot examples in the
-   system prompt.
-3. **Phase B import** — feed arbitrary prose / URL, LLM converts to
-   markdown, Phase A then mints entities. Replaces
-   `wikipedia.fullMarkdown` with a generic LLM step.
-4. **Phase C import** — POST a URL, server fetches + extracts text
-   via readability, then Phase B handles it.
-5. **Ollama backend** — local LLM as an alternative to Anthropic.
-   Skeleton is in place; just need to wire the second provider in
-   `assistantAgent.js`.
-6. **Memory** — local SQLite store for "remember that I track water
-   in oz". Per-user, persists across sessions.
-7. **Voice input** — defer.
-8. **Multi-step agentic tasks** — "set up my whole morning routine".
-   Would need a planner/executor split.
+- **Ollama docs** — `https://github.com/ollama/ollama` (install, model library,
+  the `/api/chat` tool-calling format we use).
+- **Anthropic "Tool use" guide** — the cleanest explanation of the tool-call
+  loop (`docs.anthropic.com` → Tool use). The pattern is identical across
+  providers.
+- **"What is a token / context window"** — Anthropic & OpenAI both have short
+  primers; search "LLM tokens context window explained".
+- **Andrej Karpathy, "Intro to LLMs" (YouTube, ~1hr)** — the best plain-English
+  explanation of how these models are trained and why they behave as they do.
+- **Hugging Face "LLM Course"** — free, hands-on, goes from tokens to
+  fine-tuning when you're ready to go deeper.
+- **RAG / embeddings** — search "embeddings explained" + the LanceDB / Chroma
+  quickstarts when you reach §8's phase 2.
 
-See `docs/assistant-plan.md` §10 for the full roadmap.
-
----
-
-## 10. The mental model
-
-If you remember nothing else:
-
-1. **An assistant = LLM + tools + a loop.** The LLM is the brain,
-   tools are the hands, the loop is the agent.
-2. **Tools are just functions.** They can call your API, hit the
-   internet, query a DB. As long as they return JSON, the LLM is
-   happy.
-3. **The agent has no special powers.** It uses the same public
-   API a `curl` command would. Auth + scope + rate-limit + everything.
-4. **Personality lives in the system prompt + UI.** The tool layer
-   stays impersonal. Jarvis on top of Zapier — not Jarvis sprinkled
-   through it.
-5. **Mode A (deterministic) is the friend you bring to demos.**
-   It works without any model setup. Use it for CI and "I don't
-   have a key" situations.
-
-That's the whole pattern. Everything else is plumbing.
+Companion docs: `docs/assistant-plan.md` (roadmap + tool catalog),
+`docs/api-testing.md` (the REST surface the tools sit on),
+`docs/aispecs.md` (historical grounding spec).

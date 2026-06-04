@@ -46,6 +46,7 @@ import {
   SplitSquareHorizontal,
   Merge,
   X,
+  ChevronLeft,
   ChevronRight,
   Folder,
   FileText,
@@ -1051,6 +1052,41 @@ function Panel({
                   );
                 })}
               </div>
+
+              {/* Page cycle arrows — cycle through this panel's local pages */}
+              {pagesList.length > 1 && (() => {
+                const activeId = activePageEntry?.occurrence?.id;
+                const idx = activeId ? pagesList.findIndex(p => p.occurrence.id === activeId) : -1;
+                const total = pagesList.length;
+                const prevPage = idx >= 0 ? pagesList[(idx - 1 + total) % total] : null;
+                const nextPage = idx >= 0 ? pagesList[(idx + 1) % total] : null;
+                const btnStyle = {
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0, padding: "2px 4px", border: "none",
+                  borderRadius: 4, cursor: "pointer", background: "transparent",
+                  color: "var(--text-muted)",
+                };
+                return (
+                  <>
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); if (prevPage) openPage(prevPage.occurrence.id); }}
+                      title={prevPage ? `Prev: ${prevPage.page?.label || "Untitled"}` : "Previous page"}
+                      style={btnStyle}
+                    >
+                      <ChevronLeft size={11} />
+                    </button>
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); if (nextPage) openPage(nextPage.occurrence.id); }}
+                      title={nextPage ? `Next: ${nextPage.page?.label || "Untitled"}` : "Next page"}
+                      style={btnStyle}
+                    >
+                      <ChevronRight size={11} />
+                    </button>
+                  </>
+                );
+              })()}
 
               {/* Root tree toggle — right */}
               <button

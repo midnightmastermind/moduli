@@ -64,7 +64,7 @@ export default function PageBoard({
       ? {
           position: "relative", minHeight: "100%", zIndex: 1,
           display: "flex", flexDirection: "row", alignItems: "flex-start",
-          gap: childGap, overflowX: "auto",
+          gap: childGap, width: "max-content",
         }
       : { position: "relative", minHeight: "100%", zIndex: 1 };
 
@@ -79,6 +79,7 @@ export default function PageBoard({
       style={{
         flex: 1, minHeight: 0,
         overflowY: "auto",
+        overflowX: mode === "flex-row" ? "auto" : undefined,
         WebkitOverflowScrolling: "touch",
         overscrollBehavior: "contain",
         padding: isMobile ? "6px 6px 80px 6px" : "0px 5px 80px 5px",

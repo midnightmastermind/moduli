@@ -270,6 +270,34 @@ describe("Schedule-cascaded date filter hides cross-day routine instances", () =
     });
   });
 
+  // Consecutive multi-day picks emit kind:"range", unit:"day", span:N — a
+  // period shape that previously fell back to SAME_DAY because the
+  // `hasPeriod` detection only flagged unit !== "day" / kind === "multi".
+  // SAME_DAY's dayKey(object) returns null, so every day-col failed the
+  // visibility check and the Schedule page rendered empty for two-day
+  // filters. The fix extends hasPeriod to also recognise span > 1.
+  describe("range filter shape (consecutive multi-day picks)", () => {
+    const inst = (date) => ({
+      id: "x", parentId: "slot",
+      fields: { scheduledDate: { value: date, flow: "in" } },
+    });
+    const rangeFilter = {
+      scheduledDate: {
+        kind: "range", unit: "day", value: "2026-05-13", span: 3,
+        dates: ["2026-05-13", "2026-05-14", "2026-05-15"],
+      },
+    };
+    it("shows instances whose date falls inside the range", () => {
+      expect(isOccurrenceVisible(inst("2026-05-13"), rangeFilter, dailyFilterConditions)).toBe(true);
+      expect(isOccurrenceVisible(inst("2026-05-14"), rangeFilter, dailyFilterConditions)).toBe(true);
+      expect(isOccurrenceVisible(inst("2026-05-15"), rangeFilter, dailyFilterConditions)).toBe(true);
+    });
+    it("hides instances outside the range", () => {
+      expect(isOccurrenceVisible(inst("2026-05-12"), rangeFilter, dailyFilterConditions)).toBe(false);
+      expect(isOccurrenceVisible(inst("2026-05-16"), rangeFilter, dailyFilterConditions)).toBe(false);
+    });
+  });
+
   it("undefined filter rightVal makes isOccurrenceVisible pass everything (the bug)", () => {
     const noFilterState = {
       grid: { activeFilterValues: {} },

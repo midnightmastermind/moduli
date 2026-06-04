@@ -39,8 +39,8 @@ import {
   X,
 } from "lucide-react";
 import { GridActionsContext, useGridActions } from "../GridActionsContext";
-import { toast } from "../components/ui/sonner";
 import { getTransactions, undoTransaction, redoTransaction } from "../helpers/TransactionHelpers";
+import { pushTxNotification } from "../state/notificationStore";
 import { formatDistanceToNow } from "date-fns";
 
 // Transaction operation type icons and colors
@@ -315,19 +315,23 @@ export default function TransactionHistory({
   const handleUndoTransaction = useCallback((transactionId) => {
     if (!socket) return;
     undoTransaction({ socket, transactionId, gridId });
-    toast.info("Undoing transaction...");
+    pushTxNotification({ kind: "pending", label: "Undoing transaction…" });
   }, [socket, gridId]);
 
   // Handle redo from row
   const handleRedoTransaction = useCallback((transactionId) => {
     if (!socket) return;
     redoTransaction({ socket, transactionId, gridId });
-    toast.info("Redoing transaction...");
+    pushTxNotification({ kind: "pending", label: "Redoing transaction…" });
   }, [socket, gridId]);
 
-  // Listen for undo/redo results + new transactions to refresh
+  // Listen for undo/redo results + new transactions to refresh.
+  // Only subscribe while the dialog is open — otherwise every operation-fire
+  // broadcast queues another get_transactions, which on first load piles dozens
+  // of Transaction.find() calls onto Mongo and fails them all together when the
+  // Atlas pool monitor heartbeats time out.
   useEffect(() => {
-    if (!socket) return;
+    if (!open || !socket) return;
 
     const handleResult = () => { handleRefresh(); };
 
@@ -340,7 +344,7 @@ export default function TransactionHistory({
       socket.off("redo_result", handleResult);
       socket.off("transaction_created", handleResult);
     };
-  }, [socket, handleRefresh]);
+  }, [open, socket, handleRefresh]);
 
   // Filter transactions
   const filteredTransactions = useMemo(() => {

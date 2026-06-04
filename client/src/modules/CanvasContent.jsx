@@ -306,6 +306,10 @@ export const CanvasContent = React.memo(function CanvasContent({
         s.scrollLeft = Math.max(0, x - s.clientWidth / 2);
         s.scrollTop = Math.max(0, y - s.clientHeight / 2);
       }
+      // Sync prevScrollRef so the programmatic centering above doesn't trip
+      // onSurfaceScroll into painting edge bars on initial mount (it diffs
+      // current vs previous scroll, and previous starts at 0,0).
+      prevScrollRef.current = { x: s.scrollLeft, y: s.scrollTop };
       requestAnimationFrame(() => { readyForSaveRef.current = true; });
     };
     tryRestore();
@@ -647,6 +651,13 @@ export const CanvasContent = React.memo(function CanvasContent({
     // Don't fight the pan handler — it sets edges from pointer delta which is
     // strictly better-signal than scroll delta during a drag.
     if (panStateRef.current) return;
+    // Suppress edge painting until the initial restore-or-center scroll has
+    // settled. Otherwise the programmatic scroll on mount paints edges before
+    // the user has done anything.
+    if (!readyForSaveRef.current) {
+      prevScrollRef.current = { x: surface.scrollLeft, y: surface.scrollTop };
+      return;
+    }
     const sx = surface.scrollLeft;
     const sy = surface.scrollTop;
     const dx = sx - prevScrollRef.current.x;

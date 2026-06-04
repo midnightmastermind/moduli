@@ -18,6 +18,7 @@ import {
 import { PlusSquare, Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X } from "lucide-react";
 import ToolbarFilterDropdown from "./ui/ToolbarFilterDropdown";
 import SocketStatusBanner from "./ui/SocketStatusBanner";
+import TransactionNotificationStack from "./ui/TransactionNotificationStack";
 import ClipboardStatusBanner from "./ui/ClipboardStatusBanner";
 import SelectionStatusBanner from "./ui/SelectionStatusBanner";
 import FilterNavWidget from "./ui/FilterNavWidgets";
@@ -153,8 +154,14 @@ const gridOptions = useMemo(
         className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center gap-2"
         style={{ zIndex: 5 }}
       >
-        <div className="pointer-events-auto">
+        {/* Socket pill + transaction notification stack share the
+            exact same wrapper so the chips live in the very same DOM
+            slot as the connect/reconnect indicator. Cards stay until
+            dismissed; newest on the left, older cards peek behind to
+            the right. */}
+        <div className="pointer-events-auto flex items-center gap-1.5">
           <SocketStatusBanner />
+          <TransactionNotificationStack />
         </div>
         {/* Selection pill — only renders while multi-select is non-empty.
             Sibling of ClipboardStatusBanner; selection becomes clipboard

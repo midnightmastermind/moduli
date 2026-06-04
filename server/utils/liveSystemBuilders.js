@@ -1928,6 +1928,14 @@ export function makeTrackerOp({
   goalOccurrenceId,
   sourceFieldId, sourceFieldIds, incomeFieldId, spentFieldId,
   agg, flow = "any", timeFilter = "daily", scopeLabel = "Schedule",
+  // When both are set, the loop predicate filters by
+  // `$item.fields.<accountRefFieldId>.value IS <accountOccurrenceId>`
+  // INSTEAD of the page-scope HAS_ANCESTOR rule. Used by per-account
+  // balance trackers (Checking, Mom's, etc.) so a task carrying the
+  // accountRef counts regardless of which page it lives on (Schedule
+  // / Todo List / Bills are all valid sources).
+  accountRefFieldId,
+  accountOccurrenceId,
   description,
   // Optional filter: only count items where this boolean field is true.
   // Used by Tracker: Tasks Completed to filter out non-task items dragged
@@ -1984,8 +1992,16 @@ export function makeTrackerOp({
     if (timeFilter !== "all") {
       rules.push({ id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" });
     }
-    // Scope — only items under the scope page count.
-    rules.push({ id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$scopePageId" });
+    // Scope — items must either be under the named scope page (default
+    // "Schedule") OR carry an explicit accountRef pointing at this
+    // tracker's account occurrence. accountRef wins when set: it lets
+    // tasks live anywhere (Todo List, Bills, Schedule) and still
+    // contribute to the right account balance.
+    if (accountRefFieldId && accountOccurrenceId) {
+      rules.push({ id: uid(), left: `$item.fields.${accountRefFieldId}.value`, comparator: "IS", right: accountOccurrenceId });
+    } else {
+      rules.push({ id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$scopePageId" });
+    }
     // Flow direction filter (in/out aggregations like income vs expense).
     if (flowField && flow === "in") {
       rules.push({ id: uid(), left: `$item.fields.${flowField}.flow`, comparator: "IS", right: "in" });

@@ -9,6 +9,7 @@ import { ActionTypes } from "./actions";
 import { runMatchingOperations, executeOperation, executePipeline, setOpApplyingEffects } from "../helpers/operationExecutor";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, updateOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast } from "sonner";
+import { pushTxNotification } from "./notificationStore";
 import {
   setOccurrenceFieldValue,
   moveOccurrence,
@@ -966,6 +967,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           // writes bidirectionally across all occurrences sharing this id.
           // Default null = independent occurrence.
           linkedGroupId: inst.linkedGroupId || null,
+          // Per-occurrence filter override. Build Schedule mints day-cols
+          // with `filterOverride: {dateFid: <thisDay>}` so each day-col
+          // pins itself to its own date instead of inheriting the page's
+          // multi-day filter.
+          filterOverride: inst.filterOverride || null,
         };
         socketDispatch(createOccurrenceAction(newOcc));
         localOccsById[newOcc.id] = newOcc;
@@ -1514,32 +1520,148 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     for (const m of state.modules || []) modulesById[m.id] = m;
     const occurrencesById = { ...state.occurrencesById, ...localOccsById };
 
+    // Resolve a human-readable name for any occurrence id by walking
+    // occurrence → targetId → module.label. Falls back to the
+    // occurrence's own label if the module isn't loaded yet, or to a
+    // short id tail if neither is available.
+    const nameForOcc = (id) => {
+      if (!id) return "";
+      const occ = occurrencesById[id];
+      if (!occ) return id.slice(0, 6);
+      return (
+        modulesById[occ.targetId]?.label ||
+        modulesById[occ.moduleId]?.label ||
+        occ.label ||
+        id.slice(0, 6)
+      );
+    };
+    const nameForModule = (id) => {
+      if (!id) return "";
+      return modulesById[id]?.label || id.slice(0, 6);
+    };
+
+    // Build a parent reverse map so we can walk an occurrence up to its
+    // container + page for "chain" display in toasts.
+    const parentByChild = {};
+    for (const occ of Object.values(occurrencesById)) {
+      for (const childId of occ?.occurrences || []) parentByChild[childId] = occ.id;
+    }
+    // Returns "Page › Container" (or whatever non-grid ancestors exist)
+    // for an occurrence id, omitting the occurrence itself. Stops at the
+    // first ancestor whose module has role:"page" so the chain stays short
+    // and meaningful. Returns "" when no chain can be built.
+    const chainForOcc = (id) => {
+      if (!id) return "";
+      const labels = [];
+      let cur = parentByChild[id] || occurrencesById[id]?.parentId;
+      const seen = new Set();
+      let depth = 0;
+      while (cur && !seen.has(cur) && depth++ < 8) {
+        seen.add(cur);
+        const occ = occurrencesById[cur];
+        if (!occ) break;
+        const mod = modulesById[occ.moduleId] || modulesById[occ.targetId];
+        const label = mod?.label || occ.label;
+        if (label) labels.unshift(label);
+        // Stop after we've passed the page level so we don't surface the
+        // panel/grid scaffolding.
+        if (mod?.role === "page") break;
+        cur = parentByChild[cur] || occ.parentId;
+      }
+      return labels.join(" › ");
+    };
+
     const ops = transaction.operations || [];
     if (transaction.type === "MeasureOp" && ops.length > 0) {
       const op = ops[0];
-      const field = fieldsById[op?.measure?.fieldId];
+      const m = op?.measure || {};
+      const field = fieldsById[m.fieldId];
       const fieldName = field?.name || "Field";
-      const prev = op?.measure?.previousValue;
-      const next = op?.measure?.value;
-      // Skip the toast when nothing actually changed — the executor still
+      const prev = m.previousValue;
+      const next = m.value;
+      // Skip the chip when nothing actually changed — the executor still
       // fires MeasureOp on every write (used by trigger plumbing) so we'd
-      // otherwise show "Field: 1 → 1" noise on idempotent writes.
-      const sameValue = String(prev ?? "") === String(next ?? "");
+      // otherwise stack a "Field: 1 → 1" chip on every idempotent write.
+      // Value-aware compare: primitives via String, objects/arrays via JSON.
+      // The old `String(prev) === String(next)` collapsed EVERY object value to
+      // "[object Object]" — so occurrence pickers, multi-selects, and the mood
+      // wheel (all object/array-valued) read as "unchanged" and never notified,
+      // even though amounts (primitive) did. That was the "other inputs don't
+      // send notifications" bug.
+      const isObj = (v) => v != null && typeof v === "object";
+      const sameValue = (isObj(prev) || isObj(next))
+        ? (() => { try { return JSON.stringify(prev ?? null) === JSON.stringify(next ?? null); } catch { return false; } })()
+        : String(prev ?? "") === String(next ?? "");
       if (!sameValue) {
-        const desc = prev != null ? `${prev} → ${next}` : String(next ?? "");
-        toast(fieldName, { description: desc, duration: 2500 });
+        const occName = nameForOcc(m.occurrenceId) || nameForModule(m.instanceId);
+        const chain = chainForOcc(m.occurrenceId);
+        // Readable description: primitive transitions show "prev → next";
+        // object/array values (no useful inline form) show a count or "updated".
+        const fmtVal = (v) => {
+          if (v == null) return "";
+          if (Array.isArray(v)) return `${v.length} item${v.length === 1 ? "" : "s"}`;
+          if (typeof v === "object") return "updated";
+          return String(v);
+        };
+        const desc = (!isObj(prev) && !isObj(next) && prev != null)
+          ? `${fmtVal(prev)} → ${fmtVal(next)}`
+          : fmtVal(next);
+        const head = chain ? `${chain} · ${occName}` : occName;
+        const label = head
+          ? `${head} · ${fieldName}: ${desc}`
+          : `${fieldName}: ${desc}`;
+        pushTxNotification({ kind: "success", label });
       }
     } else if (transaction.type === "OccurrenceListOp" && ops.length > 0) {
       const op = ops[0];
-      const instanceId = op?.occurrence_list?.instanceId;
-      const mod = modulesById[instanceId];
-      if (mod?.label) toast("Moved", { description: mod.label, duration: 2000 });
+      const ol = op?.occurrence_list || {};
+      const what = nameForOcc(ol.occurrenceId) || nameForModule(ol.instanceId) || "item";
+      const chainFrom = chainForOcc(ol.from?.containerId);
+      const chainTo = chainForOcc(ol.to?.containerId);
+      const fromName = [chainFrom, nameForOcc(ol.from?.containerId)].filter(Boolean).join(" › ");
+      const toName = [chainTo, nameForOcc(ol.to?.containerId)].filter(Boolean).join(" › ");
+      let label;
+      switch (ol.action) {
+        case "copy":
+          label = toName ? `Copied "${what}" to ${toName}` : `Copied "${what}"`;
+          break;
+        case "add":
+          label = toName ? `Added "${what}" to ${toName}` : `Added "${what}"`;
+          break;
+        case "remove":
+          label = fromName ? `Removed "${what}" from ${fromName}` : `Removed "${what}"`;
+          break;
+        case "move":
+        default:
+          if (fromName && toName) label = `Moved "${what}": ${fromName} → ${toName}`;
+          else if (toName) label = `Moved "${what}" to ${toName}`;
+          else label = `Moved "${what}"`;
+      }
+      pushTxNotification({ kind: "success", label });
     } else if (transaction.type === "EntityOp" && ops.length > 0) {
       const op = ops[0];
-      const label = op?.entity?.label || op?.entity?.name || "";
-      toast("Updated", { description: label || "entity", duration: 2000 });
-    } else if (transaction.type === "DocEditOp") {
-      toast("Doc edited", { duration: 1500 });
+      const e = op?.entity || {};
+      const verbMap = { create: "Created", update: "Updated", delete: "Deleted" };
+      const verb = verbMap[e.action] || "Changed";
+      const type = e.entityType || "entity";
+      const name =
+        e.data?.label ||
+        e.data?.name ||
+        e.previousData?.label ||
+        e.previousData?.name ||
+        nameForModule(e.entityId) ||
+        nameForOcc(e.entityId) ||
+        "(unnamed)";
+      const chain = chainForOcc(e.entityId);
+      const head = chain ? `${chain} · ${name}` : name;
+      pushTxNotification({ kind: "success", label: `${verb} ${type}: ${head}` });
+    } else if (transaction.type === "DocEditOp" && ops.length > 0) {
+      const op = ops[0];
+      const occId = op?.doc_edit?.occurrenceId;
+      const occName = nameForOcc(occId);
+      const chain = chainForOcc(occId);
+      const head = [chain, occName].filter(Boolean).join(" › ");
+      pushTxNotification({ kind: "success", label: head ? `Edited "${head}"` : "Doc edited" });
     }
   }
   socket.on("transaction_created", onTransactionCreated);

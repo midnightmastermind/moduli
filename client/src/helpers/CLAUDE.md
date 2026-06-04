@@ -1,6 +1,20 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-05-21. Check this file before re-reading source._
+_Updated: 2026-06-03. Check this file before re-reading source._
+
+## Recent Changes (2026-06-03 — TIME_BEFORE/AFTER + DATE_BEFORE/AFTER comparators)
+- **`operationActions.js` (`evalRule`)** — generic, domain-agnostic time/date
+  comparators so pipelines can ask "is this time/date before X" without baking
+  any logic into seed or components:
+  - `TIME_BEFORE` / `TIME_AFTER` — parse BOTH 12h (`"9:00am"`, `"9am"`,
+    `"12:30 PM"`) and 24h (`"14:30"`) plus the time part of an ISO datetime →
+    minutes-since-midnight, then compare. Either side unparseable → `false`.
+  - `DATE_BEFORE` / `DATE_AFTER` — calendar-day compare by day-key (time ignored);
+    regex-slices `YYYY-MM-DD` off ISO strings to avoid the `new Date(...Z)` tz
+    shift. Either side empty/unparseable → `false`.
+  - First consumer: the `Schedule: Mark Passed Slots` time-based op (slot timeslot
+    `TIME_BEFORE $currentTime`, day-col date `DATE_BEFORE $today`). 8 tests in
+    `__tests__/operationActions.unified.test.js`.
 
 ## Recent Changes (2026-05-26 — filter-change cascade dedup: the date-switch 5-10s freeze)
 - **Root cause (from `console-export-2026-5-26_9-7-15.log`):** switching the

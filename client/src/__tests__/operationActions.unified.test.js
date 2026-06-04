@@ -119,6 +119,50 @@ describe("evalRule — numeric comparator _THAN aliases", () => {
   });
 });
 
+describe("evalRule — TIME_BEFORE / TIME_AFTER", () => {
+  it("compares 12h vs 24h time-of-day", () => {
+    // "9:00am" (540) before "14:30" (870)
+    expect(evalRule({ left: "9:00am", comparator: "TIME_BEFORE", right: "14:30" }, {})).toBe(true);
+    expect(evalRule({ left: "9:00am", comparator: "TIME_AFTER", right: "14:30" }, {})).toBe(false);
+    expect(evalRule({ left: "3:00pm", comparator: "TIME_AFTER", right: "14:30" }, {})).toBe(true);
+  });
+  it("handles 12am/12pm boundaries", () => {
+    expect(evalRule({ left: "12:00am", comparator: "TIME_BEFORE", right: "00:30" }, {})).toBe(true); // midnight = 0
+    expect(evalRule({ left: "12:00pm", comparator: "TIME_AFTER", right: "11:59" }, {})).toBe(true);  // noon = 720
+  });
+  it("parses bare 12h ('9am') and the time part of an ISO datetime", () => {
+    expect(evalRule({ left: "9am", comparator: "TIME_BEFORE", right: "10:00" }, {})).toBe(true);
+    expect(evalRule({ left: "2026-06-03T08:00:00", comparator: "TIME_BEFORE", right: "9:00am" }, {})).toBe(true);
+  });
+  it("returns false when either side is unparseable", () => {
+    expect(evalRule({ left: "soon", comparator: "TIME_BEFORE", right: "14:30" }, {})).toBe(false);
+    expect(evalRule({ left: "9:00am", comparator: "TIME_AFTER", right: "" }, {})).toBe(false);
+    expect(evalRule({ left: null, comparator: "TIME_BEFORE", right: "14:30" }, {})).toBe(false);
+    expect(evalRule({ left: "25:00", comparator: "TIME_BEFORE", right: "14:30" }, {})).toBe(false);
+  });
+  it("resolves $vars on both sides", () => {
+    expect(evalRule({ left: "$slot", comparator: "TIME_BEFORE", right: "$now" },
+      { $slot: "9:00am", $now: "14:30" })).toBe(true);
+  });
+});
+
+describe("evalRule — DATE_BEFORE / DATE_AFTER", () => {
+  it("compares calendar days (time ignored)", () => {
+    expect(evalRule({ left: "2026-06-03", comparator: "DATE_BEFORE", right: "2026-06-04" }, {})).toBe(true);
+    expect(evalRule({ left: "2026-06-04", comparator: "DATE_BEFORE", right: "2026-06-04" }, {})).toBe(false);
+    expect(evalRule({ left: "2026-06-05", comparator: "DATE_AFTER", right: "2026-06-04" }, {})).toBe(true);
+  });
+  it("ignores the time portion / timezone of an ISO datetime (day-key slice)", () => {
+    expect(evalRule({ left: "2026-06-03T23:00:00.000Z", comparator: "DATE_BEFORE", right: "2026-06-04" }, {})).toBe(true);
+    expect(evalRule({ left: "2026-06-04T01:00:00.000Z", comparator: "DATE_BEFORE", right: "2026-06-04" }, {})).toBe(false);
+  });
+  it("returns false when either side empty/unparseable", () => {
+    expect(evalRule({ left: "", comparator: "DATE_BEFORE", right: "2026-06-04" }, {})).toBe(false);
+    expect(evalRule({ left: "2026-06-03", comparator: "DATE_AFTER", right: null }, {})).toBe(false);
+    expect(evalRule({ left: "whenever", comparator: "DATE_BEFORE", right: "2026-06-04" }, {})).toBe(false);
+  });
+});
+
 describe("evalRule — DATE_EQUALS / SAME_DAY", () => {
   it("matches identical YYYY-MM-DD dates", () => {
     expect(evalRule({ left: "2026-04-27", comparator: "SAME_DAY", right: "2026-04-27" }, {})).toBe(true);

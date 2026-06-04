@@ -38,6 +38,36 @@ import AutoMarquee from "../ui/AutoMarquee.jsx";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
 import { buildLayoutCascadeContext, resolveLayoutCascade } from "../helpers/layoutCascade";
+import { summarizeSelection } from "../ui/filterSummary";
+
+// Schedule day-cols have a module label like "Schedule - Sunday, May 24th, 2026"
+// stamped at CREATE time and never updated again. When the user changes a
+// day-col's own filterOverride (HeaderDropdown picker), the title should reflect
+// the new range. computeScheduleColLabel returns a recomputed label string, or
+// null when the occurrence isn't a schedule day-col / has no date in its
+// override (caller falls back to module.label).
+const SCHEDULE_LABEL_PREFIX = "Schedule - ";
+const ISO_DAY_RX = /^\d{4}-\d{2}-\d{2}/;
+function computeScheduleColLabel(occurrence, module) {
+  if (!module?.label || !module.label.startsWith(SCHEDULE_LABEL_PREFIX)) return null;
+  const override = occurrence?.filterOverride;
+  if (!override || typeof override !== "object") return null;
+  let shape = null;
+  for (const v of Object.values(override)) {
+    if (v == null) continue;
+    if (typeof v === "string" && ISO_DAY_RX.test(v)) {
+      shape = { value: v, unit: "day" };
+      break;
+    }
+    if (typeof v === "object" && v && typeof v.value === "string" && ISO_DAY_RX.test(v.value)) {
+      shape = v;
+      break;
+    }
+  }
+  if (!shape) return null;
+  const summary = summarizeSelection(shape, { maxSegments: 3 });
+  return summary ? `${SCHEDULE_LABEL_PREFIX}${summary}` : null;
+}
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
@@ -282,6 +312,16 @@ function Container({
   }, [occurrenceOverride, occurrencesById, occurrencesByModuleId, module.id]);
 
   const containerDragMode = containerOccurrence?.dragMode ?? module?.defaultDragMode ?? "move";
+
+  // Dynamic display label for schedule day-cols. When the occurrence's
+  // filterOverride carries a multi-day shape (after the user picks a range
+  // / multi via the chevron picker), recompute the title to match —
+  // otherwise the day-col stays stamped with its CREATE-time single date.
+  // For every other container this falls back to module.label byte-identical.
+  const displayLabel = useMemo(
+    () => computeScheduleColLabel(containerOccurrence, module) ?? module.label,
+    [containerOccurrence, module]
+  );
 
   // Editor↔field binding for the container header. When set, the contentEditable
   // / static label is replaced by a BoundHeader that reads/writes the linked
@@ -620,7 +660,6 @@ function Container({
         const sel = occId && selection.isSelected(occId) ? " is-selected" : "";
         const clipMode = selection.clipboard?.mode;
         const staged = occId && clipMode && selection.clipboard.ids.includes(occId) ? ` is-clipboard-staged clipboard-${clipMode}` : "";
-        // Task #59 — schedule slot containers whose time has passed get
         const sticky = stickyHeader ? " is-sticky-header" : "";
         return base + sel + staged + sticky;
       })()}
@@ -865,7 +904,7 @@ function Container({
                       hostOccurrence={containerOccurrence}
                       binding={headerBinding}
                       markdownPrefix=""
-                      label={module.label || "Container"}
+                      label={displayLabel || "Container"}
                     />
                   </AutoMarquee>
                 </span>
@@ -878,7 +917,7 @@ function Container({
                     if (next && next !== module.label) {
                       CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next }, emit: true });
                     } else {
-                      e.currentTarget.textContent = module.label || "Container";
+                      e.currentTarget.textContent = displayLabel || "Container";
                     }
                   }}
                   onKeyDown={(e) => {
@@ -888,7 +927,7 @@ function Container({
                   onPointerDown={(e) => e.stopPropagation()}
                   style={{ outline: "none", cursor: "text", fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: embeddedAccent, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}
                 >
-                  {module.label || "Container"}
+                  {displayLabel || "Container"}
                 </span>
               )}
               <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0, marginLeft: "auto" }}>
@@ -1011,10 +1050,10 @@ function Container({
                         hostOccurrence={containerOccurrence}
                         binding={headerBinding}
                         markdownPrefix=""
-                        label={module.label || "Container"}
+                        label={displayLabel || "Container"}
                       />
                     ) : (
-                      module.label || "Container"
+                      displayLabel || "Container"
                     )}
                   </AutoMarquee>
                   {containerOccurrence?.linkedGroupId && (

@@ -29,7 +29,7 @@
 // │ Instance        │ INSTANCE (for sorting)                 │
 // └─────────────────┴────────────────────────────────────────┘
 
-import { useCallback, useEffect, useRef, useState, createContext, useContext } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, createContext, useContext } from "react";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { dropTargetForExternal } from "@atlaskit/pragmatic-drag-and-drop/external/adapter";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -533,12 +533,23 @@ export function useDragDrop({
   const stateRef = useRef({ setIsOver, setClosestEdge });
   stateRef.current = { setIsOver, setClosestEdge };
 
+  // Track the handle DOM node via state so the main effect re-runs when
+  // the handle mounts/unmounts. Otherwise a ref whose .current is null at
+  // first effect run (conditional render of the handle, e.g. page-panel
+  // header rendered only once pagesList loads) leaves Pragmatic DnD
+  // registered without dragHandle — making the entire panel draggable.
+  const [handleNode, setHandleNode] = useState(() => dragHandleRef?.current ?? null);
+  useLayoutEffect(() => {
+    const current = dragHandleRef?.current ?? null;
+    setHandleNode(prev => (prev === current ? prev : current));
+  });
+
   useEffect(() => {
     const el = ref.current;
     if (!el || disabled) return;
 
     const payload = createPayload(type, id, data, context);
-    const handleEl = dragHandleRef?.current;
+    const handleEl = handleNode;
 
     const canAccept = (source) => {
       // Empty accepts list = reject all drops. Lets pure drag sources
@@ -938,7 +949,7 @@ export function useDragDrop({
       cleanup();
       _unregisterDrop(el);
     };
-  }, [type, id, JSON.stringify(data), JSON.stringify(context), disabled, nativeEnabled, JSON.stringify(accepts), JSON.stringify(allowedEdges), dragCtx, dragHandleRef]);
+  }, [type, id, JSON.stringify(data), JSON.stringify(context), disabled, nativeEnabled, JSON.stringify(accepts), JSON.stringify(allowedEdges), dragCtx, handleNode]);
 
   return {
     ref,

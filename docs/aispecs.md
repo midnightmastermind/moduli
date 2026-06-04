@@ -1,3 +1,15 @@
+> **⚠️ HISTORICAL — grounding spec, not current.** This is the original
+> offline-LLM brainstorm (frog Jeeves + code-agent). It has been consolidated
+> into `docs/assistant-plan.md` (see its "Decisions locked" block) and
+> `docs/assistant-guide.md` (the start-from-scratch guide). Where they differ,
+> THEY win. What survived from here: offline-first Ollama (wired), the
+> tool-router/sandbox safety model (now `execSandbox.js` + the gated
+> `systemToolPack`), OCR (future). What changed: persona is now a sophisticated
+> turtle butler ("Jonah") not a frog; the assistant is a standalone core with a
+> Moduli *port* exposing the full grid command surface, not a code-only agent.
+
+---
+
 Direct answer. Here’s the cleanest setup for what you’re building.
 
 You want:

@@ -1,6 +1,100 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-05-27. Check this file before re-reading source._
+_Updated: 2026-06-03. Check this file before re-reading source._
+
+## Recent Changes (2026-06-03 — Schedule: Mark Passed Slots (time-based op) + TIME_BEFORE/DATE_BEFORE comparators)
+- **Replaces the removed hardcoded `is-timeslot-passed` client tint** (that baked
+  schedule knowledge into the generic `ModuleContainer` — see client/src/CLAUDE.md).
+  Coloring is now 100% data-driven via an operation; no component knows what a
+  "schedule"/"timeslot" is.
+- **`client/src/helpers/operationActions.js` (`evalRule`)** — two generic,
+  domain-agnostic comparator pairs added: `TIME_BEFORE`/`TIME_AFTER` (parse 12h
+  "9:00am"/"9am" + 24h "14:30" + ISO time-parts → minutes, compare; unparseable →
+  false) and `DATE_BEFORE`/`DATE_AFTER` (calendar day-key compare; regex-slice
+  avoids `new Date` tz shift). 8 regression tests in
+  `__tests__/operationActions.unified.test.js` (216 pass).
+- **`scripts/createLiveData.js` — new `Schedule: Mark Passed Slots` op** (inserted
+  after Canvas: Build). TIME-BASED: `schedule: { kind:"interval", every:5,
+  unit:"minute" }`, `triggerObjects:[]`, `triggerTypes:[]` (fires only via
+  `useScheduler`, never events — explicit empty arrays). 5 min ≥ the 60s
+  persistent-effect floor (it writes occurrence style). Logic: loop day-col
+  containers (`fields.scheduleFormat IS "day-col"` under Schedule) → a slot is
+  "passed" if its day-col date `DATE_BEFORE $today` (whole past day) OR
+  (`SAME_DAY $today` AND its `timeslot TIME_BEFORE $currentTime`); future days
+  untouched. Writes the GENERIC `occurrence.ownStyle.bg` (which
+  `resolveContainerStyle` overlays unconditionally — `applyUpdate` supports the
+  `$slot.ownStyle.bg` path → `UPDATE_ITEM_OWN_STYLE`). Per-day-column correct
+  because day-col slots are PER-DAY COPY_LINK copies (not shared). Dedup'd:
+  compares current `ownStyle.bg` before writing, so steady-state fires emit ~zero
+  socket writes; reset writes `bg:""` (mergeStyles treats falsy bg as inherit).
+  Regression: `__tests__/createLiveData.test.js` ("…is time-based and writes
+  ownStyle via TIME_BEFORE/DATE_BEFORE").
+- **Re-seed REQUIRED** to apply: `node --env-file=.env server/scripts/createLiveData.js`.
+
+## Recent Changes (2026-06-03 — Schedule Table + Canvas: Build migrated to the period model — FIX: produced zero rows/cards)
+- **`scripts/createLiveData.js` (`Canvas: Build` op, ~line 8970)** — Phase 1 of
+  the Schedule Canvas fix. Same single-date bug as Table: Build (below) — `$schedDate`
+  + `SAME_DAY` against the picker's period object matched nothing → zero cards.
+  Migrated identically: new `$schedPeriod` (page effective filter primary →
+  `$trigger.date` → `$today`); the orphan-sweep `$srcProbe` rule and the
+  existence-check `$task` rule switched `SAME_DAY $schedDate` →
+  `DATE_IN_PERIOD $schedPeriod`. Diff-mode position preservation + `linkedGroupId`
+  Schedule↔canvas sync untouched. Regression: `__tests__/createLiveData.test.js`
+  ("Canvas: Build is period-aware …").
+  - **Phase 2a (mindmap preview nodes — DONE this session):** each freshly-minted
+    card gets `UPDATE $copy.meta.viewMode = "representation"` right after the
+    meta.x/y stamp, so canvas cards render as compact representation chips
+    (label + type icon) instead of full inline instances. meta is canvas-local
+    (excluded from the linkedGroupId fan-out like meta.x/y), so the Schedule
+    source keeps its own view mode. Only stamped on mint (guarded by the
+    no-existing-copy check) so a user's manual view-mode flip survives re-fires.
+    Edges (`containerOccurrence.meta.edges = [{id, from:occId, to:occId}]` on the
+    canvas PAGE occurrence) render via the connect tool; cards render via the
+    `renderCard` prop — the canvas has no viewMode logic of its own (it's
+    per-occurrence meta, honored by ModuleInstance/Container).
+  - **Phase 2b (mindmap edge chain — DONE this session, the "easier"/implicit
+    variant):** the rebuild branch now threads task cards into a linear mindmap
+    chain via auto-generated edges on `$canvas.meta.edges`. Implementation:
+    (1) `$edges` is seeded from the canvas's CURRENT edges minus any whose id
+    CONTAINS `"auto-"` — so hand-drawn connect-tool edges (ids `"e-…"`) survive
+    while the op's chain regenerates each rebuild; the preserve-loop over
+    `$canvas.meta.edges` is safe even when undefined (loop coerces non-array
+    overExpr → [], operationExecutor:663). (2) The task loop resolves each
+    in-period task to a card id `$curCardId` — an EXISTING canvas copy (matched
+    by linkedGroupId) OR a freshly-minted one — then pushes an edge
+    `{id:"auto-${prev}-${cur}", from:prev, to:cur}` threading consecutive tasks,
+    and SET_VARs `$prevCardId`. Because $curCardId is captured for existing cards
+    too (not just mints), the chain is always complete over the current task set,
+    not just newly-added cards. (3) One `UPDATE $canvas.meta.edges = $edges` at
+    the end. **Known scope of the "easier" variant:** it's a single LINEAR chain
+    in `$allInstances` iteration order — NOT slot-branched and NOT guaranteed
+    chronological/by-timeslot. A richer day→slot→task branched graph (explicit
+    slot-label nodes + per-slot columns + slot→task edges) is the future upgrade;
+    it needs CREATE'd slot nodes with their own diff-mode lifecycle. Regression:
+    `__tests__/createLiveData.test.js` ("Canvas: Build stamps preview nodes +
+    builds the mindmap edge chain").
+- **`scripts/createLiveData.js` (`Table: Build` op, ~line 8635)** — root-cause
+  fix for "the Schedule Table produces no occurrences." The op resolved a single
+  `$schedDate` (`$trigger.date` → `$schedPage._effectiveFilter.<dateFieldId>` →
+  `$today`) and matched tasks with `SAME_DAY $schedDate`. After the multi-day
+  Schedule refactor, the DrilldownDatePicker writes a period **object**
+  (`{value,unit,kind,dates}`) into the effective filter — even for a single day —
+  so `SAME_DAY` compared a date string against an object and matched nothing →
+  zero rows. Migrated to the SAME period model the trackers + Build Schedule use:
+  - New `$schedPeriod` resolves **page-effective-filter FIRST** (full object),
+    then `$trigger.date`, then `$today`. Page-primary so week/month/multi views
+    mirror their whole window (the trackers' `$goalPeriod` pattern).
+  - All three task-match rules (Phase 1 orphan-sweep `$srcProbe`, Phase 2
+    existence-check `$task`, Phase 3 cells-rebuild `$task2`) switched
+    `SAME_DAY $schedDate` → `DATE_IN_PERIOD $schedPeriod`. `DATE_IN_PERIOD`
+    already handles day/week/month/year + `{kind:"multi"}` and treats a bare
+    `YYYY-MM-DD` as day-unit, so single-day still works. Cells/columns unchanged
+    (the Date column disambiguates the extra period rows).
+  - Regression: `__tests__/createLiveData.test.js` ("Table: Build is period-aware
+    … no SAME_DAY $schedDate"). DB-gated like its siblings (skips without Mongo).
+  - **Re-seed REQUIRED to apply:** `node --env-file=.env server/scripts/createLiveData.js`.
+  - `Canvas: Build` got the same Phase 1 migration this session (see the entry
+    above); its Phase 2 mindmap layer is the remaining Schedule Canvas work.
 
 ## Recent Changes (2026-05-27 — Goal refactor: per-metric splits + Media goal + rich history cells)
 - **`scripts/createLiveData.js` — umbrella goal instances split into per-metric

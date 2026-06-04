@@ -149,6 +149,74 @@ describe("createLiveData — structural assertions", () => {
     expect(json).toContain("$trigger.occurrence._ancestors");
   });
 
+  // Table: Build must mirror the Schedule by PERIOD, not a single day. The
+  // pre-multiday op resolved a single $schedDate and matched tasks with
+  // SAME_DAY; once the picker started writing period OBJECTS ({value,unit} /
+  // {kind:"multi",dates}) into the effective filter, SAME_DAY compared a date
+  // string against an object and matched nothing → the table produced zero
+  // rows. Migrated to $schedPeriod + DATE_IN_PERIOD (mirrors the trackers'
+  // $goalPeriod chain). Guard against regression to the single-date model.
+  it("Table: Build is period-aware (DATE_IN_PERIOD $schedPeriod, no SAME_DAY $schedDate)", async () => {
+    if (!connected) return;
+    const { gridId } = result;
+    const op = await Operation.findOne({ gridId, name: "Table: Build" });
+    expect(op).toBeTruthy();
+    const json = JSON.stringify(op.pipeline ?? {});
+    expect(json).toContain("$schedPeriod");
+    expect(json).toContain("DATE_IN_PERIOD");
+    // The old single-date variable must be gone from the live pipeline.
+    expect(json).not.toContain("$schedDate");
+  });
+
+  // Canvas: Build had the IDENTICAL single-date bug Table: Build did (SAME_DAY
+  // $schedDate against the picker's period object → zero cards). Phase 1 of the
+  // Schedule Canvas fix migrated it to the same $schedPeriod + DATE_IN_PERIOD
+  // model. Guard against regression.
+  it("Canvas: Build is period-aware (DATE_IN_PERIOD $schedPeriod, no SAME_DAY $schedDate)", async () => {
+    if (!connected) return;
+    const { gridId } = result;
+    const op = await Operation.findOne({ gridId, name: "Canvas: Build" });
+    expect(op).toBeTruthy();
+    const json = JSON.stringify(op.pipeline ?? {});
+    expect(json).toContain("$schedPeriod");
+    expect(json).toContain("DATE_IN_PERIOD");
+    expect(json).not.toContain("$schedDate");
+  });
+
+  // Phase 2 mindmap layer: cards are stamped as representation preview nodes and
+  // threaded into a chain via auto-generated edges on the canvas page's
+  // meta.edges (hand-drawn edges preserved). Guard the wiring stays present.
+  it("Canvas: Build stamps preview nodes + builds the mindmap edge chain", async () => {
+    if (!connected) return;
+    const { gridId } = result;
+    const op = await Operation.findOne({ gridId, name: "Canvas: Build" });
+    expect(op).toBeTruthy();
+    const json = JSON.stringify(op.pipeline ?? {});
+    expect(json).toContain('"$copy.meta.viewMode"');
+    expect(json).toContain("representation");
+    expect(json).toContain('"$canvas.meta.edges"');
+    expect(json).toContain("auto-");
+  });
+
+  // Schedule: Mark Passed Slots must be a TIME-BASED op (schedule set, no event
+  // triggers) and drive coloring through the generic ownStyle + the new
+  // TIME_BEFORE/DATE_BEFORE comparators — never via hardcoded schedule logic in
+  // the renderer.
+  it("Schedule: Mark Passed Slots is time-based and writes ownStyle via TIME_BEFORE/DATE_BEFORE", async () => {
+    if (!connected) return;
+    const { gridId } = result;
+    const op = await Operation.findOne({ gridId, name: "Schedule: Mark Passed Slots" });
+    expect(op).toBeTruthy();
+    expect(op.schedule).toBeTruthy();
+    expect(op.schedule.kind).toBe("interval");
+    expect(Array.isArray(op.triggerObjects) ? op.triggerObjects.length : 0).toBe(0);
+    const json = JSON.stringify(op.pipeline ?? {});
+    expect(json).toContain("TIME_BEFORE");
+    expect(json).toContain("DATE_BEFORE");
+    expect(json).toContain("ownStyle.bg");
+    expect(json).toContain("$currentTime");
+  });
+
   // ── 3. No scheduleSlot container modules at grid scope ───────────────────────
   it("no container module at grid scope has meta.scheduleSlot === true", async () => {
     if (!connected) return;

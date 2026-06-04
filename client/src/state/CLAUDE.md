@@ -1,6 +1,22 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-05-20. Check this file before re-reading source._
+_Updated: 2026-06-03. Check this file before re-reading source._
+
+## Recent Changes (2026-06-03 — notification chip: value-aware change detection — FIX: object-valued inputs never notified)
+- **`bindSocketToStore.js` (`onTransactionCreated`, MeasureOp branch)** — the
+  "did the value change?" guard was `String(prev) === String(next)`, which
+  collapses EVERY object value to `"[object Object]"`. So occurrence pickers,
+  multi-selects, and the mood wheel (all object/array-valued) always read as
+  "unchanged" → no notification chip, while amounts (primitive) notified fine.
+  That was the user-reported "the other inputs don't send notifications when
+  they should." Now: object/array values compare via `JSON.stringify`,
+  primitives via `String`. The chip's `desc` also no longer renders
+  `"[object Object] → [object Object]"` — `fmtVal` shows `"N items"` for arrays
+  / `"updated"` for objects, and keeps `"prev → next"` only for primitive
+  transitions. Client-only, no re-seed. NEEDS IN-BROWSER VERIFICATION (no unit
+  test covers `onTransactionCreated`; esbuild parse-check passed).
+
+## Recent Changes (2026-05-20 — original below)
 
 ## Recent Changes (2026-05-26 — fireOperationsBatch: filter-change cascade dedup)
 - **`bindSocketToStore.js`** — new closure-level `_navCascadeFiredOps` Set (null

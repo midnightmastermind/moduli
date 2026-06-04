@@ -10,6 +10,48 @@ _**Sequencing**: API Phases 1–3 already shipped. The assistant can start
 on top of what's there today; Phase 4 (assistant tool catalog, persona,
 import pipeline) is what this doc covers._
 
+---
+
+## Decisions locked (2026-06-03) — read this first
+
+These supersede any conflicting detail later in this doc and in
+`docs/aispecs.md` (which is now **historical grounding**, not current spec).
+The teaching/setup companion is `docs/assistant-guide.md`.
+
+1. **It's a standalone system; Moduli is one port.** The assistant is built
+   as a domain-agnostic **core engine** (provider loops + selection + agent
+   loop) that runs whatever **tool packs** a **port** hands it. The Moduli
+   chatbox is one port — it loads the Moduli pack (scoped to the user's grid +
+   token) and nothing else by default. It lives in this repo for now but is
+   structured to be lifted out. Code: `server/services/assistantAgent.js`
+   (core), `server/services/assistantTools.js` (packs), `assistantChat` =
+   the Moduli port.
+2. **Offline-first.** Backend auto-selects **Ollama (local) → Anthropic
+   (cloud, optional) → deterministic (no model)**. Ollama + `qwen2.5-coder` is
+   the default and the point; Anthropic is a fallback. Override with
+   `ASSISTANT_BACKEND`. (Ollama is now WIRED, not deferred.)
+3. **Persona: "Jonah" — a sophisticated turtle butler with a Gandalf-like
+   beard.** Replaces both the "frog Jeeves" (aispecs) and the plain "Jarvis"
+   (this doc's §3) — keep the dry, wise, precise manservant *tone*, change the
+   mascot to the bearded turtle. Personality lives only in the system prompt +
+   avatar art.
+4. **Moduli pack = the FULL grid command surface**, not just page creation:
+   research/lookup (`wikipedia_search/_summary/_import`, `import_markdown`),
+   reads (`get_grid_state`, `list_modules/_occurrences/_fields/_operations`,
+   `get_occurrence`), creates (`create_module/_occurrence/_field`), edits
+   (`update_module/_occurrence/_field/_operation`, `set_occurrence_field`),
+   deletes (`delete_*`), and ops (`run_operation`, `create_operation`). Each
+   wraps an existing `/api/v1` endpoint.
+5. **The code-agent capability is real but gated.** The older spec's
+   filesystem/command execution ships as the **system pack** (`systemToolPack`
+   + `execSandbox.js`): path-jailed, binary-allow-listed, metacharacter-blocked,
+   timed out — and **OFF unless `ASSISTANT_EXEC=1`**. It is NOT exposed to the
+   Moduli chatbox by default. Docker isolation + an approval-card UI are the
+   next hardening steps before it should be used in earnest.
+6. **Memory: simple first.** Start with a small local preference store
+   ("I track water in oz") injected into the system prompt; RAG-over-files
+   (embeddings) is a later phase (see §8 + the guide §8).
+
 ## The pitch
 
 A conversational butler-style assistant — **think Jarvis / Alfred /

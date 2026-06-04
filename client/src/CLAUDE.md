@@ -4,6 +4,25 @@ _Updated: 2026-05-23. Check this file before re-reading source._
 
 > **Read [`/CLAUDE_CHAT.md`](../../CLAUDE_CHAT.md) at session start** for time-ordered user direction across sessions. New direction goes there first.
 
+## Recent Changes (2026-06-03 — REMOVED hardcoded timeslot-passed coloring #59 — domain logic out of generic renderer)
+- The `#59` "timeslot-passed pink tint" below was **ripped out**. It baked
+  schedule-domain knowledge (`module.meta.scheduleSlot` / `slotLabel`, time-of-day
+  parsing, "is this a slot") into the GENERIC container renderer — the universal
+  `ModuleContainer` must not know what a "schedule" or "timeslot" is. Per user:
+  "it shouldn't know it's a schedule via the code … it should all be handled
+  manually via the operation."
+- **Removed:** `ModuleContainer.jsx` `isSlotPassed` memo + `useNowTick`/`isTimeslotPassed`
+  imports + the `is-timeslot-passed` className; `index.css` `.container-shell.is-timeslot-passed`
+  rule; deleted `hooks/useNowTick.js`, `helpers/timeslotPassed.js`,
+  `__tests__/timeslotPassed.test.js`.
+- **Correct path (data-driven):** slot coloring is an OPERATION concern. An op
+  references the timeslot field BY ID, compares it to the current time, and writes
+  a generic visual to the slot occurrence (its `ownStyle`/style-cascade — which the
+  container already renders without any schedule knowledge). The renderer stays
+  domain-agnostic; the op owns "is a slot, time passed → this color." NOTE: a clean
+  op needs a current-time-of-day var + a before/after time comparator (and a time
+  trigger, or run on load/filter-change) — verify those exist before authoring.
+
 ## Recent Changes (2026-05-23 — Page-within-page #45 + Lock rule + Timeslot-passed #59)
 - **`helpers/layoutCascade.js`** — Slice 4 lock rule helper
   `isMoveBlockedByCascadeLock` walks the source's ancestor chain to

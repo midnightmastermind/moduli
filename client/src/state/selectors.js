@@ -449,13 +449,18 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
       // all slots: clearing writes filterOverride[fieldId] = null, the cascade
       // deletes the key, rightVal lands as undefined, and we should pass.
       if (rightVal == null) continue;
-      // Period-shape `{value, unit}` filter values broaden the match window to
-      // week/month/year — route through DATE_IN_PERIOD regardless of the
-      // condition's static comparator (e.g. SAME_DAY). Multi-shape
-      // `{kind:"multi", dates:[...]}` also routes through DATE_IN_PERIOD so
-      // the OR-match across the selected dates applies.
+      // Period-shape `{value, unit, span?}` filter values broaden the match
+      // window — route through DATE_IN_PERIOD regardless of the condition's
+      // static comparator (e.g. SAME_DAY). Covers:
+      //   - unit !== "day"  (week/month/year periods)
+      //   - span  >  1      (consecutive multi-day picks, kind:"range")
+      //   - kind === "multi" + dates[]  (non-consecutive multi-day picks)
+      // Without span detection, kind:"range" (unit:"day", span:N) fell back
+      // to SAME_DAY which can't compare a string to an object → every
+      // schedule day-col was invisible on a multi-day filter.
       const hasPeriod = rightVal && typeof rightVal === "object" &&
         ((rightVal.unit && rightVal.unit !== "day") ||
+         (Number(rightVal.span) > 1) ||
          (rightVal.kind === "multi" && Array.isArray(rightVal.dates)));
       const comparator = hasPeriod ? "DATE_IN_PERIOD" : String(cond.comparator || "IS").toUpperCase();
       const ok = evalRule({ left: leftVal, comparator, right: rightVal }, {});

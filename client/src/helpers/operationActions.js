@@ -291,6 +291,61 @@ export function evalRule(rule, $vars) {
     case "LESS_THAN_OR_EQUAL":       return Number(leftVal) <= Number(rightVal);
     case "CONTAINS":         return String(leftVal).includes(String(rightVal));
     case "NOT_CONTAINS":     return !String(leftVal).includes(String(rightVal));
+    // Time-of-day comparators — generic, domain-agnostic. Parse BOTH 12h
+    // ("9:00am", "9am", "12:30 PM") and 24h ("14:30", "09:00") forms, plus the
+    // time portion of an ISO datetime, to minutes-since-midnight, then compare.
+    // Either side unparseable → false (a time comparison against a non-time
+    // never matches). Lets a pipeline ask "is this time-of-day field before
+    // $currentTime?" without baking any time math into the seed.
+    case "TIME_BEFORE":
+    case "TIME_AFTER": {
+      const toMin = (v) => {
+        if (v == null) return null;
+        const s = String(v).trim().toLowerCase();
+        if (!s) return null;
+        const m12 = s.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+        if (m12) {
+          let h = parseInt(m12[1], 10);
+          const min = m12[2] ? parseInt(m12[2], 10) : 0;
+          if (h === 12) h = 0;
+          if (m12[3] === "pm") h += 12;
+          return (h > 23 || min > 59) ? null : h * 60 + min;
+        }
+        const m24 = s.match(/^(\d{1,2}):(\d{2})$/);
+        if (m24) {
+          const h = parseInt(m24[1], 10);
+          const min = parseInt(m24[2], 10);
+          return (h > 23 || min > 59) ? null : h * 60 + min;
+        }
+        if (/^\d{4}-\d{2}-\d{2}t/.test(s)) {
+          const d = new Date(v);
+          if (!isNaN(d.getTime())) return d.getHours() * 60 + d.getMinutes();
+        }
+        return null;
+      };
+      const lm = toMin(leftVal);
+      const rm = toMin(rightVal);
+      if (lm == null || rm == null) return false;
+      return comparator === "TIME_BEFORE" ? lm < rm : lm > rm;
+    }
+    // Calendar-day before/after — compares by day-key only (time of day
+    // ignored). Either side null/""/unparseable → false. Lexical day-key
+    // compare is correct date ordering; the regex slice avoids the timezone
+    // shift `new Date("2026-06-03T..Z")` would introduce on a bare date.
+    case "DATE_BEFORE":
+    case "DATE_AFTER": {
+      if (leftVal == null || leftVal === "" || rightVal == null || rightVal === "") return false;
+      const dayKey = (v) => {
+        if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return null;
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+      const lk = dayKey(leftVal);
+      const rk = dayKey(rightVal);
+      if (lk == null || rk == null) return false;
+      return comparator === "DATE_BEFORE" ? lk < rk : lk > rk;
+    }
     // Array comparators — left resolves to an array (e.g. $item._ancestors)
     case "HAS_ANCESTOR":
     case "ARRAY_INCLUDES": {
@@ -1299,7 +1354,25 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         }
       }
 
-      const parentId = resolveExpr(cfg.parent, $vars) ?? null;
+      let parentId = resolveExpr(cfg.parent, $vars) ?? null;
+      // FIND auto-returns an array on multi-match; coerce to first id so
+      // Mongoose doesn't reject parentId as an Array.
+      if (Array.isArray(parentId)) parentId = parentId[0] ?? null;
+
+      // Per-occurrence filterOverride for the new instance. Each value is
+      // resolved through resolveExpr so authors can write
+      // `filterOverride: { [dateFieldId]: "$day" }` and have $day land as
+      // the iteration's resolved date string. Without this, day-cols minted
+      // by Build Schedule inherit the page's multi-day filter and end up
+      // showing all the selected days' tasks instead of just their own.
+      const filterOverride = cfg.filterOverride && typeof cfg.filterOverride === "object"
+        ? Object.fromEntries(
+            Object.entries(cfg.filterOverride).map(([k, v]) => {
+              const rv = resolveExpr(v, $vars);
+              return [k, rv === undefined ? v : rv];
+            })
+          )
+        : null;
 
       // Compute the ancestor chain for the NEW instance from its parentId,
       // walking the existing parent chain in context.occurrencesById. Without
@@ -1332,6 +1405,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         parentId,
         fields,
         textmap,
+        ...(filterOverride ? { filterOverride } : {}),
         meta: { createdByOperation: true },
         _ancestors: newAncestors,
       };
@@ -1373,6 +1447,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           parentId,
           fields,
           textmap,
+          ...(filterOverride ? { filterOverride } : {}),
           meta: { createdByOperation: true },
           occurrences: [],
         };
@@ -1419,6 +1494,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           parentId,
           fields,
           textmap,
+          ...(filterOverride ? { filterOverride } : {}),
           insertAtIndex: typeof cfg.insertAtIndex === "number" ? cfg.insertAtIndex : null,
         },
       });
@@ -1750,7 +1826,10 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
       const root = findSource(sourceId);
       if (!root || !(root.moduleId || root.templateId)) break;
-      const rootParentId = resolveExpr(cfg.parent, $vars) ?? null;
+      let rootParentId = resolveExpr(cfg.parent, $vars) ?? null;
+      // FIND auto-returns an array when multiple records match; pick the
+      // first id so Mongoose doesn't reject parentId as an Array.
+      if (Array.isArray(rootParentId)) rootParentId = rootParentId[0] ?? null;
       const result = linkOne(root, rootParentId, true, 0);
       if (!result) break;
 

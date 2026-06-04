@@ -1,0 +1,528 @@
+// ui/TransactionNotificationStack.jsx
+//
+// Slim chip-style cards that live in the very same toolbar slot as
+// SocketStatusBanner. Chips are arranged left-to-right in chronological
+// order (newest on the left). One chip at a time is "open" — full
+// chrome with × button, marquee, relative time, and the read-full
+// popout. The others show their leading dot+icon as a peek.
+//
+// Up to six chips render in the horizontal stack. When more than six
+// exist, a trailing "+N" pill appears; clicking it drops a vertical
+// list of the overflow notifications below the toolbar so the user
+// can dismiss/expand any of them.
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Check, AlertTriangle, Loader2, X, Maximize2 } from "lucide-react";
+import {
+  subscribeTxNotifications,
+  dismissTxNotification,
+} from "../state/notificationStore";
+
+// Each chip uses two background layers — a colored tint over an
+// opaque surface — so stacked chips don't bleed through each other.
+// Matches SocketStatusBanner's pill visual.
+const KIND_STYLES = {
+  success: {
+    bg: "linear-gradient(rgba(74, 222, 128, 0.15), rgba(74, 222, 128, 0.15)), var(--surface, #1f2125)",
+    border: "rgba(74, 222, 128, 0.45)",
+    color: "#86efac",
+    dot: "#4ade80",
+    Icon: Check,
+  },
+  error: {
+    bg: "linear-gradient(rgba(248, 113, 113, 0.15), rgba(248, 113, 113, 0.15)), var(--surface, #1f2125)",
+    border: "rgba(248, 113, 113, 0.45)",
+    color: "#fca5a5",
+    dot: "#f87171",
+    Icon: AlertTriangle,
+  },
+  pending: {
+    bg: "linear-gradient(rgba(96, 165, 250, 0.15), rgba(96, 165, 250, 0.15)), var(--surface, #1f2125)",
+    border: "rgba(96, 165, 250, 0.45)",
+    color: "#93c5fd",
+    dot: "#60a5fa",
+    Icon: Loader2,
+  },
+};
+
+// Neutral pill for the "+N" overflow indicator.
+const OVERFLOW_STYLE = {
+  bg: "linear-gradient(rgba(148, 163, 184, 0.15), rgba(148, 163, 184, 0.15)), var(--surface, #1f2125)",
+  border: "rgba(148, 163, 184, 0.45)",
+  color: "#cbd5f5",
+};
+
+const VISIBLE_MAX = 6;        // hard cap on inline chips; overflow → "+N"
+const PEEK_OFFSET = 14;       // px each older card peeks past the previous
+const CHIP_HEIGHT = 22;       // matches SocketStatusBanner pill height
+const CHIP_WIDTH = 180;       // fixed chip width — labels marquee inside
+const OVERFLOW_PILL_WIDTH = 36;
+const LABEL_TRACK_GAP = 28;
+const MARQUEE_PX_PER_SEC = 36;
+
+// Relative time helper. Reformatted every 30s by the shared `now`
+// tick in the parent. Sub-minute resolution near the bottom, day
+// granularity above 24h.
+function formatRelative(createdAt, now) {
+  const diffMs = Math.max(0, now - createdAt);
+  const s = Math.floor(diffMs / 1000);
+  if (s < 5) return "now";
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  return `${d}d`;
+}
+
+function formatClockTime(ts) {
+  const d = new Date(ts);
+  const hh = d.getHours();
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const period = hh >= 12 ? "PM" : "AM";
+  const h12 = ((hh + 11) % 12) + 1;
+  return `${h12}:${mm} ${period}`;
+}
+
+function Chip({ note, index, isOpen, openIndex, onOpen, now, fullWidth = false, showAllChrome = false }) {
+  const style = KIND_STYLES[note.kind] || KIND_STYLES.pending;
+  const Icon = style.Icon;
+  // `showAllChrome` is a forced-open variant used inside the
+  // overflow dropdown: every row gets the × + marquee + expand
+  // treatment regardless of the inline stack's `isOpen`.
+  const treatAsOpen = isOpen || showAllChrome;
+
+  const labelRef = useRef(null);
+  const [overflows, setOverflows] = useState(false);
+  useEffect(() => {
+    if (!treatAsOpen) { setOverflows(false); return; }
+    const el = labelRef.current;
+    if (!el) return;
+    const single = el.querySelector("[data-tx-label-copy]");
+    if (!single) return;
+    setOverflows(single.scrollWidth > el.clientWidth);
+  }, [note.label, treatAsOpen, fullWidth]);
+
+  const animate = treatAsOpen && overflows;
+  const durationSec = animate
+    ? Math.max(4, (labelRef.current?.querySelector("[data-tx-label-copy]")?.scrollWidth || 0) / MARQUEE_PX_PER_SEC)
+    : 0;
+
+  // z-index in the inline stack. Inside the overflow dropdown the
+  // chip lives in normal flow; index/openIndex aren't used.
+  const z = showAllChrome
+    ? "auto"
+    : (isOpen ? 1000 : 500 - Math.abs(index - openIndex));
+
+  const positional = showAllChrome
+    ? { position: "relative" }
+    : { position: "absolute", top: 0, left: index * PEEK_OFFSET, zIndex: z };
+
+  return (
+    <div
+      role={treatAsOpen ? undefined : "button"}
+      tabIndex={treatAsOpen ? -1 : 0}
+      onClick={treatAsOpen ? undefined : () => onOpen?.(note.id)}
+      onKeyDown={treatAsOpen ? undefined : (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen?.(note.id);
+        }
+      }}
+      title={`${note.label} · ${formatClockTime(note.createdAt)}`}
+      style={{
+        ...positional,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        height: CHIP_HEIGHT,
+        width: fullWidth ? "100%" : CHIP_WIDTH,
+        padding: "0 6px 0 4px",
+        borderRadius: 999,
+        fontSize: 10,
+        lineHeight: 1,
+        whiteSpace: "nowrap",
+        background: style.bg,
+        border: `1px solid ${style.border}`,
+        color: style.color,
+        cursor: treatAsOpen ? "default" : "pointer",
+        overflow: "hidden",
+      }}
+    >
+      {treatAsOpen && (
+        <button
+          type="button"
+          aria-label="Dismiss"
+          onClick={(e) => {
+            e.stopPropagation();
+            dismissTxNotification(note.id);
+          }}
+          style={dismissBtnStyle(style.color)}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.7"; }}
+        >
+          <X size={10} strokeWidth={2.5} aria-hidden />
+        </button>
+      )}
+
+      <span
+        aria-hidden
+        style={{
+          flex: "0 0 auto",
+          width: 6, height: 6, borderRadius: "50%",
+          background: style.dot,
+          animation: note.kind === "pending" ? "socket-status-pulse 1.2s ease-in-out infinite" : "none",
+        }}
+      />
+      <Icon
+        size={11}
+        aria-hidden
+        style={{
+          flex: "0 0 auto",
+          animation: note.kind === "pending" ? "spin-cw 1.2s linear infinite" : undefined,
+        }}
+      />
+
+      {/* Label + time render ONLY on the open chip / overflow rows.
+          Closed peek chips show just their colored tab (dot + icon)
+          so the stack reads as a row of tabs. */}
+      {treatAsOpen ? (
+        <>
+          <div
+            ref={labelRef}
+            style={{
+              flex: "1 1 auto",
+              overflow: "hidden",
+              position: "relative",
+            }}
+          >
+            <div
+              style={{
+                display: "inline-flex",
+                animation: animate ? `tx-marquee ${durationSec}s linear infinite` : "none",
+                willChange: animate ? "transform" : "auto",
+              }}
+            >
+              <span data-tx-label-copy style={{ paddingRight: LABEL_TRACK_GAP }}>{note.label}</span>
+              {animate && <span aria-hidden style={{ paddingRight: LABEL_TRACK_GAP }}>{note.label}</span>}
+            </div>
+          </div>
+          <span
+            style={{
+              flex: "0 0 auto",
+              fontSize: 9,
+              opacity: 0.75,
+              letterSpacing: 0.2,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {formatClockTime(note.createdAt)}
+          </span>
+        </>
+      ) : (
+        // Spacer flex-grow so the chip still occupies its 180px slot
+        // (needed for the peek-offset stacking math) but renders no
+        // text content.
+        <span style={{ flex: "1 1 auto" }} aria-hidden />
+      )}
+
+      {treatAsOpen && <ExpandButton note={note} color={style.color} />}
+    </div>
+  );
+}
+
+function dismissBtnStyle(color) {
+  return {
+    flex: "0 0 auto",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 14,
+    height: 14,
+    border: 0,
+    borderRadius: "50%",
+    background: "transparent",
+    color,
+    cursor: "pointer",
+    padding: 0,
+    opacity: 0.7,
+  };
+}
+
+function ExpandButton({ note, color }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      const card = document.getElementById(`tx-popout-${note.id}`);
+      if (card && card.contains(e.target)) return;
+      setOpen(false);
+    };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, note.id]);
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Read full message"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(o => !o);
+        }}
+        style={{
+          flex: "0 0 auto",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 14,
+          height: 14,
+          border: 0,
+          borderRadius: 3,
+          background: "transparent",
+          color,
+          cursor: "pointer",
+          padding: 0,
+          opacity: 0.7,
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.7"; }}
+      >
+        <Maximize2 size={10} strokeWidth={2.5} aria-hidden />
+      </button>
+      {open && (
+        <div
+          id={`tx-popout-${note.id}`}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            top: CHIP_HEIGHT + 6,
+            left: 0,
+            zIndex: 1000,
+            maxWidth: 320,
+            minWidth: 180,
+            padding: "6px 10px",
+            borderRadius: 6,
+            fontSize: 11,
+            lineHeight: 1.35,
+            whiteSpace: "normal",
+            background: "var(--surface, #1f2125)",
+            border: `1px solid ${color}55`,
+            color: "var(--text-primary, #e5e7eb)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+            cursor: "auto",
+          }}
+        >
+          <div style={{ marginBottom: 4, fontSize: 9, opacity: 0.7, letterSpacing: 0.4, textTransform: "uppercase" }}>
+            {formatClockTime(note.createdAt)}
+          </div>
+          {note.label}
+        </div>
+      )}
+    </>
+  );
+}
+
+// "+N" pill sitting at the far right of the inline stack. Clicking
+// opens a portal-rendered list of EVERY notification (visible + overflow)
+// anchored under the pill. Portal avoids stacking-context conflicts that
+// were letting the dropdown "blank out" the page tabs underneath.
+function OverflowPill({ count, leftPx, allItems, now }) {
+  const [open, setOpen] = useState(false);
+  const [anchorRect, setAnchorRect] = useState(null);
+  const ref = useRef(null);
+
+  // Re-measure the pill on open + on scroll/resize so the portal can
+  // anchor against viewport coords.
+  useEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      if (ref.current) setAnchorRect(ref.current.getBoundingClientRect());
+    };
+    measure();
+    window.addEventListener("scroll", measure, true);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", measure);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (ref.current && ref.current.contains(e.target)) return;
+      const dd = document.getElementById("tx-overflow-dropdown");
+      if (dd && dd.contains(e.target)) return;
+      setOpen(false);
+    };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  // Close when nothing's left to show.
+  useEffect(() => {
+    if (open && allItems.length === 0) setOpen(false);
+  }, [open, allItems.length]);
+
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        title={`${count} more notification${count === 1 ? "" : "s"} · click to view all ${allItems.length}`}
+        onClick={() => setOpen(o => !o)}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: leftPx,
+          zIndex: 1100,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: CHIP_HEIGHT,
+          width: OVERFLOW_PILL_WIDTH,
+          padding: 0,
+          borderRadius: 999,
+          fontSize: 10,
+          fontVariantNumeric: "tabular-nums",
+          background: OVERFLOW_STYLE.bg,
+          border: `1px solid ${OVERFLOW_STYLE.border}`,
+          color: OVERFLOW_STYLE.color,
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        +{count}
+      </button>
+      {open && anchorRect && createPortal(
+        <div
+          id="tx-overflow-dropdown"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            top: anchorRect.bottom + 6,
+            left: Math.max(8, Math.min(window.innerWidth - 268, anchorRect.right - 260)),
+            zIndex: 10000,
+            width: 260,
+            maxHeight: "70vh",
+            overflowY: "auto",
+            padding: 6,
+            borderRadius: 8,
+            background: "var(--surface, #1f2125)",
+            border: "1px solid var(--border-default, rgba(148,163,184,0.4))",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          {allItems.map((n) => (
+            <Chip
+              key={n.id}
+              note={n}
+              index={0}
+              isOpen={false}
+              openIndex={0}
+              now={now}
+              fullWidth
+              showAllChrome
+            />
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
+export default function TransactionNotificationStack() {
+  const [items, setItems] = useState([]);
+  const [openIdState, setOpenIdState] = useState(null);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => subscribeTxNotifications(setItems), []);
+
+  // Re-render every 30s so the relative-time fragments stay current
+  // without burning a tick per second.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const openId = useMemo(() => {
+    if (!items.length) return null;
+    if (openIdState && items.some(n => n.id === openIdState)) return openIdState;
+    return items[0].id;
+  }, [items, openIdState]);
+
+  const openIndex = useMemo(
+    () => (openId ? items.findIndex(n => n.id === openId) : -1),
+    [items, openId]
+  );
+
+  const visible = items.slice(0, VISIBLE_MAX);
+  const overflow = items.slice(VISIBLE_MAX);
+  const hasOverflow = overflow.length > 0;
+
+  if (!items.length) return null;
+
+  // Right-edge of the visible chip stack (last chip's right edge =
+  // its left position + CHIP_WIDTH). The +N pill sits just past that
+  // with a small visual gap so it reads as a trailing addendum
+  // instead of floating in the middle of the open chip.
+  const chipsRightEdge = visible.length > 0
+    ? (visible.length - 1) * PEEK_OFFSET + CHIP_WIDTH
+    : 0;
+  const overflowGap = 6;
+  const overflowLeft = chipsRightEdge + overflowGap;
+  const stackWidth = hasOverflow
+    ? overflowLeft + OVERFLOW_PILL_WIDTH
+    : chipsRightEdge;
+
+  return (
+    <div
+      className="font-mono"
+      style={{
+        position: "relative",
+        height: CHIP_HEIGHT,
+        width: stackWidth,
+        display: "inline-block",
+      }}
+    >
+      {visible.map((n, i) => (
+        <Chip
+          key={n.id}
+          note={n}
+          index={i}
+          isOpen={n.id === openId}
+          openIndex={openIndex < VISIBLE_MAX ? openIndex : 0}
+          onOpen={setOpenIdState}
+          now={now}
+        />
+      ))}
+      {hasOverflow && (
+        <OverflowPill
+          count={overflow.length}
+          leftPx={overflowLeft}
+          allItems={items}
+          now={now}
+        />
+      )}
+    </div>
+  );
+}

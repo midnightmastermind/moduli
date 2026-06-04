@@ -59,15 +59,49 @@ export default function PomodoroTimer() {
   const { dispatch, socket, state, modulesById, occurrencesById } = useGridActions();
   const grid = state?.grid;
   const targetContainerId = grid?.meta?.pomodoroTargetContainerId || null;
+  // Build options keyed by container occurrence so each PLACEMENT shows
+  // its own Page › Container chain. The pomodoroTargetContainerId stored
+  // on the grid is the occurrence id (was the module id — same shape,
+  // routes to a specific placement now). The op accepts either.
   const containerOptions = useMemo(() => {
+    const occMap = occurrencesById || {};
+    // Reverse parent map: childOccId → parentOccId via occurrences[].
+    const parentByChild = {};
+    for (const occ of Object.values(occMap)) {
+      for (const childId of occ?.occurrences || []) parentByChild[childId] = occ.id;
+    }
+    const labelFor = (occ) => {
+      const mod = modulesById?.[occ.moduleId] || modulesById?.[occ.targetId];
+      return mod?.label || occ.label || occ.id.slice(0, 6);
+    };
     const out = [];
-    for (const m of Object.values(modulesById || {})) {
-      if (m?.role !== "container") continue;
-      out.push({ id: m.id, label: m.label || m.id });
+    for (const occ of Object.values(occMap)) {
+      const mod = modulesById?.[occ.moduleId] || modulesById?.[occ.targetId];
+      if (!mod || mod.role !== "container") continue;
+      // Walk up to find page-chain crumbs.
+      const crumbs = [];
+      let cur = parentByChild[occ.id] || occ.parentId;
+      const seen = new Set();
+      let depth = 0;
+      while (cur && !seen.has(cur) && depth++ < 8) {
+        seen.add(cur);
+        const a = occMap[cur];
+        if (!a) break;
+        const am = modulesById?.[a.moduleId] || modulesById?.[a.targetId];
+        if (am?.label) crumbs.unshift(am.label);
+        if (am?.role === "page") break;
+        cur = parentByChild[cur] || a.parentId;
+      }
+      const chain = crumbs.join(" › ");
+      const label = labelFor(occ);
+      out.push({
+        id: occ.id,
+        label: chain ? `${chain} › ${label}` : label,
+      });
     }
     out.sort((a, b) => (a.label || "").localeCompare(b.label || ""));
     return out;
-  }, [modulesById]);
+  }, [modulesById, occurrencesById]);
   const setTargetContainer = useCallback((id) => {
     if (!grid?.id && !grid?._id) return;
     const gridId = grid.id || grid._id;
@@ -295,8 +329,10 @@ export default function PomodoroTimer() {
           Next: {PHASES[(phaseIndex + 1) % PHASES.length].label}
         </div>
 
-        {/* Target container picker — `none` falls back to the slot-label
-            FIND in the Pomodoro:Start op. */}
+        {/* Destination picker — `none` lets the Pomodoro: Start op decide
+            (current behavior: falls back to the slot-label FIND). When a
+            specific page › container is picked, the op routes pomodoros
+            there instead of into the matching timeslot. */}
         <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--border-subtle)" }}>
           <label style={{ display: "block", fontSize: 9, color: "var(--text-faint)", marginBottom: 3 }}>
             Send pomodoros to
@@ -311,7 +347,7 @@ export default function PomodoroTimer() {
               fontSize: 10, fontFamily: "var(--font-mono)",
             }}
           >
-            <option value="">Auto (current slot)</option>
+            <option value="">None (use current timeslot)</option>
             {containerOptions.map(o => (
               <option key={o.id} value={o.id}>{o.label}</option>
             ))}
