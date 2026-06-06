@@ -20,6 +20,19 @@ import { Spinner } from "../../components/ui/spinner";
 import { useGridActionsSelector } from "../../GridActionsContext";
 import { resolveEffectiveLayout } from "../../helpers/layoutCascade";
 
+// Resolve a sortable numeric key from a child occurrence's field value.
+// Date-like strings → epoch ms; plain numbers → the number; everything
+// else (missing / non-numeric) → null (left unsorted by the caller).
+function childSortKey(occurrence, fieldId) {
+  const raw = occurrence?.fields?.[fieldId]?.value;
+  if (raw == null || raw === "") return null;
+  if (typeof raw === "number") return raw;
+  const t = Date.parse(raw);
+  if (!Number.isNaN(t)) return t;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 export default function PageBoard({
   occurrence,
   containersList,
@@ -45,11 +58,28 @@ export default function PageBoard({
   const columns = Math.max(1, Number(layout?.columns) || 1);
   const childGap = Number.isFinite(layout?.childGap) ? layout.childGap : 12;
   const hideSet = useMemo(() => new Set(layout?.hideChildIds || []), [layout?.hideChildIds]);
+  // Optional cascade rule: order visible children by a value/date field on each
+  // child occurrence (e.g. schedule day-columns by their date). Generic — this
+  // renderer knows nothing about "schedule"; an op/seed sets the field id.
+  const sortField = layout?.sortChildrenByField || null;
 
-  const visibleList = useMemo(
-    () => containersList.filter((e) => !hideSet.has(e?.occurrence?.id)),
-    [containersList, hideSet]
-  );
+  const visibleList = useMemo(() => {
+    const filtered = containersList.filter((e) => !hideSet.has(e?.occurrence?.id));
+    if (!sortField) return filtered;
+    // Stable sort: keyed children ascend by their field value (dates →
+    // timestamp, numbers → number); unkeyed children keep their original
+    // relative order below the keyed ones.
+    return filtered
+      .map((e, i) => ({ e, i, k: childSortKey(e?.occurrence, sortField) }))
+      .sort((a, b) => {
+        if (a.k == null && b.k == null) return a.i - b.i;
+        if (a.k == null) return 1;
+        if (b.k == null) return -1;
+        if (a.k === b.k) return a.i - b.i;
+        return a.k - b.k;
+      })
+      .map((x) => x.e);
+  }, [containersList, hideSet, sortField]);
 
   const innerStyle =
     mode === "grid"

@@ -202,6 +202,23 @@ function routeRecordPath(path, segments, value, { item, occurrencesById }) {
     };
   }
 
+  // $occ.label — per-placement label override (UPDATE_ITEM_LABEL). The
+  // renderer prefers occurrence.label over module.label, so an op can rename
+  // a single placement (e.g. date-prefix goal/tracker labels) without touching
+  // the shared module template. value coerced to string (null clears).
+  if (segments[1] === "label" && segments.length === 2) {
+    return {
+      effects: [
+        {
+          _effect: "UPDATE_ITEM_LABEL",
+          itemId,
+          label: value == null ? null : String(value),
+        },
+      ],
+      varWrites: {},
+    };
+  }
+
   if (segments[1] === "meta") {
     const metaPath = segments.slice(2);
     if (!metaPath.length) {

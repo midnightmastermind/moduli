@@ -13,6 +13,75 @@ const { markdownToModuli } = await import("../services/markdownImporter.js");
 //   fenced code → codeBlock textblock, ```html``` → htmlPreview textblock,
 //   block-level ![alt](src) → role:"artifact" kind:"image" module.
 
+describe("markdownToModuli — article-like grouped rich textblocks", () => {
+  it("a [text](url) link in prose becomes an inline link mini-textblock (chip) embedded via instanceTextblockInline", async () => {
+    const md = `# T\n\nRapper from Detroit. See [Detroit](https://en.wikipedia.org/wiki/Detroit) now.`;
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
+    // The link becomes its OWN inline textblock occurrence carrying meta.link…
+    const linkMod = r.modules.find(m => m.role === "textblock" && m.kind === "inline" && m.meta?.link);
+    expect(linkMod).toBeTruthy();
+    expect(linkMod.meta.link).toEqual({ kind: "url", url: "https://en.wikipedia.org/wiki/Detroit" });
+    const linkOcc = r.occurrences.find(o => o.meta?.link?.url === "https://en.wikipedia.org/wiki/Detroit");
+    expect(linkOcc).toBeTruthy();
+    // …and the surrounding paragraph embeds it via an instanceTextblockInline node
+    // (no leftover inline link mark in the prose).
+    const blob = JSON.stringify(r.occurrences.map(o => o.textmap));
+    expect(blob).toContain("instanceTextblockInline");
+    expect(blob).toContain(linkOcc.id);
+    expect(blob).not.toContain('"type":"link"');
+  });
+
+  it("a markdown list becomes ONE textblock with a bulletList (not separate occurrences)", async () => {
+    const md = `# T\n\n## Discography\n\n- The Slim Shady LP\n- The Marshall Mathers LP`;
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
+    expect(r.modules.some(m => m.role === "instance")).toBe(false); // no board list-item instances
+    expect(r.stats.instances).toBe(0);
+    const tbOcc = r.occurrences.find(o => JSON.stringify(o.textmap || {}).includes('"bulletList"'));
+    expect(tbOcc).toBeTruthy();
+    const bl = tbOcc.textmap.content.find(n => n.type === "bulletList");
+    expect(bl.content.length).toBe(2); // two list items inside one bulletList
+  });
+
+  it("an image ![alt](src) becomes an artifact", async () => {
+    const md = `# T\n\n![pic](https://example.com/p.png)`;
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
+    expect(r.modules.some(m => m.role === "artifact")).toBe(true);
+  });
+
+  it("heading + its section nests as containers (Rule Set A)", async () => {
+    const md = `# Top\n\nIntro.\n\n## Section\n\nBody.\n\n### Sub\n\nDeep.`;
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
+    const containers = r.modules.filter(m => m.role === "container");
+    // root + Section + Sub
+    expect(containers.length).toBeGreaterThanOrEqual(3);
+    // every imported container opts into rendering nested child containers
+    expect(containers.every(c => c.meta?.allowChildContainers === true)).toBe(true);
+  });
+
+  it("section containers carry cascading heading levels (article H1 → H2 → H3)", async () => {
+    const md = `# Eminem\n\nIntro.\n\n## Early life\n\nBody.\n\n### Move to Detroit\n\nDeep.`;
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
+    const lvl = (label) => r.modules.find(m => m.role === "container" && m.label === label)?.meta?.headingLevel;
+    expect(lvl("Eminem")).toBe(1);
+    expect(lvl("Early life")).toBe(2);
+    expect(lvl("Move to Detroit")).toBe(3);
+  });
+
+  it("every section is a kind:doc container whose textmap embeds its children", async () => {
+    const md = `# Top\n\nIntro para.\n\n## Section\n\nBody para.`;
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
+    const docContainers = r.modules.filter(m => m.role === "container" && m.kind === "doc");
+    // root + Section are both doc containers (no kind:board sections)
+    expect(docContainers.length).toBeGreaterThanOrEqual(2);
+    expect(r.modules.some(m => m.role === "container" && m.kind === "board")).toBe(false);
+    // a section occurrence's textmap embeds its children via moduleEmbed nodes
+    const rootOcc = r.occurrences.find(o => o.id === r.rootOccurrenceId);
+    const embeds = (rootOcc.textmap?.content || []).filter(n => n.type === "moduleEmbed");
+    expect(embeds.length).toBe(rootOcc.occurrences.length);
+    expect(embeds.every(n => rootOcc.occurrences.includes(n.attrs.occurrenceId))).toBe(true);
+  });
+});
+
 describe("markdownToModuli — image markdown becomes artifact module", () => {
   it("mints role:artifact kind:image with fileRef:<src> for block-level images", async () => {
     const md = `# Title\n\n![A cat](https://example.com/cat.jpg)\n\nPara.`;
@@ -216,11 +285,17 @@ describe("markdownToModuli — plain text (degenerate markdown) round-trips clea
     expect(root).toBeTruthy();
   });
 
-  it("multi-paragraph plain text splits paragraphs at blank lines", async () => {
+  it("each paragraph becomes its OWN textblock (3 paragraphs → 3 textblocks)", async () => {
     const md = `First para.\n\nSecond para.\n\nThird para.`;
     const r = await markdownToModuli({
       gridId: "g1", userId: "u1", markdown: md, dryRun: true,
     });
     expect(r.stats.textblocks).toBe(3);
+    // each textblock holds exactly one paragraph
+    const tbs = r.occurrences.filter(o => {
+      const m = r.modules.find(mm => mm.id === o.moduleId);
+      return m?.role === "textblock";
+    });
+    expect(tbs.every(o => (o.textmap.content || []).filter(n => n.type === "paragraph").length === 1)).toBe(true);
   });
 });

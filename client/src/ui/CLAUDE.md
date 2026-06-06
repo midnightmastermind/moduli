@@ -1,6 +1,178 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-05-27. Check this file before re-reading source._
+_Updated: 2026-06-05. Check this file before re-reading source._
+
+## Recent Changes (2026-06-05 — AssistantDrawer: import opens as a DOC page (was a board))
+- **`AssistantDrawer.jsx` (`PanelPickCard.openInPanel` wrap branch)** — the
+  no-ancestor-page case (imported container) now wraps in a `role:"page"
+  kind:"doc"` page whose `textmap` is a single `moduleEmbed` of the content
+  occurrence (was `kind:"board"` with `occurrences:[occId]`, which rendered the
+  article as kanban columns). Needs the server `create_page` textmap passthrough
+  (see server/CLAUDE.md). Pairs with the importer's section containers now being
+  `kind:"list"` (vertical) so the embedded tree reads like a document.
+
+## Recent Changes (2026-06-06 — AssistantDrawer ConfirmCard: readable args + page-kind picker)
+- **`AssistantDrawer.jsx` (`ConfirmCard`)** — two confirmation-UX upgrades:
+  - **Readable generic cards:** non-create/non-wiki confirmables (create_field,
+    create_operation, apply_template, update_grid, …) now show the tool's one-line
+    `description` + per-arg rows where id-shaped values (parent/occurrence/target/
+    field/module) resolve to labels/names from the live store, objects/arrays
+    summarize ("N fields/items"), and noisy keys (gridId/dryRun/userId) hide.
+    Module-scope helpers `prettyArgKey` / `friendlyArgValue` / `HIDDEN_ARG_KEYS`.
+  - **Page-kind picker:** for `create_module` with `role:"page"`, the card shows
+    doc/board/canvas/table buttons (pre-selected from the model's guess) + a
+    one-line description each; Approve sends the chosen `kind`. Makes "what kind
+    of page" a UI choice. Full client build clean.
+
+## Recent Changes (2026-06-05 — InstanceForm: textblock Link settings (URL + in-app target))
+- **`InstanceForm.jsx` (new `LinkSettingsSection`)** — for `role:"textblock"`
+  instances the Settings tab now has a **Link** section that writes
+  `occurrence.meta.link` (which `TextblockCard` renders as a clickable chip):
+  - **None** → `meta.link = null` (normal editable textblock).
+  - **URL** → `{ kind:"url", url }` (text input; opens in a new tab).
+  - **In-app** → `{ kind:"occurrence", occId }` — a search box over every
+    occurrence's label (pages/containers/items); pick one → clicking the chip
+    `jumpToOccurrence`s (scroll + flash). This is the internal-target picker.
+  Saves via `CommitHelpers.updateOccurrence`. Reached via the textblock's
+  RadialMenu → settings popover (already mounted in `ModuleInstance`). Full vite
+  build clean. (Note: `accent-green` isn't a registered Tailwind token — only
+  `accent-green-text/-bg` — so selected styles use the registered `accent-blue`.)
+
+## Recent Changes (2026-06-05 — AssistantDrawer: wiki preview-confirm + indeterminate ThinkingBar)
+- **`AssistantDrawer.jsx` (`ConfirmCard`)** — `wikipedia_import` is now a
+  `requires_confirm` tool (server), so its confirm card shows a PREVIEW: a
+  mount effect fetches `GET /api/v1/research/wikipedia/summary?title=<title|query>`
+  (Bearer from localStorage) and renders thumbnail + title + extract, with the
+  title as a link that opens the Wikipedia page in a NEW TAB (`target=_blank`).
+  Approve runs the import (existing `resolveConfirm` path → output → panel_pick).
+  Falls back to an "Open on Wikipedia ↗ — import anyway?" line on fetch failure.
+- **`AssistantDrawer.jsx` (`ThinkingBar`)** — once a run overruns its learned ETA
+  (`elapsedMs > typical`, or >30s with no history) the bar no longer freezes near
+  100% with a misleading `/~Ns` estimate; it switches to an honest INDETERMINATE
+  sliding nub (`.assistant-indeterminate`, keyframe in index.css) and the label
+  reads "… still working". Fixes "the bar stopped close to the end and kept
+  counting" on long multi-step (tool-calling) runs.
+
+## Recent Changes (2026-06-04 — AssistantDrawer: "show it in a panel" grid-map picker — targets the ANCESTOR PAGE)
+- **`AssistantDrawer.jsx` (new `PanelPickCard` + `extractCreatedOccId`)** — after a
+  create/import tool runs, the drawer offers a grid-map panel picker (the settled
+  **Option 1**: open the new content as a tab in the chosen panel). Wiring:
+  - `extractCreatedOccId(name, output)` pulls the new occurrence id from a tool
+    result (`create_occurrence` → `output.occurrence` id/obj; importers →
+    `output.rootOccurrenceId`; generic `pageOccurrenceId`/`occurrenceId`).
+  - Appended as a `{role:"panel_pick", occId}` message in BOTH `send()` (for
+    non-confirm tools like `wikipedia_import`/`import_markdown`) and
+    `resolveConfirm()` (for `create_occurrence`, which is `requires_confirm`).
+  - **Targets the new item's ANCESTOR PAGE, not the item itself.** The created
+    item is usually a LEAF (an instance dropped into a Schedule slot), so
+    `PanelPickCard` walks UP the `occurrences[]` tree (parentId fallback) to the
+    nearest `role:"page"` ancestor (inclusive — a created page resolves to
+    itself). Then:
+    - **page already visible** (it's some panel view's `activeOccurrenceId`) →
+      NO prompt; a one-shot `useEffect` immediately `jumpToOccurrence(occId)`
+      (scroll + `.anchor-highlight` flash = "here's the new one").
+    - **page not visible** → grid-map picker; on pick, open the ANCESTOR PAGE as
+      a tab in the chosen panel, then `jumpToOccurrence(occId)` to scroll +
+      highlight the new item inside it.
+  - The map is `<MiniGridMap onCellClick enabledCell cellSize={22}>` — each grid
+    cell that hosts a panel is clickable; plus a **"Don't show"** button.
+  - On pick: the ancestor page is `pinPageToPanel`'d (if not already a tab there)
+    + `updateView({activeOccurrenceId})` on the panel's existing view. The
+    no-ancestor-page fallback (e.g. an **imported container** at root — the
+    markdown importer roots imports as `role:"container"`, NOT a page) wraps it
+    in a fresh `role:"page" kind:"board"` page whose `occurrences:[occId]`
+    multi-parents the content (Notes-page pattern) via `CommitHelpers.createPage`,
+    then activates + scrolls.
+  - Gate to render the picker: `occ && (pageOcc || role==="container") &&
+    !alreadyVisible`. So create-a-task on Schedule DOES prompt (it has a Schedule
+    ancestor page); a homeless leaf with no page ancestor is skipped.
+  - **`mobile/MiniGridMap.jsx`** gained per-cell selection (`onCellClick`,
+    `enabledCell`, `cellSize`) — legacy whole-svg `onMapClick` path unchanged.
+  - Bundle-clean via esbuild. Behavior needs in-browser verification (already-
+    visible auto-scroll; pick→open ancestor page + scroll; container wrap).
+
+## Recent Changes (2026-06-04 — AssistantDrawer: auto-bootstrap token after reseed)
+- **`AssistantDrawer.jsx`** — the token input was empty after a reseed because
+  it's filled from `localStorage`, which the server-side reseed can't populate.
+  New mount-only effect: when there's NO saved token, fetch
+  `GET /api/v1/assistant/bootstrap-token` and auto-fill it (the server hands the
+  stable `ASSISTANT_API_TOKEN` to localhost only — see server/CLAUDE.md). A token
+  the user already pasted is never overwritten (`if (token) return`). So "run
+  createLiveData → open the drawer → it's connected" now holds with no paste.
+  Requires a **server restart** if the env token value changed (server reads it
+  at boot).
+
+## Recent Changes (2026-06-04 — AssistantDrawer: graceful stale-token recovery ("clear my cookies"))
+- **`AssistantDrawer.jsx`** — the Bearer token lives ONLY in `localStorage`
+  (`moduli_api_token`). The SERVER already persists the token across reseeds
+  (`server/.env ASSISTANT_API_TOKEN` re-upserted into the same userId every
+  `createLiveData` run — see server/CLAUDE.md / utils/assistantToken.js), so the
+  printed value keeps working. The remaining friction was purely client-side: a
+  stale cached token had no recovery path except manually clearing site data.
+  Now:
+  - `send()` treats a **401/403** from `/assistant/chat` as "token invalid" →
+    posts a recovery message AND auto-opens ⚙ Settings (was a raw
+    `(error 401) …`).
+  - New `clearToken()` + a **"Clear saved token"** button in the Settings panel
+    (one-click `localStorage.removeItem` + state reset) — the in-app equivalent
+    of "clear my cookies", so the user can drop a stale token and re-paste.
+  - Settings hint rewritten to say the token is stable across reseeds (lives in
+    `server/.env` as `ASSISTANT_API_TOKEN`).
+
+## Recent Changes (2026-06-04 — AssistantDrawer: grid-scoped locations + best-guess reads the request text)
+- **`AssistantDrawer.jsx` (`useLocations`)** — the placeable-location list
+  (containers + pages the confirm card offers/best-guesses) is now scoped to the
+  CURRENT grid: occurrences whose `occ.gridId` differs from `state.grid` are
+  skipped (and `labelOf` returns null for them). Per user: "the ai should be
+  geared toward the current grid … just the ones in the current grid." The store
+  is single-grid today (FULL_STATE replaces all occurrences), so this is mostly
+  defensive — but it's the surface the user hit (best-guess offering an
+  off-grid container) and now can't regress. `curGridId` reads
+  `state.grid._id || state.grid.id || state.gridId`.
+- **`AssistantDrawer.jsx` (`bestGuessLocation` + `ConfirmCard`)** — the
+  best-guess now folds the user's REQUEST text (`msg.userText`, already carried
+  on the confirm card) into the fuzzy-match haystack, BEFORE the tool args. The
+  destination usually lives in the request ("put X in the **6:30pm** container"),
+  not in `input.label`/`input.parentId`. Combined with the existing
+  longest-label-match rule this lands on "6:30pm container" instead of the item
+  label "testing ai" fuzzily hitting a container named "Test". `ConfirmCard`
+  seeds `parentId` with `bestGuessLocation(msg.input, options, labelOf, msg.userText)`.
+
+## Recent Changes (2026-06-04 — AssistantDrawer: editable location on the confirm card)
+- **`AssistantDrawer.jsx` (`ConfirmCard` + `useLocations` + `bestGuessLocation`)**
+  — for `create_occurrence` (now a `requires_confirm` tool) the card renders an
+  editable **location picker** instead of raw args: a best-guess destination
+  (real `parentId` if valid, else fuzzy-matched from the LLM's placeholder/label
+  against container+page labels built from `useGridActions().occurrencesById`/
+  `modulesById`), a searchable list of all containers/pages, and Approve gated
+  on a chosen location. `resolveConfirm(idx, approve, editedInput)` now forwards
+  the corrected input (with the picked `parentId`) to `/assistant/confirm`.
+  Lets the user confirm/fix WHERE a new item lands — so the LLM only has to
+  best-guess, not produce a perfect id. Non-create confirmables keep the plain
+  arg summary.
+
+## Recent Changes (2026-06-04 — AssistantDrawer: live token streaming)
+- **`AssistantDrawer.jsx`** — the `assistant_progress` handler now also handles
+  `phase:"token"` deltas: appends to a new `streamingText` state rendered as a
+  live assistant bubble (with a `▋` cursor) below the transcript while busy, so
+  the model's words appear as it writes (Claude-style) instead of a silent wait.
+  `phase:"thinking"` resets the buffer for each fresh generation; cleared on
+  send-start and in `finally`. A second scroll effect follows `streamingText`
+  (messages[] doesn't change mid-stream). Server streams via Ollama
+  `stream:true` → `onProgress` token deltas (see server/CLAUDE.md).
+
+## Recent Changes (2026-06-04 — AssistantDrawer: no-hang + live progress)
+- **`AssistantDrawer.jsx`** — three fixes for the offline-assistant "… thinking
+  forever / printed the tool call but did nothing" report (server-side root
+  causes in `server/CLAUDE.md`):
+  - `send()` fetch now uses an `AbortController` with a `CHAT_TIMEOUT_MS` (240s)
+    ceiling so the drawer always resolves to a visible error
+    (`(timed out after 240s) …`) instead of an endless spinner.
+  - Subscribes to the new `assistant_progress` socket event (`ctx.socket`) and
+    renders a live status line via `formatProgress` — `… thinking (step N)` /
+    `… running wikipedia import` — replacing the static `… thinking`. Cleared on
+    send-start, completion, and the server's `{phase:"done"}`.
+  - `progress` state reset in `finally`.
 
 ## Recent Changes (2026-05-27 — Field.jsx: arbitrary array-cell content via ArrayCell)
 - **`Field.jsx` (NEW exported `ArrayCell`)** — the columnar array-display

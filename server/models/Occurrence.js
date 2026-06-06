@@ -46,6 +46,14 @@ const OccurrenceSchema = new mongoose.Schema(
     // template children. Empty/null = always create a fresh clone on each apply.
     identitySignature: { type: String, default: null, index: true },
 
+    // Per-placement label override. null = render the module's own label.
+    // When set, the renderer shows this instead (ModuleInstance/ModuleContainer
+    // prefer occurrence.label over module.label). Written by ops via the
+    // UPDATE_ITEM_LABEL effect (path `$occ.label`) — e.g. the date-prefix
+    // goal/tracker labels ("Today's Water", "July 18th Water"). The module
+    // label stays the stable base; this is the decorated per-occurrence view.
+    label: { type: String, default: null },
+
     // Hidden flag — set by HIDE_OCCURRENCE operation effect
     hidden: { type: Boolean, default: false },
 

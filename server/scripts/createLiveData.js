@@ -7215,6 +7215,52 @@ export async function createLiveData(userId, options = {}) {
     enabled: false,
   }).save();
 
+  // ── Goals: Date-Prefix Labels ───────────────────────────────────────────────
+  // Renames each goal/tracker tile under the Goals page to reflect the active
+  // filter date — "Today's Water", "Yesterday's Water", "July 18th Water" — so
+  // the tile name tells you which day's data you're looking at as you navigate.
+  // 100% data-driven: writes occurrence.label (a per-placement override the
+  // renderer prefers over the module label) via the UPDATE_ITEM_LABEL effect.
+  // Reads $goal.moduleLabel (the STABLE template base) so it never re-prefixes
+  // its own previous write, and $activeDatePossessive (resolved from THIS op's
+  // targetOccurrenceId = the Goals page, so an on-page date switch relabels even
+  // when the grid filter hasn't moved — same cascade the trackers use).
+  await new Operation({
+    id: uid(), userId, gridId, priority: 4,
+    name: "Goals: Date-Prefix Labels",
+    description: "Sets each goal/tracker tile's label to '<active date>'s <name>' (Today's / Yesterday's / July 18th) so the tile reflects the day being viewed. Writes occurrence.label; reads moduleLabel as the stable base; date from the Goals page filter cascade.",
+    triggerTypes: ["onFilterChange", "onLoad"],
+    targetOccurrenceId: goalsPageOccId,
+    triggerObjects: [
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 4 },
+      { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 4 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 4 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        {
+          id: uid(), type: "loop", overExpr: "$allInstances", as: "$goal",
+          body: [
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$goal._ancestors", comparator: "HAS_ANCESTOR", right: goalsPageOccId },
+                { id: uid(), left: "$goal.moduleLabel", comparator: "IS_NOT_EMPTY", right: "" },
+              ] },
+              then: [
+                { id: uid(), type: "action", config: { type: "UPDATE", path: "$goal.label", value: "${$activeDatePossessive} ${$goal.moduleLabel}" } },
+              ],
+              else: [],
+            },
+          ],
+        },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
+
   // ── Tracker: Net Worth ─────────────────────────────────────────────────────
   // Sum of Checking (checkingBalance) + Savings (savingsBalance) + Mom's
   // Account (momsAccountBalance) under the Accounts page. Net Worth itself
@@ -9290,11 +9336,12 @@ export async function createLiveData(userId, options = {}) {
   // date fields BY ID. Dedup'd: a fire only writes a slot whose passed-state
   // actually flipped (compares the current ownStyle.bg before writing), so
   // steady-state fires emit ~zero socket writes.
-  const passedSlotColor = "rgba(248,113,113,0.10)";
+  const passedSlotColor = "rgba(248,113,113,0.10)";   // dim red — a slot whose time has already passed
+  const currentSlotColor = "rgba(74,222,128,0.16)";   // green — the one slot that is active right now
   await new Operation({
     id: uid(), userId, gridId, priority: 5,
     name: "Schedule: Mark Passed Slots",
-    description: "Time-based (every 5 min). Tints schedule slots whose time has passed — all slots in a past day-column, and slots before the current time in today's day-column; future days untouched. Writes the generic occurrence.ownStyle.bg the container already renders (no schedule knowledge in any component); references the timeslot/scheduleFormat/date fields by id; uses TIME_BEFORE + DATE_BEFORE comparators. Dedup'd so a fire only writes slots whose passed-state flipped.",
+    description: "Time-based (every 5 min). Colors today's schedule slots: GREEN on the current (active-now) slot, dim RED on slots whose time has already passed (and every slot in a past day-column); future days untouched. Writes the generic occurrence.ownStyle.bg the container already renders (no schedule knowledge in any component); references the timeslot/scheduleFormat/date fields by id; uses TIME_BEFORE/TIME_AFTER + DATE_BEFORE comparators. Two-pass: pass 1 finds the latest started slot (the current one), pass 2 paints. Dedup'd so a fire only writes slots whose color flipped.",
     triggerTypes: [],
     triggerObjects: [],
     enabled: true,
@@ -9327,6 +9374,37 @@ export async function createLiveData(userId, options = {}) {
                   then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$dayIsToday", expr: "literal:1" } }],
                   else: [],
                 },
+                // PASS 1 (today only): find the CURRENT slot = the latest timeslot
+                // that has already started. Recorded as $currentSlotTime so pass 2
+                // can paint exactly that one slot green.
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$currentSlotTime", expr: "literal:" } },
+                {
+                  id: uid(), type: "loop", overExpr: "$dayCol.occurrences", as: "$slotId",
+                  body: [
+                    { id: uid(), type: "action", config: { type: "SET_VAR", name: "$slot", expr: "$allItemsById.${$slotId}" } },
+                    { id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: "$dayIsToday",                                 comparator: "IS",          right: 1 },
+                        { id: uid(), left: `$slot.fields.${scheduleFormatFieldId}.value`, comparator: "IS",          right: "slot" },
+                        { id: uid(), left: `$slot.fields.${timeslotFieldId}.value`,       comparator: "TIME_BEFORE", right: "$currentTime" },
+                      ] },
+                      then: [
+                        { id: uid(), type: "if",
+                          condition: { operator: "OR", rules: [
+                            { id: uid(), left: "$currentSlotTime",                      comparator: "IS_EMPTY",   right: "" },
+                            { id: uid(), left: `$slot.fields.${timeslotFieldId}.value`, comparator: "TIME_AFTER", right: "$currentSlotTime" },
+                          ] },
+                          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$currentSlotTime", expr: `$slot.fields.${timeslotFieldId}.value` } }],
+                          else: [],
+                        },
+                      ],
+                      else: [],
+                    },
+                  ],
+                },
+                // PASS 2: paint each slot — green for the current slot, red for
+                // other passed slots, clear otherwise. Each write is dedup'd
+                // against the slot's existing bg so steady-state fires no-op.
                 {
                   id: uid(), type: "loop", overExpr: "$dayCol.occurrences", as: "$slotId",
                   body: [
@@ -9351,21 +9429,45 @@ export async function createLiveData(userId, options = {}) {
                           then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$passed", expr: "literal:1" } }],
                           else: [],
                         },
-                        // Apply with dedup — only write when state flips.
+                        // current? today + this slot's timeslot equals the latest
+                        // started slot found in pass 1.
+                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$isCurrent", expr: "literal:0" } },
                         { id: uid(), type: "if",
-                          condition: { operator: "AND", rules: [{ id: uid(), left: "$passed", comparator: "IS", right: 1 }] },
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: "$dayIsToday",                            comparator: "IS",           right: 1 },
+                            { id: uid(), left: "$currentSlotTime",                       comparator: "IS_NOT_EMPTY", right: "" },
+                            { id: uid(), left: `$slot.fields.${timeslotFieldId}.value`,  comparator: "IS",           right: "$currentSlotTime" },
+                          ] },
+                          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isCurrent", expr: "literal:1" } }],
+                          else: [],
+                        },
+                        // Paint with dedup. Priority: current (green) > passed (red) > clear.
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [{ id: uid(), left: "$isCurrent", comparator: "IS", right: 1 }] },
                           then: [
                             { id: uid(), type: "if",
-                              condition: { operator: "AND", rules: [{ id: uid(), left: "$slot.ownStyle.bg", comparator: "IS_NOT", right: passedSlotColor }] },
-                              then: [{ id: uid(), type: "action", config: { type: "UPDATE", path: "$slot.ownStyle.bg", value: passedSlotColor } }],
+                              condition: { operator: "AND", rules: [{ id: uid(), left: "$slot.ownStyle.bg", comparator: "IS_NOT", right: currentSlotColor }] },
+                              then: [{ id: uid(), type: "action", config: { type: "UPDATE", path: "$slot.ownStyle.bg", value: currentSlotColor } }],
                               else: [],
                             },
                           ],
                           else: [
                             { id: uid(), type: "if",
-                              condition: { operator: "AND", rules: [{ id: uid(), left: "$slot.ownStyle.bg", comparator: "IS_NOT_EMPTY", right: "" }] },
-                              then: [{ id: uid(), type: "action", config: { type: "UPDATE", path: "$slot.ownStyle.bg", value: "" } }],
-                              else: [],
+                              condition: { operator: "AND", rules: [{ id: uid(), left: "$passed", comparator: "IS", right: 1 }] },
+                              then: [
+                                { id: uid(), type: "if",
+                                  condition: { operator: "AND", rules: [{ id: uid(), left: "$slot.ownStyle.bg", comparator: "IS_NOT", right: passedSlotColor }] },
+                                  then: [{ id: uid(), type: "action", config: { type: "UPDATE", path: "$slot.ownStyle.bg", value: passedSlotColor } }],
+                                  else: [],
+                                },
+                              ],
+                              else: [
+                                { id: uid(), type: "if",
+                                  condition: { operator: "AND", rules: [{ id: uid(), left: "$slot.ownStyle.bg", comparator: "IS_NOT_EMPTY", right: "" }] },
+                                  then: [{ id: uid(), type: "action", config: { type: "UPDATE", path: "$slot.ownStyle.bg", value: "" } }],
+                                  else: [],
+                                },
+                              ],
                             },
                           ],
                         },
@@ -9795,6 +9897,19 @@ async function main() {
     console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Interfaces folder-page (${result.notebookFolderPageOccId}); tabs=[Interfaces, Schedule, Canvas, Schedule Table, Schedule Canvas]`);
     console.log(`   Toolkit hub:    active=Daily Toolkit folder-page (${result.toolkitFolderPageOccId}); tabs=[Daily Toolkit, ...11 wellness pages]`);
     console.log("=".repeat(50));
+
+    // Stable assistant (Jonah) API token — survives reseeds so the user pastes
+    // it into the drawer once. Reseed deletes grid-scoped data, not ApiToken;
+    // this keeps the *value* deterministic via server/.env (see utils/assistantToken).
+    try {
+      const { ensureAssistantApiToken } = await import("../utils/assistantToken.js");
+      const { rawToken, source } = await ensureAssistantApiToken(userId);
+      console.log(`\n🔑 Jonah assistant API token (${source === "env" ? "stable — from server/.env" : "NEW — appended to server/.env"}):`);
+      console.log(`   ${rawToken}`);
+      console.log("   Paste once into the assistant drawer (⚙ Settings). It persists across reseeds — no re-entry.\n");
+    } catch (e) {
+      console.warn("⚠️  Could not ensure a stable assistant API token:", e.message);
+    }
 
     // ── Snapshot to server/seed/*.json (skipped with --no-export) ──
     // The on-disk seed acts as the canonical fixture for fast restores

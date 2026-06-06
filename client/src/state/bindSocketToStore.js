@@ -584,6 +584,44 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   socket.on("grid_created", onGridCreated);
 
   // ======================================================
+  // FOLDERS / VIEWS / MANIFESTS / OPERATIONS (CRUD)
+  //
+  // These broadcasts come from the /api/v1 REST endpoints (used by the
+  // assistant + external API). full_state already seeds the maps; these
+  // listeners keep them live so assistant-driven folder/view/manifest/
+  // operation changes repaint without a manual refresh. Reducer cases +
+  // action creators already exist — we just route the events here.
+  // ======================================================
+  function onFolderCreated(p = {}) { const folder = p.folder || p; if (folder?.id) socketDispatch({ type: ActionTypes.CREATE_FOLDER, payload: { folder } }); }
+  function onFolderUpdated(p = {}) { const folder = p.folder || p; if (folder?.id) socketDispatch({ type: ActionTypes.UPDATE_FOLDER, payload: { folder } }); }
+  function onFolderDeleted(p = {}) { const folderId = p.folderId || p.id; if (folderId) socketDispatch({ type: ActionTypes.DELETE_FOLDER, payload: { folderId } }); }
+
+  function onViewCreated(p = {}) { const view = p.view || p; if (view?.id) socketDispatch({ type: ActionTypes.CREATE_VIEW, payload: { view } }); }
+  function onViewUpdated(p = {}) { const view = p.view || p; if (view?.id) socketDispatch({ type: ActionTypes.UPDATE_VIEW, payload: { view } }); }
+  function onViewDeleted(p = {}) { const viewId = p.viewId || p.id; if (viewId) socketDispatch({ type: ActionTypes.DELETE_VIEW, payload: { viewId } }); }
+
+  function onManifestCreated(p = {}) { const manifest = p.manifest || p; if (manifest?.id) socketDispatch({ type: ActionTypes.CREATE_MANIFEST, payload: { manifest } }); }
+  function onManifestUpdated(p = {}) { const manifest = p.manifest || p; if (manifest?.id) socketDispatch({ type: ActionTypes.UPDATE_MANIFEST, payload: { manifest } }); }
+  function onManifestDeleted(p = {}) { const manifestId = p.manifestId || p.id; if (manifestId) socketDispatch({ type: ActionTypes.DELETE_MANIFEST, payload: { manifestId } }); }
+
+  function onOperationCreated(p = {}) { const operation = p.operation || p; if (operation?.id) socketDispatch({ type: ActionTypes.CREATE_OPERATION, payload: { operation } }); }
+  function onOperationUpdated(p = {}) { const operation = p.operation || p; if (operation?.id) socketDispatch({ type: ActionTypes.UPDATE_OPERATION, payload: { operation } }); }
+  function onOperationDeleted(p = {}) { const operationId = p.operationId || p.id; if (operationId) socketDispatch({ type: ActionTypes.DELETE_OPERATION, payload: { operationId } }); }
+
+  socket.on("folder_created", onFolderCreated);
+  socket.on("folder_updated", onFolderUpdated);
+  socket.on("folder_deleted", onFolderDeleted);
+  socket.on("view_created", onViewCreated);
+  socket.on("view_updated", onViewUpdated);
+  socket.on("view_deleted", onViewDeleted);
+  socket.on("manifest_created", onManifestCreated);
+  socket.on("manifest_updated", onManifestUpdated);
+  socket.on("manifest_deleted", onManifestDeleted);
+  socket.on("operation_created", onOperationCreated);
+  socket.on("operation_updated", onOperationUpdated);
+  socket.on("operation_deleted", onOperationDeleted);
+
+  // ======================================================
   // AUTH
   // ======================================================
   function onAuthSuccess({ token, userId } = {}) {
@@ -856,6 +894,22 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       case "UPDATE_ITEM_TEXTMAP": {
         if (!effect.itemId) break;
         updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, textmap: effect.textmap } });
+        break;
+      }
+
+      case "UPDATE_ITEM_LABEL": {
+        // Per-placement label override (occurrence.label). The renderer prefers
+        // it over module.label, so an op can rename one placement (date-prefix
+        // goal/tracker labels) without touching the shared template. Mirror into
+        // the overlay so a same-batch re-read sees the new label; dedup vs the
+        // current value so steady-state fires emit nothing.
+        if (!effect.itemId) break;
+        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occ = occOverlay[effect.itemId];
+        const nextLabel = effect.label ?? null;
+        if (occ && (occ.label ?? null) === nextLabel) break;
+        if (occ) localOccsById[effect.itemId] = { ...occ, label: nextLabel };
+        updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, label: nextLabel } });
         break;
       }
 
@@ -1865,6 +1919,19 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     socket.off("grid_updated", onGridUpdated);
     socket.off("grid_deleted", onGridDeleted);
     socket.off("grid_created", onGridCreated);
+
+    socket.off("folder_created", onFolderCreated);
+    socket.off("folder_updated", onFolderUpdated);
+    socket.off("folder_deleted", onFolderDeleted);
+    socket.off("view_created", onViewCreated);
+    socket.off("view_updated", onViewUpdated);
+    socket.off("view_deleted", onViewDeleted);
+    socket.off("manifest_created", onManifestCreated);
+    socket.off("manifest_updated", onManifestUpdated);
+    socket.off("manifest_deleted", onManifestDeleted);
+    socket.off("operation_created", onOperationCreated);
+    socket.off("operation_updated", onOperationUpdated);
+    socket.off("operation_deleted", onOperationDeleted);
 
     socket.off("auth_success", onAuthSuccess);
     socket.off("auth_error", onAuthError);

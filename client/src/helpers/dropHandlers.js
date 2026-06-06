@@ -1224,6 +1224,25 @@ export function handleOccurrenceMove(dropContext, ctx) {
   const isCopylinkMode = sessionRef.current.mode === 'copylink';
   const sameContainer = fromC.id === toC.id;
 
+  // [reorder-diag] temporary diagnostic — remove once reorder is confirmed.
+  try {
+    console.log("[reorder-diag]", {
+      mode: sessionRef.current.mode,
+      sameContainer,
+      fromCId: fromC?.id, toCId: toC?.id,
+      fromCOccId: fromCOcc?.id, toCOccId: toCOcc?.id,
+      draggedInstanceId, occurrenceId,
+      hoveredInstanceId: instanceId,
+      closestEdge: dropTarget?.context?.closestEdge,
+      insertAt: dropTarget?.context?.insertAt,
+      toIndex,
+      fromIndexByOcc: (fromCOcc?.occurrences || []).indexOf(occurrenceId),
+      fromIndexByModule: LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc?.occurrences || [], occurrencesById),
+      sortable: toC?.behavior?.sortable, behaviorMode: toC?.behaviorMode,
+      occurrences: fromCOcc?.occurrences,
+    });
+  } catch {}
+
   if (sameContainer && toC?.behaviorMode === "own" && toC?.behavior?.sortable === false) { clearSession(); return; }
 
   // Layout-cascade lock rule (Slice 4): if the source's effective cascade
@@ -1251,7 +1270,10 @@ export function handleOccurrenceMove(dropContext, ctx) {
 
   if ((isCopylinkMode || isCopyMode) && sameContainer) {
     if (fromCOcc) {
-      const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
+      // Index by OCCURRENCE id (not module id) — a list can hold multiple
+      // occurrences of the same module, so a module-id match returns the wrong
+      // (first) one and the reorder no-ops.
+      const fromIndex = (fromCOcc.occurrences || []).indexOf(occurrenceId);
       if (fromIndex !== -1) {
         if (toIndex === null) { clearSession(); return; }
         if (fromIndex !== toIndex) {
@@ -1325,7 +1347,8 @@ export function handleOccurrenceMove(dropContext, ctx) {
     // initial burst — no rAF re-fire needed.
   } else if (sameContainer) {
     if (fromCOcc) {
-      const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
+      // Index by OCCURRENCE id (not module id) — see note above.
+      const fromIndex = (fromCOcc.occurrences || []).indexOf(occurrenceId);
       if (fromIndex !== -1) {
         if (toIndex === null) { clearSession(); return; }
         if (fromIndex !== toIndex) {

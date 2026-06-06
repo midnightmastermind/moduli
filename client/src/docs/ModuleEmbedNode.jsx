@@ -8,6 +8,7 @@ import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
 import Container from "../modules/ModuleContainer.jsx";
 import ModuleInstance from "../modules/ModuleInstance.jsx";
 import ArtifactContent from "../modules/ArtifactContent.jsx";
+import ArtifactCard from "../modules/ArtifactCard.jsx";
 import TextblockCard from "../modules/TextblockCard.jsx";
 import FieldRenderer from "../ui/FieldRenderer.jsx";
 import { CellEmbedContext } from "./CellEmbedContext.js";
@@ -153,11 +154,21 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
     <NodeViewWrapper contentEditable={false} data-occ-id={occurrenceId}>
       <div style={{ position: "relative", ...alignStyle(align, width) }}>
         {mod?.role === "textblock" ? (
-          // Defensive: textblocks should appear as their own card even when
-          // wrapped in a moduleEmbed node (e.g. from older data where a
-          // textblock was inserted via the generic embed path). Without this
-          // fall-through they'd render via the Container fallback below.
-          <TextblockCard occurrence={occurrence} />
+          // Render through ModuleInstance with renderBody=TextblockCard (the same
+          // path ModuleContainer uses for textblock children) so an embedded
+          // textblock gets the GripVertical drag handle + radial menu — not just
+          // the bare editor. The imported article's prose blocks are textblock
+          // occurrences embedded via moduleEmbed; without this they had no handle.
+          <ModuleInstance
+            module={mod}
+            occurrence={occurrence}
+            dispatch={dispatch}
+            socket={socket}
+            renderBody={() => <TextblockCard occurrence={occurrence} module={mod} />}
+            embedRadialItems={embedRadialItems}
+            embedOnDelete={deleteNode}
+            embedSourceType="doc-embed"
+          />
         ) : mod?.role === "instance" ? (
           <ModuleInstance
             module={mod}
@@ -169,7 +180,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
             embedSourceType="doc-embed"
             embedHideLabel={cellHideLabel === true}
           />
-        ) : (mod?.kind === "artifact" || occView?.viewType === "display") ? (
+        ) : occView?.viewType === "display" ? (
           <ArtifactContent
             occurrence={occurrence}
             viewType={occView?.viewType ?? "display"}
@@ -178,6 +189,24 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
             socket={socket}
             view={occView}
           />
+        ) : mod?.role === "artifact" ? (
+          // Imported media artifacts carry role:"artifact" with a media kind
+          // (image/video/audio/pdf) and NO view — route them through
+          // ModuleInstance + ArtifactCard (same path ModuleContainer uses) so
+          // they render (image <img>, audio <audio>, …) AND get a drag handle.
+          // Previously the routing checked `mod.kind === "artifact"` (never true —
+          // kind is the media type), so these fell to the Container fallback and
+          // rendered nothing — that's why imported images didn't show.
+          <ModuleInstance
+            module={mod}
+            occurrence={occurrence}
+            dispatch={dispatch}
+            socket={socket}
+            renderBody={() => <ArtifactCard module={mod} label={mod.label} occurrence={occurrence} />}
+            embedRadialItems={embedRadialItems}
+            embedOnDelete={deleteNode}
+            embedSourceType="doc-embed"
+          />
         ) : (
           <Container
             module={mod}
@@ -185,6 +214,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
             dispatch={dispatch}
             socket={socket}
             occurrenceOverride={occurrence}
+            embedded
             embedRadialItems={embedRadialItems}
             embedOnDelete={deleteNode}
             embedSourceType="doc-embed"

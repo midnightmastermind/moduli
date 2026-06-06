@@ -51,6 +51,12 @@ export default defineConfig({
     },
   },
   server: {
+    // Bind to ALL interfaces (0.0.0.0) so the dev server is reachable via the
+    // machine's LAN / WSL2 IP — not just localhost. WSL2's localhost-forwarding
+    // is flaky, so dev was only usable after a full build+serve; `host: true`
+    // makes `npm run dev` work over the IP directly. HMR follows whichever host
+    // you loaded the page from, so it works over the IP too.
+    host: true,
     port: 3000,
     strictPort: true,
     proxy: {

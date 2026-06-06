@@ -2,6 +2,14 @@
 
 _Updated: 2026-06-03. Check this file before re-reading source._
 
+## Recent Changes (2026-06-06 — UPDATE_ITEM_LABEL effect handler)
+- **`bindSocketToStore.js` (`applyOperationEffect`)** — new `UPDATE_ITEM_LABEL`
+  case (emitted by applyUpdate's `$occ.label` path). Writes the per-placement
+  `occurrence.label` override via `CommitHelpers.updateOccurrence({ id, label })`,
+  mirrors it into `localOccsById` so a same-batch re-read sees it, and dedups
+  vs the current label (steady-state fires emit nothing). Powers the
+  date-prefix goal/tracker label op. Client-only.
+
 ## Recent Changes (2026-06-03 — notification chip: value-aware change detection — FIX: object-valued inputs never notified)
 - **`bindSocketToStore.js` (`onTransactionCreated`, MeasureOp branch)** — the
   "did the value change?" guard was `String(prev) === String(next)`, which

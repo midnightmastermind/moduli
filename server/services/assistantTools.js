@@ -30,6 +30,43 @@ import {
   sandboxInfo,
 } from "./execSandbox.js";
 
+// Compress a full grid-state dump into a compact, token-bounded summary. The
+// raw /grids/:id/state response carries every occurrence (~hundreds), which
+// blows a local model's context window and tells it almost nothing actionable.
+// This returns counts + the named things an agent actually references by id
+// (folders, pages, fields, operations) and points it at the list_* tools for
+// deeper drilling. Pure — unit-testable without a server.
+export function summarizeGridState(state, { limit = 50 } = {}) {
+  const modules = Array.isArray(state?.modules) ? state.modules : [];
+  const occurrences = Array.isArray(state?.occurrences) ? state.occurrences : [];
+  const fields = Array.isArray(state?.fields) ? state.fields : [];
+  const operations = Array.isArray(state?.operations) ? state.operations : [];
+  const folders = Array.isArray(state?.folders) ? state.folders : [];
+
+  const roleByModuleId = new Map(modules.map(m => [m.id, m.role]));
+  const pages = occurrences
+    .filter(o => roleByModuleId.get(o.targetId) === "page")
+    .map(o => ({ id: o.id, label: modules.find(m => m.id === o.targetId)?.label || o.id }));
+
+  const cap = (arr, fn) => arr.slice(0, limit).map(fn);
+  return {
+    grid: state?.grid ? { id: state.grid.id, name: state.grid.name, rows: state.grid.rows, cols: state.grid.cols, activeFilterId: state.grid.activeFilterId } : null,
+    counts: {
+      modules: modules.length,
+      occurrences: occurrences.length,
+      pages: pages.length,
+      fields: fields.length,
+      operations: operations.length,
+      folders: folders.length,
+    },
+    folders: cap(folders, f => ({ id: f.id, name: f.name })),
+    pages: pages.slice(0, limit),
+    fields: cap(fields, f => ({ id: f.id, name: f.name, type: f.type })),
+    operations: cap(operations, o => ({ id: o.id, name: o.name })),
+    note: "Summary only. Use list_modules / list_occurrences / list_fields / list_folders for full records, filtered by parentId or moduleId.",
+  };
+}
+
 // ── Moduli pack — grid commands, scoped to the caller's token + grid ──────
 // Thin wrappers over /api/v1. No special privileges: permissions are the
 // caller's Bearer token, exactly like any external integration.
@@ -57,6 +94,39 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
       destructive: false,
       run: async ({ query, limit = 5 }) => {
         const r = await call("GET", `/research/wikipedia/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+        return r.body;
+      },
+    },
+    {
+      name: "wikipedia_links",
+      description: "List the article titles a Wikipedia article links to (its 'surrounding links'), in document order, real articles only. Use for 'make a page on X AND the surrounding links': call this, then call wikipedia_import ONCE PER chosen title (each becomes its own doc page the user approves). Pass `max` for how many.",
+      input_schema: {
+        type: "object",
+        properties: { title: { type: "string" }, query: { type: "string", description: "Used to resolve the title when it's unknown" }, max: { type: "integer", default: 10 } },
+      },
+      destructive: false,
+      run: async ({ title, query, max = 10 }) => {
+        let t = title;
+        if (!t && query) {
+          const s = await call("GET", `/research/wikipedia/search?q=${encodeURIComponent(query)}&limit=1`);
+          t = s.body?.[0]?.title || s.body?.results?.[0]?.title;
+        }
+        if (!t) return { error: "Provide a `title` (or a `query` to resolve one)." };
+        const r = await call("GET", `/research/wikipedia/links?title=${encodeURIComponent(t)}&max=${max}`);
+        return r.body;
+      },
+    },
+    {
+      name: "relink_imports",
+      description: "After importing SEVERAL linked Wikipedia articles, call this with their rootOccurrenceIds (from each wikipedia_import result) to rewrite the links BETWEEN them into in-app navigation — so clicking a link to an article you imported jumps to it inside Moduli instead of opening wikipedia.org. Links to articles you did NOT import stay external.",
+      input_schema: {
+        type: "object",
+        properties: { rootOccurrenceIds: { type: "array", items: { type: "string" } } },
+        required: ["rootOccurrenceIds"],
+      },
+      destructive: false,
+      run: async ({ rootOccurrenceIds }) => {
+        const r = await call("POST", `/research/wikipedia/relink`, { gridId, rootOccurrenceIds });
         return r.body;
       },
     },
@@ -90,6 +160,9 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
         },
       },
       destructive: false,
+      // Hold for Approve/Decline so the user can preview the article (title +
+      // thumbnail + extract, fetched by the confirm card) before it's imported.
+      requires_confirm: true,
       run: async ({ query, title, parentId, dryRun }) => {
         const r = await call("POST", `/research/wikipedia/import`, { gridId, query, title, parentId, dryRun });
         return r.body;
@@ -148,10 +221,15 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
     // ── Grid state (the snapshot) ──────────────────────────────────────────
     {
       name: "get_grid_state",
-      description: "Full snapshot of the grid (modules, occurrences, fields, operations). Use to see what exists before acting.",
+      description: "Compact summary of the grid — counts plus the named folders, pages, fields, and operations (with ids) you reference when acting. Use to see what exists before acting; drill deeper with the list_* tools.",
       input_schema: { type: "object", properties: {} },
       destructive: false,
-      run: async () => (await call("GET", `/grids/${encodeURIComponent(gridId)}/state`)).body,
+      run: async () => {
+        const r = await call("GET", `/grids/${encodeURIComponent(gridId)}/state`);
+        return (r.body && typeof r.body === "object" && !r.body.error)
+          ? summarizeGridState(r.body)
+          : r.body;
+      },
     },
 
     // ── Modules (templates: panel/container/instance/page/field-bearing) ───
@@ -211,10 +289,39 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
     },
     {
       name: "create_occurrence",
-      description: "Place a module on the grid: create an occurrence of moduleId, optionally under parentId, with initial fields.",
-      input_schema: { type: "object", properties: { moduleId: { type: "string" }, parentId: { type: "string" }, fields: { type: "object", additionalProperties: true } }, required: ["moduleId"] },
+      description: "Create a NEW item on the grid. Easiest: pass a `label` (e.g. 'ran ai test') and your best-guess `parentId` (the container/page it goes in) — the app shows the user a card to confirm/correct the location before it's placed, and auto-creates the template + links it into the parent so it actually renders. You may pass `moduleId` instead of `label` to instantiate an existing template. `fields` is an object keyed by real field id ({ value }).",
+      input_schema: { type: "object", properties: { label: { type: "string", description: "Name of the new item (auto-creates its template)" }, moduleId: { type: "string", description: "Existing template id (alternative to label)" }, parentId: { type: "string", description: "Best-guess destination container/page id; the user confirms it" }, fields: { type: "object", additionalProperties: true } } },
       destructive: false,
-      run: async (body) => (await call("POST", `/occurrences`, { gridId, ...body })).body,
+      requires_confirm: true,
+      run: async ({ label, moduleId, parentId, fields }) => {
+        const isPlaceholder = (id) => !id || typeof id !== "string" || /[<>\s]/.test(id);
+        // 1. Resolve the template: mint one from `label` when moduleId is
+        //    missing or an obvious placeholder (small models hand back
+        //    "<...-id>" strings). Generic — works for any kind of item.
+        let resolvedModuleId = moduleId;
+        if (isPlaceholder(resolvedModuleId)) {
+          if (!label) return { error: "Provide a `label` for the new item (or a real `moduleId`)." };
+          const mr = await call("POST", `/modules`, { gridId, role: "instance", kind: "list", label });
+          resolvedModuleId = mr.body?.module?.id;
+          if (!resolvedModuleId) return { error: `couldn't create template: ${JSON.stringify(mr.body)}` };
+        }
+        // 2. Create the occurrence (drop unresolved placeholder parents).
+        const cleanParent = isPlaceholder(parentId) ? undefined : parentId;
+        const cr = await call("POST", `/occurrences`, { gridId, moduleId: resolvedModuleId, parentId: cleanParent, fields: fields || {} });
+        const occ = cr.body?.occurrence;
+        if (!occ?.id) return cr.body;
+        // 3. Link into the parent's occurrences[] — containers render children
+        //    from that array, so without this the item wouldn't appear.
+        if (cleanParent) {
+          const pr = await call("GET", `/occurrences/${cleanParent}`);
+          const parent = pr.body?.occurrence;
+          if (parent) {
+            const list = Array.isArray(parent.occurrences) ? parent.occurrences : [];
+            if (!list.includes(occ.id)) await call("PATCH", `/occurrences/${cleanParent}`, { occurrences: [...list, occ.id] });
+          }
+        }
+        return { occurrence: occ, moduleId: resolvedModuleId, parentId: cleanParent || null, placedIn: cleanParent || "(root — no parent)" };
+      },
     },
     {
       name: "update_occurrence",
@@ -300,6 +407,133 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
       destructive: true,
       requires_confirm: true,
       run: async ({ id }) => (await call("DELETE", `/operations/${id}`)).body,
+    },
+
+    // ── Templates (stamp a saved layout) ──────────────────────────────────
+    {
+      name: "apply_template",
+      description: "Stamp a saved template subtree (a routine / day-page / project layout) under a target occurrence. mode 'append' adds it as a child; 'replace' replaces the target's children. Find template + target ids via get_grid_state / list_occurrences first.",
+      input_schema: { type: "object", properties: { templateOccurrenceId: { type: "string" }, targetOccurrenceId: { type: "string" }, mode: { type: "string", enum: ["append", "replace"] } }, required: ["templateOccurrenceId", "targetOccurrenceId"] },
+      destructive: true,
+      requires_confirm: true,
+      run: async ({ templateOccurrenceId, targetOccurrenceId, mode }) =>
+        (await call("POST", `/templates/apply`, { templateOccurrenceId, targetOccurrenceId, mode })).body,
+    },
+
+    // ── Manifests (root of a folder tree — determines where things live) ───
+    {
+      name: "list_manifests",
+      description: "List manifests — each is the root of a folder tree (rootFolderId). Filter by manifestType (e.g. 'user', 'templates'). The grid's manifestId says which one is its primary tree.",
+      input_schema: { type: "object", properties: { manifestType: { type: "string" } } },
+      destructive: false,
+      run: async ({ manifestType }) => {
+        const qs = new URLSearchParams({ gridId });
+        if (manifestType) qs.set("manifestType", manifestType);
+        return (await call("GET", `/manifests?${qs}`)).body;
+      },
+    },
+    {
+      name: "create_manifest",
+      description: "Create a manifest (a new folder-tree root). Provide name + manifestType + rootFolderId.",
+      input_schema: { type: "object", properties: { name: { type: "string" }, manifestType: { type: "string" }, rootFolderId: { type: "string" }, meta: { type: "object", additionalProperties: true } } },
+      destructive: false,
+      run: async (body) => (await call("POST", `/manifests`, { gridId, ...body })).body,
+    },
+    {
+      name: "update_manifest",
+      description: "Patch a manifest (rename, repoint rootFolderId — i.e. change which folder tree is the root, where everything lives).",
+      input_schema: { type: "object", properties: { id: { type: "string" }, patch: { type: "object", additionalProperties: true } }, required: ["id", "patch"] },
+      destructive: true,
+      requires_confirm: true,
+      run: async ({ id, patch }) => (await call("PATCH", `/manifests/${id}`, patch || {})).body,
+    },
+    {
+      name: "delete_manifest",
+      description: "Delete a manifest by id. Destructive — removes a whole folder-tree root.",
+      input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+      destructive: true,
+      requires_confirm: true,
+      run: async ({ id }) => (await call("DELETE", `/manifests/${id}`)).body,
+    },
+
+    // ── Folders (manifest-tree organization) ──────────────────────────────
+    {
+      name: "list_folders",
+      description: "List folders (the tree that organizes pages/docs). Filter by parentId.",
+      input_schema: { type: "object", properties: { parentId: { type: "string" } } },
+      destructive: false,
+      run: async ({ parentId }) => {
+        const qs = new URLSearchParams({ gridId });
+        if (parentId !== undefined) qs.set("parentId", parentId);
+        return (await call("GET", `/folders?${qs}`)).body;
+      },
+    },
+    {
+      name: "create_folder",
+      description: "Create a folder. Provide name + optional parentId (null = root).",
+      input_schema: { type: "object", properties: { name: { type: "string" }, parentId: { type: "string" }, folderType: { type: "string" } }, required: ["name"] },
+      destructive: false,
+      run: async (body) => (await call("POST", `/folders`, { gridId, ...body })).body,
+    },
+    {
+      name: "update_folder",
+      description: "Patch a folder (rename, reparent via parentId, sortOrder).",
+      input_schema: { type: "object", properties: { id: { type: "string" }, patch: { type: "object", additionalProperties: true } }, required: ["id", "patch"] },
+      destructive: true,
+      requires_confirm: true,
+      run: async ({ id, patch }) => (await call("PATCH", `/folders/${id}`, patch || {})).body,
+    },
+    {
+      name: "delete_folder",
+      description: "Delete a folder by id. Destructive.",
+      input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+      destructive: true,
+      requires_confirm: true,
+      run: async ({ id }) => (await call("DELETE", `/folders/${id}`)).body,
+    },
+
+    // ── Views (render config: activeOccurrenceId = which page a panel shows) ─
+    {
+      name: "list_views",
+      description: "List view records (render config for panels/artifact viewers).",
+      input_schema: { type: "object", properties: {} },
+      destructive: false,
+      run: async () => (await call("GET", `/views?gridId=${encodeURIComponent(gridId)}`)).body,
+    },
+    {
+      name: "update_view",
+      description: "Patch a view — most commonly set activeOccurrenceId to switch which page a panel displays.",
+      input_schema: { type: "object", properties: { id: { type: "string" }, patch: { type: "object", additionalProperties: true } }, required: ["id", "patch"] },
+      destructive: false,
+      run: async ({ id, patch }) => (await call("PATCH", `/views/${id}`, patch || {})).body,
+    },
+    {
+      name: "create_view",
+      description: "Create a view record (viewType, manifestId, activeOccurrenceId, layout). Advanced.",
+      input_schema: { type: "object", properties: { viewType: { type: "string" }, activeOccurrenceId: { type: "string" }, manifestId: { type: "string" }, hasTree: { type: "boolean" }, layout: { type: "object", additionalProperties: true } } },
+      destructive: false,
+      run: async (body) => (await call("POST", `/views`, { gridId, ...body })).body,
+    },
+
+    // ── Grid settings & filters (what's visible / active iteration) ────────
+    {
+      name: "update_grid",
+      description: "Patch grid-level settings: name, rows, cols, meta, and the filter system (namedFilters / activeFilterId / activeFilterValues). The main lever for what's visible and which iteration (date/period) is active.",
+      input_schema: { type: "object", properties: { patch: { type: "object", additionalProperties: true } }, required: ["patch"] },
+      destructive: true,
+      requires_confirm: true,
+      run: async ({ patch }) => (await call("PATCH", `/grids/${encodeURIComponent(gridId)}`, patch || {})).body,
+    },
+    {
+      name: "set_active_filter",
+      description: "Switch the active named filter (and optionally set its field values, e.g. the active date). activeFilterValues is a { fieldId: value } map. Reversible; the everyday 'change what's shown / what day' action.",
+      input_schema: { type: "object", properties: { activeFilterId: { type: "string" }, activeFilterValues: { type: "object", additionalProperties: true } }, required: ["activeFilterId"] },
+      destructive: false,
+      run: async ({ activeFilterId, activeFilterValues }) => {
+        const body = { activeFilterId };
+        if (activeFilterValues) body.activeFilterValues = activeFilterValues;
+        return (await call("PATCH", `/grids/${encodeURIComponent(gridId)}`, body)).body;
+      },
     },
   ];
 }

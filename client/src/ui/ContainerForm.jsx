@@ -142,6 +142,22 @@ export default function ContainerForm({
             onChange={onChange}
           />
 
+          {/* Header label overflow (per-occurrence) */}
+          {occurrence && (
+            <div className="py-2">
+              <span className="text-[10px] text-muted-foreground font-semibold block mb-1">Header label overflow</span>
+              <select
+                className="h-7 w-full text-[11px] px-1 rounded bg-backgroundScale-0 border border-borderScale-1 text-foreground outline-none cursor-pointer"
+                value={occurrence?.meta?.labelOverflow ?? "marquee"}
+                onChange={(e) => onOccurrenceUpdate?.({ meta: { ...(occurrence?.meta || {}), labelOverflow: e.target.value } })}
+              >
+                <option value="marquee">Marquee (scroll when long)</option>
+                <option value="wrap">Wrap (multi-line)</option>
+                <option value="none">None (clip with ellipsis)</option>
+              </select>
+            </div>
+          )}
+
           {/* Attached Fields */}
           {markdownFieldOptions.length > 0 && (
             <>

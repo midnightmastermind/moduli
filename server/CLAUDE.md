@@ -1,6 +1,389 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-06-03. Check this file before re-reading source._
+_Updated: 2026-06-06. Check this file before re-reading source._
+
+## Recent Changes (2026-06-06 — Occurrence.label override + "Goals: Date-Prefix Labels" op)
+- **`models/Occurrence.js`** — new `label: { type: String, default: null }`.
+  Per-placement label override; null = render the module's own label. The client
+  renderer prefers it over `module.label`. Written by ops via `UPDATE_ITEM_LABEL`
+  (path `$occ.label`). The generic `update_occurrence` handler already spreads it.
+- **`scripts/createLiveData.js`** — new **"Goals: Date-Prefix Labels"** op
+  (priority 4, folderId trackers). Triggers: `onFilterChange` ancestorLabel
+  "Goals" + grid + `onLoad`. `targetOccurrenceId: goalsPageOccId` so
+  `$activeDatePossessive` (new executor var: "Today's"/"Yesterday's"/"July 18th")
+  resolves from the GOALS page filter cascade (on-page date switch relabels even
+  when the grid filter hasn't moved — same mechanism Build Schedule uses).
+  Pipeline: LOOP `$allInstances` → IF `_ancestors HAS_ANCESTOR goalsPageOccId`
+  AND `moduleLabel IS_NOT_EMPTY` → `UPDATE $goal.label = "${$activeDatePossessive}
+  ${$goal.moduleLabel}"`. Reads `moduleLabel` (stable template base) so it never
+  re-prefixes its own write. So each goal/tracker tile reads "Today's Water" /
+  "July 18th Water" for the day being viewed. **Re-seed REQUIRED + server restart**
+  (new schema field): `node --env-file=.env server/scripts/createLiveData.js`.
+
+## Recent Changes (2026-06-06 — confirm-path emits live progress so the import bar stays honest)
+- **`routes/apiV1.js` (`POST /assistant/confirm`)** — a confirmed Wikipedia import
+  is a 20-30s server round-trip (`assistantConfirm` awaits
+  `/research/wikipedia/import`), so the HTTP request — and the drawer's `busy`
+  flag — span the whole import. But the confirm path emitted NO
+  `assistant_progress` (only the chat loop did), so the ThinkingBar sat at a stale
+  "… thinking" for the full import → felt frozen. Now wraps the `assistantConfirm`
+  call: emits `{phase:"tool", tool:name}` up front (client shows "… running
+  wikipedia import") and `{phase:"done"}` in a `finally` (clears the label). The
+  elapsed timer + bar already kept moving (busy spans the request; the client's
+  2026-06-05 overrun→indeterminate fix keeps the bar alive past the learned ETA) —
+  this makes the LABEL honest too. SERVER RESTART to apply.
+
+## Recent Changes (2026-06-06 — importer: float images for horizontal layout)
+- **`services/markdownImporter.js` (`buildContainer`)** — image-artifact children
+  now get `moduleEmbed attrs.align:"right"` in the section's textmap (tracked via an
+  `imageChildIds` Set). The doc editor's moduleEmbed float (left/center/right/full,
+  already a normal doc DnD feature) makes the following textblocks flow BESIDE the
+  image → article-like horizontal layout. Users can re-align per-embed in the UI.
+  22 importer tests pass. Re-import to apply.
+
+## Recent Changes (2026-06-06 — importer: prose links → INLINE link mini-textblocks)
+- **`services/markdownImporter.js`** — `[text](url)` links in PROSE paragraphs now
+  become their own `role:"textblock" kind:"inline"` occurrence carrying
+  `meta.link={kind:"url",url}`, embedded into the surrounding paragraph via an
+  `instanceTextblockInline` node (client renders a chip that flows in the
+  sentence — see client/src/docs/CLAUDE.md). New `buildInlineLink(label,url)`
+  minter; `parseInline(text, mintLink)` + `paragraphToBlocks(text, mintLink)` take
+  an optional minter (passed only for the paragraph branch — bullet lists keep
+  plain link marks). Replaces the prior inline `link` mark for prose. Test updated
+  (markdownImporter.test.js); 22 importer tests pass. SERVER RESTART + re-import to
+  apply.
+
+## Recent Changes (2026-06-06 — HTML→MD rewritten with cheerio + turndown (real fix))
+- The regex `htmlToMarkdown` kept mangling Wikipedia HTML (leaked `[edit]` links
+  via nested `<span>`s, stray `]` brackets, `_caption_` underscores, misspelling-
+  looking artifacts). User approved switching tools ("idc about legacy").
+- **`services/wikipediaTools.js`** — new `wikiHtmlToMarkdown(html, title)` uses
+  **cheerio** (remove `.mw-editsection`/`.infobox`/`.navbox`/`.reference`/`.hatnote`/
+  `.toc`/… by selector — reliable, nesting-aware) + **turndown** (+`turndown-plugin-gfm`
+  for tables) for correct HTML→MD. Custom link rule resolves `./X`,`/wiki/X`,`//x`
+  → absolute; protocol-relative `//upload…` image URLs → `https://`. `fullMarkdown`
+  now uses it (still on action=parse rendered HTML). The OLD regex `htmlToMarkdown`
+  stays for the drag-import path. Downstream `markdownToModuli` (doc containers +
+  textblocks) is UNCHANGED.
+- **Verified live (Eminem):** `[edit]` lines 24→**0**, data-mw garbage gone, clean
+  inline links, H2 6→**15** / H3 3→**26**, 9 images present.
+- **`server/package.json`** — added `turndown`, `cheerio`, `turndown-plugin-gfm`.
+- **`markdownImporter.js`** — each paragraph is now its OWN textblock (was grouped
+  into one packed block); lists still = ONE bulletList textblock. Live: 125
+  textblocks (was 35), largest 10KB (was 70KB), 43 doc containers, 0 instances.
+- **`client/src/docs/ModuleEmbedNode.jsx`** — embedded containers now pass
+  `embedded` so they render as DOC containers (bigger `#` markdown header) instead
+  of the small standard/board header. 78 server tests pass; client build clean.
+- **Remaining (verify in-browser after re-import):** images as inline nodes vs
+  artifact occurrences (currently inline, artifacts:0); bullet-list indentation
+  CSS (may already be fine with clean turndown lists); 4 stray `_` italics.
+
+## Recent Changes (2026-06-06 — ROOT CAUSE of "import is one big garbage textblock": Parsoid HTML)
+- **Diagnosed empirically** (dry-run importer + DB inspect, per user): the
+  `markdownImporter` was always correct — feeding it clean markdown yields the
+  right nested doc-container tree. The garbage came from **`fullMarkdown` fetching
+  Wikipedia's Parsoid REST HTML** (`REST_BASE/page/html`), which embeds `data-mw`
+  JSON wikitext + RDFa (`{{hlist|…}}`, `"spouse":{"wt":…}`) that leaked into the
+  output — 80KB of cruft, hatnotes as bullet lists, no real section headings.
+- **Fix (`services/wikipediaTools.js fullMarkdown`):** fetch the **rendered** HTML
+  via `action=parse&prop=text&formatversion=2` instead of Parsoid. Pass
+  `keepImages/keepTables/keepFigures:true` + an import-specific `stripClasses`
+  (infobox/navbox/refs/hatnote/toc/edit-links/… but NOT `thumb`, so images
+  survive). **Verified live (Eminem):** data-mw garbage gone; H2 6→9, H3 3→15;
+  images 0→8 artifacts; largest textblock 70KB→23KB; tree = 19 doc containers +
+  26 textblocks + 8 artifacts + 0 board instances. 42 wiki/importer tests pass.
+- **Note:** `links()` still fetches Parsoid html (fine — it only regexes hrefs).
+
+## Recent Changes (2026-06-06 — importer: article-like GROUPED rich textblocks)
+- **`services/markdownImporter.js` (`buildContainer` rewrite)** — stopped
+  exploding every block into its own occurrence. Consecutive FLOW content (prose
+  paragraphs + lists + code) is now GROUPED into a single rich textblock: a
+  markdown list → ONE `bulletList` node (was one `role:instance kind:board` per
+  item — those are GONE), bold/italic/links stay inline (links are inline `link`
+  marks, not chips). Structural blocks (sub-sections, tables, block images,
+  raw-html) flush the running textblock and stand alone. Removed
+  `buildInstanceLeaf` / `buildLinkTextblock` / `paragraphToChildren`. Net: an
+  imported section reads like the real article (per user: "use markdown,
+  bulletpoints grouped in a textblock, look close to the article"). 38
+  importer/converter tests pass. SERVER RESTART + re-import to apply.
+- **OUTSTANDING import work is tracked in `docs/wikipedia-import-docket.md`**
+  (section-hierarchy headers, linked/multi-article import + internal-link rewrite,
+  page-kind ask, more confirm UX, board-button alignment bug, offline Kiwix).
+- **Docket progress (2026-06-06):** ✅ section-hierarchy headers (importer stamps
+  `meta.headingLevel` per markdown depth; ModuleContainer embedded header sizes by
+  it). ✅ page-kind ask (prompt infers kind or asks). ✅ board header +2px padding.
+  ✅ linked import — fan-out (`wikipediaTools.links` + `GET /research/wikipedia/links`
+  + `wikipedia_links` tool) AND internal-link rewrite (`services/importRelink.js`
+  pure `relinkTextmap`/`relinkOccurrences` → imported docs' inline wiki link marks
+  become native `docLink` nodes when the target was imported; `POST
+  /research/wikipedia/relink` + `relink_imports` tool; prompt calls it after the
+  batch). 61 server tests across touched suites pass. SERVER RESTART for the
+  tool/prompt/endpoint changes.
+
+## Recent Changes (2026-06-05 — import renders as a DOC page, not a board; absolute wiki links)
+- **DB diagnosis** (user: "import created a board, not a doc page"): the
+  panel-picker wrapped imports in a `role:page kind:board` page + the importer
+  minted section containers `kind:board`. User wants the whole import to be a
+  document. Fixes:
+  - **`services/markdownImporter.js`** — every section container is now
+    `role:container **kind:"doc"**` (was board). A doc container renders its
+    **textmap**, so `buildContainer` now also writes `textmap` = a `moduleEmbed`
+    node per child (prose textblocks, link chips, list-item instances, images,
+    sub-sections) — the section reads top-to-bottom as a document, with the
+    fine-grained children embedded inline. `occurrences:[childIds]` is kept for
+    ancestry/cleanup (doc kind renders textmap, not the occurrences[] list, so no
+    double-render). Empty sections get `[{paragraph}]` (TipTap non-empty
+    invariant). NOTE: user clarified list==board for CONTAINERS and dislikes
+    "list" — so the kinds that matter are board (legacy/canonical) vs **doc**;
+    imports use doc. +1 test (20 importer tests pass).
+  - **`socketHandlers/crud.js` (`create_page`)** — now persists `occData.textmap`
+    AND `occData.filterOverride` (both were silently dropped). Lets the
+    panel-picker create a DOC page that embeds the imported content (and the
+    `filterOverride:{}` actually sticks so the wrapped page isn't date-filtered).
+  - Client wrap is now a `kind:"doc"` page with `textmap:[moduleEmbed(rootOcc)]`
+    (see client/src/ui/CLAUDE.md).
+- **`services/wikipediaTools.js` (`htmlToMarkdown` link rule)** — wiki-internal
+  links are now resolved to ABSOLUTE URLs instead of stripped to plain text:
+  `./X` → `https://en.wikipedia.org/wiki/X`, `/wiki/X` → absolute, `//x` →
+  `https://x`, `#anchor`/unknown-relative → plain text. **Root-cause fix for the
+  broken link chips** (DB showed `meta.link.url = "./Aftermath_Entertainment"`,
+  which would open `<app>/./…`). Tests updated + 1 added (36 importer/converter
+  tests pass). SERVER RESTART required.
+
+## Recent Changes (2026-06-05 — Import format = "Rule Set A" + link mini-textblocks + wiki preview-confirm)
+- **`services/markdownImporter.js`** — imported content now follows the user-chosen
+  **fine-grained nested format**:
+  - Every imported container module gets `meta: { allowChildContainers: true }`.
+    **Root-cause fix for "imported page opened but is empty":** the generic
+    `ModuleContainer` only renders child CONTAINERS when this flag is set
+    (`leafModulesById` otherwise), so the heading-nested section tree rendered
+    blank. Now the whole nested tree shows.
+  - **Links → mini-textblocks.** New `buildLinkTextblock(label, url)` mints a
+    `role:"textblock"` with `meta.link = { kind:"url", url }` + a minimal textmap.
+    New `paragraphToChildren(text)` splits each prose paragraph on `[text](url)`
+    (lookbehind `(?<!!)` so `![img](src)` is NOT matched) into a SEQUENCE: text
+    runs → textblocks, links → link mini-textblocks. The paragraph branch in
+    `buildContainer` now spreads `paragraphToChildren(c.text)` (was one textblock
+    with inline link marks). Client `TextblockCard` renders the chip (see
+    client/src/modules/CLAUDE.md). Heading→nested-container, paragraph→textblock,
+    list-item→instance, image→artifact were already the importer's shape.
+  - 3 new tests in `__tests__/markdownImporter.test.js` (link split / image not
+    mistaken for a link / nested-container + allowChildContainers). 19/19 pass.
+- **`services/assistantTools.js`** — `wikipedia_import` is now `requires_confirm:
+  true`, so the drawer shows an Approve/Decline card with a PREVIEW (title +
+  thumbnail + extract, fetched client-side from `GET /research/wikipedia/summary`)
+  + a clickable link to the Wikipedia page in a new tab, before the import runs.
+- **SERVER RESTART required** for the importer + tool changes (Node code). No
+  reseed (imports are user-triggered). Existing imported content keeps inline
+  link marks until re-imported.
+
+## Recent Changes (2026-06-04 — Drawer auto-connects after reseed: localhost bootstrap-token)
+- **Symptom:** after a reseed the assistant drawer's token input was EMPTY — the
+  token persists server-side (DB + `server/.env ASSISTANT_API_TOKEN`), but the
+  drawer fills its field from BROWSER `localStorage`, which the server reseed
+  can't touch. So the user still had to paste once.
+- **`routes/apiV1.js`** — new `GET /api/v1/assistant/bootstrap-token` (NO auth —
+  it IS the auth bootstrap). Gated by ORIGIN to loopback + **private LAN ranges**
+  (RFC1918 `10/172.16-31/192.168`, link-local `169.254`, IPv6 ULA `fc/fd` +
+  link-local `fe80`) — the app is accessed over the WSL2 / LAN IP, so
+  localhost-only wouldn't reach it; PUBLIC IPs are refused so a port-forwarded
+  server never leaks the token. `ASSISTANT_BOOTSTRAP=off` disables it. Returns
+  `{ token: null }` off-net / disabled / unset, else `{ token: ASSISTANT_API_TOKEN }`.
+  (Gate unit-tested: WSL2 172.20.x / 192.168 / 10.x / loopback / IPv6 allowed;
+  8.8.8.8 / 172.15 / 172.32 / public refused.)
+- **DEV over IP (`client/vite.config.js`)** — added `server.host: true` so the
+  Vite dev server binds 0.0.0.0 and is reachable via the WSL2 / LAN IP. Without
+  it Vite bound localhost-only and WSL2's localhost-forwarding is flaky, so dev
+  was unusable over the IP (the user had been doing a full build+serve every
+  time). Socket + API already connect same-origin (`window.location.origin`) and
+  proxy through Vite, so HMR + sockets + REST all work over the IP now.
+- **Client** (`AssistantDrawer.jsx`, see client/src/ui/CLAUDE.md) fetches it once
+  on mount when it has no saved token and auto-fills — so "run createLiveData →
+  drawer just works" is now true with no paste.
+- **CAVEAT — server restart:** the running server's `process.env.ASSISTANT_API_TOKEN`
+  is read at boot. If you mint a NEW token (createApiToken.js rewrites `.env`)
+  or first-seed mints one, **restart the server** so the bootstrap endpoint hands
+  out the new value. The DB row is already correct; only the env-in-memory lags.
+
+## Recent Changes (2026-06-04 — Any minted token can become the stable ASSISTANT_API_TOKEN)
+- **`utils/assistantToken.js`** — new exported `writeAssistantTokenToEnv(rawToken,
+  {envPath})`: UPSERTS the `ASSISTANT_API_TOKEN` line in `server/.env` (replaces
+  the existing line in place — no duplicate keys that would shadow it — or
+  appends/creates when absent, preserving every other key). `ensureAssistantApiToken`'s
+  mint branch now uses it too (was a blind append).
+- **`scripts/createApiToken.js`** — after minting, by DEFAULT writes the new raw
+  token into `server/.env` as `ASSISTANT_API_TOKEN`, so a token the user mints
+  themselves becomes the one `createLiveData`'s `ensureAssistantApiToken`
+  re-asserts on every reseed (paste once, survives reseeds). Pass `--no-env` to
+  skip (token still survives in the DB, just not auto-re-asserted). Arg parsing
+  switched to flag-aware (`--*` filtered out before positional email/scopes/name).
+- Verified the upsert against a temp .env: create / replace-in-place (1 line, no
+  dupes) / append-among-other-keys / replace-among-other-keys all correct.
+
+## Recent Changes (2026-06-04 — Build Schedule: sort day-columns chronologically)
+- **`utils/liveSystemBuilders.js` (`makeScheduleBuildScheduleOp`, PHASE B)** —
+  the page's `meta.layoutCascadeOverride` UPDATE now also sets
+  `sortChildrenByField: dateFieldId` (alongside `mode`/`columns`/`hideChildIds`).
+  Day-columns are appended to the Schedule page's `occurrences[]` in date-picker
+  SELECTION order (and idempotent re-adds append at the end), so a 3-day range
+  picked 28→29→27 rendered as "28 29 27". `dateFieldId` is a literal id (not a
+  `$`-expr) so it survives `deepResolveExpr` untouched. The generic
+  `PageBoard.jsx` consumes the key and stable-sorts visible children by that
+  field's value (see client/src/modules/CLAUDE.md) — the renderer stays
+  schedule-agnostic. **Re-seed required:**
+  `node --env-file=.env server/scripts/createLiveData.js`. 25 liveSystemBuilders
+  tests green.
+
+## Recent Changes (2026-06-04 — Assistant: best-guess location + UI confirm + robust generic create)
+- **Problem:** a 3B model can't reliably produce valid ids for create — it
+  invents placeholders (`<Schedule-Timeslot-container-id>`), puts the container
+  id in `moduleId`, omits the parent link, so creates silently produced garbage
+  that never rendered. User direction: don't hardcode a task tool — best-guess
+  the location and let the USER confirm/correct it in the UI.
+- **`services/assistantTools.js` (`create_occurrence`)** — now `requires_confirm`
+  + generic & robust: accepts a `label` (mints an `instance` template when
+  `moduleId` is missing/placeholder — `/[<>\s]/` heuristic), drops placeholder
+  parents, creates the occurrence, AND links it into the parent's
+  `occurrences[]` (GET parent → PATCH appended — without this a container won't
+  render the child). Nothing schedule-specific. Returns `placedIn`.
+- **`services/assistantAgent.js`** — create recipe simplified: "call
+  create_occurrence with a `label` + best-guess `parentId`; the app pops a card
+  for the user to confirm/correct the location." (Was: 2-step create_module then
+  create_occurrence with exact ids.)
+- **Client (`AssistantDrawer.jsx` ConfirmCard)** — for create_occurrence renders
+  an editable LOCATION picker: best-guess pre-filled (real id → used as-is; else
+  fuzzy-match the placeholder/label text against container/page labels from the
+  live store), searchable list of all containers+pages, Approve disabled until a
+  location is chosen. Approve sends the corrected `parentId` to
+  `/assistant/confirm`. See client/src/ui/CLAUDE.md.
+
+## Recent Changes (2026-06-04 — Assistant: live token streaming + narration + create recipe)
+- **`services/assistantAgent.js`** — the Ollama loop now STREAMS (`stream:true`)
+  instead of one blocking `res.json()`. New `streamOllamaChat` parses the NDJSON
+  stream and forwards each content delta via `onProgress({phase:"token",delta})`;
+  `buildOllamaRequestBody` gained a `stream` flag. Live-probed: first token at
+  ~4.8s vs 60-100s of prior silence. Fixes "long gap between 'thinking' and the
+  result — no progress" (user wanted Claude-style live updates).
+- **`SYSTEM_PROMPT` rewritten discipline + new "Creating & placing things"**
+  section: (1) NARRATE one sentence before each tool call (the live progress
+  signal); (2) never use placeholder ids like `<Timeslot-container-id>`; (3)
+  don't ask pointless follow-ups ("never ask 'what is the purpose'"); (4) the
+  create recipe — moduleId (template) vs parentId (destination) are DIFFERENT;
+  create_module THEN create_occurrence; `fields` is an OBJECT keyed by real
+  field id `{value}`, never a string. Targets the garbage-create the user hit
+  (occurrence with placeholder moduleId, parentId:null, stringified invented
+  fields). **Prompt-level fix; the fully reliable path is a future high-level
+  `create_task` tool — not yet built.**
+- **`routes/apiV1.js`** already forwards `onProgress` → `assistant_progress`
+  socket event; `token` deltas flow through unchanged.
+- 30 tests in assistantAgent.test.js (added stream-flag assertion). NOTE: server
+  restart required for prompt/stream changes.
+
+## Recent Changes (2026-06-04 — Green current timeslot + stable assistant token + assistant "place anywhere")
+- **`scripts/createLiveData.js` (`Schedule: Mark Passed Slots` op)** — now also
+  paints the CURRENT (active-now) slot GREEN, keeping dim-red on already-passed
+  slots (user: "green background for the current timeslot"). Two-pass per today's
+  day-col: **pass 1** finds `$currentSlotTime` = the latest timeslot that's
+  `TIME_BEFORE $currentTime` (walks slots, keeps the max via `TIME_AFTER`);
+  **pass 2** paints green if `timeslot IS $currentSlotTime`, else red if passed,
+  else clear — priority current>passed>clear, each write dedup'd vs current
+  `ownStyle.bg`. New `currentSlotColor = rgba(74,222,128,0.16)`. Past day-cols
+  stay all-red; future untouched. **Re-seed required.** Backup at
+  `scripts/createLiveData.js.backup` (pre-edit) — remove once verified in-browser.
+  NOTE: per-day duplicate-label slots are fine here (each day-col's slots are
+  separate COPY_LINK copies; "current" is computed within today's day-col only).
+- **`utils/assistantToken.js` (NEW) + `models/ApiToken.js` (`upsertFromRaw`) +
+  `scripts/createLiveData.js` main()** — the Jonah assistant API token is now
+  STABLE across reseeds (user: "the key I generate doesn't have to be re-entered
+  if I rerun the seed"). Reseed (`dropExistingLiveGrid`) already deletes only
+  grid-scoped data, NOT ApiToken/User/Grid — the friction was minting a fresh
+  random token each time. `ensureAssistantApiToken(userId)`: if
+  `ASSISTANT_API_TOKEN` is in server/.env, upsert the matching DB row; else mint
+  once, append it to server/.env, print it. main() calls it after seeding and
+  prints the raw token. Paste once into the drawer (⚙) — survives every reseed.
+- **`services/assistantAgent.js` (`extractDestinations` / `buildDestinationsHint`
+  / `fetchDestinations`)** — the assistant can now create/move into ANY named
+  place, not just folders (user: "I should be able to create and move stuff
+  anywhere"). `fetchDestinations` pulls grid state once and `extractDestinations`
+  joins occurrences→modules to list folders + pages + CONTAINERS (each with a
+  parent breadcrumb for disambiguation; per-day duplicate label@parent slots
+  collapsed). Hint reframed "KNOWN PLACES — create or move things into any of
+  these". Also injects TODAY's date into the system prompt so "today"/"6:30pm
+  today" resolve. 12 new tests (29 total in assistantAgent.test.js).
+
+## Recent Changes (2026-06-04 — Offline assistant (Jonah/Ollama) hang + "prints tool call but doesn't run it" fix)
+- **Symptom:** asking Jonah to "create an eminem wikipedia doc page in the
+  Examples folder" ran ~3 min then showed the raw JSON
+  `{"name":"wikipedia_import","arguments":{…}}` and did nothing.
+- **Root causes (confirmed via a live smoke against the running
+  qwen2.5-coder:7b):**
+  1. **Ollama default `num_ctx` ≈ 4096** (model trained for 32768, Modelfile
+     sets none) → system prompt + ~38 tool schemas truncated before any grid
+     data; model lost the tools/system and looped.
+  2. **qwen emits tool calls as a JSON blob in `message.content`, NOT the native
+     `tool_calls` array.** `ollamaLoop` only read `tool_calls`, saw it empty,
+     treated the blob as a final answer, ran nothing → user saw raw JSON. THE
+     core bug.
+  3. No timeout on the per-generation fetch → a slow/wedged call hung forever.
+  4. The model had no Examples-folder id and hallucinated `<Examples-folder-id>`.
+- **`services/assistantAgent.js`:**
+  - `buildOllamaRequestBody` (NEW, exported) — sends `options.num_ctx`
+    (`OLLAMA_NUM_CTX`, default 8192). `ollamaLoop` fetch now wrapped in an
+    `AbortController` (`OLLAMA_TIMEOUT_MS`, default 45000) → wedged call throws →
+    graceful fallback instead of infinite "… thinking".
+  - `parseContentToolCall` (NEW, exported) — recovers a `{name,arguments}` tool
+    call from free-text/`content` (fenced ```json, balanced-brace scan, OpenAI
+    envelopes, string-encoded args). Guarded by known tool names. Wired into
+    `ollamaLoop`: when `tool_calls` is empty it recovers from `content` and
+    suppresses the raw JSON from the visible transcript. **This is what makes
+    the tool actually run.**
+  - `buildDestinationsHint` (NEW, exported) + `fetchDestinations` — inject a
+    "KNOWN DESTINATIONS" block (grid folders → `parentId`) into the system
+    prompt so named targets ("the Examples folder") resolve WITHOUT a read
+    round-trip. The importer's `parentId` sets the root occ's `parentId` =
+    folder placement, so folder ids are valid destinations.
+  - `selectToolsForBackend` (NEW, exported) — Ollama gets a curated 17-tool
+    `OFFLINE_CORE_TOOLS` set (override via `OLLAMA_TOOL_ALLOWLIST`); cloud/
+    deterministic get the full 38. Cuts latency ~1.8× and reduces wrong calls.
+  - `buildSystemPrompt` now exported (was internal).
+  - `assistantChat` gained `onProgress` (forwarded to `ollamaLoop`), emitting
+    `{phase:"thinking",iteration}` / `{phase:"tool",tool}` / `tool_done`.
+- **`services/assistantTools.js`:** `summarizeGridState` (NEW, exported) +
+  `get_grid_state` tool now returns a **bounded summary** (counts + named
+  folders/pages/fields/operations with ids) instead of dumping ~600
+  occurrences. Pages derived by joining occ.targetId → page-role module.
+- **`routes/apiV1.js`** (`/assistant/chat`): wires `onProgress` →
+  `io.to(userRoom).emit("assistant_progress", ev)` + a final `{phase:"done"}`.
+- **Tests:** `__tests__/assistantAgent.test.js` (NEW, 24 cases) cover all pure
+  helpers incl. the exact smoke-test blob. 180/180 server tests green.
+- **Latency levers:** `buildOllamaRequestBody` also sets `options.num_predict`
+  (`OLLAMA_NUM_PREDICT`, default 768 — caps rambling) + top-level `keep_alive`
+  (`OLLAMA_KEEP_ALIVE`, default "30m" — avoids per-message reload).
+- **Model switched to `llama3.2:3b`** (set in `server/.env` `OLLAMA_MODEL`; code
+  fallback stays `qwen2.5-coder:7b`). Benched on the Eminem request, warm:
+  llama3.2:3b **59s, native tool_calls, used the real folder id**; qwen 7b 99s,
+  emitted via content (needed recovery), and dropped the parentId. llama3.2 is
+  Meta-tuned for tool-calling and this assistant is routing, not coding.
+- **Timeout coherence (follow-up fix):** the first per-gen timeout was 45s but a
+  real tool-calling turn benches ~60–100s on this CPU box, so EVERY live request
+  aborted at 45s → fell back to `deterministicDispatch` → printed the misleading
+  "No LLM is running" pattern list (Ollama was up, just slow). Fixed: per-gen cap
+  → **180s** (`OLLAMA_TIMEOUT_MS`), added a whole-request budget
+  **300s** (`OLLAMA_TOTAL_BUDGET_MS`; each gen's effective timeout =
+  min(per-gen, remaining)), client ceiling → **360s**. AND the ollama-branch
+  failure path no longer falls to the deterministic dispatcher — it returns an
+  HONEST `mode:"ollama-error"` message ("local model didn't finish: … it's
+  running but slow"). The deterministic dispatcher is only reached via
+  `pickBackend` when Ollama is genuinely unreachable.
+- **Env knobs:** `OLLAMA_MODEL`, `OLLAMA_NUM_CTX`, `OLLAMA_NUM_PREDICT`,
+  `OLLAMA_KEEP_ALIVE`, `OLLAMA_TIMEOUT_MS`, `OLLAMA_TOTAL_BUDGET_MS`,
+  `OLLAMA_TOOL_ALLOWLIST` (all in `server/.env`, commented defaults included).
+  NOTE: this box does CPU inference (~9.8s for 3 tokens) — multi-step requests
+  are still slow regardless; the progress line (client) is why it no longer
+  *feels* stuck. No re-seed; **server restart** picks up the service + model
+  changes.
+
+## Recent Changes (2026-06-03 — Schedule: Mark Passed Slots (time-based op) + TIME_BEFORE/DATE_BEFORE comparators)
 
 ## Recent Changes (2026-06-03 — Schedule: Mark Passed Slots (time-based op) + TIME_BEFORE/DATE_BEFORE comparators)
 - **Replaces the removed hardcoded `is-timeslot-passed` client tint** (that baked

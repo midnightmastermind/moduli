@@ -1929,9 +1929,9 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .preview-node-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  column-gap: 5px;
-  row-gap: 0;
-  padding: 8px;
+  column-gap: 12px;
+  row-gap: 14px;
+  padding: 12px 12px 32px 12px;
   align-items: start;
 }
 
@@ -2003,7 +2003,6 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   border-radius: 3px;
   display: block;
 }
-.artifact-thumb--audio,
 .artifact-thumb--pdf,
 .artifact-thumb--unknown {
   display: flex;
@@ -2012,6 +2011,18 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   justify-content: center;
   gap: 4px;
   padding: 12px;
+}
+/* Audio: inline player, full-width (not centered/narrowed) */
+.artifact-thumb--audio {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 8px;
+  width: 100%;
+}
+.artifact-thumb--audio audio {
+  width: 100%;
 }
 .artifact-thumb-expand-hint {
   position: absolute;
@@ -2215,6 +2226,12 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   min-height: 24px;
   outline: none;
   padding: 4px 8px 4px 8px;
+}
+/* Imported markdown prose: indent the first line of each paragraph (book/
+   article style). Scoped to block textblock cards — the inline variant flows
+   into the host sentence and must not be indented. */
+.textblock-card:not(.textblock-card--inline) .ProseMirror p {
+  text-indent: 1.5em;
 }
 
 /* textblock-inline (kind:"inline" — task #6.6 / LT1) — same Editor shell
@@ -2665,10 +2682,12 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    broke the wrap-under-label behavior the user wants. */
 /* AutoMarquee: ping-pong scroll by the exact overflow distance (set inline
    as --mq-shift). `alternate` makes it scroll to the end, then back, so the
-   start is always returned to (readable both directions). */
+   start is always returned to (readable both directions). The HOLDS at each
+   end (0→18% and 82→100%) make it STOP at the start, scroll, STOP at the end,
+   then scroll back — instead of running continuously. */
 @keyframes auto-marquee-scroll {
-  from { transform: translateX(0); }
-  to   { transform: translateX(var(--mq-shift, 0)); }
+  0%, 18%   { transform: translateX(0); }
+  82%, 100% { transform: translateX(var(--mq-shift, 0)); }
 }
 /* Field-pill marquee boxes size to their pill (so the fields row still wraps
    each as a normal flex item); max-width:100% (set inline on .auto-marquee)
@@ -2719,6 +2738,18 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 @keyframes socket-status-pulse {
   0%, 100% { opacity: 1;   transform: scale(1); }
   50%      { opacity: 0.4; transform: scale(0.7); }
+}
+
+/* ── Assistant "thinking" bar: indeterminate slide (AssistantDrawer ThinkingBar) ──
+   Used once a run overruns its learned ETA — the bar slides instead of freezing
+   near 100% with a misleading estimate. The 35%-wide nub travels the full track. */
+@keyframes assistant-indeterminate {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+.assistant-indeterminate {
+  left: -40%;
+  animation: assistant-indeterminate 1.15s ease-in-out infinite;
 }
 
 /* ── Panel already-open flash (ModulePanel.openPage) ──────────────────── */

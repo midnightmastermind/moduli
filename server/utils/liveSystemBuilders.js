@@ -1197,7 +1197,12 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                 { id: uid(), type: "action", config: {
                     type: "UPDATE",
                     path: "$schedPageOcc.meta.layoutCascadeOverride",
-                    value: { mode: "$pageMode", columns: "$pageColumns", hideChildIds: "json:[]" },
+                    // sortChildrenByField pins the day-columns into chronological
+                    // order by their date field regardless of the order they were
+                    // appended to the page (selection order, idempotent re-adds).
+                    // PageBoard consumes it generically. dateFieldId is a literal
+                    // id (not a $-expr) so it passes through deepResolveExpr.
+                    value: { mode: "$pageMode", columns: "$pageColumns", hideChildIds: "json:[]", sortChildrenByField: dateFieldId },
                 }},
 
                 // ── PHASE C: teardown out-of-period day-cols ─────────────────

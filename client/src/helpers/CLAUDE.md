@@ -1,6 +1,40 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-06-03. Check this file before re-reading source._
+_Updated: 2026-06-06. Check this file before re-reading source._
+
+## Recent Changes (2026-06-06 — op-writable occurrence.label override + relative-date label vars)
+- **`operationExecutor.js`** — two additions powering filter-aware tracker/goal
+  names ("Today's Water" / "Yesterday's Water" / "July 18th Water"):
+  - Each `$allItems` entry now carries `moduleLabel` (the STABLE template
+    label, separate from `label` which prefers the occurrence override). A
+    label-decorating op reads `moduleLabel` as its base so it never re-prefixes
+    its own previously-written `occurrence.label`.
+  - New built-in date vars beside `$activeDateLabel` (same IIFE, so they resolve
+    from `operation.targetOccurrenceId`'s effective filter): `$activeDateRelativeLabel`
+    = neutral "Today"/"Yesterday"/"Tomorrow"/ordinal "July 18th";
+    `$activeDatePossessive` = ready-to-prepend prefix "Today's"/"Yesterday's"/
+    "Tomorrow's"/"July 18th" (relative words take `'s`, an explicit date doesn't).
+- **`applyUpdate.js` (`routeRecordPath`)** — new `$<occ>.label` path → emits
+  `UPDATE_ITEM_LABEL { itemId, label }` (value coerced to string; null clears).
+  Sits alongside fields/parentId/meta/ownStyle/textmap. The renderer prefers
+  `occurrence.label` over `module.label`, so an op renames a single PLACEMENT
+  without touching the shared template. 3 tests in `applyUpdate.varRecord.test.js`.
+
+## Recent Changes (2026-06-06 — drag preview: status folded into native ghost, laggy JS pill retired)
+- **`dragSystem.js` (`attachDragPreview`)** — the native drag image is now built
+  FROM DATA (label + action verb stacked, less opaque `rgba(15,25,40,0.62)`)
+  instead of cloning the source element (the clone collapsed → "empty box").
+  Its caller (`onGenerateDragPreview`) now passes `{ label, action }`: label from
+  `data.label || data.name || data.occurrence?.label`, action from the drag mode
+  (`copy`→"Copy", `copylink`→"Copy-link", else "Move").
+- **`DragProvider.jsx`** — REMOVED the `InternalDragPreview` cursor-following pill
+  entirely (component + `internalDragPreview` state + `internalPreviewElRef`/
+  `internalPreviewPosRef` + the per-tick update block in `handleDragMove` +
+  `clearSession` reset + render). It trailed the cursor (JS-followed) while the
+  native ghost moved at OS speed → the "lag" the user reported. The action +
+  source label now live INSIDE the zero-lag native ghost; the live drop
+  destination is conveyed by the container drop-highlight ring. `ExternalImportPreview`
+  (for OS/HTML/text drops) is untouched.
 
 ## Recent Changes (2026-06-03 — TIME_BEFORE/AFTER + DATE_BEFORE/AFTER comparators)
 - **`operationActions.js` (`evalRule`)** — generic, domain-agnostic time/date

@@ -40,6 +40,20 @@ ApiTokenSchema.statics.mint = async function ({ userId, name = "", scopes = ["re
   return { rawToken, tokenDoc };
 };
 
+// Ensure a token doc exists matching a KNOWN raw token (idempotent by tokenId).
+// Lets a stable token live in .env and survive reseeds — the seed re-asserts
+// the DB row without changing the raw value the user already pasted.
+ApiTokenSchema.statics.upsertFromRaw = async function ({ rawToken, userId, name = "", scopes = ["read"] }) {
+  const parts = this.parse(rawToken);
+  if (!parts) throw new Error("invalid token format (expected moduli_<id>_<secret>)");
+  const hash = await bcrypt.hash(parts.secret, 10);
+  return this.findOneAndUpdate(
+    { tokenId: parts.tokenId },
+    { $set: { tokenId: parts.tokenId, userId, name, hash, scopes, revoked: false } },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+};
+
 // Parse "moduli_<tokenId>_<secret>" → { tokenId, secret } or null.
 ApiTokenSchema.statics.parse = function (rawToken) {
   if (typeof rawToken !== "string" || !rawToken.startsWith("moduli_")) return null;

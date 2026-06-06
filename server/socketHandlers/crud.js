@@ -614,6 +614,8 @@ export function registerCrudHandlers(socket, {
         ...(occData.viewId != null && { viewId: occData.viewId }),
         ...(occData.sortOrder != null && { sortOrder: occData.sortOrder }),
         ...(Array.isArray(occData.occurrences) && { occurrences: occData.occurrences }),
+        ...(occData.textmap != null && { textmap: occData.textmap }),
+        ...(occData.filterOverride != null && { filterOverride: occData.filterOverride }),
       };
       uc.occurrencesById[occ.id] = occ;
       await Occurrence.findOneAndUpdate({ id: occ.id, userId }, occ, { upsert: true });

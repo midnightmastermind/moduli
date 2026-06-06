@@ -49,6 +49,27 @@ describe("applyUpdate with a user-defined $var bound to an occurrence record", (
     expect(out.effects[0].toParentId).toBe("occ_other");
   });
 
+  it("$goalItem.label emits UPDATE_ITEM_LABEL with the string label", () => {
+    const out = applyUpdate("$goalItem.label", "Today's Water", ctx());
+    expect(out.varWrites).toEqual({});
+    expect(out.effects).toHaveLength(1);
+    const eff = out.effects[0];
+    expect(eff._effect).toBe("UPDATE_ITEM_LABEL");
+    expect(eff.itemId).toBe("occ_goal");
+    expect(eff.label).toBe("Today's Water");
+  });
+
+  it("$goalItem.label with null clears the override (label null)", () => {
+    const out = applyUpdate("$goalItem.label", null, ctx());
+    expect(out.effects[0]._effect).toBe("UPDATE_ITEM_LABEL");
+    expect(out.effects[0].label).toBe(null);
+  });
+
+  it("$goalItem.label coerces a non-string value to string", () => {
+    const out = applyUpdate("$goalItem.label", 2026, ctx());
+    expect(out.effects[0].label).toBe("2026");
+  });
+
   it("throws when the named var isn't bound", () => {
     expect(() => applyUpdate("$missing.fields.f1.value", 5, { vars: {}, occurrencesById: {} }))
       .toThrow(/not bound/i);

@@ -120,7 +120,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
         <button className="artifact-expand-close" onClick={toggle} aria-label="Collapse">
           <X size={14} />
         </button>
-        {renderExpanded(kind, src, label)}
+        {renderExpanded(kind, src, label, thumb1024Src)}
         <div className="artifact-expanded-meta">
           {originalName && <span className="artifact-expanded-name" title={originalName}>{originalName}</span>}
           {sizeLabel && <span className="artifact-expanded-size">{sizeLabel}</span>}
@@ -149,7 +149,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggle(e); }}
     >
-      {renderThumbnail(kind, src, label)}
+      {renderThumbnail(kind, src, label, thumb256Src)}
       <Maximize2 className="artifact-thumb-expand-hint" size={12} />
     </div>
   );
@@ -168,13 +168,15 @@ function formatBytes(bytes) {
   return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
 }
 
-function renderThumbnail(kind, src, label) {
-  if (kind === "image") return <img className="artifact-thumb" src={thumb256Src} alt={label || "image"} />;
+function renderThumbnail(kind, src, label, imgSrc = src) {
+  if (kind === "image") return <img className="artifact-thumb" src={imgSrc} alt={label || "image"} />;
   if (kind === "video") return <video className="artifact-thumb" src={src} muted playsInline preload="metadata" />;
   if (kind === "audio") return (
-    <div className="artifact-thumb artifact-thumb--audio">
-      <span style={{ fontSize: 18 }}>🎵</span>
-      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{label || "audio"}</span>
+    <div className="artifact-thumb artifact-thumb--audio" onClick={(e) => e.stopPropagation()}>
+      <span style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
+        🎵 {label || "audio"}
+      </span>
+      <audio src={src} controls preload="metadata" style={{ width: "100%", height: 32 }} />
     </div>
   );
   if (kind === "pdf") return (
@@ -190,8 +192,8 @@ function renderThumbnail(kind, src, label) {
   );
 }
 
-function renderExpanded(kind, src, label) {
-  if (kind === "image") return <img className="artifact-expanded-media" src={thumb1024Src} alt={label || "image"} />;
+function renderExpanded(kind, src, label, imgSrc = src) {
+  if (kind === "image") return <img className="artifact-expanded-media" src={imgSrc} alt={label || "image"} />;
   if (kind === "video") return <video className="artifact-expanded-media" src={src} controls playsInline />;
   if (kind === "audio") return (
     <div className="artifact-expanded-audio">

@@ -924,7 +924,7 @@ function ModuleInstance({
 
       <InstanceInner
         id={module.id}
-        label={module.label}
+        label={occurrence?.label ?? module.label}
         instance={module}
         occurrence={occurrence}
         panel={panel}

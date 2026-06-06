@@ -133,6 +133,43 @@ export default function InstanceTextblockInlineNode({ node, editor }) {
   // still visible / clickable.
   const display = storedText || "inline textblock";
 
+  // Link mini-textblock: when the occurrence (or its module) carries meta.link,
+  // render a clickable chip instead of an editable snippet. The markdown importer
+  // emits these for [text](url) links so they render inline as chips that flow in
+  // the sentence (wrappable — white-space:normal). The whole node is the drag
+  // handle (wrapperRef draggable above; canDrag false while editing), so it can
+  // be dragged out from any part — there's no inner edit surface for a link chip.
+  const link = occurrence?.meta?.link || null;
+  if (link && (link.url || link.occId || link.target)) {
+    const isUrl = link.kind === "url" || (!!link.url && !link.occId && !link.target);
+    const chipLabel = storedText || link.url || "link";
+    const chipStyle = {
+      display: "inline", whiteSpace: "normal",
+      padding: "0 6px", borderRadius: 999, fontSize: "0.92em",
+      background: isUrl ? "rgba(110,170,230,0.14)" : "rgba(130,200,150,0.14)",
+      border: isUrl ? "1px solid rgba(110,170,230,0.4)" : "1px solid rgba(130,200,150,0.4)",
+      color: isUrl ? "var(--accent-blue-text, rgb(150,195,250))" : "var(--accent-green-text, rgb(150,210,170))",
+      textDecoration: "none", cursor: "pointer",
+    };
+    return (
+      <NodeViewWrapper
+        as="span"
+        ref={wrapperRef}
+        data-instance-textblock-inline="true"
+        data-occurrence-id={occurrenceId || undefined}
+        className="instance-textblock-inline instance-textblock-inline--link"
+      >
+        {isUrl ? (
+          <a href={link.url} target="_blank" rel="noopener noreferrer" style={chipStyle} title={link.url}>
+            {chipLabel} <span style={{ opacity: 0.7 }}>↗</span>
+          </a>
+        ) : (
+          <span style={chipStyle} title="Linked item">{chipLabel} <span style={{ opacity: 0.7 }}>→</span></span>
+        )}
+      </NodeViewWrapper>
+    );
+  }
+
   return (
     <NodeViewWrapper
       as="span"

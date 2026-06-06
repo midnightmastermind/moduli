@@ -47,19 +47,67 @@ export function GridSettingsTab() {
     CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { name: name.trim() }, emit: true });
   }, [dispatch, socket, gridId]);
 
-  const commitRows = useCallback((val) => {
-    if (!gridId) return;
-    const num = Math.max(1, Number(val) || 1);
-    setRows(String(num));
-    CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { rows: num }, emit: true });
-  }, [dispatch, socket, gridId]);
+  // Panel occurrences with placement (the grid owns these ids).
+  const panelOccs = useMemo(
+    () => (grid?.occurrences || [])
+      .map((id) => state?.occurrencesById?.[id])
+      .filter((o) => o && o.placement),
+    [state?.occurrencesById, grid?.occurrences],
+  );
 
-  const commitCols = useCallback((val) => {
+  // Distinct occupied indices along an axis ("col"/"row"), spanning width/height.
+  // The MINIMUM size on that axis is the COUNT of distinct occupied lines —
+  // because shrinking COMPACTS panels into the remaining lines (empty interior
+  // lines are removed and outer panels shift inward). e.g. a single panel at
+  // col 5 → 1 occupied col → min 1 (it compacts to col 0).
+  const occupiedAxis = useCallback((axis) => {
+    const set = new Set();
+    for (const o of panelOccs) {
+      const p = o.placement;
+      const start = axis === "col" ? (p.col ?? 0) : (p.row ?? 0);
+      const span = axis === "col" ? (p.width ?? 1) : (p.height ?? 1);
+      for (let i = 0; i < Math.max(1, span); i++) set.add(start + i);
+    }
+    return [...set].sort((a, b) => a - b);
+  }, [panelOccs]);
+
+  const minRows = useMemo(() => Math.max(1, occupiedAxis("row").length), [occupiedAxis]);
+  const minCols = useMemo(() => Math.max(1, occupiedAxis("col").length), [occupiedAxis]);
+
+  // Resize one axis. On SHRINK, compact panels into a contiguous left/up-packed
+  // range so empty interior lines are squeezed out (panels keep relative order +
+  // span; spans stay contiguous because a panel's cells are all occupied). Can't
+  // shrink below the occupied COUNT — that would force an overlap.
+  const commitAxis = useCallback((axis, val) => {
     if (!gridId) return;
-    const num = Math.max(1, Number(val) || 1);
-    setCols(String(num));
-    CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { cols: num }, emit: true });
-  }, [dispatch, socket, gridId]);
+    const occ = occupiedAxis(axis);
+    const minN = Math.max(1, occ.length);
+    const num = Math.max(minN, Number(val) || 1);
+    const curN = axis === "col" ? (grid?.cols ?? 1) : (grid?.rows ?? 1);
+    if (num < curN) {
+      // Map each occupied line to its contiguous rank (0,1,2,…).
+      const rank = {};
+      occ.forEach((line, i) => { rank[line] = i; });
+      for (const o of panelOccs) {
+        const p = o.placement;
+        const start = axis === "col" ? (p.col ?? 0) : (p.row ?? 0);
+        const next = rank[start];
+        if (next === undefined || next === start) continue;
+        const placement = axis === "col" ? { ...p, col: next } : { ...p, row: next };
+        CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: o.id, placement }, emit: true });
+      }
+    }
+    if (axis === "col") {
+      setCols(String(num));
+      CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { cols: num }, emit: true });
+    } else {
+      setRows(String(num));
+      CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { rows: num }, emit: true });
+    }
+  }, [dispatch, socket, gridId, occupiedAxis, panelOccs, grid?.cols, grid?.rows]);
+
+  const commitRows = useCallback((val) => commitAxis("row", val), [commitAxis]);
+  const commitCols = useCallback((val) => commitAxis("col", val), [commitAxis]);
 
   const deleteGrid = useCallback(() => {
     if (!gridId) return;
@@ -141,10 +189,10 @@ export function GridSettingsTab() {
       {/* Rows + Cols */}
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <label className="text-[10px] text-foregroundScale-2 block mb-1">Rows</label>
+          <label className="text-[10px] text-foregroundScale-2 block mb-1">Rows{minRows > 1 ? ` (min ${minRows})` : ""}</label>
           <input
             type="number"
-            min={1}
+            min={minRows}
             max={24}
             className={inputCls}
             value={rows}
@@ -154,10 +202,10 @@ export function GridSettingsTab() {
           />
         </div>
         <div>
-          <label className="text-[10px] text-foregroundScale-2 block mb-1">Cols</label>
+          <label className="text-[10px] text-foregroundScale-2 block mb-1">Cols{minCols > 1 ? ` (min ${minCols})` : ""}</label>
           <input
             type="number"
-            min={1}
+            min={minCols}
             max={24}
             className={inputCls}
             value={cols}

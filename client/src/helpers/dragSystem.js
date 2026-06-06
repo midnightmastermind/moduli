@@ -147,55 +147,43 @@ export function getWindowId() {
 // cursor on drag. Used by useDragDrop so every
 // module's preview reads identically — solid surface, border, shadow,
 // regardless of the source element's own background.
-function attachDragPreview(el, location, nativeSetDragImage) {
-  const rect = el.getBoundingClientRect();
-  const cursorX = location.initial.input.clientX;
-  const cursorY = location.initial.input.clientY;
-  const offsetX = Math.round(cursorX - rect.left);
-  const offsetY = Math.round(cursorY - rect.top);
+function attachDragPreview(el, location, nativeSetDragImage, opts = {}) {
+  // Build the preview FROM DATA (label + status) rather than cloning the source
+  // element. Cloning produced an empty box: the source's children use
+  // flex:1 / width:100% / min-width:0 and collapse once detached from their
+  // layout, and source CSS hides handles/hover-only bits. A purpose-built card
+  // always has content. The STATUS sits underneath the label in this SAME
+  // element (it's the native drag image, so it tracks the cursor with zero lag —
+  // no separate JS-followed pill that trails behind).
+  const label = (opts.label != null && String(opts.label).trim()) || "item";
+  const action = opts.action || (location?.initial?.input?.altKey ? "Copy" : "Move");
   setCustomNativeDragPreview({
     nativeSetDragImage,
-    getOffset: () => ({ x: offsetX, y: offsetY }),
+    getOffset: () => ({ x: 12, y: 12 }),
     render: ({ container }) => {
-      const clone = el.cloneNode(true);
-      // The clone gets appended into Pragmatic DnD's preview container,
-      // which is detached from the source's flex/grid layout. Without
-      // explicit dimensions the clone collapses (children using
-      // `flex: 1`, `width: 100%`, or `min-width: 0` shrink to 0) and
-      // the user sees just an empty shell.
-      clone.style.width = `${rect.width}px`;
-      clone.style.height = `${rect.height}px`;
-      clone.style.maxWidth = `${rect.width}px`;
-      clone.style.maxHeight = `${rect.height}px`;
-      clone.style.boxSizing = "border-box";
-      clone.style.opacity = '1';
-      clone.style.transform = 'none';
-      // Match the info-pill background opacity (`rgba(15,25,40,0.92)`)
-      // so the preview reads as a solid card, not a faded ghost. The
-      // earlier `var(--surface-overlay)` resolved to a semi-transparent
-      // overlay on some themes — content showed THROUGH it, looking
-      // "dim" + "empty" even when children were rendered.
-      clone.style.background = 'rgba(15, 25, 40, 0.92)';
-      clone.style.border = '1px solid rgba(120, 170, 220, 0.45)';
-      clone.style.borderRadius = '8px';
-      clone.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.5)';
-      clone.style.padding = '4px 8px';
-      // Force-visible every descendant. Source-side CSS rules like
-      // `.dragging .x { opacity: 0 }` or hover-only reveals (handles,
-      // tooltips, etc.) would otherwise hide content in the clone too.
-      // The clone is a static visual; nothing needs to be hidden.
-      clone.classList.remove("dragging");
-      const allDescendants = clone.querySelectorAll("*");
-      allDescendants.forEach((n) => {
-        n.classList.remove("dragging");
-        // Skip elements the source intentionally marks invisible
-        // (handles that fade in on hover, etc.). For everything else,
-        // pin opacity 1 so we don't render an outline-only card.
-        if (n.style && n.style.opacity !== "" && parseFloat(n.style.opacity) < 0.5) return;
-        n.style.opacity = "1";
-        n.style.visibility = "visible";
+      const card = document.createElement("div");
+      Object.assign(card.style, {
+        display: "inline-flex", flexDirection: "column", gap: "1px",
+        maxWidth: "260px", padding: "5px 9px", borderRadius: "8px",
+        // Less opaque than before (was 0.92) per request.
+        background: "rgba(15, 25, 40, 0.62)",
+        border: "1px solid rgba(120, 170, 220, 0.4)",
+        boxShadow: "0 6px 18px rgba(0, 0, 0, 0.4)",
+        fontFamily: "var(--font-mono, monospace)", color: "#e6eefc",
+        pointerEvents: "none",
       });
-      container.appendChild(clone);
+      const title = document.createElement("div");
+      title.textContent = label;
+      Object.assign(title.style, {
+        fontSize: "12px", fontWeight: "600",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "242px",
+      });
+      const status = document.createElement("div");
+      status.textContent = action;
+      Object.assign(status.style, { fontSize: "10px", opacity: "0.7", letterSpacing: "0.02em" });
+      card.appendChild(title);
+      card.appendChild(status);
+      container.appendChild(card);
     },
   });
 }
@@ -810,7 +798,12 @@ export function useDragDrop({
         if (typeof window !== "undefined" && window.__dragDiag === true) {
           console.log("[dragDiag] genPreview (native ghost)", { type, id, nativeEnabled });
         }
-        if (nativeEnabled) attachDragPreview(el, location, nativeSetDragImage);
+        if (nativeEnabled) {
+          const label = data?.label || data?.name || data?.occurrence?.label || "item";
+          const mode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? "move";
+          const action = mode === "copy" ? "Copy" : mode === "copylink" ? "Copy-link" : "Move";
+          attachDragPreview(el, location, nativeSetDragImage, { label, action });
+        }
       },
       onDragStart: ({ location }) => {
         setIsDragging(true);

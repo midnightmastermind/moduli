@@ -48,6 +48,26 @@ import { summarizeSelection } from "../ui/filterSummary";
 // override (caller falls back to module.label).
 const SCHEDULE_LABEL_PREFIX = "Schedule - ";
 const ISO_DAY_RX = /^\d{4}-\d{2}-\d{2}/;
+// Embedded-container header font size by section-hierarchy level (meta.headingLevel).
+// 1 = article title (H1) … 6. Smaller + cascading; containers without a level
+// use the default 15.
+const HEADING_SIZES = { 1: 18, 2: 16, 3: 14, 4: 13, 5: 12, 6: 12 };
+const HEADING_WEIGHTS = { 1: 700, 2: 650, 3: 600, 4: 600, 5: 600, 6: 600 };
+
+// Container-header label overflow behavior, configurable per-occurrence via
+// `occurrence.meta.labelOverflow` (falls back to module.meta, then "marquee").
+//   marquee → AutoMarquee (scrolls when it overflows, inert when it fits)
+//   wrap    → wraps onto multiple lines
+//   none    → single line, clipped with an ellipsis
+function LabelShell({ mode, style, children, ...rest }) {
+  if (mode === "wrap") {
+    return <span {...rest} style={{ ...style, whiteSpace: "normal", overflowWrap: "anywhere", wordBreak: "break-word", overflow: "hidden" }}>{children}</span>;
+  }
+  if (mode === "none") {
+    return <span {...rest} style={{ ...style, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{children}</span>;
+  }
+  return <span {...rest} style={{ ...style, overflow: "hidden" }}><AutoMarquee>{children}</AutoMarquee></span>;
+}
 function computeScheduleColLabel(occurrence, module) {
   if (!module?.label || !module.label.startsWith(SCHEDULE_LABEL_PREFIX)) return null;
   const override = occurrence?.filterOverride;
@@ -318,10 +338,21 @@ function Container({
   // / multi via the chevron picker), recompute the title to match —
   // otherwise the day-col stays stamped with its CREATE-time single date.
   // For every other container this falls back to module.label byte-identical.
+  // occurrence.label is a per-placement override (set by ops — e.g. the
+  // date-prefix goal/tracker labels). It wins over the schedule-col computed
+  // label and the module base label. Day-cols never set occurrence.label, so
+  // they keep computeScheduleColLabel; everything else falls back to module.label.
   const displayLabel = useMemo(
-    () => computeScheduleColLabel(containerOccurrence, module) ?? module.label,
+    () => containerOccurrence?.label ?? computeScheduleColLabel(containerOccurrence, module) ?? module.label,
     [containerOccurrence, module]
   );
+
+  // Section-hierarchy header sizing (imported docs stamp meta.headingLevel
+  // 1=article … 6). Falls back to the default 20/700 for every other container.
+  const headerFontSize = HEADING_SIZES[module?.meta?.headingLevel] || 20;
+  const headerFontWeight = HEADING_WEIGHTS[module?.meta?.headingLevel] || 700;
+  // Per-occurrence header label overflow: marquee (default) | wrap | none.
+  const labelOverflow = containerOccurrence?.meta?.labelOverflow ?? module?.meta?.labelOverflow ?? "marquee";
 
   // Editor↔field binding for the container header. When set, the contentEditable
   // / static label is replaced by a BoundHeader that reads/writes the linked
@@ -743,7 +774,9 @@ function Container({
         className={`container-header module-header-row no-select ${embedded ? "embedded-container-header" : ""}`}
         style={embedded
           ? { padding: "0", alignItems: "stretch", flexDirection: "column", ...embeddedHeaderStyle }
-          : { height: "20px", gap: 6, padding: "2px 3px" }
+          : module.kind === "board"
+            ? { gap: 6, padding: "4px 3px 2px 3px", minHeight: "20px" } // +2px above the items
+            : { height: "20px", gap: 6, padding: "2px 3px" }
         }
         onContextMenu={(e) => {
           if ("ontouchstart" in window) return;
@@ -849,7 +882,7 @@ function Container({
         {embedded ? (
           /* Embedded: single-row header — handle + #label + filter */
           <>
-            <div style={{ display: "flex", alignItems: "center", padding: "0px 4px 0px 2px", minHeight: 12, gap: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", padding: "4px 4px 0px 2px", minHeight: 12, gap: 4 }}>
               <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <PopoverAnchor asChild>
                   <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" data-dnd-handle="true" style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}>
@@ -893,42 +926,46 @@ function Container({
                   />
                 </PopoverContent>
               </Popover>
-              <span className="embedded-hash" style={{ fontSize: 20, fontWeight: 700, color: embeddedAccent, fontFamily: "var(--font-mono)" }}>#</span>
+              <span className="embedded-hash" style={{ fontSize: headerFontSize, fontWeight: headerFontWeight, color: embeddedAccent, fontFamily: "var(--font-mono)" }}>#</span>
               {headerBinding ? (
-                <span
+                <LabelShell
+                  mode={labelOverflow}
                   onPointerDown={(e) => e.stopPropagation()}
-                  style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: embeddedAccent, lineHeight: 1.2, flex: 1, minWidth: 0, overflow: "hidden" }}
+                  style={{ fontFamily: "var(--font-mono)", fontSize: headerFontSize, fontWeight: headerFontWeight, color: embeddedAccent, lineHeight: 1.2, flex: 1, minWidth: 0 }}
                 >
-                  <AutoMarquee>
-                    <BoundHeader
-                      hostOccurrence={containerOccurrence}
-                      binding={headerBinding}
-                      markdownPrefix=""
-                      label={displayLabel || "Container"}
-                    />
-                  </AutoMarquee>
-                </span>
+                  <BoundHeader
+                    hostOccurrence={containerOccurrence}
+                    binding={headerBinding}
+                    markdownPrefix=""
+                    label={displayLabel || "Container"}
+                  />
+                </LabelShell>
               ) : (
-                <span
-                  contentEditable
-                  suppressContentEditableWarning
-                  onBlur={(e) => {
-                    const next = e.currentTarget.textContent.trim();
-                    if (next && next !== module.label) {
-                      CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next }, emit: true });
-                    } else {
-                      e.currentTarget.textContent = displayLabel || "Container";
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
-                    e.stopPropagation();
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  style={{ outline: "none", cursor: "text", fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: embeddedAccent, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}
+                <LabelShell
+                  mode={labelOverflow}
+                  style={{ fontFamily: "var(--font-mono)", fontSize: headerFontSize, fontWeight: headerFontWeight, color: embeddedAccent, lineHeight: 1.2, flex: 1, minWidth: 0 }}
                 >
-                  {displayLabel || "Container"}
-                </span>
+                  <span
+                    contentEditable
+                    suppressContentEditableWarning
+                    onBlur={(e) => {
+                      const next = e.currentTarget.textContent.trim();
+                      if (next && next !== module.label) {
+                        CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next }, emit: true });
+                      } else {
+                        e.currentTarget.textContent = displayLabel || "Container";
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+                      e.stopPropagation();
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    style={{ outline: "none", cursor: "text", whiteSpace: "inherit", wordBreak: "inherit" }}
+                  >
+                    {displayLabel || "Container"}
+                  </span>
+                </LabelShell>
               )}
               <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0, marginLeft: "auto" }}>
               </div>

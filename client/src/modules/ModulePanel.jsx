@@ -21,6 +21,7 @@ import { useGridActionsSelector } from "../GridActionsContext";
 import { GridDataContext } from "../GridDataContext";
 import { GridLiveContext } from "../GridLiveContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { setCurrentLocation } from "../helpers/currentLocation";
 import {
   getPanelContainers,
   getContainerItems,
@@ -297,6 +298,19 @@ function Panel({
   // lives on panelOccurrence.meta.autohide and is read further down (after
   // panelOccurrence is resolved).
   const [headerRevealed, setHeaderRevealed] = useState(false);
+  // Measured natural height of the autohide header cluster, so it can slide
+  // (animate max-height) in/out smoothly instead of popping.
+  const headerInnerRef = useRef(null);
+  const [headerH, setHeaderH] = useState(0);
+  useEffect(() => {
+    const el = headerInnerRef.current;
+    if (!el) return;
+    const measure = () => setHeaderH(el.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const [pendingDrilldown, setPendingDrilldown] = useState(null);
   const [dropdownAnchor, setDropdownAnchor] = useState(null);
   const openDropdown = useCallback((e) => setDropdownAnchor(e.currentTarget.getBoundingClientRect()), []);
@@ -615,6 +629,19 @@ function Panel({
 
   const openPage = useCallback((occId, options = {}) => {
     if (!occId || !panelOccurrence?.id) return;
+    // Record "current location" for the assistant ("here" / "this folder").
+    // A folder-page resolves to its underlying folder (id + name) so an import
+    // lands in the folder; any other page resolves to the page occurrence.
+    try {
+      const occ = occurrencesById?.[occId];
+      const mod = occ && modulesById?.[occ.moduleId || occ.targetId];
+      if (mod?.kind === "folder" && mod?.role === "page" && occ?.parentId) {
+        const folder = foldersById?.[occ.parentId];
+        setCurrentLocation({ id: occ.parentId, label: folder?.name || mod.label || "folder", type: "folder" });
+      } else if (occ) {
+        setCurrentLocation({ id: occId, label: mod?.label || "page", type: "page" });
+      }
+    } catch { /* location is best-effort — never block navigation */ }
     const { drilldownTarget } = options;
     if (drilldownTarget) {
       setPendingDrilldown(drilldownTarget);
@@ -659,7 +686,7 @@ function Panel({
     if (currentView?.id) {
       CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: occId }, emit: true });
     }
-  }, [panelOccurrence, currentView, dispatch, socket, viewsById, modulesById, occurrencesById]);
+  }, [panelOccurrence, currentView, dispatch, socket, viewsById, modulesById, occurrencesById, foldersById]);
 
   // Sidebar-aware page open: anything that opens a page from the Local/Root
   // tree should also collapse the sidebar (user requested: selecting closes it).
@@ -1112,14 +1139,31 @@ function Panel({
           // reveals them. When revealed they stay in normal flow and push the
           // page content down (not overlaid). When NOT autohiding, render inline.
           const headersVisible = !autohide || headerRevealed;
+          // When autohiding, keep the cluster mounted and animate its measured
+          // height + opacity so it SLIDES in/out (instead of popping). The inner
+          // div is measured via ResizeObserver → headerH. Non-autohide panels
+          // render the header inline, unchanged.
           const headerCluster = (
             <div
               onMouseEnter={() => autohide && setHeaderRevealed(true)}
               onMouseLeave={() => autohide && setHeaderRevealed(false)}
-              style={{ flexShrink: 0 }}
+              style={autohide ? {
+                flexShrink: 0,
+                overflow: "hidden",
+                // Fallback to a generous cap when the natural height hasn't been
+                // measured yet (the cluster starts collapsed, so the mount-time
+                // measure can read 0) — otherwise the header would never reveal
+                // on hover. The cap only bounds the slide animation.
+                maxHeight: headersVisible ? (headerH || 1000) : 0,
+                opacity: headersVisible ? 1 : 0,
+                pointerEvents: headersVisible ? "auto" : "none",
+                transition: "max-height 260ms cubic-bezier(0.22,1,0.36,1), opacity 200ms ease",
+              } : { flexShrink: 0 }}
             >
-              {pageHeader}
-              {breadcrumbBar}
+              <div ref={headerInnerRef}>
+                {pageHeader}
+                {breadcrumbBar}
+              </div>
             </div>
           );
 
@@ -1133,7 +1177,8 @@ function Panel({
                   style={{ position: "absolute", top: 0, left: 0, right: 0, height: 8, zIndex: 40, cursor: "pointer" }}
                 />
               )}
-              {headersVisible && headerCluster}
+              {/* Always mounted so autohide can animate; non-autohide is always visible. */}
+              {headerCluster}
               {/* On desktop: sidebars push content (flex row). On mobile: sidebars overlay (absolute). */}
               <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", position: "relative" }}>
                 {/* Local tree sidebar — LEFT, pushes content on desktop, overlays on mobile */}

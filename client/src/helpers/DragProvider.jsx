@@ -197,19 +197,11 @@ export function DragProvider({
   // import pipeline will run when they release.
   const [externalImportPreview, setExternalImportPreview] = useState(null);
 
-  // Internal-drag preview pill. Mirrors `externalImportPreview` but for
-  // Pragmatic DnD drags of occurrences/containers/panels/artifacts —
-  // says "Move X here", "Copy X here", "Link X here" instead of the
-  // external "Convert text".
-  //
-  // State holds only the QUALITATIVE shape (action / source label /
-  // destination). The pixel POSITION is in a ref and pushed straight
-  // to the DOM via a direct style write on each rAF tick — avoids
-  // 60-Hz React re-renders that cascade through the DragProvider
-  // subtree and cause drop-highlight CSS classes to flicker.
-  const [internalDragPreview, setInternalDragPreview] = useState(null);
-  const internalPreviewElRef = useRef(null);
-  const internalPreviewPosRef = useRef({ x: 0, y: 0 });
+  // NOTE: internal Pragmatic DnD drags no longer render a JS-followed
+  // cursor pill. The action verb (Move / Copy / Copy-link) + the source
+  // label now live INSIDE the native drag image (see dragSystem.js
+  // `attachDragPreview`), which the OS moves with zero lag. The live
+  // destination is conveyed by the container drop-highlight ring.
 
   const activeType = activePayload?.type || null;
   const activeId = activePayload?.id || null;
@@ -522,7 +514,6 @@ export function DragProvider({
 
     setActivePayload(null);
     setPanelOverCellId(null);
-    setInternalDragPreview(null);
     lastHotRef.current = { panelId: null, containerId: null, instanceId: null };
     lastPreviewRef.current = { containerId: null, instanceId: null, panelId: null };
     setDropHighlight(null);
@@ -697,74 +688,6 @@ export function DragProvider({
           });
         }
         lastHotRef.current = { panelId, containerId, containerOccId, instanceId, instanceOccId };
-      }
-
-      // ── Internal drag preview pill update ─────────────────────────
-      // Two paths:
-      //   1. Position (x/y) — ref + direct DOM write. Every tick.
-      //      Bypasses React entirely, so the 60-Hz move stream doesn't
-      //      cause re-renders that ripple into drop-highlight code
-      //      (was making highlights flicker on mouse-move).
-      //   2. Qualitative shape (action / source label / destination) —
-      //      React state. setInternalDragPreview only fires when one
-      //      of those actually changes (rarely — when the user crosses
-      //      into a different container or page), so re-renders are
-      //      bounded by destination transitions, not by mouse pixels.
-      {
-        const payload = s.payload;
-        if (payload) {
-          // Write position directly to the DOM (cheap; no React).
-          internalPreviewPosRef.current.x = clientX;
-          internalPreviewPosRef.current.y = clientY;
-          const el = internalPreviewElRef.current;
-          if (el) {
-            el.style.left = `${clientX + 14}px`;
-            el.style.top = `${clientY + 14}px`;
-          }
-
-          const mode = s.mode || "move";
-          const action =
-            mode === "copy"     ? "Copy"
-            : mode === "copylink" ? "Link"
-            :                       "Move";
-          const sourceLabel =
-            payload.data?.label
-            || payload.data?.name
-            || payload.meta?.label
-            || payload.id
-            || "item";
-          let destination = null;
-          if (containerId) {
-            const c = baseContainers.find(c => c.id === containerId);
-            if (c) destination = { kind: "container", label: c.label || "container" };
-          }
-          if (!destination) {
-            const hoverEl = document.elementFromPoint?.(clientX, clientY);
-            const pageNode = hoverEl?.closest?.("[data-page-occ-id]");
-            const pageOccId = pageNode?.getAttribute?.("data-page-occ-id");
-            if (pageOccId && occurrencesById[pageOccId]) {
-              const pageOcc = occurrencesById[pageOccId];
-              const pageMod = state?.modulesById?.[pageOcc.moduleId];
-              destination = { kind: "page", label: pageMod?.label || "page" };
-            }
-          }
-          if (!destination && cell) {
-            destination = { kind: "cell", label: "new panel" };
-          }
-          // Qualitative diff — only state-update when something the
-          // user can SEE in the pill changes.
-          setInternalDragPreview(prev => {
-            if (prev
-              && prev.action === action
-              && prev.sourceLabel === sourceLabel
-              && prev.destination?.kind === destination?.kind
-              && prev.destination?.label === destination?.label) return prev;
-            if (window.__dragDiag === true) {
-              console.log("[dragDiag] preview set", { firstShow: !prev, action, sourceLabel, destination });
-            }
-            return { action, sourceLabel, destination };
-          });
-        }
       }
 
       if (s.payload?.type === DragType.PANEL) {
@@ -1523,19 +1446,6 @@ export function DragProvider({
             destination={externalImportPreview.destination}
           />
         )}
-        {internalDragPreview && (
-          <InternalDragPreview
-            innerRef={internalPreviewElRef}
-            initialX={internalPreviewPosRef.current.x}
-            // Stack below the external preview's reserved 28px slot
-            // when both are visible (shouldn't normally overlap once
-            // the dragover guard is wired, but defensive).
-            initialY={internalPreviewPosRef.current.y + (externalImportPreview ? 28 : 0)}
-            action={internalDragPreview.action}
-            sourceLabel={internalDragPreview.sourceLabel}
-            destination={internalDragPreview.destination}
-          />
-        )}
       </DragHotContext.Provider>
     </DragContext.Provider>
   );
@@ -1579,53 +1489,6 @@ function ExternalImportPreview({ x, y, format, destination }) {
       }}
     >
       <span>{action}</span>
-      {dest && (
-        <span style={{ opacity: 0.7, fontWeight: 400 }}>{dest}</span>
-      )}
-    </div>
-  );
-}
-
-// Floating preview pill rendered near the cursor during an INTERNAL
-// Pragmatic DnD drag (occurrence / container / panel / artifact /
-// textblock). Mirrors ExternalImportPreview's chrome but reads the
-// action verb from the drag session's mode (move / copy / copylink)
-// and the source label from the payload data. Sibling to the
-// external pill; both stay position:fixed + pointer-events:none so
-// neither intercepts the drop.
-function InternalDragPreview({ innerRef, initialX, initialY, action, sourceLabel, destination }) {
-  const dest = destination
-    ? (destination.kind === "cell"
-        ? "→ new panel in this cell"
-        : `→ into ${destination.label}`)
-    : null;
-  return (
-    <div
-      ref={innerRef}
-      style={{
-        position: "fixed",
-        left: initialX + 14,
-        top: initialY + 14,
-        zIndex: 9999,
-        pointerEvents: "none",
-        padding: "4px 10px",
-        borderRadius: 999,
-        fontSize: 11,
-        fontFamily: "var(--font-mono)",
-        fontWeight: 500,
-        background: "rgba(15, 25, 40, 0.92)",
-        color: "rgb(180, 225, 245)",
-        border: "1px solid rgba(120, 170, 220, 0.45)",
-        boxShadow: "0 4px 14px rgba(0,0,0,0.45)",
-        whiteSpace: "nowrap",
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        maxWidth: 360,
-      }}
-    >
-      <span>{action}</span>
-      <span style={{ opacity: 0.92, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>{sourceLabel}</span>
       {dest && (
         <span style={{ opacity: 0.7, fontWeight: 400 }}>{dest}</span>
       )}

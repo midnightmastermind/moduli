@@ -56,7 +56,7 @@ const OVERFLOW_STYLE = {
 const VISIBLE_MAX = 6;        // hard cap on inline chips; overflow → "+N"
 const PEEK_OFFSET = 14;       // px each older card peeks past the previous
 const CHIP_HEIGHT = 22;       // matches SocketStatusBanner pill height
-const CHIP_WIDTH = 180;       // fixed chip width — labels marquee inside
+const CHIP_WIDTH = 280;       // fixed chip width — labels marquee inside
 const OVERFLOW_PILL_WIDTH = 36;
 const LABEL_TRACK_GAP = 28;
 const MARQUEE_PX_PER_SEC = 36;
@@ -416,9 +416,9 @@ function OverflowPill({ count, leftPx, allItems, now }) {
           style={{
             position: "fixed",
             top: anchorRect.bottom + 6,
-            left: Math.max(8, Math.min(window.innerWidth - 268, anchorRect.right - 260)),
+            left: Math.max(8, Math.min(window.innerWidth - 388, anchorRect.right - 380)),
             zIndex: 10000,
-            width: 260,
+            width: 380,
             maxHeight: "70vh",
             overflowY: "auto",
             padding: 6,

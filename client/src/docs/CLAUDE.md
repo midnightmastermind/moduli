@@ -1,6 +1,37 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-05-20. Check this file before re-reading source._
+_Updated: 2026-06-06. Check this file before re-reading source._
+
+## Recent Changes (2026-06-06 — CRASH FIX: renderBody contract — "(destructured parameter) is undefined")
+- **`ModuleEmbedNode.jsx`** — the textblock + artifact embed branches passed the
+  BARE component as `renderBody={TextblockCard}` / `renderBody={ArtifactCard}`.
+  But `ModuleInstance` invokes `renderBody()` with NO arguments (it's a zero-arg
+  closure — see `ModuleContainer.jsx` `renderBody = () => <TextblockCard
+  occurrence={occ} module={mod} />`). So `TextblockCard(undefined)` destructured
+  `{ occurrence, module }` off `undefined` → React crash "(destructured parameter)
+  is undefined", which took down the whole panel during Wikipedia import (the
+  imported prose/media render through these embed branches). Both sites now pass
+  the closure form `renderBody={() => <TextblockCard occurrence={occurrence}
+  module={mod} />}` / `renderBody={() => <ArtifactCard module={mod}
+  label={mod.label} occurrence={occurrence} />}`. Build clean.
+
+## Recent Changes (2026-06-06 — embedded textblock/artifact drag handles + inline link chips)
+- **`ModuleEmbedNode.jsx`** — embedded `role:"textblock"` now renders through
+  `ModuleInstance` (renderBody=TextblockCard) instead of bare `<TextblockCard>`,
+  so imported/embedded textblocks get the GripVertical drag handle + radial menu
+  (they had none before). Also: imported media artifacts are `role:"artifact"`
+  with a media `kind` (image/audio/…) and NO view, so the old
+  `mod.kind === "artifact"` branch never matched and they fell to the
+  `<Container>` fallback (rendered nothing — the image bug). New routing:
+  `occView.viewType === "display"` → ArtifactContent; else `role === "artifact"`
+  → ModuleInstance(renderBody=ArtifactCard) (renders + drag handle); else
+  Container.
+- **`pills/InstanceTextblockInlineNode.jsx`** — when the occurrence carries
+  `meta.link`, the inline node renders a clickable CHIP (url → `<a target=_blank>`,
+  occurrence → `→` chip) instead of editable text. Chip is `display:inline;
+  white-space:normal` so it WRAPS across lines; the whole node is the drag handle
+  (existing `wrapperRef` draggable, `canDrag` false while editing). The markdown
+  importer emits these for prose `[text](url)` links (see server/CLAUDE.md).
 
 ## Recent Changes (2026-05-20 — InstanceTextblockNode body binding gate)
 - **pills/InstanceTextblockNode.jsx**: new `bodyBinding` memo at component

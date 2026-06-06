@@ -51,15 +51,26 @@ describe("htmlToMarkdown — default (Wikipedia-summary) behavior", () => {
     expect(md).toContain("- Two");
   });
 
-  it("preserves inline marks + external links, strips wiki-internal links", () => {
-    const html = `<p>This is <b>bold</b>, <i>italic</i>, and <code>x</code>. See <a href="https://example.com">site</a> and <a href="/wiki/Foo">internal</a>.</p>`;
+  it("preserves inline marks + external links, resolves wiki-internal links to absolute URLs", () => {
+    const html = `<p>This is <b>bold</b>, <i>italic</i>, and <code>x</code>. See <a href="https://example.com">site</a>, <a href="/wiki/Foo">internal</a>, and <a href="./Bar_Baz">rel</a>.</p>`;
     const md = htmlToMarkdown(html);
     expect(md).toContain("**bold**");
     expect(md).toContain("*italic*");
     expect(md).toContain("`x`");
     expect(md).toContain("[site](https://example.com)");
-    expect(md).toContain(" internal");           // wiki link rendered as plain text
+    // wiki-internal links are now absolute, clickable links (not stripped)
+    expect(md).toContain("[internal](https://en.wikipedia.org/wiki/Foo)");
+    expect(md).toContain("[rel](https://en.wikipedia.org/wiki/Bar_Baz)");
     expect(md).not.toContain("](/wiki/Foo)");
+    expect(md).not.toContain("](./Bar_Baz)");
+  });
+
+  it("intra-page #anchors and unknown relatives drop to plain text", () => {
+    const html = `<p>See <a href="#cite_note-1">[1]</a> and <a href="weird/rel">thing</a>.</p>`;
+    const md = htmlToMarkdown(html);
+    expect(md).not.toContain("](#");
+    expect(md).not.toContain("](weird/rel)");
+    expect(md).toContain("thing");
   });
 
   it("prepends fallbackTitle as H1 only when no leading heading exists", () => {

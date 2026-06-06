@@ -8,9 +8,93 @@
 // No auth needed. Rate limits are generous (no key required for our
 // scale). All calls send a descriptive User-Agent per Wikipedia ToS.
 
+import TurndownService from "turndown";
+import { gfm } from "turndown-plugin-gfm";
+import { load as cheerioLoad } from "cheerio";
+
 const UA = "Moduli/1.0 (https://moduli.local; jarvis-assistant) node-fetch";
 const API_BASE = "https://en.wikipedia.org/w/api.php";
 const REST_BASE = "https://en.wikipedia.org/api/rest_v1";
+
+// Boilerplate to remove from a Wikipedia article body BEFORE markdown conversion.
+// cheerio selectors handle nesting reliably (unlike the old regex converter,
+// which leaked [edit] links, captions, and stray brackets).
+const WIKI_STRIP_SELECTORS = [
+  "style", "script", "link", "noscript", "meta",
+  ".mw-editsection", ".mw-editsection-bracket", ".mw-jump-link",
+  "sup.reference", ".reference", ".reflist", ".references", "ol.references",
+  ".navbox", ".navbox-styles", ".vertical-navbox", ".sidebar", ".sistersitebox",
+  ".infobox", "table.infobox", ".hatnote", ".dablink", ".ambox", ".navbar",
+  ".metadata", ".noprint", ".mw-empty-elt", ".toc", "#toc", ".portal",
+  ".shortdescription", ".mw-kartographer-maplink", ".mwe-math-mathml-a11y",
+  ".gallery", "[role='navigation']", "figure .magnify", ".thumbcaption .magnify",
+  "span.mw-editsection", ".error", ".mw-selflink",
+].join(",");
+
+// Convert Wikipedia article HTML → clean markdown using cheerio (reliable
+// element removal) + turndown (correct, nesting-aware HTML→MD). Replaces the
+// regex converter for the import path: no [edit] links, no leaked brackets, no
+// data-mw garbage, proper nested lists, real headings.
+export function wikiHtmlToMarkdown(html, title = "") {
+  const $ = cheerioLoad(html);
+  $(WIKI_STRIP_SELECTORS).remove();
+  // Anchors whose only text is "edit" (section edit links that survived).
+  $("a").each((_, a) => {
+    const t = ($(a).text() || "").trim().toLowerCase();
+    if (t === "edit" || t === "edit source") $(a).remove();
+  });
+  // Drop reference superscript markers like [1] left as plain anchors/sups.
+  $("sup").each((_, s) => { if (/^\[\d+\]$/.test(($(s).text() || "").trim())) $(s).remove(); });
+
+  const td = new TurndownService({
+    headingStyle: "atx",
+    bulletListMarker: "-",
+    codeBlockStyle: "fenced",
+    emDelimiter: "*",
+    strongDelimiter: "**",
+    hr: "---",
+  });
+  td.use(gfm);
+  // Figures → a BLOCK image whose alt is the caption, so the importer mints an
+  // artifact (image + caption as its label) instead of leaking the caption out
+  // as its own stray textblock.
+  td.addRule("figure", {
+    filter: ["figure"],
+    replacement: (_content, node) => {
+      const img = node.querySelector("img");
+      if (!img) return "";
+      let src = img.getAttribute("src") || "";
+      if (!src) return "";
+      if (src.startsWith("//")) src = "https:" + src;
+      const capEl = node.querySelector("figcaption");
+      const cap = ((capEl && capEl.textContent) || img.getAttribute("alt") || "")
+        .replace(/\s+/g, " ").trim();
+      return `\n\n![${cap}](${src})\n\n`;
+    },
+  });
+  // Links: resolve wiki-internal → absolute; drop intra-page anchors + cruft.
+  td.addRule("wikiLinks", {
+    filter: "a",
+    replacement: (content, node) => {
+      const text = (content || "").trim();
+      if (!text) return "";
+      let href = node.getAttribute("href") || "";
+      if (!href || href.startsWith("#")) return text;
+      if (href.startsWith("./")) href = "https://en.wikipedia.org/wiki/" + href.slice(2);
+      else if (href.startsWith("/wiki/")) href = "https://en.wikipedia.org" + href;
+      else if (href.startsWith("//")) href = "https:" + href;
+      else if (!/^https?:\/\//i.test(href)) return text;
+      return `[${text}](${href.split("#")[0]})`;
+    },
+  });
+  let md = td.turndown($.html());
+  // Protocol-relative URLs (//upload.wikimedia.org/…) → https so images/links work.
+  md = md.replace(/\]\(\/\//g, "](https://");
+  // Title H1 if the body doesn't already lead with one.
+  if (title && !/^#\s/.test(md)) md = `# ${title}\n\n${md}`;
+  md = md.replace(/\n{3,}/g, "\n\n").replace(/[ \t]+$/gm, "").trim();
+  return md;
+}
 
 function ua() { return { "User-Agent": UA, "Accept": "application/json" }; }
 
@@ -59,6 +143,37 @@ export async function summary(title) {
 // Returns: { title, markdown, url }
 export async function fullMarkdown(title) {
   if (!title) throw new Error("title required");
+  // Use the action=parse RENDERED html (clean, like the live page) instead of
+  // the Parsoid REST /page/html — Parsoid embeds data-mw JSON wikitext + RDFa
+  // that leaks into the output as raw garbage ({{hlist|…}}, "spouse":{"wt":…}).
+  // prop=text returns the article body html with ordinary /wiki/ links.
+  const api = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=text&format=json&formatversion=2&redirects=1`;
+  const res = await fetch(api, { headers: { ...ua() } });
+  if (!res.ok) {
+    if (res.status === 404) return null;
+    throw new Error(`Wikipedia parse ${res.status}`);
+  }
+  const j = await res.json();
+  const html = j?.parse?.text;
+  const resolved = j?.parse?.title || title;
+  if (!html) return null;
+  // cheerio (clean removal) + turndown (nesting-aware HTML→MD). markdownToModuli
+  // downstream turns this into doc containers + textblocks.
+  const md = wikiHtmlToMarkdown(html, resolved);
+  return {
+    title: resolved,
+    markdown: md,
+    url: `https://en.wikipedia.org/wiki/${encodeURIComponent(resolved.replace(/ /g, "_"))}`,
+  };
+}
+
+// Outbound ARTICLE links from an article, in document order, de-duped and
+// filtered to real article-namespace titles (skips File:/Help:/Category:/etc.
+// and self-links). Powers "make a page on X AND the surrounding links" — the
+// caller fans these out into one import per chosen title.
+const NON_ARTICLE_NS = /^(File|Image|Help|Category|Template|Wikipedia|Portal|Special|Talk|User|Module|Draft|MediaWiki|Book):/i;
+export async function links(title, max = 10) {
+  if (!title) throw new Error("title required");
   const url = `${REST_BASE}/page/html/${encodeURIComponent(title.replace(/ /g, "_"))}`;
   const res = await fetch(url, { headers: { ...ua(), "Accept": "text/html" } });
   if (!res.ok) {
@@ -66,12 +181,23 @@ export async function fullMarkdown(title) {
     throw new Error(`Wikipedia html ${res.status}`);
   }
   const html = await res.text();
-  const md = htmlToMarkdown(html, title);
-  return {
-    title,
-    markdown: md,
-    url: `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`,
-  };
+  const cap = Math.min(Math.max(Number(max) || 10, 1), 50);
+  const self = title.replace(/_/g, " ").toLowerCase();
+  const seen = new Set();
+  const out = [];
+  const re = /href=["'](?:\.\/|\/wiki\/)([^"'#]+)(?:#[^"']*)?["']/gi;
+  let m;
+  while (out.length < cap && (m = re.exec(html)) !== null) {
+    let t;
+    try { t = decodeURIComponent(m[1]); } catch { t = m[1]; }
+    t = t.replace(/_/g, " ").trim();
+    if (!t || NON_ARTICLE_NS.test(t)) continue;
+    const key = t.toLowerCase();
+    if (key === self || seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return { title, links: out };
 }
 
 // Dependency-free HTML → markdown converter.
@@ -186,13 +312,20 @@ export function htmlToMarkdown(html, fallbackTitle = "", opts = {}) {
   s = s.replace(/<(b|strong)[^>]*>([\s\S]*?)<\/\1>/gi, (_, __, t) => `**${stripTags(t)}**`);
   s = s.replace(/<(i|em)[^>]*>([\s\S]*?)<\/\1>/gi, (_, __, t) => `*${stripTags(t)}*`);
   s = s.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, (_, t) => `\`${stripTags(t)}\``);
-  // Links — preserve external URLs; strip wiki-internal /wiki/* into bare text
+  // Links — resolve wiki-internal links to ABSOLUTE Wikipedia URLs so the
+  // imported chips actually open the right article. The REST HTML uses `./X`
+  // (relative to /wiki/); rendered pages use `/wiki/X`. Intra-page `#anchors`
+  // and unknown relatives drop to plain text (no broken links).
   s = s.replace(/<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, t) => {
     const text = stripTags(t).trim();
     if (!text) return "";
-    if (href.startsWith("/wiki/")) return text;
     if (href.startsWith("#")) return text;
-    return `[${text}](${href})`;
+    let url = href;
+    if (url.startsWith("./")) url = `https://en.wikipedia.org/wiki/${url.slice(2)}`;
+    else if (url.startsWith("/wiki/")) url = `https://en.wikipedia.org${url}`;
+    else if (url.startsWith("//")) url = `https:${url}`;
+    else if (!/^https?:\/\//i.test(url)) return text; // unknown relative → plain text
+    return `[${text}](${url})`;
   });
   // Paragraphs
   s = s.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, (_, t) => `\n${stripTags(t).replace(/\s+/g, " ").trim()}\n\n`);

@@ -247,6 +247,17 @@ export default function InstanceForm({
             )}
           </div>
 
+          {/* Link (textblock mini-blocks only) */}
+          {instance?.role === "textblock" && occurrence && (
+            <LinkSettingsSection
+              occurrence={occurrence}
+              dispatch={dispatch}
+              socket={socket}
+              occurrencesById={occurrencesById}
+              modulesById={modulesById}
+            />
+          )}
+
           {/* Other Placements */}
           {instance && (
             <OtherPlacements
@@ -543,6 +554,115 @@ function OtherPlacements({ moduleId, excludeOccId, occurrencesById, modulesById 
             </div>
           ))}
         </div>
+      </div>
+    </>
+  );
+}
+
+/**
+ * LinkSettingsSection — turns a textblock mini-block into a clickable link.
+ * Writes occurrence.meta.link, which TextblockCard renders as a chip:
+ *   - { kind: "url", url }          → opens the URL in a new tab
+ *   - { kind: "occurrence", occId } → navigates to + flashes that occurrence
+ * Three modes: None / URL / In-app (search any occurrence by label).
+ */
+function LinkSettingsSection({ occurrence, dispatch, socket, occurrencesById, modulesById }) {
+  const link = occurrence?.meta?.link || null;
+  const isInternal = !!(link && (link.occId || link.target || link.kind === "occurrence"));
+  const isUrl = !!(link && !isInternal && (link.url || link.kind === "url"));
+  const mode = isInternal ? "internal" : isUrl ? "url" : "none";
+  const [search, setSearch] = useState("");
+
+  const setLink = useCallback((next) => {
+    if (!occurrence?.id) return;
+    CommitHelpers.updateOccurrence({
+      dispatch, socket, emit: true,
+      occurrence: { ...occurrence, meta: { ...(occurrence.meta || {}), link: next } },
+    });
+  }, [occurrence, dispatch, socket]);
+
+  const targetId = link?.occId || link?.target || null;
+  const targetLabel = useMemo(() => {
+    if (!targetId) return null;
+    const o = occurrencesById?.[targetId];
+    return o ? (modulesById?.[o.moduleId || o.targetId]?.label || targetId) : targetId;
+  }, [targetId, occurrencesById, modulesById]);
+
+  const matches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    const out = [];
+    for (const o of Object.values(occurrencesById || {})) {
+      if (o.id === occurrence?.id) continue;
+      const m = modulesById?.[o.moduleId || o.targetId];
+      const label = m?.label;
+      if (!label || !label.toLowerCase().includes(q)) continue;
+      out.push({ id: o.id, label, role: m.role });
+      if (out.length >= 12) break;
+    }
+    return out;
+  }, [search, occurrencesById, modulesById, occurrence?.id]);
+
+  const tabBtn = (m, txt) => (
+    <button
+      type="button"
+      onClick={() => {
+        if (m === "none") setLink(null);
+        else if (m === "url") setLink({ kind: "url", url: link?.url || "" });
+        else setLink({ kind: "occurrence", occId: targetId || "" });
+      }}
+      className={`text-[10px] px-2 py-0.5 rounded border ${mode === m ? "bg-accent-blue/20 border-accent-blue text-foreground" : "border-border text-muted-foreground"}`}
+    >{txt}</button>
+  );
+
+  return (
+    <>
+      <Separator />
+      <div className="py-2 space-y-2">
+        <h4 className="text-xs font-semibold text-foreground/70">Link</h4>
+        <div className="flex gap-1">{tabBtn("none", "None")}{tabBtn("url", "URL")}{tabBtn("internal", "In-app")}</div>
+
+        {mode === "url" && (
+          <Input
+            value={link?.url || ""}
+            onChange={(e) => setLink({ kind: "url", url: e.target.value })}
+            placeholder="https://…"
+            className="h-7 text-[11px]"
+          />
+        )}
+
+        {mode === "internal" && (
+          <div className="space-y-1">
+            <div className="text-[10px] text-muted-foreground">
+              Target: {targetLabel ? <span className="text-foreground">{targetLabel}</span> : <span className="opacity-60">— pick one —</span>}
+            </div>
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="search pages / containers / items…"
+              className="h-7 text-[11px]"
+            />
+            {matches.length > 0 && (
+              <div className="max-h-32 overflow-y-auto space-y-0.5">
+                {matches.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => { setLink({ kind: "occurrence", occId: o.id }); setSearch(""); }}
+                    className={`w-full text-left text-[10px] px-2 py-0.5 rounded border ${o.id === targetId ? "bg-accent-blue/20 border-accent-blue" : "border-border bg-muted/20"}`}
+                  >
+                    {o.label} <span className="opacity-45">{o.role}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <p className="text-[10px] text-muted-foreground/70">
+          {mode === "url" ? "Opens in a new tab when clicked."
+            : mode === "internal" ? "Navigates to + highlights the item when clicked."
+            : "This textblock renders as normal editable text."}
+        </p>
       </div>
     </>
   );

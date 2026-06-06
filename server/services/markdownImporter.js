@@ -65,36 +65,47 @@ function splitTableRow(line) {
 // non-image chunk runs through `parseInline` for marks (bold/italic/
 // code/link). Whitespace-only chunks are dropped so we don't mint empty
 // paragraphs around an image.
-function paragraphToBlocks(text) {
+function paragraphToBlocks(text, mintLink) {
   const blocks = [];
   const imgRe = /!\[([^\]]*)\]\(([^)]+)\)/g;
   let lastIdx = 0;
   let m;
   while ((m = imgRe.exec(text)) !== null) {
     const before = text.slice(lastIdx, m.index).replace(/\s+$/g, "");
-    if (before) blocks.push({ type: "paragraph", content: parseInline(before) });
+    if (before) blocks.push({ type: "paragraph", content: parseInline(before, mintLink) });
     blocks.push({ type: "image", attrs: { src: m[2], alt: m[1] || null } });
     lastIdx = m.index + m[0].length;
   }
   const tail = text.slice(lastIdx).replace(/^\s+/g, "");
-  if (tail) blocks.push({ type: "paragraph", content: parseInline(tail) });
+  if (tail) blocks.push({ type: "paragraph", content: parseInline(tail, mintLink) });
   // No image found AND no tail → the original paragraph; preserve it as one node.
-  if (!blocks.length) blocks.push({ type: "paragraph", content: parseInline(text) });
+  if (!blocks.length) blocks.push({ type: "paragraph", content: parseInline(text, mintLink) });
   return blocks;
 }
 
-function parseInline(text) {
+// `mintLink(label, url) → { occurrenceId, moduleId }` (optional). When provided,
+// each [text](url) becomes an INLINE textblock occurrence (role:"textblock"
+// kind:"inline" carrying meta.link) embedded via an `instanceTextblockInline`
+// node — so the link renders as a clickable chip that flows in the sentence
+// instead of an un-resolving inline link mark. When absent (bullet lists,
+// non-prose) links stay as plain link marks.
+function parseInline(text, mintLink) {
   const out = [];
   let i = 0;
   while (i < text.length) {
     // Link: [text](url)
     const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)/.exec(text.slice(i));
     if (linkMatch) {
-      out.push({
-        type: "text",
-        text: linkMatch[1],
-        marks: [{ type: "link", attrs: { href: linkMatch[2] } }],
-      });
+      if (mintLink) {
+        const { occurrenceId, moduleId } = mintLink(linkMatch[1], linkMatch[2]);
+        out.push({ type: "instanceTextblockInline", attrs: { occurrenceId, instanceId: moduleId } });
+      } else {
+        out.push({
+          type: "text",
+          text: linkMatch[1],
+          marks: [{ type: "link", attrs: { href: linkMatch[2] } }],
+        });
+      }
       i += linkMatch[0].length;
       continue;
     }
@@ -248,6 +259,12 @@ function blocksToTree(blocks, rootTitle) {
       peek().children.push(b);
     }
   }
+  // If the whole document sits under a single leading H1 (e.g. "# Eminem"),
+  // use that heading as the root — no redundant "Imported"/title wrapper around
+  // it (the page already carries the article title).
+  if (root.children.length === 1 && root.children[0].kind === "container") {
+    return root.children[0];
+  }
   return root;
 }
 
@@ -272,21 +289,30 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
     return occurrenceId;
   }
 
-  function buildInstanceLeaf(label) {
+  // Inline link → its own role:"textblock" kind:"inline" occurrence carrying
+  // meta.link. Embedded into the surrounding paragraph via an
+  // `instanceTextblockInline` node (see parseInline). The client renders it as a
+  // clickable chip that flows in the sentence. Returns BOTH ids so the inline
+  // node can carry occurrenceId (render/resolve) + instanceId (drag payload).
+  function buildInlineLink(label, url) {
     const moduleId = uid();
     const occurrenceId = uid();
+    const link = { kind: "url", url };
     modules.push({
       id: moduleId, userId, gridId,
-      role: "instance", kind: "board",
-      label,
+      role: "textblock", kind: "inline",
+      label: label || "",
+      meta: { link },
     });
     occurrences.push({
       id: occurrenceId, userId, gridId,
       moduleId, parentId: null,
-      fields: {},
+      meta: { link },
+      textmap: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: label || url }] }] },
     });
-    return occurrenceId;
+    return { occurrenceId, moduleId };
   }
+
 
   // Artifact leaf — a real role:"artifact" module with kind:"image"
   // (the dispatched renderer in modules/ArtifactCard.jsx). `fileRef`
@@ -386,19 +412,38 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
     const occurrenceId = uid();
     modules.push({
       id: moduleId, userId, gridId,
-      role: "container", kind: "board",
+      // Every section is a DOC container — it renders as a document (its textmap),
+      // Children: grouped rich textblocks (prose + bullet lists + inline marks/
+      // links), block images (artifacts), tables, and sub-sections — embedded
+      // inline via moduleEmbed nodes so it reads top-to-bottom like the article.
+      role: "container", kind: "doc",
       label: node.label || "Section",
+      // Section-hierarchy headers: follow the markdown heading depth directly —
+      // `#`=H1, `##`=H2, … (the synthetic root, level 0, renders as H1). The
+      // container header renders at this level (see ModuleContainer).
+      meta: { allowChildContainers: true, headingLevel: Math.min(node.level || 1, 6) },
     });
     const childIds = [];
+    // Image children get floated (align:"right") in the textmap so the following
+    // textblocks flow BESIDE them (article-like horizontal layout) — the doc
+    // editor's moduleEmbed already supports left/center/right/full float; the
+    // importer just opts images into it. Users can re-align per-embed in the UI.
+    const imageChildIds = new Set();
+    // Each block becomes its OWN child: every paragraph → its own textblock,
+    // every list → ONE textblock holding a bulletList, sub-sections → nested doc
+    // containers, images → artifacts, tables → table containers. (Paragraphs are
+    // NOT merged — the user wants one textblock per paragraph in the section.)
     for (const c of node.children || []) {
       if (c.kind === "container") {
         childIds.push(buildContainer(c, occurrenceId));
-      } else if (c.kind === "board") {
-        for (const item of c.items) {
-          childIds.push(buildInstanceLeaf(item));
-        }
       } else if (c.kind === "paragraph") {
-        childIds.push(buildTextblock(paragraphToBlocks(c.text)));
+        childIds.push(buildTextblock(paragraphToBlocks(c.text, buildInlineLink)));
+      } else if (c.kind === "board") {
+        childIds.push(buildTextblock([{
+          type: "bulletList",
+          content: (c.items || [])
+            .map((it) => ({ type: "listItem", content: [{ type: "paragraph", content: parseInline(String(it || "")) }] })),
+        }]));
       } else if (c.kind === "codeBlock") {
         childIds.push(buildTextblock([{
           type: "codeBlock",
@@ -408,7 +453,9 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
       } else if (c.kind === "htmlBlock") {
         childIds.push(buildHtmlPreviewBlock(c.html));
       } else if (c.kind === "image") {
-        childIds.push(buildArtifactImage({ alt: c.alt, src: c.src }));
+        const imgId = buildArtifactImage({ alt: c.alt, src: c.src });
+        childIds.push(imgId);
+        imageChildIds.add(imgId);
       } else if (c.kind === "table") {
         childIds.push(buildTable({ headers: c.headers, rows: c.rows }));
       }
@@ -417,7 +464,20 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
       id: occurrenceId, userId, gridId,
       moduleId, parentId: parentOccId || null,
       fields: {},
+      // Structural parent link (ancestry / cleanup) …
       occurrences: childIds,
+      // … plus the doc body: each child embedded inline so the section renders
+      // as a document. Empty sections keep TipTap's non-empty-doc invariant.
+      textmap: {
+        type: "doc",
+        content: childIds.length
+          ? childIds.map((id) => {
+              const attrs = { occurrenceId: id };
+              if (imageChildIds.has(id)) attrs.align = "right"; // float → text flows beside it
+              return { type: "moduleEmbed", attrs };
+            })
+          : [{ type: "paragraph" }],
+      },
     });
     return occurrenceId;
   }

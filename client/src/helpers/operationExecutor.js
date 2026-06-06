@@ -1180,6 +1180,11 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       ...occ,
       fields,
       label: occ.label ?? tpl?.label ?? tpl?.name ?? null,
+      // Stable TEMPLATE base label, regardless of any occurrence.label override.
+      // A label-decorating op (e.g. date-prefix goal/tracker names) reads this
+      // so it composes from the unchanging base and never re-prefixes its own
+      // previously-written occurrence.label.
+      moduleLabel: tpl?.label ?? tpl?.name ?? null,
       name: occ.name ?? tpl?.name ?? tpl?.label ?? null,
       role: occ.role ?? tpl?.role ?? null,
       kind: occ.kind ?? tpl?.kind ?? null,
@@ -1278,6 +1283,32 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       };
       const periodDates = expandPeriod(periodVal);
       const periodDatesOrToday = periodDates.length ? periodDates : [_todayLocal];
+      // Relative, human label for the active filter date — "Today" / "Yesterday"
+      // / "Tomorrow", else an ordinal calendar date ("July 18th"). Lets a
+      // label-decorating op prefix goal/tracker names ("Today's Water", "July
+      // 18th Water") off the user's current date lens. Compares calendar days
+      // (midnight-normalized) so time-of-day never shifts the bucket.
+      const _ordinal = (n) => {
+        const s = ["th", "st", "nd", "rd"], v = n % 100;
+        return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+      };
+      const _today0 = new Date(_nowDate.getFullYear(), _nowDate.getMonth(), _nowDate.getDate());
+      const _d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const _diffDays = Math.round((_d0 - _today0) / 86400000);
+      const _dateOrdinal = `${d.toLocaleDateString("en-US", { month: "long" })} ${_ordinal(d.getDate())}`;
+      const _relLabel =
+        _diffDays === 0 ? "Today"
+        : _diffDays === -1 ? "Yesterday"
+        : _diffDays === 1 ? "Tomorrow"
+        : _dateOrdinal;
+      // Possessive prefix ready to prepend to a name: relative words take "'s"
+      // ("Today's", "Yesterday's"); an explicit calendar date does NOT
+      // ("July 18th"). Matches the desired "Today's Water" / "July 18th Water".
+      const _possessive =
+        _diffDays === 0 ? "Today's"
+        : _diffDays === -1 ? "Yesterday's"
+        : _diffDays === 1 ? "Tomorrow's"
+        : _dateOrdinal;
       return {
         $activeDate: dayKey,
         $filterDate: dayKey,
@@ -1286,6 +1317,8 @@ export function executePipeline(operation, context, transaction, extraVars, exte
         $activePeriodCount: periodDatesOrToday.length,
         $activeDateLabel: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
         $activeDayOfWeek: d.toLocaleDateString("en-US", { weekday: "long" }),
+        $activeDateRelativeLabel: _relLabel,
+        $activeDatePossessive: _possessive,
       };
     })(),
     // Built-in arrays — loop-ready collections of everything in the system.

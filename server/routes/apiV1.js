@@ -22,6 +22,10 @@ import Occurrence from "../models/Occurrence.js";
 import Field from "../models/Field.js";
 import Operation from "../models/Operation.js";
 import Secret, { encryptValue, isSecretsKeyConfigured } from "../models/Secret.js";
+import Folder from "../models/Folder.js";
+import View from "../models/View.js";
+import Manifest from "../models/Manifest.js";
+import { cloneSubtree } from "../utils/cloneSubtree.js";
 
 import { apiAuth } from "../middleware/apiAuth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
@@ -96,6 +100,177 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
         folders: Object.values(uc.foldersById),
         manifests: Object.values(uc.manifestsById),
       });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // Patch grid-level settings: name, dimensions, and the FILTER system
+  // (namedFilters + activeFilterId + activeFilterValues) — the big levers for
+  // "what's visible / which iteration is active". Whitelisted keys only so a
+  // caller can't clobber userId/_id/manifestId.
+  router.patch("/grids/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const ALLOWED = new Set(["name", "rows", "cols", "namedFilters", "activeFilterId", "activeFilterValues", "meta", "fieldIds", "templates"]);
+      const patch = {};
+      for (const [k, v] of Object.entries(req.body || {})) if (ALLOWED.has(k)) patch[k] = v;
+      if (Object.keys(patch).length === 0) {
+        return err(res, 400, "validation_error", `no patchable keys (allowed: ${[...ALLOWED].join(", ")})`);
+      }
+      const next = await Grid.findOneAndUpdate(
+        { _id: req.params.id, userId: req.userId },
+        { $set: patch },
+        { returnDocument: "after", lean: true },
+      );
+      if (!next) return err(res, 404, "not_found", "Grid not found");
+      const grid = { ...next, id: next._id.toString() };
+      io.to(userRoom(req.userId)).emit("grid_updated", { grid });
+      res.json({ grid });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // Apply a saved template subtree under a target occurrence (stamp a
+  // routine / day-page / project layout). Mirrors the apply_template socket
+  // handler: cloneSubtree → append/replace into target.occurrences → broadcast
+  // the new modules/occurrences + parent wiring so clients render the subtree.
+  router.post("/templates/apply", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { templateOccurrenceId, targetOccurrenceId, mode = "append" } = req.body || {};
+      if (!templateOccurrenceId || !targetOccurrenceId) {
+        return err(res, 400, "validation_error", "templateOccurrenceId + targetOccurrenceId required");
+      }
+      const target = await Occurrence.findOne({ id: targetOccurrenceId, userId: req.userId });
+      if (!target) return err(res, 404, "not_found", "Target occurrence not found");
+      const gridId = target.gridId || req.body.gridId;
+      const uc = await getUserCache(req.userId, gridId);
+      const r = await cloneSubtree({
+        rootOccurrenceId: templateOccurrenceId, userId: req.userId, gridId, uc,
+        moduleMetaPatch: { templateModule: false },
+        occMetaPatch: { appliedFromTemplateId: templateOccurrenceId },
+        newParentId: targetOccurrenceId,
+      });
+      if (!r.rootClonedOccurrenceId) return err(res, 500, "internal_error", "Template apply failed (template not found or empty)");
+      const nextOccs = mode === "replace"
+        ? [r.rootClonedOccurrenceId]
+        : [...(target.occurrences || []), r.rootClonedOccurrenceId];
+      await Occurrence.findOneAndUpdate({ id: target.id, userId: req.userId }, { $set: { occurrences: nextOccs } });
+      for (const mid of r.moduleIds) { const m = uc.modulesById?.[mid]; if (m) io.to(userRoom(req.userId)).emit("module_created", { module: m }); }
+      for (const oid of r.occurrenceIds) { const o = uc.occurrencesById?.[oid]; if (o) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o }); }
+      io.to(userRoom(req.userId)).emit("occurrence_updated", { occurrence: { id: target.id, occurrences: nextOccs } });
+      res.json({ ok: true, rootOccurrenceId: r.rootClonedOccurrenceId, newOccurrenceIds: r.occurrenceIds, newModuleIds: r.moduleIds });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ====================================================================
+  // FOLDERS (manifest-tree organization)
+  // ====================================================================
+  router.get("/folders", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const { gridId, parentId } = req.query;
+      const filter = { userId: req.userId };
+      if (gridId) filter.gridId = gridId;
+      if (parentId !== undefined) filter.parentId = parentId === "null" ? null : parentId;
+      const folders = await Folder.find(filter).sort({ sortOrder: 1 }).lean();
+      res.json({ folders });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.post("/folders", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const body = req.body || {};
+      const id = body.id || uid();
+      const doc = await Folder.create({ ...body, id, userId: req.userId });
+      io.to(userRoom(req.userId)).emit("folder_created", { folder: doc.toObject() });
+      res.status(201).json({ folder: doc.toObject() });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.patch("/folders/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const next = await Folder.findOneAndUpdate({ id: req.params.id, userId: req.userId }, { $set: req.body || {} }, { returnDocument: "after", lean: true });
+      if (!next) return err(res, 404, "not_found", "Folder not found");
+      io.to(userRoom(req.userId)).emit("folder_updated", { folder: next });
+      res.json({ folder: next });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.delete("/folders/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const doomed = await Folder.findOneAndDelete({ id: req.params.id, userId: req.userId });
+      if (!doomed) return err(res, 404, "not_found", "Folder not found");
+      io.to(userRoom(req.userId)).emit("folder_deleted", { folderId: req.params.id });
+      res.json({ ok: true });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ====================================================================
+  // MANIFESTS (root of a folder tree — rootFolderId anchors where things live)
+  // ====================================================================
+  router.get("/manifests", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const filter = { userId: req.userId };
+      if (req.query.gridId) filter.gridId = req.query.gridId;
+      if (req.query.manifestType) filter.manifestType = req.query.manifestType;
+      const manifests = await Manifest.find(filter).lean();
+      res.json({ manifests });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.post("/manifests", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const body = req.body || {};
+      const id = body.id || uid();
+      const doc = await Manifest.create({ ...body, id, userId: req.userId });
+      io.to(userRoom(req.userId)).emit("manifest_created", { manifest: doc.toObject() });
+      res.status(201).json({ manifest: doc.toObject() });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.patch("/manifests/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const next = await Manifest.findOneAndUpdate({ id: req.params.id, userId: req.userId }, { $set: req.body || {} }, { returnDocument: "after", lean: true });
+      if (!next) return err(res, 404, "not_found", "Manifest not found");
+      io.to(userRoom(req.userId)).emit("manifest_updated", { manifest: next });
+      res.json({ manifest: next });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.delete("/manifests/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const doomed = await Manifest.findOneAndDelete({ id: req.params.id, userId: req.userId });
+      if (!doomed) return err(res, 404, "not_found", "Manifest not found");
+      io.to(userRoom(req.userId)).emit("manifest_deleted", { manifestId: req.params.id });
+      res.json({ ok: true });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ====================================================================
+  // VIEWS (render config; activeOccurrenceId = which page a panel shows)
+  // ====================================================================
+  router.get("/views", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const filter = { userId: req.userId };
+      if (req.query.gridId) filter.gridId = req.query.gridId;
+      const views = await View.find(filter).lean();
+      res.json({ views });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.post("/views", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const body = req.body || {};
+      if (!body.gridId) return err(res, 400, "validation_error", "gridId required");
+      const id = body.id || uid();
+      const doc = await View.create({ ...body, id, userId: req.userId });
+      io.to(userRoom(req.userId)).emit("view_created", { view: doc.toObject() });
+      res.status(201).json({ view: doc.toObject() });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.patch("/views/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const next = await View.findOneAndUpdate({ id: req.params.id, userId: req.userId }, { $set: req.body || {} }, { returnDocument: "after", lean: true });
+      if (!next) return err(res, 404, "not_found", "View not found");
+      io.to(userRoom(req.userId)).emit("view_updated", { view: next });
+      res.json({ view: next });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.delete("/views/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const doomed = await View.findOneAndDelete({ id: req.params.id, userId: req.userId });
+      if (!doomed) return err(res, 404, "not_found", "View not found");
+      io.to(userRoom(req.userId)).emit("view_deleted", { viewId: req.params.id });
+      res.json({ ok: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
@@ -801,6 +976,15 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
+  router.get("/research/wikipedia/links", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const { links } = await import("../services/wikipediaTools.js");
+      const result = await links(req.query.title, req.query.max);
+      if (!result) return err(res, 404, "not_found", "No Wikipedia article with that title");
+      res.json({ ok: true, ...result });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   router.get("/research/wikipedia/full", authAndLimit({ requireScope: "read" }), async (req, res) => {
     try {
       const { fullMarkdown } = await import("../services/wikipediaTools.js");
@@ -855,6 +1039,52 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
+  // Relink a batch of imported articles: rewrite links BETWEEN them into in-app
+  // navigation (docLink nodes). Call after importing several linked articles.
+  router.post("/research/wikipedia/relink", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { relinkOccurrences } = await import("../services/importRelink.js");
+      const { gridId, rootOccurrenceIds } = req.body || {};
+      if (!gridId || !Array.isArray(rootOccurrenceIds) || !rootOccurrenceIds.length) {
+        return err(res, 400, "validation_error", "gridId + rootOccurrenceIds[] required");
+      }
+      const allOccs = await Occurrence.find({ userId: req.userId, gridId }).lean();
+      const occById = new Map(allOccs.map((o) => [o.id, o]));
+      const mods = await Module.find({ userId: req.userId, gridId }).lean();
+      const modById = new Map(mods.map((m) => [m.id, m]));
+
+      // title → root occurrence id (the imported root container's label IS the
+      // article title). Then collect every textmap-bearing descendant.
+      const titleToOccId = {};
+      for (const rootId of rootOccurrenceIds) {
+        const occ = occById.get(rootId);
+        const mod = occ && modById.get(occ.moduleId || occ.targetId);
+        if (mod?.label) titleToOccId[mod.label] = rootId;
+      }
+      const seen = new Set();
+      const subtree = [];
+      const stack = [...rootOccurrenceIds];
+      while (stack.length) {
+        const id = stack.pop();
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const occ = occById.get(id);
+        if (!occ) continue;
+        if (occ.textmap) subtree.push(occ);
+        for (const c of (occ.occurrences || [])) stack.push(c);
+      }
+
+      const changed = relinkOccurrences(subtree, titleToOccId);
+      const uc = await getUserCache(req.userId, gridId);
+      for (const { id, textmap } of changed) {
+        await Occurrence.findOneAndUpdate({ id, userId: req.userId }, { $set: { textmap } });
+        if (uc?.occurrencesById?.[id]) uc.occurrencesById[id] = { ...uc.occurrencesById[id], textmap };
+        io.to(userRoom(req.userId)).emit("occurrence_updated", { occurrence: { id, textmap } });
+      }
+      res.json({ ok: true, relinked: changed.length, titles: Object.keys(titleToOccId) });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   // ====================================================================
   // ASSISTANT — Jarvis chat endpoint. See docs/assistant-guide.md.
   // ====================================================================
@@ -862,15 +1092,77 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   router.post("/assistant/chat", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { assistantChat } = await import("../services/assistantAgent.js");
-      const { messages = [], gridId } = req.body || {};
+      const { messages = [], gridId, context = null } = req.body || {};
       const result = await assistantChat({
         messages,
         userId: req.userId,
         gridId,
+        context,
         baseUrl: `${req.protocol}://${req.get("host")}`,
         apiToken: req.headers.authorization?.replace(/^Bearer /, ""),
+        // Stream lightweight progress to the user's tabs so a slow local model
+        // shows "thinking (2)…" / "running wikipedia_import…" instead of a
+        // silent multi-minute "… thinking".
+        onProgress: (ev) => io.to(userRoom(req.userId)).emit("assistant_progress", ev),
       });
+      // Signal the drawer to clear any lingering progress line.
+      io.to(userRoom(req.userId)).emit("assistant_progress", { phase: "done" });
       res.json(result);
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // Hand the drawer the stable ASSISTANT_API_TOKEN so it auto-connects after a
+  // reseed / on a fresh browser WITHOUT a manual paste (the token persists in
+  // server/.env across reseeds, but localStorage in the browser doesn't get it).
+  // NO auth — this IS the auth bootstrap — so it's gated by ORIGIN instead:
+  // loopback + PRIVATE LAN ranges (the app is accessed over the WSL2 / LAN IP,
+  // so localhost-only wouldn't reach it). Public IPs are refused so a
+  // port-forwarded server never leaks the token (it grants full grid CRUD).
+  // Set ASSISTANT_BOOTSTRAP=off to disable entirely. Returns { token: null }
+  // when unset / disabled / non-local.
+  router.get("/assistant/bootstrap-token", (req, res) => {
+    if ((process.env.ASSISTANT_BOOTSTRAP || "").toLowerCase() === "off") return res.json({ token: null });
+    const host = (req.hostname || "").toLowerCase();
+    const peer = (req.socket?.remoteAddress || req.ip || "").replace(/^::ffff:/, "");
+    const localHost = ["localhost", "127.0.0.1", "::1"].includes(host);
+    const localPeer =
+      peer === "127.0.0.1" || peer === "::1" ||
+      /^10\./.test(peer) || /^192\.168\./.test(peer) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(peer) || /^169\.254\./.test(peer) || // RFC1918 + link-local
+      /^f[cd]/i.test(peer) || /^fe[89ab]/i.test(peer);                        // IPv6 ULA + link-local
+    if (!localHost && !localPeer) return res.json({ token: null });
+    res.json({ token: process.env.ASSISTANT_API_TOKEN || null });
+  });
+
+  // Execute a single tool the user approved on a confirmation card. The chat
+  // endpoint returns pendingConfirmations for destructive tools instead of
+  // running them; the client posts the approved one here.
+  router.post("/assistant/confirm", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { assistantConfirm } = await import("../services/assistantAgent.js");
+      const { name, input = {}, gridId } = req.body || {};
+      if (!name) return err(res, 400, "validation_error", "name required");
+      // Keep the drawer's ThinkingBar honestly alive for the whole confirmed
+      // action (a Wikipedia import is a 20-30s server round-trip). The chat
+      // loop streams assistant_progress; the confirm path didn't, so the bar
+      // sat at a stale "… thinking" the entire time. Emit a live "running <tool>"
+      // phase up front and a terminal "done" so the client's progress label
+      // tracks the actual work (the elapsed timer + bar keep moving regardless).
+      const room = userRoom(req.userId);
+      io.to(room).emit("assistant_progress", { phase: "tool", tool: name });
+      try {
+        const result = await assistantConfirm({
+          name,
+          input,
+          userId: req.userId,
+          gridId,
+          baseUrl: `${req.protocol}://${req.get("host")}`,
+          apiToken: req.headers.authorization?.replace(/^Bearer /, ""),
+        });
+        res.json(result);
+      } finally {
+        io.to(room).emit("assistant_progress", { phase: "done" });
+      }
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 

@@ -1,6 +1,83 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-05-20. This folder implements occurrence-based view routing._
+_Updated: 2026-06-06. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-06-06 — renderers honor occurrence.label override)
+- **`ModuleInstance.jsx`** — the InstanceInner `label` prop is now
+  `occurrence?.label ?? module.label` (was `module.label`).
+- **`ModuleContainer.jsx`** — `displayLabel` is now
+  `containerOccurrence?.label ?? computeScheduleColLabel(...) ?? module.label`
+  (occurrence override wins over the schedule-col computed label and the base).
+- Together these make a per-placement `occurrence.label` (written by ops via the
+  `UPDATE_ITEM_LABEL` effect — e.g. "Today's Water" / "July 18th Water") render
+  in place of the shared template label, WITHOUT mutating the module. Day-cols
+  never set `occurrence.label`, so they keep `computeScheduleColLabel`. Inline
+  rename still edits `module.label` (the stable base) — the override is the
+  decorated view.
+
+## Recent Changes (2026-06-06 — container header: label-overflow setting + top padding)
+- **`ModuleContainer.jsx`** — embedded/doc container header label is now rendered
+  through a module-scope `LabelShell({mode,style,children})` helper supporting
+  three modes: `marquee` (AutoMarquee, default — inert when it fits), `wrap`
+  (multi-line), `none` (single line + ellipsis). Mode resolves from
+  `occurrence.meta.labelOverflow ?? module.meta.labelOverflow ?? "marquee"`.
+  Applied to BOTH header branches (BoundHeader + contentEditable). Embedded header
+  row top padding 0→4px. The picker UI is a select in `ui/ContainerForm.jsx`
+  Settings tab (writes `occurrence.meta.labelOverflow` via onOccurrenceUpdate).
+
+## Recent Changes (2026-06-06 — ArtifactCard: image render bug + inline audio player)
+- **`ArtifactCard.jsx`** — fixed a `ReferenceError` that blanked EVERY image: the
+  module-scope `renderThumbnail` / `renderExpanded` helpers referenced
+  `thumb256Src` / `thumb1024Src`, which are `const`s declared INSIDE the
+  `ArtifactCard` component (out of scope in the helpers). Helpers now take an
+  `imgSrc` param (`= src` default); call sites pass `thumb256Src` / `thumb1024Src`.
+  This was the root cause of "no images are showing up" (local uploads AND
+  imported Wikipedia images).
+- **`ArtifactCard.jsx`** — audio thumbnail (compact/inline) now renders a real
+  `<audio controls preload="metadata">` instead of just a 🎵 emoji. Wrapped in
+  `onClick stopPropagation` so the controls don't toggle the card's expand. CSS:
+  `.artifact-thumb--audio` split out to `align-items:stretch` so the player fills
+  the width (was centered/narrowed by the shared pdf/unknown rule).
+
+## Recent Changes (2026-06-06 — ModuleContainer: section-hierarchy header sizing)
+- **`ModuleContainer.jsx`** — the EMBEDDED container header now sizes by
+  `module.meta.headingLevel` (module-scope `HEADING_SIZES`
+  {1:26,2:21,3:18,4:16,5:15,6:14}; `headerFontSize` derived next to
+  `displayLabel`, applied to the `#` hash + BoundHeader span + contentEditable
+  span). Containers WITHOUT a level keep the default 20 (byte-identical). The
+  Wikipedia importer stamps `headingLevel` per markdown heading depth (article
+  H1 → sections H2 → …) so imported docs show a real heading hierarchy. Only the
+  embedded variant (what imported sections render as) was changed.
+
+## Recent Changes (2026-06-05 — TextblockCard: link mini-textblocks)
+- **`TextblockCard.jsx`** — when the occurrence (or its module) carries
+  `meta.link`, the textblock renders as a clickable CHIP instead of the editor:
+  - `{ kind:"url", url }` → `<a target="_blank">` chip (opens a new tab).
+  - `{ kind:"occurrence", occId }` / `{ target }` → button → `jumpToOccurrence`
+    (scroll + flash) for in-app navigation.
+  Per-placement `occurrence.meta.link` wins over template `module.meta.link`.
+  The markdown importer emits these for every `[text](url)` link (see
+  server/CLAUDE.md). NO settings UI to manually set/edit a link yet — the import
+  path works; manual link-setting + an internal-target picker is the next piece.
+
+## Recent Changes (2026-06-04 — PageBoard: generic `sortChildrenByField` (schedule day-col ordering bug))
+- **`pages/PageBoard.jsx`** — new generic cascade rule `sortChildrenByField`
+  (a field id, read off `layout` from the layout cascade). When set, the
+  visible children are **stable-sorted** by each child occurrence's
+  `fields[fieldId].value` via the new module-scope `childSortKey` helper
+  (date-like strings → epoch ms, plain numbers → number, else `null` =
+  unsorted/below the keyed ones). PageBoard stays domain-agnostic — it knows
+  nothing about "schedule"; the seed op decides which field to sort by.
+- **Bug it fixes:** schedule day-columns appear in the order they were appended
+  to the Schedule page's `occurrences[]` (= date-picker SELECTION order, and
+  idempotent re-adds append at the end), so a 3-day range picked as 28 → 29 →
+  27 rendered as columns "28 29 27". The day-col occurrences each carry the
+  date field (the Build Schedule per-day FIND matches on it), so sorting by
+  that field reorders them chronologically regardless of insertion order.
+- **Server side:** `makeScheduleBuildScheduleOp` (server/utils/liveSystemBuilders.js)
+  now writes `sortChildrenByField: dateFieldId` into the Schedule page's
+  `meta.layoutCascadeOverride` (alongside mode/columns/hideChildIds). **Re-seed
+  required** to apply: `node --env-file=.env server/scripts/createLiveData.js`.
 
 ## Recent Changes (2026-05-20 — Canvas edges: DOM-rect anchors + unified undo)
 - **`CanvasContent.cardCenterFor`** now queries each card's actual
