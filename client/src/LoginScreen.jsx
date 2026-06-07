@@ -50,49 +50,35 @@ export default function LoginScreen() {
       height: "100vh",
       width: "100vw",
       display: "flex",
-      flexDirection: "row",
-      background: "#1D2125",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "#0e2140",
+      backgroundImage: "url(/login_bg.jpg)",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
       overflow: "hidden",
+      position: "relative",
     }}>
-      {/* LEFT 2/3 — background image */}
+      {/* Scrim overlay */}
       <div style={{
-        flex: "2 1 0",
-        minWidth: 0,
+        position: "absolute",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        pointerEvents: "none",
+      }} />
+      <div style={{
         position: "relative",
-        background: "#0e2140",
-        backgroundImage: "url(/login_bg.jpg)",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}>
-        {/* Subtle scrim so the photo doesn't fight with the dark login chrome */}
-        <div style={{
-          position: "absolute",
-          inset: 0,
-          background: "linear-gradient(90deg, rgba(14,33,64,0.25), rgba(29,33,37,0.55))",
-          pointerEvents: "none",
-        }} />
-      </div>
-
-      {/* RIGHT 1/3 — centered login box */}
-      <div style={{
-        flex: "1 1 0",
-        minWidth: 280,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "0 24px",
-      }}>
-      <div style={{
+        zIndex: 1,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         gap: 14,
         padding: "32px 28px 28px",
-        border: "1px solid rgba(255,255,255,0.1)",
+        border: "1px solid rgba(255,255,255,0.15)",
         borderRadius: 10,
-        background: "rgba(255,255,255,0.04)",
+        background: "rgba(0,0,0,0.55)",
+        backdropFilter: "blur(12px)",
         width: 300,
       }}>
         <div style={{
@@ -214,7 +200,6 @@ export default function LoginScreen() {
         >
           Register
         </button>
-      </div>
       </div>
     </div>
   );

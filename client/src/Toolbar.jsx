@@ -146,37 +146,29 @@ const gridOptions = useMemo(
         window.addEventListener("touchend", done, { passive: true });
       }}
     >
-      {/* Socket connection status — centered overlay so it sits in the
-          middle of the toolbar regardless of left/right section widths.
-          Only renders when offline / just reconnected (null otherwise),
-          so it doesn't visually interfere with normal toolbar UI. */}
-      <div
-        className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center gap-2"
-        style={{ zIndex: 5 }}
-      >
-        {/* Socket pill + transaction notification stack share the
-            exact same wrapper so the chips live in the very same DOM
-            slot as the connect/reconnect indicator. Cards stay until
-            dismissed; newest on the left, older cards peek behind to
-            the right. */}
-        <div className="pointer-events-auto flex items-center gap-1.5">
+      {/* Notification pills — full stack on desktop, compact count pill on mobile */}
+      {isMobile ? (
+        <div className="flex items-center" style={{ zIndex: 5 }}>
           <SocketStatusBanner />
-          <TransactionNotificationStack />
+          <TransactionNotificationStack compact />
         </div>
-        {/* Selection pill — only renders while multi-select is non-empty.
-            Sibling of ClipboardStatusBanner; selection becomes clipboard
-            via the right-click bulk-action menu. */}
-        <div className="pointer-events-auto">
-          <SelectionStatusBanner />
+      ) : (
+        <div
+          className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center gap-2"
+          style={{ zIndex: 5 }}
+        >
+          <div className="pointer-events-auto flex items-center gap-1.5">
+            <SocketStatusBanner />
+            <TransactionNotificationStack />
+          </div>
+          <div className="pointer-events-auto">
+            <SelectionStatusBanner />
+          </div>
+          <div className="pointer-events-auto">
+            <ClipboardStatusBanner />
+          </div>
         </div>
-        {/* Clipboard pill — only renders while the multi-select clipboard
-            is non-empty. Shows mode + count + a Clear button. Pasting
-            happens by clicking any container/page on the grid (handled
-            by ClipboardDropOverlay in App.jsx). */}
-        <div className="pointer-events-auto">
-          <ClipboardStatusBanner />
-        </div>
-      </div>
+      )}
 
       <div className="flex items-center w-full gap-1.5">
         {/* ── Left: Logo + Add Panel + Grid Select ── */}
@@ -237,7 +229,7 @@ const gridOptions = useMemo(
             tri-state day cycle. onNav writes to grid.activeFilterValues so the
             widget stays the toolbar's source of truth. */}
         <ToolbarFilterDropdown />
-        {activeFilter && primaryNavFieldId && (
+        {!isMobile && activeFilter && primaryNavFieldId && (
           <FilterNavWidget
             filter={activeFilter}
             navConfig={null}

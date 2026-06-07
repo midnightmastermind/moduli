@@ -2948,3 +2948,142 @@ describe("autoStampFromFilter — $allItems read-time substitution (task #60)", 
     // Without opt-in, the substitution shouldn't run — original null stays.
   });
 });
+
+// ─── INIT_VAR fallback / fallback2 ───────────────────────────────────────────
+
+describe("INIT_VAR — fallback / fallback2 chains", () => {
+  function runInitVar(cfg, vars = {}) {
+    const op = makeOp({
+      triggerObjects: [{ eventType: "manual" }],
+      pipeline: {
+        sources: [],
+        steps: [
+          { id: "s1", type: "action", config: { type: "INIT_VAR", ...cfg } },
+          { id: "s2", type: "action", config: { type: "SHOW_VALUE", fieldId: "f1", value: cfg.name } },
+        ],
+      },
+    });
+    return executePipeline(op, {
+      state: { grid: { activeFilterValues: {} }, modules: [] },
+      fieldsById: { f1: { id: "f1", type: "number" } },
+      occurrencesById: {},
+    }, {}, vars);
+  }
+
+  it("uses primary expr when it resolves", () => {
+    const result = runInitVar({ name: "$x", expr: "literal:42" });
+    const effect = result.find(e => e._effect === "SHOW_VALUE");
+    expect(effect?.value).toBe(42);
+  });
+
+  it("uses fallback when primary expr resolves to null", () => {
+    const result = runInitVar({
+      name: "$x",
+      expr: "$missing",       // resolves to undefined → null
+      fallback: "literal:99",
+    });
+    const effect = result.find(e => e._effect === "SHOW_VALUE");
+    expect(effect?.value).toBe(99);
+  });
+
+  it("uses fallback2 when both primary and fallback resolve to null", () => {
+    const result = runInitVar({
+      name: "$x",
+      expr: "$missing",
+      fallback: "$alsoMissing",
+      fallback2: "literal:7",
+    });
+    const effect = result.find(e => e._effect === "SHOW_VALUE");
+    expect(effect?.value).toBe(7);
+  });
+
+  it("does not use fallback when primary resolves to a falsy-but-valid value (0)", () => {
+    const result = runInitVar({
+      name: "$x",
+      expr: "literal:0",
+      fallback: "literal:99",
+    });
+    const effect = result.find(e => e._effect === "SHOW_VALUE");
+    // 0 is a valid value — fallback should NOT be used
+    expect(effect?.value).toBe(0);
+  });
+
+  it("does not use fallback when primary resolves to empty string", () => {
+    const result = runInitVar({
+      name: "$x",
+      expr: "literal:",   // resolveExpr returns "" for empty literal
+      fallback: "literal:fallbackStr",
+    });
+    const effect = result.find(e => e._effect === "SHOW_VALUE");
+    expect(effect?.value).toBe("");
+  });
+});
+
+// ─── step.action / step.cfg alternative format ───────────────────────────────
+
+describe("executeStep — step.action / step.cfg alternative format", () => {
+  it("executes an INIT_VAR step written as { action, cfg } instead of { config: { type } }", () => {
+    const op = makeOp({
+      triggerObjects: [{ eventType: "manual" }],
+      pipeline: {
+        sources: [],
+        steps: [
+          // Alternative format used by some seed pipelines
+          { id: "s1", type: "action", action: "INIT_VAR", cfg: { name: "$val", value: 55 } },
+          { id: "s2", type: "action", config: { type: "SHOW_VALUE", fieldId: "f1", value: "$val" } },
+        ],
+      },
+    });
+    const result = executePipeline(op, {
+      state: { grid: { activeFilterValues: {} }, modules: [] },
+      fieldsById: { f1: { id: "f1", type: "number" } },
+      occurrencesById: {},
+    });
+    const effect = result.find(e => e._effect === "SHOW_VALUE");
+    expect(effect?.value).toBe(55);
+  });
+
+  it("executes a SHOW_VALUE step written as { action, cfg } format", () => {
+    const op = makeOp({
+      triggerObjects: [{ eventType: "manual" }],
+      pipeline: {
+        sources: [],
+        steps: [
+          { id: "s1", type: "action", action: "SHOW_VALUE", cfg: { fieldId: "f1", value: "literal:hello" } },
+        ],
+      },
+    });
+    const result = executePipeline(op, {
+      state: { grid: { activeFilterValues: {} }, modules: [] },
+      fieldsById: { f1: { id: "f1", type: "text" } },
+      occurrencesById: {},
+    });
+    const effect = result.find(e => e._effect === "SHOW_VALUE");
+    expect(effect?.value).toBe("hello");
+  });
+
+  it("handles mixed steps — canonical and action/cfg formats interleaved", () => {
+    // Both INIT_VAR steps run; SHOW_VALUE reads the var set by the cfg-format step.
+    const op = makeOp({
+      triggerObjects: [{ eventType: "manual" }],
+      pipeline: {
+        sources: [],
+        steps: [
+          // canonical format
+          { id: "s1", type: "action", config: { type: "INIT_VAR", name: "$a", value: 10 } },
+          // alternative format — sets $b
+          { id: "s2", type: "action", action: "INIT_VAR", cfg: { name: "$b", value: 20 } },
+          // show $b (set by the cfg-format step)
+          { id: "s3", type: "action", config: { type: "SHOW_VALUE", fieldId: "f1", value: "$b" } },
+        ],
+      },
+    });
+    const result = executePipeline(op, {
+      state: { grid: { activeFilterValues: {} }, modules: [] },
+      fieldsById: { f1: { id: "f1", type: "number" } },
+      occurrencesById: {},
+    });
+    const effect = result?.find(e => e._effect === "SHOW_VALUE");
+    expect(effect?.value).toBe(20);
+  });
+});

@@ -28,6 +28,7 @@ import * as LayoutHelpers from "./LayoutHelpers";
 import { runMatchingOperations } from "./operationExecutor";
 import { batchUpdateModulesAction } from "../state/actions";
 import { routeDrop } from "./dropHandlers";
+import { operationsBridge } from "../state/bindSocketToStore";
 import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND } from "./dragHitTesting";
 import { snapshotRenders, diffRenders } from "./renderProbe";
 
@@ -439,11 +440,11 @@ export function DragProvider({
     s.startContainers = deepCloneContainers(baseContainers);
     s.draftPanels = deepClonePanels(basePanels);
     s.draftContainers = deepCloneContainers(baseContainers);
-    s.draftOccurrences = cloneOccurrencesForDraft(occurrencesById);
+    s.draftOccurrences = null; // lazy-init on first live-preview access (see handleDragMove)
 
     setActivePayload(payload);
     setDragMode(mode); // Also set state for UI updates
-  }, [basePanels, baseContainers, occurrencesById]);
+  }, [basePanels, baseContainers]);
 
   // Ref for mobile edge barrier elements (anti-split-screen)
   const edgeBarriersRef = useRef(null);
@@ -778,6 +779,13 @@ export function DragProvider({
         }
       }
 
+      // Lazy-init draftOccurrences on first live-preview access — avoids an
+      // O(N) clone of all occurrences at drag-start (which caused the drag-start pause).
+      if (!s.draftOccurrences &&
+          (s.payload?.type === DragType.INSTANCE || s.payload?.type === DragType.CONTAINER)) {
+        s.draftOccurrences = cloneOccurrencesForDraft(occurrencesById);
+      }
+
       // Live preview for instance sorting (B2: skip if same target)
       // Ordering is in draftOccurrences (occurrence.occurrences), not draftContainers.
       if (s.payload?.type === DragType.INSTANCE && containerId &&
@@ -1048,12 +1056,16 @@ export function DragProvider({
     _lap(`dropContext built (target=${dropContext?.target?.kind || "?"} mode=${s?.mode || "?"})`);
 
     s.dropHandled = true;
+    // Defer all operation fires until after rAF — lets the browser paint the
+    // committed drop position before any op work runs (eliminates post-drop freeze).
+    operationsBridge.beginDropBatch?.();
     routeDrop(dropContext, {
       dispatch, socket,
       state: { ...state, modulesById },
       occurrencesById, baseAllPanels, baseContainers,
       clearSession, sessionRef, getCellFromPoint,
     });
+    operationsBridge.endDropBatch?.();
     _lap("routeDrop returned (sync mutations + op fires done)");
     clearSession();
     _lap("clearSession done — handleDrop synchronous end");

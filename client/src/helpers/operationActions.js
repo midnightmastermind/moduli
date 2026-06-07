@@ -590,12 +590,19 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     case "INIT_VAR": {
       // cfg.value can be a literal (number, string), cfg.expr can be a resolveExpr expression,
       // cfg.arrayOf can be an array of expressions (each resolved) for literal-array initialization.
+      // cfg.fallback / cfg.fallback2 — if the primary expr resolves to null/undefined, try these in order.
       let initVal;
       if (cfg.arrayOf !== undefined) {
         const items = Array.isArray(cfg.arrayOf) ? cfg.arrayOf : [cfg.arrayOf];
         initVal = items.map(x => resolveExpr(x, $vars));
       } else if (cfg.expr !== undefined) {
         initVal = resolveExpr(cfg.expr, $vars);
+        if ((initVal === undefined || initVal === null) && cfg.fallback !== undefined) {
+          initVal = resolveExpr(cfg.fallback, $vars);
+        }
+        if ((initVal === undefined || initVal === null) && cfg.fallback2 !== undefined) {
+          initVal = resolveExpr(cfg.fallback2, $vars);
+        }
       } else {
         initVal = cfg.value;
       }

@@ -336,7 +336,7 @@ function ExpandButton({ note, color }) {
 // opens a portal-rendered list of EVERY notification (visible + overflow)
 // anchored under the pill. Portal avoids stacking-context conflicts that
 // were letting the dropdown "blank out" the page tabs underneath.
-function OverflowPill({ count, leftPx, allItems, now }) {
+function OverflowPill({ count, leftPx, allItems, now, compact = false }) {
   const [open, setOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState(null);
   const ref = useRef(null);
@@ -384,12 +384,12 @@ function OverflowPill({ count, leftPx, allItems, now }) {
       <button
         ref={ref}
         type="button"
-        title={`${count} more notification${count === 1 ? "" : "s"} · click to view all ${allItems.length}`}
+        title={`${count} notification${count === 1 ? "" : "s"} · click to view all`}
         onClick={() => setOpen(o => !o)}
         style={{
-          position: "absolute",
-          top: 0,
-          left: leftPx,
+          position: compact ? "relative" : "absolute",
+          top: compact ? undefined : 0,
+          left: compact ? undefined : leftPx,
           zIndex: 1100,
           display: "inline-flex",
           alignItems: "center",
@@ -407,7 +407,7 @@ function OverflowPill({ count, leftPx, allItems, now }) {
           fontFamily: "inherit",
         }}
       >
-        +{count}
+        {count}
       </button>
       {open && anchorRect && createPortal(
         <div
@@ -450,7 +450,7 @@ function OverflowPill({ count, leftPx, allItems, now }) {
   );
 }
 
-export default function TransactionNotificationStack() {
+export default function TransactionNotificationStack({ compact = false }) {
   const [items, setItems] = useState([]);
   const [openIdState, setOpenIdState] = useState(null);
   const [now, setNow] = useState(Date.now());
@@ -480,6 +480,20 @@ export default function TransactionNotificationStack() {
   const hasOverflow = overflow.length > 0;
 
   if (!items.length) return null;
+
+  // Compact mode: just a small count pill that opens the full dropdown.
+  // Used on mobile where the inline chip stack is too wide.
+  if (compact) {
+    return (
+      <OverflowPill
+        count={items.length}
+        leftPx={0}
+        allItems={items}
+        now={now}
+        compact
+      />
+    );
+  }
 
   // Right-edge of the visible chip stack (last chip's right edge =
   // its left position + CHIP_WIDTH). The +N pill sits just past that

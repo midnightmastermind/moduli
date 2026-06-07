@@ -30,7 +30,7 @@ import { analyzeAllOperations } from "../helpers/operationIntrospection";
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null };
+export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null };
 
 export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) {
   // Wrap dispatch to tag all socket-originated actions
@@ -1229,11 +1229,22 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // duration of fireOperationsBatch; applied only to depth-1 fires so nested
   // op-triggered fires (MeasureOp/OccurrenceCreateOp from effects) are untouched.
   let _navCascadeFiredOps = null;
+  // When non-null, fireOperations at depth 0 queues into this array instead of
+  // executing immediately. endDropBatch flushes it after rAF so the browser can
+  // paint the drop result before any op work begins.
+  let _dropBatchFires = null;
   // Throttle the depth-cap warning per (transactionType + fieldId + occurrenceId)
   // so a runaway cycle doesn't flood the console.
   const _fireWarnAt = new Map();
 
   function fireOperations(transactionType, transaction, { occurrencesOverride } = {}) {
+    // During a drop batch (beginDropBatch active), collect top-level fires instead
+    // of executing them synchronously. endDropBatch flushes them after rAF so the
+    // browser paints the visual drop result before any operation work runs.
+    if (_dropBatchFires !== null && _fireDepth === 0) {
+      _dropBatchFires.push({ transactionType, transaction, occurrencesOverride });
+      return;
+    }
     if (_fireDepth >= _FIRE_DEPTH_LIMIT) {
       // Skip recursive fires past the cap. Surface once per breach so the
       // user can find the op-loop without the page hard-crashing.
@@ -1440,6 +1451,20 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       _navCascadeFiredOps = prev;
     }
   }
+
+  // Drop-batch: collect all top-level op fires during a drop, then flush
+  // them after rAF so the browser can paint the committed drop first.
+  operationsBridge.beginDropBatch = () => { _dropBatchFires = []; };
+  operationsBridge.endDropBatch = () => {
+    const batch = _dropBatchFires;
+    _dropBatchFires = null;
+    if (!batch || batch.length === 0) return;
+    requestAnimationFrame(() => {
+      for (const { transactionType, transaction, occurrencesOverride } of batch) {
+        fireOperations(transactionType, transaction, { occurrencesOverride });
+      }
+    });
+  };
 
   // Expose on module-level bridge so CommitHelpers can call optimistically
   operationsBridge.fireOperations = fireOperationsOptimistic;
@@ -1894,6 +1919,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     operationsBridge.getAncestorChain = null;
     operationsBridge.applyEffect = null;
     operationsBridge.importText = null;
+    operationsBridge.beginDropBatch = null;
+    operationsBridge.endDropBatch = null;
+    _dropBatchFires = null;
     clearInterval(scheduleInterval);
     if (bc) { bc.close(); bc = null; }
     socket.off("full_state", onFullState);

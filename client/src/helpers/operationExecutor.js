@@ -1819,8 +1819,8 @@ function executeSteps(steps, $vars, context, transaction) {
   for (let stepIdx = 0; stepIdx < stepsArr.length; stepIdx++) {
     const step = stepsArr[stepIdx];
     if (step.type === "action") {
-      const actionType = step.config?.type || step.actionType;
-      const cfg = step.config || {};
+      const actionType = step.config?.type || step.actionType || step.action;
+      const cfg = step.config || step.cfg || {};
       // Snapshot vars + resolve any predicate / config exprs BEFORE the action mutates state.
       const varsBefore = log ? snapshotVars($vars) : null;
       const resolvedConfig = log ? resolveConfigForLog(cfg, $vars) : null;

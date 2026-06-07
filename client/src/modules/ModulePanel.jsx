@@ -406,7 +406,8 @@ function Panel({
   // Autohide setting — persisted on panelOccurrence.meta.autohide so it can
   // be seeded by createLiveData. Collapses pageHeader + breadcrumbBar; the
   // hover strip at the top of the panel reveals them.
-  const autohide = !!panelOccurrence?.meta?.autohide;
+  // On mobile, never autohide — the header serves as a tap target for expand.
+  const autohide = isMobile ? false : !!panelOccurrence?.meta?.autohide;
   const toggleAutohide = useCallback(() => {
     if (!panelOccurrence?.id) return;
     const nextMeta = { ...(panelOccurrence.meta || {}), autohide: !autohide };
