@@ -1020,6 +1020,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       const importResult = await markdownToModuli({
         gridId, parentId, userId: req.userId,
         markdown: full.markdown, title: pickedTitle, dryRun,
+        sourceUrl: full.url,
       });
 
       // Broadcast so connected tabs sync.

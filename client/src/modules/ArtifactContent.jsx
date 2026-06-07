@@ -13,7 +13,7 @@ import RadialMenu from "../ui/RadialMenu.jsx";
 import { resolveFileRef } from "../helpers/fileRef.js";
 import "highlight.js/styles/atom-one-dark.css";
 import { Settings, Download, ScanText, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "../state/notificationStore";
 
 // Human-readable byte count. Mirrors ArtifactCard's formatBytes —
 // duplicated rather than imported so each viewer surface stays

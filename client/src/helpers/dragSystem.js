@@ -309,6 +309,7 @@ function _unregisterDrop(el) {
   _dropRegistry.delete(el);
 }
 
+let _lastEdgeLog = null;
 function _computeClosestEdge(el, clientX, clientY, allowedEdges) {
   const rect = el.getBoundingClientRect();
   const distances = {
@@ -324,6 +325,20 @@ function _computeClosestEdge(el, clientX, clientY, allowedEdges) {
       minDist = distances[edge];
       closest = edge;
     }
+  }
+  // Log only when the chosen edge CHANGES (per drag) so the console shows a
+  // clean trace of edge transitions instead of one line per frame. The last
+  // line before a drop is the edge that drop used.
+  const sig = `${el.getAttribute?.("data-occ-id") || el.getAttribute?.("data-container-id") || "?"}|${closest}`;
+  if (sig !== _lastEdgeLog) {
+    _lastEdgeLog = sig;
+    console.log("[DND] _computeClosestEdge (custom hit-test) edge →", closest, {
+      allowedEdges,
+      rectEmpty: rect.width === 0 && rect.height === 0,
+      rect: { top: Math.round(rect.top), bottom: Math.round(rect.bottom), left: Math.round(rect.left), right: Math.round(rect.right), w: Math.round(rect.width), h: Math.round(rect.height) },
+      pointer: { x: Math.round(clientX), y: Math.round(clientY) },
+      distances: { top: Math.round(distances.top), bottom: Math.round(distances.bottom), left: Math.round(distances.left), right: Math.round(distances.right) },
+    });
   }
   return closest;
 }
@@ -722,6 +737,9 @@ export function useDragDrop({
             const clientX = location.current.input.clientX;
             const clientY = location.current.input.clientY;
             const edge = extractClosestEdge(self.data);
+            console.log("[DND] dragSystem onDrop extractClosestEdge", {
+              dropTargetType: type, dropTargetId: id, allowedEdges, edge,
+            });
             dragCtx.handleDrop({
               type, id,
               context: { ...context, instanceId: id, closestEdge: edge },

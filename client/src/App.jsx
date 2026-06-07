@@ -23,7 +23,6 @@ import AssistantDrawer from "./ui/AssistantDrawer";
 import ClipboardDropOverlay from "./ui/ClipboardDropOverlay";
 import RubberBandSelector from "./ui/RubberBandSelector";
 import { Spinner } from "./components/ui/spinner";
-import { Toaster } from "./components/ui/sonner";
 import UserInputModal from "./ui/UserInputModal";
 import { SelectionContext, useSelectionProvider } from "./state/SelectionContext";
 
@@ -903,12 +902,10 @@ export default function App() {
           )}
         </div>
 
-        {/* Toast notifications — slim (≤24px tall) and tucked just below
-            the toolbar band so they never overlap toolbar controls and
-            land visibly on whatever panel the user is currently on
-            (mobile: only one panel is visible at a time below the
-            toolbar; desktop: floats above the grid). */}
-        <Toaster position="top-center" offset={44} />
+        {/* Notifications render as the toolbar pill stack
+            (ui/TransactionNotificationStack.jsx) — the single notification
+            surface. The sonner Toaster was retired; every `toast.*` call now
+            routes through state/notificationStore's adapter into the pills. */}
 
         {/* GET_USER_INPUT modal — only mounts when an op pipeline suspends
             via operationsBridge.requestUserInput. Chained questions render

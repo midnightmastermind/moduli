@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useRef, useCallback, useContext, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, SkipForward } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "../state/notificationStore";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "./../helpers/CommitHelpers";

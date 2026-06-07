@@ -8,8 +8,7 @@
 import { ActionTypes } from "./actions";
 import { runMatchingOperations, executeOperation, executePipeline, setOpApplyingEffects } from "../helpers/operationExecutor";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, updateOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
-import { toast } from "sonner";
-import { pushTxNotification } from "./notificationStore";
+import { toast, pushTxNotification } from "./notificationStore";
 import {
   setOccurrenceFieldValue,
   moveOccurrence,
@@ -193,7 +192,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // Without this overlay, the onLoad fire below reads stale occurrences
       // and re-creates the same items the NavigationOp pass already created.
       const overlay = Object.assign({}, occurrencesById, localOccsById);
-      const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById }, { onError: (name, err) => toast.error(`Operation "${name}" failed`, { description: err?.message, duration: 4000 }) });
+      const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById }, {
+        onError: (name, err) => pushTxNotification({ kind: "error", label: err?.message ? `Operation "${name}" failed — ${err.message}` : `Operation "${name}" failed` }),
+        onSuccess: (name) => pushTxNotification({ kind: "success", label: `Operation "${name}" ran` }),
+      });
       const tOps1 = performance.now();
       const displayUpdates = allUpdates.filter(u => !u._effect);
       const effects = allUpdates.filter(u => u._effect);
@@ -1370,7 +1372,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // MeasureOp/OccurrenceCreateOp) must NOT consult it or they'd be wrongly
     // skipped when an already-fired op legitimately re-runs under a new trigger.
     const cascadeFiredOps = _fireDepth === 1 ? _navCascadeFiredOps : null;
-    const allUpdates = runMatchingOperations(operations, transactionType, transaction, { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById, modulesById: _cachedModulesById, cascadeFiredOps }, { onError: (name, err) => toast.error(`Operation "${name}" failed`, { description: err?.message, duration: 4000 }) });
+    const allUpdates = runMatchingOperations(operations, transactionType, transaction, { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById, modulesById: _cachedModulesById, cascadeFiredOps }, {
+      onError: (name, err) => pushTxNotification({ kind: "error", label: err?.message ? `Operation "${name}" failed — ${err.message}` : `Operation "${name}" failed` }),
+      onSuccess: (name) => pushTxNotification({ kind: "success", label: `Operation "${name}" ran` }),
+    });
 
     // Separate display updates (computedValues) from real CRUD effects
     const displayUpdates = allUpdates.filter(u => !u._effect);
@@ -1459,11 +1464,19 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const batch = _dropBatchFires;
     _dropBatchFires = null;
     if (!batch || batch.length === 0) return;
-    requestAnimationFrame(() => {
+    // DOUBLE rAF: a single requestAnimationFrame runs BEFORE the next paint, so
+    // the deferred op cascade (trackers + Table/Canvas builds → a big grid
+    // re-render) executed in the SAME frame as the optimistic move and blocked
+    // the dropped item from painting — the user saw a long delay before the
+    // item appeared at the drop spot when the destination runs operations.
+    // Waiting TWO frames lets the browser paint the move first, then runs the
+    // op work on the following frame so the drop feels instant.
+    const run = () => {
       for (const { transactionType, transaction, occurrencesOverride } of batch) {
         fireOperations(transactionType, transaction, { occurrencesOverride });
       }
-    });
+    };
+    requestAnimationFrame(() => { requestAnimationFrame(run); });
   };
 
   // Expose on module-level bridge so CommitHelpers can call optimistically

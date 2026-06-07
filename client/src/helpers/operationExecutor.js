@@ -15,7 +15,6 @@
 import { BlockType } from "./blockTypes";
 import { evaluateBlock } from "./blockEvaluator";
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
-import { toast } from "sonner";
 import { resolveExpr, evalRule, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleAgainstRecord } from "./operationActions";
 import { buildParentMap } from "./dragHitTesting";
 import { isEventCompatible } from "./triggerTypes";
@@ -836,7 +835,7 @@ export function isOpApplyingEffects(opId) {
   return !!opId && _opsApplyingEffects.has(opId);
 }
 
-export function runMatchingOperations(operations, transactionType, transaction, context, { onError } = {}) {
+export function runMatchingOperations(operations, transactionType, transaction, context, { onError, onSuccess } = {}) {
   const updates = [];
   // Priority is per-trigger (1–10, default 5). Pre-match every op so we can sort
   // by the priority of the triggerObject that actually matched — an op with two
@@ -912,6 +911,9 @@ export function runMatchingOperations(operations, transactionType, transaction, 
       }
       updates.push(...results);
       logger.add("end", { updates: results, durationMs: Date.now() - startedAt });
+      // Success notification — only when the op actually produced effects, so
+      // idempotent no-op runs (the common case on re-fire) stay silent.
+      if (results.length > 0) onSuccess?.(op.name, results);
     } catch (err) {
       console.warn(`[operationExecutor] error in operation "${op.name}":`, err);
       logger.add("error", { message: String(err?.message || err), stack: err?.stack });

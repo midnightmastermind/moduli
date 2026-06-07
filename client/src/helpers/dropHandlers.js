@@ -92,7 +92,7 @@ import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
 import { createModuleAction, createOccurrenceAction } from "../state/actions";
 import { mimeToKind } from "./fileKind";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
-import { toast } from "sonner";
+import { toast } from "../state/notificationStore";
 import { jumpToOccurrence } from "./jumpToOccurrence";
 import { DROP_TARGET_KIND } from "./dragHitTesting";
 import { autoAppendFieldsToAncestorsShowMode } from "./fieldVisibilityAutoAppend";
@@ -610,6 +610,12 @@ export function handleContainerDrop(dropContext, ctx) {
           }
         }
       }
+      console.log("[DND] handleContainerDrop (CONTAINER move/reorder) toIndex", {
+        edge: dropTarget?.context?.closestEdge, insertAt: dropTarget?.context?.insertAt,
+        hoveredContainerId: containerId, draggedContainerId,
+        fromOrderOcc: fromOrderOcc?.id, toOrderOcc: toOrderOcc?.id,
+        destLen: (toOrderOcc?.occurrences || []).length, toIndex,
+      });
 
       const gridId = state?.gridId || state?.grid?._id;
       const isCopyMode = sessionRef.current.mode === 'copy';
@@ -1197,8 +1203,10 @@ export function handleOccurrenceMove(dropContext, ctx) {
   if (!occurrenceId) { clearSession(); return; }
 
   let toIndex = null;
-  if (dropTarget.context?.insertAt !== undefined) {
+  let _idxPath = "none (toIndex stays null → append)";
+  if (dropTarget.context?.insertAt !== undefined && dropTarget.context?.insertAt !== null) {
     toIndex = dropTarget.context.insertAt;
+    _idxPath = `insertAt path (position.insertIndex=${toIndex}) — TAKES PRECEDENCE over edge`;
   } else if (instanceId && toCOcc) {
     const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(instanceId, toCOcc.occurrences || [], occurrencesById);
     if (hoveredIndex !== -1) {
@@ -1206,12 +1214,26 @@ export function handleOccurrenceMove(dropContext, ctx) {
       if (edge === 'top' || edge === 'left') toIndex = hoveredIndex;
       else if (edge === 'bottom' || edge === 'right') toIndex = hoveredIndex + 1;
       else toIndex = hoveredIndex;
+      _idxPath = `edge path (edge=${edge}, hoveredIndex=${hoveredIndex} → toIndex=${toIndex})`;
       if (fromCOcc && fromCOcc.id === toCOcc.id) {
         const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
-        if (fromIndex !== -1 && fromIndex < hoveredIndex) toIndex = Math.max(0, toIndex - 1);
+        if (fromIndex !== -1 && fromIndex < hoveredIndex) {
+          toIndex = Math.max(0, toIndex - 1);
+          _idxPath += ` | SAME-container adjust (fromIndex=${fromIndex} < hoveredIndex) → toIndex=${toIndex}`;
+        }
       }
+    } else {
+      _idxPath = `hovered instance not found in dest occurrences (hoveredIndex=-1) → append`;
     }
   }
+  console.log("[DND] handleInstanceDrop toIndex resolution:", _idxPath, {
+    insertAt: dropTarget.context?.insertAt,
+    closestEdge: dropTarget.context?.closestEdge,
+    hoveredInstanceId: instanceId,
+    destOccId: toCOcc?.id,
+    destLen: (toCOcc?.occurrences || []).length,
+    finalToIndex: toIndex,
+  });
 
   const gridId = state?.gridId || state?.grid?._id;
   const grid = state?.grid;
@@ -1224,9 +1246,14 @@ export function handleOccurrenceMove(dropContext, ctx) {
   const isCopylinkMode = sessionRef.current.mode === 'copylink';
   const sameContainer = fromC.id === toC.id;
 
-  // [reorder-diag] temporary diagnostic — remove once reorder is confirmed.
+  // [DND] instance-drop summary — which branch will run + all inputs.
+  const _branch = (isCopylinkMode && sameContainer) ? "copylink+sameContainer→reorder"
+    : isCopylinkMode ? "copylink→new linked occ"
+    : isCopyMode ? "copy→new occ"
+    : sameContainer ? "MOVE same container→reorder"
+    : "MOVE cross container→moveInstanceBetweenContainers";
   try {
-    console.log("[reorder-diag]", {
+    console.log(`[DND] handleInstanceDrop BRANCH: ${_branch}`, {
       mode: sessionRef.current.mode,
       sameContainer,
       fromCId: fromC?.id, toCId: toC?.id,
@@ -1237,9 +1264,8 @@ export function handleOccurrenceMove(dropContext, ctx) {
       insertAt: dropTarget?.context?.insertAt,
       toIndex,
       fromIndexByOcc: (fromCOcc?.occurrences || []).indexOf(occurrenceId),
-      fromIndexByModule: LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc?.occurrences || [], occurrencesById),
-      sortable: toC?.behavior?.sortable, behaviorMode: toC?.behaviorMode,
-      occurrences: fromCOcc?.occurrences,
+      destLen: (toCOcc?.occurrences || []).length,
+      destOccurrences: toCOcc?.occurrences,
     });
   } catch {}
 
@@ -1268,6 +1294,19 @@ export function handleOccurrenceMove(dropContext, ctx) {
     }
   }
 
+  // Drag-action notifications (reorder / move / copy / copy-link). All the
+  // context — item, containers, landing index — is on the client at drop
+  // time; the server records no OccurrenceListOp for occurrences[] changes,
+  // so the pill is surfaced here directly.
+  const _nmods = state?.modulesById || {};
+  const _occName = (occId) => {
+    const o = occurrencesById[occId];
+    return (o && (o.label || _nmods[o.moduleId]?.label || _nmods[o.targetId]?.label)) || "item";
+  };
+  const _contName = (cMod, cOcc) => cOcc?.label || _nmods[cMod?.id]?.label || cMod?.label || "container";
+  // 1-based landing position. toIndex null = appended → end of the dest list.
+  const _destPos = (cOcc) => (toIndex == null ? (cOcc?.occurrences?.length ?? 0) : toIndex) + 1;
+
   if ((isCopylinkMode || isCopyMode) && sameContainer) {
     if (fromCOcc) {
       // Index by OCCURRENCE id (not module id) — a list can hold multiple
@@ -1278,6 +1317,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
         if (toIndex === null) { clearSession(); return; }
         if (fromIndex !== toIndex) {
           LayoutHelpers.reorderInstancesInContainer({ dispatch, socket, containerOccurrence: fromCOcc, fromIndex, toIndex, emit: true });
+          toast.success(`Reordered "${_occName(occurrenceId)}" in ${_contName(fromC, fromCOcc)}: #${fromIndex + 1} → #${toIndex + 1}`);
         }
       }
     }
@@ -1289,6 +1329,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
       iterationMode: "specific", iterationValue: currentIterationDate,
       sourceOccurrence: occurrenceId ? occurrencesById[occurrenceId] : null,
     });
+    toast.success(`Linked "${_occName(occurrenceId)}" → ${_contName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
   } else if (isCopyMode) {
     const _revMap = buildReverseMap(Object.values(occurrencesById));
     const _gridOccSet = new Set(state?.grid?.occurrences || []);
@@ -1328,6 +1369,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
     if (copyResult?.occurrence && toCOcc) {
       autoAppendOnDrop({ ctx, newOccurrence: copyResult.occurrence, parentOccurrenceId: toCOcc.id });
     }
+    toast.success(`Copied "${_occName(occurrenceId)}" → ${_contName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
 
     // Trackers + onChange-bound aggregations fire while createOccurrence is
     // still inside the OccurrenceCreateOp dispatch — at that moment the new
@@ -1353,6 +1395,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
         if (toIndex === null) { clearSession(); return; }
         if (fromIndex !== toIndex) {
           LayoutHelpers.reorderInstancesInContainer({ dispatch, socket, containerOccurrence: fromCOcc, fromIndex, toIndex, emit: true });
+          toast.success(`Reordered "${_occName(occurrenceId)}" in ${_contName(fromC, fromCOcc)}: #${fromIndex + 1} → #${toIndex + 1}`);
         }
       }
     }
@@ -1374,6 +1417,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
         parentContainerOcc: dayColOcc || toCOcc,
       });
       autoAppendOnDrop({ ctx, newOccurrenceId: occurrenceId, parentOccurrenceId: toCOcc.id });
+      toast.success(`Moved "${_occName(occurrenceId)}": ${_contName(fromC, fromCOcc)} → ${_contName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
 
       // Fire OccurrenceMoveOp
       const _revMap = buildReverseMap(Object.values(occurrencesById));
@@ -2242,6 +2286,12 @@ function dropView(dropContext, ctx) {
   const panelId = _PANEL_ROLES.has(targetRole) ? targetModuleId
     : _PANEL_ROLES.has(parentRole) ? parentModuleId : null;
 
+  console.log("[DND] normalizeDropTarget position →", {
+    edge: position?.edge, insertIndex: position?.insertIndex,
+    targetKind: target?.kind, targetRole, parentRole,
+    targetOccId: target?.occurrenceId, parentOccId: parentOcc?.id,
+    instanceId, containerOccurrenceId,
+  });
   const dropTarget = {
     type: target.kind,
     context: {

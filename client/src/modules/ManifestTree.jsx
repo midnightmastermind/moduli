@@ -408,7 +408,12 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
 
   const childFolders = useMemo(() =>
     Object.values(foldersById ?? {})
-      .filter(f => f.parentId === folder.id)
+      // `folderType: "category"` folders (Scheduling / Workouts / Trackers /
+      // Schedule Ops / …) are Command Center field+operation groupings, NOT
+      // manifest-tree folders — they're parented under root for the CC's
+      // convenience but must never render in the file sidebar (they'd show as
+      // a pile of empty folders). Only normal/day-pages/etc. folders belong here.
+      .filter(f => f.parentId === folder.id && f.folderType !== "category")
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
     [foldersById, folder.id]
   );

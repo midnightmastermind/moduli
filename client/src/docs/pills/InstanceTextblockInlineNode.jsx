@@ -142,6 +142,19 @@ export default function InstanceTextblockInlineNode({ node, editor }) {
   const link = occurrence?.meta?.link || null;
   if (link && (link.url || link.occId || link.target)) {
     const isUrl = link.kind === "url" || (!!link.url && !link.occId && !link.target);
+    // Normalize wiki-internal / relative hrefs to absolute so clicking opens the
+    // real page instead of <app-origin>/wiki/X. The importer SHOULD already emit
+    // absolute urls, but be defensive — relative refs that slip through (e.g.
+    // "Rolling Stone" → "/wiki/Rolling_Stone") are resolved here.
+    const resolveHref = (u) => {
+      if (!u) return u;
+      if (/^(https?:|mailto:|data:)/i.test(u)) return u;
+      if (u.startsWith("//")) return `https:${u}`;
+      if (u.startsWith("/wiki/")) return `https://en.wikipedia.org${u}`;
+      if (u.startsWith("./")) return `https://en.wikipedia.org/wiki/${u.slice(2)}`;
+      return u;
+    };
+    const href = resolveHref(link.url);
     const chipLabel = storedText || link.url || "link";
     const chipStyle = {
       display: "inline", whiteSpace: "normal",
@@ -160,7 +173,22 @@ export default function InstanceTextblockInlineNode({ node, editor }) {
         className="instance-textblock-inline instance-textblock-inline--link"
       >
         {isUrl ? (
-          <a href={link.url} target="_blank" rel="noopener noreferrer" style={chipStyle} title={link.url}>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={chipStyle}
+            title={href}
+            // ProseMirror is editable + the wrapper is a drag handle, so a bare
+            // <a> click gets swallowed (node-selection / drag start). Open it
+            // ourselves and stop the event from reaching the editor.
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              if (href) window.open(href, "_blank", "noopener,noreferrer");
+            }}
+          >
             {chipLabel} <span style={{ opacity: 0.7 }}>↗</span>
           </a>
         ) : (

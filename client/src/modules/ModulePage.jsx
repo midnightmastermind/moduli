@@ -4,7 +4,7 @@
 // Inside: routes to content based on page kind (board, canvas, doc, display).
 
 import React, { useRef, useMemo, useState, useCallback, useContext, useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "../state/notificationStore";
 import RadialMenu from "../ui/RadialMenu";
 import ContextMenu from "../ui/ContextMenu";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";

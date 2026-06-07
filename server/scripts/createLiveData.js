@@ -2026,7 +2026,7 @@ export async function createLiveData(userId, options = {}) {
     totalRepsToday: {
       id: uid(), name: "Total Reps", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: " reps" },
-      displayConfig: { showArrows: true, targetValue: 150, targetPeriod: "daily" },
+      displayConfig: { showArrows: true, targetValue: 50, targetPeriod: "daily" },
     },
 
     // ── NUTRITION FIELDS ──────────────────────────────────────────────────────
@@ -5888,6 +5888,38 @@ export async function createLiveData(userId, options = {}) {
     folderId: opCategoryIds.trackers,
     enabled: true,
   }).save();
+
+  // ── Days Until Due ─────────────────────────────────────────────────────────
+  // Per-occurrence DATE_DIFF: for every occurrence carrying a `Due` date value,
+  // write (dueDate - today) in days into its `Days Until Due` display field.
+  // Todo-list instances bind this field as a display; without this op nothing
+  // computed it, so it always read empty. Fires when a Due date changes, on
+  // load, and on filter nav (so "today" advancing re-derives the countdown).
+  await new Operation({
+    id: uid(), userId, gridId, priority: 4,
+    name: "Days Until Due",
+    description: "For each occurrence with a Due date, write (dueDate − today) in days to its Days Until Due display field.",
+    triggerTypes: ["onChange", "onLoad", "onFilterChange"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: dueFieldId, priority: 4 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "",         priority: 4 },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "",         priority: 4 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: {
+          type: "DATE_DIFF",
+          dateFieldId: dueFieldId,
+          targetFieldId: fields.daysUntilDue.id,
+          perOccurrence: true,
+        } },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
+
   // Tracker: Today's Moods — replaces the prior "Latest Mood" agg:"last".
   // Builds an array of {mood, date} rows for every mood-bearing occurrence
   // in $goalPeriod (day/week/month/year — broader windows return multiple
@@ -6654,9 +6686,9 @@ export async function createLiveData(userId, options = {}) {
             // 5c. Write history rows + last-title to the Movies occ.
             {
               type: "action", action: "UPDATE",
-              cfg: { path: `$goalItemId.fields.${moviesWatchedDisplayFieldId}.value`, value: "$rows" },
+              cfg: { path: `$goalItem.fields.${moviesWatchedDisplayFieldId}.value`, value: "$rows" },
             },
-            { type: "action", action: "UPDATE", cfg: { path: `$goalItemId.fields.${lastMovieFieldId}.value`, value: "$lastTitle" } },
+            { type: "action", action: "UPDATE", cfg: { path: `$goalItem.fields.${lastMovieFieldId}.value`, value: "$lastTitle" } },
           ],
           else: [],
         },
@@ -6790,9 +6822,9 @@ export async function createLiveData(userId, options = {}) {
             // 5c. Write history rows + last-title to the Books occ.
             {
               type: "action", action: "UPDATE",
-              cfg: { path: `$goalItemId.fields.${booksReadDisplayFieldId}.value`, value: "$rows" },
+              cfg: { path: `$goalItem.fields.${booksReadDisplayFieldId}.value`, value: "$rows" },
             },
-            { type: "action", action: "UPDATE", cfg: { path: `$goalItemId.fields.${lastBookFieldId}.value`, value: "$lastTitle" } },
+            { type: "action", action: "UPDATE", cfg: { path: `$goalItem.fields.${lastBookFieldId}.value`, value: "$lastTitle" } },
           ],
           else: [],
         },
@@ -6927,9 +6959,9 @@ export async function createLiveData(userId, options = {}) {
             // 5c. Write history rows + last-title to the Podcasts occ.
             {
               type: "action", action: "UPDATE",
-              cfg: { path: `$goalItemId.fields.${podcastsListenedDisplayFieldId}.value`, value: "$rows" },
+              cfg: { path: `$goalItem.fields.${podcastsListenedDisplayFieldId}.value`, value: "$rows" },
             },
-            { type: "action", action: "UPDATE", cfg: { path: `$goalItemId.fields.${lastPodcastFieldId}.value`, value: "$lastTitle" } },
+            { type: "action", action: "UPDATE", cfg: { path: `$goalItem.fields.${lastPodcastFieldId}.value`, value: "$lastTitle" } },
           ],
           else: [],
         },
@@ -7061,7 +7093,7 @@ export async function createLiveData(userId, options = {}) {
             // 5c. Write the rows array to the multi-column display field.
             {
               type: "action", action: "UPDATE",
-              cfg: { path: `$goalItemId.fields.${coursesTakenDisplayFieldId}.value`, value: "$rows" },
+              cfg: { path: `$goalItem.fields.${coursesTakenDisplayFieldId}.value`, value: "$rows" },
             },
           ],
           else: [],
@@ -8936,11 +8968,37 @@ export async function createLiveData(userId, options = {}) {
                   ],
                 },
 
-                // Phase 3 — cells rebuild, gated on $changed > 0. In steady
-                // state this whole block is a no-op.
+                // Count the row copies actually under the table. This reads
+                // $allInstances (built at pipeline start), so it LAGS Phase 2's
+                // same-run COPY_LINK mints by one fire — which is exactly the
+                // fire on which the cells can finally be built from those rows.
+                // Used to force a Phase 3 rebuild when the stored rowCount is
+                // stale: the mint run can't see its own new rows, so its cells
+                // loop counts 0 and writes rowCount 0; the next fire heals here.
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$actualRows", expr: "literal:0" } },
+                {
+                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$rowProbe",
+                  body: [
+                    { id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: "$rowProbe._ancestors",    comparator: "HAS_ANCESTOR", right: "$tblId" },
+                        { id: uid(), left: "$rowProbe.id",            comparator: "IS_NOT",       right: "$cg"    },
+                        { id: uid(), left: "$rowProbe.linkedGroupId", comparator: "IS_NOT_EMPTY", right: ""       },
+                      ] },
+                      then: [{ id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$actualRows" } }],
+                      else: [],
+                    },
+                  ],
+                },
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$storedRowCount", expr: "$tbl.meta.table.rowCount" } },
+
+                // Phase 3 — cells rebuild. Runs when something changed OR when
+                // the stored rowCount doesn't match the rows actually present
+                // (self-heal for the mint-run lag above). Steady state: no-op.
                 { id: uid(), type: "if",
-                  condition: { operator: "AND", rules: [
-                    { id: uid(), left: "$changed", comparator: "GREATER", right: 0 },
+                  condition: { operator: "OR", rules: [
+                    { id: uid(), left: "$changed",    comparator: "GREATER", right: 0 },
+                    { id: uid(), left: "$actualRows", comparator: "IS_NOT",  right: "$storedRowCount" },
                   ] },
                   then: [
                     { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells",    value: {} } },
@@ -9257,23 +9315,24 @@ export async function createLiveData(userId, options = {}) {
                             { id: uid(), left: "$curCardId", comparator: "IS_EMPTY", right: "" },
                           ] },
                           then: [
-                            { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$canvasId", itemVar: "$copy", itemIdVar: "$copyId" } },
-                            // Compute y = $r * 80 + 60 via INIT_VAR + MULTIPLY_VAR + ADD_TO_VAR.
+                            // Compute y = $r * 80 + 60 BEFORE the create so the
+                            // position can be stamped atomically inside the
+                            // COPY_LINK's meta. A follow-up `UPDATE $copy.meta.x/y`
+                            // raced the create (the update targeted an occurrence
+                            // the server hadn't persisted yet) and silently dropped
+                            // the position → every card piled at the same spot.
                             { id: uid(), type: "action", config: { type: "INIT_VAR",     name: "$y", expr: "$r" } },
                             { id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$y", by: 80 } },
                             { id: uid(), type: "action", config: { type: "ADD_TO_VAR",   name: "$y", expr: "literal:60" } },
-                            { id: uid(), type: "action", config: { type: "UPDATE", path: "$copy.meta.x", value: 60 } },
-                            { id: uid(), type: "action", config: { type: "UPDATE", path: "$copy.meta.y", value: "$y" } },
-                            // Mindmap preview node — render the canvas card as a
-                            // compact representation chip (label + type icon), not
-                            // a full inline instance. meta is canvas-local (excluded
-                            // from the linkedGroupId fan-out, same as meta.x/y), so
-                            // the Schedule source keeps its own (actual) view mode.
-                            // Only stamped on a freshly-minted card (this branch is
-                            // guarded by the no-existing-copy check), so a user who
-                            // flips a card back to actual/preview keeps that choice
-                            // across op re-fires.
-                            { id: uid(), type: "action", config: { type: "UPDATE", path: "$copy.meta.viewMode", value: "representation" } },
+                            // COPY_LINK stamps meta.x/y + viewMode:"representation"
+                            // (compact mindmap preview node) atomically at create
+                            // time. meta is canvas-local (excluded from the
+                            // linkedGroupId fan-out), so the Schedule source keeps
+                            // its own (actual) view mode and carries no x/y. Only
+                            // freshly-minted cards get the seed position; existing
+                            // cards keep their drag positions (this branch is
+                            // skipped when $curCardId is already set).
+                            { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$canvasId", itemVar: "$copy", itemIdVar: "$copyId", meta: { x: 60, y: "$y", viewMode: "representation" } } },
                             { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$r" } },
                             { id: uid(), type: "action", config: { type: "SET_VAR", name: "$curCardId", expr: "$copyId" } },
                           ],

@@ -1016,7 +1016,12 @@ function renderToolBody(name, output) {
       .map(([k, v]) => `${v} ${k}`);
     return (
       <div>
-        <div>✓ Imported{output.source ? ` from ${output.source}` : ""}.</div>
+        <div>✓ Imported{(() => {
+          const s = output.source;
+          if (!s) return "";
+          const label = typeof s === "string" ? s : (s.title || s.label || s.name || s.url || null);
+          return label ? ` from ${label}` : "";
+        })()}.</div>
         {parts.length > 0 && <div style={{ opacity: 0.7 }}>{parts.join(" · ")}</div>}
         <div style={{ opacity: 0.5, fontSize: 10, marginTop: 2 }}>Refresh the grid to see it.</div>
       </div>

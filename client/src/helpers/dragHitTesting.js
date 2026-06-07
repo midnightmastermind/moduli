@@ -257,6 +257,15 @@ export function buildDropContext(rawEvent, env) {
   const parentId = parents[targetOcc.id] || null;
   const parentOcc = parentId ? occurrencesById[parentId] : null;
 
+  // Role of the target + dragged source — distinguishes "drop a leaf INTO
+  // this container" from "reorder this occurrence among its siblings".
+  const modulesById = env.modulesById || {};
+  const LEAF_ROLES = new Set(["instance", "textblock", "artifact"]);
+  const targetRole = modulesById[targetOcc.moduleId]?.role ?? null;
+  const sourceRole = source?.moduleId ? (modulesById[source.moduleId]?.role ?? null) : null;
+  const targetIsContainer = targetRole === "container";
+  const sourceIsLeaf = sourceRole != null && LEAF_ROLES.has(sourceRole);
+
   let insertIndex = 0;
   let edge = dtd.closestEdge ?? null;
   // Explicit insertAt from the drop zone wins — used for "drop INTO the
@@ -266,6 +275,19 @@ export function buildDropContext(rawEvent, env) {
   if (typeof dtd.insertAt === "number") {
     insertIndex = dtd.insertAt;
     edge = null;
+  } else if (targetIsContainer && sourceIsLeaf && Array.isArray(targetOcc.occurrences)) {
+    // Dropping a LEAF onto the CONTAINER body/edge (not onto a specific child
+    // instance) → nest it INSIDE the container at the END (the "last spot").
+    // Without this, the branch below computed the container's index within its
+    // PARENT page (e.g. 1) and misapplied it as the leaf's index inside the
+    // container, so an edge-of-container drop landed mid-list. Precise
+    // mid-list placement still works by dropping onto a specific instance —
+    // that target IS the instance, handled by the sibling branch below.
+    insertIndex = targetOcc.occurrences.length;
+    edge = null;
+    console.log("[DND] dragHitTesting: leaf→container body, append to end", {
+      container: targetOcc.id, insertIndex, childCount: targetOcc.occurrences.length,
+    });
   } else if (parentOcc && Array.isArray(parentOcc.occurrences)) {
     const hoveredIndex = parentOcc.occurrences.indexOf(targetOcc.id);
     const fromIndex = source?.occurrenceId

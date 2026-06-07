@@ -7,7 +7,7 @@
     "predev": "npm run freeport",
     "prestart": "npm run freeport",
     "start": "npm run build:client && npm run serve",
-    "install:all": "npm i && cd client && npm i && cd ../server && npm install && cd ..",
+    "install:all": "npm i && cd client && npm i && cd ../server && npm run install:platform && cd ..",
     "uninstall:all": "rm -rf ./node_modules && cd client && rm -rf ./node_modules ./dist && cd ../server && rm -rf ./node_modules && cd ..",
     "git_update": "rm -rf ./node_modules && cd client && rm -rf ./node_modules ./dist && cd ../server && rm -rf ./node_modules && cd .. && git add . && git commit -m 'code update' && git push",
     "serve": "TMPDIR=$HOME/tmp node --env-file=./server/.env --max-old-space-size=4096 server/server.js",

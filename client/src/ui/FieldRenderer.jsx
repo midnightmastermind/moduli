@@ -293,7 +293,7 @@ function FieldRenderer({
           hidePostfix={hidePostfix}
         />
       )}
-      <div style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+      <div style={{ display: "inline-flex", alignItems: "stretch", gap: 0 }}>
         <Field
           field={effectiveField}
           binding={binding}
@@ -311,7 +311,20 @@ function FieldRenderer({
           <button
             onClick={handleRandomize}
             title="Pick a random option"
-            style={{ background: "none", border: "none", cursor: "pointer", padding: "0 2px", color: "var(--text-faint)", fontSize: 11, flexShrink: 0, lineHeight: 1 }}
+            // Looks like part of the pill: shares the pill's surface + border,
+            // no left divider, overlaps the pill's right edge by 1px so the two
+            // read as one continuous control; rounded only on the right.
+            style={{
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              marginLeft: -1, flexShrink: 0,
+              padding: compact ? "0 6px" : "0 7px",
+              background: "var(--input-bg, rgba(255,255,255,0.06))",
+              border: "1px solid var(--border-default, rgba(148,163,184,0.35))",
+              borderLeft: "none",
+              borderRadius: "0 999px 999px 0",
+              cursor: "pointer", color: "var(--text-faint)",
+              fontSize: 11, lineHeight: 1,
+            }}
           >
             &#x1F3B2;
           </button>

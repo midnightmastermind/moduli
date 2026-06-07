@@ -13,7 +13,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, AlertTriangle, Loader2, X, Maximize2 } from "lucide-react";
+import { Check, AlertTriangle, Loader2, X, Maximize2, Info } from "lucide-react";
 import {
   subscribeTxNotifications,
   dismissTxNotification,
@@ -43,6 +43,20 @@ const KIND_STYLES = {
     color: "#93c5fd",
     dot: "#60a5fa",
     Icon: Loader2,
+  },
+  info: {
+    bg: "linear-gradient(rgba(148, 163, 184, 0.15), rgba(148, 163, 184, 0.15)), var(--surface, #1f2125)",
+    border: "rgba(148, 163, 184, 0.45)",
+    color: "#cbd5f5",
+    dot: "#94a3b8",
+    Icon: Info,
+  },
+  warning: {
+    bg: "linear-gradient(rgba(251, 191, 36, 0.15), rgba(251, 191, 36, 0.15)), var(--surface, #1f2125)",
+    border: "rgba(251, 191, 36, 0.45)",
+    color: "#fcd34d",
+    dot: "#fbbf24",
+    Icon: AlertTriangle,
   },
 };
 
@@ -86,13 +100,10 @@ function formatClockTime(ts) {
   return `${h12}:${mm} ${period}`;
 }
 
-function Chip({ note, index, isOpen, openIndex, onOpen, now, fullWidth = false, showAllChrome = false }) {
+function Chip({ note, index, isOpen, openIndex, onOpen, now }) {
   const style = KIND_STYLES[note.kind] || KIND_STYLES.pending;
   const Icon = style.Icon;
-  // `showAllChrome` is a forced-open variant used inside the
-  // overflow dropdown: every row gets the × + marquee + expand
-  // treatment regardless of the inline stack's `isOpen`.
-  const treatAsOpen = isOpen || showAllChrome;
+  const treatAsOpen = isOpen;
 
   const labelRef = useRef(null);
   const [overflows, setOverflows] = useState(false);
@@ -103,22 +114,16 @@ function Chip({ note, index, isOpen, openIndex, onOpen, now, fullWidth = false, 
     const single = el.querySelector("[data-tx-label-copy]");
     if (!single) return;
     setOverflows(single.scrollWidth > el.clientWidth);
-  }, [note.label, treatAsOpen, fullWidth]);
+  }, [note.label, treatAsOpen]);
 
   const animate = treatAsOpen && overflows;
   const durationSec = animate
     ? Math.max(4, (labelRef.current?.querySelector("[data-tx-label-copy]")?.scrollWidth || 0) / MARQUEE_PX_PER_SEC)
     : 0;
 
-  // z-index in the inline stack. Inside the overflow dropdown the
-  // chip lives in normal flow; index/openIndex aren't used.
-  const z = showAllChrome
-    ? "auto"
-    : (isOpen ? 1000 : 500 - Math.abs(index - openIndex));
-
-  const positional = showAllChrome
-    ? { position: "relative" }
-    : { position: "absolute", top: 0, left: index * PEEK_OFFSET, zIndex: z };
+  // z-index in the inline stack.
+  const z = isOpen ? 1000 : 500 - Math.abs(index - openIndex);
+  const positional = { position: "absolute", top: 0, left: index * PEEK_OFFSET, zIndex: z };
 
   return (
     <div
@@ -138,7 +143,7 @@ function Chip({ note, index, isOpen, openIndex, onOpen, now, fullWidth = false, 
         alignItems: "center",
         gap: 6,
         height: CHIP_HEIGHT,
-        width: fullWidth ? "100%" : CHIP_WIDTH,
+        width: CHIP_WIDTH,
         padding: "0 6px 0 4px",
         borderRadius: 999,
         fontSize: 10,
@@ -332,6 +337,83 @@ function ExpandButton({ note, color }) {
   );
 }
 
+// Human-readable kind label for the card header.
+const KIND_LABELS = {
+  success: "Success",
+  error: "Error",
+  warning: "Warning",
+  info: "Info",
+  pending: "Working",
+};
+
+// Roomy multi-line card used inside the overflow dropdown (NOT the inline
+// stack). Header row = dot + icon + kind + time + dismiss; the full message
+// wraps on its own line(s) below, so nothing is cramped onto one line.
+function NotificationCard({ note }) {
+  const style = KIND_STYLES[note.kind] || KIND_STYLES.pending;
+  const Icon = style.Icon;
+  const isPending = note.kind === "pending";
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        width: "100%",
+        padding: "8px 12px",
+        borderRadius: 8,
+        background: style.bg,
+        border: `1px solid ${style.border}`,
+        color: style.color,
+        boxSizing: "border-box",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+        <span
+          aria-hidden
+          style={{
+            flex: "0 0 auto",
+            width: 7, height: 7, borderRadius: "50%",
+            background: style.dot,
+            animation: isPending ? "socket-status-pulse 1.2s ease-in-out infinite" : "none",
+          }}
+        />
+        <Icon
+          size={13}
+          aria-hidden
+          style={{ flex: "0 0 auto", animation: isPending ? "spin-cw 1.2s linear infinite" : undefined }}
+        />
+        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", opacity: 0.9 }}>
+          {KIND_LABELS[note.kind] || note.kind}
+        </span>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: 9,
+            opacity: 0.7,
+            letterSpacing: 0.2,
+            fontVariantNumeric: "tabular-nums",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {formatClockTime(note.createdAt)}
+        </span>
+      </div>
+      <div
+        style={{
+          fontSize: 12,
+          lineHeight: 1.4,
+          color: "var(--text-primary, #e5e7eb)",
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+        }}
+      >
+        {note.label}
+      </div>
+    </div>
+  );
+}
+
 // "+N" pill sitting at the far right of the inline stack. Clicking
 // opens a portal-rendered list of EVERY notification (visible + overflow)
 // anchored under the pill. Portal avoids stacking-context conflicts that
@@ -416,32 +498,23 @@ function OverflowPill({ count, leftPx, allItems, now, compact = false }) {
           style={{
             position: "fixed",
             top: anchorRect.bottom + 6,
-            left: Math.max(8, Math.min(window.innerWidth - 388, anchorRect.right - 380)),
+            left: Math.max(8, Math.min(window.innerWidth - 428, anchorRect.right - 420)),
             zIndex: 10000,
-            width: 380,
-            maxHeight: "70vh",
+            width: 420,
+            maxHeight: 440,
             overflowY: "auto",
-            padding: 6,
+            padding: 8,
             borderRadius: 8,
             background: "var(--surface, #1f2125)",
             border: "1px solid var(--border-default, rgba(148,163,184,0.4))",
             boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
             display: "flex",
             flexDirection: "column",
-            gap: 4,
+            gap: 6,
           }}
         >
           {allItems.map((n) => (
-            <Chip
-              key={n.id}
-              note={n}
-              index={0}
-              isOpen={false}
-              openIndex={0}
-              now={now}
-              fullWidth
-              showAllChrome
-            />
+            <NotificationCard key={n.id} note={n} />
           ))}
         </div>,
         document.body
@@ -464,20 +537,26 @@ export default function TransactionNotificationStack({ compact = false }) {
     return () => clearInterval(id);
   }, []);
 
+  // Inline toolbar stack shows only the ACTIVE (undismissed) pills. The
+  // dropdown shows the full `items` log (active + dismissed).
+  const active = useMemo(() => items.filter(n => !n.dismissed), [items]);
+
   const openId = useMemo(() => {
-    if (!items.length) return null;
-    if (openIdState && items.some(n => n.id === openIdState)) return openIdState;
-    return items[0].id;
-  }, [items, openIdState]);
+    if (!active.length) return null;
+    if (openIdState && active.some(n => n.id === openIdState)) return openIdState;
+    return active[0].id;
+  }, [active, openIdState]);
 
   const openIndex = useMemo(
-    () => (openId ? items.findIndex(n => n.id === openId) : -1),
-    [items, openId]
+    () => (openId ? active.findIndex(n => n.id === openId) : -1),
+    [active, openId]
   );
 
-  const visible = items.slice(0, VISIBLE_MAX);
-  const overflow = items.slice(VISIBLE_MAX);
-  const hasOverflow = overflow.length > 0;
+  const visible = active.slice(0, VISIBLE_MAX);
+  // Everything not shown inline (dismissed pills + active overflow beyond
+  // VISIBLE_MAX) lives in the dropdown log. The +N pill opens it.
+  const hiddenCount = items.length - visible.length;
+  const hasHistory = hiddenCount > 0;
 
   if (!items.length) return null;
 
@@ -504,7 +583,7 @@ export default function TransactionNotificationStack({ compact = false }) {
     : 0;
   const overflowGap = 6;
   const overflowLeft = chipsRightEdge + overflowGap;
-  const stackWidth = hasOverflow
+  const stackWidth = hasHistory
     ? overflowLeft + OVERFLOW_PILL_WIDTH
     : chipsRightEdge;
 
@@ -529,9 +608,9 @@ export default function TransactionNotificationStack({ compact = false }) {
           now={now}
         />
       ))}
-      {hasOverflow && (
+      {hasHistory && (
         <OverflowPill
-          count={overflow.length}
+          count={hiddenCount}
           leftPx={overflowLeft}
           allItems={items}
           now={now}

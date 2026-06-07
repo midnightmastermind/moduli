@@ -7,14 +7,14 @@
   "scripts": {
     "test": "vitest run --reporter=verbose",
     "start": "node --max-old-space-size=4096 server.js",
-    "dev": "nodemon --max-old-space-size=4096 server.js"
+    "dev": "nodemon --max-old-space-size=4096 server.js",
+    "install:platform": "if [ \"$(uname -o)\" = \"Android\" ]; then echo '[install:platform] Termux/Android detected — installing sharp wasm32 binary' && npm install --cpu=wasm32; else npm install; fi"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",
-    "@img/sharp-wasm32": "^0.34.5",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
     "cors": "^2.8.5",

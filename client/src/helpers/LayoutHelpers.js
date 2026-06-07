@@ -1109,7 +1109,14 @@ export function reorderInstancesInContainer({
   emit = true,
 }) {
   if (!containerOccurrence) return;
-  const next = arrayMove(containerOccurrence.occurrences || [], fromIndex, toIndex);
+  const prev = containerOccurrence.occurrences || [];
+  const next = arrayMove(prev, fromIndex, toIndex);
+  console.log("[DND] reorderInstancesInContainer (SAME container)", {
+    containerOcc: containerOccurrence.id,
+    fromIndex, toIndex, lenBefore: prev.length,
+    movedToFinalIndex: next.indexOf(prev[fromIndex]),
+    prev, next,
+  });
   CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...containerOccurrence, occurrences: next }, emit });
 }
 
@@ -1132,12 +1139,22 @@ export function moveInstanceBetweenContainers({
   const toIdsRaw = removeId(toContainerOccurrence.occurrences || [], occurrenceId);
 
   let toIds;
+  let _how;
   if (toIndex == null || toIndex < 0 || toIndex > toIdsRaw.length) {
     toIds = [...toIdsRaw, occurrenceId];
+    _how = `appended (toIndex=${toIndex} out of range, destLen=${toIdsRaw.length})`;
   } else {
     toIds = [...toIdsRaw];
     toIds.splice(toIndex, 0, occurrenceId);
+    _how = `spliced at ${toIndex} (destLen=${toIdsRaw.length})`;
   }
+  console.log("[DND] moveInstanceBetweenContainers (CROSS container)", {
+    occurrenceId, toIndex,
+    from: fromContainerOccurrence.id, to: toContainerOccurrence.id,
+    how: _how,
+    finalIndexInDest: toIds.indexOf(occurrenceId),
+    destLenAfter: toIds.length, toIds,
+  });
 
   CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...fromContainerOccurrence, occurrences: fromIds }, emit });
   CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...toContainerOccurrence, occurrences: toIds }, emit });

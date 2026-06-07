@@ -269,7 +269,7 @@ function blocksToTree(blocks, rootTitle) {
 }
 
 // ----- Mint entities from the tree -----
-function mintEntities(tree, { gridId, userId, rootParentId }) {
+function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, sourceLabel = null }) {
   const modules = [];
   const occurrences = [];
 
@@ -311,6 +311,21 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
       textmap: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: label || url }] }] },
     });
     return { occurrenceId, moduleId };
+  }
+
+  // Source-link textblock — a regular doc textblock whose paragraph holds a
+  // leading "Source: " label + an inline link mini-textblock (instanceTextblockInline)
+  // pointing at the original article URL. Prepended as the FIRST child of the
+  // import root so the doc opens with a clickable link back to the source.
+  function buildSourceLinkTextblock(url, label) {
+    const { occurrenceId: linkOccId, moduleId: linkModId } = buildInlineLink(label || "View original ↗", url);
+    return buildTextblock([{
+      type: "paragraph",
+      content: [
+        { type: "text", text: "Source: " },
+        { type: "instanceTextblockInline", attrs: { occurrenceId: linkOccId, instanceId: linkModId } },
+      ],
+    }]);
   }
 
 
@@ -424,10 +439,12 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
       meta: { allowChildContainers: true, headingLevel: Math.min(node.level || 1, 6) },
     });
     const childIds = [];
-    // Image children get floated (align:"right") in the textmap so the following
-    // textblocks flow BESIDE them (article-like horizontal layout) — the doc
-    // editor's moduleEmbed already supports left/center/right/full float; the
-    // importer just opts images into it. Users can re-align per-embed in the UI.
+    // Image children render FULL-WIDTH (align:"full") in the textmap. (Float
+    // wrap — align:"left"/"right" — doesn't produce an article-like L-shape
+    // here because each sibling block is its own moduleEmbed component that
+    // establishes a block formatting context and clears the float instead of
+    // wrapping its text beside it. True wrap would need the image INSIDE the
+    // prose textblock, not as a sibling embed.) Users can re-align per-embed.
     const imageChildIds = new Set();
     // Each block becomes its OWN child: every paragraph → its own textblock,
     // every list → ONE textblock holding a bulletList, sub-sections → nested doc
@@ -452,6 +469,8 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
         }]));
       } else if (c.kind === "htmlBlock") {
         childIds.push(buildHtmlPreviewBlock(c.html));
+      } else if (c.kind === "sourceLink") {
+        childIds.push(buildSourceLinkTextblock(c.url, c.label));
       } else if (c.kind === "image") {
         const imgId = buildArtifactImage({ alt: c.alt, src: c.src });
         childIds.push(imgId);
@@ -473,7 +492,7 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
         content: childIds.length
           ? childIds.map((id) => {
               const attrs = { occurrenceId: id };
-              if (imageChildIds.has(id)) attrs.align = "right"; // float → text flows beside it
+              if (imageChildIds.has(id)) attrs.align = "full"; // full-width image
               return { type: "moduleEmbed", attrs };
             })
           : [{ type: "paragraph" }],
@@ -482,6 +501,11 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
     return occurrenceId;
   }
 
+  // Prepend a "Source: <link>" textblock as the FIRST child of the root so the
+  // imported doc opens with a clickable link back to the original article.
+  if (sourceUrl) {
+    tree.children = [{ kind: "sourceLink", url: sourceUrl, label: sourceLabel }, ...(tree.children || [])];
+  }
   const rootOccurrenceId = buildContainer(tree, rootParentId);
   return { modules, occurrences, rootOccurrenceId };
 }
@@ -493,10 +517,10 @@ function mintEntities(tree, { gridId, userId, rootParentId }) {
  * - dryRun: don't write to Mongo — just plan and return what WOULD be
  *   created. Useful for "preview" workflows from the assistant.
  */
-export async function markdownToModuli({ gridId, parentId = null, userId, markdown, dryRun = false, title = null }) {
+export async function markdownToModuli({ gridId, parentId = null, userId, markdown, dryRun = false, title = null, sourceUrl = null }) {
   const blocks = parseBlocks(markdown);
   const tree = blocksToTree(blocks, title);
-  const planned = mintEntities(tree, { gridId, userId, rootParentId: parentId });
+  const planned = mintEntities(tree, { gridId, userId, rootParentId: parentId, sourceUrl, sourceLabel: title ? `${title} — Wikipedia ↗` : null });
 
   if (!dryRun) {
     // Insert in dependency order: modules first (no FK between them),

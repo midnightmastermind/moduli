@@ -25,7 +25,7 @@
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { applyUpdate, substituteTextmapTokens } from "./applyUpdate";
 import { resolveOptions } from "./optionsResolver";
-import { toast } from "sonner";
+import { toast } from "../state/notificationStore";
 
 // ============================================================
 // FILTERED VALUE EXTRACTION
@@ -1742,6 +1742,17 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           : null;
         const label = rootLabelOverride ?? src.label ?? tpl?.label ?? tpl?.name ?? null;
 
+        // Root may seed meta atomically at create time via cfg.meta (leaves
+        // deep-resolved). Used by Canvas: Build to stamp meta.x/y on the new
+        // card in the SAME create — a follow-up `UPDATE $copy.meta.x` raced the
+        // create (the update targeted an occurrence the server hadn't persisted
+        // yet) and silently dropped the position, so every card piled at the
+        // same spot.
+        const rootMeta = isRoot && cfg.meta && typeof cfg.meta === "object"
+          ? deepResolveExpr(cfg.meta, $vars)
+          : null;
+        const baseMeta = { createdByOperation: true, copyLinkSource: src.id, ...(rootMeta || {}) };
+
         const stub = {
           id: newId,
           moduleId: srcMod,
@@ -1750,7 +1761,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           linkedGroupId,
           role,
           label,
-          meta: { createdByOperation: true, copyLinkSource: src.id },
+          meta: { ...baseMeta },
           _ancestors: newAncestors,
           occurrences: childIds,
           ...(rootFilterOverride ? { filterOverride: rootFilterOverride } : {}),
@@ -1771,7 +1782,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             parentId: targetParentId,
             fields,
             linkedGroupId,
-            meta: { createdByOperation: true, copyLinkSource: src.id },
+            meta: { ...baseMeta },
             occurrences: childIds,
             ...(rootFilterOverride ? { filterOverride: rootFilterOverride } : {}),
           };
@@ -1810,8 +1821,10 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             // derivation rule. The local stub already carries this in
             // memory; including it in the CREATE_ITEM instance pushes it
             // through to bindSocketToStore's create_occurrence emit so
-            // it persists to Mongo.
-            meta: { createdByOperation: true, copyLinkSource: src.id },
+            // it persists to Mongo. `baseMeta` also folds in any cfg.meta
+            // (e.g. Canvas: Build's x/y) so position is set atomically at
+            // create time instead of via a racy follow-up UPDATE.
+            meta: { ...baseMeta },
             ...(rootLabelOverride ? { label: rootLabelOverride } : {}),
             ...(rootFilterOverride ? { filterOverride: rootFilterOverride } : {}),
             ...(isRoot && typeof cfg.insertAtIndex === "number" ? { insertAtIndex: cfg.insertAtIndex } : {}),

@@ -757,7 +757,8 @@ function Field({
     const useClickToEdit = compact && (type === "number" || type === "text" || type === "duration");
 
     if (useClickToEdit) {
-      const displayNum = localValue ?? (type === "number" ? 0 : "");
+      // Empty-input display: number/duration → 0, text/notes → "—".
+      const displayNum = localValue ?? ((type === "number" || type === "duration") ? 0 : "—");
       const formattedDisplay = `${prefix}${displayNum}${postfix}`;
       // Pill tint:
       //   - target present  → target-met (green) / not-met (red)
@@ -883,8 +884,8 @@ function Field({
       };
       const inputDate = toInputDate(localValue);
       const formatted = inputDate
-        ? parseLocalDay(inputDate)?.toLocaleDateString(undefined, { month: "short", day: "numeric" }) ?? "date"
-        : "date";
+        ? parseLocalDay(inputDate)?.toLocaleDateString(undefined, { month: "short", day: "numeric" }) ?? "—"
+        : "—";
       // The hidden input has 0 size + pointer-events:none, so the browser
       // can't auto-open its picker via label-click forwarding. Trigger
       // showPicker() on click so the user can actually pick a date.
@@ -1297,7 +1298,13 @@ function Field({
 
   // Formatted value for display
   const formattedValue = useMemo(() => {
-    if (rawDisplayValue === null || rawDisplayValue === undefined) return compact ? "-" : "—";
+    if (rawDisplayValue === null || rawDisplayValue === undefined) {
+      // Empty numeric displays read as 0 (e.g. Days Until Due, account
+      // balances); everything else (date/text/select/…) reads as a dash.
+      if (type === "number") return "0";
+      if (type === "duration") return "0m";
+      return compact ? "-" : "—";
+    }
     switch (type) {
       case "number": {
         const num = Number(rawDisplayValue);

@@ -489,9 +489,13 @@ select:disabled { cursor: not-allowed; }
   overflow: hidden;
   margin-top: 4px;
   height: 100%;
+  /* Popped-out OUTER frame (raised) — the container sits up off the panel,
+     its drop area (.container-list-wrap) is recessed inside it like a pocket,
+     and the instances inside are raised keycaps. */
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    inset 0 -10px 24px rgba(0, 0, 0, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 2px 0 rgba(0, 0, 0, 0.26),
+    0 5px 10px rgba(0, 0, 0, 0.40);
 }
 
 .container-body {
@@ -765,6 +769,11 @@ body[data-clipboard-active="true"] {
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
+  /* Anchor the move handle to the TOP-LEFT of the module, not vertically
+     centered — on tall blocks (textblocks, multi-field instances) a centered
+     handle floats in the middle of the text. */
+  align-self: flex-start;
+  margin-top: 2px;
 }
 
 /* RadialMenu always visible — the radial handle is the drag affordance */
@@ -1938,18 +1947,44 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .preview-node-card {
   display: flex;
   flex-direction: column;
-  border-radius: 8px;
+  border-radius: 9px;
   border: 1px solid var(--border-default);
-  background: var(--surface-card);
+  /* Keycap look: subtle top-lit gradient + a raised bevel. The `0 3px 0`
+     layer is the key's "thickness" (solid edge), the blurred layer is the
+     drop shadow that floats it off the surface, and the inset top highlight
+     is the light catching the key's top face. */
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 38%),
+    var(--surface-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    inset 0 -2px 3px rgba(0,0,0,0.22),
+    0 3px 0 rgba(0,0,0,0.28),
+    0 5px 8px rgba(0,0,0,0.34);
   overflow: hidden;
   cursor: pointer;
   user-select: none;
-  transition: transform 280ms ease-out, opacity 280ms ease-out;
+  transform: translateY(-1px);
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out, border-color 120ms ease-out, opacity 280ms ease-out;
   will-change: transform, opacity;
 }
 .preview-node-card:hover {
-  border-color: rgba(100, 180, 255, 0.4);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-color: rgba(100, 180, 255, 0.45);
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.14),
+    inset 0 -2px 3px rgba(0,0,0,0.22),
+    0 5px 0 rgba(0,0,0,0.30),
+    0 9px 14px rgba(0,0,0,0.42);
+}
+/* Press the key down on click. */
+.preview-node-card:active {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    inset 0 -1px 2px rgba(0,0,0,0.22),
+    0 1px 0 rgba(0,0,0,0.28),
+    0 2px 4px rgba(0,0,0,0.34);
 }
 
 .preview-node-preview {
@@ -2300,6 +2335,19 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   background: rgba(134, 239, 172, 0.18);
   border-color: rgba(134, 239, 172, 0.42);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
+}
+/* Link mini-textblocks render their OWN <a> chip inside the wrapper — strip the
+   wrapper's chip chrome (padding / margin / bg / border) so it's not a
+   chip-inside-a-chip with dead space in front. The inner <a> IS the visual. */
+.instance-textblock-inline--link,
+.instance-textblock-inline--link:hover {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
 }
 .instance-textblock-inline:active {
   cursor: grabbing;
