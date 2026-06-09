@@ -1291,7 +1291,7 @@ const Editor = forwardRef(function Editor({
           // (C: text above + below the neighbor).
           const vfrac = (input.clientY - rect.top) / rect.height;
           const anchor = vfrac < 0.4 ? "top" : "middle";
-          return { hostPos: topPos, side, anchor };
+          return { hostPos: topPos, hostOccId: topNode.attrs?.occurrenceId || null, side, anchor };
         };
         const wrapHostWithNeighbor = (neighborOccId, sideHost) => {
           if (!editor || !sideHost || !neighborOccId) return false;
@@ -1306,6 +1306,40 @@ const Editor = forwardRef(function Editor({
           const from = sideHost.hostPos;
           const to = sideHost.hostPos + host.nodeSize;
           return editor.chain().focus().command(({ tr }) => { tr.replaceWith(from, to, group); return true; }).run();
+        };
+        // Top-level (depth-1) embed lookup by occurrenceId — used to relocate a
+        // moved node. Restricted to top level so we never reach inside an
+        // existing wrapGroup (which must keep its two children).
+        const findTopEmbedPos = (doc, occId, typeNames = ["moduleEmbed", "instanceTextblock"]) => {
+          let found = null;
+          doc.forEach((n, offset) => {
+            if (found) return;
+            if (typeNames.includes(n.type.name) && n.attrs?.occurrenceId === occId) found = { pos: offset, size: n.nodeSize };
+          });
+          return found;
+        };
+        // MOVE-beside: when an embed ALREADY IN THIS DOC is dragged beside a host
+        // embed, delete it from its old spot and fold it into a wrapGroup as the
+        // host's neighbor — in one transaction (so positions stay consistent).
+        // Cross-doc sources aren't in this doc → returns false, normal move runs.
+        const wrapMoveBeside = (occurrenceId, sideHost) => {
+          if (!editor || !sideHost || !occurrenceId || occurrenceId === sideHost.hostOccId) return false;
+          const groupType = editor.schema.nodes.wrapGroup;
+          const embedType = editor.schema.nodes.moduleEmbed;
+          if (!groupType || !embedType) return false;
+          const src = findTopEmbedPos(editor.state.doc, occurrenceId);
+          if (!src) return false;
+          return editor.chain().focus().command(({ tr }) => {
+            tr.delete(src.pos, src.pos + src.size);
+            const host = findTopEmbedPos(tr.doc, sideHost.hostOccId, ["moduleEmbed"]);
+            if (!host) return false;
+            const hostNode = tr.doc.nodeAt(host.pos);
+            if (!hostNode || hostNode.type.name !== "moduleEmbed") return false;
+            const neighbor = embedType.create({ occurrenceId });
+            const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", wrap: true }, [hostNode, neighbor]);
+            tr.replaceWith(host.pos, host.pos + hostNode.nodeSize, group);
+            return true;
+          }).run();
         };
         const sideHost = isBlockDrop ? detectSideHost(dropInput || lastNativeEvent) : null;
 
@@ -1359,6 +1393,8 @@ const Editor = forwardRef(function Editor({
             // recreate). If the source isn't in this editor, fall back to
             // the cross-doc path: registry-delete source TipTap node /
             // detach from container, then insert a new moduleEmbed node.
+            // Dropped BESIDE a host embed → fold into a wrapGroup instead.
+            if (sideHost && wrapMoveBeside(occurrenceId, sideHost)) return;
             if (insertPos == null) return;
             const moved = tryMoveEmbedNodeInDoc(editor, "moduleEmbed", { occurrenceId }, insertPos);
             if (moved) return;
@@ -1516,6 +1552,8 @@ const Editor = forwardRef(function Editor({
           // Move mode: same-doc rearrange = atomic node move via the
           // shared helper. If the source isn't in this doc, fall back to
           // the cross-target removal paths below.
+          // Dropped BESIDE a host embed → fold into a wrapGroup instead.
+          if (sideHost && wrapMoveBeside(occurrenceId, sideHost)) return;
           if (insertPos == null) return;
           if (tryMoveEmbedNodeInDoc(editor, "moduleEmbed", { occurrenceId }, insertPos)) return;
           // Insert destination FIRST so a silent failure can't orphan the source.

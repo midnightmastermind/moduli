@@ -2,6 +2,23 @@
 
 _Updated: 2026-06-08. Check this file before re-reading source._
 
+## Recent Changes (2026-06-08 — Editor: block-wrap forms on MOVE-beside (not just copy))
+- **`Editor.jsx` (doc drop handler)** — block-wrap pairs now form when you DRAG an
+  embed already in the doc BESIDE a host embed (the natural gesture), not only when
+  a fresh COPY lands beside one. Previously `wrapHostWithNeighbor` was wired only in
+  the copy branches; the move branches fell through to a plain sibling insert.
+  - `detectSideHost` now also returns `hostOccId`.
+  - New `findTopEmbedPos(doc, occId)` (top-level/depth-1 only, so it never reaches
+    inside an existing wrapGroup) + `wrapMoveBeside(occurrenceId, sideHost)`: in ONE
+    transaction it deletes the source node from its old spot and replaces the host
+    with a `wrapGroup` `[host, neighbor]` (re-resolving the host position on the
+    post-delete `tr.doc`). Same-doc only — cross-doc sources return false → normal
+    move runs.
+  - Wired into the instance MOVE branch and the container/module MOVE branch (before
+    `tryMoveEmbedNodeInDoc`). Build clean, 1090/1090 tests. Formation is a TipTap
+    drop event — **needs an in-browser glance** (drag an embed onto the left/right
+    third of another → they fold into an L/C wrap).
+
 ## Recent Changes (2026-06-08 — AssistantDrawer: one-card linked-import (wikipedia_import_batch))
 - **`AssistantDrawer.jsx`** — linked Wikipedia imports ("X AND the surrounding
   links") now go through ONE summary confirm card instead of N separate ones. New
