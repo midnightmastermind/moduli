@@ -285,9 +285,6 @@ export function buildDropContext(rawEvent, env) {
     // that target IS the instance, handled by the sibling branch below.
     insertIndex = targetOcc.occurrences.length;
     edge = null;
-    console.log("[DND] dragHitTesting: leaf→container body, append to end", {
-      container: targetOcc.id, insertIndex, childCount: targetOcc.occurrences.length,
-    });
   } else if (parentOcc && Array.isArray(parentOcc.occurrences)) {
     const hoveredIndex = parentOcc.occurrences.indexOf(targetOcc.id);
     const fromIndex = source?.occurrenceId

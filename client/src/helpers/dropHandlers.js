@@ -610,12 +610,6 @@ export function handleContainerDrop(dropContext, ctx) {
           }
         }
       }
-      console.log("[DND] handleContainerDrop (CONTAINER move/reorder) toIndex", {
-        edge: dropTarget?.context?.closestEdge, insertAt: dropTarget?.context?.insertAt,
-        hoveredContainerId: containerId, draggedContainerId,
-        fromOrderOcc: fromOrderOcc?.id, toOrderOcc: toOrderOcc?.id,
-        destLen: (toOrderOcc?.occurrences || []).length, toIndex,
-      });
 
       const gridId = state?.gridId || state?.grid?._id;
       const isCopyMode = sessionRef.current.mode === 'copy';
@@ -1203,10 +1197,8 @@ export function handleOccurrenceMove(dropContext, ctx) {
   if (!occurrenceId) { clearSession(); return; }
 
   let toIndex = null;
-  let _idxPath = "none (toIndex stays null → append)";
   if (dropTarget.context?.insertAt !== undefined && dropTarget.context?.insertAt !== null) {
     toIndex = dropTarget.context.insertAt;
-    _idxPath = `insertAt path (position.insertIndex=${toIndex}) — TAKES PRECEDENCE over edge`;
   } else if (instanceId && toCOcc) {
     const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(instanceId, toCOcc.occurrences || [], occurrencesById);
     if (hoveredIndex !== -1) {
@@ -1214,26 +1206,14 @@ export function handleOccurrenceMove(dropContext, ctx) {
       if (edge === 'top' || edge === 'left') toIndex = hoveredIndex;
       else if (edge === 'bottom' || edge === 'right') toIndex = hoveredIndex + 1;
       else toIndex = hoveredIndex;
-      _idxPath = `edge path (edge=${edge}, hoveredIndex=${hoveredIndex} → toIndex=${toIndex})`;
       if (fromCOcc && fromCOcc.id === toCOcc.id) {
         const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
         if (fromIndex !== -1 && fromIndex < hoveredIndex) {
           toIndex = Math.max(0, toIndex - 1);
-          _idxPath += ` | SAME-container adjust (fromIndex=${fromIndex} < hoveredIndex) → toIndex=${toIndex}`;
         }
       }
-    } else {
-      _idxPath = `hovered instance not found in dest occurrences (hoveredIndex=-1) → append`;
     }
   }
-  console.log("[DND] handleInstanceDrop toIndex resolution:", _idxPath, {
-    insertAt: dropTarget.context?.insertAt,
-    closestEdge: dropTarget.context?.closestEdge,
-    hoveredInstanceId: instanceId,
-    destOccId: toCOcc?.id,
-    destLen: (toCOcc?.occurrences || []).length,
-    finalToIndex: toIndex,
-  });
 
   const gridId = state?.gridId || state?.grid?._id;
   const grid = state?.grid;
@@ -1245,29 +1225,6 @@ export function handleOccurrenceMove(dropContext, ctx) {
   const isCopyMode = sessionRef.current.mode === 'copy';
   const isCopylinkMode = sessionRef.current.mode === 'copylink';
   const sameContainer = fromC.id === toC.id;
-
-  // [DND] instance-drop summary — which branch will run + all inputs.
-  const _branch = (isCopylinkMode && sameContainer) ? "copylink+sameContainer→reorder"
-    : isCopylinkMode ? "copylink→new linked occ"
-    : isCopyMode ? "copy→new occ"
-    : sameContainer ? "MOVE same container→reorder"
-    : "MOVE cross container→moveInstanceBetweenContainers";
-  try {
-    console.log(`[DND] handleInstanceDrop BRANCH: ${_branch}`, {
-      mode: sessionRef.current.mode,
-      sameContainer,
-      fromCId: fromC?.id, toCId: toC?.id,
-      fromCOccId: fromCOcc?.id, toCOccId: toCOcc?.id,
-      draggedInstanceId, occurrenceId,
-      hoveredInstanceId: instanceId,
-      closestEdge: dropTarget?.context?.closestEdge,
-      insertAt: dropTarget?.context?.insertAt,
-      toIndex,
-      fromIndexByOcc: (fromCOcc?.occurrences || []).indexOf(occurrenceId),
-      destLen: (toCOcc?.occurrences || []).length,
-      destOccurrences: toCOcc?.occurrences,
-    });
-  } catch {}
 
   if (sameContainer && toC?.behaviorMode === "own" && toC?.behavior?.sortable === false) { clearSession(); return; }
 
@@ -2286,12 +2243,6 @@ function dropView(dropContext, ctx) {
   const panelId = _PANEL_ROLES.has(targetRole) ? targetModuleId
     : _PANEL_ROLES.has(parentRole) ? parentModuleId : null;
 
-  console.log("[DND] normalizeDropTarget position →", {
-    edge: position?.edge, insertIndex: position?.insertIndex,
-    targetKind: target?.kind, targetRole, parentRole,
-    targetOccId: target?.occurrenceId, parentOccId: parentOcc?.id,
-    instanceId, containerOccurrenceId,
-  });
   const dropTarget = {
     type: target.kind,
     context: {
