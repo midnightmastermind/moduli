@@ -1,6 +1,22 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-05-23. Check this file before re-reading source._
+_Updated: 2026-06-08. Check this file before re-reading source._
+
+## Recent Changes (2026-06-08 — #18 keycap/pocket: recessed drop-pocket)
+- **`index.css` `.container-list`** — the list container's drop area is now a
+  RECESSED pocket (theme-agnostic `rgba(0,0,0,0.22)` darken + inset top shadow +
+  `margin:5px` so the raised container frame shows around it). Completes the
+  keycap/pocket depth language: `.container-shell` already pops OUT (raised frame),
+  `.instance-wrap > .instance-row` already pops out (keycaps) — the pocket they sit
+  in was flat and is now sunken. (`.instance-pocket` was the intended-but-unused
+  style; the rendered area is `.container-list`, so the recess went there.)
+- **Scope**: standalone board-page list containers only. `.doc-editor-content
+  .container-list` + `.artifact-markdown .container-list` reset it flat so embedded
+  in-prose containers don't get a heavy well. Board/doc/canvas/table kinds render
+  via other branches (unaffected). Verified via headless-chromium harness
+  (raised frame → sunken pocket → raised keycaps reads at a glance). Build clean,
+  1086/1086 tests.
+
 
 > **Read [`/CLAUDE_CHAT.md`](../../CLAUDE_CHAT.md) at session start** for time-ordered user direction across sessions. New direction goes there first.
 

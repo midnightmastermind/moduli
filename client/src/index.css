@@ -551,6 +551,16 @@ select:disabled { cursor: not-allowed; }
   height: 100%;
   flex: 1;
   overflow-y: auto !important;
+  /* #18 recessed pocket — the drop area sits SUNKEN inside the raised
+     container frame so the instance keycaps read as popped up out of a well.
+     The black overlay darkens theme-agnostically (light + dark); the inset
+     shadow is the recess; the margin lets the raised frame show around it. */
+  margin: 5px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    inset 0 12px 24px -6px rgba(0, 0, 0, 0.5);
 }
 
 .container-list-wrap {
@@ -570,6 +580,15 @@ select:disabled { cursor: not-allowed; }
 .artifact-markdown .container-list {
   overflow-y: visible !important;
   height: auto;
+}
+/* Embedded list containers (inside docs / the artifact viewer) stay FLAT — the
+   recessed pocket is for standalone board-page containers, not inline-in-prose. */
+.doc-editor-content .container-list,
+.artifact-markdown .container-list {
+  margin: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .artifact-markdown .container-list-wrap {
   height: auto;
