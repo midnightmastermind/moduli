@@ -2,6 +2,32 @@
 
 _Updated: 2026-06-08. Check this file before re-reading source._
 
+## Recent Changes (2026-06-08 — randomize dice now INSIDE the occurrence pills too)
+- **`Field.jsx`** — completes the dice-in-pill docket item for the OCCURRENCE half
+  (select half done earlier same day). New shared `RandomizeSegment` helper (a
+  divided trailing 🎲/Shuffle button with a `borderLeft` divider; parent owns the
+  border + `overflow-hidden`). Applied to all FOUR occurrence input paths:
+  - **`MultiSelectWithAdd`** restructured — border moved off the shadcn trigger
+    `Button` onto a `flex items-stretch … rounded border overflow-hidden` wrapper
+    (cyan border when `fieldName`); trigger is now `border-0 rounded-none`; the old
+    ghost `Shuffle` sibling Button is replaced by `RandomizeSegment`. Used by both
+    occurrence-multi callers (compact + non-compact), which now pass
+    `randomize={randomize}` (was hardcoded `false`).
+  - **occurrence single pills** (compact rounded-full + non-compact radius-5): the
+    cyan border/bg moved onto a wrapping `inline-flex items-stretch overflow-hidden`
+    container; the trigger button is borderless/transparent; `RandomizeSegment`
+    appended inside, gated `randomize && options.length > 1`.
+  - Select-multi (`randomize={!!meta?.randomize}`) is unchanged in gating but now
+    also renders its dice via the in-border `RandomizeSegment`.
+- **`FieldRenderer.jsx`** — the appended side-segment 🎲 button is DELETED (it only
+  ever fired for occurrence; `canRandomize` is true only for select|occurrence and
+  both now render inside). `randomize={canRandomize && inputEnabled}` is passed to
+  `<Field>` for ALL types (was `field?.type === "select"` only). Unused
+  `handleRandomize` removed.
+- Verified via the headless-chromium pill harness (dice sits inside the border with
+  a left divider, full height, clipped to the pill radius — all 3 occurrence shapes).
+  Build clean, 1086/1086 client tests pass.
+
 ## Recent Changes (2026-06-08 — randomize dice now INSIDE the select pill border)
 - **`Field.jsx`** — new `randomize` prop (default false). The single-select INPUT
   branch's pill border moved onto a wrapper `div` (`items-stretch` + `rounded

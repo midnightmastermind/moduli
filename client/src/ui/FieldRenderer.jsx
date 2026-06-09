@@ -180,13 +180,6 @@ function FieldRenderer({
   // but should still be re-rollable from the questions library.
   const canRandomizeDisplay = field?.meta?.randomizable === true && resolvedOptions.length > 1;
 
-  // Randomize: pick a random option from any multi-option select
-  function handleRandomize() {
-    if (!resolvedOptions.length) return;
-    const pick = resolvedOptions[Math.floor(Math.random() * resolvedOptions.length)];
-    if (pick) handleCommit(pick.value);
-  }
-
   // Randomize for display-only fields: writes directly via updateOccurrence
   // (handleCommit isn't wired for the display-only branch — input-side only).
   // Uses `triggerField` so any downstream ops listening for journalQuestion
@@ -306,32 +299,11 @@ function FieldRenderer({
           hideName={hideName}
           hidePrefix={hidePrefix}
           hidePostfix={hidePostfix}
-          // Select fields render the randomize dice INSIDE the pill border (Field
-          // owns it). Occurrence fields keep the appended segment below.
-          randomize={canRandomize && inputEnabled && field?.type === "select"}
+          // Both select AND occurrence fields render the randomize dice INSIDE
+          // the pill border (Field owns it). canRandomize is only ever true for
+          // those two types, so there's no longer an appended side-segment.
+          randomize={canRandomize && inputEnabled}
         />
-        {canRandomize && inputEnabled && field?.type !== "select" && (
-          <button
-            onClick={handleRandomize}
-            title="Pick a random option"
-            // Looks like part of the pill: shares the pill's surface + border,
-            // no left divider, overlaps the pill's right edge by 1px so the two
-            // read as one continuous control; rounded only on the right.
-            style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              marginLeft: -1, flexShrink: 0,
-              padding: compact ? "0 6px" : "0 7px",
-              background: "var(--input-bg, rgba(255,255,255,0.06))",
-              border: "1px solid var(--border-default, rgba(148,163,184,0.35))",
-              borderLeft: "none",
-              borderRadius: "0 999px 999px 0",
-              cursor: "pointer", color: "var(--text-faint)",
-              fontSize: 11, lineHeight: 1,
-            }}
-          >
-            &#x1F3B2;
-          </button>
-        )}
       </div>
     </div>
   );

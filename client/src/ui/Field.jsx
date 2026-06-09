@@ -92,6 +92,24 @@ function FlowToggle({ flow = "in", onChange, compact = false, disabled = false }
   );
 }
 
+// ─── RandomizeSegment ──────────────────────────────────────────
+// A divided trailing 🎲 segment that sits INSIDE a pill's border (the
+// parent owns the border + overflow-hidden; this just adds a left divider).
+// Shared by the select pill and every occurrence pill so the dice reads as
+// part of the control instead of a tacked-on sibling button.
+function RandomizeSegment({ onClick, disabled, compact }) {
+  return (
+    <button type="button" title="Pick random" disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex items-center justify-center px-1.5 flex-shrink-0
+        ${disabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted"}`}
+      style={{ borderLeft: "1px solid var(--input-border, hsl(var(--border)))", color: "var(--text-faint)" }}
+    >
+      <Shuffle className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
+    </button>
+  );
+}
+
 // ─── MultiSelectWithAdd ─────────────────────────────────────────
 function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, disabled, compact, showLabel, randomize, renderOption, fieldName }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -108,12 +126,15 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
   return (
     <div className="field-input field-input-select-multi">
       {showLabel && <Label className="text-xs text-muted-foreground mb-1">{name}</Label>}
-      <div className="flex items-center gap-1">
+      {/* Border lives on this wrapper so the randomize dice can sit INSIDE it
+          (a divided trailing segment) instead of as a separate sibling button. */}
+      <div className={`flex items-stretch w-full rounded border overflow-hidden ${compact ? "h-6" : "h-7"}`}
+        style={{ borderColor: fieldName ? "rgba(6,182,212,0.25)" : "var(--input-border, hsl(var(--border)))" }}>
         <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" role="combobox" disabled={disabled}
-              className={`w-full justify-between font-normal ${compact ? "h-6 text-xs" : "h-7 text-sm"}`}
-              style={fieldName ? { background: "rgba(6,182,212,0.08)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(180,225,245)" } : undefined}>
+              className={`w-full justify-between font-normal border-0 rounded-none ${compact ? "h-6 text-xs" : "h-7 text-sm"}`}
+              style={fieldName ? { background: "rgba(6,182,212,0.08)", color: "rgb(180,225,245)" } : undefined}>
               {/* occurrence field-pill: always show the field name so it reads
                   as a labelled pill (fixes "occurrence selects show no field
                   name / no pill"). */}
@@ -161,10 +182,8 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
           </PopoverContent>
         </Popover>
         {randomize && options.length > 0 && (
-          <Button variant="ghost" size="icon" className={compact ? "h-6 w-6" : "h-7 w-7"} title="Pick random" disabled={disabled}
-            onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) onChange([p.value]); }}>
-            <Shuffle className="h-3.5 w-3.5" />
-          </Button>
+          <RandomizeSegment compact={compact} disabled={disabled}
+            onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) onChange([p.value]); }} />
         )}
       </div>
     </div>
@@ -952,17 +971,20 @@ function Field({
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
             onAddOption={occAddNew} disabled={disabled} compact={compact}
-            showLabel={showLabel} randomize={false} renderOption={renderOccurrenceOption} fieldName={name} />
+            showLabel={showLabel} randomize={randomize} renderOption={renderOccurrenceOption} fieldName={name} />
         );
       }
       const currentLabel = options.find(o => o.value === localValue)?.label || localValue || "—";
       return (
+        // Border on the wrapper so the randomize dice sits INSIDE the pill.
+        <div className="field-input inline-flex items-stretch rounded-full border overflow-hidden"
+          style={{ background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)" }}>
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" disabled={disabled}
-              className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-all
                 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
-              style={{ background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(180,225,245)" }}
+              style={{ background: "transparent", border: "none", color: "rgb(180,225,245)" }}
               title={`${name}: ${currentLabel}`}
             >
               <Link2 style={{ width: 10, height: 10, opacity: 0.6 }} />
@@ -992,6 +1014,11 @@ function Field({
             </div>
           </PopoverContent>
         </Popover>
+        {randomize && options.length > 1 && (
+          <RandomizeSegment compact disabled={disabled}
+            onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) { handleChange(p.value); onCommit?.(p.value); } }} />
+        )}
+        </div>
       );
     }
 
@@ -1261,19 +1288,22 @@ function Field({
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
             onAddOption={occAddNew} disabled={disabled} compact={compact}
-            showLabel={showLabel} randomize={false} renderOption={renderOccurrenceOption} fieldName={name} />
+            showLabel={showLabel} randomize={randomize} renderOption={renderOccurrenceOption} fieldName={name} />
         );
       }
       return (
         <div className="field-input field-input-occurrence" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {showLabel && <span style={inputLabelStyle}>{name}</span>}
+          {/* Border on this row so the randomize dice sits INSIDE the pill. */}
+          <div className="inline-flex items-stretch self-start overflow-hidden"
+            style={{ background: "rgba(6,182,212,0.08)", border: "1px solid rgba(6,182,212,0.25)", borderRadius: 5 }}>
           <Popover open={selectOpen} onOpenChange={setSelectOpen}>
             <PopoverTrigger asChild>
               <button type="button" disabled={disabled}
                 style={{
                   minHeight: 28, fontSize: 12, fontFamily: "var(--font-mono)",
-                  background: "rgba(6,182,212,0.08)", border: "1px solid rgba(6,182,212,0.25)",
-                  borderRadius: 5, color: "rgb(180,225,245)", padding: "4px 8px", outline: "none",
+                  background: "transparent", border: "none",
+                  color: "rgb(180,225,245)", padding: "4px 8px", outline: "none",
                   display: "flex", alignItems: "center", gap: 6, cursor: disabled ? "not-allowed" : "pointer",
                   textAlign: "left",
                 }}>
@@ -1301,6 +1331,11 @@ function Field({
               </div>
             </PopoverContent>
           </Popover>
+          {randomize && options.length > 1 && (
+            <RandomizeSegment disabled={disabled}
+              onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) { handleChange(p.value); onCommit?.(p.value); } }} />
+          )}
+          </div>
         </div>
       );
     }
