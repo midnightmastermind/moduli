@@ -33,10 +33,13 @@ export function ensureImportsFolder({ grid, manifests, folders, dispatch, socket
 // the new page occurrence id. A doc page reads top-to-bottom like a document
 // (a board page would lay the content out as kanban columns).
 export function createImportsDocPage({
-  rootOccId, panelOccurrenceId, grid, manifests, folders, dispatch, socket, userId, label,
+  rootOccId, panelOccurrenceId, grid, manifests, folders, dispatch, socket, userId, label, folderId,
 }) {
   const gridId = grid?._id || grid?.id || null;
-  const importsFolderId = ensureImportsFolder({ grid, manifests, folders, dispatch, socket, userId });
+  // `folderId` lets a batch caller ensure the Imports folder ONCE up front and
+  // reuse it across many pages (avoids re-creating it per page from a stale
+  // folders snapshot inside a loop).
+  const importsFolderId = folderId || ensureImportsFolder({ grid, manifests, folders, dispatch, socket, userId });
   const modId = crypto.randomUUID();
   const pageOccId = crypto.randomUUID();
   CommitHelpers.createPage({

@@ -19,7 +19,7 @@ import { getCurrentLocation, subscribeCurrentLocation } from "../helpers/current
 import MiniGridMap from "../mobile/MiniGridMap";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
-import { createImportsDocPage } from "../helpers/importsFolder";
+import { createImportsDocPage, ensureImportsFolder } from "../helpers/importsFolder";
 
 const STORAGE_KEY = "moduli_api_token";
 const HISTORY_KEY = "moduli_assistant_history";
@@ -280,6 +280,25 @@ export default function AssistantDrawer() {
       const j = await res.json();
       if (!res.ok || j.ok === false) {
         setMessages(m => [...m, { role: "assistant", content: `(error) ${j?.error || j?.message || res.status}` }]);
+      } else if (card.name === "wikipedia_import_batch" && Array.isArray(j.output?.imported)) {
+        // Batch import: wrap EACH imported root in a doc page under the shared
+        // "Imports" folder (no per-page panel-pick prompt). Ensure the folder
+        // once, then reuse its id across the batch.
+        const grid = ctx?.state?.grid;
+        const userId = ctx?.state?.userId;
+        const importsFolderId = ensureImportsFolder({
+          grid, manifests: Object.values(ctx?.manifestsById || {}),
+          folders: Object.values(ctx?.foldersById || {}),
+          dispatch: ctx?.dispatch, socket: ctx?.socket, userId,
+        });
+        for (const { title, rootOccurrenceId } of j.output.imported) {
+          if (!rootOccurrenceId) continue;
+          createImportsDocPage({
+            rootOccId: rootOccurrenceId, folderId: importsFolderId, grid,
+            dispatch: ctx?.dispatch, socket: ctx?.socket, userId, label: title,
+          });
+        }
+        setMessages(m => [...m, { role: "tool", name: card.name, output: j.output }]);
       } else {
         // Surface a panel picker for newly created page/container content.
         const occId = extractCreatedOccId(card.name, j.output);
@@ -598,6 +617,10 @@ function ConfirmCard({ msg, busy, onResolve }) {
   const isWiki = msg.name === "wikipedia_import";
   const isCreatePage = msg.name === "create_module" && msg.input?.role === "page";
   const isCreateField = msg.name === "create_field";
+  const isImportBatch = msg.name === "wikipedia_import_batch";
+  const batchTitles = useMemo(
+    () => (Array.isArray(msg.input?.titles) ? msg.input.titles.filter(Boolean) : []), [msg.input?.titles]);
+  const [picked, setPicked] = useState(() => new Set(batchTitles));
   const wikiTitle = msg.input?.title || msg.input?.query || "";
   const { options, labelOf } = useLocations();
   const { occurrencesById, modulesById, fieldsById } = useGridActions();
@@ -631,12 +654,14 @@ function ConfirmCard({ msg, busy, onResolve }) {
   }, [isWiki, pending, wikiTitle]);
 
   const verb = isCreate ? "Create item" : isWiki ? "Import Wikipedia article"
+    : isImportBatch ? `Import ${picked.size} Wikipedia page${picked.size === 1 ? "" : "s"}`
     : isCreateField ? "Create field" : String(msg.name || "action").replace(/_/g, " ");
   const itemLabel = msg.input?.label || msg.input?.moduleId || "new item";
   const approve = () => onResolve?.(true,
     isCreate ? { ...msg.input, parentId: parentId || undefined }
     : isCreatePage ? { ...msg.input, kind: pageKind }
     : isCreateField ? { ...msg.input, name: fieldName.trim(), type: fieldType, unit: fieldUnit.trim() || undefined }
+    : isImportBatch ? { ...msg.input, titles: batchTitles.filter(t => picked.has(t)) }
     : msg.input);
 
   const shown = filter
@@ -745,6 +770,40 @@ function ConfirmCard({ msg, busy, onResolve }) {
               : "Table — spreadsheet grid."}
           </div>
         </div>
+      ) : isImportBatch ? (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 11, marginBottom: 5 }}>
+            Import these as doc pages (links between them become in-app navigation):
+          </div>
+          {pending ? (
+            <div style={{ maxHeight: 160, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+              {batchTitles.map((t) => {
+                const on = picked.has(t);
+                return (
+                  <label key={t} style={{
+                    display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
+                    padding: "3px 7px", borderRadius: 4, fontSize: 11,
+                    background: on ? "rgba(110,180,130,0.16)" : "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                  }}>
+                    <input
+                      type="checkbox" checked={on}
+                      onChange={() => setPicked((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(t)) next.delete(t); else next.add(t);
+                        return next;
+                      })}
+                    />
+                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t}</span>
+                  </label>
+                );
+              })}
+              {batchTitles.length === 0 && <div style={{ opacity: 0.5, fontSize: 10 }}>No titles provided.</div>}
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, opacity: 0.9 }}>{picked.size} page{picked.size === 1 ? "" : "s"}</div>
+          )}
+        </div>
       ) : isCreateField ? (
         <div style={{ marginBottom: 6 }}>
           <div style={{ fontSize: 11, marginBottom: 5 }}>New field — confirm or edit:</div>
@@ -812,14 +871,15 @@ function ConfirmCard({ msg, busy, onResolve }) {
         <div style={{ display: "flex", gap: 6 }}>
           <button
             onClick={approve}
-            disabled={busy || (isCreate && !parentId) || (isCreateField && !fieldName.trim())}
+            disabled={busy || (isCreate && !parentId) || (isCreateField && !fieldName.trim()) || (isImportBatch && picked.size === 0)}
             title={isCreate && !parentId ? "Pick a location first"
-              : isCreateField && !fieldName.trim() ? "Name the field first" : ""}
+              : isCreateField && !fieldName.trim() ? "Name the field first"
+              : isImportBatch && picked.size === 0 ? "Select at least one page" : ""}
             style={{
               padding: "4px 12px", fontSize: 11, borderRadius: 4, border: "none",
               cursor: busy ? "wait" : "pointer",
               background: "rgb(90,160,110)", color: "white",
-              opacity: (busy || (isCreate && !parentId) || (isCreateField && !fieldName.trim())) ? 0.4 : 1,
+              opacity: (busy || (isCreate && !parentId) || (isCreateField && !fieldName.trim()) || (isImportBatch && picked.size === 0)) ? 0.4 : 1,
             }}
           >Approve</button>
           <button
@@ -1063,6 +1123,22 @@ function renderToolBody(name, output) {
           </li>
         ))}
       </ul>
+    );
+  }
+
+  // Batch Wikipedia import → summary of imported pages (+ relink count).
+  if (Array.isArray(output.imported)) {
+    const ok = output.imported.length;
+    const failed = Array.isArray(output.failed) ? output.failed.length : 0;
+    return (
+      <div>
+        <div>✓ Imported {ok} page{ok === 1 ? "" : "s"}{output.relinked ? ` · relinked ${output.relinked} link${output.relinked === 1 ? "" : "s"}` : ""}.</div>
+        <ul style={{ margin: "2px 0 0", paddingLeft: 14 }}>
+          {output.imported.slice(0, 12).map((it, i) => <li key={i}>{it.title || it.rootOccurrenceId}</li>)}
+        </ul>
+        {failed > 0 && <div style={{ color: "rgb(220,150,120)", fontSize: 10, marginTop: 2 }}>{failed} failed.</div>}
+        <div style={{ opacity: 0.5, fontSize: 10, marginTop: 2 }}>Grouped under the “Imports” folder.</div>
+      </div>
     );
   }
 

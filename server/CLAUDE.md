@@ -2,6 +2,22 @@
 
 _Updated: 2026-06-06. Check this file before re-reading source._
 
+## Recent Changes (2026-06-08 — assistant: one-card linked import + editable create_field)
+- **`services/assistantTools.js`** — new `wikipedia_import_batch({ titles, parentId? })`
+  tool (`requires_confirm`): imports each title via `/research/wikipedia/import`
+  (capped at 15), collects `rootOccurrenceIds`, then calls `/research/wikipedia/relink`
+  ONCE so cross-references between the batch become in-app navigation. Returns
+  `{ imported:[{title,rootOccurrenceId}], count, failed, relinked, rootOccurrenceIds }`.
+  Replaces the "call wikipedia_import per title + relink_imports" dance with one
+  Approve card (client wraps each root under the "Imports" folder — see
+  client/src/ui/CLAUDE.md). Also: **`create_field` is now `requires_confirm`** so
+  the drawer shows an editable name/type/unit card.
+- **`services/assistantAgent.js`** — `OFFLINE_CORE_TOOLS` gains `wikipedia_links`
+  + `wikipedia_import_batch`; the SYSTEM_PROMPT "X AND surrounding links" recipe now
+  says call `wikipedia_links` → ONE `wikipedia_import_batch` (default main + top 5
+  links; no manual per-title import / relink). 30 agent tests pass.
+- **SERVER RESTART** required (tool/prompt changes). No reseed.
+
 ## Recent Changes (2026-06-06 — Occurrence.label override + "Goals: Date-Prefix Labels" op)
 - **`models/Occurrence.js`** — new `label: { type: String, default: null }`.
   Per-placement label override; null = render the module's own label. The client

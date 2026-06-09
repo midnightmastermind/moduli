@@ -169,6 +169,47 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
       },
     },
     {
+      name: "wikipedia_import_batch",
+      description: "Import SEVERAL Wikipedia articles at once (the main one + its surrounding links). Use this for 'make a page on X AND the surrounding links' INSTEAD of calling wikipedia_import per title: call wikipedia_links first, then pass ALL chosen titles here. The user gets ONE summary card to approve (and can deselect titles); each becomes its own doc page, and the cross-references between them are relinked into in-app navigation automatically (no separate relink_imports call).",
+      input_schema: {
+        type: "object",
+        properties: {
+          titles: { type: "array", items: { type: "string" }, description: "Article titles to import (main + links)" },
+          parentId: { type: "string", description: "Optional occurrence id to nest the new pages under" },
+        },
+        required: ["titles"],
+      },
+      destructive: false,
+      requires_confirm: true,
+      run: async ({ titles, parentId }) => {
+        const BATCH_CAP = 15;
+        const list = (Array.isArray(titles) ? titles : []).map(t => String(t || "").trim()).filter(Boolean).slice(0, BATCH_CAP);
+        if (!list.length) return { error: "Provide a non-empty `titles` array." };
+        const imported = [];
+        const failed = [];
+        for (const title of list) {
+          try {
+            const r = await call("POST", `/research/wikipedia/import`, { gridId, title, parentId });
+            if (r.body?.rootOccurrenceId) imported.push({ title, rootOccurrenceId: r.body.rootOccurrenceId });
+            else failed.push({ title, error: r.body?.error || "no root occurrence returned" });
+          } catch (e) {
+            failed.push({ title, error: String(e?.message || e) });
+          }
+        }
+        let relinked = 0;
+        if (imported.length > 1) {
+          try {
+            const rr = await call("POST", `/research/wikipedia/relink`, { gridId, rootOccurrenceIds: imported.map(x => x.rootOccurrenceId) });
+            relinked = rr.body?.relinked ?? rr.body?.count ?? 0;
+          } catch { /* relink is best-effort */ }
+        }
+        return {
+          ok: true, imported, count: imported.length, failed, relinked,
+          rootOccurrenceIds: imported.map(x => x.rootOccurrenceId),
+        };
+      },
+    },
+    {
       name: "import_markdown",
       description: "Turn caller-supplied markdown into Moduli entities. Use when the user pastes a doc.",
       input_schema: {

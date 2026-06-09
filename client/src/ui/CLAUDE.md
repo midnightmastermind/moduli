@@ -2,6 +2,18 @@
 
 _Updated: 2026-06-08. Check this file before re-reading source._
 
+## Recent Changes (2026-06-08 — AssistantDrawer: one-card linked-import (wikipedia_import_batch))
+- **`AssistantDrawer.jsx`** — linked Wikipedia imports ("X AND the surrounding
+  links") now go through ONE summary confirm card instead of N separate ones. New
+  server tool `wikipedia_import_batch({ titles })` (requires_confirm) imports each
+  title + auto-relinks cross-references (see server/CLAUDE.md). `ConfirmCard` gains
+  an `isImportBatch` branch: a checklist of titles (default all checked, deselect
+  to drop), Approve gated on ≥1, sends the selected `titles`. `resolveConfirm`
+  wraps EACH imported root in a doc page under the shared "Imports" folder
+  (ensures the folder ONCE, then `createImportsDocPage({ folderId })` per root — no
+  per-page panel-pick prompt). `renderToolBody` shows an "Imported N pages ·
+  relinked M links" summary. Needs an in-browser glance + server restart.
+
 ## Recent Changes (2026-06-08 — AssistantDrawer: editable create_field confirm card)
 - **`AssistantDrawer.jsx` (`ConfirmCard`)** — `create_field` is now a
   `requires_confirm` tool (server), and its confirm card renders an EDITABLE form
