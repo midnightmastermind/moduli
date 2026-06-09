@@ -560,6 +560,10 @@ function bestGuessLocation(input, options, labelOf, userText = "") {
 // Noisy plumbing args the user doesn't need to see on a confirm card.
 const HIDDEN_ARG_KEYS = new Set(["gridId", "dryRun", "userId"]);
 
+// Field types the create_field confirm card lets the user pick (mirrors the
+// Field model's type enum + the create_field tool description).
+const FIELD_TYPES = ["number", "text", "boolean", "select", "date", "duration", "rating", "occurrence"];
+
 // "parentId" → "parent", "fieldId" → "field", "moduleId" → "module".
 function prettyArgKey(k) {
   return k.replace(/Id$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
@@ -593,6 +597,7 @@ function ConfirmCard({ msg, busy, onResolve }) {
   const isCreate = msg.name === "create_occurrence";
   const isWiki = msg.name === "wikipedia_import";
   const isCreatePage = msg.name === "create_module" && msg.input?.role === "page";
+  const isCreateField = msg.name === "create_field";
   const wikiTitle = msg.input?.title || msg.input?.query || "";
   const { options, labelOf } = useLocations();
   const { occurrencesById, modulesById, fieldsById } = useGridActions();
@@ -601,6 +606,11 @@ function ConfirmCard({ msg, busy, onResolve }) {
   const [wiki, setWiki] = useState(null);     // { title, extract, thumbnail, url }
   const [wikiErr, setWikiErr] = useState(false);
   const [pageKind, setPageKind] = useState(msg.input?.kind || "doc");
+  // create_field: editable name/type/unit before Approve.
+  const [fieldName, setFieldName] = useState(msg.input?.name || "");
+  const [fieldType, setFieldType] = useState(() =>
+    FIELD_TYPES.includes(msg.input?.type) ? msg.input.type : "number");
+  const [fieldUnit, setFieldUnit] = useState(msg.input?.unit || "");
 
   // Preview the Wikipedia article (title + thumbnail + extract) so the user can
   // confirm it's the right one before importing.
@@ -620,11 +630,13 @@ function ConfirmCard({ msg, busy, onResolve }) {
     return () => { cancelled = true; };
   }, [isWiki, pending, wikiTitle]);
 
-  const verb = isCreate ? "Create item" : isWiki ? "Import Wikipedia article" : String(msg.name || "action").replace(/_/g, " ");
+  const verb = isCreate ? "Create item" : isWiki ? "Import Wikipedia article"
+    : isCreateField ? "Create field" : String(msg.name || "action").replace(/_/g, " ");
   const itemLabel = msg.input?.label || msg.input?.moduleId || "new item";
   const approve = () => onResolve?.(true,
     isCreate ? { ...msg.input, parentId: parentId || undefined }
     : isCreatePage ? { ...msg.input, kind: pageKind }
+    : isCreateField ? { ...msg.input, name: fieldName.trim(), type: fieldType, unit: fieldUnit.trim() || undefined }
     : msg.input);
 
   const shown = filter
@@ -733,6 +745,55 @@ function ConfirmCard({ msg, busy, onResolve }) {
               : "Table — spreadsheet grid."}
           </div>
         </div>
+      ) : isCreateField ? (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 11, marginBottom: 5 }}>New field — confirm or edit:</div>
+          {pending ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 10, opacity: 0.7 }}>Name
+                <input
+                  value={fieldName}
+                  onChange={(e) => setFieldName(e.target.value)}
+                  placeholder="field name"
+                  style={{
+                    width: "100%", marginTop: 2, padding: 5, fontSize: 11, fontFamily: "inherit",
+                    background: "var(--input-bg, #14171c)", color: "inherit",
+                    border: "1px solid var(--border-default, rgba(255,255,255,0.12))", borderRadius: 4,
+                  }}
+                />
+              </label>
+              <label style={{ fontSize: 10, opacity: 0.7 }}>Type
+                <select
+                  value={fieldType}
+                  onChange={(e) => setFieldType(e.target.value)}
+                  style={{
+                    width: "100%", marginTop: 2, padding: 5, fontSize: 11, fontFamily: "inherit",
+                    background: "var(--input-bg, #14171c)", color: "inherit",
+                    border: "1px solid var(--border-default, rgba(255,255,255,0.12))", borderRadius: 4,
+                  }}
+                >
+                  {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+              <label style={{ fontSize: 10, opacity: 0.7 }}>Unit <span style={{ opacity: 0.6 }}>(optional)</span>
+                <input
+                  value={fieldUnit}
+                  onChange={(e) => setFieldUnit(e.target.value)}
+                  placeholder="e.g. g, min, $"
+                  style={{
+                    width: "100%", marginTop: 2, padding: 5, fontSize: 11, fontFamily: "inherit",
+                    background: "var(--input-bg, #14171c)", color: "inherit",
+                    border: "1px solid var(--border-default, rgba(255,255,255,0.12))", borderRadius: 4,
+                  }}
+                />
+              </label>
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, opacity: 0.9 }}>
+              <b>{fieldName || "(unnamed)"}</b> · {fieldType}{fieldUnit ? ` · ${fieldUnit}` : ""}
+            </div>
+          )}
+        </div>
       ) : (
         <div style={{ marginBottom: 6, fontSize: 10 }}>
           {msg.description && (
@@ -751,12 +812,14 @@ function ConfirmCard({ msg, busy, onResolve }) {
         <div style={{ display: "flex", gap: 6 }}>
           <button
             onClick={approve}
-            disabled={busy || (isCreate && !parentId)}
-            title={isCreate && !parentId ? "Pick a location first" : ""}
+            disabled={busy || (isCreate && !parentId) || (isCreateField && !fieldName.trim())}
+            title={isCreate && !parentId ? "Pick a location first"
+              : isCreateField && !fieldName.trim() ? "Name the field first" : ""}
             style={{
               padding: "4px 12px", fontSize: 11, borderRadius: 4, border: "none",
               cursor: busy ? "wait" : "pointer",
-              background: "rgb(90,160,110)", color: "white", opacity: (busy || (isCreate && !parentId)) ? 0.4 : 1,
+              background: "rgb(90,160,110)", color: "white",
+              opacity: (busy || (isCreate && !parentId) || (isCreateField && !fieldName.trim())) ? 0.4 : 1,
             }}
           >Approve</button>
           <button

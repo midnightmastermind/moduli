@@ -2,6 +2,16 @@
 
 _Updated: 2026-06-08. Check this file before re-reading source._
 
+## Recent Changes (2026-06-08 — AssistantDrawer: editable create_field confirm card)
+- **`AssistantDrawer.jsx` (`ConfirmCard`)** — `create_field` is now a
+  `requires_confirm` tool (server), and its confirm card renders an EDITABLE form
+  (name text input + type `<select>` over `FIELD_TYPES` = number/text/boolean/
+  select/date/duration/rating/occurrence + optional unit) seeded from the model's
+  guess. Approve sends the edited `{ name, type, unit }` (gated on a non-empty
+  name); decline still aborts. Lets the user fix the LLM's field guess in the UI
+  before it's created (mirrors the create_occurrence location picker + page-kind
+  picker pattern). Needs an in-browser glance.
+
 ## Recent Changes (2026-06-08 — assistant imports land in an "Imports" folder)
 - **`AssistantDrawer.jsx` (`PanelPickCard.openInPanel`)** — the no-ancestor-page
   (imported container) wrap branch now parents the wrapped DOC page under a

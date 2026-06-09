@@ -364,6 +364,9 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
       description: "Create a field definition. Provide name + type (number/text/boolean/select/date/duration/rating/occurrence). Bind it to instances via update_module/update_occurrence.",
       input_schema: { type: "object", properties: { name: { type: "string" }, type: { type: "string" }, unit: { type: "string" }, meta: { type: "object", additionalProperties: true } }, required: ["name", "type"] },
       destructive: false,
+      // The drawer shows an editable confirm card (name / type / unit) so the
+      // user can fix the model's guess before the field is created.
+      requires_confirm: true,
       run: async (body) => (await call("POST", `/fields`, { gridId, ...body })).body,
     },
     {
