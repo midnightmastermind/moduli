@@ -2305,13 +2305,15 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .wrap-group { position: relative; width: 100%; }
 .wrap-group .wrap-group-content { display: block; position: relative; }
 
-/* WRAP ON — neighbor overlays the host's top-corner notch; host flows beneath.
-   The host's own text already vacates the notch (a sized wrapSpacer in its
-   textmap floats there) and its card clips into the L (see TextblockCard). */
+/* WRAP ON — neighbor overlays the host's reserved notch; host flows around it.
+   The host's own text vacates the notch (a sized wrapSpacer in its textmap
+   floats there) and its card clips into the L/C (see TextblockCard). --notch-y
+   is measured by WrapGroupNode: 0 for a top-anchored notch (L), the spacer's
+   mid-flow offset for a middle-anchored notch (C). */
 .wrap-group--on .wrap-group-content > :nth-child(1) { position: static; }
 .wrap-group--on .wrap-group-content > :nth-child(2) {
   position: absolute;
-  top: 0;
+  top: var(--notch-y, 0px);
   z-index: 2;
   margin: 0;
 }

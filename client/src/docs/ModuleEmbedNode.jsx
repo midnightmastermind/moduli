@@ -158,11 +158,13 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
           // unmount). Then replace the group with its two children inline.
           const hostOccId = grp.firstChild?.attrs?.occurrenceId;
           const host = hostOccId ? occurrencesById?.[hostOccId] : null;
-          if (host?.textmap?.content?.[0]?.type === "wrapSpacer") {
-            updateOccurrence({
-              dispatch, socket,
-              occurrence: { ...host, textmap: { ...host.textmap, content: host.textmap.content.slice(1) } },
-            });
+          const hc = host?.textmap?.content;
+          if (Array.isArray(hc)) {
+            const si = hc.findIndex((n) => n?.type === "wrapSpacer"); // anywhere (L=0, C=mid)
+            if (si >= 0) {
+              const content = hc.slice(0, si).concat(hc.slice(si + 1));
+              updateOccurrence({ dispatch, socket, occurrence: { ...host, textmap: { ...host.textmap, content } } });
+            }
           }
           const kids = [];
           grp.forEach((child) => kids.push(child));

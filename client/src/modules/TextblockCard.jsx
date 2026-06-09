@@ -16,7 +16,7 @@
 //   - { kind: "occurrence", occId }   → scrolls to + flashes that occurrence
 // The markdown importer emits these for every [text](url) link; a user can also
 // set one via the textblock's settings (meta.link on the occurrence).
-import React, { useContext } from "react";
+import React, { useContext, useRef, useState, useEffect } from "react";
 import Editor from "../ui/Editor.jsx";
 import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
@@ -46,14 +46,18 @@ function findWrapSpacer(textmap) {
   return null;
 }
 
-function notchClipPath(spacer) {
-  if (!spacer || !spacer.w || !spacer.h) return undefined;
-  const { w, h, side } = spacer;
-  // Notch sits at the TOP corner on `side` (matches a top-anchored float). The
-  // polygon walks the outline with the corner cut inward by the spacer footprint.
+// Cut a rectangular notch [y .. y+h] out of the `side` edge. ONE formula covers
+// both shapes: y≈0 → notch at the top corner = L; y>0 → notch mid-edge with full
+// rows above and below = C. `y` is the spacer's MEASURED offset (so the border
+// notch lines up with the actual text reflow + the neighbor, padding included).
+function notchClipPath(n) {
+  if (!n || !n.w || !n.h) return undefined;
+  const { w, h, side } = n;
+  const y = Math.max(0, n.y || 0);
+  const y2 = y + h;
   return side === "left"
-    ? `polygon(${w}px 0, 100% 0, 100% 100%, 0 100%, 0 ${h}px, ${w}px ${h}px)`
-    : `polygon(0 0, calc(100% - ${w}px) 0, calc(100% - ${w}px) ${h}px, 100% ${h}px, 100% 100%, 0 100%)`;
+    ? `polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 ${y2}px, ${w}px ${y2}px, ${w}px ${y}px, 0 ${y}px)`
+    : `polygon(0 0, 100% 0, 100% ${y}px, calc(100% - ${w}px) ${y}px, calc(100% - ${w}px) ${y2}px, 100% ${y2}px, 100% 100%, 0 100%)`;
 }
 
 export default function TextblockCard({ occurrence, module }) {
@@ -103,11 +107,41 @@ export default function TextblockCard({ occurrence, module }) {
     );
   }
 
-  const wrapSpacer = findWrapSpacer(occurrence?.textmap);
-  const clipPath = notchClipPath(wrapSpacer);
+  // Measure the floated wrapSpacer's real box (offset + size) so the clip notch
+  // tracks the actual text reflow — fixes the top-padding offset (L) and enables
+  // the mid-block notch (C). Re-measures on card/spacer resize + textmap change.
+  const hasSpacer = !!findWrapSpacer(occurrence?.textmap);
+  const cardRef = useRef(null);
+  const [notch, setNotch] = useState(null);
+  useEffect(() => {
+    if (isInline || !hasSpacer) { setNotch(null); return; }
+    const card = cardRef.current;
+    if (!card) return;
+    const measure = () => {
+      const sp = card.querySelector(".wrap-spacer");
+      if (!sp) { setNotch(null); return; }
+      const cr = card.getBoundingClientRect();
+      const sr = sp.getBoundingClientRect();
+      const next = {
+        w: Math.round(sr.width), h: Math.round(sr.height),
+        y: Math.max(0, Math.round(sr.top - cr.top)),
+        side: (sp.style.float === "left") ? "left" : "right",
+      };
+      setNotch((prev) => (prev && prev.w === next.w && prev.h === next.h && prev.y === next.y && prev.side === next.side) ? prev : next);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(card);
+    const sp = card.querySelector(".wrap-spacer");
+    if (sp) ro.observe(sp);
+    return () => ro.disconnect();
+  }, [isInline, hasSpacer, occurrence?.textmap]);
+
+  const clipPath = notchClipPath(notch);
 
   return (
     <div
+      ref={cardRef}
       className={isInline ? "textblock-card textblock-card--inline" : "textblock-card"}
       style={clipPath ? { clipPath } : undefined}
     >

@@ -1284,9 +1284,14 @@ const Editor = forwardRef(function Editor({
           const rect = dom?.getBoundingClientRect?.();
           if (!rect || rect.width <= 0) return null;
           const frac = (input.clientX - rect.left) / rect.width;
-          if (frac >= 0.6) return { hostPos: topPos, side: "right" };
-          if (frac <= 0.4) return { hostPos: topPos, side: "left" };
-          return null;
+          const side = frac >= 0.6 ? "right" : frac <= 0.4 ? "left" : null;
+          if (!side) return null;
+          // Vertical zone picks the notch shape: dropped over the host's TOP →
+          // top-anchored notch (L); over the MIDDLE/lower band → mid-flow notch
+          // (C: text above + below the neighbor).
+          const vfrac = (input.clientY - rect.top) / rect.height;
+          const anchor = vfrac < 0.4 ? "top" : "middle";
+          return { hostPos: topPos, side, anchor };
         };
         const wrapHostWithNeighbor = (neighborOccId, sideHost) => {
           if (!editor || !sideHost || !neighborOccId) return false;
@@ -1297,7 +1302,7 @@ const Editor = forwardRef(function Editor({
           if (!host || host.type.name !== "moduleEmbed") return false;
           if (host.attrs?.occurrenceId === neighborOccId) return false; // never wrap self
           const neighbor = embedType.create({ occurrenceId: neighborOccId });
-          const group = groupType.create({ side: sideHost.side, anchor: "top", wrap: true }, [host, neighbor]);
+          const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", wrap: true }, [host, neighbor]);
           const from = sideHost.hostPos;
           const to = sideHost.hostPos + host.nodeSize;
           return editor.chain().focus().command(({ tr }) => { tr.replaceWith(from, to, group); return true; }).run();

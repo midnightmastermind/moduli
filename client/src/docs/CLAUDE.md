@@ -2,6 +2,32 @@
 
 _Updated: 2026-06-08. Check this file before re-reading source._
 
+## Recent Changes (2026-06-08 — Block-wrap C-shape (anchor:"middle") + measured notch offset)
+Wired the second notch shape (the user's "C" — drop a smaller block at the MIDDLE
+of a bigger one → text flows full-width above + below, beside in the middle band,
+border traces a C). Also fixed the L's top-padding misalignment by MEASURING the
+spacer instead of assuming `y=0`.
+- **`ui/Editor.jsx` (`detectSideHost`)** — now also reads the vertical drop zone:
+  `vfrac < 0.4` → `anchor:"top"` (L), else `anchor:"middle"` (C). Plumbed through
+  `wrapHostWithNeighbor` into the wrapGroup's `anchor` attr.
+- **`docs/WrapGroupNode.jsx` (`syncNotch`)** — anchor-aware placement: top → spacer
+  at index 0; middle → spacer at `~floor(strippedLen/2)`. Finds/strips the spacer
+  ANYWHERE (was index-0 only). New effect measures the spacer's real offset within
+  `.wrap-group-content` and sets `--notch-y` so the absolutely-positioned neighbor
+  sits exactly over the notch (0 for L, mid-flow offset for C).
+- **`modules/TextblockCard.jsx`** — the clip is now MEASURED (ResizeObserver on the
+  card + spacer → `{w,h,y,side}`), and `notchClipPath` is ONE unified formula that
+  cuts a `[y .. y+h]` notch on `side` (y≈0 → L, y>0 → C). This makes the BORDER
+  notch line up with the actual text reflow + the neighbor, padding included.
+- **`docs/ModuleEmbedNode.jsx` (Unwrap)** — strips the host spacer wherever it is
+  (C puts it mid-content, not at index 0).
+- **`index.css`** — `.wrap-group--on` neighbor `top: var(--notch-y, 0px)` (was 0).
+- **VERIFIED via headless-chromium harness** (`~/.wraptest/`): all four cases
+  (L/C × left/right) render correctly with the exact measure-then-clip logic the
+  React code uses — full rows above/below the C notch, border traces the C, neighbor
+  centered over the reserved hole. Build clean, 1086/1086 client tests pass. Still
+  worth an in-APP glance (TipTap sub-editor timing on first drop) but the geometry
+  is confirmed.
 ## Recent Changes (2026-06-08 — Block-wrap "L-shape": two side-by-side embeds, bigger reflows around smaller [project_block_wrap_l_shape])
 User goal (long design back-and-forth): drop one block beside a bigger one in a
 doc and have the bigger block's text/border bend into an **L** (notch at top) or
