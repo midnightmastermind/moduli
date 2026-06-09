@@ -1951,3 +1951,139 @@ add all the new stuff to the plan too. and start working on the plan. make sure 
 ---
 
 
+## 2026-06-07 — CROSS-ACCOUNT TASK HANDOFF (account2 + account3 consolidated)
+
+Two Claude sessions ran in parallel on this repo today. Consolidated so any
+session picks up the full picture. **A re-seed + server restart is pending for
+the account3 op/seed fixes:** `node --env-file=.env server/scripts/createLiveData.js`
+
+### Account 3 (drag / notifications / op-fixes) — DONE this session
+Client (built, just reload):
+- Reorder drop position fixed — leaf dropped on a container BODY/edge now appends
+  to the END of that container (was computing the container's index in its parent
+  page). `helpers/dragHitTesting.js` (leaf→container branch).
+- Drop perf — `endDropBatch` uses DOUBLE rAF so the dropped item paints before the
+  op cascade (trackers + Table/Canvas builds) runs. `state/bindSocketToStore.js`.
+- Drag notifications — reorder / move / copy / copy-link each fire a pill with
+  item + source→dest + 1-based index (`helpers/dropHandlers.js`). The server
+  records NO OccurrenceListOp for occurrences[] changes, so these are surfaced
+  client-side at the drop.
+- Notification system unified — sonner `toast` retired; `state/notificationStore.js`
+  is the one surface (toast-compatible adapter). Dropdown = tall multi-line cards,
+  persistent LOG (× and auto-dismiss only clear the toolbar STACK, dropdown keeps
+  everything, cap 100). Op success/failure pills now persist in the dropdown.
+- Empty input/display normalization (`ui/Field.jsx`): number/duration → 0,
+  date/text/notes → "—" (date no longer shows the word "date").
+- Dice randomize button now an attached pill-side segment (not yet truly inside
+  the pill border — that's a per-branch Field.jsx change, still open).
+- Sharp cross-platform install (WSL x64 ↔ Termux): removed hard `@img/sharp-wasm32`
+  dep; `npm run install:all` auto-detects Android → `--cpu=wasm32`.
+
+### Account 3 — op/seed fixes (NEED RE-SEED + server restart)
+- Schedule Table showed zero rows → `rowCount` self-heal: Phase 3 now also runs
+  when stored rowCount != actual row count (the mint run can't see its own
+  COPY_LINK rows in `$allInstances`, so it wrote 0 and the `$changed` gate never
+  healed it). = account2 #13.
+- Schedule Canvas cards + connectors stacked at one spot → position is now stamped
+  ATOMICALLY in the COPY_LINK via new `cfg.meta` support (`operationActions.js`),
+  so `meta.x/y/viewMode` no longer race the create. = account2 #11/#12.
+- Media trackers (Movies/Books/Podcasts/Courses) failing `$goalItemId is not a
+  record` → fixed to `$goalItem` (7 UPDATE paths).
+- "Days Until Due" — was NEVER computed (no op wrote it). Added a `DATE_DIFF` op
+  (per-occurrence, on dueFieldId change / load / filter nav).
+- Total Reps daily target 150 → 50.
+
+### Account 2 (Wikipedia import / manifest / UI) — DONE its session
+1 "Imported from [object Object]" → reads source.title/url. 2 inline-link chip
+front padding (chip-in-chip removed). 3 inline links (Rolling Stone) open (explicit
+click + URL normalize). 4 textblock move handles → top-left. 5 toolbar notification
+chips persist (no auto-clear). 6 imported images full-width (server restart +
+re-import). 7 "Source: ⟨article link⟩" textblock at top of imported doc (22/22
+importer tests). 14+16 empty manifest folders fixed — `folderType:"category"`
+folders (~15: Scheduling/Workouts/Trackers/Schedule Ops/…) excluded from the
+ManifestTree sidebar. 17 folder nodes → raised keycap look.
+
+### OPEN / still queued (both accounts)
+- **#8 Wikipedia import FLOOD** (the `[op-effects] depth=1 "Task Countdown"
+  UPDATE_ITEM_FIELD=1 …` printed every ms when importing a big article). Account2
+  ROOT CAUSE: in `matchSubjectFilter` an empty `targetId` returns `true` BEFORE
+  `subjectRole` is checked, so trackers scoped `ancestorLabel:"Schedule"` still
+  fire on EVERY imported occurrence create. Fix the early-true + reseed. NOT DONE.
+- **#9** Autowrap L/J/C text shapes around images — CSS float can't (sibling
+  blocks clear the float); needs image-inside-prose-textblock restructure.
+  Exploratory.
+- **#10** Imported page → add to Local + root folder.
+- **#15** Daily Toolkit page PREVIEW shows empty containers — data path verified
+  correct (subtree walk, leafModulesById, containersList, `filterOverride:{}`
+  opt-out all fine); it's a runtime/render behavior, needs in-browser repro. Don't
+  blind-patch.
+- **#18** Keycap/pocket design language: containers = popped-out OUTER frame,
+  their drop-spots/pockets = RECESSED inner frames, instances = popped-out keycaps.
+- Account3 leftovers: strip the `[DND]` debug logs once reorder/drop confirmed;
+  make the dice truly inside the pill border.
+- #11/#12 (canvas fanning) and #13 (table rows) were account2's open items but are
+  DONE by account3 above (reseed to apply).
+
+---
+### Update 2026-06-07 (account3 continuing the list)
+- **#8 import flood — DONE (client only, no reseed).** Root cause: in
+  `operationExecutor.matchSubjectFilter`, an `onAdd`/`onDelete` module trigger
+  with `subjectRole` + empty `targetId` returned `true` for ANY occurrence
+  create. The new importer creates only textblocks/containers/artifacts (no
+  instance-role nodes), yet the unscoped `subjectRole:"instance"` trackers
+  (Task Countdown, Volume/Reps, …) fired their full aggregation on every
+  imported node. Fix: stamp the created/deleted occurrence's role onto the
+  transaction (`runMatchingOperations`) and require `transaction._occRole ===
+  subjectRole` for those unscoped module add/delete triggers (null role →
+  falls back to old behavior). 183 operationExecutor + 216 operationActions
+  tests pass. Build clean.
+
+---
+
+### Update 2026-06-08 (account3)
+- **#9 REDEFINED — general block-wrap (NOT image-specific).** User clarified: in a
+  **doc**, drop a SMALLER occurrence (any kind) NEXT TO a bigger one; the bigger
+  block reflows + its OWN BORDER bends into an L (neighbor top-corner) or C
+  (neighbor mid) around the neighbor. TWO separate draggable occurrences, NOT
+  nested/fused, neither inside the other — puzzle pieces. Wrap defaults ON; needs
+  an OFF toggle in the align buttons (left/center/right → + wrap off = plain
+  side-by-side). Design + decisions saved in memory `project_block_wrap_l_shape`.
+  - Why CSS-spacer not a lib: text only wraps a float in its OWN flow; the clean
+    native feature (CSS Exclusions `wrap-flow`) is dead in modern browsers. So:
+    invisible float-SPACER reserves the notch (host's own text reflows) + clip-path
+    bends the host's border. Native CSS. (Muuri = good future lib for board
+    drag-tiling, but does NOT do the text-wrap.)
+  - **Progress (foundation):** `client/src/docs/WrapSpacerExtension.js` (new
+    `wrapSpacer` TipTap node — invisible floated placeholder, attrs w/h/side),
+    registered in `Editor.jsx`. `TextblockCard.jsx` detects a wrapSpacer in the
+    host textmap and clip-paths the card into the L/C. Build clean.
+  - **Still to do:** the NEIGHBOR sitting in the notch as its own separate
+    draggable (shared positioning context — likely a `wrapGroup` node holding the
+    two embeds); drop-BESIDE detection (vs above/below) to form the pair + size the
+    spacer from the neighbor's measured rect (ResizeObserver) + keep in sync on
+    edit/resize; remove spacer+clip on drag-out; the wrap on/off toggle in the
+    embed align RadialMenu. Generalize host beyond textblock (any kind:doc occ).
+- **NEW docket — "insert here" affordance (queued, user-requested 2026-06-08).**
+  A hover **+** button on the LEFT of each doc line; click inserts at that exact
+  spot, pushing everything down. Generalize: the **+** opens the add-item menu so
+  you can insert ANYTHING there (textblock/instance/container/etc.), not just a
+  blank line. SAME affordance at the highlighted droppable spots in **boards** —
+  follow the drop highlight, click to insert any item right in that spot via the
+  add-item menu. (Notion-style + button; complements the existing block handle.)
+
+### Update 2026-06-08 b (account3) — block-wrap slice 2 landed (build clean)
+- `WrapGroupExtension.js` + `WrapGroupNode.jsx` (new): a `wrapGroup` doc node holds
+  TWO moduleEmbeds (child0 host, child1 neighbor) — both still separate draggables.
+  WrapGroupNode ResizeObserves the neighbor → writes a sized `wrapSpacer` into the
+  HOST occ's textmap so the host's own text reflows + its card clips into the L.
+  CSS (`.wrap-group--on/off`) positions the neighbor absolute in the notch (on) or
+  side-by-side via flex (off).
+- `ModuleEmbedNode.jsx` radial menu: "Wrap behind previous" (forms the pair from
+  this embed + its previous-sibling embed), "Wrap on/off" toggle, "Unwrap" (strips
+  the host spacer + inlines the two embeds). Registered WrapGroup in Editor.jsx.
+- **Testable now:** doc with a textblock then an embed below it → neighbor's radial
+  → "Wrap behind previous" → host reflows into an L with the neighbor in the notch.
+- **Rough edges / still TODO:** notch vs neighbor have a small offset (host card
+  padding — not yet compensated); only the TOP notch (L) is wired — `anchor:"middle"`
+  (C shape) not implemented; formation is via the radial menu, NOT yet drop-beside
+  geometry; generalize host beyond textblock (clip currently lives in TextblockCard).

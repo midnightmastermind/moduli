@@ -847,6 +847,55 @@ export function createLeafInstanceInParent({
   return { moduleId, occurrenceId };
 }
 
+// Insert-here affordance (project_block_wrap_l_shape sibling task): mint OR
+// reuse a module as a new occurrence and splice it into the parent's
+// occurrences[] at a SPECIFIC index (not appended). `existingModuleId` reuses a
+// module the user picked from QuickAddMenu (a fresh placement of an existing
+// template); when null a brand-new role:"instance" module is minted.
+// Synchronous — the new occurrence id is known up-front so the splice has no
+// race (unlike the App-level append path).
+export function createLeafInstanceAtIndex({
+  dispatch, socket, gridId, userId, parentOccurrence, index = null,
+  existingModuleId = null, role = "instance", kind = "list", label = "", initialFields = {},
+  fieldIds = [],
+}) {
+  if (!gridId || !userId || !parentOccurrence) return null;
+  const occurrenceId = crypto?.randomUUID?.() || `lo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  let moduleId = existingModuleId;
+
+  if (!moduleId) {
+    moduleId = crypto?.randomUUID?.() || `li-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const module = { id: moduleId, userId, gridId, role, kind, label: label || "" };
+    // Bind any fields the user pre-picked in the QuickAddMenu field step.
+    if (Array.isArray(fieldIds) && fieldIds.length) {
+      module.fieldBindings = fieldIds.map(fid => ({ fieldId: fid, role: "input" }));
+    }
+    dispatch?.(createModuleAction(module));
+    safeEmit(socket, "create_module", { module });
+  }
+
+  const occurrence = {
+    id: occurrenceId, userId, gridId,
+    moduleId,
+    parentId: parentOccurrence.id,
+    fields: initialFields,
+  };
+  dispatch?.(createOccurrenceAction(occurrence));
+  safeEmit(socket, "create_occurrence", { occurrence });
+
+  // Splice into the parent's occurrences[] at `index` (append when null/out of range).
+  const existing = Array.isArray(parentOccurrence.occurrences) ? [...parentOccurrence.occurrences] : [];
+  const at = (index == null || index < 0 || index > existing.length) ? existing.length : index;
+  existing.splice(at, 0, occurrenceId);
+  updateOccurrence({
+    dispatch, socket,
+    occurrence: { id: parentOccurrence.id, occurrences: existing },
+    emit: true,
+  });
+
+  return { moduleId, occurrenceId };
+}
+
 export async function uploadFile({ file, userId, gridId, parentFolderId = null, manifestId = null, dispatch }) {
   const formData = new FormData();
   formData.append("file", file);

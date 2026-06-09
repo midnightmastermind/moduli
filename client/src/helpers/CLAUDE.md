@@ -1,6 +1,17 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-06-06. Check this file before re-reading source._
+_Updated: 2026-06-08. Check this file before re-reading source._
+
+## Recent Changes (2026-06-08 — createLeafInstanceAtIndex for the insert-here gap)
+- **`CommitHelpers.js`** — new `createLeafInstanceAtIndex({ dispatch, socket,
+  gridId, userId, parentOccurrence, index, existingModuleId?, role?, kind?,
+  label?, initialFields?, fieldIds? })`. Mirrors `createLeafInstanceInParent`
+  but: (a) **splices** the new occurrence id into `parentOccurrence.occurrences[]`
+  at `index` (append when null/out-of-range) instead of always appending;
+  (b) reuses `existingModuleId` when provided (a fresh placement of a picked
+  module — no new template) else mints a `role:"instance"` module; (c) binds
+  `fieldIds` as `fieldBindings` on a newly-minted module. Fully synchronous (occ
+  id known up-front → no splice race). Powers `ui/InsertGap.jsx`.
 
 ## Recent Changes (2026-06-06 — op-writable occurrence.label override + relative-date label vars)
 - **`operationExecutor.js`** — two additions powering filter-aware tracker/goal

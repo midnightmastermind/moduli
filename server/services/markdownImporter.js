@@ -439,12 +439,8 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
       meta: { allowChildContainers: true, headingLevel: Math.min(node.level || 1, 6) },
     });
     const childIds = [];
-    // Image children render FULL-WIDTH (align:"full") in the textmap. (Float
-    // wrap — align:"left"/"right" — doesn't produce an article-like L-shape
-    // here because each sibling block is its own moduleEmbed component that
-    // establishes a block formatting context and clears the float instead of
-    // wrapping its text beside it. True wrap would need the image INSIDE the
-    // prose textblock, not as a sibling embed.) Users can re-align per-embed.
+    // Image children render FULL-WIDTH (align:"full") in the textmap. Users can
+    // re-align per-embed (float left/right) in the UI.
     const imageChildIds = new Set();
     // Each block becomes its OWN child: every paragraph → its own textblock,
     // every list → ONE textblock holding a bulletList, sub-sections → nested doc

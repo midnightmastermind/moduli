@@ -26,6 +26,36 @@ function resolveLink(occurrence, module) {
   return occurrence?.meta?.link || module?.meta?.link || null;
 }
 
+// Block-wrap (project_block_wrap_l_shape): if this host's textmap carries a
+// wrapSpacer node, its own text already reflows around the reserved notch (the
+// spacer floats). To make the BORDER trace the L/C too (so it reads as a notched
+// box rather than a rectangle drawn through the neighbor), we clip the card to a
+// polygon that cuts the notch out of the corresponding corner.
+function findWrapSpacer(textmap) {
+  const content = textmap?.content;
+  if (!Array.isArray(content)) return null;
+  for (const n of content) {
+    if (n?.type === "wrapSpacer") {
+      return {
+        w: Number(n.attrs?.w) || 0,
+        h: Number(n.attrs?.h) || 0,
+        side: n.attrs?.side === "left" ? "left" : "right",
+      };
+    }
+  }
+  return null;
+}
+
+function notchClipPath(spacer) {
+  if (!spacer || !spacer.w || !spacer.h) return undefined;
+  const { w, h, side } = spacer;
+  // Notch sits at the TOP corner on `side` (matches a top-anchored float). The
+  // polygon walks the outline with the corner cut inward by the spacer footprint.
+  return side === "left"
+    ? `polygon(${w}px 0, 100% 0, 100% 100%, 0 100%, 0 ${h}px, ${w}px ${h}px)`
+    : `polygon(0 0, calc(100% - ${w}px) 0, calc(100% - ${w}px) ${h}px, 100% ${h}px, 100% 100%, 0 100%)`;
+}
+
 export default function TextblockCard({ occurrence, module }) {
   const { dispatch, socket } = useGridActions();
   const isInline = module?.kind === "inline";
@@ -73,8 +103,14 @@ export default function TextblockCard({ occurrence, module }) {
     );
   }
 
+  const wrapSpacer = findWrapSpacer(occurrence?.textmap);
+  const clipPath = notchClipPath(wrapSpacer);
+
   return (
-    <div className={isInline ? "textblock-card textblock-card--inline" : "textblock-card"}>
+    <div
+      className={isInline ? "textblock-card textblock-card--inline" : "textblock-card"}
+      style={clipPath ? { clipPath } : undefined}
+    >
       <Editor
         occurrence={occurrence}
         content={occurrence?.textmap && typeof occurrence.textmap === "object" ? occurrence.textmap : null}

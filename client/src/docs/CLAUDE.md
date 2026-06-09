@@ -1,6 +1,46 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-06-06. Check this file before re-reading source._
+_Updated: 2026-06-08. Check this file before re-reading source._
+
+## Recent Changes (2026-06-08 — Block-wrap "L-shape": two side-by-side embeds, bigger reflows around smaller [project_block_wrap_l_shape])
+User goal (long design back-and-forth): drop one block beside a bigger one in a
+doc and have the bigger block's text/border bend into an **L** (notch at top) or
+**C** (notch mid-block) around it — WITHOUT nesting. The two stay SEPARATE,
+independently-draggable occurrences; this only gives them a shared positioning
+context. NOT image-specific — works for any two embeds (textblocks/artifacts/
+instances). All client-side:
+- **`WrapGroupExtension.js` + `WrapGroupNode.jsx` (NEW)** — TipTap block node
+  `wrapGroup`, `content:"moduleEmbed{2}"` — child 0 = HOST (bigger, reflows),
+  child 1 = NEIGHBOR (smaller, sits in the notch). `attrs: side / anchor / wrap`.
+  The NodeView ResizeObserves the neighbor's box and writes a sized `wrapSpacer`
+  to the FRONT of the HOST occurrence's `textmap.content` (host flow reserves the
+  notch); strips it when `wrap` is off. `MIN_DELTA=2px` guards write-storms.
+- **`WrapSpacerExtension.js` (NEW)** — invisible atom block `wrapSpacer`
+  (`{w,h,side}`) rendered as a floated div with `shape-outside:inset(0)` so host
+  prose hugs the rectangular notch.
+- **`ModuleEmbedNode.jsx`** — radial items: a NEIGHBOR embed offers **Wrap on↔off**
+  + **Unwrap** (splices the two embeds back to siblings + strips host spacer); a
+  plain embed with a previous-sibling embed offers **Wrap behind previous**.
+- **`ui/Editor.jsx`** — drop-beside (`detectSideHost`): a block dropped over the
+  LEFT/RIGHT third (frac ≤0.4 / ≥0.6) of an existing top-level moduleEmbed forms
+  a wrapGroup (`wrapHostWithNeighbor`) instead of a plain sibling. Routed through
+  all three copy/new-embed paths. `WrapSpacer`+`WrapGroup` registered.
+- **`modules/TextblockCard.jsx`** — leading `wrapSpacer` in host textmap → card
+  clips to an L/C `clip-path` polygon (`notchClipPath`) so the BORDER traces the
+  notch.
+- **`index.css`** — `.wrap-group` positioning (`--on` overlays neighbor over the
+  reserved notch; `--off` plain flex side-by-side).
+- **NOTE — importer intentionally does NOT emit wrapGroups.** `markdownImporter.js`
+  this session was a comment-only cleanup recording that decision (each imported
+  image is its own sibling embed → can't reflow prose beside it; renders
+  full-width, user opts into wrap per-embed via the radial menu).
+- Verified: build clean, **1082/1082 client + 202/202 server tests pass.** Needs
+  in-browser verification (ResizeObserver→spacer sync + clip polygon aren't
+  unit-testable). Also this session: **Wikipedia-import flood fix** in
+  `client/src/helpers/operationExecutor.js` — unscoped `subjectRole:"instance"`
+  onAdd/onDelete triggers now require `_occRole === subjectRole`, so an import's
+  many occurrence-creates no longer re-run every tracker per node ("reprints every
+  millisecond"). `_occRole == null` falls through to old match-any.
 
 ## Recent Changes (2026-06-06 — CRASH FIX: renderBody contract — "(destructured parameter) is undefined")
 - **`ModuleEmbedNode.jsx`** — the textblock + artifact embed branches passed the

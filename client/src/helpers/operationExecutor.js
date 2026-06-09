@@ -526,6 +526,22 @@ function matchSubjectFilter(to, eventType, transaction) {
       && !(Array.isArray(transaction?._ancestorIds) && transaction._ancestorIds.length > 0);
   }
 
+  // Module add/delete with a role but NO specific targetId ("match any of this
+  // role"): require the created/deleted occurrence's role to equal subjectRole.
+  // This is the fix for the Wikipedia-import flood — an unscoped
+  // `subjectRole:"instance"` onAdd trigger used to fire on EVERY occurrence
+  // create (textblocks/containers/artifacts from an import all matched), running
+  // each tracker's full aggregation per imported node. The new importer creates
+  // no instance-role occurrences, so role-matching drops the flood to zero.
+  // `_occRole` is stamped in runMatchingOperations; null = unresolved → fall
+  // through to the old "match any" behavior so nothing else regresses.
+  if (subjectType === "module" && subjectRole && !targetId &&
+      (eventType === "onAdd" || eventType === "onDelete" ||
+       eventType === "onCreate" || eventType === "onRemove")) {
+    if (transaction?._occRole == null) return true;
+    return transaction._occRole === subjectRole;
+  }
+
   if (!targetId) return true;
 
   if (subjectType === "field") {
@@ -851,6 +867,22 @@ export function runMatchingOperations(operations, transactionType, transaction, 
   // operation.targetOccurrenceId, not the triggering occurrence — so which
   // descendant first matched is immaterial. See CommitHelpers.fireOperationsBatch.
   const cascadeFiredOps = context?.cascadeFiredOps || null;
+
+  // Stamp the created/deleted occurrence's ROLE onto the transaction so an
+  // onAdd/onDelete `subjectRole:"instance", targetId:""` trigger can match only
+  // same-role creates. Without it, every unscoped tracker (Task Countdown, the
+  // Volume/Reps trackers, …) ran its full aggregation on EVERY occurrence
+  // create — including a Wikipedia import's textblocks/containers/artifacts —
+  // which was the per-millisecond import flood. matchSubjectFilter reads
+  // transaction._occRole. If the role can't be resolved it stays null and the
+  // filter falls back to its old "match any" behavior (no over-rejection).
+  if (transaction && transaction._occRole === undefined &&
+      (transactionType === "OccurrenceCreateOp" || transactionType === "OccurrenceDeleteOp")) {
+    const modId = transaction.instanceId
+      ?? context?.occurrencesById?.[transaction.occurrenceId]?.moduleId;
+    transaction._occRole = (modId && context?.modulesById?.[modId]?.role) || null;
+  }
+
   const matched = [];
   for (const op of operations) {
     // Skip ops whose own effects are mid-application on this sync stack —

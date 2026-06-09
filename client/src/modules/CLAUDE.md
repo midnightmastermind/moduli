@@ -1,6 +1,16 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-06-06. This folder implements occurrence-based view routing._
+_Updated: 2026-06-08. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-06-08 — ModuleContainer: insert-here gaps between list/board items)
+- **`ModuleContainer.jsx`** — the standard list/board child render loop now
+  interleaves `<InsertGap>` (`ui/InsertGap.jsx`) BEFORE each item plus a trailing
+  gap after the last, gated on `containerOccurrence` resolving. Each gap inserts a
+  new occurrence at that index via QuickAddMenu (see ui/CLAUDE.md +
+  `CommitHelpers.createLeafInstanceAtIndex`). The map callback was refactored to
+  build the item into a `node` var then return a keyed `React.Fragment` wrapping
+  `[InsertGap, node]` (was returning the item directly). Doc-side gaps (Editor.jsx)
+  are the pending next slice.
 
 ## Recent Changes (2026-06-06 — renderers honor occurrence.label override)
 - **`ModuleInstance.jsx`** — the InstanceInner `label` prop is now

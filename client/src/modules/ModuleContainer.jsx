@@ -116,6 +116,7 @@ import ContainerPool from "./containers/ContainerPool.jsx";
 import ContainerTable from "./containers/ContainerTable.jsx";
 import { FilterOverridePopup } from "./containerPopups.jsx";
 import ModuleInstance from "./ModuleInstance.jsx";
+import InsertGap from "../ui/InsertGap.jsx";
 import ArtifactCard from "./ArtifactCard.jsx";
 import TextblockCard from "./TextblockCard.jsx";
 import BoundHeader from "./BoundHeader.jsx";
@@ -1400,16 +1401,16 @@ function Container({
               flex: 1, display: "flex", flexDirection: "column",
             }}
           >
-            {itemsWithOccurrences.map(({ instance, occurrence }) => {
+            {itemsWithOccurrences.map(({ instance, occurrence }, idx) => {
               const role = instance?.role;
               // Container-in-container: when the parent has allowChildContainers,
               // a role:"container" child mounts its own <Container> instead of a
               // <ModuleInstance>. occurrenceOverride pins the child to the
               // specific occurrence this parent links (multi-parent-safe).
+              let node;
               if (role === "container" && allowChildContainers) {
-                return (
+                node = (
                   <Container
-                    key={occurrence.id}
                     module={instance}
                     occurrenceOverride={occurrence}
                     panelId={panelId}
@@ -1419,31 +1420,45 @@ function Container({
                     gapPx={6}
                   />
                 );
+              } else {
+                let renderBody = null;
+                if (role === "artifact") {
+                  renderBody = () => <ArtifactCard module={instance} label={instance.label} occurrence={occurrence} />;
+                } else if (role === "textblock") {
+                  renderBody = () => <TextblockCard occurrence={occurrence} module={instance} />;
+                }
+                node = (
+                  <ModuleInstance
+                    module={instance}
+                    occurrence={occurrence}
+                    containerId={module.id}
+                    panelId={panelId}
+                    panel={panel}
+                    container={module}
+                    containerOccurrence={containerOccurrence}
+                    dispatch={dispatch}
+                    socket={socket}
+                    allowedEdges={containerAllowedEdges}
+                    onInstanceFocus={null}
+                    renderBody={renderBody}
+                  />
+                );
               }
-              let renderBody = null;
-              if (role === "artifact") {
-                renderBody = () => <ArtifactCard module={instance} label={instance.label} occurrence={occurrence} />;
-              } else if (role === "textblock") {
-                renderBody = () => <TextblockCard occurrence={occurrence} module={instance} />;
-              }
+              // Insert-here gap BEFORE each item (only when this container's
+              // occurrence is resolvable so the splice has a real parent).
               return (
-                <ModuleInstance
-                  key={occurrence.id}
-                  module={instance}
-                  occurrence={occurrence}
-                  containerId={module.id}
-                  panelId={panelId}
-                  panel={panel}
-                  container={module}
-                  containerOccurrence={containerOccurrence}
-                  dispatch={dispatch}
-                  socket={socket}
-                  allowedEdges={containerAllowedEdges}
-                  onInstanceFocus={null}
-                  renderBody={renderBody}
-                />
+                <React.Fragment key={occurrence.id}>
+                  {containerOccurrence && (
+                    <InsertGap parentOccurrence={containerOccurrence} index={idx} hostOccurrence={containerOccurrence} />
+                  )}
+                  {node}
+                </React.Fragment>
               );
             })}
+            {/* Trailing gap — append-at-end insert point. */}
+            {containerOccurrence && items.length > 0 && (
+              <InsertGap parentOccurrence={containerOccurrence} index={itemsWithOccurrences.length} hostOccurrence={containerOccurrence} />
+            )}
             {items.length === 0 && (
               <div className="text-xs text-muted-foreground p-2 text-center empty-placeholder-inline">
                 Drop items here

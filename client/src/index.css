@@ -1274,6 +1274,52 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .panel-header:hover .quick-add-btn,
 .container-header:hover .quick-add-btn { opacity: 1 !important; }
 
+/* Insert-here gap (between list/board items). Collapsed to a 4px hit zone;
+   hovering reveals a highlight bar + the centered QuickAddMenu "+" so the user
+   can insert a new item at that exact spot (mirrors a drop-spot highlight). */
+.insert-gap {
+  position: relative;
+  height: 4px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+.insert-gap-line {
+  position: absolute;
+  left: 6px; right: 6px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent-blue, #3b82f6);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+.insert-gap-btn { position: relative; z-index: 1; opacity: 0; transition: opacity 0.12s ease; }
+.insert-gap:hover { height: 18px; }
+.insert-gap:hover .insert-gap-line { opacity: 0.55; }
+.insert-gap:hover .insert-gap-btn { opacity: 1; }
+/* The QuickAddMenu trigger inside a gap is always interactive once revealed. */
+.insert-gap .quick-add-btn { opacity: 1 !important; }
+
+/* Doc-editor insert gap — floats at the nearest top-level block boundary while
+   hovering a primary doc editor. Same visual language as .insert-gap. */
+.doc-insert-gap {
+  position: absolute;
+  left: 12px; right: 8px;
+  height: 14px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+  pointer-events: none;
+}
+.doc-insert-gap .insert-gap-line { opacity: 0.55; }
+.doc-insert-gap .insert-gap-btn { opacity: 1; pointer-events: auto; }
+.doc-insert-gap .quick-add-btn { opacity: 1 !important; }
+
 /* Images */
 .doc-editor-content.ProseMirror img {
   max-width: 100%;
@@ -2252,6 +2298,35 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   font-size: 13px;
   line-height: 1.45;
 }
+
+/* ── Block-wrap (project_block_wrap_l_shape) ──────────────────────────────────
+   wrapGroup holds two embeds: child 1 = HOST (reflows + clips into the L/C),
+   child 2 = NEIGHBOR (its own box, sits in the host's reserved notch).        */
+.wrap-group { position: relative; width: 100%; }
+.wrap-group .wrap-group-content { display: block; position: relative; }
+
+/* WRAP ON — neighbor overlays the host's top-corner notch; host flows beneath.
+   The host's own text already vacates the notch (a sized wrapSpacer in its
+   textmap floats there) and its card clips into the L (see TextblockCard). */
+.wrap-group--on .wrap-group-content > :nth-child(1) { position: static; }
+.wrap-group--on .wrap-group-content > :nth-child(2) {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  margin: 0;
+}
+.wrap-group--on.wrap-group--right .wrap-group-content > :nth-child(2) { right: 0; }
+.wrap-group--on.wrap-group--left  .wrap-group-content > :nth-child(2) { left: 0; }
+
+/* WRAP OFF — the toggle (in the align controls) drops the notch: the two blocks
+   simply sit next to each other, no reflow, no clip. */
+.wrap-group--off .wrap-group-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.wrap-group--off .wrap-group-content > :nth-child(1) { flex: 1 1 auto; min-width: 0; }
+.wrap-group--off .wrap-group-content > :nth-child(2) { flex: 0 0 auto; }
 .textblock-card .doc-editor-wrapper {
   min-height: 0;
   padding: 0 !important;

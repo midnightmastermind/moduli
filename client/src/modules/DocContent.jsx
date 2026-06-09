@@ -186,6 +186,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         onDeleteBlock={onDeleteBlock}
         recentAutoCreateRef={recentAutoCreateRef}
         onAutoCreateTextblock={onExitBlock ? null : (onAutoCreateTextblock || handleAutoCreateTextblock)}
+        enableInsertGaps={!onExitBlock && !onDeleteBlock}
       />
     </div>
   );

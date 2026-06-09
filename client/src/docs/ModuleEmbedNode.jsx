@@ -12,8 +12,9 @@ import ArtifactCard from "../modules/ArtifactCard.jsx";
 import TextblockCard from "../modules/TextblockCard.jsx";
 import FieldRenderer from "../ui/FieldRenderer.jsx";
 import { CellEmbedContext } from "./CellEmbedContext.js";
-import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box } from "lucide-react";
+import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box, Combine, Ungroup, WrapText } from "lucide-react";
 import { embedDeleteRegistry } from "../helpers/embedRegistry.js";
+import { updateOccurrence } from "../helpers/CommitHelpers";
 
 const ALIGN_CYCLE = ["full", "left", "center", "right"];
 const ALIGN_ICONS = { full: AlignJustify, left: AlignLeft, center: AlignCenter, right: AlignRight };
@@ -79,30 +80,119 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   const embedRadialItems = useMemo(() => {
     const nextAlign = ALIGN_CYCLE[(ALIGN_CYCLE.indexOf(align) + 1) % ALIGN_CYCLE.length];
     const AlignIcon = ALIGN_ICONS[align];
-    return [
+
+    // Block-wrap (project_block_wrap_l_shape): figure out whether this embed sits
+    // inside a wrapGroup (→ offer wrap on/off + unwrap) or has a previous-sibling
+    // embed it could wrap into (→ offer "wrap behind previous").
+    let wrapGroupPos = null;
+    let wrapGroupNode = null;
+    let prevEmbed = null;
+    if (editor && typeof getPos === "function") {
+      try {
+        const pos = getPos();
+        const $pos = editor.state.doc.resolve(pos);
+        if ($pos.parent?.type?.name === "wrapGroup") {
+          wrapGroupPos = $pos.before($pos.depth);
+          wrapGroupNode = $pos.parent;
+        } else if ($pos.nodeBefore?.type?.name === "moduleEmbed") {
+          prevEmbed = $pos.nodeBefore;
+        }
+      } catch (_) { /* position not resolvable yet */ }
+    }
+
+    const items = [
       {
         label: `Align: ${align} → ${nextAlign}`,
         icon: AlignIcon,
         onClick: () => updateAttributes({ align: nextAlign, width: null }),
       },
-      {
-        label: "To pill",
-        icon: Box,
-        color: "bg-indigo-600 hover:bg-indigo-500",
-        onClick: () => {
-          if (!editor || !getPos || !mod) return;
-          const pos = getPos();
-          editor.chain().focus()
-            .deleteRange({ from: pos, to: pos + node.nodeSize })
-            .insertContentAt(pos, {
-              type: "instancePill",
-              attrs: { instanceId: mod.id, instanceLabel: mod.label || "Item", occurrenceId },
-            })
-            .run();
-        },
-      },
     ];
-  }, [align, updateAttributes, editor, getPos, mod, node.nodeSize, occurrenceId]);
+
+    if (prevEmbed) {
+      // This embed is the NEIGHBOR; the previous embed is the HOST that wraps it.
+      items.push({
+        label: "Wrap behind previous",
+        icon: Combine,
+        color: "bg-teal-700 hover:bg-teal-600",
+        onClick: () => {
+          if (!editor || typeof getPos !== "function") return;
+          const pos = getPos();
+          const $before = editor.state.doc.resolve(pos);
+          const prev = $before.nodeBefore;
+          const cur = editor.state.doc.nodeAt(pos);
+          if (!prev || prev.type.name !== "moduleEmbed" || !cur || cur.type.name !== "moduleEmbed") return;
+          const groupType = editor.schema.nodes.wrapGroup;
+          if (!groupType) return;
+          const from = pos - prev.nodeSize;
+          const to = pos + cur.nodeSize;
+          const group = groupType.create({ side: "right", anchor: "top", wrap: true }, [prev, cur]);
+          editor.chain().focus().command(({ tr }) => { tr.replaceWith(from, to, group); return true; }).run();
+        },
+      });
+    }
+
+    if (wrapGroupNode && wrapGroupPos != null) {
+      const wrapOn = wrapGroupNode.attrs.wrap !== false;
+      items.push({
+        label: wrapOn ? "Wrap: on → off" : "Wrap: off → on",
+        icon: WrapText,
+        onClick: () => {
+          if (!editor) return;
+          const grp = editor.state.doc.nodeAt(wrapGroupPos);
+          if (!grp || grp.type.name !== "wrapGroup") return;
+          editor.chain().focus().command(({ tr }) => {
+            tr.setNodeMarkup(wrapGroupPos, undefined, { ...grp.attrs, wrap: !wrapOn });
+            return true;
+          }).run();
+        },
+      });
+      items.push({
+        label: "Unwrap",
+        icon: Ungroup,
+        onClick: () => {
+          if (!editor) return;
+          const grp = editor.state.doc.nodeAt(wrapGroupPos);
+          if (!grp || grp.type.name !== "wrapGroup") return;
+          // Strip the reserved notch from the host (first child) so it returns to
+          // a plain rectangle once the group is gone (syncNotch won't run after
+          // unmount). Then replace the group with its two children inline.
+          const hostOccId = grp.firstChild?.attrs?.occurrenceId;
+          const host = hostOccId ? occurrencesById?.[hostOccId] : null;
+          if (host?.textmap?.content?.[0]?.type === "wrapSpacer") {
+            updateOccurrence({
+              dispatch, socket,
+              occurrence: { ...host, textmap: { ...host.textmap, content: host.textmap.content.slice(1) } },
+            });
+          }
+          const kids = [];
+          grp.forEach((child) => kids.push(child));
+          editor.chain().focus().command(({ tr }) => {
+            tr.replaceWith(wrapGroupPos, wrapGroupPos + grp.nodeSize, kids);
+            return true;
+          }).run();
+        },
+      });
+    }
+
+    items.push({
+      label: "To pill",
+      icon: Box,
+      color: "bg-indigo-600 hover:bg-indigo-500",
+      onClick: () => {
+        if (!editor || !getPos || !mod) return;
+        const pos = getPos();
+        editor.chain().focus()
+          .deleteRange({ from: pos, to: pos + node.nodeSize })
+          .insertContentAt(pos, {
+            type: "instancePill",
+            attrs: { instanceId: mod.id, instanceLabel: mod.label || "Item", occurrenceId },
+          })
+          .run();
+      },
+    });
+
+    return items;
+  }, [align, updateAttributes, editor, getPos, mod, node.nodeSize, occurrenceId, occurrencesById, dispatch, socket]);
 
   if (!mod) {
     return (

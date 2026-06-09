@@ -1,6 +1,43 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-06-05. Check this file before re-reading source._
+_Updated: 2026-06-08. Check this file before re-reading source._
+
+## Recent Changes (2026-06-08 — InsertGap: "insert here" affordance between items)
+- **`InsertGap.jsx` (NEW)** — thin hover zone placed BETWEEN sibling items
+  (list/board column rows). Collapsed to a 4px hit zone; on hover reveals a blue
+  highlight bar (`.insert-gap-line`) + a centered **QuickAddMenu "+"**
+  (`.insert-gap-btn`). Picking/creating inserts the new occurrence at THIS index
+  rather than appending. Reuses QuickAddMenu wholesale: `onSelect(moduleId)` →
+  fresh placement of an existing module; `onCreateNew({fieldIds})` → new
+  `role:"instance"` module with the picked fields bound. Both call the new
+  `CommitHelpers.createLeafInstanceAtIndex({ parentOccurrence, index, ... })`
+  (synchronous splice into `occurrences[]` — no async-id race). Reads
+  `gridId`/`userId` from `useGridActions()` (falls back to `state.grid`).
+- **Wired from** `modules/ModuleContainer.jsx` list render (interleaved before
+  each item + a trailing gap; gated on `containerOccurrence` resolving). CSS in
+  `index.css` (`.insert-gap*`). Docket item from the block-wrap session; user
+  picked "reuse QuickAddMenu" + "highlight like the board".
+- **DOC HALF SHIPPED 2026-06-08** — the same gap-highlight now works between
+  top-level doc blocks. `Editor.jsx` gained an opt-in `enableInsertGaps` prop
+  (passed by `DocContent.jsx` only for PRIMARY doc editors — gated
+  `!onExitBlock && !onDeleteBlock` so cell/textblock sub-editors don't get gaps).
+  `onMouseMove` on `.doc-editor-wrapper` → `handleGapMove` resolves the nearest
+  top-level block boundary via `view.posAtCoords` + `$pos.before(1)` and stores
+  `docGap = { top, pos }` (top = wrapper-relative px, pos = PM insert position).
+  A floating `.doc-insert-gap` renders the same `insert-gap-line` + QuickAddMenu
+  "+"; `gapFrozenRef` keeps it from recomputing while the pointer is over the
+  affordance. Picking/creating calls `insertDocItemAt(pos, …)` which mints a
+  STANDALONE occurrence (parentId = the doc occurrence, NOT into any
+  `occurrences[]` — doc embeds are standalone) + `insertContentAt(pos,
+  moduleEmbed)`. CSS `.doc-insert-gap*` in `index.css`.
+- **BUGFIX (same session):** `QuickAddMenu.onSelect` hands back the full MODULE
+  OBJECT `m`, not a moduleId. Both `InsertGap.jsx` (board half) and the doc-half
+  `onSelect` were passing it straight through as `existingModuleId`, so picking
+  an EXISTING module wrote an object into `occurrence.moduleId`. Both now
+  normalize `m?.id ?? m`. (Was latent in the board half — the existing-module
+  path isn't unit-tested; only insert-at-index is.)
+- **Still needs in-browser check** — hover-reveal gap + insert-at-block-pos +
+  the existing-module pick path aren't unit-testable.
 
 ## Recent Changes (2026-06-05 — AssistantDrawer: import opens as a DOC page (was a board))
 - **`AssistantDrawer.jsx` (`PanelPickCard.openInPanel` wrap branch)** — the

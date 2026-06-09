@@ -41,6 +41,8 @@ import { DocLink } from "../docs/DocLinkExtension";
 import { PillBackspace } from "../docs/PillBackspaceExtension";
 import { HeadingFocus } from "../docs/HeadingFocusExtension";
 import { ModuleEmbed } from "../docs/ModuleEmbedExtension";
+import { WrapSpacer } from "../docs/WrapSpacerExtension";
+import { WrapGroup } from "../docs/WrapGroupExtension";
 import { InstanceTextblock } from "../docs/InstanceTextblockExtension";
 import { InstanceTextblockInline } from "../docs/InstanceTextblockInlineExtension";
 import { ExprPill } from "../docs/ExprPillExtension";
@@ -52,6 +54,7 @@ import DocToolbar from "../docs/DocToolbar";
 import ContextMenu from "./ContextMenu";
 import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type } from "lucide-react";
 
 // Atomic same-doc move for a TipTap embed node (instanceTextblock,
@@ -161,6 +164,11 @@ const Editor = forwardRef(function Editor({
   // LOCAL override; it wins over the occurrence-level fieldVisibility cascade.
   fieldVisibility = null,
   hideLabel = false,
+  // Opt-in "insert here" gap affordance between top-level doc blocks (primary
+  // doc editors only — NOT cell editors or textblock sub-editors). Mirrors the
+  // board/list InsertGap: hover a block boundary → highlight bar + QuickAddMenu
+  // "+" → mints an occurrence and inserts a moduleEmbed at that block position.
+  enableInsertGaps = false,
 }, ref) {
   // Cell mode: opt-in via mode="cell". Gates doc-only behaviors and enables
   // spreadsheet navigation keymaps. The default mode="doc" path is unchanged.
@@ -190,6 +198,10 @@ const Editor = forwardRef(function Editor({
   const [isDropTarget, setIsDropTarget] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
+  // Insert-here doc gap: { top (wrapper-relative px), pos (PM insert position) }
+  // or null. Driven by mousemove over the editor wrapper when enableInsertGaps.
+  const [docGap, setDocGap] = useState(null);
+  const gapFrozenRef = useRef(false); // true while pointer is over the affordance
   // D11: convert-to-module prompt
 
   const lastCharRef = useRef("");
@@ -306,6 +318,8 @@ const Editor = forwardRef(function Editor({
       PillBackspace,
       HeadingFocus,
       ModuleEmbed,
+      WrapSpacer,
+      WrapGroup,
       ExprPill,
       Table.configure({ resizable: true }),
       TableRow,
@@ -1251,6 +1265,45 @@ const Editor = forwardRef(function Editor({
         const isBlockDrop = type !== "field";
         const insertPos = resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
 
+        // ── Block-wrap drop-beside (project_block_wrap_l_shape) ─────────────
+        // If a block is dropped over the LEFT/RIGHT third of an existing
+        // top-level moduleEmbed, form a wrapGroup (that embed = HOST, the
+        // dropped one = NEIGHBOR in its notch) instead of inserting a plain
+        // sibling. Detection happens at the raw drop coords (pre-snap).
+        const detectSideHost = (input) => {
+          if (!editor?.view || !input || input.clientX == null) return null;
+          const res = editor.view.posAtCoords({ left: input.clientX, top: input.clientY });
+          if (!res) return null;
+          const $p = editor.state.doc.resolve(res.pos);
+          if ($p.depth < 1) return null;
+          const topPos = $p.before(1);
+          const topNode = editor.state.doc.nodeAt(topPos);
+          if (!topNode || topNode.type.name !== "moduleEmbed") return null;
+          let dom = null;
+          try { dom = editor.view.nodeDOM(topPos); } catch (_) { return null; }
+          const rect = dom?.getBoundingClientRect?.();
+          if (!rect || rect.width <= 0) return null;
+          const frac = (input.clientX - rect.left) / rect.width;
+          if (frac >= 0.6) return { hostPos: topPos, side: "right" };
+          if (frac <= 0.4) return { hostPos: topPos, side: "left" };
+          return null;
+        };
+        const wrapHostWithNeighbor = (neighborOccId, sideHost) => {
+          if (!editor || !sideHost || !neighborOccId) return false;
+          const groupType = editor.schema.nodes.wrapGroup;
+          const embedType = editor.schema.nodes.moduleEmbed;
+          if (!groupType || !embedType) return false;
+          const host = editor.state.doc.nodeAt(sideHost.hostPos);
+          if (!host || host.type.name !== "moduleEmbed") return false;
+          if (host.attrs?.occurrenceId === neighborOccId) return false; // never wrap self
+          const neighbor = embedType.create({ occurrenceId: neighborOccId });
+          const group = groupType.create({ side: sideHost.side, anchor: "top", wrap: true }, [host, neighbor]);
+          const from = sideHost.hostPos;
+          const to = sideHost.hostPos + host.nodeSize;
+          return editor.chain().focus().command(({ tr }) => { tr.replaceWith(from, to, group); return true; }).run();
+        };
+        const sideHost = isBlockDrop ? detectSideHost(dropInput || lastNativeEvent) : null;
+
         // A textblock dragged from a list container (TextblockCard wrapped by
         // ModuleInstance) ships with `type: "instance"` because the drag
         // happens through ModuleInstance.useDragDrop. Without this reroute it
@@ -1293,7 +1346,9 @@ const Editor = forwardRef(function Editor({
               },
               emit: true,
             });
-            insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: newOccId } });
+            if (!(sideHost && wrapHostWithNeighbor(newOccId, sideHost))) {
+              insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: newOccId } });
+            }
           } else {
             // Move: same-doc rearrange = atomic node move (no delete +
             // recreate). If the source isn't in this editor, fall back to
@@ -1379,10 +1434,12 @@ const Editor = forwardRef(function Editor({
                 },
                 emit: true,
               });
-              insertAtPos(insertPos, {
-                type: "instanceTextblock",
-                attrs: { instanceId: id, occurrenceId: newOccId },
-              });
+              if (!(sideHost && wrapHostWithNeighbor(newOccId, sideHost))) {
+                insertAtPos(insertPos, {
+                  type: "instanceTextblock",
+                  attrs: { instanceId: id, occurrenceId: newOccId },
+                });
+              }
               return;
             }
 
@@ -1445,7 +1502,9 @@ const Editor = forwardRef(function Editor({
             const sourceOcc = occsById[occurrenceId];
             const copyRootId = deepCopyOcc(sourceOcc);
             if (!copyRootId) return;
-            insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: copyRootId } });
+            if (!(sideHost && wrapHostWithNeighbor(copyRootId, sideHost))) {
+              insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: copyRootId } });
+            }
             return;
           }
 
@@ -1662,6 +1721,65 @@ const Editor = forwardRef(function Editor({
     },
   }), [editor, insertFieldPill]);
 
+  // ── insert-here doc gap ───────────────────────────────────────
+  const gapsOn = enableInsertGaps && !isCell && editable && !!occurrence?.userId;
+
+  // Track the nearest top-level block boundary under the cursor.
+  const handleGapMove = useCallback((e) => {
+    if (!gapsOn || gapFrozenRef.current) return;
+    const view = editor?.view;
+    const wrapEl = wrapperRef.current;
+    if (!view || !wrapEl) return;
+    // Don't recompute while the pointer is over the affordance itself.
+    if (e.target?.closest?.(".doc-insert-gap")) return;
+    let res = null;
+    try { res = view.posAtCoords({ left: e.clientX, top: e.clientY }); } catch (_) { /* */ }
+    if (!res) { setDocGap(null); return; }
+    let topPos, node, dom;
+    try {
+      const $pos = editor.state.doc.resolve(res.pos);
+      if ($pos.depth < 1) { setDocGap(null); return; }
+      topPos = $pos.before(1);
+      node = editor.state.doc.nodeAt(topPos);
+      dom = view.nodeDOM(topPos);
+    } catch (_) { setDocGap(null); return; }
+    const rect = dom?.getBoundingClientRect?.();
+    if (!node || !rect || !rect.height) { setDocGap(null); return; }
+    const wrapRect = wrapEl.getBoundingClientRect();
+    const before = (e.clientY - rect.top) < rect.height / 2;
+    const insertPos = before ? topPos : topPos + node.nodeSize;
+    const top = (before ? rect.top : rect.bottom) - wrapRect.top;
+    setDocGap((prev) => (prev && prev.pos === insertPos ? prev : { top, pos: insertPos }));
+  }, [gapsOn, editor]);
+
+  // Mint a standalone occurrence (NOT into any occurrences[] — doc embeds are
+  // standalone) and insert a moduleEmbed for it at `pos`. existingModuleId →
+  // a fresh placement of a picked module; else a new role:"instance" module.
+  const insertDocItemAt = useCallback((pos, { existingModuleId = null, fieldIds = [] } = {}) => {
+    if (!editor || !occurrence?.userId) return;
+    const userId = occurrence.userId;
+    const gridId = occurrence.gridId;
+    const occId = crypto.randomUUID();
+    let moduleId = existingModuleId;
+    if (!moduleId) {
+      moduleId = crypto.randomUUID();
+      const module = { id: moduleId, userId, gridId, role: "instance", kind: "list", label: "" };
+      if (Array.isArray(fieldIds) && fieldIds.length) {
+        module.fieldBindings = fieldIds.map((fid) => ({ fieldId: fid, role: "input" }));
+      }
+      CommitHelpers.createModule({ dispatch, socket, module, emit: true });
+    }
+    CommitHelpers.createOccurrence({
+      dispatch, socket,
+      occurrence: { id: occId, userId, gridId, moduleId, parentId: occurrence?.id, iteration: { mode: "persistent" }, fields: {} },
+      emit: true,
+    });
+    const at = Math.max(0, Math.min(pos, editor.state.doc.content.size));
+    editor.chain().focus().insertContentAt(at, { type: "moduleEmbed", attrs: { occurrenceId: occId } }).run();
+    setDocGap(null);
+    gapFrozenRef.current = false;
+  }, [editor, occurrence, dispatch, socket]);
+
   // ── render ────────────────────────────────────────────────────
   return (
     <div
@@ -1701,6 +1819,8 @@ const Editor = forwardRef(function Editor({
         className={`doc-editor-wrapper min-h-[100px] pr-2 pl-3 flex-1${stickyToolbar ? " overflow-auto" : ""}`}
         style={{ paddingTop: 5, paddingBottom: 5 }}
         draggable={false}
+        onMouseMove={gapsOn ? handleGapMove : undefined}
+        onMouseLeave={gapsOn ? () => { if (!gapFrozenRef.current) setDocGap(null); } : undefined}
         onMouseDown={(e) => {
           // Block content sync briefly so ProseMirror's cursor placement on mousedown
           // isn't overwritten by a server echo arriving before the focus event fires.
@@ -1733,6 +1853,25 @@ const Editor = forwardRef(function Editor({
           <EditorContent editor={editor} />
         </CellEmbedContext.Provider>
       </div>
+
+      {gapsOn && docGap && (
+        <div
+          className="doc-insert-gap"
+          style={{ top: docGap.top }}
+          onMouseEnter={() => { gapFrozenRef.current = true; }}
+          onMouseLeave={() => { gapFrozenRef.current = false; }}
+        >
+          <div className="insert-gap-line" />
+          <div className="insert-gap-btn">
+            <QuickAddMenu
+              targetRole="instance"
+              hostOccurrence={occurrence}
+              onSelect={(m) => insertDocItemAt(docGap.pos, { existingModuleId: m?.id ?? m })}
+              onCreateNew={({ fieldIds } = {}) => insertDocItemAt(docGap.pos, { fieldIds })}
+            />
+          </div>
+        </div>
+      )}
 
       {showSuggestion && (
         <FieldSuggestion
