@@ -16,6 +16,7 @@ import {
   createField, updateField, deleteField,
   createOperation, updateOperation, deleteOperation,
   createModule, updateModule, deleteModule,
+  createLeafInstanceAtIndex,
 } from "../helpers/CommitHelpers";
 
 // ─── Mock factory ──────────────────────────────────────────────────────────
@@ -330,5 +331,45 @@ describe("Null safety — all helpers tolerate missing dispatch/socket", () => {
 
   test("deleteModule works without both", () => {
     expect(() => deleteModule({ moduleId: "m1" })).not.toThrow();
+  });
+});
+
+// ─── createLeafInstanceAtIndex (insert-here gap) ─────────────────────────────
+describe("createLeafInstanceAtIndex", () => {
+  const base = () => ({ gridId: "g1", userId: "u1", parentOccurrence: { id: "p1", occurrences: ["a", "b"] } });
+  const emitted = (socket, event) => socket.emit.mock.calls.find(c => c[0] === event)?.[1];
+
+  test("existing module id → reuses it (no new module), spliced at index", () => {
+    const { dispatch, socket } = makeMocks();
+    const out = createLeafInstanceAtIndex({ dispatch, socket, ...base(), index: 1, existingModuleId: "mod-x" });
+    expect(emitted(socket, "create_module")).toBeUndefined(); // reuses the picked module
+    expect(emitted(socket, "create_occurrence").occurrence.moduleId).toBe("mod-x");
+    expect(out.moduleId).toBe("mod-x");
+    expect(emitted(socket, "update_occurrence").occurrence.occurrences).toEqual(["a", out.occurrenceId, "b"]);
+  });
+
+  test("existing module passed as an OBJECT → moduleId normalized to its id string", () => {
+    const { dispatch, socket } = makeMocks();
+    const out = createLeafInstanceAtIndex({ dispatch, socket, ...base(), existingModuleId: { id: "mod-obj", label: "Picked" } });
+    expect(emitted(socket, "create_module")).toBeUndefined();
+    const occMod = emitted(socket, "create_occurrence").occurrence.moduleId;
+    expect(occMod).toBe("mod-obj");
+    expect(typeof occMod).toBe("string"); // never the object
+    expect(out.moduleId).toBe("mod-obj");
+  });
+
+  test("no existing module → mints a role:instance module, binds fieldIds, appends when index null", () => {
+    const { dispatch, socket } = makeMocks();
+    const out = createLeafInstanceAtIndex({ dispatch, socket, ...base(), fieldIds: ["f1", "f2"] });
+    const mod = emitted(socket, "create_module").module;
+    expect(mod.id).toBe(out.moduleId);
+    expect(mod.role).toBe("instance");
+    expect(mod.fieldBindings).toEqual([{ fieldId: "f1", role: "input" }, { fieldId: "f2", role: "input" }]);
+    expect(emitted(socket, "update_occurrence").occurrence.occurrences).toEqual(["a", "b", out.occurrenceId]);
+  });
+
+  test("returns null when required args missing", () => {
+    const { dispatch, socket } = makeMocks();
+    expect(createLeafInstanceAtIndex({ dispatch, socket, gridId: "g1", userId: "u1" })).toBeNull();
   });
 });

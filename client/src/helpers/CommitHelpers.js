@@ -861,7 +861,12 @@ export function createLeafInstanceAtIndex({
 }) {
   if (!gridId || !userId || !parentOccurrence) return null;
   const occurrenceId = crypto?.randomUUID?.() || `lo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  let moduleId = existingModuleId;
+  // Tolerate a full module object — QuickAddMenu.onSelect hands back the module
+  // `m`, not its id. Normalize to the id string so the occurrence's moduleId is
+  // never an object (callers also pass m?.id ?? m, but harden the helper too).
+  let moduleId = existingModuleId && typeof existingModuleId === "object"
+    ? existingModuleId.id
+    : existingModuleId;
 
   if (!moduleId) {
     moduleId = crypto?.randomUUID?.() || `li-${Date.now()}-${Math.random().toString(36).slice(2)}`;
