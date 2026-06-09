@@ -19,6 +19,7 @@ import { getCurrentLocation, subscribeCurrentLocation } from "../helpers/current
 import MiniGridMap from "../mobile/MiniGridMap";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
+import { createImportsDocPage } from "../helpers/importsFolder";
 
 const STORAGE_KEY = "moduli_api_token";
 const HISTORY_KEY = "moduli_assistant_history";
@@ -797,7 +798,7 @@ function extractCreatedOccId(name, output) {
 // occurrence + its parent linkage arrive. A created PAGE targets itself; an
 // imported container with no ancestor page is wrapped in a board page tab.
 function PanelPickCard({ occId }) {
-  const { occurrencesById, modulesById, viewsById, state, dispatch, socket } = useGridActions();
+  const { occurrencesById, modulesById, viewsById, manifestsById, foldersById, state, dispatch, socket } = useGridActions();
   const grid = state?.grid;
   const curGridId = grid?._id || grid?.id || state?.gridId || null;
   const [done, setDone] = useState(null); // "__scrolled__" | "<panel label>" | null
@@ -882,21 +883,14 @@ function PanelPickCard({ occId }) {
       }
     } else {
       // No ancestor page (e.g. an imported container at root) — wrap it in a
-      // DOC page that embeds the content (multi-parented; content stays where it
-      // was created). A doc page reads top-to-bottom like a document; a board
-      // page would lay the content out as kanban columns.
-      const modId = crypto.randomUUID();
-      pageOccId = crypto.randomUUID();
-      CommitHelpers.createPage({
-        dispatch, socket,
-        module: { id: modId, userId, gridId, role: "page", kind: "doc", label: mod?.label || "Imported" },
-        occurrence: {
-          id: pageOccId, userId, gridId, moduleId: modId, parentId: null,
-          occurrences: [occId],
-          textmap: { type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: occId } }] },
-          iteration: { mode: "persistent" }, fields: {}, filterOverride: {},
-        },
-        panelOccurrenceId: panelOcc.id,
+      // DOC page (multi-parented; content stays where it was created), parented
+      // under a dedicated "Imports" folder so it lands grouped in the panel's
+      // Local tree instead of as a loose root page.
+      pageOccId = createImportsDocPage({
+        rootOccId: occId, panelOccurrenceId: panelOcc.id, grid,
+        manifests: Object.values(manifestsById || {}),
+        folders: Object.values(foldersById || {}),
+        dispatch, socket, userId, label: mod?.label,
       });
     }
 

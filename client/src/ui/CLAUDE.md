@@ -2,6 +2,17 @@
 
 _Updated: 2026-06-08. Check this file before re-reading source._
 
+## Recent Changes (2026-06-08 — assistant imports land in an "Imports" folder)
+- **`AssistantDrawer.jsx` (`PanelPickCard.openInPanel`)** — the no-ancestor-page
+  (imported container) wrap branch now parents the wrapped DOC page under a
+  dedicated **"Imports"** folder (was `parentId: null` → a loose root page). The
+  Local tree buckets a page by `foldersById[occ.parentId]`, so imports now show
+  grouped under an "Imports" header instead of scattered at root. The wrap +
+  folder-ensure logic moved to the shared `helpers/importsFolder.js`
+  (`createImportsDocPage` / `ensureImportsFolder`) — the drag-from-browser import
+  path (`dropHandlers.handleExternalDrop`, empty-cell case) reuses the same helper
+  so both import surfaces land in the same folder. See helpers/CLAUDE.md.
+
 ## Recent Changes (2026-06-08 — randomize dice now INSIDE the occurrence pills too)
 - **`Field.jsx`** — completes the dice-in-pill docket item for the OCCURRENCE half
   (select half done earlier same day). New shared `RandomizeSegment` helper (a

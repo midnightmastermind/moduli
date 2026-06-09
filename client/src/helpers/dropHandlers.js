@@ -94,6 +94,7 @@ import { mimeToKind } from "./fileKind";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import { toast } from "../state/notificationStore";
 import { jumpToOccurrence } from "./jumpToOccurrence";
+import { createImportsDocPage } from "./importsFolder";
 import { DROP_TARGET_KIND } from "./dragHitTesting";
 import { autoAppendFieldsToAncestorsShowMode } from "./fieldVisibilityAutoAppend";
 import { resolveDropInViewMode, isMoveBlockedByCascadeLock } from "./layoutCascade";
@@ -1710,7 +1711,10 @@ export function handleExternalDrop(dropContext, ctx) {
       }
       return { parentId: pageOccId, title: pageMod?.label || "Imported" };
     }
-    // Mode 3: empty grid cell — mint panel + container first
+    // Mode 3: empty grid cell — no natural home. Mint a panel at the cell and
+    // flag the import to be wrapped in a doc page under the "Imports" folder
+    // (pinned to that panel), mirroring the assistant's homeless-import path.
+    // The root is imported detached (parentId: null) and re-homed on result.
     if (dropTarget?.type === DROP_TARGET_KIND.GRID_CELL
         && dropTarget?.context?.row !== undefined
         && dropTarget?.context?.col !== undefined
@@ -1723,12 +1727,7 @@ export function handleExternalDrop(dropContext, ctx) {
         placement: { row: cell.row, col: cell.col, width: 1, height: 1 },
         userId: state.userId, emit: true,
       });
-      const newContainer = { id: makeUUID(), label, role: "container", kind: "board" };
-      const { occurrence: containerOcc } = LayoutHelpers.createContainerInPanel({
-        dispatch, socket, gridId, panel: { ...newPanel, _occurrence: panelOcc },
-        container: newContainer, userId: state.userId, emit: true,
-      });
-      return { parentId: containerOcc.id, title: label };
+      return { parentId: null, title: label, wrapPanelOccId: panelOcc.id };
     }
     return null;
   }
@@ -1755,11 +1754,22 @@ export function handleExternalDrop(dropContext, ctx) {
           if (s.textblocks) bits.push(`${s.textblocks} text block${s.textblocks === 1 ? "" : "s"}`);
           if (s.artifacts) bits.push(`${s.artifacts} image${s.artifacts === 1 ? "" : "s"}`);
           toast.success(`Imported (${bits.join(" · ") || "no content"})`, { id: toastId });
+          // Homeless import (empty-cell drop): wrap the new root in a doc page
+          // under the "Imports" folder, pinned to the panel minted at the cell,
+          // so it shows up grouped in the Local/Root tree (same as the assistant
+          // import path). Then scroll to + flash the imported content.
+          if (resp.rootOccurrenceId && dest.wrapPanelOccId) {
+            createImportsDocPage({
+              rootOccId: resp.rootOccurrenceId, panelOccurrenceId: dest.wrapPanelOccId,
+              grid: state?.grid, manifests: state?.manifests, folders: state?.folders,
+              dispatch, socket, userId: state?.userId, label: dest.title,
+            });
+          }
           // Scroll to + flash the new root so the user sees their
           // freshly imported content land. Defer briefly so the
           // store has time to absorb the per-entity broadcasts.
           if (resp.rootOccurrenceId) {
-            setTimeout(() => jumpToOccurrence(resp.rootOccurrenceId), 120);
+            setTimeout(() => jumpToOccurrence(resp.rootOccurrenceId), 200);
           }
         } else {
           toast.error(`Import failed: ${resp.error || "unknown error"}`, { id: toastId });

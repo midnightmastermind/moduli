@@ -2,6 +2,25 @@
 
 _Updated: 2026-06-08. Check this file before re-reading source._
 
+## Recent Changes (2026-06-08 — imported content lands in an "Imports" folder)
+- **`importsFolder.js` (NEW)** — shared helpers so imports show up grouped in the
+  Local/Root tree instead of as loose root pages:
+  - `ensureImportsFolder({ grid, manifests, folders, dispatch, socket, userId })`
+    finds-or-creates an "Imports" folder under the grid manifest's root folder
+    (`manifests`/`folders` are plain arrays — callers pass the reducer's
+    `state.manifests`/`state.folders` OR `Object.values` of the `*ById` maps).
+  - `createImportsDocPage({ rootOccId, panelOccurrenceId, ... })` wraps an
+    already-created root occurrence in a `role:"page" kind:"doc"` page (textmap =
+    one `moduleEmbed` of the root), parents it under the Imports folder, and pins
+    it to the panel. Returns the page occ id.
+- **`dropHandlers.js` (`handleExternalDrop`)** — the empty-grid-cell import case
+  (Mode 3) no longer mints a throwaway panel+container. It mints just a board
+  panel at the cell, imports the root DETACHED (`parentId: null`), then on
+  `import_text_result` calls `createImportsDocPage` to re-home the root under
+  "Imports" pinned to that panel (`dest.wrapPanelOccId`). Container/page drops
+  (Modes 1/2) keep drop-where-you-point. The assistant path uses the same helper
+  (see ui/CLAUDE.md). 4 tests in `__tests__/importsFolder.test.js`.
+
 ## Recent Changes (2026-06-08 — createLeafInstanceAtIndex for the insert-here gap)
 - **`CommitHelpers.js`** — new `createLeafInstanceAtIndex({ dispatch, socket,
   gridId, userId, parentOccurrence, index, existingModuleId?, role?, kind?,
