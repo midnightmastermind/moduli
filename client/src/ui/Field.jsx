@@ -521,6 +521,11 @@ function Field({
   disabled = false,
   usedCompletedValues = [],
   onAddOption,
+  // When true (and the field is a single-select), render a randomize "dice"
+  // segment INSIDE the select pill's border (FieldRenderer routes its
+  // `canRandomize` here so the dice reads as part of the pill, not a tacked-on
+  // sibling button). `meta.randomize` also enables it.
+  randomize = false,
 }) {
   const isEditable = typeof onCommit === "function";
   const currentTimeFilter = context?.currentIteration || "daily";
@@ -1087,14 +1092,22 @@ function Field({
         return (
           <div className="field-input field-input-select" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {showLabel && <span style={inputLabelStyle}>{name}</span>}
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {/* The pill border lives on this wrapper so the randomize dice can sit
+                INSIDE it (a divided trailing segment) instead of as a separate
+                tacked-on button. `items-stretch` makes the borderless trigger +
+                dice fill the pill height; `overflow-hidden` clips to the radius. */}
+            <div
+              className={`inline-flex items-stretch self-start rounded border bg-background overflow-hidden
+                ${compact ? "h-6 text-xs" : "h-7 text-sm"}
+                ${disabled ? "opacity-50" : ""}`}
+              style={{ borderColor: "var(--input-border, hsl(var(--border)))" }}
+            >
               <Popover open={selectOpen} onOpenChange={(o) => { setSelectOpen(o); if (!o) setSelectQuery(""); }}>
                 <PopoverTrigger asChild>
                   <button type="button" disabled={disabled}
-                    className={`inline-flex items-center justify-between gap-1 px-2 rounded border bg-background
-                      ${compact ? "h-6 text-xs" : "h-7 text-sm"}
-                      ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-muted"}`}
-                    style={{ minWidth: 80, borderColor: "var(--input-border, hsl(var(--border)))", color: "var(--text-primary)" }}
+                    className={`inline-flex items-center justify-between gap-1 px-2 bg-transparent
+                      ${disabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted"}`}
+                    style={{ minWidth: 80, border: "none", color: "var(--text-primary)" }}
                   >
                     <span className="truncate">{currentLabel}</span>
                     <ChevronDown className="w-3 h-3 opacity-50 flex-shrink-0" />
@@ -1132,12 +1145,15 @@ function Field({
                   )}
                 </PopoverContent>
               </Popover>
-              {meta?.randomize && options.length > 0 && (
-                <Button variant="ghost" size="icon" className={compact ? "h-6 w-6 flex-shrink-0" : "h-7 w-7 flex-shrink-0"}
-                  title="Pick random" disabled={disabled}
-                  onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) { handleChange(p.value); onCommit?.(p.value); } }}>
+              {(meta?.randomize || randomize) && options.length > 0 && (
+                <button type="button" title="Pick random" disabled={disabled}
+                  onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) { handleChange(p.value); onCommit?.(p.value); } }}
+                  className={`inline-flex items-center justify-center px-1.5 flex-shrink-0
+                    ${disabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted"}`}
+                  style={{ borderLeft: "1px solid var(--input-border, hsl(var(--border)))", color: "var(--text-faint)" }}
+                >
                   <Shuffle className="h-3.5 w-3.5" />
-                </Button>
+                </button>
               )}
             </div>
           </div>

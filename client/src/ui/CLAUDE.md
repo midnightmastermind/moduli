@@ -2,6 +2,21 @@
 
 _Updated: 2026-06-08. Check this file before re-reading source._
 
+## Recent Changes (2026-06-08 — randomize dice now INSIDE the select pill border)
+- **`Field.jsx`** — new `randomize` prop (default false). The single-select INPUT
+  branch's pill border moved onto a wrapper `div` (`items-stretch` + `rounded
+  border overflow-hidden`); the PopoverTrigger button is now borderless/transparent
+  and the randomize dice (gated `meta?.randomize || randomize`, was a `Shuffle`
+  ghost `Button` sibling) is a divided trailing segment INSIDE that border. So the
+  dice reads as part of the pill, not a tacked-on button. Occurrence-multi randomize
+  (MultiSelectWithAdd) is unchanged.
+- **`FieldRenderer.jsx`** — the appended side-segment 🎲 button (the "attached
+  pill-side segment" the user flagged) now renders ONLY for `field.type !==
+  "select"` (i.e. occurrence fields); SELECT fields pass `randomize={canRandomize
+  && inputEnabled}` into `<Field>` so the dice renders inside the pill instead.
+  Docket leftover "make the dice truly inside the pill border" — select half done.
+  **Needs an in-browser glance** (border/divider/height alignment isn't unit-testable).
+
 ## Recent Changes (2026-06-08 — InsertGap: "insert here" affordance between items)
 - **`InsertGap.jsx` (NEW)** — thin hover zone placed BETWEEN sibling items
   (list/board column rows). Collapsed to a 4px hit zone; on hover reveals a blue

@@ -306,8 +306,11 @@ function FieldRenderer({
           hideName={hideName}
           hidePrefix={hidePrefix}
           hidePostfix={hidePostfix}
+          // Select fields render the randomize dice INSIDE the pill border (Field
+          // owns it). Occurrence fields keep the appended segment below.
+          randomize={canRandomize && inputEnabled && field?.type === "select"}
         />
-        {canRandomize && inputEnabled && (
+        {canRandomize && inputEnabled && field?.type !== "select" && (
           <button
             onClick={handleRandomize}
             title="Pick a random option"
