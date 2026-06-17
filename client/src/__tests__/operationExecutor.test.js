@@ -1496,6 +1496,26 @@ describe("resolveExpr — bug fixes", () => {
     expect(result[0].value).toBe(-5);
   });
 
+  test("MULTIPLY_VAR accepts `by` (canvas fan-out: $x = $col*240 + 1760)", () => {
+    const op = makeOp({
+      triggerType: "onFilterChange",
+      triggerTypes: ["onFilterChange", "onLoad"],
+      pipeline: {
+        sources: [],
+        steps: [
+          { id: "s0", type: "action", config: { type: "INIT_VAR", name: "$col", value: 2 } },
+          { id: "s1", type: "action", config: { type: "INIT_VAR", name: "$x", expr: "$col" } },
+          { id: "s2", type: "action", config: { type: "MULTIPLY_VAR", name: "$x", by: 240 } },
+          { id: "s3", type: "action", config: { type: "ADD_TO_VAR", name: "$x", expr: "literal:1760" } },
+          { id: "s4", type: "action", config: { type: "UPDATE", path: "$display.f1.t", value: "$x" } },
+        ],
+      },
+    });
+    const result = runMatchingOperations([op], null, null, { state: {}, fieldsById: {}, occurrencesById: {} });
+    expect(result).toHaveLength(1);
+    expect(result[0].value).toBe(2240); // 2*240 + 1760 — was 1760 when `by` was ignored
+  });
+
   test("IS comparator with boolean right: true does not crash", () => {
     const today = new Date();
     const occ = {

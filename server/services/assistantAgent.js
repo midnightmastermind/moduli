@@ -708,15 +708,24 @@ export async function assistantChat({ messages, userId, gridId, context = null, 
 // card. Used by POST /api/v1/assistant/confirm. Only tools flagged
 // requires_confirm should reach here; we re-resolve the tool against the
 // caller's token + grid (same privileges as any other call) and run it.
+const IMPORT_TOOL_NAMES = new Set([
+  "wikipedia_import", "wikipedia_import_batch", "import_markdown", "import_html",
+]);
+
 export async function assistantConfirm({ name, input, userId, gridId, baseUrl, apiToken }) {
   if (!gridId) throw new Error("gridId required");
   const tools = buildTools({ baseUrl, apiToken, userId, gridId });
   const tool = tools.find(t => t.name === name);
   if (!tool) return { ok: false, name, error: `unknown tool ${name}` };
+  // The confirm card IS the user's approval to actually do it, so a confirmed import
+  // must never be a dry run — the model sometimes passes dryRun:true to "plan", which
+  // would mint nothing and leave the user with "(planned only — nothing was imported)".
+  let runInput = input || {};
+  if (IMPORT_TOOL_NAMES.has(name) && runInput.dryRun) runInput = { ...runInput, dryRun: false };
   try {
-    const output = await tool.run(input || {});
-    return { ok: true, name, input: input || {}, output };
+    const output = await tool.run(runInput);
+    return { ok: true, name, input: runInput, output };
   } catch (e) {
-    return { ok: false, name, input: input || {}, error: String(e?.message || e) };
+    return { ok: false, name, input: runInput, error: String(e?.message || e) };
   }
 }

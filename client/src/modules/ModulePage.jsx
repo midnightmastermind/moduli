@@ -587,27 +587,10 @@ function Page({
         </Popover>
         {(
           <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 0", marginLeft: "auto" }}>
-            {(
-              <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0}}>
-                <QuickAddMenu
-                  targetRole="container"
-                  onSelect={handleQuickAddContainer}
-                  onCreateNew={() => {
-                    if (!occurrence?.id || !state?.userId || !state?.grid?._id) return;
-                    const id = crypto.randomUUID();
-                    const mod = { id, role: "container", kind: "board", label: `List ${containersList.length + 1}` };
-                    CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
-                    const occId = crypto.randomUUID();
-                    const occ = { id: occId, userId: state.userId, gridId: state.grid._id, moduleId: id, fields: {} };
-                    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
-                    const updatedOccs = [...(occurrence.occurrences || []), occId];
-                    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });
-                  }}
-                  createLabel="New container"
-                  hostOccurrence={occurrence}
-                />
-              </div>
-            )}
+            {/* Filter (HeaderChevron) now leads; the add (QuickAddMenu) moved to the end. */}
+            <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center" }}>
+              <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={occurrence} />
+            </div>
             <KindIcon size={10} style={{ opacity: 0.35, flexShrink: 0 }} />
             {isEditing ? (
               <input
@@ -632,9 +615,25 @@ function Page({
               </span>
             )}
 
-            {/* Filter dropdown trigger */}
+            {/* Add (QuickAddMenu) moved here, after the label. */}
             <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center", marginLeft: 4 }}>
-              <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={occurrence} />
+              <QuickAddMenu
+                targetRole="container"
+                onSelect={handleQuickAddContainer}
+                onCreateNew={() => {
+                  if (!occurrence?.id || !state?.userId || !state?.grid?._id) return;
+                  const id = crypto.randomUUID();
+                  const mod = { id, role: "container", kind: "board", label: `List ${containersList.length + 1}` };
+                  CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
+                  const occId = crypto.randomUUID();
+                  const occ = { id: occId, userId: state.userId, gridId: state.grid._id, moduleId: id, fields: {} };
+                  CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
+                  const updatedOccs = [...(occurrence.occurrences || []), occId];
+                  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });
+                }}
+                createLabel="New container"
+                hostOccurrence={occurrence}
+              />
             </div>
           </div>
         )}

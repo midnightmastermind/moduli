@@ -4937,6 +4937,43 @@ export async function createLiveData(userId, options = {}) {
     return buildMergedDocTextmap(title, mergeInput);
   }
 
+  // Helper: split the Gospel of Thomas TEXT into one section per numbered saying.
+  // The source has no markdown headings — sayings are marked `(N)` and wrap across
+  // raw lines, so we group consecutive lines into the current verse until the next
+  // `(N)` marker. The preamble (translator note + opening line) before saying (1)
+  // becomes its own leading section. Each section → one textblock occurrence.
+  function parseGospelVerses(lines) {
+    const sections = [];
+    const preamble = [];
+    let current = null; // { num, lines: [] }
+    const flush = () => {
+      if (!current) return;
+      const text = current.lines.join(" ").replace(/\s+/g, " ").trim();
+      if (text) sections.push({ heading: "", headingLevel: 2, lines: [text] });
+      current = null;
+    };
+    for (const raw of lines) {
+      const line = (raw || "").trim();
+      const m = line.match(/^\((\d+)\)/); // verse marker — digit-only, so "(Translated…" is NOT a verse
+      if (m) {
+        flush();
+        current = { num: m[1], lines: [line] };
+      } else if (current) {
+        if (line) current.lines.push(line);
+      } else if (line) {
+        preamble.push(line);
+      }
+    }
+    flush();
+    // Preamble as the first textblock (drop the bare "Gospel of Thomas" title line —
+    // it's already the page's title textblock).
+    const preambleClean = preamble.filter((l) => l.toLowerCase() !== "gospel of thomas");
+    if (preambleClean.length) {
+      sections.unshift({ heading: "", headingLevel: 2, lines: [preambleClean.join(" ")] });
+    }
+    return sections;
+  }
+
   // Helper: build a TipTap doc from flat raw lines (for comparitive_religion + gospelthomas)
   function buildFlatLinesTextmap(title, lines) {
     const bodyNodes = makeDocContent(lines).content
@@ -4992,6 +5029,9 @@ export async function createLiveData(userId, options = {}) {
           tbContent.push(n);
         }
       }
+      // Skip sections that would produce a blank textblock (no heading + no visible
+      // body) — these were the empty textblocks scattered through the notebook docs.
+      if (tbContent.length === 0) continue;
       await mkOcc({
         id: tbOccId, moduleId: tbModId,
         parentId: pageOccId,
@@ -5119,11 +5159,12 @@ export async function createLiveData(userId, options = {}) {
     notebookDocOccIds["Comparative Religion"] = occId;
   }
 
-  // ── 8. Gospel of Thomas (Text) ── gospelthomas.md (flat, 80 lines) ──
+  // ── 8. Gospel of Thomas (Text) ── gospelthomas.md (ALL 114 sayings, one textblock per verse) ──
   {
-    const lines = readRawLines(join(ROOT_DIR_MD, "gospelthomas.md"), 80);
+    const lines = readRawLines(join(ROOT_DIR_MD, "gospelthomas.md"), 100000);
+    const verseSections = parseGospelVerses(lines);
     const modId = uid(); const occId = uid();
-    const textmap = await seedTextblocksFromLines("Gospel of Thomas (Text)", lines, occId);
+    const textmap = await seedTextblocksForDoc("Gospel of Thomas (Text)", verseSections, occId);
     await new Module({ id: modId, userId, gridId, role: "page", kind: "doc", label: "Gospel of Thomas (Text)" }).save();
     await mkOcc({ id: occId, moduleId: modId, parentId: notesFolderId, sortOrder: 7,
       iteration: { mode: "persistent" }, fields: {}, textmap,
@@ -5745,7 +5786,30 @@ export async function createLiveData(userId, options = {}) {
   await Occurrence.findOneAndUpdate({ id: panelOccIds.accounts }, { $set: { occurrences: [accountsPageOccId] } });
 
   // ── STEP 11: Finalize grid ──────────────────────────────────────────────────
-  await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds } });
+  // Open the seeded grid in BSP "mosaic" layout (opt-in per grid — see
+  // client/src/helpers/bspTree.js). Mirrors the rows×cols placement above:
+  // col0 = toolkit over todo, col1 = the notebook hub as ONE full-height pane
+  // (the "middle one, 2 rows high"), col2 = goals over accounts. The user
+  // re-tunes pane sizes by dragging the splitter bars.
+  const mosaicLayoutTree = {
+    id: "mosaic-root", dir: "v", ratio: [1, 1.15, 1],
+    children: [
+      { id: "mosaic-col0", dir: "h", ratio: [1, 1], children: [
+        { id: "mosaic-leaf-toolkit", panelOccId: panelOccIds.toolkit },
+        { id: "mosaic-leaf-todo",    panelOccId: panelOccIds.todo },
+      ] },
+      // Middle: the notebook hub, full column height (2 rows high).
+      { id: "mosaic-leaf-notebook", panelOccId: panelOccIds.notebook },
+      { id: "mosaic-col2", dir: "h", ratio: [1, 1], children: [
+        { id: "mosaic-leaf-goals",    panelOccId: panelOccIds.goals },
+        { id: "mosaic-leaf-accounts", panelOccId: panelOccIds.accounts },
+      ] },
+    ],
+  };
+  // Fresh seed marker every run — the assistant drawer compares this to the one
+  // it last saw (localStorage) and clears its chat history when it changes, so a
+  // reseed starts the Jonah conversation fresh (see client AssistantDrawer).
+  await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds, "meta.layoutTree": mosaicLayoutTree, "meta.assistantSeedId": uid() } });
 
   // ── STEP 12: Operations ─────────────────────────────────────────────────────
   //
@@ -9236,8 +9300,14 @@ export async function createLiveData(userId, options = {}) {
                   ],
                 },
                 // 5b. Reset counters + seed the edge list for the mindmap chain.
-                //     $r drives seed positions for newly-minted cards (existing
-                //     cards keep their drag positions). $prevCardId threads the
+                //     $col/$row drive a FANNED-OUT grid of seed positions for
+                //     newly-minted cards (existing cards keep their drag
+                //     positions). The grid is centered near the canvas WORLD
+                //     center (~2000,2000) so the cards land IN the viewport — the
+                //     old layout stamped every card at x=60 (the world's top-left
+                //     corner), which the centered-on-load canvas showed off-screen,
+                //     so the canvas looked empty / "nothing fanned out". 3 cards
+                //     per row, wrapping to the next row. $prevCardId threads the
                 //     chain task→task. $edges starts from the canvas's CURRENT
                 //     edges minus the op's own "auto-" chain (regenerated every
                 //     rebuild) — so connect-tool edges the user drew BY HAND
@@ -9245,7 +9315,8 @@ export async function createLiveData(userId, options = {}) {
                 //     while the schedule chain stays in sync with the task set.
                 //     Looping a possibly-undefined meta.edges is safe — the loop
                 //     coerces a non-array overExpr to [] (operationExecutor:663).
-                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$r", expr: "literal:0" } },
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$col", expr: "literal:0" } },
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$row", expr: "literal:0" } },
                 { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$prevCardId", expr: "literal:" } },
                 { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$edges", expr: "json:[]" } },
                 {
@@ -9307,34 +9378,65 @@ export async function createLiveData(userId, options = {}) {
                           ],
                           else: [],
                         },
-                        // Mint when missing — COPY_LINK + stamp seed position +
-                        // representation view. Existing cards keep their drag
-                        // positions (this branch is skipped when $curCardId is set).
+                        // FANNED-OUT grid slot for THIS task — computed for EVERY
+                        // task (not just mints) so the cursor advances over
+                        // already-placed cards too. ROOT CAUSE of "all cards piled
+                        // at one spot / nothing fanned out or connected" (DB showed
+                        // 6 cards all at (1760,1850) with a full 5-edge chain): in
+                        // diff mode the schedule builds incrementally, so each fire
+                        // reset $col/$row to 0 (step 5b) and only the ONE new task
+                        // got minted — at the reset col=0 — while existing cards
+                        // didn't advance the cursor. Every new card therefore landed
+                        // at slot (0,0). Now the slot is derived from each task's
+                        // position in the loop and the cursor advances for every
+                        // task that has a card (existing OR minted), so a new card
+                        // always takes the next free slot.
+                        //   x = 1760 + $col*240   (3 columns centered on ~2000)
+                        //   y = 1850 + $row*150
+                        // Centered near the canvas WORLD center (~2000,2000) so the
+                        // cards land in the centered-on-load viewport.
+                        { id: uid(), type: "action", config: { type: "INIT_VAR",     name: "$x", expr: "$col" } },
+                        { id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$x", by: 240 } },
+                        { id: uid(), type: "action", config: { type: "ADD_TO_VAR",   name: "$x", expr: "literal:1760" } },
+                        { id: uid(), type: "action", config: { type: "INIT_VAR",     name: "$y", expr: "$row" } },
+                        { id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$y", by: 150 } },
+                        { id: uid(), type: "action", config: { type: "ADD_TO_VAR",   name: "$y", expr: "literal:1850" } },
+                        // Mint when missing — COPY_LINK stamps meta.x/y +
+                        // viewMode:"representation" atomically at create time (a
+                        // follow-up UPDATE raced the not-yet-persisted occurrence
+                        // and dropped the position). meta is canvas-local (excluded
+                        // from the linkedGroupId fan-out), so the Schedule source
+                        // keeps its own view mode + carries no x/y. Existing cards
+                        // keep their stored (possibly drag-adjusted) positions —
+                        // only freshly-minted cards get the seed slot.
                         { id: uid(), type: "if",
                           condition: { operator: "AND", rules: [
                             { id: uid(), left: "$curCardId", comparator: "IS_EMPTY", right: "" },
                           ] },
                           then: [
-                            // Compute y = $r * 80 + 60 BEFORE the create so the
-                            // position can be stamped atomically inside the
-                            // COPY_LINK's meta. A follow-up `UPDATE $copy.meta.x/y`
-                            // raced the create (the update targeted an occurrence
-                            // the server hadn't persisted yet) and silently dropped
-                            // the position → every card piled at the same spot.
-                            { id: uid(), type: "action", config: { type: "INIT_VAR",     name: "$y", expr: "$r" } },
-                            { id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$y", by: 80 } },
-                            { id: uid(), type: "action", config: { type: "ADD_TO_VAR",   name: "$y", expr: "literal:60" } },
-                            // COPY_LINK stamps meta.x/y + viewMode:"representation"
-                            // (compact mindmap preview node) atomically at create
-                            // time. meta is canvas-local (excluded from the
-                            // linkedGroupId fan-out), so the Schedule source keeps
-                            // its own (actual) view mode and carries no x/y. Only
-                            // freshly-minted cards get the seed position; existing
-                            // cards keep their drag positions (this branch is
-                            // skipped when $curCardId is already set).
-                            { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$canvasId", itemVar: "$copy", itemIdVar: "$copyId", meta: { x: 60, y: "$y", viewMode: "representation" } } },
-                            { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$r" } },
+                            { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$canvasId", itemVar: "$copy", itemIdVar: "$copyId", meta: { x: "$x", y: "$y", viewMode: "representation" } } },
                             { id: uid(), type: "action", config: { type: "SET_VAR", name: "$curCardId", expr: "$copyId" } },
+                          ],
+                          else: [],
+                        },
+                        // Advance the grid cursor for EVERY task that resolved a card
+                        // (existing or just minted): next column, wrap to the next row
+                        // after 3. This is what stops new cards from colliding with
+                        // cards placed in an earlier fire.
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: "$curCardId", comparator: "IS_NOT_EMPTY", right: "" },
+                          ] },
+                          then: [
+                            { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$col" } },
+                            { id: uid(), type: "if",
+                              condition: { operator: "AND", rules: [{ id: uid(), left: "$col", comparator: "GREATER_OR_EQUAL", right: 3 }] },
+                              then: [
+                                { id: uid(), type: "action", config: { type: "SET_VAR", name: "$col", expr: "literal:0" } },
+                                { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$row" } },
+                              ],
+                              else: [],
+                            },
                           ],
                           else: [],
                         },

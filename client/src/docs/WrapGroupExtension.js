@@ -1,20 +1,29 @@
 // docs/WrapGroupExtension.js
 //
-// Block-wrap container (project_block_wrap_l_shape). Holds EXACTLY two
-// moduleEmbed children — child 0 = HOST (the bigger block that reflows), child 1
-// = NEIGHBOR (the smaller block that sits in the host's notch). Both stay real,
-// separately-draggable embeds; this node only gives them a shared positioning
-// context so the neighbor can overlay the host's reserved notch while the host's
-// own text/border bend into the L/C around it.
+// Block-wrap container (project_block_wrap_redesign). Holds ONE OR MORE NEIGHBOR
+// embeds (children 0..N-1 — the smaller blocks in the notch) FOLLOWED BY the HOST
+// (the LAST child — the bigger block whose prose reflows around them). All stay
+// real, separately-draggable embeds; this node only gives them a shared flow so the
+// neighbors `float` and the host's own text wraps around them natively (an L), with
+// the host card's border clipped to the L and the neighbor keeping its own border.
+//
+// NEIGHBOR-FIRST ORDER IS LOAD-BEARING: CSS floats only wrap content that comes
+// AFTER them in source order, so the neighbor float MUST precede the host. (Proven
+// in the ~/.wraptest2 harness — host-second never wraps.) hostOccId = node.lastChild.
 //
 // attrs:
-//   side   — "right" | "left": which edge the neighbor occupies.
-//   anchor — "top" | "middle": where down the host the notch sits (L vs C).
-//   wrap   — true (default): reflow + clip. false: plain side-by-side, no notch.
+//   side          — "right" | "left": which edge the neighbor floats to.
+//   anchor        — "top" | "middle": coarse notch position (L vs C). Back-compat;
+//                   the precise position is anchorIndex.
+//   anchorIndex   — the host block index the notch STARTS at. DYNAMIC shape: 0 → L,
+//                   a mid block → C / hangman, side flip → J. WrapGroupNode turns this
+//                   into the floated neighbor's margin-top so the prose wraps continuously.
+//   neighborWidth — px width of the floated neighbor column (null → default). Set by
+//                   dragging the seam splitter.
+//   wrap          — true (default): float + reflow + clip. false: plain side-by-side.
 //
-// The actual reflow + clip is driven by a wrapSpacer node the WrapGroupNode keeps
-// sized inside the HOST's textmap (so the host's own editor flow reserves the
-// notch) — see WrapGroupNode.jsx + TextblockCard's clip-path.
+// The reflow is a real CSS float (no ghost wrapSpacer); the host card's L border is
+// clipped by measuring the float's box — see WrapGroupNode.jsx + wrapNotch.js.
 import { Node, mergeAttributes } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import WrapGroupNode from "./WrapGroupNode.jsx";
@@ -22,7 +31,7 @@ import WrapGroupNode from "./WrapGroupNode.jsx";
 export const WrapGroup = Node.create({
   name: "wrapGroup",
   group: "block",
-  content: "moduleEmbed{2}",
+  content: "moduleEmbed{2,}",
   selectable: false,
   draggable: false,
   isolating: true,
@@ -38,6 +47,21 @@ export const WrapGroup = Node.create({
         default: "top",
         parseHTML: (el) => el.getAttribute("data-anchor") || "top",
         renderHTML: (attrs) => ({ "data-anchor": attrs.anchor }),
+      },
+      // Continuous notch position: the host block index the neighbor's notch sits
+      // before. null → fall back to the coarse `anchor` (top→0 / middle→mid). Kept
+      // drives the DYNAMIC notch position (margin-top of the float in WrapGroupNode).
+      anchorIndex: {
+        default: null,
+        parseHTML: (el) => { const v = el.getAttribute("data-anchor-index"); return v == null ? null : Number(v); },
+        renderHTML: (attrs) => (attrs.anchorIndex == null ? {} : { "data-anchor-index": attrs.anchorIndex }),
+      },
+      // Px width of the floated neighbor column. null → CSS default (--wrap-nw).
+      // Written live by the seam splitter drag (WrapGroupNode).
+      neighborWidth: {
+        default: null,
+        parseHTML: (el) => { const v = el.getAttribute("data-neighbor-width"); return v == null ? null : Number(v); },
+        renderHTML: (attrs) => (attrs.neighborWidth == null ? {} : { "data-neighbor-width": attrs.neighborWidth }),
       },
       wrap: {
         default: true,

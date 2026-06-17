@@ -1007,6 +1007,16 @@ export function DragProvider({
       pointerRef.current = { x: dropTarget.clientX, y: dropTarget.clientY };
     }
     const { x, y } = pointerRef.current;
+    // The doc Editor's OWN Pragmatic drop target owns every drop that lands inside a
+    // `.doc-editor` (re-morph a wrap, reorder/insert an embed, form a wrap-beside column).
+    // DragProvider's monitor fires for the SAME drop — if it ALSO routes it as an
+    // occurrence move, the two fight: the embed gets re-parented + ops re-fire, which
+    // reads as "the page resets / the block doesn't move." The narrow doc-CONTAINER guard
+    // below missed a `role:"textblock"` wrap host, so broaden it: bail whenever the drop
+    // point is over a doc editor and let the Editor handle it.
+    if (document.elementFromPoint(x, y)?.closest?.(".doc-editor")) {
+      s.dropHandled = true; clearSession(); return;
+    }
     const dt = { ...dropTarget, clientX: x, clientY: y };
     const hovered = getHoveredIds(x, y);
     // Pages register `useDroppable({ type: "page-content", context: {pageOccurrenceId} })`

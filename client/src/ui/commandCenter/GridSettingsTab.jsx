@@ -9,6 +9,7 @@ import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { uid } from "../../uid";
 import { COMPARATOR_OPTIONS } from "../../helpers/comparators";
+import { deriveTreeFromPlacements } from "../../helpers/bspTree";
 import SortSection from "../SortSection";
 import StyleEditor from "../StyleEditor";
 import LayoutCascadeEditor from "../LayoutCascadeEditor";
@@ -46,6 +47,30 @@ export function GridSettingsTab() {
     if (!gridId || !name?.trim()) return;
     CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { name: name.trim() }, emit: true });
   }, [dispatch, socket, gridId]);
+
+  // ── Layout mode: rows×cols Grid vs BSP "Mosaic" ──────────────────────────
+  const isMosaic = !!grid?.meta?.layoutTree;
+  const setLayoutMode = useCallback((mode) => {
+    if (!gridId) return;
+    const meta = { ...(grid?.meta || {}) };
+    if (mode === "mosaic") {
+      // Derive an initial split tree from the current panel positions so the
+      // user's layout is preserved on convert (they re-tune via the splitters).
+      const panels = (grid?.occurrences || [])
+        .map((id) => state?.occurrencesById?.[id])
+        .filter((o) => o && o.placement)
+        .map((o) => ({
+          _occurrenceId: o.id,
+          row: o.placement.row ?? 0,
+          col: o.placement.col ?? 0,
+          layout: state?.modulesById?.[o.moduleId]?.layout,
+        }));
+      meta.layoutTree = deriveTreeFromPlacements(panels);
+    } else {
+      delete meta.layoutTree; // placements were never mutated → rows×cols resumes
+    }
+    CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta }, emit: true });
+  }, [gridId, grid?.meta, grid?.occurrences, state?.occurrencesById, state?.modulesById, dispatch, socket]);
 
   // Panel occurrences with placement (the grid owns these ids).
   const panelOccs = useMemo(
@@ -186,7 +211,43 @@ export function GridSettingsTab() {
         />
       </div>
 
-      {/* Rows + Cols */}
+      {/* Layout mode — rows×cols Grid vs BSP Mosaic */}
+      <div className="mb-3">
+        <label className="text-[10px] text-foregroundScale-2 block mb-1">Layout</label>
+        <div className="flex gap-2">
+          {[
+            { id: "grid", label: "Grid", hint: "Uniform rows × columns" },
+            { id: "mosaic", label: "Mosaic", hint: "Free split panes (resize both axes)" },
+          ].map((opt) => {
+            const active = (opt.id === "mosaic") === isMosaic;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => { if (!active) setLayoutMode(opt.id); }}
+                title={opt.hint}
+                className="flex-1 h-8 text-[11px] rounded border px-2 text-left"
+                style={{
+                  background: active ? "var(--accent-blue-bg, rgba(56,189,248,0.15))" : "transparent",
+                  borderColor: active ? "var(--accent-blue, #38bdf8)" : "var(--border-subtle)",
+                  color: active ? "var(--accent-blue-text, #bfe6ff)" : "var(--text-muted)",
+                  cursor: active ? "default" : "pointer",
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        {isMosaic && (
+          <p className="text-[9px] text-foregroundScale-2 mt-1">
+            Drag the splitter bars to resize panes; drag a panel onto another pane's edge to re-split.
+          </p>
+        )}
+      </div>
+
+      {/* Rows + Cols — hidden in mosaic mode (no global dimensions) */}
+      {!isMosaic && (
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
           <label className="text-[10px] text-foregroundScale-2 block mb-1">Rows{minRows > 1 ? ` (min ${minRows})` : ""}</label>
@@ -215,6 +276,7 @@ export function GridSettingsTab() {
           />
         </div>
       </div>
+      )}
 
       <Separator className="mb-3" />
 

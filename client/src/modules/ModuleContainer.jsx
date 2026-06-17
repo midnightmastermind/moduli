@@ -593,6 +593,11 @@ function Container({
   const isCanvasContainer = containerViewType === "canvas" || (!containerViewType && module?.kind === "canvas");
   const isTableContainer = containerViewType === "table" || (!containerViewType && module?.kind === "table");
 
+  // Block-wrap host generalization (project_block_wrap_redesign): a kind:"doc"
+  // container can host a wrapGroup just like a textblock. When it does, the wrap CSS
+  // clips `.container-shell` to the L via the `--wrap-host-clip` var WrapGroupNode
+  // measures from the floated neighbor — no per-container measure needed here.
+
   // Canvas items: look up ALL module roles (instances + containers) from modulesById
   // so both instances and doc/list containers can be dropped onto a canvas.
   const canvasItemsWithOccurrences = useMemo(() => {
@@ -1080,7 +1085,7 @@ function Container({
                 <span
                   onDoubleClick={!headerBinding ? (e) => { e.stopPropagation(); setIsEditingLabel(true); } : undefined}
                   title={!headerBinding ? "Double-click to rename" : undefined}
-                  style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", padding: module.kind === "board" ? "2px 0" : 0, fontSize: module.kind === "board" ? "0.8rem" : "0.75rem", fontWeight: module.kind === "board" ? 500 : 500, display: "flex", alignItems: "center", gap: 4, cursor: !headerBinding ? "text" : undefined }}
+                  style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", padding: module.kind === "board" ? "2px 0" : 0, fontSize: module.kind === "board" ? "0.8rem" : "0.75rem", fontWeight: module.kind === "board" ? 500 : 500, display: "flex", alignItems: "center", gap: 4, position: "relative", top: -1, cursor: !headerBinding ? "text" : undefined }}
                 >
                   <AutoMarquee>
                     {headerBinding ? (
@@ -1101,7 +1106,9 @@ function Container({
               )
             )}
 
-            <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
+            {/* Filter (HeaderChevron) BEFORE the add (QuickAddMenu), both right-aligned. */}
+            <div className="ml-auto mr-1" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4 }} onPointerDown={(e) => e.stopPropagation()}>
+              <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={containerOccurrence} />
               <QuickAddMenu
                 targetRole="instance"
                 onSelect={handleQuickAddInstance}
@@ -1117,10 +1124,6 @@ function Container({
                 }}
                 hostOccurrence={containerOccurrence}
               />
-            </div>
-
-            <div className="ml-auto mr-1" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4 }} onPointerDown={(e) => e.stopPropagation()}>
-              <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={containerOccurrence} />
             </div>
           </>
         )}

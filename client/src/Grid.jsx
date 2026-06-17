@@ -14,8 +14,10 @@ import React, {
 } from "react";
 
 import Panel from "./modules/ModulePanel";
+import GridMosaic from "./modules/GridMosaic";
 import ErrorBoundary from "./ui/ErrorBoundary";
 import FullscreenOverlay from "./ui/FullscreenOverlay";
+import { allPanelOccIds } from "./helpers/bspTree";
 
 import { GridDataContext } from "./GridDataContext";
 import { GridActionsContext, useGridActions } from "./GridActionsContext";
@@ -322,6 +324,48 @@ function GridRender({
 }
 
 // ============================================================
+// MOSAIC MOBILE STACK — deferred mobile fallback for mosaic grids.
+// A plain vertical scroll-stack of the tree's panels (no tree nav yet).
+// ============================================================
+function MosaicMobileStack({ gridRef, layoutTree, visiblePanels, dispatch, socket, addContainerToPanel, addInstanceToContainer, sizesRef, fullscreenPanelId, setFullscreenPanelId }) {
+  const panelByOccId = useMemo(() => {
+    const m = Object.create(null);
+    for (const p of visiblePanels || []) if (p?._occurrenceId) m[p._occurrenceId] = p;
+    return m;
+  }, [visiblePanels]);
+  const order = useMemo(() => allPanelOccIds(layoutTree), [layoutTree]);
+  return (
+    <div
+      ref={gridRef}
+      className="bg-background2"
+      style={{ width: "100%", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, padding: 4, boxSizing: "border-box" }}
+    >
+      {order.map((occId) => {
+        const panel = panelByOccId[occId];
+        if (!panel) return null;
+        return (
+          <div key={occId} style={{ flex: "0 0 auto", minHeight: 320, display: "flex" }}>
+            <ErrorBoundary label={panel.label || "Panel"}>
+              <Panel
+                module={panel}
+                mosaic
+                dispatch={dispatch}
+                socket={socket}
+                addContainerToPanel={addContainerToPanel}
+                addInstanceToContainer={addInstanceToContainer}
+                sizesRef={sizesRef}
+                fullscreenPanelId={fullscreenPanelId}
+                setFullscreenPanelId={setFullscreenPanelId}
+              />
+            </ErrorBoundary>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
 // GRID INNER (wraps with DragProvider)
 // ============================================================
 function GridInner() {
@@ -355,6 +399,10 @@ function GridInner() {
 
   const grid = state.grid;
   const gridId = grid?._id;
+
+  // Opt-in BSP / "mosaic" layout. When present the grid renders as a split-tree
+  // mosaic (GridMosaic) instead of the rows×cols CSS grid below.
+  const layoutTree = grid?.meta?.layoutTree || null;
 
   // Animation hook moved to App.jsx — captureAllPositions wraps undo, onUndoAnimation handles FLIP
   const rows = grid?.rows ?? 1;
@@ -635,7 +683,33 @@ function GridInner() {
       setActiveCell={setActiveCell}
       isMobile={isMobile}
     >
-      {isMobile ? (
+      {layoutTree && !isMobile ? (
+        <GridMosaic
+          gridRef={gridRef}
+          panelsRender={visiblePanels}
+          grid={grid}
+          dispatch={dispatch}
+          socket={socket}
+          fullscreenPanelId={fullscreenPanelId}
+          setFullscreenPanelId={setFullscreenPanelId}
+          addContainerToPanel={addContainerToPanel}
+          addInstanceToContainer={addInstanceToContainer}
+          sizesRef={sizesRef}
+        />
+      ) : layoutTree && isMobile ? (
+        <MosaicMobileStack
+          gridRef={gridRef}
+          layoutTree={layoutTree}
+          visiblePanels={visiblePanels}
+          dispatch={dispatch}
+          socket={socket}
+          addContainerToPanel={addContainerToPanel}
+          addInstanceToContainer={addInstanceToContainer}
+          sizesRef={sizesRef}
+          fullscreenPanelId={fullscreenPanelId}
+          setFullscreenPanelId={setFullscreenPanelId}
+        />
+      ) : isMobile ? (
         <MobileGridNav
           rows={rows}
           cols={cols}

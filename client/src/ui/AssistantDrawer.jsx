@@ -19,10 +19,14 @@ import { getCurrentLocation, subscribeCurrentLocation } from "../helpers/current
 import MiniGridMap from "../mobile/MiniGridMap";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
-import { createImportsDocPage, ensureImportsFolder } from "../helpers/importsFolder";
+import { createImportsDocPage, ensureImportsFolderAndPage, shouldWrapImportOutput } from "../helpers/importsFolder";
 
 const STORAGE_KEY = "moduli_api_token";
 const HISTORY_KEY = "moduli_assistant_history";
+// The last seed marker (grid.meta.assistantSeedId) this browser saw. createLiveData
+// stamps a fresh marker every reseed; when it changes we clear the chat history so a
+// reseed starts the conversation fresh (see the seed-marker effect below).
+const SEED_KEY = "moduli_assistant_seed";
 // Rolling log of recent successful round-trip durations (ms) so the "thinking"
 // bar can show a realistic ETA — the local model is slow, so a learned typical
 // time + elapsed counter is far more useful than a static "… thinking".
@@ -162,6 +166,24 @@ export default function AssistantDrawer() {
     return () => { cancelled = true; };
   }, []); // mount only — don't re-fetch after the user sets a token
 
+  // Clear the chat history on reseed. createLiveData stamps a fresh
+  // grid.meta.assistantSeedId every run; when the marker we last saw changes, wipe
+  // the transcript so a reseed starts Jonah fresh. The FIRST sighting of a marker
+  // (no stored value) just records it — we don't nuke an existing conversation the
+  // first time this ships. seedId arrives with full_state, so the [seedId] dep
+  // re-runs once the grid loads.
+  const seedId = ctx?.state?.grid?.meta?.assistantSeedId || null;
+  useEffect(() => {
+    if (!seedId) return;
+    const seen = localStorage.getItem(SEED_KEY);
+    if (seen === seedId) return;
+    if (seen != null) {
+      setMessages([]);
+      localStorage.removeItem(HISTORY_KEY);
+    }
+    localStorage.setItem(SEED_KEY, seedId);
+  }, [seedId]);
+
   async function send() {
     const text = input.trim();
     if (!text || busy) return;
@@ -282,13 +304,14 @@ export default function AssistantDrawer() {
         setMessages(m => [...m, { role: "assistant", content: `(error) ${j?.error || j?.message || res.status}` }]);
       } else if (card.name === "wikipedia_import_batch" && Array.isArray(j.output?.imported)) {
         // Batch import: wrap EACH imported root in a doc page under the shared
-        // "Imports" folder (no per-page panel-pick prompt). Ensure the folder
-        // once, then reuse its id across the batch.
+        // "Imports" folder. Ensure the folder (+ its folder-page card occurrence)
+        // ONCE up front, then reuse its id across the batch.
         const grid = ctx?.state?.grid;
         const userId = ctx?.state?.userId;
-        const importsFolderId = ensureImportsFolder({
+        const { folderId: importsFolderId, folderPageOccId } = ensureImportsFolderAndPage({
           grid, manifests: Object.values(ctx?.manifestsById || {}),
           folders: Object.values(ctx?.foldersById || {}),
+          occurrencesById: ctx?.occurrencesById,
           dispatch: ctx?.dispatch, socket: ctx?.socket, userId,
         });
         for (const { title, rootOccurrenceId } of j.output.imported) {
@@ -298,7 +321,50 @@ export default function AssistantDrawer() {
             dispatch: ctx?.dispatch, socket: ctx?.socket, userId, label: title,
           });
         }
-        setMessages(m => [...m, { role: "tool", name: card.name, output: j.output }]);
+        // Ask where to open: target the Imports FOLDER page so the user can pin
+        // it to a panel and drill into the imported pages (mirrors the per-item
+        // panel-pick the single-import path gets).
+        setMessages(m => [
+          ...m,
+          { role: "tool", name: card.name, output: j.output },
+          ...(folderPageOccId ? [{ role: "panel_pick", occId: folderPageOccId }] : []),
+        ]);
+      } else if (isImportTool(card.name) && j.output?.dryRun) {
+        // A DRY RUN planned the tree but minted/persisted nothing. It still returns a
+        // (planned) rootOccurrenceId — wrapping that into a persisted Imports page
+        // leaves a page whose embed points at an occurrence that never existed (the
+        // "empty embed" placeholder). So surface the plan instead of wrapping.
+        setMessages(m => [
+          ...m,
+          { role: "tool", name: card.name, output: j.output },
+          { role: "assistant", content: "(planned only — nothing was imported. Re-run without dry-run to actually import it.)" },
+        ]);
+      } else if (isImportTool(card.name) && shouldWrapImportOutput(j.output)) {
+        // SINGLE import (wikipedia_import / import_markdown / import_html): wrap the
+        // root in a doc page under the shared "Imports" folder — same as the batch
+        // path — so an import ALWAYS lands somewhere visible (the importer roots
+        // content with parentId:null, so without this it's loose at the grid root and
+        // shows up nowhere). The panel-pick card alone doesn't guarantee a home (the
+        // user can dismiss it, or it may not render before the occurrence syncs).
+        const grid = ctx?.state?.grid;
+        const userId = ctx?.state?.userId;
+        const { folderId: importsFolderId, folderPageOccId } = ensureImportsFolderAndPage({
+          grid, manifests: Object.values(ctx?.manifestsById || {}),
+          folders: Object.values(ctx?.foldersById || {}),
+          occurrencesById: ctx?.occurrencesById,
+          dispatch: ctx?.dispatch, socket: ctx?.socket, userId,
+        });
+        createImportsDocPage({
+          rootOccId: j.output.rootOccurrenceId, folderId: importsFolderId, grid,
+          dispatch: ctx?.dispatch, socket: ctx?.socket, userId,
+          label: j.output?.source?.title || card.input?.title || card.input?.query || "Imported",
+        });
+        // Ask where to open: target the Imports FOLDER page (mirrors the batch path).
+        setMessages(m => [
+          ...m,
+          { role: "tool", name: card.name, output: j.output },
+          ...(folderPageOccId ? [{ role: "panel_pick", occId: folderPageOccId }] : []),
+        ]);
       } else {
         // Surface a panel picker for newly created page/container content.
         const occId = extractCreatedOccId(card.name, j.output);
@@ -903,6 +969,13 @@ function ConfirmCard({ msg, busy, onResolve }) {
 // Pull the occurrence id of freshly created/imported content out of a tool
 // result, so the panel picker can offer to show it. create_occurrence returns
 // `{ occurrence }` (object or id); the importers return `{ rootOccurrenceId }`.
+// True for the single-root importer tools whose output is `{ rootOccurrenceId }`
+// (the batch importer has its own `{ imported: [...] }` branch). Used so an import
+// always gets wrapped into the shared "Imports" folder, not left loose at root.
+function isImportTool(name) {
+  return ["wikipedia_import", "import_markdown", "import_html", "import_text"].includes(name);
+}
+
 function extractCreatedOccId(name, output) {
   if (!output || typeof output !== "object" || output.error || output.ok === false) return null;
   if (output.occurrence) {
@@ -1013,6 +1086,7 @@ function PanelPickCard({ occId }) {
         rootOccId: occId, panelOccurrenceId: panelOcc.id, grid,
         manifests: Object.values(manifestsById || {}),
         folders: Object.values(foldersById || {}),
+        occurrencesById,
         dispatch, socket, userId, label: mod?.label,
       });
     }

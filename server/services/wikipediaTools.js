@@ -87,6 +87,27 @@ export function wikiHtmlToMarkdown(html, title = "") {
       return `[${text}](${href.split("#")[0]})`;
     },
   });
+  // Pull-quotes: Wikipedia's {{Quote box}}/{{Cquote}} render as `.quotebox` /
+  // `.cquote` (often a <table>, NOT a <blockquote>), so turndown would mangle them
+  // into a GFM table. Convert them to a real `> ` blockquote (+ "— attribution")
+  // so markdownToModuli mints a kind:"quote" artifact. Plain <blockquote> already
+  // converts via turndown's default rule.
+  td.addRule("wikiPullQuote", {
+    filter: (node) => {
+      const cls = (node.getAttribute && (node.getAttribute("class") || "")) || "";
+      return /(^|\s)(quotebox|cquote)(\s|$)/.test(cls);
+    },
+    replacement: (_content, node) => {
+      const qEl = node.querySelector("blockquote, .quotebox-quote, p, td");
+      const citeEl = node.querySelector("cite, .quotebox-title, .quotebox-cite, footer");
+      let quote = ((qEl && qEl.textContent) || node.textContent || "").replace(/\s+/g, " ").trim();
+      let attribution = ((citeEl && citeEl.textContent) || "").replace(/\s+/g, " ").trim();
+      if (attribution && quote.endsWith(attribution)) quote = quote.slice(0, -attribution.length).trim();
+      quote = quote.replace(/[“”«»❝❞]/g, "").replace(/^["']|["']$/g, "").replace(/\s*[—–]\s*$/, "").trim();
+      if (!quote) return "";
+      return attribution ? `\n\n> ${quote} — ${attribution}\n\n` : `\n\n> ${quote}\n\n`;
+    },
+  });
   let md = td.turndown($.html());
   // Protocol-relative URLs (//upload.wikimedia.org/…) → https so images/links work.
   md = md.replace(/\]\(\/\//g, "](https://");
@@ -94,6 +115,41 @@ export function wikiHtmlToMarkdown(html, title = "") {
   if (title && !/^#\s/.test(md)) md = `# ${title}\n\n${md}`;
   md = md.replace(/\n{3,}/g, "\n\n").replace(/[ \t]+$/gm, "").trim();
   return md;
+}
+
+// Extract the article's infobox (Born / Occupations / Spouses / Labels / Website /
+// …) into rows BEFORE wikiHtmlToMarkdown strips it. Each `<tr>` with a header cell
+// + a value cell becomes one { label, value } row; `<br>` and list items are turned
+// into readable separators (cheerio's .text() otherwise concatenates them). The
+// importer renders these as a kind:"table" container (see markdownImporter).
+export function extractInfobox(html) {
+  if (!html) return null;
+  const $ = cheerioLoad(html);
+  const box = $(".infobox").first();
+  if (!box.length) return null;
+  // Strip non-content nodes BEFORE reading `.text()`. cheerio's `.text()` dumps the
+  // contents of `<style>`/`<script>` verbatim, so Wikipedia's embedded
+  // `<style>.mw-parser-output …{}</style>` leaked raw CSS into cell values (the
+  // "per-person-output { … }" garbage). Reference superscripts ([1]) + edit links go too.
+  box.find("style, script, .reference, sup.reference, .mw-editsection, .noprint, .sortkey").remove();
+  const rows = [];
+  box.find("tr").each((_, tr) => {
+    const $tr = $(tr);
+    const th = $tr.children("th").first();
+    const td = $tr.children("td").first();
+    if (!th.length || !td.length) return;
+    $(td).find("br").replaceWith(" · ");
+    $(td).find("li").each((_, li) => $(li).append(", "));
+    const label = ($(th).text() || "").replace(/\s+/g, " ").trim();
+    const value = ($(td).text() || "")
+      .replace(/\s+/g, " ")
+      .replace(/\s*·\s*/g, " · ")
+      .replace(/,\s*,/g, ", ")
+      .replace(/[,·]\s*$/g, "")
+      .trim();
+    if (label && value && label.length <= 40) rows.push({ label, value });
+  });
+  return rows.length ? rows : null;
 }
 
 function ua() { return { "User-Agent": UA, "Accept": "application/json" }; }
@@ -132,6 +188,9 @@ export async function summary(title) {
     extract: j.extract || "",
     url: j.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(title)}`,
     thumbnail: j.thumbnail?.source || null,
+    // Full-res lead photo (the .infobox image, which the article-HTML path
+    // strips). The importer uses this as the page's main image.
+    originalimage: j.originalimage?.source || null,
   };
 }
 
@@ -159,7 +218,35 @@ export async function fullMarkdown(title) {
   if (!html) return null;
   // cheerio (clean removal) + turndown (nesting-aware HTML→MD). markdownToModuli
   // downstream turns this into doc containers + textblocks.
-  const md = wikiHtmlToMarkdown(html, resolved);
+  let md = wikiHtmlToMarkdown(html, resolved);
+
+  // Lead image — Wikipedia's main photo lives in the .infobox, which
+  // wikiHtmlToMarkdown strips, so the article body has no main image. Pull it
+  // from the REST summary and inject it right after the H1 title as a block
+  // image, so the importer mints it as the page's MAIN image (and can wrap the
+  // intro paragraph beside it). Best-effort: a missing summary never blocks.
+  try {
+    const s = await summary(resolved);
+    const lead = s?.originalimage || s?.thumbnail;
+    // Infobox → a pipe table the importer turns into a kind:"table" container.
+    const info = extractInfobox(html);
+    const esc = (t) => String(t).replace(/\|/g, "\\|");
+    // EMPTY header cells: the infobox renders as a bare key/value table with no
+    // header title (the importer keeps empty headers as-is → no "Field"/"Value"
+    // titles, no container label). It's a facts card, not a titled table.
+    const infoTable = info
+      ? ["| | |", "| --- | --- |", ...info.map((r) => `| ${esc(r.label)} | ${esc(r.value)} |`)].join("\n")
+      : "";
+    const parts = [];
+    if (lead && !md.includes(lead)) parts.push(`![${resolved}](${lead})`);
+    if (infoTable) parts.push(infoTable);
+    if (parts.length) {
+      const leadBlock = `\n\n${parts.join("\n\n")}\n`;
+      if (/^#\s[^\n]*\n/.test(md)) md = md.replace(/^(#\s[^\n]*\n)/, `$1${leadBlock}`);
+      else md = `${parts.join("\n\n")}\n\n${md}`;
+    }
+  } catch { /* summary/infobox are optional enrichment */ }
+
   return {
     title: resolved,
     markdown: md,

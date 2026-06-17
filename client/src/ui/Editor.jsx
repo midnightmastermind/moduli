@@ -32,6 +32,7 @@ import { TaskListMarkdown } from "../docs/TaskListMarkdown";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { NATIVE_DND_MIME } from "../helpers/dragSystem";
 import { embedDeleteRegistry } from "../helpers/embedRegistry";
+import { findGroupMember, unwrapGroupAt, isNeighborMember } from "../helpers/wrapGroupOps";
 
 import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table";
 import { FieldPill } from "../docs/FieldPillExtension";
@@ -41,7 +42,6 @@ import { DocLink } from "../docs/DocLinkExtension";
 import { PillBackspace } from "../docs/PillBackspaceExtension";
 import { HeadingFocus } from "../docs/HeadingFocusExtension";
 import { ModuleEmbed } from "../docs/ModuleEmbedExtension";
-import { WrapSpacer } from "../docs/WrapSpacerExtension";
 import { WrapGroup } from "../docs/WrapGroupExtension";
 import { InstanceTextblock } from "../docs/InstanceTextblockExtension";
 import { InstanceTextblockInline } from "../docs/InstanceTextblockInlineExtension";
@@ -84,47 +84,86 @@ function concatInline(a, b) {
   return result;
 }
 
+// The nearest top-level block BOUNDARY (gap) to a vertical cursor position.
+// Returns { pos, top } where `pos` is the ProseMirror insert position at that
+// gap and `top` is wrapper-relative px for rendering the indicator. Unlike
+// posAtCoords this works in the EMPTY MARGIN between blocks (where posAtCoords
+// returns null), so the hover affordance + drag indicator don't vanish in the
+// very gap the user is aiming at — and the actual drop reuses it, so the block
+// lands exactly where the indicator showed.
+function nearestDocBoundary(view, doc, wrapEl, clientY) {
+  if (!view || !doc || !wrapEl || doc.childCount === 0) return null;
+  const wrapTop = wrapEl.getBoundingClientRect().top;
+  let best = null, bestDist = Infinity;
+  const cand = (pos, y) => {
+    const d = Math.abs(y - clientY);
+    if (d < bestDist) { bestDist = d; best = { pos, top: y - wrapTop }; }
+  };
+  doc.forEach((node, off) => {
+    let dom = null;
+    try { dom = view.nodeDOM(off); } catch (_) { /* */ }
+    const rect = dom?.getBoundingClientRect?.();
+    if (!rect) return;
+    cand(off, rect.top);                    // gap before this block
+    cand(off + node.nodeSize, rect.bottom); // gap after this block
+  });
+  return best;
+}
+
+// True when clientY falls inside any top-level block's content box (i.e. the
+// pointer is over a block, not in the inter-block gutter). The hover insert-gap
+// affordance uses this to stay OUT of the way while the user is clicking into a
+// block to edit it — the gap only belongs in the empty margin BETWEEN blocks.
+// Drag/drop intentionally does NOT consult this (a drop over a block should
+// still snap to the nearest boundary), so it lives separate from
+// nearestDocBoundary.
+function isOverTopBlock(view, doc, clientY) {
+  if (!view || !doc || doc.childCount === 0) return false;
+  let over = false;
+  doc.forEach((node, off) => {
+    if (over) return;
+    let dom = null;
+    try { dom = view.nodeDOM(off); } catch (_) { /* */ }
+    const rect = dom?.getBoundingClientRect?.();
+    if (rect && clientY >= rect.top && clientY <= rect.bottom) over = true;
+  });
+  return over;
+}
+
+// Atomically relocate the top-level node that matches `match` (by attrs) to
+// `insertPos`. `nodeTypeName` is an optional filter — pass null to match ANY
+// node type, so a same-doc reorder moves whatever node already holds the
+// occurrence (a moduleEmbed OR a legacy auto-typed instanceTextblock) without
+// the caller having to know or care which. Preserves the node (and its type).
 function tryMoveEmbedNodeInDoc(editor, nodeTypeName, match, insertPos) {
   if (!editor || insertPos == null) return false;
   let sourcePos = null;
   let sourceNode = null;
-  let sourceIndex = -1;
-  let runningIndex = 0;
   editor.state.doc.forEach((child, offset) => {
     if (sourceNode) return;
-    if (child.type.name === nodeTypeName
+    if ((nodeTypeName == null || child.type.name === nodeTypeName)
         && Object.entries(match).every(([k, v]) => child.attrs?.[k] === v)) {
       sourcePos = offset;
       sourceNode = child;
-      sourceIndex = runningIndex;
     }
-    runningIndex += 1;
   });
-  if (sourcePos == null) return false;
+  if (sourcePos == null) { console.log("[DROP tryMove] source NOT FOUND in this doc by occId", match, "→ returns false (cross-doc path)"); return false; }
 
   const sourceEnd = sourcePos + sourceNode.nodeSize;
-  // Drop INSIDE the source range is a no-op (the cursor never actually left
-  // the source). Boundary drops, though, are the "drop on adjacent sibling"
-  // case the snap math resolves to — those should snap PAST the sibling so
-  // the move actually happens.
-  if (insertPos > sourcePos && insertPos < sourceEnd) return true;
-  if (insertPos === sourcePos || insertPos === sourceEnd) {
-    const childCount = editor.state.doc.childCount;
-    if (insertPos === sourceEnd && sourceIndex + 1 < childCount) {
-      const nextSibling = editor.state.doc.child(sourceIndex + 1);
-      insertPos = sourceEnd + nextSibling.nodeSize;
-    } else if (insertPos === sourcePos && sourceIndex > 0) {
-      const prevSibling = editor.state.doc.child(sourceIndex - 1);
-      insertPos = sourcePos - prevSibling.nodeSize;
-    } else {
-      // Source is at the doc edge with no neighbour to swap past — genuine no-op.
-      return true;
-    }
+  // A drop anywhere within the source's own span (both edges inclusive) is a
+  // no-op — the block already occupies that position. `=== sourcePos` is the
+  // gap right before it; `=== sourceEnd` the gap right after it; both are where
+  // it already sits. (These edges previously "snapped past" the neighbour,
+  // overshooting by one — dropping the 1st block above the 2nd landed it below.)
+  if (insertPos >= sourcePos && insertPos <= sourceEnd) {
+    console.log("[DROP tryMove] NO-OP — insertPos within source span", { insertPos, sourcePos, sourceEnd, nodeType: sourceNode.type.name });
+    return true;
   }
 
-  // Delete shifts every position past sourcePos by -nodeSize; adjust the
+  // The delete shifts every position past sourcePos left by nodeSize; adjust the
   // insert target so it lands where the user dropped.
   const adjusted = insertPos > sourcePos ? insertPos - sourceNode.nodeSize : insertPos;
+  console.log("[DROP tryMove] MOVING", { from: sourcePos, to: insertPos, adjusted, nodeType: sourceNode.type.name });
 
   const tr = editor.state.tr;
   tr.setMeta("skipAutoCreate", true);
@@ -201,7 +240,9 @@ const Editor = forwardRef(function Editor({
   // Insert-here doc gap: { top (wrapper-relative px), pos (PM insert position) }
   // or null. Driven by mousemove over the editor wrapper when enableInsertGaps.
   const [docGap, setDocGap] = useState(null);
-  const gapFrozenRef = useRef(false); // true while pointer is over the affordance
+  // Live drop indicator while DRAGGING a block over this (page) editor — shows
+  // exactly where it will land so reordering isn't a finicky guess. { top, pos }.
+  const [dragGap, setDragGap] = useState(null);
   // D11: convert-to-module prompt
 
   const lastCharRef = useRef("");
@@ -277,9 +318,11 @@ const Editor = forwardRef(function Editor({
   // Keep drop-handler refs fresh — the dropTargetForElements effect only re-registers when
   // editor changes, so occurrencesById/dispatch/socket would otherwise be stale closures.
   const occurrencesByIdRef = useRef(occurrencesById);
+  const modulesByIdRef = useRef(modulesById);
   const dispatchRef = useRef(dispatch);
   const socketRef = useRef(socket);
   occurrencesByIdRef.current = occurrencesById;
+  modulesByIdRef.current = modulesById;
   dispatchRef.current = dispatch;
   socketRef.current = socket;
 
@@ -318,7 +361,6 @@ const Editor = forwardRef(function Editor({
       PillBackspace,
       HeadingFocus,
       ModuleEmbed,
-      WrapSpacer,
       WrapGroup,
       ExprPill,
       Table.configure({ resizable: true }),
@@ -395,7 +437,13 @@ const Editor = forwardRef(function Editor({
       }
       // Auto-create textblock: first character typed on a previously empty paragraph.
       // Gated behind !isCell — cell editors have no auto-create-textblock behavior.
-      if (!isCell && onAutoCreateTextblock && transaction.docChanged && !transaction.getMeta("skipAutoCreate")) {
+      // ALSO gated on the text CONTENT actually changing: an attribute-only
+      // transaction (a wrapGroup seam RESIZE writing `neighborWidth`, or a re-morph
+      // writing `anchorIndex`/`side`) is `docChanged` but types nothing — without this
+      // it folded the whole wrapGroup into a brand-new parent textblock on every
+      // column resize ("an extra random parent textblock containing the wrap stuff").
+      const textChanged = transaction.before.textContent !== editor.state.doc.textContent;
+      if (!isCell && onAutoCreateTextblock && transaction.docChanged && textChanged && !transaction.getMeta("skipAutoCreate")) {
         let handled = false;
         // ── Pre-pass: merge paragraphs that LAND DURING THE FOCUS-RACE
         // WINDOW right after a just-auto-created textblock. Window is gated
@@ -624,8 +672,21 @@ const Editor = forwardRef(function Editor({
     },
     editorProps: {
       instancesById,
-      attributes: { class: "doc-editor-content prose prose-invert max-w-none focus:outline-none", draggable: "false" },
+      // spellcheck starts OFF so unfocused textblocks don't show misspelling
+      // squiggles; the focus/blur handlers below flip it on only while editing.
+      attributes: { class: "doc-editor-content prose prose-invert max-w-none focus:outline-none", draggable: "false", spellcheck: "false" },
       handleDOMEvents: {
+        // Show the red misspelling squiggles ONLY when the textblock is focused
+        // (clicked into) — an unfocused block reads as clean prose. Toggling the
+        // contenteditable's `spellcheck` attr re-runs / clears the browser check.
+        focus: (view) => {
+          view.dom.setAttribute("spellcheck", "true");
+          return false;
+        },
+        blur: (view) => {
+          view.dom.setAttribute("spellcheck", "false");
+          return false;
+        },
         dragstart: (view, event) => {
           // Only allow dragstart from drag handle elements — prevents native
           // text-selection drag from interfering with cursor placement.
@@ -1148,45 +1209,25 @@ const Editor = forwardRef(function Editor({
     const $pos = editor.state.doc.resolve(rawPos);
     if ($pos.depth === 0) return rawPos;
 
-    const blockStart = $pos.before(1); // position of the gap before the top-level block
-    const blockEnd = $pos.after(1);   // position of the gap after the top-level block
+    const blockStart = $pos.before(1); // gap before the top-level block
+    const blockEnd = $pos.after(1);    // gap after the top-level block
 
-    // Left-edge heuristic: when the cursor sits to the LEFT of the block's
-    // text column (e.g. in the leading margin of a paragraph), force "before"
-    // insertion. The vertical-midline math below otherwise flips to "after"
-    // whenever the cursor is in the bottom half of a line, even though a
-    // left-margin hover intuitively reads as "insert above this line".
+    // Block placement is a WHOLE-BLOCK decision: hover the block's upper half →
+    // insert before it, lower half → after it, using the block's own bounding
+    // rect. (Per-LINE midpoint math made tall blocks finicky — a drop visually
+    // ABOVE a multi-line block could land past an inner line's midpoint and
+    // resolve to "after it", so dragging a block above a tall neighbour silently
+    // no-op'd.) A left-margin hover also reads as "insert above this block".
     const blockDom = editor.view.nodeDOM(blockStart);
     if (blockDom && blockDom.getBoundingClientRect) {
-      const blockRect = blockDom.getBoundingClientRect();
-      // 10px slack so hovers right against the text edge still count.
-      if (clientX < blockRect.left + 10) return blockStart;
-    }
-
-    // Compare against the LINE rect (caret rect at the resolved position),
-    // not the full paragraph rect. Paragraph-rect bias was sending hovers on
-    // the first line of a multi-line block to "after" because the cursor sat
-    // above the paragraph's midpoint only when near the very top.
-    try {
-      const lineCoords = editor.view.coordsAtPos(rawPos);
-      if (lineCoords && Number.isFinite(lineCoords.top) && Number.isFinite(lineCoords.bottom)) {
-        // If posAtCoords resolved a position on a DIFFERENT line than the
-        // cursor's actual y (the empty area to the left of a line can spill
-        // upward into the previous line's range), compare cursor-y to the
-        // line's bounds rather than its midpoint — otherwise the midline
-        // math compares against the wrong line.
-        if (clientY < lineCoords.top) return blockStart;
-        if (clientY > lineCoords.bottom) return blockEnd;
-        const lineMid = (lineCoords.top + lineCoords.bottom) / 2;
-        return clientY < lineMid ? blockStart : blockEnd;
-      }
-    } catch (_) { /* fall through */ }
-
-    if (blockDom) {
       const rect = blockDom.getBoundingClientRect();
+      if (clientX < rect.left + 10) { console.log("[DROP resolveInsertPos] left-margin → blockStart", { blockStart, blockEnd }); return blockStart; }
       const mid = (rect.top + rect.bottom) / 2;
-      return clientY < mid ? blockStart : blockEnd;
+      const r = clientY < mid ? blockStart : blockEnd;
+      console.log("[DROP resolveInsertPos] block-midpoint", { rawPos, blockStart, blockEnd, clientY: Math.round(clientY), top: Math.round(rect.top), bottom: Math.round(rect.bottom), mid: Math.round(mid), chose: r === blockStart ? "before(blockStart)" : "after(blockEnd)" });
+      return r;
     }
+    console.log("[DROP resolveInsertPos] no blockDom → blockEnd", { blockEnd });
     return blockEnd;
   }, [editor]);
 
@@ -1215,9 +1256,38 @@ const Editor = forwardRef(function Editor({
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
+    // A SUB-EDITOR (a textblock / embedded doc rendered INSIDE another doc
+    // editor) must NOT register its own drop target. The OUTER (page) editor
+    // owns every doc drop, so a block dropped on/near a textblock reorders at
+    // the page level — instead of being captured by the textblock's own editor
+    // (which silently no-op'd, and let DragProvider's monitor re-route the drag
+    // to a board container on another panel). Detected at runtime: el is the
+    // `.doc-editor` wrapper; if it has an ANCESTOR `.doc-editor`, it's nested.
+    if (el.parentElement?.closest?.(".doc-editor")) return;
+    // Belt-and-suspenders: a textblock CARD / inline mini-textblock / table CELL
+    // editor renders INSIDE the page prose, but its `.doc-editor` ancestor can be
+    // hidden from the check above when the embed NodeView is portal-rendered — so it
+    // sneaks in as a top-level drop target and STEALS a page drop (it buries the
+    // dropped embed inside ITSELF + detaches the source = "the move didn't happen /
+    // it landed in the wrong place / it reloaded"). Such an editor always sits inside
+    // one of these card/cell wrappers; the page editor never does. So it bails here.
+    if (el.closest?.(".textblock-card, .instance-textblock-block, .table-td")) return;
     let lastNativeEvent = null;
-    const onDragOver = (e) => { lastNativeEvent = e; };
+    // Live drop indicator: on every dragover, resolve the nearest top-level block
+    // boundary and surface a glowing line there so the user sees where the block
+    // will land (was a blind guess → finicky). Mirrors the gap-hover math.
+    const onDragOver = (e) => {
+      lastNativeEvent = e;
+      if (!editor?.view) return;
+      const b = nearestDocBoundary(editor.view, editor.state.doc, el, e.clientY);
+      setDragGap((prev) => (b && prev && prev.pos === b.pos ? prev : b));
+    };
+    const onDragLeaveNative = (e) => {
+      // Only clear when the drag actually left the editor (not entering a child).
+      if (!el.contains(e.relatedTarget)) setDragGap(null);
+    };
     el.addEventListener("dragover", onDragOver);
+    el.addEventListener("dragleave", onDragLeaveNative);
 
     const cleanup = dropTargetForElements({
       element: el,
@@ -1242,34 +1312,72 @@ const Editor = forwardRef(function Editor({
         return type === "instance" || type === "field" || type === "container" || type === "artifact" || type === "module";
       },
       onDragEnter: () => setIsDropTarget(true),
-      onDragLeave: () => setIsDropTarget(false),
+      onDragLeave: () => { setIsDropTarget(false); setDragGap(null); },
       onDrop: ({ source, location }) => {
         setIsDropTarget(false);
-        if (source.data?.fromDoc) return;
+        setDragGap(null);
         const sd = source.data || {};
         const { type, id, data, context } = sd;
-        // Prefer Pragmatic DnD's own coordinates (exact drop point) over lastNativeEvent
         const dropInput = location?.current?.input;
-
-        // Don't handle drops that landed inside a nested instanceTextblock sub-editor.
-        // The sub-editor has its own dropTargetForElements and handles insertion itself.
-        // Guard: only skip when the textblock is a DESCENDANT of this editor's wrapper (el).
-        // Without el.contains() check, the inner sub-editor's own onDrop would also return
-        // early (because it too is inside .instance-textblock-block), silently swallowing drops.
-        if (dropInput?.clientX != null && dropInput?.clientY != null) {
-          const dropEl = document.elementFromPoint(dropInput.clientX, dropInput.clientY);
-          const textblock = dropEl?.closest('.instance-textblock-block');
-          if (textblock && el.contains(textblock)) return;
+        // [DROP] full diagnostic logging — `ed` = which editor fired (page vs an
+        // inner textblock/cell sub-editor; both register drop targets so the
+        // INNERMOST under the pointer wins). DLOG every branch so a full test
+        // shows exactly what each droppable does. Remove once drop is solid.
+        const DLOG = (...a) => console.log(`[DROP ed=${occurrence?.id || "?"}]`, ...a);
+        DLOG("onDrop fired", { type, role: sd.role || data?.role, sourceType: context?.sourceType, occId: context?.occurrenceId || data?.occurrenceId || sd.occurrenceId, fromDoc: source.data?.fromDoc, x: dropInput?.clientX, y: dropInput?.clientY });
+        // ONE editor per drop. Pragmatic DnD fires onDrop on EVERY registered drop
+        // target under the pointer (innermost-first). A nested textblock sub-editor
+        // that slipped past the registration guard (line ~1260) would otherwise ALSO
+        // run this whole handler — so a single drop became three cross-doc inserts +
+        // three detaches: the doc churned/"reloaded", a stray copy appeared, and the
+        // source didn't cleanly move. The OUTERMOST doc editor owns the embed/wrapGroup
+        // model (it's where a wrap-beside forms), so only it processes the drop.
+        const docTargets = (location?.current?.dropTargets || []).filter((t) => t.data?.type === "doc-editor");
+        if (docTargets.length > 1 && docTargets[docTargets.length - 1].element !== el) {
+          DLOG("BAIL — not the outermost doc-editor in the drop stack", { stack: docTargets.length });
+          return;
         }
+        if (source.data?.fromDoc) { DLOG("BAIL fromDoc (field pill self-drag)"); return; }
+        // (Removed the old "drop landed inside a nested .instance-textblock-block"
+        // bail — sub-editors no longer register drop targets, so the page editor
+        // OWNS drops that land on a textblock and reorders it instead of bailing.)
 
         const isBlockDrop = type !== "field";
-        const insertPos = resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
+        // Block drops snap to the SAME nearest-boundary the drag indicator showed
+        // (so the block lands exactly where the glowing line was). Field pills are
+        // inline → keep the raw caret position.
+        const dropY = (dropInput || lastNativeEvent)?.clientY;
+        let insertPos = isBlockDrop && dropY != null
+          ? (nearestDocBoundary(editor?.view, editor?.state?.doc, el, dropY)?.pos ?? resolveInsertPos(dropInput || lastNativeEvent, true))
+          : resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
+        DLOG("isBlockDrop", isBlockDrop, "initial insertPos", insertPos);
 
         // ── Block-wrap drop-beside (project_block_wrap_l_shape) ─────────────
         // If a block is dropped over the LEFT/RIGHT third of an existing
         // top-level moduleEmbed, form a wrapGroup (that embed = HOST, the
         // dropped one = NEIGHBOR in its notch) instead of inserting a plain
         // sibling. Detection happens at the raw drop coords (pre-snap).
+        // Only a TEXTMAPPED occurrence can be the morphing host (it reserves the
+        // notch in its own textmap + clips its border). That's a role:"textblock"
+        // OR a kind:"doc" container — never a board/list/table container.
+        const isTextmappedHost = (occId) => {
+          const occ = occId ? occurrencesByIdRef.current?.[occId] : null;
+          const mod = occ?.moduleId ? modulesByIdRef.current?.[occ.moduleId] : null;
+          if (!mod) return false;
+          return mod.role === "textblock" || (mod.role === "container" && mod.kind === "doc");
+        };
+        // The host's top-level block index at clientY → the EXACT line the notch
+        // morphs at (L at line 0, C/J mid-flow). No ghost spacer to skip anymore.
+        const blockIndexAtY = (hostDom, clientY) => {
+          const pm = hostDom?.querySelector?.(".ProseMirror");
+          if (!pm) return 0;
+          const blocks = Array.from(pm.children);
+          for (let i = 0; i < blocks.length; i++) {
+            const r = blocks[i].getBoundingClientRect();
+            if (clientY < r.top + r.height / 2) return i;
+          }
+          return Math.max(0, blocks.length - 1);
+        };
         const detectSideHost = (input) => {
           if (!editor?.view || !input || input.clientX == null) return null;
           const res = editor.view.posAtCoords({ left: input.clientX, top: input.clientY });
@@ -1278,7 +1386,33 @@ const Editor = forwardRef(function Editor({
           if ($p.depth < 1) return null;
           const topPos = $p.before(1);
           const topNode = editor.state.doc.nodeAt(topPos);
-          if (!topNode || topNode.type.name !== "moduleEmbed") return null;
+          if (!topNode) return null;
+
+          // Dropping INSIDE an existing wrapGroup (isolating → posAtCoords resolves to the
+          // group, not its host child) → this is a RE-MORPH: recompute side + the exact
+          // host line (anchorIndex) the notch should sit at, so dragging the neighbor up/
+          // down the host drives the dynamic shape (L → C → hangman; cross-midline → J).
+          if (topNode.type.name === "wrapGroup") {
+            const hostNode = topNode.lastChild; // host is the LAST child (neighbor-first)
+            const hostOccId = hostNode?.attrs?.occurrenceId || null;
+            if (!isTextmappedHost(hostOccId)) return null;
+            let groupDom = null;
+            try { groupDom = editor.view.nodeDOM(topPos); } catch (_) { return null; }
+            const holder = groupDom?.querySelector?.(".wrap-group-content > [data-node-view-content-react]")
+              || groupDom?.querySelector?.(".wrap-group-content");
+            const hostEl = holder?.lastElementChild || groupDom;
+            const rect = groupDom?.getBoundingClientRect?.();
+            if (!rect || rect.width <= 0) return null;
+            const frac = (input.clientX - rect.left) / rect.width;
+            const side = frac < 0.5 ? "left" : "right"; // any in-group drop picks a side (flip)
+            const anchorIndex = blockIndexAtY(hostEl, input.clientY);
+            return { hostPos: topPos, hostOccId, side, anchor: anchorIndex === 0 ? "top" : "middle", anchorIndex };
+          }
+
+          if (topNode.type.name !== "moduleEmbed") return null;
+          const hostOccId = topNode.attrs?.occurrenceId || null;
+          // Reject non-textmapped hosts (board/list/table) → normal insert, no morph.
+          if (!isTextmappedHost(hostOccId)) return null;
           let dom = null;
           try { dom = editor.view.nodeDOM(topPos); } catch (_) { return null; }
           const rect = dom?.getBoundingClientRect?.();
@@ -1286,12 +1420,10 @@ const Editor = forwardRef(function Editor({
           const frac = (input.clientX - rect.left) / rect.width;
           const side = frac >= 0.6 ? "right" : frac <= 0.4 ? "left" : null;
           if (!side) return null;
-          // Vertical zone picks the notch shape: dropped over the host's TOP →
-          // top-anchored notch (L); over the MIDDLE/lower band → mid-flow notch
-          // (C: text above + below the neighbor).
-          const vfrac = (input.clientY - rect.top) / rect.height;
-          const anchor = vfrac < 0.4 ? "top" : "middle";
-          return { hostPos: topPos, hostOccId: topNode.attrs?.occurrenceId || null, side, anchor };
+          // anchorIndex = the exact host line dropped on; anchor kept for back-compat.
+          const anchorIndex = blockIndexAtY(dom, input.clientY);
+          const anchor = anchorIndex === 0 ? "top" : "middle";
+          return { hostPos: topPos, hostOccId, side, anchor, anchorIndex };
         };
         const wrapHostWithNeighbor = (neighborOccId, sideHost) => {
           if (!editor || !sideHost || !neighborOccId) return false;
@@ -1302,7 +1434,8 @@ const Editor = forwardRef(function Editor({
           if (!host || host.type.name !== "moduleEmbed") return false;
           if (host.attrs?.occurrenceId === neighborOccId) return false; // never wrap self
           const neighbor = embedType.create({ occurrenceId: neighborOccId });
-          const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", wrap: true }, [host, neighbor]);
+          // Neighbor FIRST so it floats and the host's prose wraps around it (L).
+          const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, wrap: true }, [neighbor, host]);
           const from = sideHost.hostPos;
           const to = sideHost.hostPos + host.nodeSize;
           return editor.chain().focus().command(({ tr }) => { tr.replaceWith(from, to, group); return true; }).run();
@@ -1336,193 +1469,85 @@ const Editor = forwardRef(function Editor({
             const hostNode = tr.doc.nodeAt(host.pos);
             if (!hostNode || hostNode.type.name !== "moduleEmbed") return false;
             const neighbor = embedType.create({ occurrenceId });
-            const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", wrap: true }, [hostNode, neighbor]);
+            // Neighbor FIRST so it floats and the host's prose wraps around it (L).
+            const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, wrap: true }, [neighbor, hostNode]);
             tr.replaceWith(host.pos, host.pos + hostNode.nodeSize, group);
             return true;
           }).run();
         };
-        const sideHost = isBlockDrop ? detectSideHost(dropInput || lastNativeEvent) : null;
+        let sideHost = isBlockDrop ? detectSideHost(dropInput || lastNativeEvent) : null;
+        DLOG("sideHost (wrap-beside detect)", sideHost);
 
-        // A textblock dragged from a list container (TextblockCard wrapped by
-        // ModuleInstance) ships with `type: "instance"` because the drag
-        // happens through ModuleInstance.useDragDrop. Without this reroute it
-        // would hit the type==="instance" branch below, insert a moduleEmbed,
-        // and ModuleEmbedNode's render fallback would draw a textblock module
-        // as `<Container>` — the "becomes a container with text" bug. Force
-        // the type into the module branch so `sourceRoleStr === "textblock"`
-        // hits and an `instanceTextblock` node is inserted instead.
-        const sourceRole = sd.role || data?.role || sd.data?.role;
-        const effectiveType = (type === "instance" && sourceRole === "textblock")
-          ? "module"
-          : type;
+        // ── Grouped member: normal-drag reposition / unwrap-on-move-out ──────────
+        // If the dragged occurrence is already inside a wrapGroup in THIS doc, a
+        // normal drag of its radial handle either (a) re-morphs the notch when the
+        // NEIGHBOR is dropped on the SAME host (move anchorIndex/side — replaces the
+        // deleted grip), or (b) un-wraps the group when dropped anywhere else, then
+        // falls through to the normal move/insert below (positions recomputed).
+        const draggedOccId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
+        const grouped = draggedOccId ? findGroupMember(editor.state.doc, draggedOccId) : null;
+        DLOG("grouped-member?", grouped ? { groupPos: grouped.groupPos, hostOccId: grouped.hostOccId, isNeighbor: isNeighborMember(grouped) } : null);
+        if (grouped) {
+          const isNeighbor = isNeighborMember(grouped);
+          if (isNeighbor && sideHost && sideHost.hostOccId === grouped.hostOccId) {
+            DLOG("grouped → re-morph notch in place (anchorIndex/side)");
+            // Re-morph in place — just move the notch to the dropped line / side.
+            editor.chain().focus().command(({ tr }) => {
+              const g = tr.doc.nodeAt(grouped.groupPos);
+              if (!g || g.type.name !== "wrapGroup") return false;
+              tr.setNodeMarkup(grouped.groupPos, undefined, {
+                ...g.attrs,
+                anchorIndex: sideHost.anchorIndex ?? g.attrs.anchorIndex,
+                anchor: (sideHost.anchorIndex ?? 0) === 0 ? "top" : "middle",
+                side: sideHost.side,
+              });
+              return true;
+            }).run();
+            return;
+          }
+          const draggedMode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? "move";
+          if (draggedMode !== "copy") {
+            DLOG("grouped → unwrap group then recompute (dragged off its host)");
+            // Dropped away from its host (or dragging the host itself) → un-wrap,
+            // then recompute the drop target on the now-flattened doc.
+            unwrapGroupAt(editor, grouped.groupPos);
+            insertPos = resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
+            sideHost = isBlockDrop ? detectSideHost(dropInput || lastNativeEvent) : null;
+            // Don't immediately re-wrap onto the SAME host it was just dragged off.
+            if (sideHost && sideHost.hostOccId === grouped.hostOccId) sideHost = null;
+          }
+        }
 
-        if (effectiveType === "instance") {
-          // Instance drops → insert as embed directly; convert to pill via radial menu on the node
+        // ── Block-embed drop — ONE path for every embeddable occurrence ──────
+        // instance / textblock / artifact / container all embed the same way: a
+        // `moduleEmbed` node (ModuleEmbedNode renders the right component per the
+        // occurrence's role). So there is no per-role branching and no per-node-
+        // type branching:
+        //   • same-doc reorder  → relocate whatever node already holds the occ
+        //                          (type-agnostic find → preserves its node type)
+        //   • copy              → deep-clone the occurrence (recurses children),
+        //                          embed the clone
+        //   • cross-doc / from a container → insert a moduleEmbed, detach source
+        if (type === "instance" || type === "container" || type === "artifact" || type === "module") {
           const occsById = occurrencesByIdRef.current || {};
           let occurrenceId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
+          // CC drops carry no occurrenceId — reuse an existing occurrence of the module.
           if (!occurrenceId && id) {
             const existing = Object.values(occsById).find(o => o.moduleId === id);
             if (existing) occurrenceId = existing.id;
           }
-          if (!occurrenceId) return;
-
+          if (!occurrenceId) { DLOG("BAIL block-embed: no occurrenceId resolved"); return; }
           const dragMode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? "move";
-          const sourceOcc = occsById[occurrenceId];
+          DLOG("block-embed path", { occurrenceId, dragMode, dragModeSource: data?.occurrence?.dragMode != null ? "occurrence.dragMode" : data?.defaultDragMode != null ? "defaultDragMode" : "DEFAULT(move)", hasSideHost: !!sideHost });
 
+          // COPY — deep-clone (recurses children for a container; a leaf just
+          // clones its own fields/textmap/meta), then embed the clone.
           if (dragMode === "copy") {
-            // Copy: create a fresh occurrence for the embed — original stays in its container
-            const newOccId = crypto.randomUUID();
-            CommitHelpers.createOccurrence({
-              dispatch: dispatchRef.current, socket: socketRef.current,
-              occurrence: {
-                id: newOccId,
-                moduleId: sourceOcc?.moduleId || id,
-                gridId: sourceOcc?.gridId,
-                occurrences: [],
-                fields: sourceOcc?.fields || {},
-                meta: sourceOcc?.meta || {},
-                dragMode: sourceOcc?.dragMode ?? null,
-              },
-              emit: true,
-            });
-            if (!(sideHost && wrapHostWithNeighbor(newOccId, sideHost))) {
-              insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: newOccId } });
-            }
-          } else {
-            // Move: same-doc rearrange = atomic node move (no delete +
-            // recreate). If the source isn't in this editor, fall back to
-            // the cross-doc path: registry-delete source TipTap node /
-            // detach from container, then insert a new moduleEmbed node.
-            // Dropped BESIDE a host embed → fold into a wrapGroup instead.
-            if (sideHost && wrapMoveBeside(occurrenceId, sideHost)) return;
-            if (insertPos == null) return;
-            const moved = tryMoveEmbedNodeInDoc(editor, "moduleEmbed", { occurrenceId }, insertPos);
-            if (moved) return;
-            // Insert destination FIRST. Only detach source on confirmed commit
-            // so a silent failure (invalid pos, stale editor) can't orphan the
-            // occurrence.
-            const inserted = insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
-            if (!inserted) return;
-            if (context?.sourceType === "doc-embed") {
-              embedDeleteRegistry.get(occurrenceId)?.();
-            } else if (sourceOcc) {
-              const parentOcc = Object.values(occsById).find(
-                occ => Array.isArray(occ.occurrences) && occ.occurrences.includes(occurrenceId)
-              );
-              if (parentOcc) {
-                CommitHelpers.updateOccurrence({
-                  dispatch: dispatchRef.current, socket: socketRef.current,
-                  occurrence: {
-                    id: parentOcc.id,
-                    occurrences: (parentOcc.occurrences || []).filter(eid => eid !== occurrenceId),
-                  },
-                  emit: true,
-                });
-              }
-            }
-          }
-          return;
-        }
-        if (effectiveType === "container" || effectiveType === "artifact" || effectiveType === "module") {
-          // occurrenceId can be in context (DragProvider items), in data, or at root level (doc pills, tree items)
-          let occurrenceId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
-          // CC drops have no occurrenceId — find an existing occurrence of this module
-          if (!occurrenceId && id) {
-            const existing = Object.values(occurrencesByIdRef.current || {}).find(o => o.moduleId === id);
-            if (existing) occurrenceId = existing.id;
-          }
-          if (!occurrenceId) return;
-
-          // ── TEXTBLOCK BRANCH ─────────────────────────────────────────
-          // Source is a textblock. The same `instanceTextblock` node should
-          // *move* — we do not delete + recreate. The TipTap node and its
-          // occurrence are the same entity regardless of position.
-          //
-          // Same-doc rearrange:    atomic single-transaction move (delete +
-          //                        insert in one tr, position-adjusted).
-          // Cross-doc / from CC:   delete source node via the registry,
-          //                        insert a node referencing the same
-          //                        occurrenceId in the new doc.
-          // Copy mode:             clone the occurrence (textmap + fields),
-          //                        insert a node pointing at the new occ;
-          //                        leave the source untouched.
-          const sourceRoleStr = sd.role || data?.role;
-          if (sourceRoleStr === "textblock") {
-            if (insertPos == null) return;
-            const occsById = occurrencesByIdRef.current || {};
-            const dragModeTb = data?.defaultDragMode ?? data?.occurrence?.dragMode ?? "move";
-
-            // Same-doc rearrange = atomic move via shared helper. Falls
-            // through (returns false) when the source lives in a different
-            // doc, which the cross-doc branch below handles.
-            if (dragModeTb !== "copy") {
-              const moved = tryMoveEmbedNodeInDoc(editor, "instanceTextblock", { occurrenceId }, insertPos);
-              if (moved) return;
-            }
-
-            if (dragModeTb === "copy") {
-              const sourceOccTb = occsById[occurrenceId];
-              const newOccId = crypto.randomUUID();
-              CommitHelpers.createOccurrence({
-                dispatch: dispatchRef.current, socket: socketRef.current,
-                occurrence: {
-                  id: newOccId,
-                  moduleId: sourceOccTb?.moduleId || id,
-                  gridId: sourceOccTb?.gridId,
-                  fields: sourceOccTb?.fields || {},
-                  textmap: sourceOccTb?.textmap || null,
-                  dragMode: sourceOccTb?.dragMode ?? null,
-                },
-                emit: true,
-              });
-              if (!(sideHost && wrapHostWithNeighbor(newOccId, sideHost))) {
-                insertAtPos(insertPos, {
-                  type: "instanceTextblock",
-                  attrs: { instanceId: id, occurrenceId: newOccId },
-                });
-              }
-              return;
-            }
-
-            // Cross-doc move: insert destination first, only detach source on
-            // confirmed commit so a silent failure can't orphan the occurrence.
-            const insertedTb = insertAtPos(insertPos, {
-              type: "instanceTextblock",
-              attrs: { instanceId: id, occurrenceId },
-            });
-            if (!insertedTb) return;
-            if (context?.sourceType === "doc-embed") {
-              embedDeleteRegistry.get(occurrenceId)?.();
-            } else {
-              const parentOcc = Object.values(occsById).find(
-                occ => Array.isArray(occ.occurrences) && occ.occurrences.includes(occurrenceId)
-              );
-              if (parentOcc) {
-                CommitHelpers.updateOccurrence({
-                  dispatch: dispatchRef.current, socket: socketRef.current,
-                  occurrence: { id: parentOcc.id, occurrences: (parentOcc.occurrences || []).filter(eid => eid !== occurrenceId) },
-                  emit: true,
-                });
-              }
-            }
-            return;
-          }
-          // ─────────────────────────────────────────────────────────────
-
-          const dragMode = data?.defaultDragMode ?? data?.occurrence?.dragMode ?? "move";
-          if (dragMode === "copy") {
-            // Deep copy: recursively clone the container and all children so that
-            // deleting a child from the embed doesn't affect the original.
-            const occsById = occurrencesByIdRef.current || {};
             const deepCopyOcc = (occ) => {
               if (!occ) return null;
-              const childIds = [];
-              for (const childOccId of (occ.occurrences || [])) {
-                const childOcc = occsById[childOccId];
-                if (!childOcc) continue;
-                const newChildId = deepCopyOcc(childOcc);
-                if (newChildId) childIds.push(newChildId);
-              }
+              const childIds = (occ.occurrences || [])
+                .map((cid) => deepCopyOcc(occsById[cid]))
+                .filter(Boolean);
               const copyId = crypto.randomUUID();
               CommitHelpers.createOccurrence({
                 dispatch: dispatchRef.current, socket: socketRef.current,
@@ -1540,42 +1565,45 @@ const Editor = forwardRef(function Editor({
               });
               return copyId;
             };
-            const sourceOcc = occsById[occurrenceId];
-            const copyRootId = deepCopyOcc(sourceOcc);
-            if (!copyRootId) return;
-            if (!(sideHost && wrapHostWithNeighbor(copyRootId, sideHost))) {
-              insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: copyRootId } });
-            }
+            const copyId = deepCopyOcc(occsById[occurrenceId]);
+            if (!copyId) { DLOG("BAIL copy: deepCopyOcc returned null"); return; }
+            const wrapped = sideHost && wrapHostWithNeighbor(copyId, sideHost);
+            DLOG("COPY done", { copyId, wrappedBeside: !!wrapped });
+            if (!wrapped) insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: copyId } });
             return;
           }
 
-          // Move mode: same-doc rearrange = atomic node move via the
-          // shared helper. If the source isn't in this doc, fall back to
-          // the cross-target removal paths below.
-          // Dropped BESIDE a host embed → fold into a wrapGroup instead.
-          if (sideHost && wrapMoveBeside(occurrenceId, sideHost)) return;
-          if (insertPos == null) return;
-          if (tryMoveEmbedNodeInDoc(editor, "moduleEmbed", { occurrenceId }, insertPos)) return;
-          // Insert destination FIRST so a silent failure can't orphan the source.
-          const insertedC = insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
-          if (!insertedC) return;
+          // MOVE — beside a host embed → fold into a wrapGroup.
+          if (sideHost && wrapMoveBeside(occurrenceId, sideHost)) { DLOG("MOVE → wrapMoveBeside committed"); return; }
+          if (insertPos == null) { DLOG("BAIL move: insertPos null"); return; }
+          // Same-doc rearrange: relocate the existing node (any type) in place.
+          // Returns false when the source lives elsewhere → cross-target path.
+          const sameDocMoved = tryMoveEmbedNodeInDoc(editor, null, { occurrenceId }, insertPos);
+          DLOG("MOVE same-doc tryMoveEmbedNodeInDoc →", sameDocMoved);
+          if (sameDocMoved) return;
+          // Cross-doc / from a container: insert FIRST (so a silent failure
+          // can't orphan the source), then detach the source from wherever it
+          // lived — a sibling doc-embed node, or a page/panel/container's list.
+          const insertedCross = insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
+          DLOG("MOVE cross-doc insert →", insertedCross, { sourceType: context?.sourceType, pageOccurrenceId: context?.pageOccurrenceId, panelId: context?.panelId });
+          if (!insertedCross) return;
+          // Detach the source from wherever it ACTUALLY lives. A doc-embed source
+          // is a TipTap node (registry delete). Otherwise the source occurrence is
+          // a child of exactly one parent's `occurrences[]` — find THAT parent by
+          // scanning (not by guessing panelId/pageOccurrenceId: a board instance
+          // lives in its CONTAINER, not the panel, so the panelId guess removed
+          // nothing → the source stayed → it looked copied instead of moved).
           if (context?.sourceType === "doc-embed") {
+            DLOG("DETACH via embedDeleteRegistry", { hasEntry: !!embedDeleteRegistry.get(occurrenceId) });
             embedDeleteRegistry.get(occurrenceId)?.();
-          } else if (context?.pageOccurrenceId) {
-            const pageOcc = occurrencesByIdRef.current?.[context.pageOccurrenceId];
-            if (pageOcc) {
+          } else {
+            const parentOcc = Object.values(occsById).find((o) => Array.isArray(o.occurrences) && o.occurrences.includes(occurrenceId));
+            if (!parentOcc) DLOG("DETACH FAILED — no parent lists this occurrence");
+            else {
+              DLOG("DETACH source from parent (occurrences-scan)", { parentId: parentOcc.id });
               CommitHelpers.updateOccurrence({
                 dispatch: dispatchRef.current, socket: socketRef.current,
-                occurrence: { id: pageOcc.id, occurrences: (pageOcc.occurrences || []).filter(eid => eid !== occurrenceId) },
-                emit: true,
-              });
-            }
-          } else if (context?.panelId) {
-            const panelOcc = Object.values(occurrencesByIdRef.current || {}).find(o => o.moduleId === context.panelId);
-            if (panelOcc) {
-              CommitHelpers.updateOccurrence({
-                dispatch: dispatchRef.current, socket: socketRef.current,
-                occurrence: { id: panelOcc.id, occurrences: (panelOcc.occurrences || []).filter(eid => eid !== occurrenceId) },
+                occurrence: { id: parentOcc.id, occurrences: (parentOcc.occurrences || []).filter((eid) => eid !== occurrenceId) },
                 emit: true,
               });
             }
@@ -1583,17 +1611,21 @@ const Editor = forwardRef(function Editor({
           return;
         }
         if (type === "field") {
+          DLOG("FIELD pill insert", { fieldId: id || data?.id, insertPos });
           const field = data || {};
           insertAtPos(insertPos, {
             type: "fieldPill",
             attrs: { fieldId: id || field.id, fieldName: field.name || "Field", fieldType: field.type || "text", showValue: true, showLabel: true },
           });
+          return;
         }
+        DLOG("NO BRANCH MATCHED type", type);
       },
     });
 
     return () => {
       el.removeEventListener("dragover", onDragOver);
+      el.removeEventListener("dragleave", onDragLeaveNative);
       cleanup();
     };
   }, [resolveInsertPos, insertAtPos, occurrence?.id]);
@@ -1769,30 +1801,24 @@ const Editor = forwardRef(function Editor({
 
   // Track the nearest top-level block boundary under the cursor.
   const handleGapMove = useCallback((e) => {
-    if (!gapsOn || gapFrozenRef.current) return;
+    if (!gapsOn) return;
     const view = editor?.view;
     const wrapEl = wrapperRef.current;
     if (!view || !wrapEl) return;
     // Don't recompute while the pointer is over the affordance itself.
     if (e.target?.closest?.(".doc-insert-gap")) return;
-    let res = null;
-    try { res = view.posAtCoords({ left: e.clientX, top: e.clientY }); } catch (_) { /* */ }
-    if (!res) { setDocGap(null); return; }
-    let topPos, node, dom;
-    try {
-      const $pos = editor.state.doc.resolve(res.pos);
-      if ($pos.depth < 1) { setDocGap(null); return; }
-      topPos = $pos.before(1);
-      node = editor.state.doc.nodeAt(topPos);
-      dom = view.nodeDOM(topPos);
-    } catch (_) { setDocGap(null); return; }
-    const rect = dom?.getBoundingClientRect?.();
-    if (!node || !rect || !rect.height) { setDocGap(null); return; }
-    const wrapRect = wrapEl.getBoundingClientRect();
-    const before = (e.clientY - rect.top) < rect.height / 2;
-    const insertPos = before ? topPos : topPos + node.nodeSize;
-    const top = (before ? rect.top : rect.bottom) - wrapRect.top;
-    setDocGap((prev) => (prev && prev.pos === insertPos ? prev : { top, pos: insertPos }));
+    // Only show the gap in the empty gutter BETWEEN blocks. While the pointer is
+    // over a block's content (clicking a heading to edit, selecting text) stay
+    // hidden — otherwise a click-to-edit pops a stray insert line under the
+    // block that the keyboard can't dismiss (it's an overlay).
+    if (isOverTopBlock(view, editor.state.doc, e.clientY)) {
+      setDocGap((prev) => (prev ? null : prev));
+      return;
+    }
+    // Nearest block boundary (works in the empty margin between blocks too, so
+    // the "+" doesn't vanish exactly where the user hovers to insert).
+    const b = nearestDocBoundary(view, editor.state.doc, wrapEl, e.clientY);
+    setDocGap((prev) => (b && prev && prev.pos === b.pos ? prev : b));
   }, [gapsOn, editor]);
 
   // Mint a standalone occurrence (NOT into any occurrences[] — doc embeds are
@@ -1820,7 +1846,6 @@ const Editor = forwardRef(function Editor({
     const at = Math.max(0, Math.min(pos, editor.state.doc.content.size));
     editor.chain().focus().insertContentAt(at, { type: "moduleEmbed", attrs: { occurrenceId: occId } }).run();
     setDocGap(null);
-    gapFrozenRef.current = false;
   }, [editor, occurrence, dispatch, socket]);
 
   // ── render ────────────────────────────────────────────────────
@@ -1863,7 +1888,7 @@ const Editor = forwardRef(function Editor({
         style={{ paddingTop: 5, paddingBottom: 5 }}
         draggable={false}
         onMouseMove={gapsOn ? handleGapMove : undefined}
-        onMouseLeave={gapsOn ? () => { if (!gapFrozenRef.current) setDocGap(null); } : undefined}
+        onMouseLeave={gapsOn ? (e) => { if (!e.relatedTarget?.closest?.(".doc-insert-gap")) setDocGap(null); } : undefined}
         onMouseDown={(e) => {
           // Block content sync briefly so ProseMirror's cursor placement on mousedown
           // isn't overwritten by a server echo arriving before the focus event fires.
@@ -1889,7 +1914,10 @@ const Editor = forwardRef(function Editor({
           // Click is on wrapper padding (not on ProseMirror content itself).
           // Use 'end' so TipTap doesn't default to editor.state.selection (pos 1
           // for an unfocused editor), which always places cursor at the beginning.
-          editor.commands.focus('end');
+          // Guard: when the doc ends in an ATOM (embed/textblock), 'end' is a
+          // doc-level position with no inline content → ProseMirror throws
+          // "TextSelection endpoint not pointing into a node with inline content".
+          try { editor.commands.focus('end'); } catch (_) { try { editor.commands.focus(); } catch (_) {} }
         }}
       >
         <CellEmbedContext.Provider value={{ displayFieldId, fieldVisibility, hideLabel, __inCell: true }}>
@@ -1901,8 +1929,7 @@ const Editor = forwardRef(function Editor({
         <div
           className="doc-insert-gap"
           style={{ top: docGap.top }}
-          onMouseEnter={() => { gapFrozenRef.current = true; }}
-          onMouseLeave={() => { gapFrozenRef.current = false; }}
+          onMouseLeave={(e) => { if (!e.relatedTarget?.closest?.(".doc-editor-wrapper")) setDocGap(null); }}
         >
           <div className="insert-gap-line" />
           <div className="insert-gap-btn">
@@ -1913,6 +1940,14 @@ const Editor = forwardRef(function Editor({
               onCreateNew={({ fieldIds } = {}) => insertDocItemAt(docGap.pos, { fieldIds })}
             />
           </div>
+        </div>
+      )}
+
+      {/* Live drop indicator while dragging a block over this editor — same blue
+          line as the hover/board gap so reorder targeting reads identically. */}
+      {dragGap && (
+        <div className="doc-insert-gap doc-insert-gap--drag" style={{ top: dragGap.top }}>
+          <div className="insert-gap-line" />
         </div>
       )}
 

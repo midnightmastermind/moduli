@@ -657,8 +657,11 @@ select:disabled { cursor: not-allowed; }
   width: 100%;
   z-index: 3;
   position: relative;
-  margin-top: 6px;
-  margin-bottom: 5px;
+  /* Tight by default — the interleaved .insert-gap (4px hover zone) already
+     provides between-item breathing room, so the wrapper margins stay small
+     (was 6/5 = 11px, which read as too much space between instances). */
+  margin-top: 2px;
+  margin-bottom: 2px;
   /* #24 perf — browser-native off-screen skip. `content-visibility:
      auto` lets the rendering engine skip layout + paint for items
      outside the viewport (plus a small reserve area). `contain-
@@ -820,6 +823,22 @@ body[data-clipboard-active="true"] {
   cursor: grab !important;
 }
 
+/* Instance row vertical alignment: center the handle + label + fields with each other
+   in the common SINGLE-LINE case (the handle no longer sits higher than the label).
+   The handle centers within its one-line [handle+label] group so it lines up with the
+   label. BUT when the instance has a tall custom body (textblock/image via renderBody →
+   `.instance-body`), top-align so the handle stays TOP-LEFT instead of floating to the
+   middle of the tall content. (Two-class selector beats the global `.module-drag-handle`
+   `align-self:flex-start`; scoped to `.instance-content` so containers/panels are
+   untouched.) */
+.instance-content { align-items: center; }
+.instance-content:has(.instance-body) { align-items: flex-start; }
+.instance-content .module-drag-handle { align-self: center; margin-top: 0; }
+/* Container HEADER (doc/board) is a one-line row, so center its drag handle with the
+   label too (it was sitting higher than the label). */
+.container-header { align-items: center; }
+.container-header .module-drag-handle { align-self: center; margin-top: 0; }
+
 /* Cog handle — shown when header is hidden; absolute top-left, reveals on shell hover.
    2026-05-22: leaves a tiny lip visible at rest (so the user sees an autohidden
    header exists) and glides down from above on hover instead of fading in
@@ -841,6 +860,19 @@ body[data-clipboard-active="true"] {
 .container-shell:hover:not(:has(.container-shell:hover)) .container-cog-handle {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* Retracted (autohide) panel header lip — a small centered tab the user can aim
+   at to reveal the hidden header. Subtle at rest, brightens + drops slightly on
+   hover so it reads as a pull-down handle. */
+.panel-header-lip {
+  opacity: 0.5;
+  transition: opacity 0.2s ease, height 0.2s ease;
+}
+.panel-shell:hover .panel-header-lip { opacity: 0.8; }
+.panel-header-lip:hover {
+  opacity: 1 !important;
+  height: 13px !important;
 }
 
 /* Cog: radial hidden at rest, stem+ball visible. On hover: radial shown, stem+ball hidden. */
@@ -982,6 +1014,8 @@ body[data-clipboard-active="true"] {
 .doc-editor-content.ProseMirror {
   font-size: 13px;
   line-height: 1.6;
+  /* Tighten the gap between words across the whole doc by ~1px (per user). */
+  word-spacing: -1px;
   overflow: visible;
   pointer-events: auto;
   cursor: text;
@@ -1005,6 +1039,24 @@ body[data-clipboard-active="true"] {
 .anchor-highlight {
   animation: anchor-flash 1.2s ease;
   border-radius: 4px;
+}
+
+/* Newly-added folder-page card flash (e.g. a fresh import landing in the
+   "Imports" folder). PageFolder toggles `.preview-node-flash` for ~1.3s on
+   cards whose occurrence id newly appeared. Ring + tint fades to nothing. */
+@keyframes preview-node-flash {
+  0% {
+    box-shadow: 0 0 0 2px rgba(56,189,248,0.9), 0 0 16px 2px rgba(56,189,248,0.45);
+    background: rgba(56,189,248,0.14);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(56,189,248,0);
+    background: transparent;
+  }
+}
+.preview-node-flash {
+  animation: preview-node-flash 1.3s ease-out;
+  border-radius: 8px;
 }
 
 /* Textblock instance pills — cursor, hover, and focus states */
@@ -1219,6 +1271,22 @@ body[data-clipboard-active="true"] {
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
+/* Breathing room between top-level embedded blocks in a doc. Without a gap the
+   embeds pack flush: there's nowhere to hover the insert-here affordance, and a
+   drop "between" two blocks lands on a block's own inner editor (or gets
+   swallowed) instead of inserting between. The margin is part of the PAGE
+   editor's surface, so a hover/drop there resolves to the page (insert between)
+   rather than an inner sub-editor — and it visually separates adjacent drop
+   zones so they don't overlap. Adjacent margins collapse → one clean ~12px gap. */
+.doc-editor-content.ProseMirror > [data-node-view-wrapper] {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+/* Keep a gap above the first / below the last block too, so a block can be
+   reordered to the very top or bottom (there's room to drop past the edge). */
+.doc-editor-content.ProseMirror > [data-node-view-wrapper]:first-child { margin-top: 10px; }
+.doc-editor-content.ProseMirror > [data-node-view-wrapper]:last-child { margin-bottom: 10px; }
+
 /* Paragraphs & lists */
 .doc-editor-content.ProseMirror p { margin: 0.25em 0; }
 /* Block pill wrapper paragraphs — no extra spacing between textblock instances */
@@ -1304,23 +1372,39 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   align-items: center;
   justify-content: center;
   z-index: 3;
+  cursor: pointer; /* pointer across the whole blue line, not just the + button */
 }
+/* Visually IDENTICAL to the drag-and-drop drop indicator that appears between
+   items (.drop-indicator.drop-indicator-inst-*): solid rgb(50,150,255), full
+   opacity, 3px, 1px radius, edge-to-edge. The only difference is the "+" button. */
 .insert-gap-line {
   position: absolute;
-  left: 6px; right: 6px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent-blue, #3b82f6);
+  left: -1px; right: -1px;
+  height: 3px;
+  border-radius: 1px;
+  background-color: rgb(50, 150, 255);
   opacity: 0;
   transition: opacity 0.12s ease;
   pointer-events: none;
 }
-.insert-gap-btn { position: relative; z-index: 1; opacity: 0; transition: opacity 0.12s ease; }
-.insert-gap:hover { height: 18px; }
-.insert-gap:hover .insert-gap-line { opacity: 0.55; }
-.insert-gap:hover .insert-gap-btn { opacity: 1; }
-/* The QuickAddMenu trigger inside a gap is always interactive once revealed. */
-.insert-gap .quick-add-btn { opacity: 1 !important; }
+/* The button wrapper spans the WHOLE gap so the entire highlight strip — not just
+   the centered "+" — is the click target (pointer cursor everywhere on it). */
+.insert-gap-btn {
+  position: relative; z-index: 1; opacity: 0; transition: opacity 0.12s ease;
+  width: 100%; display: flex; align-items: center; justify-content: center;
+}
+.insert-gap:hover, .insert-gap--open { height: 18px; }
+.insert-gap:hover .insert-gap-line, .insert-gap--open .insert-gap-line { opacity: 1; }
+.insert-gap:hover .insert-gap-btn, .insert-gap--open .insert-gap-btn { opacity: 1; }
+/* The QuickAddMenu trigger inside a gap fills the strip (override its inline 20px
+   width) so clicking anywhere on the blue line opens the add menu, with a pointer
+   cursor across the whole thing — the "+" glyph stays centered. */
+.insert-gap .quick-add-btn,
+.doc-insert-gap .quick-add-btn {
+  opacity: 1 !important;
+  width: 100% !important;
+  cursor: pointer !important;
+}
 
 /* Doc-editor insert gap — floats at the nearest top-level block boundary while
    hovering a primary doc editor. Same visual language as .insert-gap. */
@@ -1335,9 +1419,17 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   z-index: 15;
   pointer-events: none;
 }
-.doc-insert-gap .insert-gap-line { opacity: 0.55; }
+.doc-insert-gap .insert-gap-line { opacity: 1; }
 .doc-insert-gap .insert-gap-btn { opacity: 1; pointer-events: auto; }
 .doc-insert-gap .quick-add-btn { opacity: 1 !important; }
+
+/* Drag variant — same blue line, bolder + glowing so the drop spot is obvious
+   while dragging a block to reorder (no finicky guessing). No "+" button. */
+.doc-insert-gap--drag { z-index: 22; }
+.doc-insert-gap--drag .insert-gap-line {
+  height: 4px;
+  box-shadow: 0 0 7px rgba(50, 150, 255, 0.85);
+}
 
 /* Images */
 .doc-editor-content.ProseMirror img {
@@ -2058,11 +2150,16 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   position: relative;
   padding: 0;
 }
-/* Prevent preview node internals from capturing scroll — parent folder grid handles it */
+/* Prevent preview node internals from capturing scroll — parent folder grid handles it.
+   `!important` + `cursor: pointer` because the preview renders a real ProseMirror editor,
+   and `.doc-editor-content.ProseMirror { pointer-events: auto; cursor: text }` is more
+   specific than `.preview-node-preview *` AND re-enables pointer events on a descendant —
+   so its text I-beam cursor leaked through. The card is a single click-to-drill target. */
 .preview-node-card iframe,
 .preview-node-preview * {
-  pointer-events: none;
+  pointer-events: none !important;
   touch-action: none;
+  cursor: pointer !important;
 }
 
 .preview-node-title {
@@ -2096,12 +2193,56 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   border: 1px solid var(--border-subtle);
 }
 .artifact-thumb {
-  max-height: 120px;
+  /* Fill the card (clean, full-bleed media) rather than a small auto-width
+     thumbnail floating in padding — an artifact should read as a filled,
+     draggable media block, not "an instance with a picture". */
+  width: 100%;
   max-width: 100%;
-  width: auto;
+  height: auto;
+  max-height: 240px;
   object-fit: cover;
-  border-radius: 3px;
+  border-radius: 5px;
   display: block;
+}
+/* Image card WITH an info column — fills the empty space beside the thumbnail
+   (drag-handle-to-image gap) with the image's name/dimensions/size. The info grows
+   to take the left space; the image keeps its natural size on the right. */
+.artifact-card--with-info {
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 6px 8px;
+}
+.artifact-card--with-info .artifact-thumb {
+  width: auto;
+  max-width: 55%;
+  flex: 0 0 auto;
+}
+.artifact-thumb-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+  text-align: left;
+  overflow: hidden;
+}
+.artifact-thumb-info-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  /* The alt/caption wraps to show the full text in the space (not a single
+     ellipsized line) — clamped so a very long caption doesn't blow out the row. */
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.3;
+}
+.artifact-thumb-info-dim,
+.artifact-thumb-info-size {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
 }
 .artifact-thumb--pdf,
 .artifact-thumb--unknown {
@@ -2138,12 +2279,70 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 .artifact-card:hover .artifact-thumb-expand-hint { opacity: 1; }
 
+/* Quote artifact — styled pull-quote (imported Wikipedia blockquotes/pull-quotes).
+   Overrides the media-card base (flex/center/zoom) for a left-aligned text block. */
+.artifact-card--quote {
+  display: block;
+  cursor: default;
+  min-height: 0;
+  padding: 14px 18px 12px 42px;
+  text-align: left;
+  background: rgba(110, 170, 230, 0.06);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent-blue, rgb(110, 170, 230));
+  border-radius: 6px;
+  overflow: visible;
+}
+.artifact-quote-mark {
+  position: absolute;
+  left: 12px;
+  top: 2px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 36px;
+  line-height: 1;
+  color: var(--accent-blue, rgb(110, 170, 230));
+  opacity: 0.5;
+  pointer-events: none;
+}
+.artifact-quote-text {
+  margin: 0;
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+.artifact-quote-attr {
+  display: block;
+  margin-top: 8px;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
 .instance-content:has(.artifact-card--expanded) {
   flex-direction: column !important;
 }
 
 .instance-body:has(.artifact-card) {
   flex: unset !important;
+}
+/* Edge-to-edge artifact: when an instance row renders an artifact (image / pdf /
+   audio via renderBody=ArtifactCard), strip the instance "keycap" chrome
+   (bg / border / shadow / padding) so the ARTIFACT-CARD itself is the visual box —
+   a clean filled, draggable media block instead of "an instance with a picture"
+   (a thumbnail double-framed inside an instance card). The GripVertical drag handle
+   stays (hover-only, absolute). Expanded + quote cards keep their own chrome. */
+.instance-wrap > .instance-row:has(.artifact-card:not(.artifact-card--expanded):not(.artifact-card--quote)) {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+/* The filled artifact block reads as floating media (rounded corners already on
+   .artifact-card) — give it a subtle drop shadow so it pops off the doc surface. */
+.artifact-card:not(.artifact-card--expanded):not(.artifact-card--quote) {
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
 }
 .artifact-card--expanded {
   position: relative;
@@ -2316,41 +2515,572 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   position: relative;
   font-size: 13px;
   line-height: 1.45;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+/* Hover highlight on mini textblocks — so the user can see each block is an
+   editable occurrence (not flat prose). Block variant: soft tint + inset ring.
+   Link/inline variants brighten their own chrome below. */
+.textblock-card:not(.textblock-card--inline):not(.textblock-card--link):not(.textblock-card--wraphost):hover {
+  background: rgba(134, 239, 172, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(134, 239, 172, 0.22);
+}
+/* Wrap HOST (carries a reserved notch + neighbor): render as a crisp L/C FRAME
+   (outline), not a filled box — so it reads as one of two puzzle-piece frames that
+   tessellate with the neighbor artifact's own frame, instead of "an image sitting
+   inside a green box". The clip-path shapes this border into the L/C outline. */
+.textblock-card--wraphost {
+  background: transparent;
+  border: 1px solid rgba(134, 239, 172, 0.32);
+  border-radius: 6px;
+}
+.textblock-card--wraphost:hover {
+  border-color: rgba(134, 239, 172, 0.5);
+}
+.textblock-card--inline:hover .doc-editor-wrapper .ProseMirror,
+.textblock-card--inline:hover .ProseMirror {
+  background: rgba(134, 239, 172, 0.12);
+  border-bottom-color: rgba(134, 239, 172, 0.85);
+}
+/* Link mini-textblock chips set their bg via inline style → override with !important. */
+.textblock-card--link a:hover,
+.textblock-card--link button:hover {
+  background: rgba(110, 170, 230, 0.26) !important;
+  filter: brightness(1.12);
+}
+/* Block textblock cards establish a block-formatting-context so they sit BESIDE a
+   right-floated lead aside (image + infobox) — narrowing to its left — and reclaim
+   full width once they pass the aside's bottom. Without the BFC a bordered card's
+   box slides UNDER the float. Inline/link chips opt out (they flow inline). */
+.textblock-card:not(.textblock-card--inline):not(.textblock-card--link) {
+  display: flow-root;
 }
 
-/* ── Block-wrap (project_block_wrap_l_shape) ──────────────────────────────────
-   wrapGroup holds two embeds: child 1 = HOST (reflows + clips into the L/C),
-   child 2 = NEIGHBOR (its own box, sits in the host's reserved notch).        */
+/* ── Block-wrap primitive (fresh rebuild 2026-06-12) ──────────────────────────
+   PHASE 1 — side-by-side columns + a draggable resize seam ONLY. The neighbor(s)
+   sit in a fixed-width column on `side`; the host fills the rest. The L (host prose
+   reflowing full-width UNDER the neighbor) is PHASE 2 and intentionally NOT here yet.
+   wrapGroup holds the NEIGHBOR(s) FIRST (children 0..N-2) then the HOST LAST; @tiptap
+   nests the embeds in a [data-node-view-content-react] holder, so they are
+   GRANDCHILDREN of .wrap-group-content (`> *` = holder). */
 .wrap-group { position: relative; width: 100%; }
 .wrap-group .wrap-group-content { display: block; position: relative; }
 
-/* WRAP ON — neighbor overlays the host's reserved notch; host flows around it.
-   The host's own text vacates the notch (a sized wrapSpacer in its textmap
-   floats there) and its card clips into the L/C (see TextblockCard). --notch-y
-   is measured by WrapGroupNode: 0 for a top-anchored notch (L), the spacer's
-   mid-flow offset for a middle-anchored notch (C). */
-.wrap-group--on .wrap-group-content > :nth-child(1) { position: static; }
-.wrap-group--on .wrap-group-content > :nth-child(2) {
-  position: absolute;
-  top: var(--notch-y, 0px);
-  z-index: 2;
-  margin: 0;
+/* WRAP ON — the L (PHASE 2). The neighbor(s) FLOAT on `side` at --wrap-nw; the
+   host's prose wraps beside them and reclaims full width UNDERNEATH (native CSS,
+   no measuring). Proven against the real-app DOM in ~/.wraptest2/lwrap2.html.
+   Load-bearing rules:
+   - the holder is a BFC (flow-root) so it CONTAINS the float (no bleed past the group);
+   - the host (:last-child) is a PLAIN block — NOT a BFC — all the way down to its
+     line-boxes, or the float can't shorten them (overflow:visible on every wrapper);
+   - neighbor-first source order (WrapGroupExtension) — a float only wraps what follows it. */
+.wrap-group--on .wrap-group-content > * { display: flow-root; }
+/* Neighbor: floated fixed-width column on `side`. `--wrap-mt` (set by WrapGroupNode
+   from `anchorIndex`) pushes the float DOWN to a mid-host line → C/J shape; 0 → L. */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) {
+  width: var(--wrap-nw, 280px);
+  /* slight downward offset; tweak to taste. */
+  margin-top: var(--wrap-mt, 0px);
+  /* match the 14px side gap (margin-left/right below) so the prose reclaiming the
+     column below the neighbor has the same breathing room as the prose beside it. */
+  margin-bottom: 14px;
+  position: relative;
+  z-index: 20;
 }
-.wrap-group--on.wrap-group--right .wrap-group-content > :nth-child(2) { right: 0; }
-.wrap-group--on.wrap-group--left  .wrap-group-content > :nth-child(2) { left: 0; }
+/* margin toward the prose (14px) + a small OUTER margin so the image doesn't sit flush
+   against / overlap the host's outer (right for a right float, left for a left float) edge. */
+.wrap-group--on.wrap-group--right .wrap-group-content > * > :not(:last-child) { float: right; margin-left: 14px; margin-right: 6px; }
+.wrap-group--on.wrap-group--left  .wrap-group-content > * > :not(:last-child) { float: left;  margin-right: 14px; margin-left: 6px; }
+/* Host: a plain full-width block whose prose line-boxes wrap around the float. */
+.wrap-group--on .wrap-group-content > * > :last-child {
+  display: block !important;
+  width: auto !important;
+  float: none !important;
+}
+/* No BFC anywhere in the host subtree — overflow/flow-root would stop the wrap-under. */
+.wrap-group--on .wrap-group-content > * > :last-child .textblock-card,
+.wrap-group--on .wrap-group-content > * > :last-child .doc-editor-wrapper,
+.wrap-group--on .wrap-group-content > * > :last-child .doc-editor,
+.wrap-group--on .wrap-group-content > * > :last-child .ProseMirror,
+.wrap-group--on .wrap-group-content > * > :last-child .container-shell { overflow: visible; }
+/* The host chain ALSO establishes formatting contexts that silently block the
+   wrap-under (this is why the L never happened): `.instance-wrap` has
+   `content-visibility:auto` (= layout containment = an independent FC), the
+   `.instance-row/content/body` are `display:flex`, and `.textblock-card` is
+   `display:flow-root`. Each one makes the host a rectangle that sits BESIDE the
+   float instead of letting its line-boxes flow under it. Neutralize the whole
+   chain for the host subtree so the prose participates in the holder's flow. */
+.wrap-group--on .wrap-group-content > * > :last-child .instance-wrap {
+  content-visibility: visible !important;
+  contain: none !important;
+  contain-intrinsic-size: auto !important;
+  display: block !important;
+}
+.wrap-group--on .wrap-group-content > * > :last-child .instance-row,
+.wrap-group--on .wrap-group-content > * > :last-child .instance-content,
+.wrap-group--on .wrap-group-content > * > :last-child .instance-body,
+.wrap-group--on .wrap-group-content > * > :last-child .textblock-card {
+  display: block !important;
+}
+/* CRITICAL: with `.instance-content` no longer flex, the body lost its `flex:1`
+   and shrink-wrapped to min-content (~one word wide → an 8000px-tall sliver).
+   Force the body chain back to full width so the prose fills the host and the
+   pseudo-float can shape it into the L. */
+.wrap-group--on .wrap-group-content > * > :last-child .instance-body,
+.wrap-group--on .wrap-group-content > * > :last-child .textblock-card,
+.wrap-group--on .wrap-group-content > * > :last-child .doc-editor-wrapper,
+.wrap-group--on .wrap-group-content > * > :last-child .doc-editor,
+.wrap-group--on .wrap-group-content > * > :last-child .ProseMirror {
+  width: 100% !important;
+  box-sizing: border-box;
+  display: block !important;   /* kill any flex column in the editor chain —
+                                  a flex/BFC wrapper CLEARS the float, dumping the
+                                  prose below the neighbor instead of beside it. */
+}
+/* With `.instance-content` no longer flex, lift the host's drag handle out of the
+   text flow (absolute, top-left) so it doesn't push the prose down — it still
+   shows on hover. `.instance-wrap` is `position:relative`, so this anchors to it. */
+.wrap-group--on .wrap-group-content > * > :last-child .instance-content > .module-drag-handle,
+.wrap-group--on .wrap-group-content > * > :last-child .instance-content > [data-dnd-handle] {
+  position: absolute; left: 0; top: 2px; z-index: 4;
+}
+/* Link chips wrap WITH the prose beside the float. An inline-block computes its
+   shrink-to-fit width against the CONTAINING BLOCK (the full card width), NOT the
+   reduced line-box beside the float — so a chip wider than the narrow column can't
+   fit beside the float and drops BELOW it, dragging every following word down with
+   it (a tall empty band in the column = the "gap"). display:inline makes the chip
+   line-break like text, so it wraps inside the column instead of dropping. Scoped
+   to the wrap host only; chips elsewhere keep their inline-block 3-zone layout. */
+.wrap-group--on .wrap-group-content > * > :last-child .instance-textblock-inline {
+  display: inline !important;
+}
+/* Host card: NO border of its own. The text column reads as a plain column; the
+   only chrome is the NEIGHBOR's box + a column-rule line at the seam (below). A
+   border here would draw a rectangle overlapping/behind the floated neighbor, so
+   it's removed entirely (per user — "get rid of the inner border of the textblock").
+   margin-top:0 so the text's top lines up with the neighbor's top (flush). */
+/* The host's visible box is `.instance-row` (textblock host) or `.container-shell`
+   (doc host) — it carries the COLUMN background. Keep that bg (the wrapped text needs
+   it) but CLIP it (and drop its border) so it never extends behind the floated
+   neighbor — otherwise the neighbor reads as nested INSIDE the host. The clip carves
+   the neighbor's footprint (notch-w × notch-h at notch-y) out of the top corner (L)
+   or mid-edge (C). The prose never enters the notch (the float reserves it), so the
+   clip only removes empty background, never text. The inner .textblock-card stays
+   transparent so the bg isn't doubled. */
+.wrap-group--on .wrap-group-content > * > :last-child .instance-row,
+.wrap-group--on .wrap-group-content > * > :last-child .container-shell {
+  /* Border on the clipped box → the clip traces it into an L outline (top-left,
+     left, bottom, bottom-right); the top-right notch is cut away so no border runs
+     into the neighbor. hsl(var(--border-1)) = the SAME border the doc containers use. */
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: none !important;
+  margin-top: 0 !important;
+}
+.wrap-group--on .wrap-group-content > * > :last-child .textblock-card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.wrap-group--on.wrap-group--right .wrap-group-content > * > :last-child .instance-row,
+.wrap-group--on.wrap-group--right .wrap-group-content > * > :last-child .container-shell {
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% var(--notch-y, 0px),
+    calc(100% - var(--notch-w, 0px)) var(--notch-y, 0px),
+    calc(100% - var(--notch-w, 0px)) calc(var(--notch-y, 0px) + var(--notch-h, 0px)),
+    100% calc(var(--notch-y, 0px) + var(--notch-h, 0px)),
+    100% 100%,
+    0 100%
+  );
+}
+.wrap-group--on.wrap-group--left .wrap-group-content > * > :last-child .instance-row,
+.wrap-group--on.wrap-group--left .wrap-group-content > * > :last-child .container-shell {
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% 100%,
+    0 100%,
+    0 calc(var(--notch-y, 0px) + var(--notch-h, 0px)),
+    var(--notch-w, 0px) calc(var(--notch-y, 0px) + var(--notch-h, 0px)),
+    var(--notch-w, 0px) var(--notch-y, 0px),
+    0 var(--notch-y, 0px)
+  );
+}
+/* shape-TOP override (neighbor at the top corner). The generic polygons above keep a
+   FULL-WIDTH top edge — correct for a MIDDLE-anchored neighbor (real prose sits above
+   the notch) but for a TOP neighbor it draws the host's top border ACROSS the top, over
+   the neighbor, so the text + image "look connected at the top." For shape-top the top
+   edge must STOP at the text column: trace (0,0) → notch-left, down the seam wall, along
+   the notch bottom, then the right edge / bottom / left. Higher specificity (extra
+   --shape-top class) so it wins over the generic rule; shape-middle keeps the generic. */
+.wrap-group--on.wrap-group--shape-top.wrap-group--right .wrap-group-content > * > :last-child .instance-row,
+.wrap-group--on.wrap-group--shape-top.wrap-group--right .wrap-group-content > * > :last-child .container-shell {
+  clip-path: polygon(
+    0 0,
+    calc(100% - var(--notch-w, 0px)) 0,
+    calc(100% - var(--notch-w, 0px)) var(--notch-h, 0px),
+    100% var(--notch-h, 0px),
+    100% 100%,
+    0 100%
+  );
+}
+.wrap-group--on.wrap-group--shape-top.wrap-group--left .wrap-group-content > * > :last-child .instance-row,
+.wrap-group--on.wrap-group--shape-top.wrap-group--left .wrap-group-content > * > :last-child .container-shell {
+  clip-path: polygon(
+    var(--notch-w, 0px) 0,
+    100% 0,
+    100% 100%,
+    0 100%,
+    0 var(--notch-h, 0px),
+    var(--notch-w, 0px) var(--notch-h, 0px)
+  );
+}
+/* shape-BOTTOM (neighbor reaches the BOTTOM → upside-down L): full-width prose ABOVE
+   the neighbor, beside it down the column, and NO full-width bar below it (the notch
+   runs to the host bottom). So the clip traces a full top edge, down the right to the
+   notch, in, then down the seam wall all the way to the bottom. Mirror on the left. */
+.wrap-group--on.wrap-group--shape-bottom.wrap-group--right .wrap-group-content > * > :last-child .instance-row,
+.wrap-group--on.wrap-group--shape-bottom.wrap-group--right .wrap-group-content > * > :last-child .container-shell {
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% var(--notch-y, 0px),
+    calc(100% - var(--notch-w, 0px)) var(--notch-y, 0px),
+    calc(100% - var(--notch-w, 0px)) 100%,
+    0 100%
+  );
+}
+.wrap-group--on.wrap-group--shape-bottom.wrap-group--left .wrap-group-content > * > :last-child .instance-row,
+.wrap-group--on.wrap-group--shape-bottom.wrap-group--left .wrap-group-content > * > :last-child .container-shell {
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% 100%,
+    var(--notch-w, 0px) 100%,
+    var(--notch-w, 0px) var(--notch-y, 0px),
+    0 var(--notch-y, 0px)
+  );
+}
+/* Lift the host's in-flow drag handle (the first child of .instance-content — an
+   unclassed grip div ~20px tall) out of the flow so the prose starts at the host
+   top, flush with the neighbor (it otherwise pushes the text down below the
+   neighbor's top). Still grabbable on hover (absolute, top-left). */
+.wrap-group--on .wrap-group-content > * > :last-child .instance-content > div:first-child:not(.instance-body) {
+  position: absolute; top: 0; left: 0; z-index: 4;
+}
 
-/* WRAP OFF — the toggle (in the align controls) drops the notch: the two blocks
-   simply sit next to each other, no reflow, no clip. */
-.wrap-group--off .wrap-group-content {
+/* Neighbor = the infobox/image occurrence: its OWN bordered box + top padding,
+   flush at the top with the host text. Covers both a lead-aside container and a
+   bare image artifact. Its drag handle stays grabbable above the float. */
+/* Neighbor handles stay grabbable above the float. (No extra chrome — the infobox /
+   image keep their plain default handle; nothing added.) */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .module-drag-handle,
+.wrap-group--on .wrap-group-content > * > :not(:last-child) [data-dnd-handle] { z-index: 6; }
+/* IMAGE neighbor only: lift its handle out of flow so the in-flow handle row doesn't
+   push the image DOWN (the gap above it). Plain handle, no backing. */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-row .module-drag-handle,
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-row [data-dnd-handle] {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+}
+/* Image neighbor = its own framed card: a visible BORDER + a background distinctly
+   BRIGHTER than the host column (host is rgba(12,53,70,0.55); this is a brighter teal)
+   so it reads as a separate occurrence, NOT part of the parent. The inner artifact-card
+   is transparent/borderless so the .instance-row IS the single visual box. */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-row {
+  position: relative;
+  padding: 0 !important;
+  background: rgba(38, 102, 132, 0.72) !important;
+  border: 1px solid rgba(140, 205, 230, 0.5) !important;
+  border-radius: 6px !important;
+  overflow: hidden;          /* clip the image to the rounded border */
+}
+/* Align the image neighbor's TOP with the host text — the base `.instance-wrap`
+   top margin (2px) pushed the image lower than the surrounding textblocks. */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-wrap {
+  margin: 0 !important;
+}
+/* Kill the "little space on top of the image": the label+handle FLEX GROUP (first child
+   of .instance-content) was reserving a row ABOVE the artifact-card. Lift the whole group
+   out of flow (absolute, top-left) so the image starts flush at the very top of the box. */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-content > div:first-child:not(.instance-body) {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 4;
+}
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .artifact-card {
+  background: transparent !important;
+  border: none !important;
+  /* Image at the TOP, filling the box — NOT vertically centered with a teal strip
+     above it (the base/`--with-info` rules center it). */
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-content,
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-body {
+  padding: 0 !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+}
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .artifact-thumb {
+  width: 100% !important;
+  display: block !important;
+  margin: 0 !important;
+}
+/* The caption gets breathing room inside the box (esp. below it) so it isn't jammed
+   against the bottom border. The image above stays full-bleed; only the caption is padded. */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .artifact-thumb-info {
+  padding: 5px 8px 9px !important;
+}
+/* Infobox (container) neighbor → its own bordered box. For shape-top (notch at the top
+   corner) the TOP edge runs straight into the prose, so drop it; for shape-middle /
+   shape-bottom the neighbor sits with prose ABOVE it, so its top border IS the notch-top
+   line — keep it. Shape-gated so the border adapts to the placement. */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .container-shell {
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 6px !important;
+}
+.wrap-group--on.wrap-group--shape-top .wrap-group-content > * > :not(:last-child) .container-shell {
+  border-top: none !important;
+  border-radius: 0 0 6px 6px !important;
+}
+/* NOT the nested Info-table shell inside the infobox — its border read as an
+   "extra container parent" box (esp. after a resize re-render). */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .container-shell .container-shell {
+  border: none !important;
+}
+/* The nested "Info" header → very tiny. */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .container-shell .container-shell .container-header,
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .container-shell .container-shell .container-header span {
+  font-size: 9px !important;
+  font-weight: 600 !important;
+}
+/* Top padding INSIDE the infobox (above its content). */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .container-doc {
+  padding-top: 6px;
+}
+/* Don't cram the artifact caption/info beside the photo in the narrow column. */
+.wrap-group .artifact-card--with-info { justify-content: center; }
+.wrap-group .artifact-card--with-info .artifact-thumb-info { display: none; }
+.wrap-group .artifact-card--with-info .artifact-thumb { max-width: 100%; }
+
+/* Imported article images (anything inside a doc editor) read like FIGURES:
+   the image fills the FULL column at its natural aspect (no crop, no 240px
+   height cap) and its caption (the image alt, stored as the artifact label)
+   sits UNDERNEATH it — not boxed/cropped or with the caption squeezed beside.
+   Scoped to `.doc-editor-content` so list/compact thumbnails elsewhere keep
+   their capped-thumbnail look. Placed after the .wrap-group overrides so it
+   also wins for a doc-embedded wrap neighbor (caption shows, image fills its
+   column). */
+.doc-editor-content .artifact-card[data-kind="image"] {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  gap: 0;
+}
+.doc-editor-content .artifact-card[data-kind="image"] .artifact-thumb {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: none;
+  object-fit: contain;   /* show the WHOLE image, never crop */
+  order: 0;
+  flex: 0 0 auto;
+}
+.doc-editor-content .artifact-card[data-kind="image"] .artifact-thumb-info {
+  display: flex;         /* override the .wrap-group hide so captions show */
+  order: 1;              /* caption renders BELOW the image */
+  flex: 0 0 auto;
+  text-align: center;
+  align-items: center;
+  padding: 4px 10px 6px;
+}
+.doc-editor-content .artifact-card[data-kind="image"] .artifact-thumb-info-name {
+  -webkit-line-clamp: 3;
+  font-weight: 400;
+  font-style: italic;    /* reads as a photo caption */
+  /* Brighter than the muted/near-bg color so the caption stands out from the dark
+     column behind it (user: caption was practically the same color as the background). */
+  color: rgb(170, 205, 225);
+  line-height: 1.35;
+}
+/* Keep the drag handle in a LEFT gutter beside the figure (top-left), not
+   wrapped onto its own line ABOVE the image. The full-width figure body would
+   otherwise wrap below the handle (global `.instance-body:has(.artifact-card)
+   {flex:unset}` + the content row's flex-wrap). Restore a filling, non-wrapping
+   body so the handle sits to the LEFT of the image and the image fills the rest
+   of the row. Top-aligned (handle keeps its `align-self:flex-start`) — NOT
+   vertically centered. */
+.doc-editor-content .instance-content:has(.artifact-card[data-kind="image"]) {
+  /* `.instance-content` sets flex-wrap:wrap + justify-content:space-between as
+     INLINE styles (ModuleInstance JSX), which beat stylesheet rules — so these
+     need !important to win. Without nowrap the full-width image body wraps to a
+     line BELOW the handle (space-between keeps the handle pinned top-left). */
+  flex-wrap: nowrap !important;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+}
+.doc-editor-content .instance-body:has(.artifact-card[data-kind="image"]) {
+  flex: 1 1 0% !important;   /* fill the row beside the handle (basis 0 → no overflow-wrap) */
+  min-width: 0;
+}
+
+/* Draggable resize seam — grid-column-resize feel; sets --wrap-nw. */
+.wrap-seam {
+  position: absolute;
+  width: 10px;
+  margin-left: -5px;
+  cursor: col-resize;
+  z-index: 7;
+  background: linear-gradient(to right, transparent, rgba(96,165,250,0.0) 40%, rgba(96,165,250,0.0) 60%, transparent);
+  transition: background 0.12s;
+}
+/* Persistent column-rule line down the seam (same as the outer border), separating
+   the text column from the infobox. Spans the seam height (= the neighbor height,
+   set by WrapGroupNode's measure). */
+.wrap-seam::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: hsl(var(--border));
+}
+/* The notch-BOTTOM line — the TOP edge of the L's bottom bar (the full-width prose
+   that reclaims the column UNDER the neighbor). The seam ::before is the vertical
+   inner line and the seam IS the col-resize handle, so ::before + ::after make the
+   resize line BE the L's inner corner ("connecting the last piece"). The line runs
+   from the seam toward the column's OUTER edge (= --notch-w); side-aware so it works
+   for a right float (extends right), a left float (extends left), AND any shape
+   (L/C/J) — the seam already spans the neighbor's measured vertical extent. */
+.wrap-group--right .wrap-seam::after,
+.wrap-group--left .wrap-seam::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: var(--notch-w, 0px);
+  height: 1px;
+  background: hsl(var(--border));
+}
+.wrap-group--right .wrap-seam::after { left: 50%; }
+.wrap-group--left  .wrap-seam::after { right: 50%; }
+/* Hangman has no full-width bottom bar (the neighbor runs to the host bottom), so the
+   notch-bottom line would just double the host's own bottom border — drop it. */
+.wrap-group--shape-bottom .wrap-seam::after { display: none; }
+.wrap-seam:hover,
+.wrap-seam:active {
+  background: linear-gradient(to right, transparent, rgba(96,165,250,0.45) 40%, rgba(96,165,250,0.45) 60%, transparent);
+}
+
+/* ── SPIKE: native-float L-wrap (LWrapHost) ───────────────────────────────
+   The host prose is rendered as PLAIN blocks in the SAME flow as a by-reference
+   image float, so the line-boxes shrink beside the float and reclaim full width
+   underneath — a real L that reflows natively (no ghost, no measure/split). The
+   container is a BFC (contains the float); the inner blocks must NOT be BFCs or
+   they'd sit beside/below the float instead of wrapping around it. */
+.lwrap { display: flow-root; width: 100%; }
+.lwrap-figure {
+  margin: 2px 0 8px 14px;   /* gap between the float and the wrapping prose */
+  padding: 0;
+}
+.lwrap[data-side="left"] .lwrap-figure { margin: 2px 14px 8px 0; }
+/* Column resize handle on the figure's INNER edge (faces the prose). Reveals on
+   figure hover; dragging sets the float width → prose re-wraps natively. */
+.lwrap-figure-seam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  cursor: col-resize;
+  z-index: 3;
+  background: linear-gradient(to right, transparent, rgba(96,165,250,0) 45%, rgba(96,165,250,0) 55%, transparent);
+  transition: background 0.12s;
+}
+.lwrap-figure:hover .lwrap-figure-seam,
+.lwrap-figure-seam:active {
+  background: linear-gradient(to right, transparent, rgba(96,165,250,0.5) 45%, rgba(96,165,250,0.5) 55%, transparent);
+}
+.lwrap-figure-img { display: block; width: 100%; height: auto; border-radius: 6px; border: 1px solid var(--border-default); }
+.lwrap-figure-ph {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 80px; border: 1px dashed var(--border-default); border-radius: 6px;
+  color: var(--text-faint); font-size: 11px;
+}
+.lwrap-figure-cap {
+  margin-top: 4px; text-align: center; font-style: italic;
+  font-size: 0.86em; color: var(--text-muted); line-height: 1.35;
+}
+/* Lead infobox (aside) rendered read-only inside the float — a compact facts
+   card. Rows size to their content (no min-height) so short values aren't tall. */
+.lwrap-info { margin-top: 6px; }
+.lwrap-info-table {
+  width: 100%; border-collapse: collapse;
+  background: var(--surface-overlay, rgba(255,255,255,0.02));
+  border: 1px solid var(--border-default); border-radius: 6px; overflow: hidden;
+  font-size: 0.84em; line-height: 1.3;
+}
+.lwrap-info-td {
+  padding: 3px 7px; vertical-align: top;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+}
+.lwrap-info-table tr:last-child .lwrap-info-td { border-bottom: none; }
+.lwrap-info-key {
+  width: 38%; font-weight: 600; color: var(--text-muted);
+  background: rgba(110, 170, 230, 0.07);
+}
+/* Inner blocks: plain (NON-BFC) so prose wraps around the float. */
+.lwrap-p { margin: 0 0 0.5em 0; text-indent: 1.5em; }
+.lwrap-p:first-of-type { text-indent: 0; }
+.lwrap-h { margin: 0.4em 0 0.3em 0; font-weight: 600; }
+.lwrap-list { margin: 0 0 0.5em 1.4em; }
+.lwrap-code { white-space: pre-wrap; font-family: var(--font-mono); font-size: 0.9em; }
+/* Read-only link chip inside the L host. */
+.lwrap-chip {
+  cursor: pointer; padding: 0 5px; border-radius: 4px; margin: 0 0.12em;
+  background: rgba(130,200,150,0.14); border: 1px solid rgba(130,200,150,0.4);
+  color: var(--accent-green-text, rgb(150,210,170));
+}
+.lwrap-chip--url {
+  background: rgba(110,170,230,0.14); border-color: rgba(110,170,230,0.4);
+  color: var(--accent-blue-text, rgb(150,195,250));
+}
+.lwrap-chip-arrow { opacity: 0.7; }
+
+/* WRAP OFF — plain side-by-side, no reflow. */
+.wrap-group--off .wrap-group-content > * {
   display: flex;
   align-items: flex-start;
   gap: 12px;
 }
-.wrap-group--off .wrap-group-content > :nth-child(1) { flex: 1 1 auto; min-width: 0; }
-.wrap-group--off .wrap-group-content > :nth-child(2) { flex: 0 0 auto; }
+.wrap-group--off.wrap-group--right .wrap-group-content > * { flex-direction: row-reverse; }
+.wrap-group--off .wrap-group-content > * > :last-child { flex: 1 1 auto; min-width: 0; }
+.wrap-group--off .wrap-group-content > * > :not(:last-child) { flex: 0 0 auto; width: var(--wrap-nw, 280px); }
 .textblock-card .doc-editor-wrapper {
   min-height: 0;
   padding: 0 !important;
+}
+/* Long imported lists → HEIGHT-capped column flow. The importer sets
+   meta.listCapRows (≈20); the card carries --list-cap-rows. The <ul> is capped
+   to that many rows of height and `column-fill:auto` fills a column to the cap,
+   then wraps into the next column — so the number of columns responds to the
+   height, not a fixed count. column-width lets the browser fit as many columns
+   as the block's width allows. */
+.textblock-card--cols .ProseMirror ul {
+  height: calc(var(--list-cap-rows, 20) * 1.6em);
+  column-width: 200px;
+  column-gap: 28px;
+  column-fill: auto;
+}
+.textblock-card--cols .ProseMirror ul > li {
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
 }
 .textblock-card .doc-editor-wrapper .ProseMirror,
 .textblock-card .ProseMirror {
@@ -2406,9 +3136,22 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    margin, sits on the paragraph baseline. Double-click → contenteditable
    edit (the `.is-editing` modifier swaps the styling). */
 .instance-textblock-inline {
-  display: inline-block;
-  padding: 1px 6px;
-  margin: 1px 2px;
+  /* `inline` (not inline-block) so the chip hugs the text line exactly — an
+     inline-block reserves the full `line-height` (1.35) as box height, making the
+     chip visibly TALLER than the same chip inside a wrap host (which is forced
+     `inline`, see .wrap-group--on … rule). `inline` here makes wrapped + non-wrapped
+     chips render identically. Long chips line-break like text (the old inline-block
+     `max-width:100%` one-pill behavior is dropped — the wrap host already relied on
+     `inline` line-breaking, so this is the proven path). */
+  display: inline;
+  /* Symmetric left/right breathing gap (6px each) so the chip text isn't crammed
+     against the left border — matches the right side. On hover the zoned variant
+     drops padding-left to 0 to make room for the ⠿ drag handle (see --zoned:hover). */
+  padding: 0 6px 1px 6px;
+  /* Negative side margin pulls the chip OVER the literal space characters next to it in
+     the prose, so those spaces stop "showing up" beside the chip and the chip's own 6px
+     padding becomes the sole, tidy gap. 1px top/bottom. */
+  margin: 1px -3px;
   background: rgba(134, 239, 172, 0.10);
   border: 1px solid rgba(134, 239, 172, 0.22);
   border-radius: 4px;
@@ -2461,6 +3204,82 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   display: inline;
   min-width: 8px;
 }
+
+/* Three-zone inline mini-textblock: [⠿ handle][editable content][↗ open].
+   The wrapper keeps the base chip chrome (inline-block pill, 4px radius, bg/
+   border) so a long chip stays ONE pill (wraps internally / moves to the next
+   line as a unit — no mid-word split across the column edge). `--url`/`--occ`
+   tint the chip by link kind. */
+.instance-textblock-inline--zoned { position: relative; }
+.instance-textblock-inline--zoned.itbi--url {
+  background: rgba(110, 170, 230, 0.14);
+  border-color: rgba(110, 170, 230, 0.4);
+  color: var(--accent-blue-text, rgb(150, 195, 250));
+}
+.instance-textblock-inline--zoned.itbi--occ {
+  background: rgba(130, 200, 150, 0.14);
+  border-color: rgba(130, 200, 150, 0.4);
+  color: var(--accent-green-text, rgb(150, 210, 170));
+}
+/* LEFT handle — hidden until the chip is hovered (the ONLY drag origin). */
+.itbi-handle {
+  display: none;
+  vertical-align: middle;
+  margin-right: 3px;
+  margin-left: 0;
+  cursor: grab;
+  user-select: none;
+}
+.itbi-handle.is-shown { display: inline-flex; align-items: center; }
+.itbi-handle:active { cursor: grabbing; }
+/* Compact the radial drag handle inside the chip so its glyph sits at the LEFT
+   edge instead of centered in a ~32px box (the empty space left of the ⊹). */
+.itbi-handle .radial-menu,
+.itbi-handle .module-drag-handle {
+  width: 18px !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  justify-content: flex-start !important;
+}
+/* MIDDLE — editable content; text cursor so it reads as a typeable field. */
+.itbi-content {
+  cursor: text;
+  outline: none;
+  white-space: normal;
+  word-break: break-word;
+}
+.itbi-content:empty::before { content: "…"; color: var(--text-faint); font-style: italic; }
+/* RIGHT — the "enter" arrow (open link / jump). Pointer, not text/grab. Hidden
+   until the chip is hovered (like the handle) — per user, the open button only
+   shows on hover. */
+.itbi-arrow {
+  display: none;
+  cursor: pointer;
+  margin-left: 4px;
+  opacity: 0.85;
+  user-select: none;
+  font-size: 0.9em;
+}
+.instance-textblock-inline--zoned:hover .itbi-arrow { display: inline; }
+.itbi-arrow:hover { opacity: 1; }
+/* On hover the drag handle appears at the left — drop the chip's left padding so
+   the handle sits near the edge instead of behind a 3px gap. */
+.instance-textblock-inline--zoned:hover { padding-left: 0; }
+
+/* Grab cursor on EVERY drag handle (radial handle / dnd handles / mini-textblock
+   handle / the wrap host's lifted handle). */
+.module-drag-handle,
+[data-dnd-handle],
+.radial-handle,
+.itbi-handle,
+.wrap-group--on .wrap-group-content > * > :last-child .instance-content > div:first-child:not(.instance-body) {
+  cursor: grab;
+}
+.module-drag-handle:active,
+[data-dnd-handle]:active,
+.radial-handle:active,
+.itbi-handle:active { cursor: grabbing; }
 
 /* ============================================================
    17. CANVAS TOOLBAR & SURFACE
@@ -2797,10 +3616,11 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 
 .table-td {
   border: 1px solid var(--border-subtle);
-  /* The cell IS the container / drop point for the embedded occurrence —
-     give it real padding so the instance card sits inside with breathing
-     room (like an item dropped into a container, not flush to the edge). */
-  padding: 8px; font-size: 13px;
+  /* Rows size to CONTENT (no min) — tight vertical padding so a short row (an
+     infobox "Other names" cell, a one-line Schedule cell) hugs its content and
+     doesn't read as too tall; horizontal padding kept for breathing room around
+     embedded instance cards. Applies to every table (infobox + Schedule). */
+  padding: 2px 8px; font-size: 13px;
   position: relative;
   display: block;
   /* min-width:0 is REQUIRED on a flex item or it grows to its content's
@@ -2815,7 +3635,19 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   overflow-x: hidden;
   overflow-y: visible;
 }
-.table-td > .doc-editor-wrapper { width: 100%; min-height: 0; }
+/* Cell editors (infobox + Schedule) must size to their CONTENT — a one-line value
+   row should hug ~one line, not read "too tall". The <Editor> mounted in a cell nests
+   `.doc-editor` (inline minHeight:32) > `.doc-editor-wrapper` (Tailwind `min-h-[100px]`
+   + inline 5px top/bottom padding). The wrapper is a GRANDCHILD of `.table-td`, so the
+   old `.table-td > .doc-editor-wrapper` (direct-child) rule never matched and every cell
+   was forced ≥100px tall. Zero all three so the row collapses to its content height. */
+.table-td .doc-editor { min-height: 0 !important; }
+.table-td .doc-editor-wrapper {
+  width: 100%;
+  min-height: 0;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
 .table-td .doc-editor-content.ProseMirror { min-height: 0; line-height: 1.3; padding: 0; }
 .table-td .doc-editor-content.ProseMirror p { margin: 0; }
 /* The embedded occurrence looks EXACTLY like an instance anywhere else —

@@ -2087,3 +2087,56 @@ ManifestTree sidebar. 17 folder nodes → raised keycap look.
   padding — not yet compensated); only the TOP notch (L) is wired — `anchor:"middle"`
   (C shape) not implemented; formation is via the radial menu, NOT yet drop-beside
   geometry; generalize host beyond textblock (clip currently lives in TextblockCard).
+
+### Update 2026-06-10 (account1) — block-wrap host generalized beyond textblock ✅
+- Closes the recurring docket TODO "generalize host beyond textblock (clip currently
+  lives in TextblockCard)". The notch-clip logic (`findWrapSpacer` + ResizeObserver
+  measure + `notchClipPath`) was extracted from `modules/TextblockCard.jsx` into a new
+  shared hook `client/src/docs/wrapNotch.js` → `useWrapNotchClip(textmap, cardRef,
+  enabled)`. `TextblockCard` now consumes it (behavior identical; also fixed a latent
+  rules-of-hooks order bug — measure hooks had sat after the link early-return).
+  `modules/ModuleContainer.jsx` now calls the same hook with `containerRef` gated on
+  `isDocContainer` and merges `clipPath` into the container-shell style, so a
+  `kind:"doc"` container can HOST a wrapGroup and clip its own border into the
+  L/C/hangman/J around the neighbor (its doc Editor renders the floated `wrapSpacer`;
+  the shared measure finds it). Build clean; ResizeObserver→clip needs an in-browser
+  glance (consistent with all prior wrap work). Composes with account2's same-day
+  dynamic-mosaic grip — the grip's `anchorIndex` flows through this shared clip now.
+- Coordination note: account2 was concurrently editing the wrap files this session
+  (WrapGroupNode/Extension/index.css/docs CLAUDE.md); my changes were in
+  TextblockCard/ModuleContainer/wrapNotch (the shared seam is TextblockCard.jsx).
+
+### Update 2026-06-11 (account1) — block-wrap feedback round + new docket items
+**Shipped (re-import + server restart to see the importer ones; 54/54 importer/wiki
+tests pass, client build clean):**
+- **Image wrapGroups → `wrap:true` (the real L-notch).** Both the lead image+infobox
+  aside AND section images now wrap the prose around them (beside + full width
+  underneath), reflowing on panel resize via native float. Reverses account3's
+  deliberate `wrap:false` workaround — its reason (fragile/non-reflowing notch) is
+  fixed (grandchildren measure/CSS fix + shared `docs/wrapNotch.js` clip hook).
+- **Consecutive paragraphs MERGE into ONE textblock** (`buildContainer` accumulator)
+  — a prose chunk is one tall block (also fully hosts the lead-image notch). Reverses
+  the prior "one textblock per paragraph". Structural blocks still flush + stand alone.
+- **Importer labels:** lead aside labeled with the article subject ("Eminem", was a
+  generic "Container"); infobox table emitted with empty headers (`| | |`) → no header
+  title / no label; aside `headingLevel:2` so the article H1 reads biggest.
+- **Inline link chip** gets `margin:0 0.18em` so the space survives a line-wrap.
+- **ArtifactCard image-info column** fills the drag-handle-to-image gap (name/dims/size).
+- **In-browser TODO (couldn't verify blind):** confirm the H1/H2 heading sizes read
+  right on the imported page; tune the image-info split.
+
+**NEW DOCKET — queued (do AFTER the wrap + other doc work, per user):**
+- **InsertGap between textblocks isn't usable in a container's quick-add.** (1) You
+  can't highlight/hover the gap BETWEEN textblocks in a container to insert there;
+  (2) the gap shows the `+` button but NOT a pointer cursor on the highlight strip
+  itself — the pointer/affordance must show for BOTH the strip and the `+`. Files:
+  `ui/InsertGap.jsx` + the doc-side gap in `ui/Editor.jsx` + `index.css`
+  `.insert-gap*` / `.doc-insert-gap*`.
+- **DOCKET (explore, can wait) — shared memory across all Claude accounts.** Today the
+  3 accounts (.claude / .claude-account2 / .claude-account3) each have their OWN
+  `memory/` dir and only READ each other's chats/notes. The user wants a plan to make
+  them SHARE one memory store (single source of truth) instead. Options to spec:
+  (a) symlink each account's `projects/-home-joshpoms-moduli/memory/` → one shared
+  dir; (b) a shared git-tracked memory folder in the repo with a sync hook; (c) a
+  small memory daemon/file-lock so concurrent writes don't clobber. Needs a design
+  pass (write conflicts, MEMORY.md index merge, per-account vs shared scoping).

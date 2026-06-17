@@ -1,0 +1,1 @@
+{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"(86) Jesus said, \"The foxes have their holes and the birds have their nests, but the son of man has no place to lay his head and rest.\""}]}]}

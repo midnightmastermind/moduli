@@ -1,0 +1,1 @@
+{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"(83) Jesus said, \"The images are manifest to man, but the light in them remains concealed in the image of the light of the father. He will become manifest, but his image will remain concealed by his light.\""}]}]}

@@ -1,6 +1,285 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-06-08. Check this file before re-reading source._
+_Updated: 2026-06-12. Check this file before re-reading source._
+
+## Recent Changes (2026-06-16 — WrapGroupNode: position-named shape class (top/middle/bottom) for shape-adaptive borders)
+- **`WrapGroupNode.jsx`** — adds `wrap-group--shape-{top|middle|bottom}` (+ `data-shape`) to the
+  NodeViewWrapper. Naming is POSITION-based (per user) = where the neighbor sits vertically × `side`
+  (left/right gives the mirrored forms — no separate "J/backward" name). `top` (anchorIndex 0) notches
+  the TOP corner; `middle` notches a mid-edge (prose above AND below); `bottom` = neighbor reaches the
+  host bottom → upside-down L (prose above + beside, none below). `top`/`middle` are guessed from
+  `anchorIndex` at render; the real classification (esp. `bottom` vs `middle`) is MEASURED in `measure()`
+  (`measuredShape` state) by comparing the neighbor's bottom to the host's bottom (`<24px` → bottom).
+  Lets index.css draw the inner-L lines per shape (clip + seam `::before`/`::after`). See client/src/CLAUDE.md.
+
+## Recent Changes (2026-06-15 LATE-3 — `WrapGroupNode.jsx`: restyle (no notch) + `anchorIndex`→margin-top C/J shapes)
+- **Restyle:** host L-border + clip-path REMOVED (chrome moved to the infobox box + a seam column-rule
+  line — see client/src/CLAUDE.md). `WrapGroupNode` no longer measures a notch; the neighbor measure
+  now only sizes the resize seam (+ its column-rule line) — timed backstops kept for that.
+- **C/J shapes via `anchorIndex`:** `anchorIndex` (set on drop by `Editor.detectSideHost` /
+  `blockIndexAtY`, and on re-morph drag via `setNodeMarkup`) was never applied. `WrapGroupNode.measure`
+  now computes the float's `margin-top` = `host.blocks[anchorIndex].top − holderTop` and sets it as
+  `--wrap-mt` (consumed by the neighbor rule in index.css). anchorIndex 0 → L (float at top); mid-block
+  → C (prose full-width ABOVE the float, beside it in the middle, full-width below); `side:"left"`/
+  `"right"` gives J. STABLE (no loop): blocks above the anchor are full-width, so the anchor block's top
+  doesn't depend on the float position. `measure` deps gained `node.attrs.anchorIndex` so re-morph
+  drags re-measure. Verified live: C-shape float lands below the first text line; left-side float puts
+  text on its right + reclaims full width below. Drag-drop column FORMATION (`wrapHostWithNeighbor`/
+  `wrapMoveBeside`, `wrap:true`) was already wired — both sides + any drop line now flow correctly.
+
+## Recent Changes (2026-06-15 LATE-2 — `WrapGroupNode.jsx`: notch re-added for the L-BORDER (measured from the card) + chip-drop gap fix)
+- **`WrapGroupNode.jsx`** — re-added `--notch-w`/`--notch-h` measurement, but now measured FROM THE HOST
+  CARD (the clip-path's coordinate origin) against the neighbor's real edges: `notch-w = card.right −
+  neighbor.left` (right side) / `neighbor.right − card.left` (left side); `notch-h = neighbor.bottom −
+  card.top`. Drives ONLY the clip-path that traces the host border into an L (the wrap itself is still
+  the native float — no measurement). Added timed backstop re-measures (120/400/1000/2200/4000ms)
+  because a Wikipedia infobox TABLE lays out after the ResizeObserver's last fire (notch read short:
+  774/802 vs real 1290). Safe from loops — the notch only drives a clip-path (paint), so re-measuring
+  never changes the measured neighbor.
+- **Chip-drop gap** (CSS, see client/src/CLAUDE.md) — `.instance-textblock-inline` is `display:inline`
+  inside the wrap host so wide link chips wrap in the column instead of dropping below the float.
+- Verified vs live grid: gap closed (in-column jump 850→24px), notch correct (407/1290), no text clip.
+
+## Recent Changes (2026-06-15 LATE — L-wrap FIXED: removed redundant pseudo-float + clip-path; `LWrapHost.jsx` DELETED)
+The active wrap path is `WrapGroupNode.jsx` + `index.css .wrap-group--on` (the CSS cross-sibling
+float), NOT `LWrapHost.jsx`. `LWrapHost.jsx` was orphaned during account2's revert to the
+"working-with-gap" state (nothing imported it) — **DELETED**. The entry below claiming it's the
+DEFAULT is stale/superseded.
+- **Root cause of the two gaps (verified with a Playwright measure against the live grid):** the
+  BFC-chain neutralization (`index.css:2587–2613`) had already made the real neighbor float wrap the
+  host prose natively (correct L, transition at the float's true bottom, NO measurement). But the
+  PRE-native mechanism was never removed — a `.ProseMirror::before` pseudo-float (`--notch-w`×
+  `--notch-h`) AND a clip-path were still active, double-reserving space. The pseudo-float stacked
+  *below* the neighbor and pushed the full-width transition ~`notch-h` px too far down (the bottom
+  gap + "crazy amount of words in the column"); the clip-path — keyed to a `--notch-h` that measures
+  short before the infobox lays out — clipped the right edge of the column text and left an empty
+  bordered band beside it (the right-of-column gap + "cuts off the right side when I resize bigger").
+- **Fix:** removed the `::before` pseudo-float + both clip-path polygons from `index.css`; removed
+  the `--notch-w`/`--notch-h` setProperty calls from `WrapGroupNode.jsx` (kept the neighbor measure,
+  which the resize seam still needs). The native float now does the whole L with zero measurement.
+  Measured before/after: transition y 2247→1445 with neighbor bottom 1434 (exact native wrap-under).
+  Client rebuilt (`npm run build:client`) + re-verified in the shipped `client/dist` the server serves.
+
+## Recent Changes (2026-06-15 — native-float "magazine" L-wrap (`LWrapHost`) — SUPERSEDED; LWrapHost deleted)
+The L-wrap (longer text flowing beside-then-under a shorter image) is a NATIVE browser thing —
+CSS `float` (+ `shape-outside` for non-rectangular shapes) — the same primitive every magazine/
+news site uses. No package/measure/split/ghost needed. The ONLY reason the old CSS L was fragile:
+the host text rendered as a NESTED editor box (`.ProseMirror` ≈ a BFC) and a float can't wrap a
+separate block box. Fix = render the host content as PLAIN inline flow in the SAME container as a
+by-reference float of the neighbor.
+- **`LWrapHost.jsx` (NEW)** — tiny textmap→React renderer (paragraphs / headings / lists / marks +
+  link chips) rendered in one flow with the floated neighbor → browser produces the L and reflows
+  natively (window / panel / column resize) with zero layout JS. Both stay separate OCCURRENCES;
+  only this display combines them. Handles BOTH neighbor kinds: a bare `artifact/image` (section
+  images) AND the Wikipedia lead **aside** `container` (image stacked over an `InfoTable` read of
+  the infobox `kind:"table"` occurrence).
+- **Editable** — clicking the prose calls `onEditHost` → `WrapGroupNode` flips `editing`, reveals
+  the real nested host editor (`NodeViewContent`, hidden behind the L otherwise so ProseMirror keeps
+  its doc model) + focuses it; `focusout` of the whole group reverts to the freshly-edited L.
+- **Column resize** — `LWrapHost` renders a `col-resize` seam on the figure's INNER edge; drag
+  sets the float width live (prose re-wraps natively) and persists via `onResize` →
+  `updateAttributes({ neighborWidth })`.
+- **Default now** (not flag-gated) — fires on any 2-child wrapGroup whose neighbor is an image OR a
+  container; a non-matching neighbor falls back to the old CSS path. **Remaining edge:** multi-
+  neighbor groups (childCount > 2 — several stacked section images) still use the fallback.
+
+## Recent Changes (2026-06-15 — inline mini-textblock = 3-zone chip; wrapGroup seam un-gated from `wrap`)
+- **`pills/InstanceTextblockInlineNode.jsx` — rewritten to a 3-zone chip** per user spec:
+  `[⠿ handle][ editable content (text cursor) ][ ↗ open ]`.
+  - **Drag ONLY from the handle** — Pragmatic DnD `draggable({ element: wrapper, dragHandle:
+    handleRef })`. The handle span is always in the DOM (stable dragHandle ref) but the
+    `RadialMenu` inside it LAZY-MOUNTS only while hovered (`hovered` state) — a doc full of
+    chips pays nothing at rest. Radial item: Remove (`deleteNode`).
+  - **Middle is always contenteditable** (text cursor) — commits to the occurrence textmap on
+    blur / Enter; Escape reverts. `onMouseDown` stopPropagation so a click edits instead of
+    ProseMirror node-selecting the atom (that selection scrolled the chip into view = the
+    "click moves the doc / have to click twice" bug).
+  - **Right ↗ arrow opens the target** in ONE click (`window.open` for URLs, `jumpToOccurrence`
+    for in-app targets); `mousedown` preventDefault+stopPropagation so the editor never steals
+    the first click. `→` glyph for occurrence links.
+  - Corners less round: chip now uses the base `.instance-textblock-inline` 4px radius (was a
+    999 pill); long chips stay ONE inline-block pill (wrap internally / move as a unit — no
+    mid-word split flush against the column edge, so the old `box-decoration-break` hack is gone).
+  - CSS: new `.instance-textblock-inline--zoned` + `.itbi-handle/.itbi-content/.itbi-arrow`
+    (+ `itbi--url`/`itbi--occ` tint) in index.css; old `--link`/`-edit`/`-text` rules now dead.
+- **`WrapGroupNode.jsx` — column resize seam un-gated from `wrap`.** The draggable seam (the
+  COLUMN resize handle) was only rendered/measured when `node.attrs.wrap === true`, but the
+  importer emits wrapGroups as `wrap:false` (two-column mode) → the handle was "gone." The
+  measure already reads the live neighbor box (works for both the flex two-column layout AND the
+  L-float), so dropped the `!wrap` early-return + the `wrap &&` render gate. Seam now shows
+  whenever there are ≥2 members + a measurable neighbor, in both modes. `measure` deps `[wrap,
+  side]`→`[side]`. (The L-shape `wrap:true` rework is still open — see below.)
+
+## Recent Changes (2026-06-12 — ModuleEmbedNode: alignStyle default reverted flow-root → plain block)
+- **`ModuleEmbedNode.jsx` (`alignStyle`)** — the `default` (full-width) case returned
+  `{ display:"flow-root", width:"auto" }` (a BFC, added 2026-06-11 so a SINGLE textblock could
+  narrow beside a floated aside). But a BFC does NOT wrap a float across MULTIPLE blocks — it
+  shrinks each block beside the float instead of letting prose flow under it. The Wikipedia lead
+  aside is now a parent-level float (server/CLAUDE.md) with several prose textblocks flowing down
+  the left, so the prose embeds must be **plain (non-BFC) blocks**: changed to `{ width:"auto" }`.
+  Safe — normal full-width embeds are visually identical (a plain block fills the width with no
+  float present), and wrapGroup hosts override via `.wrap-group--on …:last-child{display:block!important}`.
+  Pairs with the importer's front-float aside + `.is-lead-float` CSS (client/src/CLAUDE.md +
+  modules/CLAUDE.md). Headless-validated against the real card cascade. Build clean.
+
+## Recent Changes (2026-06-12 — block-wrap REDESIGN: real float, no ghost spacer, draggable seam)
+Spec: `docs/superpowers/specs/2026-06-12-unified-block-wrap-redesign.md` (account2's approved
+design — user said "thats perfect"). Replaces the rejected ghost-spacer / absolute-overlay
+model. Mechanism validated in `~/.wraptest2/` against the real CSS selectors + @tiptap DOM.
+- **`WrapGroupExtension.js`** — child order FLIPPED: NEIGHBOR(s) are children 0..N-2, HOST is
+  the LAST child (`hostOccId = node.lastChild`). **Neighbor-first is load-bearing** — a CSS
+  float only wraps content AFTER it; host-second never wraps (proven in the harness). New
+  `neighborWidth` attr (px|null) sets the floated column's start width. **Shape is DYNAMIC**
+  via `anchorIndex` → the floated neighbor's `margin-top` (= host block offset at that index):
+  0 → L, mid block → C/hangman, `side` flip → J; the clip `y` follows the measured float top.
+- **`WrapGroupNode.jsx` — rewritten.** DELETED `syncNotch` + the wrapSpacer-write + the
+  `--notch-y` absolute-overlay effects. Now: neighbors `float` (CSS) and the host's prose
+  wraps natively; the NodeView only (1) measures the float box → sets `--wrap-host-clip` on
+  the wrap (CSS applies it to the host `.textblock-card`/`.container-shell`), and (2) renders a
+  **draggable seam** (`pointerdown` → rAF-throttled `updateAttributes({neighborWidth})`,
+  clamped 120px..70%) — grid-column-resize feel; prose re-wraps live.
+- **`WrapSpacerExtension.js` — DELETED** (+ removed import/registration from `ui/Editor.jsx`).
+  No more ghost node. Per `feedback_no_fallbacks`, clean cut; re-import strips persisted spacers.
+- **`wrapNotch.js`** — reduced to the pure `notchClipPath` polygon helper (consumed by
+  WrapGroupNode). The spacer-measure hook `useWrapNotchClip` + `findWrapSpacer` removed; the
+  two consumers (`modules/TextblockCard.jsx`, `modules/ModuleContainer.jsx`) dropped their
+  calls — the clip is now owned by WrapGroupNode via the CSS var.
+- **`ModuleEmbedNode.jsx`** — `unwrapGroupAt`/`detachGroupMember` calls drop their (now-unused)
+  commit-args (no spacer to strip). Shared ops in `helpers/wrapGroupOps.js` (host=lastChild,
+  `isNeighborMember`, spacer-strip removed) — see helpers/CLAUDE.md. Editor/importer flip the
+  emitted group to neighbor-first — see ui + server CLAUDE.md. Build clean, 1113 client tests.
+  **In-browser glance still needed** (ResizeObserver + seam pointer-drag aren't unit-testable).
+
+## Recent Changes (2026-06-11 — block-wrap is now pure normal-drag: deleted the ⠿ grip, drop-on-line morph, works for ANY textmapped host)
+Per user: the section-image wrap (NOT the infobox aside) must be **two separate
+occurrences side by side** ("two columns"), the neighbor **outside** the host, the host
+just **morphing the bigger column** into L/C/J — moved with the occurrence's **normal
+radial-menu drag handle**, NOT a special layout gesture. Applies to **any textmapped host**
+(role:"textblock" OR kind:"doc" container), any neighbor; never board/list/table.
+- **`WrapGroupNode.jsx`** — DELETED the `⠿` reposition grip (`onRepositionStart` + the grip
+  div). `syncNotch` + the neighbor-measure / `--notch-y` effects + `anchorIndex` stay (the
+  morph). `updateAttributes` no longer destructured (grip was its only user). The notch now
+  moves only via drops (Editor.jsx), never a grip.
+- **`ModuleEmbedNode.jsx`** — the `embedDeleteRegistry` entry is now group-aware: a grouped
+  embed dragged cross-container `detachGroupMember`s (keeps the group valid / un-morphs the
+  host) instead of a bare `deleteNode` that would leave an invalid 1-child wrapGroup. The
+  radial "Unwrap" item now calls the shared `helpers/wrapGroupOps.unwrapGroupAt` (one source
+  of truth). Dropped the now-unused `updateOccurrence` import.
+- New shared ops in **`helpers/wrapGroupOps.js`** (see helpers/CLAUDE.md): `findGroupMember`,
+  `unwrapGroupAt`, `detachGroupMember`. Drop-formation/reposition/unwrap-on-move-out wiring is
+  in `ui/Editor.jsx` (see ui/CLAUDE.md). CSS grip rules removed; neighbor drag-handle z-index
+  added (client/src/CLAUDE.md). Build clean, 1110/1110 client tests. **In-browser glance
+  needed** (TipTap drop + ResizeObserver — not unit-testable).
+
+## Recent Changes (2026-06-11 — moduleEmbed: full-width embeds are BFCs so they flow beside a floated aside)
+- **`ModuleEmbedNode.jsx` (`alignStyle`)** — the `default` (full-width) case returned
+  `{ width: "100%" }`, which forced every prose/textblock embed to 100% width. Beside a
+  right-floated sibling (the new Wikipedia lead aside — image+infobox floated right via
+  `align:"right"`) a 100%-wide box can't fit, so it dropped BELOW the float instead of
+  beside it. Changed to `{ display: "flow-root", width: "auto" }` — a
+  block-formatting-context with auto width NARROWS to sit to the left of the float and
+  reclaims full width once past the float's bottom (the magazine wrap-under). Visually
+  identical for normal full-width embeds (no float present). Pairs with the importer's
+  floated-aside change (server/CLAUDE.md) + the `.is-lead-aside` CSS (client modules
+  CLAUDE.md). Verified in headless browser: lead textblock cards narrow beside the aside
+  (right edge < aside left), full-width below. Client build clean.
+
+## Recent Changes (2026-06-10 — inline link chip preserves the space when it wraps)
+- **`pills/InstanceTextblockInlineNode.jsx`** — the inline link chip (`display:inline`)
+  ate the space between it and the adjacent words when it wrapped to a new line (a
+  bare inline atom collapses the trailing text-node space at the wrap boundary →
+  "wordchip" ran together). Added `margin: 0 0.18em` to the chip style so a gap is
+  guaranteed on both sides regardless of wrapping. Per user: "we need that space
+  character regardless." Build clean.
+
+## Recent Changes (2026-06-10 — block-wrap host GENERALIZED beyond textblock [CLAUDE_CHAT docket item])
+The notch-clip logic (find the host's floated `wrapSpacer`, ResizeObserver-measure it,
+compute the L/C/hangman/J `clip-path`) lived inline in `modules/TextblockCard.jsx`, so
+ONLY a `role:"textblock"` host could notch. Extracted to a shared hook so any host that
+renders its textmap through an `<Editor>` can host the wrap — closes the long-standing
+docket TODO "Generalize host beyond textblock (any kind:doc occ)".
+- **`wrapNotch.js` (NEW)** — exports `findWrapSpacer(textmap)`, `notchClipPath(n)`, and
+  `useWrapNotchClip(textmap, cardRef, enabled) → { clipPath, hasSpacer }`. Pure
+  relocation of the TextblockCard formula + an external `cardRef` param so two
+  renderers can drive it.
+- **`modules/TextblockCard.jsx`** — consumes the hook; deleted the inline
+  `findWrapSpacer`/`notchClipPath`/measure-effect. Hook now called BEFORE the link
+  early-return → stable hook order (fixes a latent rules-of-hooks bug where the measure
+  hooks sat after the link `return`).
+- **`modules/ModuleContainer.jsx`** — `useWrapNotchClip(containerOccurrence?.textmap,
+  containerRef, isDocContainer)` merged into the container-shell `clipPath`. A
+  `kind:"doc"` container's textmap carries the floated `wrapSpacer` and renders it inside
+  its doc Editor, so the shared measure finds `.wrap-spacer` and clips the shell border
+  into the same notch. No-op when there's no spacer / not a doc container. Measured `y`
+  includes the container header, so the notch lands below it.
+- Build clean. ResizeObserver→clip isn't unit-testable — **needs an in-browser glance**:
+  make a doc container the host of a wrapGroup → its own border should bend into the L/C
+  around the neighbor, same as a textblock host. Pairs with the dynamic-mosaic grip
+  below (the grip's `anchorIndex` flows through the same shared clip now).
+
+## Recent Changes (2026-06-10 — dynamic MOSAIC wrap: continuous notch + drag-reposition + tighter gaps)
+Per user: the wrap should be a "dynamic mosaic" — two occurrences as interlocking
+tetris/frame pieces, and dragging the artifact re-wraps continuously (L → C →
+hangman; either side → J), not just the two `anchor` presets.
+- **`WrapGroupExtension.js`** — new `anchorIndex` attr (number|null): the host
+  block index the notch sits before. null → fall back to coarse `anchor`.
+- **`WrapGroupNode.jsx`** — `syncNotch` inserts the spacer at `anchorIndex` when
+  set. New **reposition grip** (⠿, top corner of the neighbor, hover-revealed):
+  pointer-drag calls `updateAttributes({ anchorIndex, side })` live — Y maps to the
+  nearest host text block (notch follows → L/C/hangman), crossing the group's
+  horizontal midpoint flips `side` (L ↔ J). `NEIGHBOR_GAP` 6→3.
+- **`WrapSpacerExtension.js`** — float gap 14→6 (tighter text-to-image fit).
+- **`index.css`** — `.wrap-reposition-grip` styles (faint at rest, brightens on
+  group hover). Needs in-browser interaction test (drag isn't unit-testable).
+
+## Recent Changes (2026-06-10 — ROOT CAUSE: block-wrap notch never rendered in-app (@tiptap/react content wrapper))
+**The notch never worked in the real app** (prior sessions fell back to side-by-side
+`wrap:false`). Diagnosed in a live headless browser against the imported Eminem page:
+all 9 wrapGroups rendered but **0 host textblocks ever got a `wrapSpacer`** → no
+reflow, no clip. Root cause: `@tiptap/react`'s `NodeViewContent` nests the child
+embeds inside a `[data-node-view-content-react]` holder, so the host/neighbor
+moduleEmbeds are **grandchildren** of `.wrap-group-content`, not direct children.
+Both the measure JS (`contentEl.children.slice(1)`) and the CSS
+(`.wrap-group-content > :nth-child(n+2)`) looked one level too shallow → the
+neighbor was never measured, never observed by the ResizeObserver, never positioned
+absolutely → `syncNotch` never fired. The prior standalone HTML harness had no such
+wrapper, so it "passed" while the app failed.
+- **`WrapGroupNode.jsx`** — new `embedEls(contentEl)` resolves the real embeds via
+  `:scope > [data-node-view-content-react]` (falls back to `contentEl`). Both the
+  neighbor-measure effect and the notch-y effect use it. Also: added an `img.load`
+  listener per neighbor so an async-loading image (h=0 until load) re-measures.
+- **`index.css`** — wrap-group `:nth-child` selectors now go through the holder:
+  `.wrap-group-content > * > :nth-child(n)` (both `--on` notch and `--off` flex).
+- **VERIFIED in-browser:** after the fix, 9/9 wrapGroups write a spacer and 9/9 host
+  cards clip into the L-notch with the neighbor image positioned in it (was 0/9).
+  Two interlocking occurrences: the textblock card clips to the L/C tetris shape; the
+  artifact image is its own box in the notch. No re-import needed — the client writes
+  the spacer on load. `anchor:"top"`→L, `anchor:"middle"`→C is the drop-position
+  dynamic-wrap surface.
+
+## Recent Changes (2026-06-09 — WrapGroup grows to N neighbors; importer now USES it)
+The block-wrap primitive held EXACTLY two embeds (host + 1 neighbor). It now holds
+a host + ONE OR MORE neighbors that stack down the side, so a bigger block can wrap
+around multiple smaller ones. **This also reverses the prior note below that "the
+importer intentionally does NOT emit wrapGroups"** — the Wikipedia importer now
+folds images into wrapGroups (host = the adjacent prose textblock), including the
+lead image wrapping the intro paragraph. See server/CLAUDE.md.
+- **`WrapGroupExtension.js`** — `content: "moduleEmbed{2}"` → `"moduleEmbed{2,}"`.
+- **`WrapGroupNode.jsx`** — `neighborOccId` (lastChild) replaced by `neighborCount`
+  (`childCount - 1`). The neighbor-measure effect now measures the WHOLE neighbor
+  stack: it sets each neighbor's inline `top = notchY + cumulativeHeight` (stacking
+  them with a 6px gap) and sizes the host notch via `syncNotch(maxWidth,
+  totalHeight)`. Single-neighbor behaviour is unchanged (one neighbor → its own box
+  at `top:notchY`). The notch-y measure effect's deps swapped `neighborOccId` →
+  `neighborCount`.
+- **`index.css`** — wrap-group `:nth-child(2)` rules → `:nth-child(n+2)` so EVERY
+  neighbor is absolutely positioned on the side (host stays child 1, static); the
+  per-neighbor `top` is set inline by WrapGroupNode.
+- **`ModuleEmbedNode.jsx` Unwrap** already iterates all children (`grp.forEach`), so
+  it splices a host + N neighbors back to siblings without change.
+- Build clean. Geometry needs an in-browser glance (TipTap sub-editor +
+  ResizeObserver timing isn't unit-testable — consistent with how block-wrap has
+  always been verified).
 
 ## Recent Changes (2026-06-08 — Block-wrap C-shape (anchor:"middle") + measured notch offset)
 Wired the second notch shape (the user's "C" — drop a smaller block at the MIDDLE

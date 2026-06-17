@@ -10,6 +10,7 @@
 // Reuses QuickAddMenu wholesale (categories / search / field-picker / template
 // tiles). The only new piece is wiring its onCreateNew / onSelect to
 // `createLeafInstanceAtIndex` with the gap's index.
+import { useState } from "react";
 import { useGridActions } from "../GridActionsContext.js";
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { createLeafInstanceAtIndex } from "../helpers/CommitHelpers";
@@ -23,6 +24,9 @@ export default function InsertGap({
   const { dispatch, socket, gridId, userId, state } = useGridActions() || {};
   const resolvedGridId = gridId || state?.grid?._id || state?.gridId;
   const resolvedUserId = userId || state?.grid?.userId || state?.userId;
+  // While the menu is open, force the gap revealed (it normally only shows on
+  // hover — moving the pointer to the portal menu would otherwise collapse it).
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (!parentOccurrence || !resolvedGridId || !resolvedUserId) return null;
 
@@ -46,7 +50,7 @@ export default function InsertGap({
   };
 
   return (
-    <div className="insert-gap" data-insert-index={index}>
+    <div className={`insert-gap${menuOpen ? " insert-gap--open" : ""}`} data-insert-index={index}>
       <div className="insert-gap-line" />
       <div className="insert-gap-btn">
         <QuickAddMenu
@@ -54,6 +58,7 @@ export default function InsertGap({
           onSelect={insertExisting}
           onCreateNew={insertNew}
           hostOccurrence={hostOccurrence}
+          onOpenChange={setMenuOpen}
         />
       </div>
     </div>

@@ -25,6 +25,7 @@ import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
 import { getEffectiveViewMode } from "../helpers/viewMode";
 import { resolveFileRef } from "../helpers/fileRef";
 import ViewModeSwitcher from "../ui/ViewModeSwitcher";
+import AutoMarquee from "../ui/AutoMarquee.jsx";
 import RepresentationView from "../ui/RepresentationView";
 import ContextMenu from "../ui/ContextMenu";
 import * as CommitHelpers from "../helpers/CommitHelpers";
@@ -285,8 +286,8 @@ export default function PreviewNode({
       </div>
       <div className="preview-node-title">
         <Icon size={10} style={{ color, flexShrink: 0 }} />
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {label}
+        <span style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+          <AutoMarquee>{label}</AutoMarquee>
         </span>
         <ViewModeSwitcher
           occurrence={occurrence}

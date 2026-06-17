@@ -298,6 +298,10 @@ function stampDropViewMode({ ctx, newOccurrence, destinationOccurrence }) {
 // ============================================================
 export function handlePanelDrop(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseAllPanels, getCellFromPoint } = ctx;
+  // In a mosaic grid there are no (row,col) cells — panel rearrange is handled
+  // by GridMosaic's own per-pane drop targets (drop-to-split). Skip the
+  // cell-based placement so the two don't fight over the same drop.
+  if (state?.grid?.meta?.layoutTree) return;
   const { payload, target, position, pointer, mode, modifiers, dataTransfer } = dropContext;
   const { x, y } = pointer || { x: 0, y: 0 };
   const { dropTarget } = dropView(dropContext, ctx);
@@ -681,7 +685,12 @@ export function handleContainerDrop(dropContext, ctx) {
 // drop zone) first; otherwise honours the closestEdge of the hovered
 // instance, with the same-container forward-shift adjustment.
 function _resolveToIndex({ dropTarget, instanceId, toCOcc, occurrencesById, fromCOcc, draggedInstanceId, pointerY }) {
-  if (dropTarget.context?.insertAt !== undefined) return dropTarget.context.insertAt;
+  // Only honour an explicit numeric insertAt. It is `null` (not undefined) for a
+  // plain container drop with no precomputed index — `!== undefined` wrongly
+  // returned that null → the caller appended (item landed LAST instead of at the
+  // pointer). `!= null` lets a real index 0 through but falls through to the
+  // nearest-by-Y resolution below when there's no explicit index.
+  if (dropTarget.context?.insertAt != null) return dropTarget.context.insertAt;
   if (instanceId && toCOcc) {
     const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(instanceId, toCOcc.occurrences || [], occurrencesById);
     if (hoveredIndex !== -1) {
@@ -1762,6 +1771,7 @@ export function handleExternalDrop(dropContext, ctx) {
             createImportsDocPage({
               rootOccId: resp.rootOccurrenceId, panelOccurrenceId: dest.wrapPanelOccId,
               grid: state?.grid, manifests: state?.manifests, folders: state?.folders,
+              occurrencesById: state?.occurrencesById,
               dispatch, socket, userId: state?.userId, label: dest.title,
             });
           }

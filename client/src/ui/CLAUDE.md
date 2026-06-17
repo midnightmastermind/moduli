@@ -1,6 +1,144 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-06-08. Check this file before re-reading source._
+_Updated: 2026-06-12. Check this file before re-reading source._
+
+## Recent Changes (2026-06-16 — Editor: ONE editor per drop + auto-create gated on text change)
+- **`Editor.jsx` (doc drop handler)** — two drop/resize regressions:
+  - **Triple-fire drop fix.** Pragmatic DnD fires `onDrop` on EVERY registered drop target
+    under the pointer (innermost-first). A textblock sub-editor that slipped past the
+    nested-registration guard (line ~1260) ALSO ran the whole handler → a single drop became
+    3 cross-doc inserts + 3 detaches (doc churned/"reloaded", stray copy, source didn't move —
+    user dropped beside a textblock to form a C). Added an outermost-wins guard at the top of
+    `onDrop`: `const docTargets = (location?.current?.dropTargets||[]).filter(t=>t.data?.type==="doc-editor"); if (docTargets.length>1 && docTargets.at(-1).element!==el) return;`
+    Only the OUTERMOST doc editor (owns the embed/wrapGroup model) processes the drop.
+  - **Resize no longer inserts an extra parent textblock.** A wrapGroup seam RESIZE writes
+    `neighborWidth` (and re-morph writes `anchorIndex`/`side`) — these are `docChanged` but type
+    no text, yet `onUpdate`'s auto-create-textblock fired and folded the whole wrapGroup into a
+    new textblock on every column resize. The auto-create guard now also requires the text
+    content to have changed: `const textChanged = transaction.before.textContent !== editor.state.doc.textContent;`
+    added to the `if (!isCell && onAutoCreateTextblock && transaction.docChanged && textChanged && !…skipAutoCreate)` gate.
+  - **Sub-editor drop guard hardened.** A textblock CARD editor (`TextblockCard.jsx`) passes no
+    `onExitBlock`, and when its embed NodeView is portal-rendered the `.doc-editor`-ancestor check
+    (line ~1266) misses it — so it registered as a top-level drop target and STOLE a page-level
+    cross-doc move into itself (buried the embed inside the textblock + detached the source = "the
+    move still doesn't happen"; logs showed a tiny `insertPos 0` editor processing the drop). Added
+    `if (el.closest?.(".textblock-card, .instance-textblock-block, .table-td")) return;` to the
+    drop-target registration — a card/cell editor never owns a page drop; the page editor does.
+
+## Recent Changes (2026-06-12 — Editor: block-wrap groups form NEIGHBOR-first (redesign))
+- **`Editor.jsx`** — part of the block-wrap redesign (docs/CLAUDE.md + spec). Removed the
+  `WrapSpacer` import + extension registration (the ghost node is gone). `wrapHostWithNeighbor`
+  and `wrapMoveBeside` now create the group as `[neighbor, host]` (was `[host, neighbor]`) —
+  neighbor-first source order so the float wraps the host. `blockIndexAtY` no longer filters a
+  `.wrap-spacer`. The grouped-member re-morph branch uses `isNeighborMember(grouped)` (host is
+  now the last child, not index 0); `unwrapGroupAt(editor, groupPos)` drops its commit-args.
+- **`detectSideHost` now handles the in-group RE-MORPH** — dropping the neighbor on a host line
+  lands INSIDE the isolating wrapGroup, so `posAtCoords` resolves to the group (not a child
+  moduleEmbed). New branch: when the resolved top node is a `wrapGroup`, take its last child as
+  the host, recompute `side` (drop X vs group midline → flip) + `anchorIndex` (`blockIndexAtY`
+  on the host embed's `.ProseMirror`). That drives the DYNAMIC shape — drag the neighbor up/down
+  the host → `anchorIndex` changes → WrapGroupNode repositions the float (margin-top) → the
+  wrap re-forms continuously (L → C → hangman; cross midline → J).
+
+## Recent Changes (2026-06-12 — AssistantDrawer: don't wrap a DRY-RUN import → fixes "empty embed" page)
+- **`AssistantDrawer.jsx` (`resolveConfirm`)** — the single-import branch wrapped the result
+  whenever `j.output?.rootOccurrenceId` existed, WITHOUT checking `dryRun`. A dry-run import
+  returns a planned root but persists nothing, so the wrap created a permanent Imports page
+  whose `moduleEmbed` resolved to a missing module → the user's reported "empty embed." Now:
+  a new `isImportTool(card.name) && j.output?.dryRun` branch surfaces "(planned only — nothing
+  was imported …)" and the wrap branch is gated on `shouldWrapImportOutput(j.output)`
+  (helpers/importsFolder.js: not-dryRun + has root). Batch path was already safe (never sends
+  dryRun). Server also nulls the dry-run root (server/CLAUDE.md). Build clean.
+- **Note for a follow-up:** the user's existing stale "Eminem" Imports page (created by an
+  earlier dry-run import) still points at a phantom root — delete it / re-import to clear it;
+  the guard only prevents NEW broken pages.
+
+## Recent Changes (2026-06-11 — Editor: block-wrap is normal-drag + drop-on-line; no grip)
+- **`Editor.jsx` (doc drop handler)** — the section-image wrap is now driven entirely by the
+  occurrence's NORMAL radial drag handle (the `⠿` grip in `WrapGroupNode` is deleted):
+  - `detectSideHost` only treats a top-level moduleEmbed as a host when its occurrence is
+    **textmapped** (new `isTextmappedHost`: role:"textblock" OR kind:"doc" container) — never
+    board/list/table → those fall through to a normal insert. It now also returns
+    `anchorIndex` = the host's block index at the drop Y (new `blockIndexAtY`), so the notch
+    morphs at the EXACT line dropped on (L at line 0, C/J mid-flow). Passed into
+    `wrapHostWithNeighbor` / `wrapMoveBeside` group attrs.
+  - New pre-branch block (after `sideHost`): if the dragged occ is already a `wrapGroup`
+    member (`helpers/wrapGroupOps.findGroupMember`): a NEIGHBOR dropped on the SAME host →
+    `setNodeMarkup` the group's `anchorIndex`+`side` (re-morph in place — replaces the grip);
+    dropped anywhere else (or dragging the host) → `unwrapGroupAt` then recompute
+    `insertPos`/`sideHost` on the flattened doc and fall through to the normal move/insert
+    (guarded so it doesn't instantly re-wrap onto the host it just left). `insertPos`/`sideHost`
+    are now `let`. New `modulesByIdRef` for the host-type lookup.
+  Build clean, 1110/1110 client tests. **In-browser glance needed** (TipTap drop geometry).
+
+## Recent Changes (2026-06-11 — SINGLE wikipedia import now lands in the Imports folder + asks where to open)
+- **`AssistantDrawer.jsx` (`resolveConfirm`)** — root cause of "the importer didn't ask
+  where to open, nor put it anywhere": only the `wikipedia_import_batch` branch eager-wrapped
+  imported roots into the shared **Imports** folder. A SINGLE import (`wikipedia_import` /
+  `import_markdown` / `import_html`) fell to the generic `else`, which only appended a
+  `panel_pick` on the RAW root — the Imports-folder wrap happened later in
+  `PanelPickCard.openInPanel` ONLY if the user interacted with that card. If the card didn't
+  render (occurrence not yet synced) or was dismissed, the import stayed loose
+  (`parentId:null`) and showed up nowhere (verified in the DB: fresh import root parentId NULL,
+  no Imports folder). New branch: `isImportTool(card.name) && j.output?.rootOccurrenceId` →
+  `ensureImportsFolderAndPage(...)` + `createImportsDocPage(...)` (same as batch), then a
+  `panel_pick` on the Imports **folder page** so it always lands somewhere visible AND asks
+  where to open. New module-scope `isImportTool(name)` helper. Build clean; importsFolder
+  helper tests 6/6. (Existing already-loose imports aren't retroactively moved — re-import or
+  delete the loose one.)
+
+## Recent Changes (2026-06-11 — InsertGap: the whole highlight strip is clickable + shows a pointer)
+- **`index.css` `.insert-gap*` / `.doc-insert-gap*`** — the insert-here affordance used
+  to put the click target + pointer ONLY on the centered `+` button; the blue highlight
+  strip itself was inert (the doc variant's container is `pointer-events:none`, and the
+  strip had no click handler). Now the QuickAddMenu trigger fills the whole gap:
+  `.insert-gap-btn` is `width:100%` (flex-centered) and
+  `.insert-gap .quick-add-btn, .doc-insert-gap .quick-add-btn` get
+  `width:100% !important; cursor:pointer !important` (overriding QuickAddMenu's inline
+  20px trigger). So hovering anywhere on the strip shows a pointer and clicking anywhere
+  on it opens the add menu — the `+` glyph stays centered. Fixes "can't highlight between
+  textblocks / pointer only on the +; need it for both" (the strip appeared but was
+  non-interactive). Applies to BOTH the list/board gap and the doc-block gap (imported
+  doc containers get `enableInsertGaps` since they pass no onExitBlock/onDeleteBlock).
+  Build clean; **needs an in-browser glance** to confirm the strip reveals between
+  embedded textblocks.
+
+## Recent Changes (2026-06-10 — Editor: spellcheck squiggles only while focused)
+- **`Editor.jsx` (`editorProps`)** — the ProseMirror contenteditable now starts
+  `spellcheck="false"` (in `attributes`), and new `handleDOMEvents.focus`/`blur`
+  handlers flip it to `"true"` on focus and back to `"false"` on blur. So an
+  UNFOCUSED textblock no longer shows red misspelling squiggles — they appear only
+  when the user clicks into the block (user: "only show the misspelling squiggles
+  if i click on the textblock"). Toggling the attr re-runs / clears the browser's
+  native check. Applies to every Editor instance (doc pages, textblock sub-editors,
+  cells). Build clean.
+
+## Recent Changes (2026-06-09 — AssistantDrawer: reseed clears the chat history)
+- **`AssistantDrawer.jsx`** — new `SEED_KEY` (`moduli_assistant_seed`) effect: reads
+  `state.grid.meta.assistantSeedId` (stamped fresh by `createLiveData` every run —
+  see server/CLAUDE.md) and, when it differs from the marker stored in localStorage,
+  clears `messages` + removes `moduli_assistant_history`, then records the new
+  marker. The FIRST sighting (no stored value) only records it — so shipping this
+  doesn't nuke an existing conversation. `seedId` arrives with `full_state`, so the
+  `[seedId]` dep re-runs once the grid loads. Net: running `createLiveData` now also
+  resets the Jonah chat history (the server can't touch browser localStorage, so the
+  grid marker is the bridge — same idea as the bootstrap-token auto-fill).
+
+## Recent Changes (2026-06-09 — QuickAddMenu: stop closing on scroll/hover-off + InsertGap polish)
+- **`QuickAddMenu.jsx`** — the menu "randomly disappeared" because a
+  **close-on-scroll** effect (capture phase) fired on the menu's OWN internal
+  `overflowY:auto` list scroll AND any incidental page/trackpad scroll. Replaced
+  with a **reposition-on-scroll** (follows the anchor button) — the menu now
+  closes ONLY on an outside `mousedown` or Escape. New optional `onOpenChange(open)`
+  prop so a host can react to open/close.
+- **`InsertGap.jsx`** — the `+` lives in the hover-only `.insert-gap-btn`, so moving
+  the pointer to the portal menu collapsed the gap. Now tracks the menu's open
+  state via `onOpenChange` and adds an `insert-gap--open` class that FORCES the
+  gap revealed (height + line + button) for as long as the menu is open.
+- **`index.css`** — `.insert-gap-line` now matches the drag-and-drop drop indicator
+  EXACTLY (`.drop-indicator.drop-indicator-inst-*`: solid `rgb(50,150,255)`, full
+  opacity, 3px, 1px radius, edge-to-edge — was a washed-out `--accent-blue` @ .55).
+  `.insert-gap--open` reveal rules added beside the `:hover` ones.
 
 ## Recent Changes (2026-06-08 — Editor: block-wrap forms on MOVE-beside (not just copy))
 - **`Editor.jsx` (doc drop handler)** — block-wrap pairs now form when you DRAG an
@@ -18,6 +156,19 @@ _Updated: 2026-06-08. Check this file before re-reading source._
     `tryMoveEmbedNodeInDoc`). Build clean, 1090/1090 tests. Formation is a TipTap
     drop event — **needs an in-browser glance** (drag an embed onto the left/right
     third of another → they fold into an L/C wrap).
+
+## Recent Changes (2026-06-09 — AssistantDrawer: batch import surfaces folder card + where-to-open prompt)
+- **`AssistantDrawer.jsx` (`resolveConfirm` `wikipedia_import_batch` branch)** — two
+  fixes for "import no longer asks where to open, nor lands in an Imports folder":
+  - Uses the new `ensureImportsFolderAndPage(...)` (helpers/importsFolder.js) which,
+    besides the Imports Folder record, mints a `role:"page" kind:"folder"` occurrence
+    for it so the Imports folder shows as a CARD on the root folder page (a bare
+    Folder record is invisible there — only the Local/Root TREE lists it).
+  - Re-adds the where-to-open prompt: appends a `panel_pick` message targeting the
+    Imports **folder page** so the user can pin it to a panel + drill into the
+    imported pages (the batch path previously skipped this on purpose).
+  - `PanelPickCard.openInPanel` now passes `occurrencesById` into `createImportsDocPage`.
+  Build clean, importsFolder tests 6/6.
 
 ## Recent Changes (2026-06-08 — AssistantDrawer: one-card linked-import (wikipedia_import_batch))
 - **`AssistantDrawer.jsx`** — linked Wikipedia imports ("X AND the surrounding

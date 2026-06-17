@@ -48,6 +48,50 @@ describe("markdownToModuli — article-like grouped rich textblocks", () => {
     expect(r.modules.some(m => m.role === "artifact")).toBe(true);
   });
 
+  it("a blockquote becomes a kind:'quote' artifact with quote + attribution on meta", async () => {
+    const md = `# T\n\n> He is the best rapper alive — Stephen Thomas Erlewine`;
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
+    const q = r.modules.find(m => m.role === "artifact" && m.kind === "quote");
+    expect(q).toBeTruthy();
+    expect(q.meta.quote).toBe("He is the best rapper alive");
+    expect(q.meta.attribution).toBe("Stephen Thomas Erlewine");
+    // it is NOT a paragraph textblock with a literal ">" leaking in
+    const blob = JSON.stringify(r.occurrences.map(o => o.textmap || {}));
+    expect(blob).not.toContain("&gt;");
+  });
+
+  it("a quote following prose is embedded INSIDE that lead-up textblock (its own artifact, nested)", async () => {
+    const md = `# T\n\nHe was praised, as one critic said:\n\n> He is the best rapper alive — Erlewine`;
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
+    const q = r.occurrences.find(o => {
+      const m = r.modules.find(mm => mm.id === o.moduleId);
+      return m?.kind === "quote";
+    });
+    expect(q).toBeTruthy(); // still its own artifact occurrence
+    // the lead-up textblock's textmap embeds the quote as a moduleEmbed (not a sibling)
+    const tb = r.occurrences.find(o => {
+      const m = r.modules.find(mm => mm.id === o.moduleId);
+      return m?.role === "textblock"
+        && (o.textmap?.content || []).some(n => n.type === "moduleEmbed" && n.attrs?.occurrenceId === q.id);
+    });
+    expect(tb).toBeTruthy();
+    // the lead-in prose ("…said:") sits in the SAME textblock, before the quote embed
+    const idxPara = tb.textmap.content.findIndex(n => n.type === "paragraph");
+    const idxQuote = tb.textmap.content.findIndex(n => n.type === "moduleEmbed");
+    expect(idxPara).toBeGreaterThanOrEqual(0);
+    expect(idxQuote).toBeGreaterThan(idxPara);
+  });
+
+  it("a long bullet list (>20 items) stamps meta.listCapRows for column flow", async () => {
+    const items = Array.from({ length: 25 }, (_, i) => `- Artist ${i + 1}`).join("\n");
+    const md = `# T\n\n## Influences\n\n${items}`;
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
+    expect(r.occurrences.some(o => o.meta?.listCapRows === 20)).toBe(true);
+    // a short list does NOT
+    const r2 = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: `# T\n\n## S\n\n- a\n- b`, dryRun: true });
+    expect(r2.occurrences.some(o => o.meta?.listCapRows)).toBe(false);
+  });
+
   it("heading + its section nests as containers (Rule Set A)", async () => {
     const md = `# Top\n\nIntro.\n\n## Section\n\nBody.\n\n### Sub\n\nDeep.`;
     const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
@@ -285,17 +329,191 @@ describe("markdownToModuli — plain text (degenerate markdown) round-trips clea
     expect(root).toBeTruthy();
   });
 
-  it("each paragraph becomes its OWN textblock (3 paragraphs → 3 textblocks)", async () => {
+  it("consecutive paragraphs MERGE into ONE textblock (3 paragraphs → 1 textblock, 3 paragraph nodes)", async () => {
     const md = `First para.\n\nSecond para.\n\nThird para.`;
     const r = await markdownToModuli({
       gridId: "g1", userId: "u1", markdown: md, dryRun: true,
     });
-    expect(r.stats.textblocks).toBe(3);
-    // each textblock holds exactly one paragraph
+    expect(r.stats.textblocks).toBe(1);
     const tbs = r.occurrences.filter(o => {
       const m = r.modules.find(mm => mm.id === o.moduleId);
       return m?.role === "textblock";
     });
-    expect(tbs.every(o => (o.textmap.content || []).filter(n => n.type === "paragraph").length === 1)).toBe(true);
+    // the single textblock holds all 3 paragraphs (a chunk of running prose = 1 block)
+    expect(tbs.length).toBe(1);
+    expect((tbs[0].textmap.content || []).filter(n => n.type === "paragraph").length).toBe(3);
+  });
+
+  it("a structural block (list) flushes the running prose so reading order is preserved", async () => {
+    const md = `Para one.\n\nPara two.\n\n- item a\n- item b\n\nPara three.`;
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
+    // prose1+2 merge → 1 textblock; the list → 1 textblock; prose3 → 1 textblock = 3
+    expect(r.stats.textblocks).toBe(3);
+  });
+});
+
+describe("markdownToModuli — 2026-06-09 import fixes (links/See-also/denylist/block-wrap)", () => {
+  it("an emphasis-wrapped link *[text](url)* still resolves to a link chip (not literal text)", async () => {
+    const md = `# T\n\nHis album *[The Eminem Show](https://en.wikipedia.org/wiki/The_Eminem_Show)* sold well.`;
+    const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, dryRun: true });
+    const linkMod = r.modules.find(m => m.kind === "inline" && m.meta?.link?.url?.includes("The_Eminem_Show"));
+    expect(linkMod).toBeTruthy(); // the link was minted as a chip
+    const blob = JSON.stringify(r.occurrences.map(o => o.textmap));
+    expect(blob).toContain("instanceTextblockInline");
+    expect(blob).not.toContain("[The Eminem Show](http"); // no leftover literal markdown
+  });
+
+  it("bullet-list links (e.g. 'See also') become inline link chips, not link marks", async () => {
+    const md = `# T\n\n## See also\n\n- [Honorific nicknames](https://en.wikipedia.org/wiki/Honorific_nicknames)\n- [List of winners](https://en.wikipedia.org/wiki/List_of_winners)`;
+    const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, dryRun: true });
+    const blob = JSON.stringify(r.occurrences.map(o => o.textmap));
+    expect(blob).toContain("instanceTextblockInline");
+    expect(blob).not.toContain('"type":"link"'); // no un-resolving link marks
+    // the chips live inside a bulletList
+    const listTb = r.occurrences.find(o => JSON.stringify(o.textmap || {}).includes('"bulletList"'));
+    expect(JSON.stringify(listTb.textmap)).toContain("instanceTextblockInline");
+  });
+
+  it("citation/nav cruft sections (References / Notes / External links) are dropped; 'See also' is kept", async () => {
+    const md = `# T\n\n## Music\n\nReal content.\n\n## See also\n\n- [Thing](https://x/Thing)\n\n## Notes\n\n- a note\n\n## References\n\n- a ref\n\n## External links\n\n- [Official](https://x.com)`;
+    const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, dryRun: true });
+    const labels = r.modules.filter(m => m.role === "container").map(m => (m.label || "").toLowerCase());
+    expect(labels).toContain("see also");
+    expect(labels).toContain("music");
+    expect(labels).not.toContain("notes");
+    expect(labels).not.toContain("references");
+    expect(labels).not.toContain("external links");
+  });
+
+  it("heading labels are stripped of inline markdown emphasis (no literal *)", async () => {
+    const md = `# T\n\n## 1997–1999: *The Slim Shady LP*\n\nProse.`;
+    const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, dryRun: true });
+    const sec = r.modules.find(m => m.role === "container" && (m.label || "").includes("Slim Shady LP"));
+    expect(sec.label).toBe("1997–1999: The Slim Shady LP");
+    expect(sec.label).not.toContain("*");
+  });
+
+  it("a block image folds into a wrapGroup with the following prose textblock (host); image-only section stays full-width", async () => {
+    const md = `# T\n\n![photo](https://x/p.png)\n\nIntro prose flows beside it.`;
+    const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, dryRun: true });
+    const root = r.occurrences.find(o => o.id === r.rootOccurrenceId);
+    const wg = root.textmap.content.find(n => n.type === "wrapGroup");
+    expect(wg).toBeTruthy();
+    expect(wg.content.length).toBe(2); // image neighbor (first) + host textblock (last)
+    // neighbor-FIRST source order: child 0 is the image, the LAST child is the host.
+    const hostOccId = wg.content[wg.content.length - 1].attrs.occurrenceId;
+    const hostMod = r.modules.find(m => m.id === r.occurrences.find(o => o.id === hostOccId).moduleId);
+    expect(hostMod.role).toBe("textblock");
+    const neighborOccId = wg.content[0].attrs.occurrenceId;
+    const neighborMod = r.modules.find(m => m.id === r.occurrences.find(o => o.id === neighborOccId).moduleId);
+    expect(neighborMod.role).toBe("artifact");
+  });
+
+  it("multiple block images before one paragraph all stack as neighbors of a single host", async () => {
+    const md = `# T\n\n![a](https://x/a.png)\n\n![b](https://x/b.png)\n\nProse with two images beside it.`;
+    const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, dryRun: true });
+    const root = r.occurrences.find(o => o.id === r.rootOccurrenceId);
+    const wg = root.textmap.content.find(n => n.type === "wrapGroup");
+    expect(wg.content.length).toBe(3); // host + 2 image neighbors
+  });
+
+  it("a block image with NO following prose host falls back to a full-width standalone embed", async () => {
+    const md = `# T\n\nProse first.\n\n![trailing](https://x/t.png)`;
+    const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, dryRun: true });
+    const root = r.occurrences.find(o => o.id === r.rootOccurrenceId);
+    expect(root.textmap.content.some(n => n.type === "wrapGroup")).toBe(false);
+    const imgEmbed = root.textmap.content.find(n => n.type === "moduleEmbed" && n.attrs.align === "full");
+    expect(imgEmbed).toBeTruthy();
+  });
+});
+
+describe("markdownToModuli — 2026-06-09 lead aside (main image + infobox table)", () => {
+  it("the lead aside (image over infobox) sits in a two-COLUMN wrapGroup beside the first textblock (wrap:false, no L-morph)", async () => {
+    const md = `# Eminem\n\n![Eminem](https://x/e.png)\n\n| | |\n| --- | --- |\n| Born | Marshall |\n| Labels | Shady |\n\nMarshall Bruce Mathers III is a rapper.\n\n## Early life\n\nHe was born in Missouri.`;
+    const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, title: "Eminem", dryRun: true });
+    const root = r.occurrences.find(o => o.id === r.rootOccurrenceId);
+    // The aside + first textblock are paired in a wrapGroup COLUMN (side-by-side, no float, no L).
+    const wg = root.textmap.content[0];
+    expect(wg.type).toBe("wrapGroup");
+    expect(wg.attrs.wrap).toBe(false); // columns only — no L-morph yet
+    // neighbor-first: [aside, firstTextblock]
+    const asideEmbed = wg.content[0];
+    const aside = r.occurrences.find(o => o.id === asideEmbed.attrs.occurrenceId);
+    const asideMod = r.modules.find(m => m.id === aside.moduleId);
+    expect(asideMod.kind).toBe("doc");
+    expect(asideMod.meta.leadAside).toBe(true);
+    expect(asideMod.label).toBe("Eminem");
+    // aside stacks the image artifact FIRST, then the infobox table below it
+    const memberKinds = aside.textmap.content.map(n => {
+      const o = r.occurrences.find(x => x.id === n.attrs.occurrenceId);
+      const m = r.modules.find(mm => mm.id === o.moduleId);
+      return `${m.role}/${m.kind}`;
+    });
+    expect(memberKinds).toEqual(["artifact/image", "container/table"]);
+    // the second column is the intro prose textblock
+    const proseMod = r.modules.find(m => m.id === r.occurrences.find(o => o.id === wg.content[1].attrs.occurrenceId)?.moduleId);
+    expect(proseMod.role).toBe("textblock");
+    // no parent-level float anymore
+    const rootMod = r.modules.find(m => m.id === root.moduleId);
+    expect(rootMod.meta?.leadFloat).toBeFalsy();
+  });
+
+  it("with NO sub-container, the aside still columns beside the first textblock", async () => {
+    const md = `# Eminem\n\n![Eminem](https://x/e.png)\n\n| | |\n| --- | --- |\n| Born | Marshall |\n\nMarshall Bruce Mathers III is a rapper.`;
+    const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, title: "Eminem", dryRun: true });
+    const root = r.occurrences.find(o => o.id === r.rootOccurrenceId);
+    const wg = root.textmap.content[0];
+    expect(wg.type).toBe("wrapGroup");
+    expect(wg.attrs.wrap).toBe(false);
+    const asideMod = r.modules.find(m => m.id === r.occurrences.find(o => o.id === wg.content[0].attrs.occurrenceId).moduleId);
+    expect(asideMod.meta.leadAside).toBe(true);
+    const proseMod = r.modules.find(m => m.id === r.occurrences.find(o => o.id === wg.content[1].attrs.occurrenceId).moduleId);
+    expect(proseMod.role).toBe("textblock");
+    const rootMod = r.modules.find(m => m.id === root.moduleId);
+    expect(rootMod.meta?.leadFloat).toBeFalsy();
+  });
+
+  it("the aside is a STRUCTURAL child of the root (in occurrences[], not just the textmap) so a tree-walk reaches it", async () => {
+    const md = `# Eminem\n\n![Eminem](https://x/e.png)\n\n| | |\n| --- | --- |\n| Born | Marshall |\n\nMarshall Bruce Mathers III is a rapper.\n\n## Early life\n\nHe was born in Missouri.`;
+    const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, title: "Eminem", dryRun: true });
+    const root = r.occurrences.find(o => o.id === r.rootOccurrenceId);
+    const asideEmbed = root.textmap.content[0].content[0]; // wrapGroup → neighbor (aside)
+    const asideId = asideEmbed.attrs.occurrenceId;
+    // The aside must be reachable by an occurrences[]-tree walk from the root —
+    // the folder-page preview scopes its state by walking occurrences[]/parentId
+    // (NOT textmaps), and the aside hosts the lead image. Missing here = empty
+    // 2nd preview column with the image unreachable until you drill into the page.
+    expect(root.occurrences).toContain(asideId);
+    // Walk the subtree the way the preview does (occurrences[] down only) and
+    // confirm the lead image artifact is reachable.
+    const occById = Object.fromEntries(r.occurrences.map(o => [o.id, o]));
+    const seen = new Set();
+    const queue = [r.rootOccurrenceId];
+    while (queue.length) {
+      const id = queue.shift();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      for (const cid of (occById[id]?.occurrences || [])) queue.push(cid);
+    }
+    const imageOcc = r.occurrences.find(o => {
+      const m = r.modules.find(mm => mm.id === o.moduleId);
+      return m?.role === "artifact" && m?.kind === "image";
+    });
+    expect(seen.has(imageOcc.id)).toBe(true);
+    // And buildSectionBody must NOT double-render the aside in the main flow.
+    const asideEmbedCount = JSON.stringify(root.textmap.content)
+      .split(`"occurrenceId":"${asideId}"`).length - 1;
+    expect(asideEmbedCount).toBe(1);
+  });
+
+  it("a plain lead image with NO infobox table columns beside the prose (wrap:false, no aside)", async () => {
+    const md = `# T\n\n![photo](https://x/p.png)\n\nIntro prose.`;
+    const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, dryRun: true });
+    const root = r.occurrences.find(o => o.id === r.rootOccurrenceId);
+    const wg = root.textmap.content.find(n => n.type === "wrapGroup");
+    expect(wg.attrs.wrap).toBe(false); // columns: image beside prose, no L-morph yet
+    const neighborId = wg.content[0].attrs.occurrenceId; // neighbor-first source order
+    const neighborMod = r.modules.find(m => m.id === r.occurrences.find(o => o.id === neighborId).moduleId);
+    expect(neighborMod.role).toBe("artifact"); // single image neighbor, NOT a leadAside doc container
   });
 });

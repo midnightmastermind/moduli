@@ -454,7 +454,19 @@ export function registerCrudHandlers(socket, {
       };
       if (!uc.foldersById) uc.foldersById = {};
       uc.foldersById[folderData.id] = folderData;
-      await Folder.findOneAndUpdate({ id: folderData.id, userId }, folderData, { upsert: true });
+      try {
+        await Folder.findOneAndUpdate({ id: folderData.id, userId }, folderData, { upsert: true });
+      } catch (upsertErr) {
+        // Idempotent re-create: a re-import / concurrent create can race the upsert so
+        // its {id,userId} filter misses the row at the instant it's inserted, and Mongo
+        // attempts a fresh insert → E11000 on the unique `id` index. Mirror setupGenericCRUD:
+        // fall back to a plain id-keyed update so the handler STILL SUCCEEDS and reaches the
+        // folder_created emits below (without this, the throw skipped them → the originating
+        // tab never learned about the folder → it was missing from the manifest tree + the
+        // back-breadcrumb couldn't resolve it).
+        if (upsertErr.code === 11000) await Folder.findOneAndUpdate({ id: folderData.id }, { $set: folderData });
+        else throw upsertErr;
+      }
       socket.emit("folder_created", folderData);
       socket.to(userRoom(userId)).emit("folder_created", folderData);
     } catch (err) {

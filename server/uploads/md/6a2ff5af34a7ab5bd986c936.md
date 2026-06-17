@@ -1,0 +1,1 @@
+{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"(87) Jesus said, \"Wretched is the body that is dependant upon a body, and wretched is the soul that is dependent on these two.\""}]}]}

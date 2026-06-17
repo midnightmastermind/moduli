@@ -1,6 +1,335 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-06-08. Check this file before re-reading source._
+_Updated: 2026-06-12. Check this file before re-reading source._
+
+## Recent Changes (2026-06-17 — image neighbor: framed card (border + brighter bg), space-above-image killed)
+- **`index.css`** — the wrap IMAGE neighbor `.instance-row` is now a framed card again (per user, asked
+  repeatedly): `background: rgba(38,102,132,0.72)` (a teal BRIGHTER than the host column's
+  rgba(12,53,70,0.55) → clearly different from the parent) + `border: 1px solid rgba(140,205,230,0.5)`
+  + `border-radius:6px` + `overflow:hidden`. Inner `.artifact-card` stays transparent/borderless (the
+  row IS the single box).
+- **Space above the image** — the label+handle FLEX GROUP (first child of `.instance-content`) was
+  reserving a row above the artifact-card. Lifted the whole group `position:absolute; top/left:2px` for
+  the neighbor (mirrors the host-handle lift) so the image is flush at the top.
+- **OPEN (functional, deferred):** dragging the image to a specific LINE to morph the text around it
+  there doesn't work — detectSideHost returns null (plain cross-doc move) AND anchor granularity is
+  per-BLOCK not per-visual-line (a single-paragraph host → always anchorIndex 0 → "one big line, always
+  same spot"). Needs focused work in `ui/Editor.jsx` detectSideHost/blockIndexAtY + a per-line drop
+  indicator. Drop logs show `sideHost null` / `grouped null` → cross-doc insert.
+
+## Recent Changes (2026-06-16 LATE-7 — row alignment, header filter/add swap, container label nudge, caption color)
+- **Instance row alignment** (`index.css` + `ModuleInstance.jsx`) — handle + label + fields now vertically
+  CENTER in the single-line case (handle was sitting higher; label had `paddingTop:2` pushing it down →
+  removed). `.instance-content{align-items:center}` + `.instance-content .module-drag-handle{align-self:
+  center;margin-top:0}`; `:has(.instance-body){align-items:flex-start}` keeps the handle TOP-LEFT when the
+  instance has a tall custom body (textblock/image) so it doesn't float to the middle.
+- **Container header alignment** (`index.css`) — `.container-header{align-items:center}` +
+  `.container-header .module-drag-handle{align-self:center;margin-top:0}` (handle was higher than the label).
+- **Container label nudged up 1px** (`ModuleContainer.jsx`) — `position:relative; top:-1` on the label span.
+- **Filter ↔ Add swapped in headers** (`ModuleContainer.jsx` + `ModulePage.jsx`) — `HeaderChevron` (filter)
+  now renders BEFORE `QuickAddMenu` (add) in both. (Panels have no filter chevron — unchanged.)
+- **Image caption color** (`index.css`) — `.artifact-thumb-info-name` in doc images `var(--text-muted)` →
+  `rgb(170,205,225)` so the caption stands out from the dark column (was ~same color as the bg).
+
+## Recent Changes (2026-06-16 LATE-6 — wrap: STRIP unrequested neighbor chrome; chip eats adjacent spaces; doc word-spacing −1px)
+All `index.css`. Per user ("you didn't need to give … i didn't ask for that"):
+- **Image neighbor: NO bg, NO border, NO handle backing.** Removed the `rgba(16,64,84,.6)` bg + the
+  `hsl(var(--border))` border on the neighbor `.instance-row` AND stripped the inner `.artifact-card`
+  border + `input-bg` bg (base `.artifact-card` has both — they'd show through once my override was
+  removed). Image is now JUST the image, flush to the top (padding 0). The handle-backing chrome
+  (dark pill + green ring + shadow) is gone; the lift is scoped to the IMAGE handle only
+  (`.instance-row … .module-drag-handle`) so the infobox `.container-shell` keeps its plain default
+  handle (it was getting the lifted/backed treatment it shouldn't have).
+- **Mini-block chip eats adjacent spaces** — `.instance-textblock-inline` margin `1px 0` → `1px -3px`
+  so the chip pulls over the literal space chars next to it in the prose; its 6px side padding is then
+  the sole gap (user: "the spaces are still showing up next to the miniblock").
+- **Doc word-spacing −1px** — `.doc-editor-content.ProseMirror { word-spacing: -1px }` tightens every
+  word gap in the doc by ~1px (user: "make the spacing of the spaces smaller in general … in the doc").
+
+## Recent Changes (2026-06-16 LATE-5 — mini-block chips render identically in & out of a wrap)
+- **`index.css` `.instance-textblock-inline`** `display: inline-block` → `inline`. An inline-block
+  reserves the full `line-height: 1.35` as box height → the chip was visibly TALLER outside a wrap
+  than inside one (the wrap host forces `display: inline` via the `.wrap-group--on … :last-child`
+  rule). Making the base `inline` makes wrapped + non-wrapped chips identical (the wrap path already
+  proved `inline` works; long chips line-break like text — the old `max-width:100%` one-pill behavior
+  is dropped). The wrap-scoped `inline !important` override is now redundant but harmless.
+
+## Recent Changes (2026-06-16 LATE-4 — wrap image neighbor: on-theme bg, flush-top, matched bottom margin, obvious handle; top-border meets seam)
+All `index.css` unless noted:
+- **Image neighbor bg** `hsl(var(--surface-2))` (flat gray) → `rgba(16,64,84,0.6)` — on-theme teal
+  (occurrence-card scheme), a touch brighter than the host column so it still reads as its own card.
+- **No padding above the image** — neighbor `.instance-row` padding `4px` → `0` (image flush to its
+  frame) + the neighbor's drag handle lifted out of flow (`position:absolute; top/left:3px`) so the
+  in-flow handle row no longer pushes the image DOWN. Handle kept OBVIOUS over the photo via a
+  dark-teal rounded backing + green ring + shadow (per user "keep the drag handle obvi").
+- **Bottom margin matches the side gap** — the float's `margin-bottom` 8px → 14px (= the
+  `margin-left/right` side gap), so prose reclaiming below the neighbor has the same breathing room.
+- **`docs/WrapGroupNode.jsx`** — notch extension `+SEAM_GAP` → `+SEAM_GAP/2` (lands exactly on the
+  resize-seam line): the host's clipped TOP border now meets the seam (no gap between the textblock
+  top border and the resize handle) while the sliver to the RIGHT of the seam still shows parent bg.
+
+## Recent Changes (2026-06-16 LATE-3 — wrap: position-named shapes (top/middle/bottom) + the bottom "upside-down L" + mini-block left padding)
+- **Shape vocabulary renamed (per user)** from L/C/hangman/J → POSITION-based `top`/`middle`/`bottom`
+  × `side` (left/right = the mirrored forms). Class is `wrap-group--shape-{top|middle|bottom}`.
+- **`docs/WrapGroupNode.jsx`** — `measure()` classifies the third shape, `bottom`: when the measured
+  neighbor reaches the host BOTTOM (`c.bottom - bottom < 24`) there's no full-width prose below it →
+  the host traces an UPSIDE-DOWN L (full-width above + beside, nothing below), distinct from `middle`
+  (which has a bottom bar). Stored in `measuredShape` state (render-time is a first guess from
+  `anchorIndex`).
+- **`index.css`** — `wrap-group--shape-bottom` clip polygons (right + left/mirrored): full top edge
+  → down to the notch → down the seam wall to the bottom (no bottom bar). The seam's notch-bottom
+  `::after` is hidden for `shape-bottom` (it would double the host's own bottom border).
+- **`index.css`** — mini-block chip (`.instance-textblock-inline`) `padding-left` 2px → 6px to match
+  the 6px right side (chip text was crammed against the left border). Hover still drops it to 0 for
+  the ⠿ handle.
+
+## Recent Changes (2026-06-16 LATE-2 — wrap: gap-sliver shows parent bg + image occurrence distinct bg)
+- **`docs/WrapGroupNode.jsx` (`measure`)** — `--notch-w` now adds `SEAM_GAP` (the float-margin gap):
+  `c.right - left + SEAM_GAP` (right) / `right - c.left + SEAM_GAP` (left). The host's clip then carves
+  the column background OUT of the sliver between the text and the neighbor too, so that sliver (right
+  of the resize handle) shows the PARENT background instead of the host's teal tint.
+- **`index.css`** — the wrap NEIGHBOR's `.instance-row` (the image occurrence) gets
+  `background: hsl(var(--surface-2)) !important` — a slightly-raised neutral surface, distinct from the
+  parent page/column behind it, so the image reads as its own card. (Host column keeps its teal
+  `rgba(12,53,70,0.55)`; neighbor now differs from both host and parent.)
+- **Shapes/sides covered:** all of this is side-aware (right + left) and shape-aware. NEIGHBOR (the
+  wrapped thing in the notch) = ANY occurrence (image/artifact/instance/container). HOST (the prose that
+  bends into the L) must be TEXTMAPPED — `role:"textblock"` OR `role:"container" kind:"doc"` (gated by
+  `Editor.isTextmappedHost`); both host types are handled by the dual `.instance-row`/`.container-shell`
+  selectors. Right float → L / C / hangman; left float → their mirrored "backward" forms (a.k.a. J family)
+  — driven by `side` (left/right) × `anchorIndex` (top→L, mid→C, lower→hangman).
+
+## Recent Changes (2026-06-16 LATE — wrap: shape-adaptive inner-L borders (col-resize line = the L line) + the "extra textblock on resize" fix)
+All `index.css` (+ `docs/WrapGroupNode.jsx` shape class + `ui/Editor.jsx` — see those CLAUDE.md):
+- **Clean L top (`.wrap-group--shape-l`)** — the generic host clip polygons keep a FULL-WIDTH
+  top edge (right for a C: real prose above the notch), which drew the host's top border ACROSS
+  the top over the neighbor → text+image "looked connected at the top." Added shape-l-gated clip
+  polygons (right + left) whose top edge STOPS at the text column (`0 0 → calc(100%-notch-w) 0 →
+  … notch-h … → bottom`). Higher specificity than the generic rule; C keeps the generic polygon.
+- **Notch-bottom line via the seam (`.wrap-seam::after`)** — the host clip can't border the
+  notch's INNER walls (they're interior cuts). The draggable seam already draws the vertical
+  inner line (`::before`) AND is the col-resize handle; added `::after` = a 1px `hsl(var(--border))`
+  horizontal line at the seam bottom, `--notch-w` wide, side-aware (right→`left:50%`, left→
+  `right:50%`). So ::before+::after = the L's inner corner and "the col-resize line IS the line
+  that's part of the L" + "the top of the bottom line of the L now has a border." Adapts to any
+  shape/side (the seam spans the measured neighbor box).
+- **Infobox top border now shape-gated** — base rule borders all 4 sides + 6px radius; only
+  `.wrap-group--shape-l` drops `border-top` (+ `0 0 6px 6px` radius). So an L keeps no-top (it ran
+  into the prose) while a C keeps its top border as the notch-TOP line.
+
+## Recent Changes (2026-06-16 — wrap: L-BORDER on host, image-occurrence frame (incl. handle), border color = textblock's, chip handle compaction)
+All `index.css` unless noted:
+- **L-shaped host border:** the clipped host `.instance-row`/`.container-shell` now carries a `1px
+  hsl(var(--border))` border — the clip-path traces it into the L outline (top-left, left, bottom,
+  bottom-right); the top-right notch is cut so no border runs into the neighbor. notch-y snaps to 0 for
+  L-shapes (`WrapGroupNode`) so there's no bg/border strip above the neighbor.
+- **Border color:** switched from `var(--border-default)` (faint) → `hsl(var(--border))` (= the textblock's
+  own border, `hsl(var(--border-1))` ≈ #333) on the host, the neighbor frame, AND the seam line — so the
+  wrap border matches a normal textblock's border, not the faint default.
+- **Image occurrence framed as a unit:** moved the neighbor image border from `.artifact-card` to the
+  neighbor's `.instance-row` (+ `padding:4px`, `!important` to beat the artifact edge-to-edge chrome
+  strip) so the border encloses the image AND its drag handle; the inner `.artifact-card` border is
+  dropped (no double box). The infobox (container neighbor) keeps its no-top border.
+- **Infobox vertical offset** reset to `var(--wrap-mt, 0px)` (no fixed nudge — tweak to taste).
+- **Mini-textblock chips:** base `padding-left` 3px→2px; hover `padding-left`→0; and the radial drag
+  handle inside `.itbi-handle` is compacted (`.radial-menu`/`.module-drag-handle` → width:18px, no
+  margin/padding, justify-start) so the ⊹ glyph sits at the left edge instead of centered in a 32px box.
+
+## Recent Changes (2026-06-15 LATE-5 — host bg CLIPPED to the L (the "image inside the textblock" fix) + image full border)
+Root cause of "the textblock background extends behind the image / image looks nested inside it": the
+host's visible box is **`.instance-row`** (bg `rgba(12,53,70,0.55)` + 1px border) for a textblock host
+(`.container-shell` for a doc host) — which earlier rules never touched (they only hit `.textblock-card`).
+So the row's bg + border ran full-width behind the floated neighbor.
+- **Host clip (`index.css` + `WrapGroupNode.jsx`):** re-added a measured notch, but now the clip-path is
+  on the host's `.instance-row` / `.container-shell` (the element with the bg). It KEEPS the column
+  background (the wrapped text needs it) and clips it OUT of the neighbor's footprint (notch-w × notch-h
+  at notch-y) so the bg/border never sit behind the neighbor → the neighbor reads as a SEPARATE
+  occurrence. Host border set to none (user dislikes it); `.textblock-card` stays transparent (no double
+  bg). `WrapGroupNode.measure` sets `--notch-w/--notch-h/--notch-y` measured relative to that outer box;
+  `--notch-y` makes the cut sit mid-host for a C (not just the top corner for an L). Left + right
+  polygons. The prose never enters the notch (the float reserves it), so the clip removes only empty bg.
+- **Image neighbor → full border** (`.artifact-card` all four sides) for the separate-occurrence look
+  (was sharing the infobox's `border-top:none`). Infobox **container** neighbor keeps `border-top:none`
+  (its top ran into the prose). Nested Info shell still border-less.
+- **Neighbor moved LOWER** (`margin-top: calc(var(--wrap-mt,0px) + 4px)`, was −6px).
+- The "empty container on load" was the UNCLIPPED bg rectangle behind the image; now clipped. (Note:
+  the notch measures via RO + timed re-measures up to 4s, so there can be a brief pre-measure window
+  where the clip is a full rect until the neighbor lays out — self-corrects.)
+- Verified live (section-image + lead infobox): host row bg kept + clipped, image border 1px all sides.
+
+## Recent Changes (2026-06-15 LATE-4 — wrap polish: nested-shell border fix (the "extra container"), top-border drop, Info tiny, handle cursors)
+All `index.css`, scoped to `.wrap-group--on`:
+- **"Extra container on resize" BUG (root cause + fix):** the infobox-border rule matched ALL
+  `.container-shell` descendants of the neighbor — including the nested "Info" table container — so a
+  second bordered box appeared (and showed after a resize re-render). Fix: added
+  `.wrap-group--on … :not(:last-child) .container-shell .container-shell { border: none }` so ONLY the
+  outer infobox box is bordered. Verified: outer borderLeft 1px, nested 0px.
+- **Infobox TOP border removed** (`border-top: none` + `border-radius: 0 0 6px 6px`) — the top edge ran
+  horizontally into the prose occurrence; sides/bottom kept.
+- **Infobox nudged up** ~6px (`margin-top: calc(var(--wrap-mt,0px) - 6px)`) so its header lines up with
+  the prose's first line.
+- **Nested "Info" header → 9px** (very tiny), so the page label reads as the larger heading (the
+  requested "swap" — I did NOT enlarge `.page-header` itself; making Info tiny achieves the relative
+  hierarchy without a risky global change).
+- **Mini-textblock hover padding:** `--zoned:hover { padding-left: 1px }` so the drag handle sits near
+  the left edge (was a 3px gap before it).
+- **Grab cursor on all drag handles** (`.module-drag-handle`, `[data-dnd-handle]`, `.radial-handle`,
+  `.itbi-handle`, + the wrap host's lifted handle) with `:active → grabbing`.
+- Rebuilt + verified in `client/dist`.
+
+## Recent Changes (2026-06-15 LATE-3 — L-wrap restyle: infobox box + column-rule seam; host border dropped; mini-chip polish)
+Per user, the L-border on the TEXT is gone; the chrome now lives on the infobox + a column rule.
+- **Host (`index.css`)** — removed the host's border AND the clip-path entirely (no more notch). The
+  text column is plain. `margin-top:0` + the host's in-flow drag-handle (first child of
+  `.instance-content`) lifted to absolute so the text's top is FLUSH with the infobox top (was ~25px
+  lower). `WrapGroupNode.jsx` no longer sets `--notch-w/h` (dead) — keeps the neighbor measure only
+  for the seam (+ its timed backstops, now documented as seam-sizing).
+- **Neighbor/infobox (`index.css`)** — its own border (`var(--border-default)`) on the
+  `.container-shell`/`.artifact-card`, plus `padding-top:6px` on `.container-doc` (top padding inside).
+- **Seam column-rule (`index.css` `.wrap-seam::before`)** — a persistent 1px `var(--border-default)`
+  line down the seam, separating the text column from the infobox. Spans the seam height (= neighbor
+  height, kept correct by the timed re-measures).
+- **Mini-textblock chips (`index.css`)** — base `.instance-textblock-inline` left padding 0 → **3px**.
+  `.itbi-arrow` (the open-link button) now `display:none` at rest, shown via
+  `.instance-textblock-inline--zoned:hover .itbi-arrow` (hover-only, like the drag handle).
+- **C/J shapes (`index.css` neighbor rule)** — neighbor `margin-top: var(--wrap-mt, 0px)` (was a fixed
+  `margin:0 0 8px 0`). `WrapGroupNode` sets `--wrap-mt` from `anchorIndex` so dropping/dragging the
+  neighbor to a mid host line pushes the float down → prose flows full-width above it, beside it, then
+  below (C). `side:left/right` gives L↔J. See docs/CLAUDE.md.
+- **Drag-drop columns** — already supported: dropping a block on the left/right third of another
+  forms a `wrapGroup` (`wrapHostWithNeighbor`/`wrapMoveBeside`, `wrap:true`) → native autowrap, either
+  side, any drop line. Verified the wiring is intact + both sides/anchor lines flow correctly.
+- Rebuilt + verified live: infobox top 66 / text top 68 (flush), host border 0, seam line spans 1325px,
+  chip padding-left 3px, arrow hidden at rest.
+
+## Recent Changes (2026-06-15 LATE-2 — L-wrap: closed chip-drop gap + restored the L-BORDER correctly)
+Two follow-ups after the pseudo-float removal below, both verified against the live grid w/ Playwright.
+- **Chip-drop gap** (`index.css`): link chips (`.instance-textblock-inline`) are `display:inline-block`,
+  and an inline-block's shrink-to-fit width is computed against the CONTAINING BLOCK (full card width),
+  NOT the reduced line-box beside the float. So any chip wider than the narrow column couldn't fit
+  beside the infobox and dropped BELOW it, dragging every following word down → a tall empty band in
+  the column. Fix: `.wrap-group--on … :last-child .instance-textblock-inline { display:inline }` so
+  chips line-break like text and wrap inside the column. SCOPED to the wrap host (chips elsewhere keep
+  their inline-block 3-zone layout). Measured: biggest in-column vertical jump 850–1155px → 24px.
+- **L-border restored** (`index.css` + `WrapGroupNode.jsx`): user wants the host border to trace an L,
+  not a rectangle overlapping the infobox. Re-added the clip-path (right+left polygons) keyed to
+  `--notch-w`/`--notch-h`, but `WrapGroupNode` now measures the notch FROM THE HOST CARD (the clip
+  origin) against the neighbor's REAL edges: `--notch-w = card.right − neighbor.left`,
+  `--notch-h = neighbor.bottom − card.top`. The native float already keeps prose out of the notch, so
+  the clip removes only empty space (text right edge 748 < clip line 754 → no clip) and opens to full
+  width exactly at the neighbor's bottom. **Reliability:** the old measure read short (notchH 774/802
+  vs real 1290) because a Wikipedia infobox TABLE lays out after the ResizeObserver's last fire.
+  `WrapGroupNode` now adds timed backstop re-measures (120/400/1000/2200/4000ms). No feedback loop —
+  the notch only drives the clip-path (paint, not layout), so re-measuring never changes the neighbor
+  (this is the loop account2's `::before`-driven version risked; mine avoids it). Rebuilt + verified
+  in `client/dist`: notchW=407, notchH=1290, gap=24px, textClipped=false.
+
+## Recent Changes (2026-06-15 LATE — index.css: L-wrap fixed — deleted redundant `::before` pseudo-float + clip-path)
+- **`index.css` `.wrap-group--on`** — removed the `.ProseMirror::before` pseudo-float and both
+  `clip-path` polygons (the `--notch-w`/`--notch-h` block). They were the PRE-native-float
+  reservation mechanism, left active after the BFC-chain neutralization (`:2587–2613`) made the
+  real neighbor float wrap the prose for real → double-reservation. Symptoms (verified w/ a
+  Playwright measure on the live grid): pseudo-float stacked below the neighbor and pushed the
+  full-width transition ~notch-h px too low (bottom gap + over-long column); clip-path keyed to a
+  short-measured notch-h cut the column's right edge + left an empty bordered band (right-of-column
+  gap). Host card keeps a transparent bg + plain rectangle border now (no clip). The native
+  cross-sibling float does the whole L with NO measurement. See docs/CLAUDE.md for the full
+  before/after numbers. Paired `WrapGroupNode.jsx` change (dropped the notch setProperty calls) +
+  deleted orphaned `docs/LWrapHost.jsx`. Rebuilt + verified in `client/dist`.
+
+## Recent Changes (2026-06-15 — index.css: imported article images are full-column FIGURES (auto height + caption underneath))
+- **`index.css`** — new block after the `.wrap-group` artifact overrides, scoped to
+  `.doc-editor-content .artifact-card[data-kind="image"]`. Per user (screenshot review):
+  imported photos should "take up the whole col, so height auto" and show "the captions …
+  underneath." The base `.artifact-thumb` caps images at `max-height:240px` + `object-fit:cover`
+  (crops) and `.artifact-card--with-info` forces the image to `max-width:55%` with the caption
+  BESIDE it — both fought the ask. The new rule makes doc images a vertical figure: image
+  `width:100%; height:auto; max-height:none; object-fit:contain` (whole image, no crop, fills the
+  column) and the caption (the alt, stored as the artifact `label` → `artifact-thumb-info-name`)
+  moves UNDERNEATH via `flex-direction:column` + `order` (italic/muted, centered). Specificity
+  (0-4-0, the `[data-kind]` attr) beats the `--with-info` side rules AND the `.wrap-group`
+  caption-hide, so captions also show on doc-embedded wrap neighbors. SCOPED to `.doc-editor-content`
+  so list/compact thumbnails elsewhere keep their 240px-capped look. CSS-only, no re-import; build clean.
+  - **Handle gutter (follow-up):** the full-width figure body wrapped BELOW the drag handle
+    (`.instance-content` is flex-wrap:wrap + justify-content:space-between, so the wide image
+    body dropped to a second line and space-between pinned the handle top-left → "handle on top
+    of the content"). Fix: `.doc-editor-content .instance-content:has(.artifact-card[data-kind=
+    "image"]){flex-wrap:nowrap!important;justify-content:flex-start!important;align-items:flex-start!important}`
+    + `.instance-body:has(...){flex:1 1 0%!important;min-width:0}`. **`!important` is REQUIRED** —
+    `.instance-content`'s flex-wrap/justify-content are INLINE styles in ModuleInstance JSX, which
+    beat plain stylesheet rules regardless of specificity (the first no-`!important` attempt
+    silently did nothing). Handle now sits in a LEFT gutter at top-left beside the image; image
+    fills the rest of the row. Top-aligned (keeps `align-self:flex-start`), not vertically centered.
+  - **Preview-node cursor:** `.preview-node-card` already had `cursor:pointer`, but the inline
+    folder-page preview renders a real ProseMirror editor and `.doc-editor-content.ProseMirror
+    {pointer-events:auto;cursor:text}` is more specific than `.preview-node-preview *` AND
+    re-enables pointer events on a descendant → its text I-beam leaked through. Made
+    `.preview-node-preview *` `pointer-events:none!important; cursor:pointer!important` so the
+    whole card reads as one click-to-drill pointer target.
+
+## Recent Changes (2026-06-12 — index.css: `.is-lead-float` (lead aside parent-float prose cards))
+- **`index.css`** — new rule right after the `.is-lead-aside` block:
+  `.is-lead-float .textblock-card:not(--inline):not(--link){ display:block; background:transparent;
+  border-color:transparent; }`. The Wikipedia lead aside is now a **parent-level float** (the
+  infobox floats right at the front of the root section, prose flows down the left). For the prose
+  to wrap beside-then-under the float across MULTIPLE textblocks, each card must be a non-BFC block
+  (the global `.textblock-card{display:flow-root}` just above would shrink it beside the float) with
+  transparent chrome (so no tinted box sits behind the floated infobox). Scoped to `.is-lead-float`
+  sections (set by `ModuleContainer` from `module.meta.leadFloat`) — every other card keeps its
+  flow-root + frame. Pairs with the importer front-float (server/CLAUDE.md) + `alignStyle` plain-block
+  default (docs/CLAUDE.md). Headless-validated against the real cascade (`~/.wraptest2/leadfloat.png`).
+
+## Recent Changes (2026-06-12 — index.css: block-wrap is a REAL FLOAT now (no absolute overlay) + seam)
+Part of the block-wrap redesign (see docs/CLAUDE.md + spec
+`docs/superpowers/specs/2026-06-12-unified-block-wrap-redesign.md`).
+- **`index.css` `.wrap-group--on` block** — replaced the `position:absolute` neighbor overlay
+  + `--notch-y` rules with a **float layout**: neighbors (`> * > :not(:last-child)`) `float`
+  to `side` at `width:var(--wrap-nw,300px)`; the host (`> * > :last-child`) is a full-width
+  block whose `.textblock-card`/`.container-shell` is clipped to the L via
+  `clip-path:var(--wrap-host-clip,none)` (WrapGroupNode measures + sets the var). Added
+  `overflow:visible` on the host card / `.doc-editor-wrapper` / `.ProseMirror` so the host
+  stays a non-BFC and its lines wrap around the float (the load-bearing requirement). New
+  `.wrap-seam` splitter style (`cursor:col-resize`, blue hover). `--off` mode uses
+  `row-reverse` for right-side so host stays left of the neighbor. Validated against the real
+  selectors in `~/.wraptest2/contract.html` (headless screenshot).
+
+## Recent Changes (2026-06-11 — index.css: removed wrap `⠿` grip styles)
+- **`index.css`** — deleted `.wrap-reposition-grip` rules (the grip is gone — block-wrap is
+  now normal-drag only; see docs/ui/helpers CLAUDE.md). Added a `z-index:6` on the wrapped
+  neighbor's `.module-drag-handle`/`[data-dnd-handle]` so its NORMAL radial drag handle stays
+  grabbable on top of the absolutely-positioned neighbor box.
+
+## Recent Changes (2026-06-10 — mini-textblock hover highlight)
+- **`index.css` `.textblock-card`** — added a hover highlight so each mini textblock
+  reads as an editable occurrence (user: "for the mini textblocks, give it a
+  highlight when i hover over it"). Block variant → soft green tint + inset ring;
+  `--inline` variant → brightens its own bg + dotted underline; `--link` chips set
+  their bg via inline style so the `a:hover`/`button:hover` override uses
+  `!important` + a brightness bump. Base rule got a `transition`. Build clean.
+
+## Recent Changes (2026-06-09 — index.css: tighter instance spacing + insert-gap matches drop indicator)
+- **`.instance-wrap`** vertical margins 6/5 → **2/2** — between-instance spacing
+  read as too much (esp. with the 4px interleaved `.insert-gap`). Applies to all
+  containers (board + list). The insert-gap hover zone provides the breathing room.
+- **`.insert-gap-line`** restyled to be visually IDENTICAL to the DnD drop indicator
+  (see ui/CLAUDE.md). Retracted-header **lip** + QuickAddMenu scroll/hover fixes also
+  this session (modules/CLAUDE.md, ui/CLAUDE.md).
+
+## Recent Changes (2026-06-09 — BSP "mosaic" layout (opt-in per grid), Phase 1)
+- **`Grid.jsx`** — `GridInner` reads `grid.meta.layoutTree`; when set it renders
+  `<GridMosaic>` (desktop) or `<MosaicMobileStack>` (mobile = a plain vertical
+  scroll-stack of panels — tree-nav deferred) instead of the rows×cols
+  `GridRender`. The rows×cols path (GridRender + resize handles + MobileGridNav) is
+  the untouched fallback when `layoutTree` is null. New helper `helpers/bspTree.js`
+  (pure split-tree math: derive/compute/resize/split/remove — 17 tests).
+- **Why:** a uniform CSS grid shares a row/col track across the whole axis, so you
+  can't resize panes independently on both axes. A binary split tree (BSP, like
+  tmux/VS Code panes) gives both-axis independence with perfect tiling. Opt-in per
+  grid via a **Grid/Mosaic toggle** in `commandCenter/GridSettingsTab.jsx`
+  (converts by `deriveTreeFromPlacements(currentPanels)`; revert deletes the key).
+  Renderer + DnD details in `modules/CLAUDE.md` (GridMosaic). Server: `Grid.meta`
+  field added (was missing — also un-breaks grid.meta.defaultStyle/localSort);
+  **server restart + reseed** to get the seeded mosaic grid.
 
 ## Recent Changes (2026-06-08 — #18 keycap/pocket: recessed drop-pocket)
 - **`index.css` `.container-list`** — the list container's drop area is now a

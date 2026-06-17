@@ -49,6 +49,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Folder,
   FileText,
   Layers,
@@ -284,6 +285,7 @@ function Panel({
   setFullscreenPanelId,
   forceFullscreen = false,
   isForeground = false,
+  mosaic = false,
 }) {
   bumpRender("panel");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -448,7 +450,12 @@ function Panel({
     CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
     const updatedOccs = [...(panelOccurrence.occurrences || []), occId];
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, occurrences: updatedOccs }, emit: true });
-  }, [panelOccurrence, module, globalFolderId, dispatch, socket]);
+    // OPEN it in this panel — pinning it as a tab isn't enough; the panel's view
+    // must point its activeOccurrenceId at the new page or it stays hidden.
+    if (currentView?.id) {
+      CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: occId, scrollAnchor: null }, emit: true });
+    }
+  }, [panelOccurrence, module, globalFolderId, currentView, dispatch, socket]);
 
   const handleViewTypeChange = useCallback((e) => {
     const newViewType = e.target.value;
@@ -787,8 +794,14 @@ function Panel({
       className={`panel-shell bg-background rounded-lg border border-border shadow-md mod-${module.id}`}
       onContextMenu={handlePanelContextMenu}
       style={{
-        gridRow: isFullscreen ? "auto" : `${module.row + 1} / span ${cellHeight}`,
-        gridColumn: isFullscreen ? "auto" : `${module.col + 1} / span ${cellWidth}`,
+        // Mosaic panes are positioned by GridMosaic's absolute wrapper, so the
+        // panel just fills it (no CSS-grid placement, no grid margin).
+        ...(mosaic && !isFullscreen
+          ? { width: "100%", height: "100%" }
+          : {
+              gridRow: isFullscreen ? "auto" : `${module.row + 1} / span ${cellHeight}`,
+              gridColumn: isFullscreen ? "auto" : `${module.col + 1} / span ${cellWidth}`,
+            }),
         position: "relative",
         display: "flex",
         flexDirection: "column",
@@ -796,7 +809,7 @@ function Panel({
         minHeight: 0,
         minWidth: 0,
         opacity: isDragging ? 0.4 : 1,
-        margin: isFullscreen ? 0 : (isMobile ? "0px 2px 2px 2px" : "3px 6px 6px 6px"),
+        margin: (mosaic && !isFullscreen) ? 0 : (isFullscreen ? 0 : (isMobile ? "0px 2px 2px 2px" : "3px 6px 6px 6px")),
         zIndex: isForeground ? 70 : (isExtended ? 60 : 1),
         pointerEvents: isPanelDrag && !isDragging ? "none" : "auto",
         ...(isFullscreen && {
@@ -961,6 +974,12 @@ function Panel({
                       }),
                       emit: true,
                     });
+                    // OPEN the new page in this panel (pin + set activeOccurrenceId).
+                    // When the panel already has a view, createPage's panelViewData
+                    // isn't sent, so the view's active page never moved → it stayed
+                    // hidden. openPage activates it (no-op when the brand-new view
+                    // already points at it).
+                    openPage(occId);
                   }}
                   createLabel="New page"
                   hostOccurrence={panelOccurrence}
@@ -1170,13 +1189,36 @@ function Panel({
 
           return (
             <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
-              {/* Top hover strip — only present when autohide is on. Reveals the
-                  header cluster on hover. Tall enough to be hittable. */}
+              {/* Retracted-header affordance — only when autohide is on. A
+                  full-width invisible strip gives a forgiving hover zone, and a
+                  centered VISIBLE "lip" tab gives the user something specific to
+                  aim at. Both reveal the header cluster on hover. */}
               {autohide && !headerRevealed && (
-                <div
-                  onMouseEnter={() => setHeaderRevealed(true)}
-                  style={{ position: "absolute", top: 0, left: 0, right: 0, height: 8, zIndex: 40, cursor: "pointer" }}
-                />
+                <>
+                  <div
+                    onMouseEnter={() => setHeaderRevealed(true)}
+                    style={{ position: "absolute", top: 0, left: 0, right: 0, height: 10, zIndex: 40, cursor: "pointer" }}
+                  />
+                  <div
+                    onMouseEnter={() => setHeaderRevealed(true)}
+                    onClick={() => setHeaderRevealed(true)}
+                    className="panel-header-lip"
+                    title="Show header"
+                    style={{
+                      position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
+                      zIndex: 41, cursor: "pointer",
+                      width: 48, height: 10,
+                      background: "var(--surface-card, rgba(36,40,48,0.92))",
+                      border: "1px solid var(--border-default)",
+                      borderTop: "none",
+                      borderRadius: "0 0 8px 8px",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    <ChevronDown size={10} style={{ opacity: 0.55 }} />
+                  </div>
+                </>
               )}
               {/* Always mounted so autohide can animate; non-autohide is always visible. */}
               {headerCluster}
@@ -1325,8 +1367,9 @@ function Panel({
         );
       })()}
 
-      {/* Resize handle — inline in bottom bar, not overlayed */}
-      {!isFullscreen && (
+      {/* Resize handle — inline in bottom bar, not overlayed. Hidden in mosaic
+          mode: panes are resized via GridMosaic's splitter bars, not cell spans. */}
+      {!isFullscreen && !mosaic && (
         <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, position: "absolute", bottom: 0, right: 0}}>
           <ResizeHandle
             panel={module}

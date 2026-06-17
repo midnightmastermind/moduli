@@ -23,8 +23,19 @@
 // fold them into local state — no client-side ID tracking needed).
 import { htmlToMarkdown } from "../services/wikipediaTools.js";
 import { markdownToModuli } from "../services/markdownImporter.js";
+import { persistImportResult } from "../utils/persistImport.js";
 
-export function registerImportHandlers(socket, { io, userRoom }) {
+export function registerImportHandlers(socket, {
+  io, userRoom, ensureUserCache, userCacheReady, loadUserIntoCache,
+}) {
+  // Get (or warm) the per-user/grid cache so we can keep it in sync with the DB write.
+  async function getUC(userId, gridId) {
+    if (!ensureUserCache) return null;
+    if (userCacheReady && loadUserIntoCache && !userCacheReady(userId, gridId)) {
+      await loadUserIntoCache(userId, gridId);
+    }
+    return ensureUserCache(userId, gridId);
+  }
   socket.on("import_text", async (payload = {}, ack) => {
     const {
       content, format: rawFormat = "auto", gridId, parentId = null,
@@ -60,6 +71,10 @@ export function registerImportHandlers(socket, { io, userRoom }) {
       const result = await markdownToModuli({
         gridId, parentId, userId, markdown, dryRun: false, title,
       });
+
+      // Persist to the DB + warm cache so the import survives a reload, THEN broadcast.
+      const uc = await getUC(userId, gridId);
+      await persistImportResult({ result, userId, uc });
 
       // Broadcast each created entity so all connected tabs (this one + others) sync.
       for (const m of result.modules) {

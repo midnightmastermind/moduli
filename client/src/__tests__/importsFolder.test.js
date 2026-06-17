@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { ensureImportsFolder, createImportsDocPage } from "../helpers/importsFolder";
+import { ensureImportsFolder, ensureImportsFolderAndPage, createImportsDocPage, shouldWrapImportOutput } from "../helpers/importsFolder";
 
 vi.mock("../helpers/CommitHelpers", () => ({
   createFolder: vi.fn(),
   createPage: vi.fn(),
+  createModule: vi.fn(),
+  createOccurrence: vi.fn(),
 }));
 
 const grid = { _id: "grid-1", manifestId: "mfst-1" };
@@ -12,6 +14,21 @@ const manifests = [{ id: "mfst-1", rootFolderId: "root-1" }];
 const baseArgs = { grid, manifests, dispatch: vi.fn(), socket: {}, userId: "u1" };
 
 beforeEach(() => vi.clearAllMocks());
+
+describe("shouldWrapImportOutput", () => {
+  it("wraps a real import (root present, not a dry run)", () => {
+    expect(shouldWrapImportOutput({ rootOccurrenceId: "occ-1", dryRun: false })).toBe(true);
+    expect(shouldWrapImportOutput({ rootOccurrenceId: "occ-1" })).toBe(true);
+  });
+  it("does NOT wrap a dry run even when it returns a planned root (the empty-embed bug)", () => {
+    expect(shouldWrapImportOutput({ rootOccurrenceId: "occ-1", dryRun: true })).toBe(false);
+  });
+  it("does NOT wrap when there is no root id, or output is missing", () => {
+    expect(shouldWrapImportOutput({ dryRun: false })).toBe(false);
+    expect(shouldWrapImportOutput(null)).toBe(false);
+    expect(shouldWrapImportOutput(undefined)).toBe(false);
+  });
+});
 
 describe("ensureImportsFolder", () => {
   it("reuses an existing Imports folder under the manifest root (no create)", () => {
@@ -36,6 +53,34 @@ describe("ensureImportsFolder", () => {
     const id = ensureImportsFolder({ ...baseArgs, folders });
     expect(CommitHelpers.createFolder).toHaveBeenCalledTimes(1);
     expect(id).not.toBe("imp-other");
+  });
+});
+
+describe("ensureImportsFolderAndPage", () => {
+  it("mints a folder-page occurrence so the Imports folder shows as a card", () => {
+    const folders = [{ id: "imp-1", name: "Imports", parentId: "root-1", gridId: "grid-1" }];
+    const { folderId, folderPageOccId } = ensureImportsFolderAndPage({ ...baseArgs, folders, occurrencesById: {} });
+    expect(folderId).toBe("imp-1");
+    expect(CommitHelpers.createModule).toHaveBeenCalledTimes(1);
+    expect(CommitHelpers.createOccurrence).toHaveBeenCalledTimes(1);
+    const mod = CommitHelpers.createModule.mock.calls[0][0].module;
+    expect(mod.role).toBe("page");
+    expect(mod.kind).toBe("folder");
+    const occ = CommitHelpers.createOccurrence.mock.calls[0][0].occurrence;
+    expect(occ.id).toBe(folderPageOccId);
+    expect(occ.parentId).toBe("imp-1");          // folder-page occ lives under Imports
+    expect(occ.meta.folderPage).toBe(true);       // self-identifying idempotency tag
+  });
+
+  it("reuses an existing folder-page occurrence (idempotent across imports)", () => {
+    const folders = [{ id: "imp-1", name: "Imports", parentId: "root-1", gridId: "grid-1" }];
+    const occurrencesById = {
+      "fp-existing": { id: "fp-existing", parentId: "imp-1", meta: { folderPage: true } },
+    };
+    const { folderPageOccId } = ensureImportsFolderAndPage({ ...baseArgs, folders, occurrencesById });
+    expect(folderPageOccId).toBe("fp-existing");
+    expect(CommitHelpers.createModule).not.toHaveBeenCalled();
+    expect(CommitHelpers.createOccurrence).not.toHaveBeenCalled();
   });
 });
 

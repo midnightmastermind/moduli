@@ -2,6 +2,22 @@
 
 _Updated: 2026-06-03. Check this file before re-reading source._
 
+## Recent Changes (2026-06-10 — import-freeze / frozen progress timer: skip per-entity triggers during a bulk create burst)
+- **`bindSocketToStore.js` (`onOccurrenceCreated`)** — root cause of "the importer
+  freezes at 3s and completes a minute later; the progress timer never counts":
+  every `occurrence_created` echo rebuilt the WHOLE occ map + `buildReverseMap`
+  (O(N)) for label resolution AND ran `fireOperations` over every op. A Wikipedia
+  import floods 200+ echoes → O(N²) of SYNCHRONOUS main-thread work → the UI and
+  the assistant elapsed timer can't tick for the whole import. Fix: new
+  closure-level burst detector (`_noteCreateBurst`/`_inCreateBurst`,
+  threshold 12 within a 300ms rolling window). The O(N) label resolution is now
+  INSIDE the fire branch (echoes already skipped it via optimistic/op-emitted sets;
+  now bursts do too), and the per-entity `OccurrenceCreateOp` trigger is skipped
+  once we're clearly in a bulk burst — a bulk echo isn't user automation (also kills
+  the "every tracker reprints per imported node" storm). Single/few creates fire
+  normally; optimistic/op-emitted creates unchanged. Client-only, no re-seed. NEEDS
+  IN-BROWSER VERIFICATION (no unit test covers these socket handlers; build clean).
+
 ## Recent Changes (2026-06-06 — UPDATE_ITEM_LABEL effect handler)
 - **`bindSocketToStore.js` (`applyOperationEffect`)** — new `UPDATE_ITEM_LABEL`
   case (emitted by applyUpdate's `$occ.label` path). Writes the per-placement

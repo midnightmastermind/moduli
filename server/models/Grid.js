@@ -62,6 +62,16 @@ const GridSchema = new mongoose.Schema({
     default: []
   },
 
+  // Free-form grid metadata. Holds:
+  //   - meta.layoutTree  — opt-in BSP/"mosaic" panel layout (client/src/helpers/bspTree.js).
+  //                        When present, the grid renders as a split-tree mosaic
+  //                        instead of the rows×cols CSS grid.
+  //   - meta.defaultStyle / meta.localSort — written by GridSettingsTab (these
+  //                        were silently dropped before this field existed).
+  // Persisted via the generic `update_grid` handler; the client read-modify-writes
+  // the whole object.
+  meta: { type: mongoose.Schema.Types.Mixed, default: {} },
+
 }, { timestamps: true });
 
 export default mongoose.model("Grid", GridSchema);

@@ -278,6 +278,24 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // ======================================================
   // OCCURRENCES (CRUD)
   // ======================================================
+  // Burst detector for bulk occurrence_created floods (Wikipedia/markdown imports,
+  // cross-window mass creates). The server echoes one event per minted entity; a
+  // big import is 200+. The per-entity trigger path below rebuilds the whole
+  // occurrence map + reverse map (O(N)) AND runs every operation, so the flood is
+  // O(N²) of SYNCHRONOUS work → the main thread blocks for the entire import (the
+  // UI + the assistant progress timer visibly freeze). A bulk echo is not user
+  // automation, so once we're clearly in a burst we skip the per-entity trigger.
+  let _createBurstCount = 0;
+  let _createBurstResetTimer = null;
+  const CREATE_BURST_THRESHOLD = 12;  // > this many creates within the window → bulk
+  const CREATE_BURST_WINDOW_MS = 300;
+  function _noteCreateBurst() {
+    _createBurstCount++;
+    if (_createBurstResetTimer) clearTimeout(_createBurstResetTimer);
+    _createBurstResetTimer = setTimeout(() => { _createBurstCount = 0; _createBurstResetTimer = null; }, CREATE_BURST_WINDOW_MS);
+  }
+  function _inCreateBurst() { return _createBurstCount > CREATE_BURST_THRESHOLD; }
+
   function onOccurrenceCreated({ occurrence } = {}) {
     if (!occurrence?.id) return;
 
@@ -289,26 +307,25 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       payload: { occurrence },
     });
 
-    // Fire onCreate trigger with context from the new occurrence
-    // Resolve container + panel labels so operations can use $trigger.containerLabel / panelLabel
-    const _stateNow = stateRef.current || {};
-    const _occById = { ...Object.fromEntries((_stateNow.occurrences||[]).map(o=>[o.id,o])), ...localOccsById };
-    const _modsArr = _stateNow.modules || [];
-    const _containerOcc = occurrence.parentId ? _occById[occurrence.parentId] : null;
-    const _containerMod = _containerOcc ? _modsArr.find(m => m.id === _containerOcc.moduleId) : null;
-    const _revMap = buildReverseMap(Object.values(_occById));
-    const _gridOccSet = new Set(_stateNow.grid?.occurrences || []);
-    const _panelOcc = findGridPanelOcc(_containerOcc, _revMap, _occById, _gridOccSet);
-    const _panelMod = _panelOcc ? _modsArr.find(m => m.id === _panelOcc.moduleId) : null;
-    // Skip the trigger fire if THIS client already fired it optimistically when
-    // it created the occurrence (CommitHelpers.createOccurrence → fireOperations
-    // Optimistic). Without this, the server's own-echo of an op-created
-    // occurrence re-fires OccurrenceCreateOp at depth 0 (fresh stack, outside the
-    // synchronous self-trigger guard) → the rebuild op re-creates → emits →
-    // echoes again → unbounded async create loop (the create_occurrence flood).
-    // Other windows didn't create it, so their set lacks the id and they fire
-    // normally — multi-window sync preserved.
-    if (!optimisticFiredSet.has(occurrence.id) && !opEmittedOccIds.has(occurrence.id)) {
+    // Fire onCreate trigger with context from the new occurrence.
+    // Skip the fire when (a) THIS client already fired it optimistically /
+    // op-emitted it (server own-echo — without this guard an op-created occurrence
+    // re-fires OccurrenceCreateOp at depth 0 → unbounded async create loop), OR
+    // (b) we're in a BULK BURST (import / mass create — see _noteCreateBurst). The
+    // O(N) label resolution below runs ONLY inside the fire branch now, so echoes
+    // AND bursts pay nothing — that's what un-freezes the import.
+    _noteCreateBurst();
+    if (!optimisticFiredSet.has(occurrence.id) && !opEmittedOccIds.has(occurrence.id) && !_inCreateBurst()) {
+      // Resolve container + panel labels so operations can use $trigger.containerLabel / panelLabel
+      const _stateNow = stateRef.current || {};
+      const _occById = { ...Object.fromEntries((_stateNow.occurrences||[]).map(o=>[o.id,o])), ...localOccsById };
+      const _modsArr = _stateNow.modules || [];
+      const _containerOcc = occurrence.parentId ? _occById[occurrence.parentId] : null;
+      const _containerMod = _containerOcc ? _modsArr.find(m => m.id === _containerOcc.moduleId) : null;
+      const _revMap = buildReverseMap(Object.values(_occById));
+      const _gridOccSet = new Set(_stateNow.grid?.occurrences || []);
+      const _panelOcc = findGridPanelOcc(_containerOcc, _revMap, _occById, _gridOccSet);
+      const _panelMod = _panelOcc ? _modsArr.find(m => m.id === _panelOcc.moduleId) : null;
       const ancestors = operationsBridge.getAncestorChain?.(occurrence.id) || { ids: [], labels: [] };
       fireOperations("OccurrenceCreateOp", {
         type: "OccurrenceCreateOp",

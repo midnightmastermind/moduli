@@ -41,7 +41,7 @@ const ALLOWED_KINDS_BY_ROLE = {
   page:      new Set(["board", "doc", "canvas", "table", "folder"]),
 };
 
-export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null }) {
+export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null, onOpenChange }) {
   const { modulesById, roleByModuleId, socket, state, occurrencesById, manifestsById, foldersById, fieldsById } = useGridActions();
   const lookups = useMemo(
     () => ({ manifestsById, foldersById, occurrencesById, modulesById }),
@@ -138,13 +138,29 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     return () => { document.removeEventListener("mousedown", handle); document.removeEventListener("keydown", handleKeyDown); };
   }, [open, closeMenu]);
 
-  // Close on scroll (parent may reposition)
+  // Keep the menu OPEN on scroll — just reposition it to follow the anchor
+  // button. (Was: close-on-scroll, which fired on the menu's OWN internal list
+  // scroll AND any incidental page/trackpad scroll, so the menu "randomly
+  // disappeared" the moment the user tried to scroll it. The menu now closes
+  // only on an outside click or Escape.)
   useEffect(() => {
     if (!open) return;
-    const handle = () => { closeMenu(); };
-    window.addEventListener("scroll", handle, true);
-    return () => window.removeEventListener("scroll", handle, true);
-  }, [open, closeMenu]);
+    const reposition = () => {
+      if (!btnRef.current) return;
+      const rect = btnRef.current.getBoundingClientRect();
+      const left = Math.min(rect.left, window.innerWidth - 248);
+      setPos({ top: rect.bottom + 2, left: Math.max(0, left) });
+    };
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [open]);
+
+  // Let the host (e.g. InsertGap) keep its affordance revealed while open.
+  useEffect(() => { onOpenChange?.(open); }, [open, onOpenChange]);
 
   // All matching modules for this role (no kind filter yet — used for category buckets).
   // Skip kinds that aren't placeable in this role's context (e.g. doc-kind

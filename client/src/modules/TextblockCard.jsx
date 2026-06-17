@@ -16,7 +16,7 @@
 //   - { kind: "occurrence", occId }   → scrolls to + flashes that occurrence
 // The markdown importer emits these for every [text](url) link; a user can also
 // set one via the textblock's settings (meta.link on the occurrence).
-import React, { useContext, useRef, useState, useEffect } from "react";
+import React, { useContext } from "react";
 import Editor from "../ui/Editor.jsx";
 import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
@@ -26,45 +26,14 @@ function resolveLink(occurrence, module) {
   return occurrence?.meta?.link || module?.meta?.link || null;
 }
 
-// Block-wrap (project_block_wrap_l_shape): if this host's textmap carries a
-// wrapSpacer node, its own text already reflows around the reserved notch (the
-// spacer floats). To make the BORDER trace the L/C too (so it reads as a notched
-// box rather than a rectangle drawn through the neighbor), we clip the card to a
-// polygon that cuts the notch out of the corresponding corner.
-function findWrapSpacer(textmap) {
-  const content = textmap?.content;
-  if (!Array.isArray(content)) return null;
-  for (const n of content) {
-    if (n?.type === "wrapSpacer") {
-      return {
-        w: Number(n.attrs?.w) || 0,
-        h: Number(n.attrs?.h) || 0,
-        side: n.attrs?.side === "left" ? "left" : "right",
-      };
-    }
-  }
-  return null;
-}
-
-// Cut a rectangular notch [y .. y+h] out of the `side` edge. ONE formula covers
-// both shapes: y≈0 → notch at the top corner = L; y>0 → notch mid-edge with full
-// rows above and below = C. `y` is the spacer's MEASURED offset (so the border
-// notch lines up with the actual text reflow + the neighbor, padding included).
-function notchClipPath(n) {
-  if (!n || !n.w || !n.h) return undefined;
-  const { w, h, side } = n;
-  const y = Math.max(0, n.y || 0);
-  const y2 = y + h;
-  return side === "left"
-    ? `polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 ${y2}px, ${w}px ${y2}px, ${w}px ${y}px, 0 ${y}px)`
-    : `polygon(0 0, 100% 0, 100% ${y}px, calc(100% - ${w}px) ${y}px, calc(100% - ${w}px) ${y2}px, 100% ${y2}px, 100% 100%, 0 100%)`;
-}
-
 export default function TextblockCard({ occurrence, module }) {
   const { dispatch, socket } = useGridActions();
   const isInline = module?.kind === "inline";
   const link = resolveLink(occurrence, module);
 
+  // Block-wrap (project_block_wrap_redesign): when this textblock is a wrapGroup
+  // HOST, the wrap CSS clips `.textblock-card` to the L via the `--wrap-host-clip`
+  // var WrapGroupNode measures from the floated neighbor — no work needed here.
   if (link && (link.url || link.occId || link.target)) {
     const label = module?.label
       || occurrence?.textmap?.content?.[0]?.content?.[0]?.text
@@ -107,43 +76,18 @@ export default function TextblockCard({ occurrence, module }) {
     );
   }
 
-  // Measure the floated wrapSpacer's real box (offset + size) so the clip notch
-  // tracks the actual text reflow — fixes the top-padding offset (L) and enables
-  // the mid-block notch (C). Re-measures on card/spacer resize + textmap change.
-  const hasSpacer = !!findWrapSpacer(occurrence?.textmap);
-  const cardRef = useRef(null);
-  const [notch, setNotch] = useState(null);
-  useEffect(() => {
-    if (isInline || !hasSpacer) { setNotch(null); return; }
-    const card = cardRef.current;
-    if (!card) return;
-    const measure = () => {
-      const sp = card.querySelector(".wrap-spacer");
-      if (!sp) { setNotch(null); return; }
-      const cr = card.getBoundingClientRect();
-      const sr = sp.getBoundingClientRect();
-      const next = {
-        w: Math.round(sr.width), h: Math.round(sr.height),
-        y: Math.max(0, Math.round(sr.top - cr.top)),
-        side: (sp.style.float === "left") ? "left" : "right",
-      };
-      setNotch((prev) => (prev && prev.w === next.w && prev.h === next.h && prev.y === next.y && prev.side === next.side) ? prev : next);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(card);
-    const sp = card.querySelector(".wrap-spacer");
-    if (sp) ro.observe(sp);
-    return () => ro.disconnect();
-  }, [isInline, hasSpacer, occurrence?.textmap]);
-
-  const clipPath = notchClipPath(notch);
+  // Long imported lists flow into multiple columns CAPPED BY HEIGHT (importer sets
+  // meta.listCapRows ≈ 20 items): the list fills a column to ~20 rows then wraps
+  // into the next column, so the number of columns responds to the height rather
+  // than a fixed count.
+  const listCapRows = Number(occurrence?.meta?.listCapRows) || 0;
+  const baseCls = isInline ? "textblock-card textblock-card--inline" : "textblock-card";
+  const cardStyle = listCapRows > 0 ? { "--list-cap-rows": listCapRows } : {};
 
   return (
     <div
-      ref={cardRef}
-      className={isInline ? "textblock-card textblock-card--inline" : "textblock-card"}
-      style={clipPath ? { clipPath } : undefined}
+      className={listCapRows > 0 ? `${baseCls} textblock-card--cols` : baseCls}
+      style={Object.keys(cardStyle).length ? cardStyle : undefined}
     >
       <Editor
         occurrence={occurrence}

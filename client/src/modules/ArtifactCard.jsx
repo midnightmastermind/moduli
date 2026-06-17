@@ -100,6 +100,20 @@ export default function ArtifactCard({ module, label, occurrence }) {
     );
   }
 
+  // Quote artifact — no file; renders a styled pull-quote block from
+  // module.meta.{quote, attribution} (imported Wikipedia blockquotes / pull-quotes).
+  if (kind === "quote") {
+    const quote = module?.meta?.quote || label || "";
+    const attribution = module?.meta?.attribution || "";
+    return (
+      <div className="artifact-card artifact-card--quote" data-kind="quote">
+        <span className="artifact-quote-mark" aria-hidden="true">&ldquo;</span>
+        <blockquote className="artifact-quote-text">{quote}</blockquote>
+        {attribution && <cite className="artifact-quote-attr">&mdash; {attribution}</cite>}
+      </div>
+    );
+  }
+
   if (!src) {
     return (
       <div className="artifact-card artifact-card--empty">
@@ -140,15 +154,31 @@ export default function ArtifactCard({ module, label, occurrence }) {
     );
   }
 
+  // Image info shown in the otherwise-empty space beside the thumbnail (the user:
+  // "too much space between the drag handle and the image — put the image info
+  // there"). Name (alt / original filename), pixel dimensions, file size — whatever
+  // is known (external Wikipedia images only carry the alt; uploads add dims+size).
+  const imgName = module?.meta?.originalName || label || module?.label || null;
+  const imgDims = (module?.meta?.width && module?.meta?.height) ? `${module.meta.width}×${module.meta.height}` : null;
+  const imgSize = formatBytes(module?.meta?.uploadSize);
+  const showImgInfo = kind === "image" && (imgName || imgDims || imgSize);
+
   return (
     <div
-      className="artifact-card"
+      className={showImgInfo ? "artifact-card artifact-card--with-info" : "artifact-card"}
       data-kind={kind}
       onClick={toggle}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggle(e); }}
     >
+      {showImgInfo && (
+        <div className="artifact-thumb-info">
+          {imgName && <span className="artifact-thumb-info-name" title={imgName}>{imgName}</span>}
+          {imgDims && <span className="artifact-thumb-info-dim">{imgDims}</span>}
+          {imgSize && <span className="artifact-thumb-info-size">{imgSize}</span>}
+        </div>
+      )}
       {renderThumbnail(kind, src, label, thumb256Src)}
       <Maximize2 className="artifact-thumb-expand-hint" size={12} />
     </div>

@@ -3,15 +3,20 @@
 // that displays a short rich-text snippet sourced from the linked
 // occurrence's textmap. Distinct from `InstanceTextblockNode` (block).
 //
-// Render shape: inline `<span>` that blends with the surrounding paragraph
-// (no border, no margin), styled with a subtle background tint so the user
-// can see where the textblock starts and ends. Double-click → inline
-// contenteditable edit; Enter / blur commits.
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+// Three-zone chip (user-spec'd interaction model):
+//   [ ⠿ handle ] [ editable content (text cursor) ] [ ↗ open ]
+//   - LEFT handle  — hover-revealed RadialMenu; the ONLY drag origin.
+//   - MIDDLE       — contenteditable text (commits on blur / Enter).
+//   - RIGHT arrow  — link chips only: single-click opens the target (new tab
+//                    for URLs, jump-to-occurrence for in-app targets).
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { Trash2 } from "lucide-react";
+import { useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
+import { jumpToOccurrence } from "../../helpers/jumpToOccurrence";
+import RadialMenu from "../../ui/RadialMenu.jsx";
 
 // Walk a TipTap doc and join its text nodes with a single space — preserves
 // readability without inserting paragraph breaks (this node is inline).
@@ -37,33 +42,50 @@ function textToTextmap(text) {
   };
 }
 
-export default function InstanceTextblockInlineNode({ node, editor }) {
+// Normalize wiki-internal / relative hrefs to absolute so clicking opens the
+// real page instead of <app-origin>/wiki/X (the importer SHOULD already emit
+// absolute urls — this is defensive).
+function resolveHref(u) {
+  if (!u) return u;
+  if (/^(https?:|mailto:|data:)/i.test(u)) return u;
+  if (u.startsWith("//")) return `https:${u}`;
+  if (u.startsWith("/wiki/")) return `https://en.wikipedia.org${u}`;
+  if (u.startsWith("./")) return `https://en.wikipedia.org/wiki/${u.slice(2)}`;
+  return u;
+}
+
+export default function InstanceTextblockInlineNode({ node, editor, getPos, deleteNode }) {
   const { occurrencesById, dispatch, socket } = useGridActions() || {};
   const { occurrenceId, instanceId } = node.attrs;
   const occurrence = occurrencesById?.[occurrenceId] || null;
 
   const storedText = useMemo(() => textmapToInlineText(occurrence?.textmap), [occurrence?.textmap]);
-  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(storedText);
-  const spanRef = useRef(null);
+  const [hovered, setHovered] = useState(false);
+  const contentRef = useRef(null);
   const wrapperRef = useRef(null);
+  const handleRef = useRef(null);
 
-  // Wire Pragmatic DnD so the chip can be dragged anywhere a textblock
-  // can land — other docs (as an embed), board containers, grid cells,
-  // canvas. Same payload shape the block textblock uses so every drop
-  // handler that already understands role:"textblock" + sourceType
-  // "doc-embed" handles us identically. Latest attrs are read via a
-  // ref so getInitialData stays fresh without re-running the cleanup
-  // effect on every render. canDrag returns false during inline edit
-  // so contenteditable text-selection isn't hijacked by drag.
-  const latestRef = useRef({ occurrence, instanceId, occurrenceId, editing });
-  useEffect(() => { latestRef.current = { occurrence, instanceId, occurrenceId, editing }; });
+  const link = occurrence?.meta?.link || null;
+  const hasLink = !!(link && (link.url || link.occId || link.target));
+  const isUrl = hasLink && (link.kind === "url" || (!!link.url && !link.occId && !link.target));
+  const href = hasLink ? resolveHref(link.url) : null;
+  const editable = !!editor?.isEditable;
+
+  // Drag ONLY from the handle (Pragmatic DnD `dragHandle`). The handle span is
+  // always in the DOM (stable ref) even though the RadialMenu inside it only
+  // mounts on hover — so dragHandle resolves and the middle stays freely
+  // editable (text selection there never starts a drag). Same payload shape the
+  // block textblock uses so every drop handler that understands
+  // role:"textblock" + sourceType "doc-embed" handles us identically.
+  const latestRef = useRef({ occurrence, instanceId, occurrenceId });
+  useEffect(() => { latestRef.current = { occurrence, instanceId, occurrenceId }; });
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
     return draggable({
       element: el,
-      canDrag: () => !latestRef.current.editing,
+      dragHandle: handleRef.current || undefined,
       getInitialData: () => {
         const { occurrence: o, instanceId: iId, occurrenceId: oId } = latestRef.current;
         return {
@@ -81,27 +103,16 @@ export default function InstanceTextblockInlineNode({ node, editor }) {
     });
   }, []);
 
-  // Sync draft with stored text whenever the occurrence updates from elsewhere.
+  // Keep the editable surface in sync with external updates (but not while the
+  // user is actively editing — don't clobber their caret).
   useEffect(() => {
-    if (!editing) setDraft(storedText);
-  }, [storedText, editing]);
-
-  // When editing flips on, focus the contenteditable span and select all so the
-  // user can immediately retype.
-  useEffect(() => {
-    if (!editing) return;
-    const el = spanRef.current;
-    if (!el) return;
-    el.focus();
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    sel?.addRange(range);
-  }, [editing]);
+    setDraft(storedText);
+    if (contentRef.current && document.activeElement !== contentRef.current) {
+      contentRef.current.textContent = storedText || (hasLink ? (link?.url || "link") : "");
+    }
+  }, [storedText, hasLink, link?.url]);
 
   const commit = useCallback(() => {
-    setEditing(false);
     const nextText = (draft || "").trim();
     if (nextText === storedText) return;
     if (!occurrenceId || !dispatch || !socket) return;
@@ -112,91 +123,38 @@ export default function InstanceTextblockInlineNode({ node, editor }) {
     });
   }, [draft, storedText, occurrenceId, dispatch, socket]);
 
-  const cancel = useCallback(() => {
-    setDraft(storedText);
-    setEditing(false);
+  const onKeyDown = useCallback((e) => {
+    if (e.key === "Enter") { e.preventDefault(); contentRef.current?.blur(); }
+    else if (e.key === "Escape") {
+      e.preventDefault();
+      if (contentRef.current) contentRef.current.textContent = storedText;
+      setDraft(storedText);
+      contentRef.current?.blur();
+    }
   }, [storedText]);
 
-  const onKeyDown = useCallback((e) => {
-    if (e.key === "Enter") { e.preventDefault(); commit(); }
-    else if (e.key === "Escape") { e.preventDefault(); cancel(); }
-  }, [commit, cancel]);
-
-  const onDoubleClick = useCallback((e) => {
-    if (!editor?.isEditable) return;
-    e.preventDefault();
+  // RIGHT arrow — single-click opens the link. stopPropagation + preventDefault
+  // on mousedown so ProseMirror never node-selects the atom first (that
+  // selection scrolls the chip into view = the "have to click twice / it moves
+  // the doc" bug). We open it ourselves on click.
+  const openTarget = useCallback((e) => {
     e.stopPropagation();
-    setEditing(true);
-  }, [editor]);
+    e.preventDefault();
+    if (isUrl && href) { window.open(href, "_blank", "noopener,noreferrer"); return; }
+    const targetId = link?.occId || link?.target;
+    if (targetId) jumpToOccurrence(targetId);
+  }, [isUrl, href, link?.occId, link?.target]);
 
-  // Display text falls back to a placeholder so empty inline textblocks are
-  // still visible / clickable.
-  const display = storedText || "inline textblock";
+  const radialItems = useMemo(() => ([
+    {
+      label: "Remove",
+      icon: Trash2,
+      color: "bg-red-600 hover:bg-red-500",
+      onClick: () => { try { deleteNode?.(); } catch { /* node already gone */ } },
+    },
+  ]), [deleteNode]);
 
-  // Link mini-textblock: when the occurrence (or its module) carries meta.link,
-  // render a clickable chip instead of an editable snippet. The markdown importer
-  // emits these for [text](url) links so they render inline as chips that flow in
-  // the sentence (wrappable — white-space:normal). The whole node is the drag
-  // handle (wrapperRef draggable above; canDrag false while editing), so it can
-  // be dragged out from any part — there's no inner edit surface for a link chip.
-  const link = occurrence?.meta?.link || null;
-  if (link && (link.url || link.occId || link.target)) {
-    const isUrl = link.kind === "url" || (!!link.url && !link.occId && !link.target);
-    // Normalize wiki-internal / relative hrefs to absolute so clicking opens the
-    // real page instead of <app-origin>/wiki/X. The importer SHOULD already emit
-    // absolute urls, but be defensive — relative refs that slip through (e.g.
-    // "Rolling Stone" → "/wiki/Rolling_Stone") are resolved here.
-    const resolveHref = (u) => {
-      if (!u) return u;
-      if (/^(https?:|mailto:|data:)/i.test(u)) return u;
-      if (u.startsWith("//")) return `https:${u}`;
-      if (u.startsWith("/wiki/")) return `https://en.wikipedia.org${u}`;
-      if (u.startsWith("./")) return `https://en.wikipedia.org/wiki/${u.slice(2)}`;
-      return u;
-    };
-    const href = resolveHref(link.url);
-    const chipLabel = storedText || link.url || "link";
-    const chipStyle = {
-      display: "inline", whiteSpace: "normal",
-      padding: "0 6px", borderRadius: 999, fontSize: "0.92em",
-      background: isUrl ? "rgba(110,170,230,0.14)" : "rgba(130,200,150,0.14)",
-      border: isUrl ? "1px solid rgba(110,170,230,0.4)" : "1px solid rgba(130,200,150,0.4)",
-      color: isUrl ? "var(--accent-blue-text, rgb(150,195,250))" : "var(--accent-green-text, rgb(150,210,170))",
-      textDecoration: "none", cursor: "pointer",
-    };
-    return (
-      <NodeViewWrapper
-        as="span"
-        ref={wrapperRef}
-        data-instance-textblock-inline="true"
-        data-occurrence-id={occurrenceId || undefined}
-        className="instance-textblock-inline instance-textblock-inline--link"
-      >
-        {isUrl ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={chipStyle}
-            title={href}
-            // ProseMirror is editable + the wrapper is a drag handle, so a bare
-            // <a> click gets swallowed (node-selection / drag start). Open it
-            // ourselves and stop the event from reaching the editor.
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              if (href) window.open(href, "_blank", "noopener,noreferrer");
-            }}
-          >
-            {chipLabel} <span style={{ opacity: 0.7 }}>↗</span>
-          </a>
-        ) : (
-          <span style={chipStyle} title="Linked item">{chipLabel} <span style={{ opacity: 0.7 }}>→</span></span>
-        )}
-      </NodeViewWrapper>
-    );
-  }
+  const displayText = storedText || (hasLink ? (link?.url || "link") : "inline textblock");
 
   return (
     <NodeViewWrapper
@@ -204,23 +162,60 @@ export default function InstanceTextblockInlineNode({ node, editor }) {
       ref={wrapperRef}
       data-instance-textblock-inline="true"
       data-occurrence-id={occurrenceId || undefined}
-      className={`instance-textblock-inline${editing ? " is-editing" : ""}${storedText ? "" : " is-empty"}`}
-      onDoubleClick={onDoubleClick}
+      className={
+        "instance-textblock-inline instance-textblock-inline--zoned"
+        + (hasLink ? (isUrl ? " itbi--url" : " itbi--occ") : "")
+        + (storedText ? "" : " is-empty")
+      }
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      {editing ? (
+      {/* LEFT — drag handle (hover-revealed RadialMenu). Always in the DOM so
+          the Pragmatic DnD dragHandle ref is stable; the menu lazy-mounts on
+          hover so a doc full of chips pays nothing at rest. */}
+      <span
+        ref={handleRef}
+        className={"itbi-handle" + (hovered ? " is-shown" : "")}
+        data-dnd-handle="true"
+        contentEditable={false}
+        title="Drag · menu"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {hovered && editable && (
+          <RadialMenu size="sm" forceDirection="down" items={radialItems} />
+        )}
+      </span>
+
+      {/* MIDDLE — editable content (text cursor). stopPropagation on mousedown
+          so a click edits here instead of node-selecting + scrolling the doc. */}
+      <span
+        ref={contentRef}
+        className="itbi-content"
+        contentEditable={editable}
+        suppressContentEditableWarning
+        spellCheck={false}
+        onMouseDown={(e) => e.stopPropagation()}
+        onInput={(e) => setDraft(e.currentTarget.textContent || "")}
+        onBlur={commit}
+        onKeyDown={onKeyDown}
+      >
+        {displayText}
+      </span>
+
+      {/* RIGHT — "enter" arrow: opens the link target in a new tab (URL) or
+          jumps to the occurrence (in-app). Only for link chips. */}
+      {hasLink && (
         <span
-          ref={spanRef}
-          className="instance-textblock-inline-edit"
-          contentEditable
-          suppressContentEditableWarning
-          onInput={(e) => setDraft(e.currentTarget.textContent || "")}
-          onBlur={commit}
-          onKeyDown={onKeyDown}
+          className="itbi-arrow"
+          contentEditable={false}
+          role="button"
+          tabIndex={-1}
+          title={isUrl ? href : "Open linked item"}
+          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+          onClick={openTarget}
         >
-          {storedText}
+          {isUrl ? "↗" : "→"}
         </span>
-      ) : (
-        <span className="instance-textblock-inline-text">{display}</span>
       )}
     </NodeViewWrapper>
   );

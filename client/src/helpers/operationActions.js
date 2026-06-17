@@ -619,7 +619,11 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
     case "MULTIPLY_VAR": {
-      const mulVal = Number(resolveExpr(cfg.expr, $vars)) ?? 1;
+      // Accept `cfg.by` (the form INCREMENT_VAR/DIV_VAR use) AND `cfg.expr`.
+      // Was `expr`-only, so a caller passing `by: 240` got resolveExpr(undefined)
+      // → NaN → the multiply silently no-op'd (the canvas-fan-out bug: every card
+      // landed at the base x/y because $col*240 / $row*150 always came out 0).
+      const mulVal = Number(resolveExpr(cfg.by ?? cfg.expr, $vars)) || Number(cfg.by) || 1;
       $vars[cfg.name] = (Number($vars[cfg.name]) || 0) * mulVal;
       break;
     }

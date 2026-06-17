@@ -1,6 +1,351 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-06-06. Check this file before re-reading source._
+_Updated: 2026-06-12. Check this file before re-reading source._
+
+## Recent Changes (2026-06-15 — FIX: lead aside is now a STRUCTURAL child of the root (empty preview column / unreachable lead image))
+- **`services/markdownImporter.js` (root `buildContainer`)** — the lead **aside**
+  container (`asideId`, the image+infobox column) was referenced ONLY through the
+  root's textmap (`buildSectionBody` front-pushes the wrapGroup embed); it was never
+  added to the root occurrence's `occurrences[]`. So it had NO `parentId`/`occurrences[]`
+  edge → an ancestry/cascade-delete orphan AND invisible to any consumer that walks the
+  occurrence tree without parsing textmaps. The folder-page **preview** (`PagePreviewApp`
+  `PagePreviewBody`) scopes its state by walking `occurrences[]`/`parentId` only — so the
+  aside (and the lead image rendered inside it) was dropped from the preview subtree,
+  rendering the **empty second column** the user reported on the Eminem import; the image
+  only appeared after drilling into the real page (full, un-scoped state). Fix: one line —
+  `childIds.push(asideId)` after `buildAsideContainer(...)`. `buildSectionBody` already
+  skips `id === asideId` in its main loop, so NO double-render. Regression test in
+  `__tests__/markdownImporter.test.js` ("the aside is a STRUCTURAL child of the root …")
+  walks the subtree the preview way and asserts the lead image is reachable + the aside
+  embeds exactly once. 37/37 importer tests pass. **Server restart + re-import to apply**
+  (importer change; existing imports keep the old orphaned shape until re-imported).
+
+## Recent Changes (2026-06-12 — lead aside reverted: neighbor-first wrapGroup → PARENT-LEVEL FLOAT)
+Per user ("account2 is wrong, do the most recent one") the Wikipedia **lead aside** (main
+image stacked over the infobox) is NO LONGER a single-host `wrapGroup`+seam. It's now a
+**parent-level CSS float**: the aside is emitted as a right-floated block at the FRONT of the
+root section and ALL prose textblocks flow as plain sibling blocks AFTER it, so the whole left
+column wraps beside-then-under the infobox (magazine lead, responsive, no fixed heights, no
+host coupling). The single-host wrapGroup only wrapped ONE block — the user's bug.
+- **`services/markdownImporter.js` (`buildSectionBody`)** — when `asideId` is set, pushes
+  `embed(asideId, { align:"right", width:320 })` at the FRONT of `content`; prose emits as
+  plain siblings. Deleted the `asideHostId`/`asidePlaced` machinery + the single-host wrapGroup
+  branch + the trailing no-host fallback. The dead `containerChildIds` Set (only fed the removed
+  host pick) is gone too. The **section-image** wrapGroup branch (non-lead images) is UNCHANGED.
+- **`services/markdownImporter.js` (root `buildContainer`)** — stamps `meta.leadFloat = true`
+  on the root container module when an aside is created (client hook → `.is-lead-float` CSS,
+  see client modules/CLAUDE.md). Module is now captured as `moduleObj` so the flag can be set
+  after `asideId` resolves.
+- Client half: `alignStyle` default reverted flow-root → plain block (docs/CLAUDE.md) +
+  `.is-lead-float` class & CSS (client/src/CLAUDE.md + modules/CLAUDE.md). Validated in a
+  headless render against the real `.textblock-card` cascade (`~/.wraptest2/leadfloat.{html,png}`):
+  top textblock left of the infobox, second flows full-width under it (the L-foot), no tinted
+  box behind the infobox. 36/36 importer tests (2 lead-aside cases rewritten), 218 server +
+  1113 client tests pass, build clean. **Server restart + re-import to apply.**
+
+## Recent Changes (2026-06-12 — a CONFIRMED import never runs as a dry run ("planned only — nothing imported"))
+- **`services/assistantAgent.js` (`assistantConfirm`)** — the offline model sometimes passes
+  `dryRun:true` to `wikipedia_import` (to "plan"), so approving the confirm card minted nothing
+  and the drawer showed "(planned only — nothing was imported. Re-run without dry-run …)". But
+  the confirm card IS the user's approval to do it for real. New `IMPORT_TOOL_NAMES` set
+  (`wikipedia_import` / `wikipedia_import_batch` / `import_markdown` / `import_html`); when a
+  confirmed tool is one of these and `input.dryRun` is truthy, it's forced to `false` before
+  `tool.run` (and the returned `input` reflects that). 2 regression tests in
+  `__tests__/assistantAgent.test.js` (force-false on dryRun:true; untouched when not set) —
+  stub `global.fetch` to assert `dryRun:false` on the wire. 218 server tests pass. **Server
+  restart** to apply.
+
+## Recent Changes (2026-06-12 — importer: wrapGroups emit NEIGHBOR-first + neighborWidth (block-wrap redesign))
+- **`services/markdownImporter.js` (`buildSectionBody`)** — both emitted `wrapGroup`s now put
+  the NEIGHBOR(s) FIRST and the HOST last (`content: [neighbor…, host]`), matching the client's
+  redesigned real-float wrap (a CSS float only wraps content after it). The lead aside group
+  carries `neighborWidth:320`; section-image groups `neighborWidth:260` (the floated column's
+  start width — the draggable seam now owns resize, so the old per-embed `align:"right"`/`width`
+  attrs were dropped). Client half: docs/ui/helpers/modules CLAUDE.md + spec
+  `docs/superpowers/specs/2026-06-12-unified-block-wrap-redesign.md`. **Re-import to apply.**
+  4 importer test assertions updated to neighbor-first order; 216/216 server tests pass.
+
+## Recent Changes (2026-06-12 — FIX: dry-run wiki import no longer hands back a wrappable root ("empty embed"))
+- **`routes/apiV1.js` (`/research/wikipedia/import`)** — the route gated persist+broadcast
+  on `if (!dryRun)` but returned `rootOccurrenceId` UNCONDITIONALLY. A dry run plans the
+  tree (mints nothing real) yet handed back a planned root id; the assistant drawer then
+  wrapped that id into a PERSISTED "Imports" doc page → a page whose `moduleEmbed` points
+  at an occurrence that never existed = the user's **"the page just shows the empty embed."**
+  Now `rootOccurrenceId: dryRun ? null : importResult.rootOccurrenceId`. Hardening at the
+  source; the client also guards (see client ui/helpers CLAUDE.md `shouldWrapImportOutput`).
+  **Root-caused from the DB:** the broken "Eminem" page (created 6/12 00:40, AFTER persistImport
+  deployed) embedded a root absent from the DB; a live non-dry-run import of the same route
+  persisted 140/140 fine → the broken one was a dry run. `markdownToModuli` output itself is
+  clean (0 dangling embeds on real Eminem). The importer/persist pipeline was NOT the bug
+  (account1's dangling-ref hypothesis disproven). No restart needed beyond nodemon's auto-reload.
+
+## Recent Changes (2026-06-11 — importer: lead aside is now a RESIZABLE wrap NEIGHBOR the next container morphs around)
+- **`services/markdownImporter.js buildSectionBody`** — the lead aside (image stacked over
+  the infobox) is no longer a standalone right-FLOATED block. It's now the **neighbor** of a
+  `wrapGroup` whose **host is the first sub-container** (e.g. "Early life and education") —
+  that container morphs its text/border into an L to **semi-surround** the aside (user:
+  "puzzle / mosaic pieces, but with a wrap" — two separate interlocking occurrences, the
+  aside NOT nested inside). New `containerChildIds` set tracks sub-sections; `asideHostId` =
+  first sub-container, else first prose textblock, else a plain right-float fallback. The
+  aside neighbor is `embed(asideId,{width:320,align:"right"})` — `align:"right"` gives it the
+  embed RESIZE handle (width is just the start); dragging it re-sizes the column and
+  `WrapGroupNode`'s ResizeObserver re-measures so the host notch (the morph) follows.
+- Section-image **wrapGroups** also carry explicit `anchorIndex:0` (clean top-L), matching the
+  client's per-line wrap model (the `⠿` grip is gone — wraps form / re-morph / un-wrap purely
+  by NORMAL drag of the neighbor's radial handle; see client docs/ui/helpers CLAUDE.md).
+  Client also gives wrapped neighbors a visible border + drops the crammed caption (modules
+  CLAUDE.md). **Re-import to apply.** 36/36 importer tests pass; client build clean.
+
+## Recent Changes (2026-06-11 — importer: lead aside is now a FLOATED block, not a wrapGroup host)
+- **`services/markdownImporter.js` (`buildSectionBody`)** — the lead image+infobox
+  aside no longer folds into a `wrapGroup` with the FIRST prose textblock as its notch
+  host (that made "the infobox + image read like they're in the first paragraph", and
+  only ONE paragraph wrapped). It's now emitted as a **standalone right-floated embed**
+  (`moduleEmbed(asideId, {align:"right"})`) at the FRONT of the section body, with the
+  prose textblocks as normal siblings after it. Per the user: the article's MULTIPLE
+  lead textblocks should flow down the LEFT of the image+infobox sidebar and wrap
+  full-width underneath once past its bottom — an AUTO, height-driven count. Removed the
+  `asidePlaced`/first-textblock coupling + the trailing no-host fallback (the aside is
+  always pushed once at the front when present). The per-SECTION image notch wrapGroup
+  branch is UNCHANGED (single images still notch-wrap their one host textblock). Image
+  is stacked ABOVE the infobox in the aside (`asideMemberIds=[firstImg, table]` — already
+  correct). Client half (float + BFC textblock cards + infobox column tint) in
+  client/src/docs+modules CLAUDE.md. **Re-import to apply** (existing articles keep the
+  old shape). Test updated: the lead-aside test now asserts a front `align:"right"` embed
+  (not a wrapGroup) + a following textblock sibling. 35/35 importer + 17/17 htmlToMarkdown
+  tests pass; client build clean. VERIFIED in headless browser against a synthetic Eminem
+  import: aside floats right (image over infobox), lead textblock cards narrow beside it
+  and the run reclaims full width below; infobox key column visibly tinted.
+
+## Recent Changes (2026-06-11 — FIX: imports were NEVER persisted → vanished on reload)
+**Root cause of "the Wikipedia article just shows an embed block on reload":** every
+import path only BROADCAST `module_created`/`occurrence_created` to connected tabs —
+it never WROTE the modules/occurrences to MongoDB (or the warm server cache). So an
+import rendered live (the client folds the broadcast into local state) but on the next
+reload `full_state` (DB/cache-backed) didn't include it; the page's `moduleEmbed` of
+the now-missing root container fell to the `!mod` placeholder. Pre-existing bug, not
+from the wrap/quote work (the import OUTPUT is verified clean — no throw / dangling refs).
+- **`utils/persistImport.js` (NEW)** — `persistImportResult({ result, userId, uc })`
+  upserts every module + occurrence (`findOneAndUpdate({id,userId}, …, {upsert:true})`)
+  AND mirrors them into the warm cache. Textmaps are written COMPRESSED to the DB
+  (matches `update_occurrence`; `loadUserIntoCache` decompresses on read) while the
+  cache/broadcast copies stay RAW — the original `result.occurrences` objects are NOT
+  mutated (the routes broadcast them raw immediately after).
+- Wired into **all** import entries: `socketHandlers/import.js` (`import_text` — drag
+  import; now destructures the cache helpers from ctx) + the four REST routes in
+  `routes/apiV1.js` (`/research/wikipedia/import`, `/import/markdown`, `/import/text`,
+  `/import/html`) via `getUserCache`. Persist runs BEFORE the broadcast.
+- **SERVER RESTART required.** Existing ephemeral imports are already gone from the DB
+  — **re-import** to persist them. New imports now survive reload.
+
+## Recent Changes (2026-06-10 — importer: images NOTCH-wrap (wrap:true) + clean infobox/aside labels)
+User feedback on the imported Eminem page (re-import to apply; **server restart**):
+- **`services/markdownImporter.js` (`buildSectionBody`)** — BOTH image wrapGroups
+  (the lead image+infobox aside AND every section image) flipped `wrap:false` →
+  **`wrap:true`**. The prose now flows AROUND the image in an L (beside it, then
+  reclaiming full width UNDERNEATH = "the notch") and reflows on panel resize via
+  native float layout. This REVERSES the prior account3 `wrap:false` decision —
+  that was a workaround for the "fragile, didn't reflow" notch, which is now fixed
+  (the @tiptap/react grandchildren measure/CSS fix + the shared `wrapNotch` clip
+  hook). Per the user: the intro should wrap the lead image, not sit beside it, and
+  the wrap "shouldve wrapped around the image regardless if it was 1 or 2 textblocks".
+- **`services/markdownImporter.js` labels** — the lead **aside** doc container was
+  `label:""` (rendered a generic "Container" header) → now labeled with the article
+  subject (`node.label`, e.g. "Eminem"). The infobox **table** label was
+  `headers[0] || "Table"` (= "Field" from the `| Field | Value |` header) → now
+  `headers[0] || ""` (no label). `buildTable` keeps an explicitly-EMPTY header cell
+  empty (no "Column N" fallback) so the infobox renders with NO header title.
+- **`services/wikipediaTools.js` (`fullMarkdown`)** — the infobox pipe table header
+  row is now `| | |` (empty cells) instead of `| Field | Value |`, so the imported
+  table has blank column titles + an empty container label (a bare facts card).
+- **`services/markdownImporter.js` (`buildContainer`) — CONSECUTIVE paragraphs now
+  MERGE into ONE textblock** (a paragraph accumulator + `flushPara()` on any
+  structural block). The user: "ours has 2 textblocks for that chunk when the
+  article shows 1" + "it shouldve wrapped around the image regardless." A single
+  tall prose chunk also fully hosts the lead-image L-notch. Lists/code/images/
+  tables/sub-sections still flush + stay their own blocks (reading order preserved).
+  REVERSES the prior "one textblock per paragraph" decision.
+- **Aside heading size (A)** — the lead aside now carries `meta.headingLevel: 2` so
+  it reads SMALLER than the article's H1 root header (root container is level 0 →
+  H1). Whether the final on-screen sizes match the user's ask still wants an
+  in-browser glance.
+- **Quotes embed INSIDE the lead-up textblock** (`buildContainer` quote branch) —
+  a `> ` blockquote following prose stays its OWN `kind:"quote"` artifact occurrence
+  but is pushed as a `moduleEmbed` into the running prose textblock (not flushed as a
+  detached sibling), so it flows right after its lead-in ("…who said:"). Per the
+  user: "a separate artifact (its own block) but inside the other one."
+- Tests: 2 `wrap:false`→`true` assertions updated + new aside-label/empty-table
+  assertions; the direct-markdown aside test uses `| | |`. 53/53 importer/wiki
+  tests pass; client build clean. **Still in-browser/TODO** (need the running app):
+  the H1/H2 heading-SIZE swap (root "Eminem" should read biggest), and the image
+  embed's drag-handle gap (put image info there).
+
+## Recent Changes (2026-06-10 — quotes → kind:"quote" ARTIFACT (styled pull-quote))
+- **`services/markdownImporter.js`** — `parseBlocks` now recognizes contiguous `> `
+  blockquote lines → `{kind:"quote", text, attribution}` (trailing "— Author"
+  em/en-dash split off); `buildArtifactQuote` mints a `role:"artifact" kind:"quote"`
+  module with `meta.{quote,attribution}` (no fileRef). Replaces the old ugly
+  arrow-chip + textblock rendering of quotes.
+- **`services/wikipediaTools.js` (`wikiHtmlToMarkdown`)** — new turndown rule
+  `wikiPullQuote`: Wikipedia `{{Quote box}}`/`{{Cquote}}` render as `.quotebox` /
+  `.cquote` (often a `<table>`, which turndown would mangle into a GFM table), so
+  they're converted to a real `> quote — attribution` blockquote. Plain
+  `<blockquote>` already converts via turndown's default.
+- **Client:** `modules/ArtifactCard.jsx` `kind:"quote"` branch (big quote mark +
+  italic text + "— attribution") + `.artifact-card--quote` CSS. Renders through the
+  existing artifact embed path (`embedHideLabel`). **Re-import to apply.** 33
+  importer tests pass (new quote + list-column cases).
+
+## Recent Changes (2026-06-10 — importer: long bullet lists flow into height-capped columns)
+- **`services/markdownImporter.js`** — bullet lists with >20 items now stamp
+  `occurrence.meta.listCapRows = 20` on their textblock (via the new optional
+  `buildTextblock(content, occMeta)` 2nd arg). The client caps the `<ul>` to ~20
+  rows of height and flows the rest into additional columns (`column-fill:auto` +
+  `column-width`), so the column count RESPONDS TO HEIGHT, not a fixed number — the
+  fix for the long "artists who cited him as an influence" list. Short lists are
+  untouched. Client half: `modules/TextblockCard.jsx` (reads `meta.listCapRows` →
+  `--list-cap-rows` + `.textblock-card--cols`) + `index.css`. **Re-import to apply**
+  (meta only lands on new imports). 31 importer tests pass.
+
+## Recent Changes (2026-06-10 — infobox: strip embedded <style>/<script>/refs before .text())
+- **`services/wikipediaTools.js` (`extractInfobox`)** — Wikipedia infoboxes embed
+  `<style>.mw-parser-output …{}</style>`; cheerio's `.text()` dumps that CSS
+  verbatim into cell values (the "per-person-output { … }" garbage the user saw as
+  "broken html in the infobox table"). Now removes
+  `style, script, .reference, sup.reference, .mw-editsection, .noprint, .sortkey`
+  from the box BEFORE reading rows. Verified: Born/Occupations rows come out clean,
+  no CSS, no `[1]` refs. **Re-import to apply.** 48 importer/wiki tests pass.
+
+## Recent Changes (2026-06-09 — importer: infobox → table occurrence in a lead "aside")
+- **`services/wikipediaTools.js`** — new `extractInfobox(html)` cheerio-parses the
+  article's `.infobox` (which the strip-selectors otherwise discard) into
+  `{label,value}` rows (`<br>`→" · ", `<li>`→", " so multi-value cells read
+  cleanly). `fullMarkdown` builds a pipe table from it and injects it right after
+  the lead image (after the H1). Verified live (Eminem): 13 rows — Born /
+  Occupations / Labels / Website / Spouses / …
+- **`services/markdownImporter.js`** — the lead image + the infobox table now group
+  into a `kind:"doc"` **lead aside** container (`buildAsideContainer`,
+  `meta.leadAside:true`) that stacks them vertically and renders SIDE-BY-SIDE on the
+  right of the intro textblock (a `wrapGroup` with `wrap:false` = robust flex
+  column, no fragile notch). Per the user: image (artifact) + infobox (kind:table)
+  "both in a doc container … on the right of the first textblock." Scoped to the
+  Wikipedia case — only fires when the lead image is immediately followed by a table
+  (`tableChildIds`); a plain lead image with no infobox keeps the normal
+  image-beside-prose notch wrap. `buildSectionBody` gained `asideId`/`asideMemberIds`
+  (excludes the members from the main flow, makes the aside the first textblock's
+  neighbor). `buildContainer` takes `isRoot`. Re-import to apply. 51 importer/wiki
+  tests pass (2 new aside cases); 211 server tests green.
+
+## Recent Changes (2026-06-09 — reseed clears the assistant chat history)
+- **`scripts/createLiveData.js` (STEP 11 grid write, ~line 5771)** — the
+  `Grid.findByIdAndUpdate` that stamps `meta.layoutTree` now ALSO stamps a fresh
+  `meta.assistantSeedId: uid()` every run. The assistant chat history lives in
+  BROWSER localStorage (`moduli_assistant_history`), which a server script can't
+  touch — so instead the drawer compares this marker to the one it last saw and
+  clears its transcript when it changes (mirrors the bootstrap-token pattern; no
+  new endpoint — `grid.meta` already syncs via `full_state`). See
+  client/src/ui/CLAUDE.md (AssistantDrawer SEED_KEY effect). So a reseed now starts
+  the Jonah conversation fresh. No server restart needed beyond the normal reseed.
+
+## Recent Changes (2026-06-09 — Canvas: Build cards piled at one spot (fan-out + connect fix))
+- **`scripts/createLiveData.js` (`Canvas: Build`, position block ~line 9337)** —
+  ROOT CAUSE of "the schedule-canvas nodes still aren't fanned out nor connected":
+  the DB showed all 6 cards stamped at the SAME (1760,1850) with a full 5-edge
+  chain (edges existed but were zero-length → invisible). The `$col`/`$row` cursor
+  resets to 0 every fire (step 5b) and **only advanced when a card was MINTED**. In
+  diff mode the schedule builds incrementally, so each fire reset col=0 and minted
+  just the one new task's card at col=0 while existing cards didn't advance the
+  cursor → every new card piled at slot (0,0). Fix: the slot position is now
+  computed for EVERY task and the cursor advances for every task that resolved a
+  card (existing OR minted), so a new card always takes the next free slot. Fixes
+  BOTH "not fanned out" and "not connected" (the edges become visible once the
+  cards spread). **Re-seed required:**
+  `node --env-file=.env server/scripts/createLiveData.js`.
+
+## Recent Changes (2026-06-09 — importer follow-ups: trailing `)`, source link → bottom, image width)
+- **`services/markdownImporter.js`** — three more user-reported import fixes (re-import to apply):
+  - **Balanced-paren URLs.** The link/image url matchers used `[^)]+`, which
+    truncated Wikipedia titles like `…/Encore_(Eminem_album)` at the first `)` and
+    left a stray trailing `)` after the chip ("The Monster Tour)"). All four
+    matchers (`parseInline` link, `paragraphToBlocks` img, `parseBlocks` block-img,
+    `stripInlineMd`) now use `(?:[^()]|\([^)]*\))*` (one level of balanced parens).
+    Verified: 0 truncated paren URLs.
+  - **Source link → BOTTOM.** The "Source: … — Wikipedia ↗" textblock is now
+    APPENDED as the root's last child (was prepended first). The doc opens with the
+    main-image+intro wrapGroup; the article link sits at the end.
+  - **Wrapped image width.** Neighbor image embeds in an importer-built wrapGroup
+    get `attrs.width:260, align:"right"` so they render as a sized box that lines up
+    in the host's notch (an unconstrained image measured full-width and blew out the
+    wrap geometry).
+
+## Recent Changes (2026-06-09 — Wikipedia import: link/emphasis/See-also/main-image/block-wrap fixes)
+Five user-reported import bugs, all in `services/markdownImporter.js` +
+`services/wikipediaTools.js`. **Server restart + re-import to apply** (Node code;
+imports are user-triggered, no reseed).
+- **`markdownImporter.js` `parseInline` — emphasis now RECURSES.** Root cause of
+  "links with `[]()` still don't resolve": the italic rule's `[^*]+` swallowed the
+  whole `[text](url)` inside `*[The Eminem Show](url)*` (69 such album links in the
+  Eminem article) so it rendered as literal text. Bold/italic/bolditalic spans now
+  recurse through `parseInline` (non-greedy `[\s\S]+?`) and re-apply the mark via
+  the new `applyMarks` helper; a link nested in emphasis becomes a chip (the mark
+  is dropped on the atom — the link resolving is what matters). Verified live: 717
+  link chips, **0** leftover literal `[](url)`.
+- **`markdownImporter.js` — bullet lists get `buildInlineLink`.** The "See also"
+  section (a list of article links) was calling `parseInline` WITHOUT the minter,
+  so its links were un-resolving link marks. Now bullet items mint the same inline
+  link chips as prose.
+- **`markdownImporter.js` — `SECTION_DENYLIST`.** Drops trailing citation/nav
+  cruft sections (Notes / References / External links / Further reading / …) in
+  `buildContainer`'s container branch. Removes the "random `-` line with a link"
+  (the External-links `- [Official website] [![Edit this at Wikidata]…]` bullet).
+  **"See also" is intentionally KEPT** (user wants those as links).
+- **`markdownImporter.js` — heading labels stripped of inline md** via
+  `stripInlineMd` in `parseBlocks` (so `### …, *The Slim Shady LP*` reads clean,
+  no literal `*`).
+- **`wikipediaTools.js` — main/lead image injected.** Wikipedia's main photo lives
+  in the `.infobox`, which `wikiHtmlToMarkdown` strips → the article had no main
+  image. `summary()` now also returns `originalimage`; `fullMarkdown` fetches it
+  and injects `![Title](url)` right after the H1, so the importer mints it as the
+  page's main image. Verified: artifacts 8→**9**.
+- **`markdownImporter.js` — images now BLOCK-WRAP (reverses the old "importer does
+  NOT emit wrapGroups" decision).** New `buildSectionBody(childIds, …)` folds each
+  block image into a `wrapGroup` with the next prose textblock host (images are
+  buffered because Wikipedia emits the image BEFORE its prose), so the text reflows
+  beside the image. A single host can carry MULTIPLE stacked image neighbors. The
+  lead image (after the H1) wraps the intro paragraph — NOT the "Source: … —
+  Wikipedia ↗" textblock (it isn't a host). Images with no following prose host
+  fall back to a full-width standalone embed. Client `WrapGroup` extended to N
+  neighbors to match (see client/src/docs/CLAUDE.md). Verified live: 9 wrapGroups,
+  every host a textblock; root opens `[Source-link, wrapGroup(intro+mainImg), …]`.
+- 42 server tests across markdownImporter / wikipediaLinks / htmlToMarkdown pass.
+
+## Recent Changes (2026-06-09 — Canvas: Build cards now FAN OUT near the world center)
+- **`scripts/createLiveData.js` (`Canvas: Build`, mint branch)** — root cause of
+  "the canvas looks empty / nothing is fanned out": every minted card was stamped
+  `meta.x = 60` (a single vertical column at the world's TOP-LEFT corner). The
+  canvas centers on the 4000×4000 world's MIDDLE (~2000,2000) on load, so that
+  column sat off-screen — the cards existed but weren't visible. Fixed: replaced
+  the `$r`-driven single column with a **3-column grid** (`$col`/`$row` cursor,
+  wraps after 3) centered near the world center — `x = 1760 + $col*240`,
+  `y = 1850 + $row*150`. `$x`/`$y` are deep-resolved inside the COPY_LINK `meta`
+  (verified — operationActions.js:1751). The mindmap edge chain + diff-mode drag
+  preservation are untouched. **Re-seed required:**
+  `node --env-file=.env server/scripts/createLiveData.js`.
+
+## Recent Changes (2026-06-09 — Grid.meta field + seed opens in BSP "mosaic" layout)
+- **`models/Grid.js`** — added `meta: { type: Mixed, default: {} }`. The Grid
+  schema had NO meta field, so `GridSettingsTab`'s `grid.meta.defaultStyle` /
+  `grid.meta.localSort` writes were silently dropped by strict mode — this fixes
+  those AND stores the new opt-in BSP layout at `grid.meta.layoutTree`. Persists
+  through the generic `update_grid` handler (client read-modify-writes the whole
+  `meta`). **Server restart required** (schema). No reseed strictly needed for the
+  field, but see below for the seed.
+- **`scripts/createLiveData.js` (STEP 11)** — the seeded grid now opens in mosaic:
+  `Grid.findByIdAndUpdate(..., { "meta.layoutTree": <tree> })`. The tree mirrors
+  the rows×cols placement (same 5 panels): col0 = toolkit/todo, **col1 = the
+  notebook hub as ONE full-height pane (the "middle one, 2 rows high")**, col2 =
+  goals/accounts. Client renders via `GridMosaic` (see client/src/modules/CLAUDE.md).
+  **Re-seed to apply:** `node --env-file=.env server/scripts/createLiveData.js`.
 
 ## Recent Changes (2026-06-08 — assistant: one-card linked import + editable create_field)
 - **`services/assistantTools.js`** — new `wikipedia_import_batch({ titles, parentId? })`

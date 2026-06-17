@@ -1,6 +1,153 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-06-08. This folder implements occurrence-based view routing._
+_Updated: 2026-06-12. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-06-15 — PageFolder: briefly flash newly-arrived cards (fresh imports))
+- **`pages/PageFolder.jsx`** — folder pages now pulse a card for ~1.3s when its
+  occurrence id NEWLY appears in the folder (user: "since the import folder holds all
+  the imports, highlight the new ones added just for a second"). `seenIdsRef` seeds
+  silently on FIRST render (opening a populated folder doesn't strobe everything); only
+  ids that show up afterwards flash. Per-id timers (cleared on unmount) drop each id from
+  `flashIds` after 1.3s. `FolderItem` applies `.preview-node-flash` (new keyframe in
+  `index.css` — blue ring + tint fading to nothing) to the grid card wrapper AND the list
+  row. Generic — any folder page gets it; the Imports folder is the motivating case.
+
+## Recent Changes (2026-06-12 — lead aside parent-float: `.is-lead-float` class on the root section)
+- **`ModuleContainer.jsx`** — the container-shell className now appends `is-lead-float` when
+  `module.meta.leadFloat` (the root section that HOSTS the Wikipedia lead aside as a parent-level
+  right float — the aside floats at the front, prose flows down the left). Mirrors the existing
+  `is-lead-aside` line. The CSS hook (`client/src/index.css`) makes the lead-float prose textblock
+  cards plain non-BFC blocks with transparent chrome so they wrap beside-then-under the floated
+  infobox (and don't draw a tinted box behind it). The importer stamps `meta.leadFloat` on the
+  root module (server/CLAUDE.md); the embed wrappers are plain blocks via the reverted `alignStyle`
+  default (docs/CLAUDE.md). Headless-validated. One line in the className IIFE.
+
+## Recent Changes (2026-06-12 — TextblockCard/ModuleContainer drop the wrap-clip hook (block-wrap redesign))
+- **`TextblockCard.jsx` + `ModuleContainer.jsx`** — removed the `useWrapNotchClip` calls (and
+  TextblockCard's `--wraphost` class + `cardRef`). In the redesigned block-wrap (docs/CLAUDE.md
+  + spec) the host card's L border is clipped by `WrapGroupNode` via the `--wrap-host-clip` CSS
+  var (applied by the `.wrap-group--on … :last-child .textblock-card/.container-shell` rule) —
+  the host renderer no longer measures a ghost spacer. No behavior change for non-wrapped cards.
+
+## Recent Changes (2026-06-11 — artifact cards: strip the instance "keycap" frame so media reads edge-to-edge)
+- **`index.css`** — a section/notch image rendered via `ModuleInstance(renderBody=ArtifactCard)`
+  was wrapped in the instance-row keycap chrome (bg/border/shadow/padding), so it read as
+  "an instance with a picture" (a thumbnail double-framed in an instance card). New rule
+  `.instance-wrap > .instance-row:has(.artifact-card:not(--expanded):not(--quote))` strips
+  that outer chrome (transparent / no border / no shadow / no padding) so the `.artifact-card`
+  itself IS the visual box — a clean filled media block (it already has overflow:hidden +
+  radius + `.artifact-thumb{width:100%;object-fit:cover}`). Added a subtle drop shadow to
+  `.artifact-card` so it pops off the doc surface. The GripVertical drag handle stays
+  (hover-only, absolute); expanded + quote cards keep their own chrome; the `--with-info`
+  caption column is preserved. Per user (chose "edge-to-edge fill", keep info column).
+  CSS-only; HMR + metric verified (instance-row bg transparent, border 0, card shadow on).
+  NOTE: headless can't load Wikipedia images (no network) so the FILL itself shows live only.
+
+## Recent Changes (2026-06-11 — lead aside: `.is-lead-aside` class + infobox column tint + BFC textblock cards)
+- **`ModuleContainer.jsx`** — the container-shell className now appends `is-lead-aside`
+  when `module.meta.leadAside` (the Wikipedia image+infobox sidebar). A CSS hook so the
+  nested infobox table can be styled distinctly. One line in the className IIFE.
+- **`index.css`** (see client/src/CLAUDE.md for the full list) —
+  (1) `.textblock-card:not(--inline):not(--link)` → `display:flow-root` (BFC, so block
+  textblock cards flow beside the floated aside; the real lever is the moduleEmbed
+  wrapper change in docs/CLAUDE.md). (2) `.is-lead-aside .table-row > .table-td:first-child`
+  → blue key-column tint (`rgba(120,180,230,0.13)`) + right border, distinct from the
+  value column (user ask). (3) `.is-lead-aside .container-shell .embedded-container-header`
+  → `display:none` so the empty-label infobox table doesn't render a generic "#Container"
+  header — it reads as a bare facts card under the aside's own subject header.
+  All HMR-verified in the live grid against a synthetic Eminem import.
+
+## Recent Changes (2026-06-11 — wrapped NEIGHBOR is its own bordered "puzzle piece" + no crammed caption)
+- **`index.css`** — a wrapGroup NEIGHBOR (image / infobox / any occurrence in the host's
+  notch) now gets a clear visible border (`.wrap-group--on …:nth-child(n+2) .artifact-card`
+  → `var(--border-default) !important`) so it reads as a **distinct interlocking occurrence**
+  beside the morphing host (user: "puzzle / mosaic pieces with a wrap" — two separate boxes,
+  NOT the image nested inside the textblock). The recent edge-to-edge artifact change had
+  stripped the border (right for a standalone image, wrong for a wrap neighbor). Also: in a
+  wrap, the artifact caption/info no longer sits crammed beside the photo in the narrow notch
+  (broke into 1–2-char lines) — `.wrap-group .artifact-card--with-info` hides the side info
+  and lets the image fill its box. Pairs with the importer making the lead aside a resizable
+  wrap neighbor (server/CLAUDE.md). CSS-only; **in-browser glance** to confirm.
+
+## Recent Changes (2026-06-11 — FIX: infobox/cell rows were ~110px tall (cell editor min-height never overridden))
+- **`index.css`** — root cause of "infobox rows too tall for years active / children / other
+  names": a plain-text table cell mounts `<Editor>`, whose DOM is `.doc-editor` (inline
+  `minHeight:32`) **>** `.doc-editor-wrapper` (Tailwind `min-h-[100px]` + inline 5px top/bottom
+  padding). The wrapper is a **grandchild** of `.table-td`, so the prior fix
+  `.table-td > .doc-editor-wrapper { min-height:0 }` (direct-child `>`) never matched — every
+  cell was forced ≥100px tall, so even one-line value rows read huge. New rules zero all three
+  (`.table-td .doc-editor{min-height:0!important}` + descendant `.doc-editor-wrapper` with
+  `min-height:0` + `padding-top/bottom:0!important`) so rows collapse to their content height.
+  Applies to ALL tables (infobox + Schedule). CSS-only; **in-browser glance** to confirm
+  Schedule text cells still read OK.
+
+## Recent Changes (2026-06-11 — table rows size to content: `.table-td` vertical padding 8px→2px)
+- **`index.css` `.table-td`** — vertical padding `8px` → `2px` (horizontal kept at
+  8px). Rows now hug their content instead of reading too tall — applies to ALL
+  tables (the imported Wikipedia infobox AND the Schedule table; user wanted both).
+  Empty-cell `minHeight:18` (StaticCellEmbed) + the flex `align-items:stretch` row
+  model are unchanged, so cells still size to the tallest occurrence — there was no
+  hard row-min beyond the padding. **In-browser tune** if Schedule cards feel tight.
+
+## Recent Changes (2026-06-10 — ArtifactCard: image-info column fills the gap beside the thumbnail)
+- **`ArtifactCard.jsx`** — image cards now render an info column (name/alt, pixel
+  dimensions, file size — whatever `module.meta` has; external Wikipedia images only
+  carry the alt) in the empty space beside the thumbnail (user: "too much space
+  between the drag handle and the image — put the image info there"). Gated on
+  `kind==="image"` + at least one info field → adds `artifact-card--with-info` +
+  `.artifact-thumb-info*`. CSS (`index.css`): the with-info card flips to
+  `justify-content:flex-start`, info grows (`flex:1`), the image keeps its natural
+  size (`max-width:55%`) on the right. Non-image / info-less cards unchanged.
+  **Needs an in-browser glance** to tune the split.
+
+## Recent Changes (2026-06-10 — block-wrap host generalized: TextblockCard + ModuleContainer share one clip hook)
+- **`TextblockCard.jsx`** — the inline notch-clip (`findWrapSpacer` + ResizeObserver
+  measure + `notchClipPath`) was extracted to `docs/wrapNotch.js` and is now consumed via
+  `useWrapNotchClip(occurrence?.textmap, cardRef, !isInline)`. Behavior identical for
+  textblock hosts; the hook is called before the link early-return so hook order is stable.
+- **`ModuleContainer.jsx`** — calls the same `useWrapNotchClip(containerOccurrence?.textmap,
+  containerRef, isDocContainer)` and merges `clipPath` into the container-shell style, so a
+  `kind:"doc"` container can now HOST a wrapGroup and clip its own border into the L/C/
+  hangman/J (the doc Editor renders the floated `wrapSpacer`, the shared measure finds it).
+  Closes the CLAUDE_CHAT docket "generalize host beyond textblock". See docs/CLAUDE.md +
+  the new `docs/wrapNotch.js`. Build clean; ResizeObserver→clip needs an in-browser glance.
+
+## Recent Changes (2026-06-09 — retracted (autohide) panel header gets a visible "lip")
+- **`ModulePanel.jsx`** — when a panel's header is retracted (`meta.autohide`), the
+  reveal affordance was an INVISIBLE 8px top strip (nothing to aim at). Added a
+  centered, visible **lip** tab at the top edge (rounded-bottom nub with a
+  `ChevronDown`) alongside a now-10px forgiving invisible strip; both
+  `setHeaderRevealed(true)` on hover (lip also on click). CSS `.panel-header-lip`
+  in `index.css` (subtle at rest → brightens + grows on hover = pull-down handle).
+  All seed panels are `autohide:true`, so every mosaic pane now shows the lip.
+
+## Recent Changes (2026-06-09 — BSP "mosaic" layout (opt-in, Phase 1) + DnD)
+- **`GridMosaic.jsx` (NEW)** — renderer for the opt-in split-tree ("mosaic") panel
+  layout. When `grid.meta.layoutTree` is set, `Grid.jsx` renders this instead of
+  the rows×cols `GridRender`. Panes are absolutely positioned from the tree;
+  **splitter bars resize INDEPENDENTLY per axis** (resizing a row split in the
+  right column never moves the left column's — the whole reason for BSP). Pure
+  tree math lives in `helpers/bspTree.js` (23 unit tests); this component owns the
+  React/DOM/persistence/DnD glue:
+  - Measures its container (ResizeObserver) → `computeLayout(tree, rect)` → renders
+    each pane as `<Panel mosaic>` + splitter bars (pointer-drag reuses the
+    `Grid.jsx` resize pattern; on pointer-up persists `grid.meta.layoutTree` via
+    `CommitHelpers.updateGrid`, read-modify-writing the whole `meta`).
+  - **Reconcile effect** keeps the tree in sync with the live panel set: PRUNE
+    leaves whose panel was removed ("Remove from grid" → pane collapses) + ADD new
+    panels (+Panel button) by splitting the largest pane. Guarded (`size.w>0` +
+    non-empty panel set) so a transient empty/partial load never wipes the tree.
+  - **Drag-to-split DnD:** each pane is a Pragmatic `dropTargetForElements`
+    accepting `DragType.PANEL` drags; `attachClosestEdge` → split direction
+    (left/right→"v", top/bottom→"h"); on drop `removeLeaf(old)`+`splitLeaf(target)`
+    re-homes the dragged panel. The old cell-based `handlePanelDrop`
+    (`dropHandlers.js`) early-returns in mosaic mode so the two don't fight.
+    Intra-panel content DnD (instances/containers) is unaffected — panels render
+    normally.
+- **`ModulePanel.jsx`** — new `mosaic` prop: skips the CSS-grid `gridRow`/
+  `gridColumn` placement + grid margin (the GridMosaic pane wrapper positions it →
+  fills 100%), and hides the corner cell-span `ResizeHandle` (splitter bars resize
+  panes in mosaic). Non-mosaic path byte-identical.
 
 ## Recent Changes (2026-06-08 — ModuleContainer: insert-here gaps between list/board items)
 - **`ModuleContainer.jsx`** — the standard list/board child render loop now

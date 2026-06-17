@@ -574,7 +574,7 @@ function InstanceInner({
                   flex: "0 1 auto", minWidth: 0,
                   background: "transparent", border: "none", outline: "none",
                   fontSize: 12, color: "var(--text-primary)",
-                  paddingTop: 2, paddingLeft: 2,
+                  paddingTop: 0, paddingLeft: 2,
                   fontFamily: "inherit",
                 }}
               />
@@ -587,7 +587,7 @@ function InstanceInner({
                   overflow: "hidden",
                   fontSize: 12,
                   color: "var(--text-primary)",
-                  paddingTop: 2,
+                  paddingTop: 0,
                   paddingLeft: 2,
                   cursor: "text",
                 }}

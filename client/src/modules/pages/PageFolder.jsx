@@ -112,6 +112,50 @@ export default function PageFolder({
     });
   }, [childOccs, dispatch, socket]);
 
+  // Briefly highlight cards that NEWLY appear in this folder — e.g. a fresh
+  // import landing in the "Imports" folder (the user: "since the import folder
+  // holds all the imports, highlight the new ones added just for a second").
+  // First render seeds the seen-set WITHOUT flashing (opening a populated
+  // folder shouldn't strobe every card); only ids that show up afterwards
+  // pulse for ~1.3s. Generic — any folder page gets the affordance.
+  const seenIdsRef = useRef(null);
+  const flashTimersRef = useRef(new Map());
+  const [flashIds, setFlashIds] = useState(() => new Set());
+  useEffect(() => {
+    const currentIds = (childOccs || []).map(o => o.id);
+    const currentSet = new Set(currentIds);
+    if (seenIdsRef.current === null) {
+      seenIdsRef.current = currentSet; // seed silently on first render
+      return;
+    }
+    const fresh = currentIds.filter(id => !seenIdsRef.current.has(id));
+    seenIdsRef.current = currentSet;
+    if (!fresh.length) return;
+    setFlashIds(prev => {
+      const next = new Set(prev);
+      for (const id of fresh) next.add(id);
+      return next;
+    });
+    for (const id of fresh) {
+      const existing = flashTimersRef.current.get(id);
+      if (existing) clearTimeout(existing);
+      const t = setTimeout(() => {
+        flashTimersRef.current.delete(id);
+        setFlashIds(prev => {
+          if (!prev.has(id)) return prev;
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }, 1300);
+      flashTimersRef.current.set(id, t);
+    }
+  }, [childOccs]);
+  useEffect(() => () => {
+    for (const t of flashTimersRef.current.values()) clearTimeout(t);
+    flashTimersRef.current.clear();
+  }, []);
+
   const handleNavigate = useCallback((occId) => {
     if (panelView?.id) {
       CommitHelpers.updateView({ dispatch, socket, view: { ...panelView, activeOccurrenceId: occId }, emit: true });
@@ -365,6 +409,7 @@ export default function PageFolder({
                 isAnimating={!!animState}
                 autoNavigateTo={autoNavigateTo}
                 animState={animState}
+                isNew={flashIds.has(occ.id)}
               />
             );
           })}
@@ -384,7 +429,7 @@ export default function PageFolder({
 // switches between the existing PreviewNode card render (grid) and a
 // compact row render (list). Row mode renders directly here so PreviewNode
 // stays a pure card.
-function FolderItem({ occ, mod, index, viewLayout, onDrillDown, onReorder, isAnimating, autoNavigateTo, animState }) {
+function FolderItem({ occ, mod, index, viewLayout, onDrillDown, onReorder, isAnimating, autoNavigateTo, animState, isNew }) {
   const wrapRef = useRef(null);
   const [edgeHint, setEdgeHint] = useState(null); // "top" | "bottom" | "left" | "right" | null
 
@@ -434,7 +479,7 @@ function FolderItem({ occ, mod, index, viewLayout, onDrillDown, onReorder, isAni
         ref={wrapRef}
         data-occurrence-id={occ.id}
         onClick={() => onDrillDown?.(occ.id, wrapRef.current)}
-        className="preview-node-list-row"
+        className={isNew ? "preview-node-list-row preview-node-flash" : "preview-node-list-row"}
         style={{
           position: "relative",
           display: "grid",
@@ -465,7 +510,7 @@ function FolderItem({ occ, mod, index, viewLayout, onDrillDown, onReorder, isAni
   }
 
   return (
-    <div ref={wrapRef} style={{ position: "relative" }}>
+    <div ref={wrapRef} className={isNew ? "preview-node-flash" : undefined} style={{ position: "relative" }}>
       <PreviewNode
         occurrence={occ}
         module={mod}

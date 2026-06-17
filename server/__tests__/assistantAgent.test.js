@@ -15,6 +15,7 @@ import {
   selectToolsForBackend,
   buildSystemPrompt,
   parseContentToolCall,
+  assistantConfirm,
 } from "../services/assistantAgent.js";
 import { summarizeGridState } from "../services/assistantTools.js";
 
@@ -257,5 +258,51 @@ describe("buildSystemPrompt (location injection)", () => {
 
   it("returns the base prompt unchanged when no context", () => {
     expect(buildSystemPrompt(null)).not.toContain("CURRENT LOCATION");
+  });
+});
+
+describe("assistantConfirm (a confirmed import never runs as a dry run)", () => {
+  it("forces dryRun:false on an import tool even when the model passed dryRun:true", async () => {
+    const calls = [];
+    const realFetch = global.fetch;
+    global.fetch = async (url, init) => {
+      calls.push({ url, body: init?.body ? JSON.parse(init.body) : null });
+      return { status: 200, text: async () => JSON.stringify({ rootOccurrenceId: "occ1", dryRun: false }) };
+    };
+    try {
+      const r = await assistantConfirm({
+        name: "wikipedia_import",
+        input: { query: "Eminem", dryRun: true },
+        userId: "u", gridId: "g", baseUrl: "http://x", apiToken: "t",
+      });
+      expect(r.ok).toBe(true);
+      expect(r.input.dryRun).toBe(false);          // overridden on the returned input
+      const importCall = calls.find(c => String(c.url).includes("/research/wikipedia/import"));
+      expect(importCall).toBeTruthy();
+      expect(importCall.body.dryRun).toBe(false);   // and on the wire to the route
+    } finally {
+      global.fetch = realFetch;
+    }
+  });
+
+  it("leaves a non-dry-run import untouched", async () => {
+    const calls = [];
+    const realFetch = global.fetch;
+    global.fetch = async (url, init) => {
+      calls.push({ url, body: init?.body ? JSON.parse(init.body) : null });
+      return { status: 200, text: async () => JSON.stringify({ rootOccurrenceId: "occ2" }) };
+    };
+    try {
+      const r = await assistantConfirm({
+        name: "wikipedia_import",
+        input: { query: "Eminem" },
+        userId: "u", gridId: "g", baseUrl: "http://x", apiToken: "t",
+      });
+      expect(r.ok).toBe(true);
+      const importCall = calls.find(c => String(c.url).includes("/research/wikipedia/import"));
+      expect(importCall.body.dryRun).toBeFalsy();
+    } finally {
+      global.fetch = realFetch;
+    }
   });
 });

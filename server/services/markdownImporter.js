@@ -34,6 +34,16 @@ import Occurrence from "../models/Occurrence.js";
 
 const uid = () => crypto.randomUUID();
 
+// Trailing boilerplate sections we DON'T import — pure citation/navigation cruft
+// (the "random line with a dash + link" the user saw was the External-links
+// `- [Official website] [![Edit this at Wikidata]…]` bullet). "See also" is kept
+// on purpose (the user wants those as links).
+const SECTION_DENYLIST = new Set([
+  "notes", "references", "external links", "further reading",
+  "citations", "sources", "bibliography", "footnotes", "see also footnotes",
+]);
+const isDenylistedSection = (label) => SECTION_DENYLIST.has(String(label || "").trim().toLowerCase());
+
 // ----- Inline mark parser -----
 // Walks a line and emits TipTap text nodes with bold/italic/code/link
 // marks. Order matters: ***x*** (both), **x** (bold), *x* (italic),
@@ -67,7 +77,7 @@ function splitTableRow(line) {
 // paragraphs around an image.
 function paragraphToBlocks(text, mintLink) {
   const blocks = [];
-  const imgRe = /!\[([^\]]*)\]\(([^)]+)\)/g;
+  const imgRe = /!\[([^\]]*)\]\(((?:[^()]|\([^)]*\))*)\)/g;
   let lastIdx = 0;
   let m;
   while ((m = imgRe.exec(text)) !== null) {
@@ -83,18 +93,38 @@ function paragraphToBlocks(text, mintLink) {
   return blocks;
 }
 
+// Apply text marks to a list of inline nodes. Atom nodes (link chips) can't
+// carry text marks, so they pass through unchanged — the emphasis is dropped but
+// the LINK STILL RESOLVES (the whole point). Without this, an emphasis-wrapped
+// link like `*[The Eminem Show](url)*` rendered as the literal text
+// `[The Eminem Show](url)` because the old italic rule's `[^*]+` swallowed the
+// whole `[text](url)` before the link rule ever saw it.
+function applyMarks(nodes, marks) {
+  return nodes.map((n) => {
+    if (n.type !== "text") return n;
+    const merged = (n.marks || []).slice();
+    for (const m of marks) if (!merged.some((x) => x.type === m.type)) merged.push(m);
+    return { ...n, marks: merged };
+  });
+}
+
 // `mintLink(label, url) → { occurrenceId, moduleId }` (optional). When provided,
 // each [text](url) becomes an INLINE textblock occurrence (role:"textblock"
 // kind:"inline" carrying meta.link) embedded via an `instanceTextblockInline`
 // node — so the link renders as a clickable chip that flows in the sentence
-// instead of an un-resolving inline link mark. When absent (bullet lists,
-// non-prose) links stay as plain link marks.
+// instead of an un-resolving inline link mark. When absent (non-prose) links
+// stay as plain link marks. Bold/italic spans RECURSE through parseInline so a
+// link nested inside emphasis is still detected and minted.
 function parseInline(text, mintLink) {
   const out = [];
   let i = 0;
   while (i < text.length) {
-    // Link: [text](url)
-    const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)/.exec(text.slice(i));
+    const rest = text.slice(i);
+    // Link: [text](url) — tried FIRST so it wins over a surrounding emphasis run.
+    // The url group allows ONE level of balanced parens so Wikipedia titles like
+    // `…/Encore_(Eminem_album)` aren't truncated at the first `)` (which left a
+    // stray trailing `)` after the chip — "The Monster Tour)").
+    const linkMatch = /^\[([^\]]+)\]\(((?:[^()]|\([^)]*\))*)\)/.exec(rest);
     if (linkMatch) {
       if (mintLink) {
         const { occurrenceId, moduleId } = mintLink(linkMatch[1], linkMatch[2]);
@@ -109,32 +139,32 @@ function parseInline(text, mintLink) {
       i += linkMatch[0].length;
       continue;
     }
-    // Bold+italic ***x***
-    const biMatch = /^\*\*\*([^*]+)\*\*\*/.exec(text.slice(i));
+    // Bold+italic ***x*** — non-greedy + RECURSE (inner may hold a link).
+    const biMatch = /^\*\*\*([\s\S]+?)\*\*\*/.exec(rest);
     if (biMatch) {
-      out.push({ type: "text", text: biMatch[1], marks: [{ type: "bold" }, { type: "italic" }] });
+      out.push(...applyMarks(parseInline(biMatch[1], mintLink), [{ type: "bold" }, { type: "italic" }]));
       i += biMatch[0].length; continue;
     }
     // Bold **x**
-    const boldMatch = /^\*\*([^*]+)\*\*/.exec(text.slice(i));
+    const boldMatch = /^\*\*([\s\S]+?)\*\*/.exec(rest);
     if (boldMatch) {
-      out.push({ type: "text", text: boldMatch[1], marks: [{ type: "bold" }] });
+      out.push(...applyMarks(parseInline(boldMatch[1], mintLink), [{ type: "bold" }]));
       i += boldMatch[0].length; continue;
     }
     // Italic *x*
-    const italicMatch = /^\*([^*]+)\*/.exec(text.slice(i));
+    const italicMatch = /^\*([\s\S]+?)\*/.exec(rest);
     if (italicMatch) {
-      out.push({ type: "text", text: italicMatch[1], marks: [{ type: "italic" }] });
+      out.push(...applyMarks(parseInline(italicMatch[1], mintLink), [{ type: "italic" }]));
       i += italicMatch[0].length; continue;
     }
     // Inline code `x`
-    const codeMatch = /^`([^`]+)`/.exec(text.slice(i));
+    const codeMatch = /^`([^`]+)`/.exec(rest);
     if (codeMatch) {
       out.push({ type: "text", text: codeMatch[1], marks: [{ type: "code" }] });
       i += codeMatch[0].length; continue;
     }
     // Plain text up to the next special token
-    const nextSpecial = text.slice(i).search(/[\[*`]/);
+    const nextSpecial = rest.search(/[\[*`]/);
     const stop = nextSpecial < 0 ? text.length : i + nextSpecial;
     const plain = text.slice(i, stop);
     if (plain) out.push({ type: "text", text: plain });
@@ -142,6 +172,81 @@ function parseInline(text, mintLink) {
     else i = stop;
   }
   return out.length ? out : [{ type: "text", text: "" }];
+}
+
+// Strip inline markdown emphasis/link syntax down to plain text — used for
+// container HEADER labels (a heading like `### 1997–1999: … *The Slim Shady LP*`
+// should read as clean text, not show literal `*` asterisks).
+function stripInlineMd(s) {
+  return String(s)
+    .replace(/\[([^\]]+)\]\((?:[^()]|\([^)]*\))*\)/g, "$1")
+    .replace(/\*\*\*([^*]+)\*\*\*/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .trim();
+}
+
+// Build a section's doc-body content array from its ordered child occurrence ids,
+// folding block images into `wrapGroup`s with an adjacent prose textblock host so
+// the prose reflows beside the image. Images are buffered (Wikipedia emits the
+// image BEFORE its prose) and flushed onto the next textblock as one or more
+// stacked neighbors — a single host can wrap MULTIPLE images. Non-prose children
+// (sub-sections, tables) flush any pending images as full-width standalone embeds
+// first, preserving reading order. Leftover images at the end go standalone too.
+function buildSectionBody(childIds, { imageChildIds, textblockChildIds, asideId = null, asideMemberIds = [] }) {
+  const embed = (id, extra) => ({ type: "moduleEmbed", attrs: { occurrenceId: id, ...(extra || {}) } });
+  const memberSet = new Set(asideMemberIds); // lead image + infobox table → live inside the aside container
+  const content = [];
+  let pendingImgs = [];
+  const flushStandalone = () => {
+    for (const id of pendingImgs) content.push(embed(id, { align: "full" }));
+    pendingImgs = [];
+  };
+  // Lead aside (main image stacked over the infobox) sits in a COLUMN beside the
+  // FIRST prose textblock — a `wrapGroup` in plain side-by-side mode (`wrap:false`,
+  // i.e. two columns, NO L-shape morph yet). The parent-float approach didn't place
+  // them next to each other, so we pair them explicitly. Neighbor-first order
+  // `[aside, firstTextblock]`; `side:right` + `wrap:false` renders the host
+  // (text) on the LEFT and the neighbor (aside) on the RIGHT.
+  let asidePairedTextblockId = null;
+  if (asideId) {
+    asidePairedTextblockId = childIds.find(
+      (id) => textblockChildIds.has(id) && !memberSet.has(id) && id !== asideId
+    ) || null;
+    if (asidePairedTextblockId) {
+      content.push({
+        type: "wrapGroup",
+        attrs: { side: "right", anchor: "top", anchorIndex: 0, wrap: false, neighborWidth: 320 },
+        content: [embed(asideId), embed(asidePairedTextblockId)],
+      });
+    } else {
+      content.push(embed(asideId, { align: "full" })); // no prose to pair → standalone
+    }
+  }
+  for (const id of childIds) {
+    if (memberSet.has(id)) continue; // rendered inside the lead aside, not the main flow
+    if (id === asideId || id === asidePairedTextblockId) continue; // already placed in the lead column
+    if (imageChildIds.has(id)) { pendingImgs.push(id); continue; }
+    if (textblockChildIds.has(id) && pendingImgs.length) {
+      // Section image(s) + the following prose sit in a COLUMN (`wrap:false`):
+      // image on the right, text on the left, side by side. No L-morph yet —
+      // that's the wrap (`wrap:true`) the user explicitly isn't expecting.
+      content.push({
+        type: "wrapGroup",
+        attrs: { side: "right", anchor: "top", anchorIndex: 0, wrap: false, neighborWidth: 260 },
+        content: [...pendingImgs.map((imgId) => embed(imgId)), embed(id)],
+      });
+      pendingImgs = [];
+    } else {
+      // a textblock with no pending images, or any other child kind —
+      // flush buffered images (standalone) so reading order is preserved.
+      flushStandalone();
+      content.push(embed(id));
+    }
+  }
+  flushStandalone();
+  return content;
 }
 
 // ----- Block parser -----
@@ -158,7 +263,7 @@ function parseBlocks(markdown) {
     // Heading
     const h = /^(#{1,6})\s+(.*)$/.exec(line);
     if (h) {
-      blocks.push({ kind: "heading", level: h[1].length, text: h[2].trim() });
+      blocks.push({ kind: "heading", level: h[1].length, text: stripInlineMd(h[2].trim()) });
       i++;
       continue;
     }
@@ -184,7 +289,7 @@ function parseBlocks(markdown) {
     // Mint an artifact module so the importer produces a real media
     // node, not just an inline alt-text reference. Inline images
     // inside a prose paragraph stay handled by parseInline (Phase B).
-    const blockImg = /^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$/.exec(line);
+    const blockImg = /^\s*!\[([^\]]*)\]\(((?:[^()]|\([^)]*\))*)\)\s*$/.exec(line);
     if (blockImg) {
       blocks.push({ kind: "image", alt: blockImg[1], src: blockImg[2] });
       i++;
@@ -219,9 +324,26 @@ function parseBlocks(markdown) {
       blocks.push({ kind: "board", items });
       continue;
     }
+    // Blockquote — contiguous `> ` lines (Wikipedia quotes via turndown) become a
+    // dedicated `kind:"quote"` ARTIFACT (a styled quote block), not a paragraph
+    // with literal `>` text. A trailing em/en-dash attribution ("— Author") is
+    // split off so the renderer can show it under the quote.
+    if (/^\s*>\s?/.test(line)) {
+      const qLines = [];
+      while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
+        qLines.push(lines[i].replace(/^\s*>\s?/, ""));
+        i++;
+      }
+      const text = qLines.join(" ").replace(/\s+/g, " ").trim();
+      let quote = text, attribution = "";
+      const m = /^(.+?)\s*[—–]\s*([^—–]{2,80})$/.exec(text);
+      if (m) { quote = m[1].trim(); attribution = m[2].trim(); }
+      if (quote) blocks.push({ kind: "quote", text: quote, attribution });
+      continue;
+    }
     // Horizontal rule / blank — skip
     if (/^---+$/.test(line) || /^\s*$/.test(line)) { i++; continue; }
-    // Paragraph — gather until blank/heading/list/code
+    // Paragraph — gather until blank/heading/list/code/quote
     const paraLines = [line];
     i++;
     while (i < lines.length
@@ -230,6 +352,7 @@ function parseBlocks(markdown) {
       && !/^```/.test(lines[i])
       && !/^\s*[-*]\s+/.test(lines[i])
       && !/^\s*\d+\.\s+/.test(lines[i])
+      && !/^\s*>\s?/.test(lines[i])
       && !/^---+$/.test(lines[i])
     ) {
       paraLines.push(lines[i]); i++;
@@ -273,7 +396,7 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
   const modules = [];
   const occurrences = [];
 
-  function buildTextblock(content) {
+  function buildTextblock(content, occMeta) {
     const moduleId = uid();
     const occurrenceId = uid();
     modules.push({
@@ -285,6 +408,7 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
       id: occurrenceId, userId, gridId,
       moduleId, parentId: null, // parent set when added to container.occurrences
       textmap: { type: "doc", content },
+      ...(occMeta ? { meta: occMeta } : {}),
     });
     return occurrenceId;
   }
@@ -351,6 +475,26 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
     return occurrenceId;
   }
 
+  // Quote → a role:"artifact" kind:"quote" occurrence. The quote text +
+  // attribution live on module.meta (no fileRef); the client ArtifactCard renders
+  // a styled pull-quote block (big quote mark + italic text + "— attribution").
+  function buildArtifactQuote({ text, attribution }) {
+    const moduleId = uid();
+    const occurrenceId = uid();
+    modules.push({
+      id: moduleId, userId, gridId,
+      role: "artifact", kind: "quote",
+      label: (text || "").slice(0, 60),
+      meta: { quote: text || "", attribution: attribution || "" },
+    });
+    occurrences.push({
+      id: occurrenceId, userId, gridId,
+      moduleId, parentId: null,
+      fields: {},
+    });
+    return occurrenceId;
+  }
+
   // Raw-HTML preview textblock. The drag-to-import HTML pipeline
   // routes <table> chunks through this so the imported page can
   // show the table content verbatim until the user/AI promotes it
@@ -390,7 +534,9 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
     const occurrenceId = uid();
     const columns = headers.map((title, idx) => ({
       id: `tcol_${idx}`,
-      title: title || `Column ${idx + 1}`,
+      // An explicitly EMPTY header cell stays empty (no "Column N" fallback) — the
+      // infobox is emitted with blank headers so it renders without a header title.
+      title: title != null ? title : `Column ${idx + 1}`,
       width: 160,
       displayFieldId: null,
       sort: null,
@@ -411,7 +557,8 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
     modules.push({
       id: moduleId, userId, gridId,
       role: "container", kind: "table",
-      label: headers[0] || "Table",
+      // headers[0] doubles as the label; an empty first header → no label.
+      label: headers[0] || "",
     });
     occurrences.push({
       id: occurrenceId, userId, gridId,
@@ -422,10 +569,37 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
     return occurrenceId;
   }
 
-  function buildContainer(node, parentOccId) {
+  // Lead "aside" — a doc container that stacks the main image + the infobox table
+  // vertically. It becomes the side-by-side neighbor of the article's intro
+  // textblock (see buildSectionBody). Per the user: image (artifact) + infobox
+  // (kind:table) "both in a doc container … on the right of the first textblock."
+  function buildAsideContainer(memberIds, label) {
     const moduleId = uid();
     const occurrenceId = uid();
     modules.push({
+      id: moduleId, userId, gridId,
+      role: "container", kind: "doc",
+      // Labeled with the article subject ("Eminem") — an empty label rendered as a
+      // generic "Container" header; the aside IS the subject's lead card. headingLevel
+      // 2 so the lead card reads SMALLER than the article's H1 root header (the user:
+      // "the header size should be switched between eminem and those other two, H1/H2").
+      label: label || "",
+      meta: { allowChildContainers: true, leadAside: true, headingLevel: 2 },
+    });
+    occurrences.push({
+      id: occurrenceId, userId, gridId,
+      moduleId, parentId: null,
+      fields: {},
+      occurrences: memberIds,
+      textmap: { type: "doc", content: memberIds.map((id) => ({ type: "moduleEmbed", attrs: { occurrenceId: id, align: "full" } })) },
+    });
+    return occurrenceId;
+  }
+
+  function buildContainer(node, parentOccId, isRoot = false) {
+    const moduleId = uid();
+    const occurrenceId = uid();
+    const moduleObj = {
       id: moduleId, userId, gridId,
       // Every section is a DOC container — it renders as a document (its textmap),
       // Children: grouped rich textblocks (prose + bullet lists + inline marks/
@@ -437,26 +611,71 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
       // `#`=H1, `##`=H2, … (the synthetic root, level 0, renders as H1). The
       // container header renders at this level (see ModuleContainer).
       meta: { allowChildContainers: true, headingLevel: Math.min(node.level || 1, 6) },
-    });
+    };
+    modules.push(moduleObj);
     const childIds = [];
-    // Image children render FULL-WIDTH (align:"full") in the textmap. Users can
-    // re-align per-embed (float left/right) in the UI.
+    // Image children that found no prose host render FULL-WIDTH (align:"full").
     const imageChildIds = new Set();
-    // Each block becomes its OWN child: every paragraph → its own textblock,
-    // every list → ONE textblock holding a bulletList, sub-sections → nested doc
-    // containers, images → artifacts, tables → table containers. (Paragraphs are
-    // NOT merged — the user wants one textblock per paragraph in the section.)
+    // Prose textblocks (paragraphs + bullet lists) can HOST a block-wrap: an
+    // adjacent image folds into a `wrapGroup` so the prose reflows beside it.
+    const textblockChildIds = new Set();
+    // Table containers — tracked so the ROOT can pull the lead infobox table into
+    // the aside alongside the main image.
+    const tableChildIds = new Set();
+    // CONSECUTIVE prose paragraphs MERGE into ONE textblock (a chunk of running
+    // prose is a single tall block — the user: "ours has 2 textblocks for that
+    // chunk when the article shows 1"). A single tall host also wraps the lead
+    // image fully (the L-notch reclaims width underneath). Any STRUCTURAL block
+    // (list/code/image/table/sub-section/quote) flushes the running prose first so
+    // reading order is preserved. Lists/code/etc. stay their own blocks.
+    let pendingPara = [];
+    const flushPara = () => {
+      if (!pendingPara.length) return;
+      const tbId = buildTextblock(pendingPara);
+      childIds.push(tbId);
+      textblockChildIds.add(tbId);
+      pendingPara = [];
+    };
     for (const c of node.children || []) {
+      if (c.kind === "paragraph") {
+        // Accumulate this paragraph's blocks (paragraphToBlocks may split out inline
+        // images into their own nodes within the same textblock); a blank-line gap
+        // between paragraphs is preserved as separate paragraph nodes in the block.
+        pendingPara.push(...paragraphToBlocks(c.text, buildInlineLink));
+        continue;
+      }
+      if (c.kind === "quote") {
+        // The quote stays its OWN artifact block (a styled pull-quote occurrence),
+        // but it's embedded INSIDE the lead-up textblock (the prose that introduces
+        // it, e.g. "…who said:") via a moduleEmbed — so the quote flows right after
+        // its lead-in instead of becoming a detached sibling block. Does NOT flush.
+        const qId = buildArtifactQuote({ text: c.text, attribution: c.attribution });
+        pendingPara.push({ type: "moduleEmbed", attrs: { occurrenceId: qId, align: "full" } });
+        continue;
+      }
+      flushPara(); // a non-prose block ends the running prose chunk
       if (c.kind === "container") {
-        childIds.push(buildContainer(c, occurrenceId));
-      } else if (c.kind === "paragraph") {
-        childIds.push(buildTextblock(paragraphToBlocks(c.text, buildInlineLink)));
+        if (isDenylistedSection(c.label)) continue; // skip citation/nav cruft sections
+        const subId = buildContainer(c, occurrenceId);
+        childIds.push(subId);
       } else if (c.kind === "board") {
-        childIds.push(buildTextblock([{
+        // Bullet items get the SAME inline-link minting as prose so list links
+        // (e.g. the "See also" section, which is a list of article links)
+        // become clickable chips instead of un-resolving link marks.
+        // Long lists (e.g. the Eminem "artists who cited him as an influence"
+        // list) get unwieldy as one tall column. The importer only sets a HEIGHT
+        // CAP (≈20 items tall); the client flows the list into as many columns as
+        // that height needs — so it responds to the block's height, not a fixed
+        // column count. Only set it when the list actually exceeds the cap.
+        const itemCount = (c.items || []).length;
+        const listCapRows = itemCount > 20 ? 20 : 0;
+        const tbId = buildTextblock([{
           type: "bulletList",
           content: (c.items || [])
-            .map((it) => ({ type: "listItem", content: [{ type: "paragraph", content: parseInline(String(it || "")) }] })),
-        }]));
+            .map((it) => ({ type: "listItem", content: [{ type: "paragraph", content: parseInline(String(it || ""), buildInlineLink) }] })),
+        }], listCapRows ? { listCapRows } : undefined);
+        childIds.push(tbId);
+        textblockChildIds.add(tbId);
       } else if (c.kind === "codeBlock") {
         childIds.push(buildTextblock([{
           type: "codeBlock",
@@ -472,7 +691,45 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
         childIds.push(imgId);
         imageChildIds.add(imgId);
       } else if (c.kind === "table") {
-        childIds.push(buildTable({ headers: c.headers, rows: c.rows }));
+        const tblId = buildTable({ headers: c.headers, rows: c.rows });
+        childIds.push(tblId);
+        tableChildIds.add(tblId);
+      }
+    }
+    flushPara(); // trailing prose chunk → one textblock
+    // ROOT only: pull the lead image + the infobox table right after it into an
+    // aside doc container that renders beside the intro textblock.
+    let asideId = null;
+    let asideMemberIds = [];
+    // Only when the lead image is immediately followed by a table (the Wikipedia
+    // infobox case) — a plain lead image with no infobox keeps the normal
+    // image-beside-prose wrap, so generic imports aren't restructured.
+    if (isRoot) {
+      const firstImg = childIds.find((id) => imageChildIds.has(id));
+      const next = firstImg ? childIds[childIds.indexOf(firstImg) + 1] : null;
+      if (firstImg && next && tableChildIds.has(next)) {
+        asideMemberIds = [firstImg, next];
+        // The infobox table is built generically with an empty label (its header
+        // cells are `| | |`), so it renders the fallback "Container" header. Give
+        // the lead infobox a clear "Info" header instead (per user). Scoped to
+        // this lead-infobox table only — every other imported table keeps its
+        // own header[0]/empty label.
+        const infoboxOcc = occurrences.find((o) => o.id === next);
+        const infoboxMod = infoboxOcc && modules.find((m) => m.id === infoboxOcc.moduleId);
+        if (infoboxMod) infoboxMod.label = "Info";
+        asideId = buildAsideContainer(asideMemberIds, node.label);
+        // The aside is paired with the first prose textblock in a two-COLUMN
+        // wrapGroup (see buildSectionBody) — NOT a parent-level float. No
+        // `meta.leadFloat` (the float didn't place them next to each other).
+        // Give the aside a STRUCTURAL parent link in the root's occurrences[].
+        // It's otherwise referenced ONLY via the root's textmap (the wrapGroup
+        // embed), so it had no `parentId`/`occurrences[]` edge — making it an
+        // ancestry/cascade-delete orphan AND invisible to any consumer that
+        // walks the occurrence tree without parsing textmaps (e.g. the
+        // subtree-scoped folder-page PREVIEW, which then rendered an empty
+        // second column with the lead image unreachable). buildSectionBody
+        // skips `id === asideId` in its main loop, so this does NOT double-render.
+        childIds.push(asideId);
       }
     }
     occurrences.push({
@@ -482,27 +739,30 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
       // Structural parent link (ancestry / cleanup) …
       occurrences: childIds,
       // … plus the doc body: each child embedded inline so the section renders
-      // as a document. Empty sections keep TipTap's non-empty-doc invariant.
+      // as a document. Block images fold into a `wrapGroup` with the NEXT prose
+      // textblock (the host) so the text reflows beside the image — and a single
+      // host can carry MULTIPLE images stacked on its side. Wikipedia puts each
+      // section's image BEFORE its prose, so images are buffered until the next
+      // textblock flushes them in as neighbors; the article's lead image
+      // (injected right after the H1) thus wraps the intro paragraph. Images with
+      // no following prose host fall back to a full-width standalone embed.
       textmap: {
         type: "doc",
         content: childIds.length
-          ? childIds.map((id) => {
-              const attrs = { occurrenceId: id };
-              if (imageChildIds.has(id)) attrs.align = "full"; // full-width image
-              return { type: "moduleEmbed", attrs };
-            })
+          ? buildSectionBody(childIds, { imageChildIds, textblockChildIds, asideId, asideMemberIds })
           : [{ type: "paragraph" }],
       },
     });
     return occurrenceId;
   }
 
-  // Prepend a "Source: <link>" textblock as the FIRST child of the root so the
-  // imported doc opens with a clickable link back to the original article.
+  // Append a "Source: <link>" textblock as the LAST child of the root so the
+  // article link sits at the BOTTOM of the doc (the top is the main image +
+  // intro, not the Wikipedia link).
   if (sourceUrl) {
-    tree.children = [{ kind: "sourceLink", url: sourceUrl, label: sourceLabel }, ...(tree.children || [])];
+    tree.children = [...(tree.children || []), { kind: "sourceLink", url: sourceUrl, label: sourceLabel }];
   }
-  const rootOccurrenceId = buildContainer(tree, rootParentId);
+  const rootOccurrenceId = buildContainer(tree, rootParentId, true);
   return { modules, occurrences, rootOccurrenceId };
 }
 

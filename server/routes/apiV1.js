@@ -839,8 +839,10 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       const result = await markdownToModuli({
         gridId, parentId, userId: req.userId, markdown, dryRun, title,
       });
-      // Broadcast each created entity so connected tabs sync.
+      // Persist (survive reload) THEN broadcast (connected tabs sync live).
       if (!dryRun) {
+        const { persistImportResult } = await import("../utils/persistImport.js");
+        await persistImportResult({ result, userId: req.userId, uc: await getUserCache(req.userId, gridId) });
         for (const m of result.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
         for (const o of result.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
       }
@@ -913,6 +915,8 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       });
 
       if (!dryRun) {
+        const { persistImportResult } = await import("../utils/persistImport.js");
+        await persistImportResult({ result, userId: req.userId, uc: await getUserCache(req.userId, gridId) });
         for (const m of result.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
         for (const o of result.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
       }
@@ -948,6 +952,8 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
         gridId, parentId, userId: req.userId, markdown, dryRun, title,
       });
       if (!dryRun) {
+        const { persistImportResult } = await import("../utils/persistImport.js");
+        await persistImportResult({ result, userId: req.userId, uc: await getUserCache(req.userId, gridId) });
         for (const m of result.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
         for (const o of result.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
       }
@@ -1023,8 +1029,12 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
         sourceUrl: full.url,
       });
 
-      // Broadcast so connected tabs sync.
+      // Persist to the DB + warm cache FIRST so the import survives a reload, THEN
+      // broadcast so connected tabs sync live.
       if (!dryRun) {
+        const { persistImportResult } = await import("../utils/persistImport.js");
+        const uc = await getUserCache(req.userId, gridId);
+        await persistImportResult({ result: importResult, userId: req.userId, uc });
         for (const m of importResult.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
         for (const o of importResult.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
       }
@@ -1033,7 +1043,10 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
         ok: true,
         source: { title: pickedTitle, url: full.url, matchedFrom: explicitTitle ? "title" : "search" },
         searchHit,
-        rootOccurrenceId: importResult.rootOccurrenceId,
+        // A dry run plans the tree but persists nothing, so DON'T advertise a root
+        // occurrence id — callers (the drawer's Imports-page wrap) would otherwise
+        // build a page whose embed points at an occurrence that never existed.
+        rootOccurrenceId: dryRun ? null : importResult.rootOccurrenceId,
         stats: importResult.stats,
         dryRun,
       });

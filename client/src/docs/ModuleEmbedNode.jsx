@@ -14,7 +14,7 @@ import FieldRenderer from "../ui/FieldRenderer.jsx";
 import { CellEmbedContext } from "./CellEmbedContext.js";
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box, Combine, Ungroup, WrapText } from "lucide-react";
 import { embedDeleteRegistry } from "../helpers/embedRegistry.js";
-import { updateOccurrence } from "../helpers/CommitHelpers";
+import { findGroupMember, unwrapGroupAt, detachGroupMember } from "../helpers/wrapGroupOps.js";
 
 const ALIGN_CYCLE = ["full", "left", "center", "right"];
 const ALIGN_ICONS = { full: AlignJustify, left: AlignLeft, center: AlignCenter, right: AlignRight };
@@ -25,7 +25,14 @@ function alignStyle(align, width) {
     case "left":   return { float: "left",  width: w, marginRight: 12, marginBottom: 4, clear: "left" };
     case "right":  return { float: "right", width: w, marginLeft: 12,  marginBottom: 4, clear: "right" };
     case "center": return { margin: "0 auto", width: w, display: "block" };
-    default:       return { width: "100%" };
+    // Full-width (default) embeds are PLAIN blocks (non-BFC) at auto width. Beside a
+    // right-floated sibling (the Wikipedia lead aside, `align:"right"`) a plain block's
+    // inline content wraps beside-then-under the float — a magazine lead where MULTIPLE
+    // prose textblocks flow down the left and reclaim full width below the infobox. (A
+    // BFC / `flow-root` here would shrink each block beside the float instead of wrapping
+    // under it, so it's intentionally NOT used.) With no float present this is an ordinary
+    // full-width block — visually identical to before.
+    default:       return { width: "auto" };
   }
 }
 
@@ -41,12 +48,22 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   const mod = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const occView = occurrence?.viewId ? viewsById?.[occurrence.viewId] : null;
 
-  // Register deleteNode so DragProvider can remove this embed on drag-out (move mode)
+  // Register deleteNode so DragProvider can remove this embed on drag-out (move mode).
+  // If this embed is inside a wrapGroup, a bare deleteNode would leave an invalid
+  // 1-child group — detach the member (keeps the group valid / un-morphs the host).
   useEffect(() => {
     if (!occurrenceId) return;
-    embedDeleteRegistry.set(occurrenceId, deleteNode);
+    const onRegistryDelete = () => {
+      const member = editor?.state?.doc ? findGroupMember(editor.state.doc, occurrenceId) : null;
+      if (member) {
+        detachGroupMember(editor, member.groupPos, occurrenceId);
+        return;
+      }
+      deleteNode?.();
+    };
+    embedDeleteRegistry.set(occurrenceId, onRegistryDelete);
     return () => { embedDeleteRegistry.delete(occurrenceId); };
-  }, [occurrenceId, deleteNode]);
+  }, [occurrenceId, deleteNode, editor, occurrencesById, dispatch, socket]);
 
   // Resize drag state
   const resizeRef = useRef(null);
@@ -149,30 +166,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       items.push({
         label: "Unwrap",
         icon: Ungroup,
-        onClick: () => {
-          if (!editor) return;
-          const grp = editor.state.doc.nodeAt(wrapGroupPos);
-          if (!grp || grp.type.name !== "wrapGroup") return;
-          // Strip the reserved notch from the host (first child) so it returns to
-          // a plain rectangle once the group is gone (syncNotch won't run after
-          // unmount). Then replace the group with its two children inline.
-          const hostOccId = grp.firstChild?.attrs?.occurrenceId;
-          const host = hostOccId ? occurrencesById?.[hostOccId] : null;
-          const hc = host?.textmap?.content;
-          if (Array.isArray(hc)) {
-            const si = hc.findIndex((n) => n?.type === "wrapSpacer"); // anywhere (L=0, C=mid)
-            if (si >= 0) {
-              const content = hc.slice(0, si).concat(hc.slice(si + 1));
-              updateOccurrence({ dispatch, socket, occurrence: { ...host, textmap: { ...host.textmap, content } } });
-            }
-          }
-          const kids = [];
-          grp.forEach((child) => kids.push(child));
-          editor.chain().focus().command(({ tr }) => {
-            tr.replaceWith(wrapGroupPos, wrapGroupPos + grp.nodeSize, kids);
-            return true;
-          }).run();
-        },
+        onClick: () => unwrapGroupAt(editor, wrapGroupPos),
       });
     }
 
@@ -294,6 +288,10 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
             occurrence={occurrence}
             dispatch={dispatch}
             socket={socket}
+            // Hide the instance label row so an embedded artifact reads as a clean,
+            // filled media block (not "an instance with a picture"). Drag handle +
+            // radial menu stay (still a draggable occurrence).
+            embedHideLabel
             renderBody={() => <ArtifactCard module={mod} label={mod.label} occurrence={occurrence} />}
             embedRadialItems={embedRadialItems}
             embedOnDelete={deleteNode}

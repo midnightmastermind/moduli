@@ -1,6 +1,91 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-06-08. Check this file before re-reading source._
+_Updated: 2026-06-12. Check this file before re-reading source._
+
+## Recent Changes (2026-06-16 — DragProvider: bail on ANY drop over a `.doc-editor` (fixes wrap re-morph "page resets"))
+- **`DragProvider.jsx` (`handleDrop`)** — added an early guard: `if (document.elementFromPoint(x,y)?.closest(".doc-editor")) { s.dropHandled=true; clearSession(); return; }`. The doc Editor's OWN Pragmatic drop target already owns drops landing in a doc editor (re-morph a wrap top↔middle, reorder/insert an embed, form a wrap-beside column). The monitor fired for the SAME drop and ALSO routed it as an occurrence MOVE → embed re-parented + ops re-fired = "the page resets / the block doesn't move." The pre-existing narrow guard only skipped a doc-CONTAINER hover (missed a `role:"textblock"` wrap host). This broad element-at-point check covers all doc hosts. Build clean, 1113 tests.
+
+## Recent Changes (2026-06-12 — wrapGroupOps: host is now the LAST child (block-wrap redesign))
+- **`wrapGroupOps.js`** — the `wrapGroup` child convention flipped to NEIGHBOR-first / HOST-
+  last (a CSS float only wraps content after it; see docs/CLAUDE.md + the redesign spec).
+  `findGroupMember` now reports `hostOccId = node.lastChild` + `neighborCount`; new
+  `isNeighborMember(group)` (memberIndex < last). `unwrapGroupAt` / `detachGroupMember` lost
+  their `{occurrencesById,dispatch,socket}` args — there's no host `wrapSpacer` to strip
+  anymore (the real-float model carries no ghost node); they just collapse/flatten the group.
+  Callers updated: `docs/ModuleEmbedNode.jsx`, `ui/Editor.jsx`.
+
+## Recent Changes (2026-06-12 — importsFolder: shouldWrapImportOutput guards against dry-run "empty embed")
+- **`importsFolder.js`** — new `shouldWrapImportOutput(output)` →
+  `!!output && !output.dryRun && !!output.rootOccurrenceId`. The drawer used to wrap ANY
+  import result that carried a `rootOccurrenceId` into a persisted Imports doc page — but a
+  DRY RUN returns a PLANNED root while persisting nothing, so the wrap left a page whose embed
+  pointed at a never-created occurrence (the "empty embed" the user reported). Consumed by
+  `ui/AssistantDrawer.jsx` (single-import branch); a dry run now shows a "(planned only)" note
+  instead of wrapping. Server also nulls the dry-run root at the source (server/CLAUDE.md).
+  3 new cases in `__tests__/importsFolder.test.js` (9/9 pass). Build clean.
+
+## Recent Changes (2026-06-11 — wrapGroupOps.js NEW: shared doc-editor wrapGroup ops)
+- **`wrapGroupOps.js` (NEW)** — one source of truth for mutating the doc `wrapGroup` (the
+  two-column frame whose bigger column morphs into an L/C/J):
+  - `findGroupMember(doc, occId)` → `{ groupPos, groupNode, hostOccId, memberIndex }` |
+    null (memberIndex 0 = morphing host, ≥1 = neighbor in the notch). Top-level scan,
+    descends one level into each wrapGroup.
+  - `unwrapGroupAt(editor, groupPos, {occurrencesById,dispatch,socket,commit})` — collapse a
+    group back to host + neighbors inline; strips the host's floated `wrapSpacer` (un-morph).
+  - `detachGroupMember(editor, groupPos, occId, {…})` — remove ONE member (cross-container
+    drag-out via `embedDeleteRegistry`); keeps the group valid (host + remaining neighbors
+    stays grouped; only-host left → flatten) and un-morphs when nothing's left to wrap.
+  Consumed by `docs/ModuleEmbedNode.jsx` (registry delete + radial Unwrap) and `ui/Editor.jsx`
+  (drop reposition / unwrap-on-move-out). Replaces the deleted `WrapGroupNode` `⠿` grip — the
+  neighbor is now moved with its normal radial drag handle.
+
+## Recent Changes (2026-06-09 — MULTIPLY_VAR accepts `by` (real canvas fan-out root cause))
+- **`operationActions.js` (`MULTIPLY_VAR`)** — was `expr`-ONLY
+  (`Number(resolveExpr(cfg.expr)) ?? 1`), but `INCREMENT_VAR`/`DIV_VAR` use `cfg.by`.
+  The `Canvas: Build` op multiplies the grid cursor with `{ MULTIPLY_VAR $x by:240 }`,
+  so `resolveExpr(undefined)` → `NaN`, `$x = 0*NaN = NaN`, then `ADD literal:1760`
+  reset it to **1760 for every card** (same for y→1850). THAT — not the cursor
+  logic — is why every canvas card piled at (1760,1850) and nothing fanned out or
+  showed its edges. Now `Number(resolveExpr(cfg.by ?? cfg.expr)) || Number(cfg.by)
+  || 1` (mirrors INCREMENT_VAR). Client-only fix — the already-seeded op's `by:240`
+  now works; the existing piled cards re-fan on the next reseed (they're not
+  re-minted on a plain reload, so a reseed/clear is needed to drop them). Regression:
+  `__tests__/operationExecutor.test.js` ("MULTIPLY_VAR accepts `by`…"), 184 pass.
+
+## Recent Changes (2026-06-09 — bspTree.js: BSP "mosaic" layout math)
+- **`bspTree.js` (NEW)** — pure, immutable split-tree helpers for the opt-in mosaic
+  panel layout (`grid.meta.layoutTree`; rendered by `modules/GridMosaic.jsx`):
+  `deriveTreeFromPlacements(panels)` (column-major build from rows×cols placement),
+  `computeLayout(tree, rect)` (→ pane rects + splitter bars with axisExtentPx/
+  ratioTotal for pixel→fr drag conversion), `resizeSplit` (conserves pair sum,
+  clamps ≥5%), `splitLeaf` (flatten-vs-wrap), `removeLeaf` (collapse single-child
+  splits), `allPanelOccIds` / `findLeaf` / `makeLeaf` / `makeSplit` / `isLeaf`.
+  Node shapes: `Leaf{id,panelOccId}`, `Split{id,dir:"v"|"h",ratio[],children[]}`
+  (dir "v"=vertical bar=columns L→R, "h"=horizontal bar=rows T→B). 17 tests in
+  `__tests__/bspTree.test.js`.
+- **`dropHandlers.js` (`handlePanelDrop`)** — early-returns when
+  `state.grid.meta.layoutTree` is set: a mosaic grid has no (row,col) cells, so
+  panel rearrange is handled by GridMosaic's own per-pane drop targets
+  (drop-to-split). Prevents the cell-based mover from fighting the mosaic DnD.
+
+## Recent Changes (2026-06-09 — Imports folder now surfaces as a CARD + folder-page occ)
+- **`importsFolder.js`** — root cause of "import doesn't land in any folder" / "root
+  folder page only shows Interfaces": `ensureImportsFolder` created only a bare
+  **Folder record**, but `PageFolder` (the folder-page card grid) lists a sub-folder
+  ONLY when it finds a `role:"page" kind:"folder"` occurrence among that folder's
+  children (`ModulePage.folderChildOccs`). A bare folder shows in the TREE but is
+  invisible on the root folder page. Fix:
+  - New `ensureFolderPageOcc({ folderId, label, gridId, occurrencesById, ... })` —
+    find-or-create the folder-page occurrence (idempotent via a `meta.folderPage:true`
+    self-tag). Mirrors `ManifestTree.openFolderAsPage`.
+  - New `ensureImportsFolderAndPage(...) → { folderId, folderPageOccId }` does both
+    (folder + its folder-page occ). `ensureImportsFolder(args)` is now a thin wrapper
+    returning just `folderId` (back-compat — `createImportsDocPage`'s parent, etc.).
+  - `createImportsDocPage` + `dropHandlers.handleExternalDrop` now thread
+    `occurrencesById` so every import path mints the folder card.
+- Consumers: `AssistantDrawer` batch path uses `ensureImportsFolderAndPage` and
+  appends a `panel_pick` for the Imports folder page (the where-to-open prompt the
+  batch path was missing). 6 tests in `__tests__/importsFolder.test.js`. Build clean.
 
 ## Recent Changes (2026-06-08 — imported content lands in an "Imports" folder)
 - **`importsFolder.js` (NEW)** — shared helpers so imports show up grouped in the
