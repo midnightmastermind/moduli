@@ -244,6 +244,7 @@ const Editor = forwardRef(function Editor({
   // Live drop indicator while DRAGGING a block over this (page) editor — shows
   // exactly where it will land so reordering isn't a finicky guess. { top, pos }.
   const [dragGap, setDragGap] = useState(null);
+  const [wrapDrop, setWrapDrop] = useState(null); // { top, side } | null
   // D11: convert-to-module prompt
 
   const lastCharRef = useRef("");
@@ -1369,10 +1370,18 @@ const Editor = forwardRef(function Editor({
       if (!editor?.view) return;
       const b = nearestDocBoundary(editor.view, editor.state.doc, el, e.clientY);
       setDragGap((prev) => (b && prev && prev.pos === b.pos ? prev : b));
+      const sh = detectSideHost(e);
+      if (sh && sh.anchorOffset != null) {
+        const pm = el.querySelector(".ProseMirror");
+        const proseTop = pm ? pm.getBoundingClientRect().top - el.getBoundingClientRect().top : 0;
+        setWrapDrop({ top: Math.round(proseTop + sh.anchorOffset), side: sh.side });
+      } else {
+        setWrapDrop(null);
+      }
     };
     const onDragLeaveNative = (e) => {
       // Only clear when the drag actually left the editor (not entering a child).
-      if (!el.contains(e.relatedTarget)) setDragGap(null);
+      if (!el.contains(e.relatedTarget)) { setDragGap(null); setWrapDrop(null); }
     };
     el.addEventListener("dragover", onDragOver);
     el.addEventListener("dragleave", onDragLeaveNative);
@@ -1400,10 +1409,11 @@ const Editor = forwardRef(function Editor({
         return type === "instance" || type === "field" || type === "container" || type === "artifact" || type === "module";
       },
       onDragEnter: () => setIsDropTarget(true),
-      onDragLeave: () => { setIsDropTarget(false); setDragGap(null); },
+      onDragLeave: () => { setIsDropTarget(false); setDragGap(null); setWrapDrop(null); },
       onDrop: ({ source, location }) => {
         setIsDropTarget(false);
         setDragGap(null);
+        setWrapDrop(null);
         const sd = source.data || {};
         const { type, id, data, context } = sd;
         const dropInput = location?.current?.input;
@@ -1972,6 +1982,13 @@ const Editor = forwardRef(function Editor({
         <div className="doc-insert-gap doc-insert-gap--drag" style={{ top: dragGap.top }}>
           <div className="insert-gap-line" />
         </div>
+      )}
+
+      {wrapDrop && (
+        <div
+          className={`wrap-drop-line wrap-drop-line--${wrapDrop.side}`}
+          style={{ top: wrapDrop.top }}
+        />
       )}
 
       {showSuggestion && (

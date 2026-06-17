@@ -1431,6 +1431,22 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   box-shadow: 0 0 7px rgba(50, 150, 255, 0.85);
 }
 
+/* Wrap-beside drop affordance: a bright segment on the SIDE where the neighbor will
+   float, at the exact VISUAL LINE the pointer is on (so the user sees which line the
+   prose will morph around). The host editor wrapper is position:relative already. */
+.wrap-drop-line {
+  position: absolute;
+  height: 2px;
+  width: 46%;
+  background: rgb(50, 150, 255);
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 30;
+  box-shadow: 0 0 6px rgba(50, 150, 255, 0.6);
+}
+.wrap-drop-line--right { right: 0; }
+.wrap-drop-line--left  { left: 0; }
+
 /* Images */
 .doc-editor-content.ProseMirror img {
   max-width: 100%;
