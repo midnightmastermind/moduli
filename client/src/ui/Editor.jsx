@@ -33,6 +33,7 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { NATIVE_DND_MIME } from "../helpers/dragSystem";
 import { embedDeleteRegistry } from "../helpers/embedRegistry";
 import { findGroupMember, unwrapGroupAt, isNeighborMember } from "../helpers/wrapGroupOps";
+import { sideFromFrac, anchorOffsetForDrop } from "../docs/wrapAnchor";
 
 import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table";
 import { FieldPill } from "../docs/FieldPillExtension";
@@ -1253,6 +1254,93 @@ const Editor = forwardRef(function Editor({
     return chain.run();
   }, [editor]);
 
+  // ── Block-wrap host detection (hoisted to component scope) ───────────────
+  // detectSideHost + its closures must be reachable OUTSIDE the onDrop callback
+  // (a later task calls detectSideHost from onDragOver). They read `editor` +
+  // the stable *Ref.current maps.
+  // Only a TEXTMAPPED occurrence can be the morphing host (role:"textblock" OR a
+  // kind:"doc" container) — never a board/list/table.
+  const isTextmappedHost = useCallback((occId) => {
+    const occ = occId ? occurrencesByIdRef.current?.[occId] : null;
+    const mod = occ?.moduleId ? modulesByIdRef.current?.[occ.moduleId] : null;
+    if (!mod) return false;
+    return mod.role === "textblock" || (mod.role === "container" && mod.kind === "doc");
+  }, []);
+  // The host's top-level block index at clientY → the EXACT line the notch
+  // morphs at (L at line 0, C/J mid-flow). Kept for back-compat (anchorIndex).
+  const blockIndexAtY = useCallback((hostDom, clientY) => {
+    const pm = hostDom?.querySelector?.(".ProseMirror");
+    if (!pm) return 0;
+    const blocks = Array.from(pm.children);
+    for (let i = 0; i < blocks.length; i++) {
+      const r = blocks[i].getBoundingClientRect();
+      if (clientY < r.top + r.height / 2) return i;
+    }
+    return Math.max(0, blocks.length - 1);
+  }, []);
+  // Line-level offset: snap the float's margin-top to the nearest visual line top
+  // AT OR ABOVE the drop (px from the host prose top). Drives the wrapGroup's
+  // anchorOffset (consumed by WrapGroupNode.measure → --wrap-mt).
+  const offsetFor = useCallback((hostEl, clientY) => {
+    const pm = hostEl?.querySelector?.(".ProseMirror") || hostEl;
+    if (!pm) return 0;
+    const proseTop = pm.getBoundingClientRect().top;
+    const lineTops = [];
+    Array.from(pm.children).forEach((b) => {
+      const rects = b.getClientRects?.();
+      if (rects && rects.length) {
+        for (const r of rects) lineTops.push(Math.round(r.top - proseTop));
+      } else {
+        lineTops.push(Math.round(b.getBoundingClientRect().top - proseTop));
+      }
+    });
+    lineTops.sort((a, z) => a - z);
+    return anchorOffsetForDrop({ dropY: clientY, hostProseTop: proseTop, lineTops });
+  }, []);
+  const detectSideHost = useCallback((input) => {
+    if (!editor?.view || !input || input.clientX == null) return null;
+    const res = editor.view.posAtCoords({ left: input.clientX, top: input.clientY });
+    if (!res) return null;
+    const $p = editor.state.doc.resolve(res.pos);
+    if ($p.depth < 1) return null;
+    const topPos = $p.before(1);
+    const topNode = editor.state.doc.nodeAt(topPos);
+    if (!topNode) return null;
+
+    // Dropping INSIDE an existing wrapGroup (isolating → posAtCoords resolves to the
+    // group, not its host child) → this is a RE-MORPH: recompute side + the exact
+    // line offset the notch should sit at.
+    if (topNode.type.name === "wrapGroup") {
+      const hostNode = topNode.lastChild; // host is the LAST child (neighbor-first)
+      const hostOccId = hostNode?.attrs?.occurrenceId || null;
+      if (!isTextmappedHost(hostOccId)) return null;
+      let groupDom = null;
+      try { groupDom = editor.view.nodeDOM(topPos); } catch (_) { return null; }
+      const holder = groupDom?.querySelector?.(".wrap-group-content > [data-node-view-content-react]")
+        || groupDom?.querySelector?.(".wrap-group-content");
+      const hostEl = holder?.lastElementChild || groupDom;
+      const rect = groupDom?.getBoundingClientRect?.();
+      if (!rect || rect.width <= 0) return null;
+      const frac = (input.clientX - rect.left) / rect.width;
+      const side = sideFromFrac(frac); // any in-group drop picks a side (no dead middle)
+      const anchorOffset = offsetFor(hostEl, input.clientY);
+      return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null };
+    }
+
+    if (topNode.type.name !== "moduleEmbed") return null;
+    const hostOccId = topNode.attrs?.occurrenceId || null;
+    // Reject non-textmapped hosts (board/list/table) → normal insert, no morph.
+    if (!isTextmappedHost(hostOccId)) return null;
+    let dom = null;
+    try { dom = editor.view.nodeDOM(topPos); } catch (_) { return null; }
+    const rect = dom?.getBoundingClientRect?.();
+    if (!rect || rect.width <= 0) return null;
+    const frac = (input.clientX - rect.left) / rect.width;
+    const side = sideFromFrac(frac); // pick a side ANYWHERE (no dead middle third)
+    const anchorOffset = offsetFor(dom, input.clientY);
+    return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null };
+  }, [editor, isTextmappedHost, blockIndexAtY, offsetFor]);
+
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
@@ -1357,74 +1445,8 @@ const Editor = forwardRef(function Editor({
         // top-level moduleEmbed, form a wrapGroup (that embed = HOST, the
         // dropped one = NEIGHBOR in its notch) instead of inserting a plain
         // sibling. Detection happens at the raw drop coords (pre-snap).
-        // Only a TEXTMAPPED occurrence can be the morphing host (it reserves the
-        // notch in its own textmap + clips its border). That's a role:"textblock"
-        // OR a kind:"doc" container — never a board/list/table container.
-        const isTextmappedHost = (occId) => {
-          const occ = occId ? occurrencesByIdRef.current?.[occId] : null;
-          const mod = occ?.moduleId ? modulesByIdRef.current?.[occ.moduleId] : null;
-          if (!mod) return false;
-          return mod.role === "textblock" || (mod.role === "container" && mod.kind === "doc");
-        };
-        // The host's top-level block index at clientY → the EXACT line the notch
-        // morphs at (L at line 0, C/J mid-flow). No ghost spacer to skip anymore.
-        const blockIndexAtY = (hostDom, clientY) => {
-          const pm = hostDom?.querySelector?.(".ProseMirror");
-          if (!pm) return 0;
-          const blocks = Array.from(pm.children);
-          for (let i = 0; i < blocks.length; i++) {
-            const r = blocks[i].getBoundingClientRect();
-            if (clientY < r.top + r.height / 2) return i;
-          }
-          return Math.max(0, blocks.length - 1);
-        };
-        const detectSideHost = (input) => {
-          if (!editor?.view || !input || input.clientX == null) return null;
-          const res = editor.view.posAtCoords({ left: input.clientX, top: input.clientY });
-          if (!res) return null;
-          const $p = editor.state.doc.resolve(res.pos);
-          if ($p.depth < 1) return null;
-          const topPos = $p.before(1);
-          const topNode = editor.state.doc.nodeAt(topPos);
-          if (!topNode) return null;
-
-          // Dropping INSIDE an existing wrapGroup (isolating → posAtCoords resolves to the
-          // group, not its host child) → this is a RE-MORPH: recompute side + the exact
-          // host line (anchorIndex) the notch should sit at, so dragging the neighbor up/
-          // down the host drives the dynamic shape (L → C → hangman; cross-midline → J).
-          if (topNode.type.name === "wrapGroup") {
-            const hostNode = topNode.lastChild; // host is the LAST child (neighbor-first)
-            const hostOccId = hostNode?.attrs?.occurrenceId || null;
-            if (!isTextmappedHost(hostOccId)) return null;
-            let groupDom = null;
-            try { groupDom = editor.view.nodeDOM(topPos); } catch (_) { return null; }
-            const holder = groupDom?.querySelector?.(".wrap-group-content > [data-node-view-content-react]")
-              || groupDom?.querySelector?.(".wrap-group-content");
-            const hostEl = holder?.lastElementChild || groupDom;
-            const rect = groupDom?.getBoundingClientRect?.();
-            if (!rect || rect.width <= 0) return null;
-            const frac = (input.clientX - rect.left) / rect.width;
-            const side = frac < 0.5 ? "left" : "right"; // any in-group drop picks a side (flip)
-            const anchorIndex = blockIndexAtY(hostEl, input.clientY);
-            return { hostPos: topPos, hostOccId, side, anchor: anchorIndex === 0 ? "top" : "middle", anchorIndex };
-          }
-
-          if (topNode.type.name !== "moduleEmbed") return null;
-          const hostOccId = topNode.attrs?.occurrenceId || null;
-          // Reject non-textmapped hosts (board/list/table) → normal insert, no morph.
-          if (!isTextmappedHost(hostOccId)) return null;
-          let dom = null;
-          try { dom = editor.view.nodeDOM(topPos); } catch (_) { return null; }
-          const rect = dom?.getBoundingClientRect?.();
-          if (!rect || rect.width <= 0) return null;
-          const frac = (input.clientX - rect.left) / rect.width;
-          const side = frac >= 0.6 ? "right" : frac <= 0.4 ? "left" : null;
-          if (!side) return null;
-          // anchorIndex = the exact host line dropped on; anchor kept for back-compat.
-          const anchorIndex = blockIndexAtY(dom, input.clientY);
-          const anchor = anchorIndex === 0 ? "top" : "middle";
-          return { hostPos: topPos, hostOccId, side, anchor, anchorIndex };
-        };
+        // (detectSideHost + isTextmappedHost + blockIndexAtY + offsetFor are now
+        // hoisted to component scope — see above the dropTargetForElements effect.)
         const wrapHostWithNeighbor = (neighborOccId, sideHost) => {
           if (!editor || !sideHost || !neighborOccId) return false;
           const groupType = editor.schema.nodes.wrapGroup;
@@ -1435,7 +1457,7 @@ const Editor = forwardRef(function Editor({
           if (host.attrs?.occurrenceId === neighborOccId) return false; // never wrap self
           const neighbor = embedType.create({ occurrenceId: neighborOccId });
           // Neighbor FIRST so it floats and the host's prose wraps around it (L).
-          const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, wrap: true }, [neighbor, host]);
+          const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: true }, [neighbor, host]);
           const from = sideHost.hostPos;
           const to = sideHost.hostPos + host.nodeSize;
           return editor.chain().focus().command(({ tr }) => { tr.replaceWith(from, to, group); return true; }).run();
@@ -1470,7 +1492,7 @@ const Editor = forwardRef(function Editor({
             if (!hostNode || hostNode.type.name !== "moduleEmbed") return false;
             const neighbor = embedType.create({ occurrenceId });
             // Neighbor FIRST so it floats and the host's prose wraps around it (L).
-            const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, wrap: true }, [neighbor, hostNode]);
+            const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: true }, [neighbor, hostNode]);
             tr.replaceWith(host.pos, host.pos + hostNode.nodeSize, group);
             return true;
           }).run();
@@ -1498,6 +1520,7 @@ const Editor = forwardRef(function Editor({
               tr.setNodeMarkup(grouped.groupPos, undefined, {
                 ...g.attrs,
                 anchorIndex: sideHost.anchorIndex ?? g.attrs.anchorIndex,
+                anchorOffset: sideHost.anchorOffset ?? g.attrs.anchorOffset,
                 anchor: (sideHost.anchorIndex ?? 0) === 0 ? "top" : "middle",
                 side: sideHost.side,
               });
