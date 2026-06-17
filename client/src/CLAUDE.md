@@ -2,6 +2,13 @@
 
 _Updated: 2026-06-12. Check this file before re-reading source._
 
+## Recent Changes (2026-06-17 — LINE-LEVEL wrap morph shipped)
+- Image floats beside a host textblock can now anchor at ANY visual LINE (not just block boundaries):
+  new `docs/wrapAnchor.js` (pure, tested) + `anchorOffset` (px) attr on `wrapGroup` → `--wrap-mt`;
+  `Editor.jsx detectSideHost` hoisted + picks a side everywhere + returns `anchorOffset`; a per-line,
+  side-aware `.wrap-drop-line` highlight shows where it'll land. Plan:
+  `docs/superpowers/plans/2026-06-17-line-level-wrap-morph.md`. See docs/ + ui/ CLAUDE.md.
+
 ## Recent Changes (2026-06-17 — image neighbor: framed card (border + brighter bg), space-above-image killed)
 - **`index.css`** — the wrap IMAGE neighbor `.instance-row` is now a framed card again (per user, asked
   repeatedly): `background: rgba(38,102,132,0.72)` (a teal BRIGHTER than the host column's

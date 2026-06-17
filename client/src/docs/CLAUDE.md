@@ -2,6 +2,18 @@
 
 _Updated: 2026-06-12. Check this file before re-reading source._
 
+## Recent Changes (2026-06-17 — LINE-LEVEL wrap morph: anchorOffset (px) replaces anchorIndex)
+- **`wrapAnchor.js` (NEW)** — pure, unit-tested geometry: `sideFromFrac(frac)` (no dead middle —
+  `<0.5`→left else right) + `anchorOffsetForDrop({dropY, hostProseTop, lineTops})` (px offset, snapped
+  to the nearest visual-line top at-or-above the drop). Tests in `__tests__/wrapAnchor.test.js`.
+- **`WrapGroupExtension.js`** — new `anchorOffset` attr (px|null, `data-anchor-offset`).
+- **`WrapGroupNode.jsx` `measure`** — `--wrap-mt` now comes from `anchorOffset` (px) directly when set
+  (line-level), falling back to the legacy `anchorIndex`→block-top only for old nodes. `measure` dep +
+  the `shape` first-guess both consider `anchorOffset`. (`BOTTOM_GAP` extends the seam below the neighbor
+  so the bottom-bar's top border has margin above the image.)
+- See `ui/CLAUDE.md` for the `Editor.jsx` `detectSideHost` hoist + the per-line drop highlight. Plan:
+  `docs/superpowers/plans/2026-06-17-line-level-wrap-morph.md`.
+
 ## Recent Changes (2026-06-16 — WrapGroupNode: position-named shape class (top/middle/bottom) for shape-adaptive borders)
 - **`WrapGroupNode.jsx`** — adds `wrap-group--shape-{top|middle|bottom}` (+ `data-shape`) to the
   NodeViewWrapper. Naming is POSITION-based (per user) = where the neighbor sits vertically × `side`

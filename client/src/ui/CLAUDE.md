@@ -2,6 +2,19 @@
 
 _Updated: 2026-06-12. Check this file before re-reading source._
 
+## Recent Changes (2026-06-17 — Editor: detectSideHost hoisted, picks a side everywhere, returns line-level anchorOffset + per-line drop highlight)
+- **`Editor.jsx`** — `detectSideHost` (+ helper closures `isTextmappedHost` / `blockIndexAtY` / new
+  `offsetFor`) HOISTED from inside the `onDrop` callback to component scope (a `useCallback`), so the
+  native `onDragOver` can reuse it. It now uses `sideFromFrac(frac)` (from `docs/wrapAnchor`) — NO dead
+  "middle third" that returned null (which had made the image fall through to a plain cross-doc move) —
+  and returns `{ side, anchorOffset, … }` where `anchorOffset` is px from the host prose top (line-level,
+  via `offsetFor` → `anchorOffsetForDrop`). `wrapHostWithNeighbor` / `wrapMoveBeside` / the in-group
+  re-morph `setNodeMarkup` all write `anchorOffset` onto the `wrapGroup` node.
+- **Per-line drop highlight** — new `wrapDrop` state set in `onDragOver` from `detectSideHost(e)`; renders
+  `.wrap-drop-line.wrap-drop-line--{side}` (a bright blue segment on the side + at the exact visual line
+  the pointer is on) as a sibling of the block-boundary `dragGap` element inside the `position:relative`
+  `.doc-editor` wrapper. Cleared on drag-leave/drop. CSS in `index.css`. See docs/CLAUDE.md + the plan.
+
 ## Recent Changes (2026-06-16 — Editor: ONE editor per drop + auto-create gated on text change)
 - **`Editor.jsx` (doc drop handler)** — two drop/resize regressions:
   - **Triple-fire drop fix.** Pragmatic DnD fires `onDrop` on EVERY registered drop target
