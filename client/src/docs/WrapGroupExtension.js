@@ -56,6 +56,18 @@ export const WrapGroup = Node.create({
         parseHTML: (el) => { const v = el.getAttribute("data-anchor-index"); return v == null ? null : Number(v); },
         renderHTML: (attrs) => (attrs.anchorIndex == null ? {} : { "data-anchor-index": attrs.anchorIndex }),
       },
+      // Line-level anchor: px offset from the host prose top → the float's margin-top.
+      // Allows the neighbor to start at ANY visual line, not just a block boundary.
+      // null → fall back to the legacy anchorIndex block math.
+      anchorOffset: {
+        default: null, // px from the host prose top → the float's margin-top (line-level anchor)
+        parseHTML: (el) => {
+          const v = el.getAttribute("data-anchor-offset");
+          return v == null ? null : Number(v);
+        },
+        renderHTML: (attrs) =>
+          attrs.anchorOffset == null ? {} : { "data-anchor-offset": String(attrs.anchorOffset) },
+      },
       // Px width of the floated neighbor column. null → CSS default (--wrap-nw).
       // Written live by the seam splitter drag (WrapGroupNode).
       neighborWidth: {

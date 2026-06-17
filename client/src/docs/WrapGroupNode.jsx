@@ -51,7 +51,7 @@ export default function WrapGroupNode({ node, updateAttributes }) {
   //             not just anchorIndex, so it's set in measure(); render-time is a first guess.
   // `side` (left/right) gives the mirrored forms — no separate names needed.
   const [measuredShape, setMeasuredShape] = useState(null);
-  const shape = measuredShape || ((Number(node.attrs.anchorIndex) || 0) > 0 ? "middle" : "top");
+  const shape = measuredShape || (((Number(node.attrs.anchorOffset) || Number(node.attrs.anchorIndex) || 0) > 0) ? "middle" : "top");
   const neighborWidth = node.attrs.neighborWidth == null ? DEFAULT_NW : Number(node.attrs.neighborWidth);
 
   const wrapRef = useRef(null);
@@ -101,14 +101,22 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     // top — don't depend on the float's position.
     const holderEl = contentEl.querySelector(":scope > [data-node-view-content-react]") || contentEl;
     const holderTop = holderEl.getBoundingClientRect().top;
-    const anchorIndex = Number(node.attrs.anchorIndex) || 0;
+    // Line-level anchor: `anchorOffset` (px from the host prose top) is the float's
+    // margin-top directly, so the neighbor can start at ANY visual line — not just a
+    // block boundary. Falls back to the legacy anchorIndex→block-top for old nodes.
+    const anchorOffset = node.attrs.anchorOffset;
     let mt = 0;
-    if (anchorIndex > 0) {
-      const hostPm = els[els.length - 1].querySelector(".ProseMirror");
-      const blocks = hostPm ? Array.from(hostPm.children) : [];
-      const idx = Math.min(anchorIndex, blocks.length - 1);
-      if (idx > 0 && blocks[idx]) {
-        mt = Math.max(0, Math.round(blocks[idx].getBoundingClientRect().top - holderTop));
+    if (anchorOffset != null && Number.isFinite(Number(anchorOffset))) {
+      mt = Math.max(0, Math.round(Number(anchorOffset)));
+    } else {
+      const anchorIndex = Number(node.attrs.anchorIndex) || 0; // legacy fallback
+      if (anchorIndex > 0) {
+        const hostPm = els[els.length - 1].querySelector(".ProseMirror");
+        const blocks = hostPm ? Array.from(hostPm.children) : [];
+        const idx = Math.min(anchorIndex, blocks.length - 1);
+        if (idx > 0 && blocks[idx]) {
+          mt = Math.max(0, Math.round(blocks[idx].getBoundingClientRect().top - holderTop));
+        }
       }
     }
     wrapEl.style.setProperty("--wrap-mt", `${mt}px`);
@@ -155,7 +163,7 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     // (the notch-bottom line = the full-width bottom bar's TOP border) sits BELOW the
     // image with a margin above it, not flush against the image bottom.
     setSeam({ top: Math.round(top - wrapRect.top), height: Math.round(bottom - top) + BOTTOM_GAP, left: seamLeft });
-  }, [side, node.attrs.anchorIndex]);
+  }, [side, node.attrs.anchorIndex, node.attrs.anchorOffset]);
 
   useEffect(() => {
     const wrapEl = wrapRef.current;
