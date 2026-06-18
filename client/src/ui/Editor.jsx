@@ -1299,14 +1299,17 @@ const Editor = forwardRef(function Editor({
     return anchorOffsetForDrop({ dropY: clientY, hostProseTop: proseTop, lineTops });
   }, []);
   const detectSideHost = useCallback((input) => {
-    if (!editor?.view || !input || input.clientX == null) return null;
+    // [WRAP-DIAG] one structured log per null so a single live drop reveals exactly
+    // which guard rejects the wrap. Remove once the host-detection is solid.
+    const bail = (why, extra) => { console.log("[detectSideHost] null —", why, extra || ""); return null; };
+    if (!editor?.view || !input || input.clientX == null) return bail("no editor/input");
     const res = editor.view.posAtCoords({ left: input.clientX, top: input.clientY });
-    if (!res) return null;
+    if (!res) return bail("posAtCoords miss", { x: input.clientX, y: input.clientY });
     const $p = editor.state.doc.resolve(res.pos);
-    if ($p.depth < 1) return null;
+    if ($p.depth < 1) return bail("depth<1", { pos: res.pos });
     const topPos = $p.before(1);
     const topNode = editor.state.doc.nodeAt(topPos);
-    if (!topNode) return null;
+    if (!topNode) return bail("no topNode", { topPos });
 
     // Dropping INSIDE an existing wrapGroup (isolating → posAtCoords resolves to the
     // group, not its host child) → this is a RE-MORPH: recompute side + the exact
@@ -1314,7 +1317,7 @@ const Editor = forwardRef(function Editor({
     if (topNode.type.name === "wrapGroup") {
       const hostNode = topNode.lastChild; // host is the LAST child (neighbor-first)
       const hostOccId = hostNode?.attrs?.occurrenceId || null;
-      if (!isTextmappedHost(hostOccId)) return null;
+      if (!isTextmappedHost(hostOccId)) return bail("wrapGroup host not textmapped", { hostOccId });
       let groupDom = null;
       try { groupDom = editor.view.nodeDOM(topPos); } catch (_) { return null; }
       const holder = groupDom?.querySelector?.(".wrap-group-content > [data-node-view-content-react]")
@@ -1328,14 +1331,18 @@ const Editor = forwardRef(function Editor({
       return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null };
     }
 
-    if (topNode.type.name !== "moduleEmbed") return null;
+    if (topNode.type.name !== "moduleEmbed") return bail("top not moduleEmbed/wrapGroup", { type: topNode.type.name });
     const hostOccId = topNode.attrs?.occurrenceId || null;
-    // Reject non-textmapped hosts (board/list/table) → normal insert, no morph.
-    if (!isTextmappedHost(hostOccId)) return null;
+    // Reject non-textmapped hosts (board/list/table/artifact) → normal insert, no morph.
+    if (!isTextmappedHost(hostOccId)) {
+      const occ = hostOccId ? occurrencesByIdRef.current?.[hostOccId] : null;
+      const mod = occ?.moduleId ? modulesByIdRef.current?.[occ.moduleId] : null;
+      return bail("host not textmapped", { hostOccId, role: mod?.role, kind: mod?.kind });
+    }
     let dom = null;
-    try { dom = editor.view.nodeDOM(topPos); } catch (_) { return null; }
+    try { dom = editor.view.nodeDOM(topPos); } catch (_) { return bail("nodeDOM threw"); }
     const rect = dom?.getBoundingClientRect?.();
-    if (!rect || rect.width <= 0) return null;
+    if (!rect || rect.width <= 0) return bail("no host rect");
     const frac = (input.clientX - rect.left) / rect.width;
     const side = sideFromFrac(frac); // pick a side ANYWHERE (no dead middle third)
     const anchorOffset = offsetFor(dom, input.clientY);
