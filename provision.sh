@@ -5,6 +5,7 @@ set -euo pipefail
 
 # ── Config (edit these three before running) ─────────────────────────────────
 DOMAIN="moduli.example.com"
+if [ "$DOMAIN" = "moduli.example.com" ]; then echo "ERROR: set DOMAIN at the top of provision.sh before running"; exit 1; fi
 REPO_URL="https://github.com/midnightmastermind/dndtest2.git"
 APP_DIR="/var/www/moduli"
 DEPLOY_USER="deploy"
@@ -18,17 +19,22 @@ if ! command -v node >/dev/null || [ "$(node -v | cut -d. -f1)" != "v22" ]; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 fi
-npm install -g pm2
+if ! command -v pm2 >/dev/null; then npm install -g pm2; fi
 
 echo "==> 3/8  Non-root deploy user"
 if ! id "$DEPLOY_USER" >/dev/null 2>&1; then
   adduser --disabled-password --gecos "" "$DEPLOY_USER"
   mkdir -p /home/$DEPLOY_USER/.ssh
-  # Copy root's authorized key so you can SSH in as deploy.
-  cp /root/.ssh/authorized_keys /home/$DEPLOY_USER/.ssh/authorized_keys
-  chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER/.ssh
   chmod 700 /home/$DEPLOY_USER/.ssh
-  chmod 600 /home/$DEPLOY_USER/.ssh/authorized_keys
+  # Copy root's authorized key so you can SSH in as deploy.
+  if [ -f /root/.ssh/authorized_keys ]; then
+    cp /root/.ssh/authorized_keys /home/$DEPLOY_USER/.ssh/authorized_keys
+    chown $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER/.ssh/authorized_keys
+    chmod 600 /home/$DEPLOY_USER/.ssh/authorized_keys
+  else
+    echo "    !! /root/.ssh/authorized_keys not found — add your public key manually to /home/$DEPLOY_USER/.ssh/authorized_keys"
+  fi
+  chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER/.ssh
 fi
 
 echo "==> 4/8  Firewall (UFW): only 22/80/443"
@@ -80,8 +86,10 @@ nginx -t
 systemctl reload nginx
 
 # Start the app as the deploy user via pm2, persist across reboot.
-sudo -u $DEPLOY_USER bash -c "cd $APP_DIR && pm2 start ecosystem.config.cjs && pm2 save"
-env PATH="$PATH:/usr/bin" pm2 startup systemd -u $DEPLOY_USER --hp /home/$DEPLOY_USER | tail -1 | bash
+sudo -u $DEPLOY_USER bash -c "cd $APP_DIR && pm2 startOrRestart ecosystem.config.cjs && pm2 save"
+if ! systemctl is-enabled pm2-$DEPLOY_USER >/dev/null 2>&1; then
+  env PATH="$PATH:/usr/bin" pm2 startup systemd -u $DEPLOY_USER --hp /home/$DEPLOY_USER | tail -1 | bash
+fi
 
 echo ""
 echo "✅ Provision complete. App should be live on http://$DOMAIN"
