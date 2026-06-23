@@ -1,12 +1,12 @@
 #!/bin/bash
 # deploy.sh — Build, commit, push, then deploy to production server
 # Usage: ./deploy.sh "commit message"
-# Server: 192.168.3.133 (joshpoms) | /var/www/moduli
+# Server: <DOMAIN> (deploy@) | /var/www/moduli  [SSH keys]
 
 set -e
 
 COMMIT_MSG="${1:-"deploy: update site"}"
-REMOTE_HOST="joshpoms@192.168.3.133"
+REMOTE_HOST="deploy@DOMAIN"
 REMOTE_DIR="/var/www/moduli"
 
 # ============================================================
@@ -35,7 +35,6 @@ echo "✅ Pushed to origin"
 # ============================================================
 echo ""
 echo "🚀 Deploying to $REMOTE_HOST:$REMOTE_DIR ..."
-echo "   (You will be prompted for the password)"
 
 ssh "$REMOTE_HOST" "
   set -e
@@ -48,7 +47,8 @@ ssh "$REMOTE_HOST" "
   cd client && npm install 2>&1 | tail -3 && npm run build
   cd ..
   echo '  → Restarting server (pm2)...'
-  pm2 restart moduli 2>/dev/null || pm2 start server/server.js --name moduli
+  pm2 restart moduli || pm2 start ecosystem.config.cjs
+  pm2 save
   echo '  ✅ Deploy complete!'
 "
 
