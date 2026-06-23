@@ -6,8 +6,15 @@
 set -e
 
 COMMIT_MSG="${1:-"deploy: update site"}"
-REMOTE_HOST="deploy@DOMAIN"
+REMOTE_HOST="deploy@DOMAIN"   # EDIT: replace DOMAIN with the real host before first use
 REMOTE_DIR="/var/www/moduli"
+
+# Fail fast if the placeholder host was never filled in — otherwise the script
+# builds, commits, and pushes, then dies at the SSH step with a confusing DNS error.
+if [ "$REMOTE_HOST" = "deploy@DOMAIN" ]; then
+  echo "ERROR: set REMOTE_HOST at the top of deploy.sh (replace DOMAIN) before running." >&2
+  exit 1
+fi
 
 # ============================================================
 # STEP 1: Build the client
