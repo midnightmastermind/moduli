@@ -6,13 +6,14 @@ module.exports = {
     {
       name: "moduli",
       script: "server/server.js",
-      // Match the local `serve` script: load env from server/.env, 4GB heap.
-      node_args: "--env-file=./server/.env --max-old-space-size=4096",
+      // Load env from server/.env. Heap sized for a small (4GB) droplet; bump
+      // both numbers if you move to a bigger box.
+      node_args: "--env-file=./server/.env --max-old-space-size=1536",
       cwd: __dirname,
       instances: 1,
       exec_mode: "fork",
       autorestart: true,
-      max_memory_restart: "6G",
+      max_memory_restart: "2G",
       env: { NODE_ENV: "production" },
     },
   ],

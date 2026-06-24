@@ -3,16 +3,35 @@
 # Run as root on the server:  bash provision.sh
 set -euo pipefail
 
-# ── Config (edit these three before running) ─────────────────────────────────
+# ── Config (edit these before running) ───────────────────────────────────────
 DOMAIN="moduli.example.com"
 if [ "$DOMAIN" = "moduli.example.com" ]; then echo "ERROR: set DOMAIN at the top of provision.sh before running"; exit 1; fi
 REPO_URL="https://github.com/midnightmastermind/dndtest2.git"
 APP_DIR="/var/www/moduli"
 DEPLOY_USER="deploy"
 
+# Local LLM (Ollama). Left OFF for the small DigitalOcean box — the assistant
+# falls back to the Anthropic API (set ANTHROPIC_API_KEY in server/.env) or a
+# built-in deterministic responder. Flip to 1 (and use a box with >=16GB RAM)
+# to install, enable, and pull the model. All the Ollama logic stays below;
+# only this switch decides whether it runs.
+ENABLE_OLLAMA=0
+OLLAMA_PULL_MODEL="llama3.2:3b"   # matches server/.env OLLAMA_MODEL when enabled
+
 echo "==> 1/8  System packages"
 apt-get update -y
 apt-get install -y curl git nginx ufw
+
+# Swap: the client build (vite) runs on this box and can OOM on a small droplet.
+# 2GB swapfile gives the build + Node headroom. Skipped if any swap is active.
+if [ "$(swapon --show --noheadings | wc -l)" -eq 0 ]; then
+  echo "    + creating 2GB swapfile"
+  fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >>/etc/fstab
+fi
 
 echo "==> 2/8  Node 22 (NodeSource)"
 if ! command -v node >/dev/null || [ "$(node -v | cut -d. -f1)" != "v22" ]; then
@@ -44,18 +63,22 @@ ufw allow 443
 ufw --force enable
 
 echo "==> 5/8  Ollama (systemd, localhost-bound) + model"
-if ! command -v ollama >/dev/null; then
-  curl -fsSL https://ollama.com/install.sh | sh
-fi
-# Bind to localhost only (default is already 127.0.0.1:11434; make it explicit).
-mkdir -p /etc/systemd/system/ollama.service.d
-cat >/etc/systemd/system/ollama.service.d/override.conf <<'EOF'
+if [ "$ENABLE_OLLAMA" = "1" ]; then
+  if ! command -v ollama >/dev/null; then
+    curl -fsSL https://ollama.com/install.sh | sh
+  fi
+  # Bind to localhost only (default is already 127.0.0.1:11434; make it explicit).
+  mkdir -p /etc/systemd/system/ollama.service.d
+  cat >/etc/systemd/system/ollama.service.d/override.conf <<'EOF'
 [Service]
 Environment="OLLAMA_HOST=127.0.0.1:11434"
 EOF
-systemctl daemon-reload
-systemctl enable --now ollama
-ollama pull qwen2.5-coder:7b
+  systemctl daemon-reload
+  systemctl enable --now ollama
+  ollama pull "$OLLAMA_PULL_MODEL"
+else
+  echo "    (skipped — ENABLE_OLLAMA=0; assistant uses Anthropic API or fallback)"
+fi
 
 echo "==> 6/8  Clone repo + install deps + build client"
 mkdir -p "$(dirname "$APP_DIR")"
