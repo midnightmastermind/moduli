@@ -2140,3 +2140,28 @@ tests pass, client build clean):**
   dir; (b) a shared git-tracked memory folder in the repo with a sync hook; (c) a
   small memory daemon/file-lock so concurrent writes don't clobber. Needs a design
   pass (write conflicts, MEMORY.md index merge, per-account vs shared scoping).
+
+---
+
+## 2026-06-24 — NEW DIRECTION (do NEXT, after deploy infra)
+
+**Connections tab in the Command Center.** Start here once the live-server deploy
+work is parked (currently blocked on the user creating the DigitalOcean droplet).
+
+Vision (user's words paraphrased):
+- A **Connections** tab in the Command Center holding **editable account info**.
+- **First entry = the Claude/Anthropic account** — the `ANTHROPIC_API_KEY` is editable
+  right in that tab (same key the deploy work wires for the assistant backend).
+- Then **connect external accounts** (APIs, SMS/texts, push notifications, …) and
+  expose each connection as **incoming data / a source in Operations**:
+  - external events (a text arrives, a push fires, an API returns data) act as
+    operation **triggers/sources** that can **read AND edit the grid** — same class
+    as the existing field-change / drop / iteration / onLoad triggers.
+  - operations should also be able to call **out** to a connection (send a text,
+    push a notification, hit an API).
+- The Anthropic key from deploy is literally connection #1 — continuity.
+
+When we start: run the brainstorming skill first (this is a real feature design).
+Touch points to scope: Command Center panel UI (new tab), a Connection model/store
+(credentials, kind, status), operations pipeline `sources`/triggers + a new outbound
+action type, and how incoming webhooks/events map onto the executor's `$vars`.

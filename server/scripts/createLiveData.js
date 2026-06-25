@@ -5716,11 +5716,44 @@ export async function createLiveData(userId, options = {}) {
     filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
   });
 
-  // Notebook hub View — folder-page (card grid of Interfaces folder) is the
-  // default active tab; Schedule/Canvas/Schedule Table/Schedule Canvas tabs
-  // remain pinned and reachable via tab strip + drilldown.
+  // ── Brand: Viafluere logo board (top-middle panel) ───────────────────────
+  // A board page holding ONE image artifact occurrence = the Viafluere lockup
+  // (mark + wordmark). fileRef is a leading-slash path served from the client
+  // build's public assets; resolveFileRef passes it through unchanged (no
+  // upload). Sits in the top-middle grid cell above the Notebook/Schedule hub.
+  const logoArtModId = uid();
+  const logoArtViewId = uid();
+  const logoArtOccId = uid();
+  await new Module({
+    id: logoArtModId, userId, gridId,
+    role: "artifact", kind: "image",
+    label: "Viafluere", fileRef: "/viafluere_lockup.svg", defaultDragMode: "copy",
+    meta: { mimeType: "image/svg+xml", originalName: "viafluere_lockup.svg", uploadStatus: "ready", external: true },
+  }).save();
+  await new View({ id: logoArtViewId, userId, gridId, viewType: "display", artifactType: "image", layout: {} }).save();
+  await mkOcc({ id: logoArtOccId, moduleId: logoArtModId, parentId: null, viewId: logoArtViewId, sortOrder: 0, iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
+
+  const logoContModId = uid();
+  const logoContOccId = uid();
+  await new Module({ id: logoContModId, userId, gridId, role: "container", kind: "board", label: "Viafluere" }).save();
+  await mkOcc({ id: logoContOccId, moduleId: logoContModId, parentId: null, occurrences: [logoArtOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
+
+  const logoPageModId = uid();
+  const logoPageOccId = uid();
+  await new Module({ id: logoPageModId, userId, gridId, role: "page", kind: "board", label: "Viafluere" }).save();
+  await mkOcc({
+    id: logoPageOccId, moduleId: logoPageModId,
+    parentId: null, sortOrder: 0,
+    occurrences: [logoContOccId],
+    iteration: { mode: "persistent" }, fields: {},
+    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+  });
+
+  // Notebook hub View — Schedule is the default active tab (it lives in the
+  // bottom-middle panel now, beneath the logo board). Interfaces folder-page /
+  // Canvas / Schedule Table / Schedule Canvas remain pinned + reachable.
   const notebookHubViewId = uid();
-  await new View({ id: notebookHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: notebookFolderPageOccId }).save();
+  await new View({ id: notebookHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: schedPageOccId }).save();
 
   // Daily Toolkit View — folder-page (card grid of all 11 wellness pages) is
   // the default active tab; per-wellness pages remain pinned as tabs.
@@ -5735,6 +5768,7 @@ export async function createLiveData(userId, options = {}) {
 
   const toolkitPanelId  = uid();
   const todoPanelId     = uid();
+  const logoPanelId     = uid();
   const notebookPanelId = uid();
   const goalsPanelId    = uid();
   const accountsPanelId = uid();
@@ -5742,6 +5776,7 @@ export async function createLiveData(userId, options = {}) {
   await Module.insertMany([
     { id: toolkitPanelId,  userId, gridId, role: "panel", kind: "board", label: "Panel A", defaultDragMode: "copy", layout: panelLayout("Panel A") },
     { id: todoPanelId,     userId, gridId, role: "panel", kind: "board", label: "Panel B", defaultDragMode: "move", layout: { ...panelLayout("Panel B"), gapPx: 8 } },
+    { id: logoPanelId,     userId, gridId, role: "panel", kind: "board", label: "Viafluere", defaultDragMode: "copy", layout: { ...panelLayout("Viafluere"), flow: "row", scrollY: "hidden" } },
     { id: notebookPanelId, userId, gridId, role: "panel", kind: "board", label: "Panel C", defaultDragMode: "move", layout: panelLayout("Panel C") },
     { id: goalsPanelId,    userId, gridId, role: "panel", kind: "board", label: "Panel D", defaultDragMode: "move", layout: panelLayout("Panel D") },
     { id: accountsPanelId, userId, gridId, role: "panel", kind: "board", label: "Panel E", defaultDragMode: "move", layout: panelLayout("Panel E") },
@@ -5751,14 +5786,18 @@ export async function createLiveData(userId, options = {}) {
   const panelModuleIds = {
     toolkit:  toolkitPanelId,
     todo:     todoPanelId,
+    logo:     logoPanelId,
     notebook: notebookPanelId,
     goals:    goalsPanelId,
     accounts: accountsPanelId,
   };
+  // Middle column is split: logo board on top (row 0), Notebook/Schedule hub
+  // beneath it (row 1). The mosaic tree below mirrors this split.
   const placements = [
     { key: "toolkit",  panelId: toolkitPanelId,  row: 0, col: 0, width: 1, height: 1, viewId: toolkitHubViewId  },
     { key: "todo",     panelId: todoPanelId,     row: 1, col: 0, width: 1, height: 1, viewId: null              },
-    { key: "notebook", panelId: notebookPanelId, row: 0, col: 1, width: 1, height: 2, viewId: notebookHubViewId },
+    { key: "logo",     panelId: logoPanelId,     row: 0, col: 1, width: 1, height: 1, viewId: null              },
+    { key: "notebook", panelId: notebookPanelId, row: 1, col: 1, width: 1, height: 1, viewId: notebookHubViewId },
     { key: "goals",    panelId: goalsPanelId,    row: 0, col: 2, width: 1, height: 1, viewId: null              },
     { key: "accounts", panelId: accountsPanelId, row: 1, col: 2, width: 1, height: 1, viewId: null              },
   ];
@@ -5781,16 +5820,17 @@ export async function createLiveData(userId, options = {}) {
   // pages (Task 11) are NOT pinned — they live only under notesFolderId.
   await Occurrence.findOneAndUpdate({ id: panelOccIds.toolkit },  { $set: { occurrences: [toolkitFolderPageOccId, ...wellnessPageOccList] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.todo },     { $set: { occurrences: [todoPageOccId] } });
-  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [notebookFolderPageOccId, schedPageOccId, schedCanvasPageOccId, examplesPageOccId].filter(Boolean) } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.logo },     { $set: { occurrences: [logoPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [schedPageOccId, notebookFolderPageOccId, schedCanvasPageOccId, examplesPageOccId].filter(Boolean) } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.goals },    { $set: { occurrences: [goalsPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.accounts }, { $set: { occurrences: [accountsPageOccId] } });
 
   // ── STEP 11: Finalize grid ──────────────────────────────────────────────────
   // Open the seeded grid in BSP "mosaic" layout (opt-in per grid — see
   // client/src/helpers/bspTree.js). Mirrors the rows×cols placement above:
-  // col0 = toolkit over todo, col1 = the notebook hub as ONE full-height pane
-  // (the "middle one, 2 rows high"), col2 = goals over accounts. The user
-  // re-tunes pane sizes by dragging the splitter bars.
+  // col0 = toolkit over todo, col1 = Viafluere logo board over the Notebook/
+  // Schedule hub, col2 = goals over accounts. The user re-tunes pane sizes by
+  // dragging the splitter bars.
   const mosaicLayoutTree = {
     id: "mosaic-root", dir: "v", ratio: [1, 1.15, 1],
     children: [
@@ -5798,8 +5838,11 @@ export async function createLiveData(userId, options = {}) {
         { id: "mosaic-leaf-toolkit", panelOccId: panelOccIds.toolkit },
         { id: "mosaic-leaf-todo",    panelOccId: panelOccIds.todo },
       ] },
-      // Middle: the notebook hub, full column height (2 rows high).
-      { id: "mosaic-leaf-notebook", panelOccId: panelOccIds.notebook },
+      // Middle: logo board (short) on top, Notebook/Schedule hub beneath.
+      { id: "mosaic-col1", dir: "h", ratio: [0.28, 1], children: [
+        { id: "mosaic-leaf-logo",     panelOccId: panelOccIds.logo },
+        { id: "mosaic-leaf-notebook", panelOccId: panelOccIds.notebook },
+      ] },
       { id: "mosaic-col2", dir: "h", ratio: [1, 1], children: [
         { id: "mosaic-leaf-goals",    panelOccId: panelOccIds.goals },
         { id: "mosaic-leaf-accounts", panelOccId: panelOccIds.accounts },
@@ -10055,7 +10098,7 @@ async function main() {
     console.log(`   Operations:     26 (19 trackers + 1 daily question rotator + 4 schedule/day-page + Schedule Table: Build + Schedule Canvas: Build)`);
     console.log(`   Panels:         ${Object.keys(result.panelOccIds || {}).join(", ")}`);
     console.log(`   Pages:          Daily Toolkit folder (11 wellness pages: Physical, Phys-Fitness, Phys-Nutrition, Intellectual, Emotional, Social, Spiritual, Occupational, Financial, Environmental, Creative) + Todo List + Goals + Accounts + Schedule + Canvas + Schedule Table + Library + Daily Journal Questions + Bills`);
-    console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Interfaces folder-page (${result.notebookFolderPageOccId}); tabs=[Interfaces, Schedule, Canvas, Schedule Table, Schedule Canvas]`);
+    console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Schedule (${result.schedPageOccId}); tabs=[Schedule, Interfaces, Canvas, Schedule Canvas]; logo board pinned above in the middle column`);
     console.log(`   Toolkit hub:    active=Daily Toolkit folder-page (${result.toolkitFolderPageOccId}); tabs=[Daily Toolkit, ...11 wellness pages]`);
     console.log("=".repeat(50));
 

@@ -10,13 +10,13 @@ import React from "react";
  *   <ModuliLogo className="h-5 text-sky-300" />
  *   <ModuliLogo style={{ height: 20, color: "#38bdf8" }} />
  */
-export default function ModuliLogo({ title = "Moduli", ...props }) {
+export default function ModuliLogo({ title = "Viafluere", ...props }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="1200"
+      width="1480"
       height="220"
-      viewBox="0 0 1200 220"
+      viewBox="0 0 1480 220"
       role="img"
       aria-label={title}
       {...props}
@@ -148,7 +148,7 @@ export default function ModuliLogo({ title = "Moduli", ...props }) {
           fontWeight="700"
           letterSpacing="2"
         >
-          moduli
+          Viafluere
         </text>
       </g>
     </svg>

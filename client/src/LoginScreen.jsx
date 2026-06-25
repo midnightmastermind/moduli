@@ -89,7 +89,7 @@ export default function LoginScreen() {
         }}>
           <img
             src="/moduli_logo.png"
-            alt="Moduli"
+            alt="Viafluere"
             style={{ height: 36, width: "auto", display: "block" }}
           />
           <span style={{
@@ -99,7 +99,7 @@ export default function LoginScreen() {
             color: "#e0e0e0",
             letterSpacing: "0.02em",
           }}>
-            moduli
+            Viafluere
           </span>
         </div>
 
