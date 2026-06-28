@@ -5727,15 +5727,15 @@ export async function createLiveData(userId, options = {}) {
   await new Module({
     id: logoArtModId, userId, gridId,
     role: "artifact", kind: "image",
-    label: "Viafluere", fileRef: "/viafluere_lockup.svg", defaultDragMode: "copy",
-    meta: { mimeType: "image/svg+xml", originalName: "viafluere_lockup.svg", uploadStatus: "ready", external: true },
+    label: "", fileRef: "/viafluere_logo.png", defaultDragMode: "copy",
+    meta: { mimeType: "image/png", originalName: "viafluere_logo.png", uploadStatus: "ready", external: true, fullBleed: true },
   }).save();
   await new View({ id: logoArtViewId, userId, gridId, viewType: "display", artifactType: "image", layout: {} }).save();
   await mkOcc({ id: logoArtOccId, moduleId: logoArtModId, parentId: null, viewId: logoArtViewId, sortOrder: 0, iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
 
   const logoContModId = uid();
   const logoContOccId = uid();
-  await new Module({ id: logoContModId, userId, gridId, role: "container", kind: "board", label: "Viafluere" }).save();
+  await new Module({ id: logoContModId, userId, gridId, role: "container", kind: "board", label: "viafluere" }).save();
   await mkOcc({ id: logoContOccId, moduleId: logoContModId, parentId: null, occurrences: [logoArtOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
 
   const logoPageModId = uid();

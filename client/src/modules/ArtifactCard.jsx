@@ -122,6 +122,20 @@ export default function ArtifactCard({ module, label, occurrence }) {
     );
   }
 
+  // Full-bleed logo variant (opt-in via module.meta.fullBleed): image fills the
+  // card width (responsive, no crop), with the file name pinned top-right —
+  // opposite the instance drag handle (which sits top-left). Used by the
+  // Viafluere logo board in the top-middle grid cell.
+  if (kind === "image" && module?.meta?.fullBleed) {
+    const fileName = module?.meta?.originalName || label || module?.label || "";
+    return (
+      <div className="artifact-card artifact-card--fullbleed" data-kind="image">
+        {fileName && <span className="artifact-fullbleed-name" title={fileName}>{fileName}</span>}
+        <img className="artifact-fullbleed-img" src={thumb1024Src} alt={label || "logo"} />
+      </div>
+    );
+  }
+
   if (expanded) {
     // Per file/artifact audit #5/#20: surface the original filename +
     // human-readable size + a Download link in the expanded card chrome
