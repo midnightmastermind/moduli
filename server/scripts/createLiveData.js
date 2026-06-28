@@ -38,6 +38,7 @@ import Module from "../models/Module.js";
 import Transaction from "../models/Transaction.js";
 import User from "../models/User.js";
 import { generateTimeSlots } from "../utils/operationBuilders.js";
+import { markdownToModuli } from "../services/markdownImporter.js";
 import {
   buildGridDoc,
   buildScheduleFilters,
@@ -5716,91 +5717,62 @@ export async function createLiveData(userId, options = {}) {
     filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
   });
 
-  // ── Brand: Viafluere logo board (top-middle panel) ───────────────────────
-  // A board page holding ONE image artifact occurrence = the Viafluere lockup
-  // (mark + wordmark). fileRef is a leading-slash path served from the client
-  // build's public assets; resolveFileRef passes it through unchanged (no
-  // upload). Sits in the top-middle grid cell above the Notebook/Schedule hub.
-  const logoArtModId = uid();
-  const logoArtViewId = uid();
-  const logoArtOccId = uid();
-  await new Module({
-    id: logoArtModId, userId, gridId,
-    role: "artifact", kind: "image",
-    label: "", fileRef: "/viafluere_lockup.svg", defaultDragMode: "copy",
-    meta: { mimeType: "image/svg+xml", originalName: "viafluere_lockup.svg", uploadStatus: "ready", external: true, fullBleed: true },
-  }).save();
-  await new View({ id: logoArtViewId, userId, gridId, viewType: "display", artifactType: "image", layout: {} }).save();
-  await mkOcc({ id: logoArtOccId, moduleId: logoArtModId, parentId: null, viewId: logoArtViewId, sortOrder: 0, iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
+  // ── Brand: Viafluere "about" page (top-middle cell) ──────────────────────
+  // Generated through the SAME markdown importer the Wikipedia import uses, so it
+  // reads like a wiki article: ONE doc container, markdown-header sections, the
+  // logo as a wrapped lead image (text flows around it). Content from
+  // docs/original-vision.md + docs/NEWOVERVIEW.md. The fileRef /viafluere_lockup.svg
+  // is the vector lockup served from the client build's public assets.
+  const viafluereMd = [
+    "# viafluere",
+    "",
+    "![viafluere](/viafluere_lockup.svg)",
+    "",
+    "**Viafluere** is a modular, event-driven workspace where everything you do can be measured — a drag-and-drop daily command center that combines a calendar, to-do list, habit tracker, and budget / nutrition / workout tracker into one interface.",
+    "",
+    "## What it is",
+    "",
+    "A drag-and-drop daily command center. Plan your day by dropping tasks into time slots, then track what you actually did; the same slots are both your plan and your log.",
+    "",
+    "## Anything you do can be measured",
+    "",
+    "A normal planner says “I did laundry.” Viafluere says:",
+    "",
+    "- Ran ✅ for 25 minutes",
+    "- Ate ✅ 42g protein",
+    "- Saved ✅ $20",
+    "- Studied ✅ 2 pomodoros",
+    "",
+    "Every task is a simple checkbox — or a checkbox plus numbers and text.",
+    "",
+    "## Totals, streaks & progress",
+    "",
+    "A transparent operations pipeline aggregates by what the task was, the value you entered, the time lens (today / this week / month / year), and the category filter — explicit math, no black-box trackers. So it can answer “how much protein today?”, “how much did I save this month?”, or “what's my journaling streak?”",
+    "",
+    "## Build it your way",
+    "",
+    "- Boards, documents, canvases, tables, and file artifacts — all draggable, all linkable",
+    "- Reusable modules placed as occurrences; typed fields collect the data",
+    "- Iterations filter what belongs to today, this week, or any context — cascading grid → item",
+    "- Rich-text docs embed live field & instance pills; the canvas links occurrences into mind-maps",
+    "- Real-time sync with optimistic, instant updates",
+    "- An in-app assistant that can build the grid for you",
+  ].join("\n");
 
-  // App description — SEVERAL textblocks beneath the logo in the same container
-  // (each its own occurrence so it reads as a sectioned "about" page). Content
-  // drawn from docs/original-vision.md + docs/NEWOVERVIEW.md.
-  const _p  = (text, bold) => ({ type: "paragraph", content: [{ type: "text", ...(bold ? { marks: [{ type: "bold" }] } : {}), text }] });
-  const _h  = (text, level = 3) => ({ type: "heading", attrs: { level }, content: [{ type: "text", text }] });
-  const _ul = (items) => ({ type: "bulletList", content: items.map((t) => ({ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: t }] }] })) });
+  const viafluereImport = await markdownToModuli({ gridId, userId, markdown: viafluereMd, dryRun: false });
+  const logoRootOccId = viafluereImport.rootOccurrenceId;
 
-  const descBlocks = [
-    [ _p("A modular, event-driven workspace where everything you do can be measured.", true) ],
-    [
-      _h("What it is"),
-      _p("A drag-and-drop daily command center — calendar, to-do list, habit tracker, and budget / nutrition / workout tracker in one. Plan your day by dropping tasks into time slots, then track what you actually did; the same slots are both your plan and your log."),
-    ],
-    [
-      _h("Anything you do can be measured"),
-      _p("A normal planner says “I did laundry.” Viafluere says:"),
-      _ul([
-        "Ran ✅ for 25 minutes",
-        "Ate ✅ 42g protein",
-        "Saved ✅ $20",
-        "Studied ✅ 2 pomodoros",
-      ]),
-      _p("Every task is a simple checkbox — or a checkbox plus numbers and text."),
-    ],
-    [
-      _h("Totals, streaks & progress — automatically"),
-      _p("A transparent operations pipeline aggregates by what the task was, the value you entered, the time lens (today / this week / month / year), and the category filter — explicit math, no black-box trackers. So it can answer “how much protein today?”, “how much did I save this month?”, or “what's my journaling streak?”"),
-    ],
-    [
-      _h("Build it your way"),
-      _ul([
-        "Boards, documents, canvases, tables, and file artifacts — all draggable, all linkable",
-        "Reusable modules placed as occurrences; typed fields collect the data",
-        "Iterations filter what belongs to today, this week, or any context — cascading grid → item",
-        "Rich-text docs embed live field & instance pills; the canvas links occurrences into mind-maps",
-        "Real-time sync with optimistic, instant updates",
-        "An in-app assistant that can build the grid for you",
-      ]),
-    ],
-  ];
-
-  const logoDescOccIds = [];
-  for (const content of descBlocks) {
-    const mId = uid();
-    const oId = uid();
-    await new Module({ id: mId, userId, gridId, role: "textblock", kind: "doc", label: "" }).save();
-    await mkOcc({
-      id: oId, moduleId: mId, parentId: null, sortOrder: logoDescOccIds.length + 1,
-      iteration: { mode: "persistent" }, fields: {}, filterOverride: {},
-      textmap: { type: "doc", content },
-    });
-    logoDescOccIds.push(oId);
-  }
-
-  const logoContModId = uid();
-  const logoContOccId = uid();
-  await new Module({ id: logoContModId, userId, gridId, role: "container", kind: "board", label: "viafluere" }).save();
-  await mkOcc({ id: logoContOccId, moduleId: logoContModId, parentId: null, occurrences: [logoArtOccId, ...logoDescOccIds], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
-
+  // Doc page wrapping the imported article (same shape the Wikipedia import wrap
+  // uses) so the panel renders it as a tab.
   const logoPageModId = uid();
   const logoPageOccId = uid();
-  await new Module({ id: logoPageModId, userId, gridId, role: "page", kind: "board", label: "Viafluere" }).save();
+  await new Module({ id: logoPageModId, userId, gridId, role: "page", kind: "doc", label: "Viafluere" }).save();
   await mkOcc({
     id: logoPageOccId, moduleId: logoPageModId,
     parentId: null, sortOrder: 0,
-    occurrences: [logoContOccId],
     iteration: { mode: "persistent" }, fields: {},
     filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+    textmap: { type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: logoRootOccId } }] },
   });
 
   // Notebook hub View — Schedule is the default active tab (it lives in the

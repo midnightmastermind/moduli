@@ -13,7 +13,7 @@
 // real LLM. Otherwise → deterministic dispatcher that handles a
 // handful of patterns. Either way the chatbox works.
 
-import React, { useEffect, useRef, useState, useContext, useMemo } from "react";
+import React, { useEffect, useRef, useState, useContext, useMemo, useCallback } from "react";
 import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { getCurrentLocation, subscribeCurrentLocation } from "../helpers/currentLocation";
 import MiniGridMap from "../mobile/MiniGridMap";
@@ -148,23 +148,31 @@ export default function AssistantDrawer() {
     return () => clearInterval(id);
   }, [busy]);
 
-  // Auto-bootstrap the token from the server when the drawer has none saved —
-  // so a fresh browser / post-reseed session connects without a manual paste.
-  // The server only hands the stable ASSISTANT_API_TOKEN to localhost. A token
-  // the user already pasted (in localStorage) is never overwritten.
+  // Fetch the assistant key from the server. Sends the app's own login JWT so
+  // the server can hand back the signed-in user's key over any origin (incl. the
+  // public domain) — that's what makes auto-connect work in production, not just
+  // on localhost / LAN. Returns the key or null.
+  const fetchAssistantKey = useCallback(async () => {
+    try {
+      const jwt = localStorage.getItem("moduli-token");
+      const r = await fetch(
+        "/api/v1/assistant/bootstrap-token",
+        jwt ? { headers: { Authorization: `Bearer ${jwt}` } } : undefined
+      );
+      if (!r.ok) return null;
+      const j = await r.json();
+      return j?.token || null;
+    } catch { return null; }
+  }, []);
+
+  // Auto-connect when the drawer has no saved key (fresh browser / new session).
+  // A key the user already pasted is never overwritten.
   useEffect(() => {
     if (token) return;
     let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch("/api/v1/assistant/bootstrap-token");
-        if (!r.ok) return;
-        const j = await r.json();
-        if (!cancelled && j?.token) setToken(j.token);
-      } catch { /* offline / not local — user pastes manually */ }
-    })();
+    fetchAssistantKey().then((t) => { if (!cancelled && t) setToken(t); });
     return () => { cancelled = true; };
-  }, []); // mount only — don't re-fetch after the user sets a token
+  }, []); // mount only — don't re-fetch after the user sets a key
 
   // Clear the chat history on reseed. createLiveData stamps a fresh
   // grid.meta.assistantSeedId every run; when the marker we last saw changes, wipe
@@ -213,17 +221,23 @@ export default function AssistantDrawer() {
       });
       const j = await res.json();
       if (!res.ok) {
-        // 401/403 = the saved token is stale/invalid (the usual "I have to
-        // clear my cookies" case). Surface a recovery path instead of a raw
-        // error: open Settings so the user can clear + re-paste. The token is
-        // stable across reseeds (server/.env ASSISTANT_API_TOKEN), so the value
-        // createLiveData prints keeps working.
+        // 401/403 = the saved key is stale (e.g. a new session). Self-heal: ask
+        // the server for a fresh key (using the app login) and, if we get a new
+        // one, swap it in and tell the user to resend. Only if that fails do we
+        // ask them to re-enter it in Settings — no internal/dev wording.
         const authFail = res.status === 401 || res.status === 403;
-        const content = authFail
-          ? `(error ${res.status}) Your saved API token is invalid. Open ⚙ Settings → "Clear saved token", then paste the token printed by createLiveData (it's stable in server/.env as ASSISTANT_API_TOKEN — survives reseeds, no re-entry).`
-          : `(error ${res.status}) ${j?.message || JSON.stringify(j)}`;
-        setMessages(m => [...m, { role: "assistant", content }]);
-        if (authFail) setShowSettings(true);
+        if (authFail) {
+          const fresh = await fetchAssistantKey();
+          if (fresh && fresh !== token) {
+            setToken(fresh);
+            setMessages(m => [...m, { role: "assistant", content: "Reconnected — please send that again." }]);
+          } else {
+            setMessages(m => [...m, { role: "assistant", content: "I'm not connected right now. Open ⚙ Settings, clear the saved key, and paste your assistant key again." }]);
+            setShowSettings(true);
+          }
+          return;
+        }
+        setMessages(m => [...m, { role: "assistant", content: `(error ${res.status}) ${j?.message || JSON.stringify(j)}` }]);
         return;
       }
       // Learn how long a normal round-trip takes so the next "thinking" bar
@@ -462,20 +476,17 @@ export default function AssistantDrawer() {
                 <button
                   onClick={clearToken}
                   disabled={!token}
-                  title="Forget the saved token — paste a fresh one to reconnect"
+                  title="Forget the saved key — it'll reconnect automatically, or paste a new one"
                   style={{
                     fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: token ? "pointer" : "default",
                     background: "rgba(190,90,80,0.14)", color: "inherit", opacity: token ? 1 : 0.4,
                     border: "1px solid rgba(190,90,80,0.4)",
                   }}
-                >Clear saved token</button>
+                >Clear saved key</button>
               </div>
               <div style={{ fontSize: 9, opacity: 0.55, marginTop: 6, lineHeight: 1.5 }}>
-                The token is stable across reseeds — <code>createLiveData</code> prints it and
-                stores it in <code>server/.env</code> as <code>ASSISTANT_API_TOKEN</code>, so the
-                same value keeps working (no re-entry). Mint a new one with{" "}
-                <code>node --env-file=.env server/scripts/createApiToken.js &lt;email&gt;</code>.
-                See <code>docs/assistant-guide.md</code>.
+                Your assistant key connects this chat to your workspace. It fills in
+                automatically while you're signed in — you only need to paste one if asked.
               </div>
             </div>
           )}

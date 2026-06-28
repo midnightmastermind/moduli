@@ -1024,6 +1024,24 @@ body[data-clipboard-active="true"] {
   user-drag: none;
 }
 
+/* Text inside doc editors / textblock cards must be HIGHLIGHTABLE even though
+   the instance row that hosts a textblock is a drag source. The content subtree
+   opts out of drag (user-drag:none + draggable=false set by Editor) and forces
+   text selection back on, overriding any inherited user-select:none. */
+.doc-editor-content.ProseMirror,
+.textblock-card,
+.textblock-card .doc-editor-wrapper,
+.textblock-card .doc-editor-content {
+  -webkit-user-select: text;
+  user-select: text;
+}
+.textblock-card .doc-editor-wrapper,
+.textblock-card .doc-editor-content,
+.textblock-card .ProseMirror {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
 /* Prevent native text drag in editors — text can be selected but not dragged */
 .doc-editor-content.ProseMirror * {
   -webkit-user-drag: none;

@@ -564,7 +564,7 @@ function InstanceInner({
               />
             </PopoverContent>
           </Popover>
-          {effectiveShowLabel && (
+          {effectiveShowLabel && (hasLabel || !renderBody) && (
             isEditingLabel ? (
               <input
                 value={labelDraft}
@@ -602,12 +602,14 @@ function InstanceInner({
                 title="Double-click to rename"
               >
                 {/* Auto-marquee: scrolls the label only when it's wider than the
-                    space it has; otherwise renders static. Empty labels still
-                    render a faint, double-clickable placeholder so a blank
-                    occurrence can be named. */}
+                    space it has; otherwise renders static. Empty labels render a
+                    faint, double-clickable "Untitled" placeholder so a blank
+                    occurrence can be named — but NOT for textblock / artifact
+                    bodies (renderBody), whose content IS the body and which have
+                    no meaningful label. */}
                 {hasLabel
                   ? <AutoMarquee>{label}</AutoMarquee>
-                  : <span style={{ opacity: 0.4, fontStyle: "italic" }}>Untitled</span>}
+                  : (renderBody ? null : <span style={{ opacity: 0.4, fontStyle: "italic" }}>Untitled</span>)}
               </div>
             )
           )}
