@@ -1,12 +1,12 @@
 #!/bin/bash
 # deploy.sh — Build, commit, push, then deploy to production server
 # Usage: ./deploy.sh "commit message"
-# Server: <DOMAIN> (deploy@) | /var/www/moduli  [SSH keys]
+# Server: viafluere.com (deploy@) | /var/www/moduli  [SSH keys]
 
 set -e
 
 COMMIT_MSG="${1:-"deploy: update site"}"
-REMOTE_HOST="deploy@DOMAIN"   # EDIT: replace DOMAIN with the real host before first use
+REMOTE_HOST="deploy@viafluere.com"   # resolves once the A record points at the droplet; use deploy@<IP> if DNS hasn't propagated yet
 REMOTE_DIR="/var/www/moduli"
 
 # Fail fast if the placeholder host was never filled in — otherwise the script

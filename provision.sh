@@ -4,9 +4,9 @@
 set -euo pipefail
 
 # ── Config (edit these before running) ───────────────────────────────────────
-DOMAIN="moduli.example.com"
+DOMAIN="viafluere.com"
 if [ "$DOMAIN" = "moduli.example.com" ]; then echo "ERROR: set DOMAIN at the top of provision.sh before running"; exit 1; fi
-REPO_URL="https://github.com/midnightmastermind/dndtest2.git"
+REPO_URL="https://github.com/midnightmastermind/moduli.git"
 APP_DIR="/var/www/moduli"
 DEPLOY_USER="deploy"
 
