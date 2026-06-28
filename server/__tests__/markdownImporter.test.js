@@ -31,16 +31,21 @@ describe("markdownToModuli — article-like grouped rich textblocks", () => {
     expect(blob).not.toContain('"type":"link"');
   });
 
-  it("each bullet item becomes its OWN mini-textblock occurrence (not a grouped bulletList)", async () => {
+  it("a list is ONE textblock (bulletList) whose items are inline mini-textblocks", async () => {
     const md = `# T\n\n## Discography\n\n- The Slim Shady LP\n- The Marshall Mathers LP`;
     const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
     expect(r.modules.some(m => m.role === "instance")).toBe(false); // no board list-item instances
     expect(r.stats.instances).toBe(0);
-    // No grouped bulletList node anymore — each item is its own textblock.
-    expect(r.occurrences.some(o => JSON.stringify(o.textmap || {}).includes('"bulletList"'))).toBe(false);
-    const itemTbs = r.occurrences.filter(o => JSON.stringify(o.textmap || {}).includes("The Slim Shady LP") || JSON.stringify(o.textmap || {}).includes("The Marshall Mathers LP"));
-    expect(itemTbs.length).toBe(2); // one mini-textblock per bullet
-    expect(JSON.stringify(itemTbs[0].textmap)).toContain("• "); // bullet marker preserved
+    // The list lives in ONE textblock as a bulletList...
+    const listTb = r.occurrences.find(o => JSON.stringify(o.textmap || {}).includes('"bulletList"'));
+    expect(listTb).toBeTruthy();
+    // ...and each item embeds a mini-textblock (instanceTextblockInline).
+    expect(JSON.stringify(listTb.textmap)).toContain("instanceTextblockInline");
+    const miniMods = r.modules.filter(m => m.role === "textblock" && m.kind === "inline");
+    expect(miniMods.length).toBe(2); // one mini-textblock per bullet
+    const miniBlob = JSON.stringify(r.occurrences.map(o => o.textmap));
+    expect(miniBlob).toContain("The Slim Shady LP");
+    expect(miniBlob).toContain("The Marshall Mathers LP");
   });
 
   it("an image ![alt](src) becomes an artifact", async () => {
@@ -83,14 +88,15 @@ describe("markdownToModuli — article-like grouped rich textblocks", () => {
     expect(idxQuote).toBeGreaterThan(idxPara);
   });
 
-  it("a bullet list yields one mini-textblock per item (no grouped list / listCapRows)", async () => {
+  it("a bullet list mints one inline mini-textblock per item inside one list textblock", async () => {
     const items = Array.from({ length: 25 }, (_, i) => `- Artist ${i + 1}`).join("\n");
     const md = `# T\n\n## Influences\n\n${items}`;
     const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
-    // every item is its own mini-textblock; no listCapRows column-flow anymore
-    expect(r.occurrences.some(o => o.meta?.listCapRows)).toBe(false);
-    const itemTbs = r.occurrences.filter(o => /Artist \d+/.test(JSON.stringify(o.textmap || {})));
-    expect(itemTbs.length).toBe(25);
+    const miniMods = r.modules.filter(m => m.role === "textblock" && m.kind === "inline");
+    expect(miniMods.length).toBe(25);
+    // still ONE bulletList textblock holding them all
+    const listTbs = r.occurrences.filter(o => JSON.stringify(o.textmap || {}).includes('"bulletList"'));
+    expect(listTbs.length).toBe(1);
   });
 
   it("heading + its section nests as containers (Rule Set A)", async () => {
@@ -348,9 +354,14 @@ describe("markdownToModuli — plain text (degenerate markdown) round-trips clea
   it("a structural block (list) flushes the running prose so reading order is preserved", async () => {
     const md = `Para one.\n\nPara two.\n\n- item a\n- item b\n\nPara three.`;
     const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
-    // prose1+2 merge → 1 textblock; each list item → its own mini-textblock (2);
-    // prose3 → 1 textblock = 4
-    expect(r.stats.textblocks).toBe(4);
+    // prose1+2 merge → 1 textblock; the list → 1 bulletList textblock (its 2 items
+    // are inline mini-textblocks, +2 more textblock modules); prose3 → 1 textblock.
+    // Top-level (non-inline) textblocks in the reading flow = 3.
+    const flowTbs = r.occurrences.filter(o => {
+      const mod = r.modules.find(m => m.id === o.moduleId);
+      return mod?.role === "textblock" && mod?.kind !== "inline";
+    });
+    expect(flowTbs.length).toBe(3);
   });
 });
 

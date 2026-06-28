@@ -437,6 +437,21 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
     return { occurrenceId, moduleId };
   }
 
+  // A plain inline mini-textblock (role:"textblock" kind:"inline") carrying the
+  // item's content (inline marks + link chips preserved via parseInline). Used as
+  // the CONTENT of each bullet list item so every bullet is its own editable /
+  // draggable mini-block while still living inside ONE list textblock.
+  function buildInlineTextblock(text) {
+    const moduleId = uid();
+    const occurrenceId = uid();
+    modules.push({ id: moduleId, userId, gridId, role: "textblock", kind: "inline", label: "" });
+    occurrences.push({
+      id: occurrenceId, userId, gridId, moduleId, parentId: null,
+      textmap: { type: "doc", content: [{ type: "paragraph", content: parseInline(String(text || ""), buildInlineLink) }] },
+    });
+    return { occurrenceId, moduleId };
+  }
+
   // Source-link textblock — a regular doc textblock whose paragraph holds a
   // leading "Source: " label + an inline link mini-textblock (instanceTextblockInline)
   // pointing at the original article URL. Prepended as the FIRST child of the
@@ -659,22 +674,22 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
         const subId = buildContainer(c, occurrenceId);
         childIds.push(subId);
       } else if (c.kind === "board") {
-        // Each bullet item becomes its OWN mini-textblock occurrence (per user:
-        // "the bulletpoints should be mini textblocks") instead of one grouped
-        // bulletList textblock — so every point is an independently editable /
-        // draggable block. A leading "• " keeps the bullet reading. Inline-link
-        // minting is preserved (links in items still become clickable chips).
-        for (const it of (c.items || [])) {
-          const tbId = buildTextblock([{
-            type: "paragraph",
-            content: [
-              { type: "text", text: "• " },
-              ...parseInline(String(it || ""), buildInlineLink),
-            ],
-          }]);
-          childIds.push(tbId);
-          textblockChildIds.add(tbId);
-        }
+        // ONE textblock holding a real bulletList; each ITEM's content is a
+        // mini-textblock embedded inline (instanceTextblockInline). So the bullet
+        // marker comes from the list and each point is its own editable/draggable
+        // mini-block — but they all live in the SAME list/textblock (per user).
+        const listItems = (c.items || []).map((it) => {
+          const { occurrenceId: miniOccId, moduleId: miniModId } = buildInlineTextblock(it);
+          return {
+            type: "listItem",
+            content: [{ type: "paragraph", content: [
+              { type: "instanceTextblockInline", attrs: { occurrenceId: miniOccId, instanceId: miniModId } },
+            ] }],
+          };
+        });
+        const tbId = buildTextblock([{ type: "bulletList", content: listItems }]);
+        childIds.push(tbId);
+        textblockChildIds.add(tbId);
       } else if (c.kind === "codeBlock") {
         childIds.push(buildTextblock([{
           type: "codeBlock",
