@@ -2360,35 +2360,34 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .artifact-card:not(.artifact-card--expanded):not(.artifact-card--quote) {
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
 }
-/* Full-bleed logo card (Viafluere top-middle cell): image fills the card width,
-   responsive (height auto, no crop); the file name pins to the top-right corner,
-   opposite the instance drag handle at top-left. */
+/* Full-bleed logo card (Viafluere top-middle cell): file name sits in a header
+   bar ABOVE the image (never covers it); the image fills the card width,
+   responsive (height auto, no crop). */
 .artifact-card--fullbleed {
-  position: relative;
-  display: block;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   padding: 0;
   background: transparent;
   box-shadow: none;
+}
+.artifact-card--fullbleed .artifact-fullbleed-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 16px;
+  padding: 2px 6px 3px 24px;
+}
+.artifact-card--fullbleed .artifact-fullbleed-name {
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-muted);
 }
 .artifact-card--fullbleed .artifact-fullbleed-img {
   display: block;
   width: 100%;
   height: auto;
   object-fit: contain;
-}
-.artifact-card--fullbleed .artifact-fullbleed-name {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  z-index: 2;
-  pointer-events: none;
-  font-size: 10px;
-  font-family: var(--font-mono, monospace);
-  color: var(--text-muted);
-  background: rgba(0, 0, 0, 0.4);
-  padding: 1px 6px;
-  border-radius: 4px;
 }
 .artifact-card--expanded {
   position: relative;

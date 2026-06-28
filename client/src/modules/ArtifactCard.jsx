@@ -130,8 +130,10 @@ export default function ArtifactCard({ module, label, occurrence }) {
     const fileName = module?.meta?.originalName || label || module?.label || "";
     return (
       <div className="artifact-card artifact-card--fullbleed" data-kind="image">
-        {fileName && <span className="artifact-fullbleed-name" title={fileName}>{fileName}</span>}
-        <img className="artifact-fullbleed-img" src={thumb1024Src} alt={label || "logo"} />
+        <div className="artifact-fullbleed-header">
+          {fileName && <span className="artifact-fullbleed-name" title={fileName}>{fileName}</span>}
+        </div>
+        <img className="artifact-fullbleed-img" src={src} alt={label || "logo"} />
       </div>
     );
   }

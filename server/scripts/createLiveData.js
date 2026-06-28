@@ -5727,16 +5727,36 @@ export async function createLiveData(userId, options = {}) {
   await new Module({
     id: logoArtModId, userId, gridId,
     role: "artifact", kind: "image",
-    label: "", fileRef: "/viafluere_logo.png", defaultDragMode: "copy",
-    meta: { mimeType: "image/png", originalName: "viafluere_logo.png", uploadStatus: "ready", external: true, fullBleed: true },
+    label: "", fileRef: "/viafluere_lockup.svg", defaultDragMode: "copy",
+    meta: { mimeType: "image/svg+xml", originalName: "viafluere_lockup.svg", uploadStatus: "ready", external: true, fullBleed: true },
   }).save();
   await new View({ id: logoArtViewId, userId, gridId, viewType: "display", artifactType: "image", layout: {} }).save();
   await mkOcc({ id: logoArtOccId, moduleId: logoArtModId, parentId: null, viewId: logoArtViewId, sortOrder: 0, iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
 
+  // App-description textblock, rendered beneath the logo in the same container.
+  const logoDescModId = uid();
+  const logoDescOccId = uid();
+  await new Module({ id: logoDescModId, userId, gridId, role: "textblock", kind: "doc", label: "" }).save();
+  await mkOcc({
+    id: logoDescOccId, moduleId: logoDescModId, parentId: null, sortOrder: 1,
+    iteration: { mode: "persistent" }, fields: {}, filterOverride: {},
+    textmap: { type: "doc", content: [
+      { type: "paragraph", content: [{ type: "text", marks: [{ type: "bold" }], text: "A modular, event-driven workspace where everything you do can be measured." }] },
+      { type: "paragraph", content: [{ type: "text", text: "Viafluere is a drag-and-drop daily command center — calendar, to-do list, habit tracker, and budget/nutrition/workout tracker in one. Plan your day by dropping tasks into time slots, then track what you actually did. Every task can be a simple checkbox or a checkbox plus numbers and text: minutes run, grams of protein, dollars saved, pomodoros studied." }] },
+      { type: "paragraph", content: [{ type: "text", text: "Content is built from reusable modules (templates) placed as occurrences. Pages render as boards, documents, canvases, or tables; typed fields collect data; and a transparent operations pipeline aggregates totals, streaks, and progress across any time window and category — explicit math, no black-box trackers." }] },
+      { type: "paragraph", content: [{ type: "text", text: "Iterations filter what belongs to today, this week, or any context, cascading from the grid down to each item. Rich-text docs embed live field and instance pills, the canvas links occurrences into mind-maps, and everything syncs in real time with optimistic, instant updates." }] },
+      { type: "bulletList", content: [
+        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Schedule, goals, and trackers that aggregate across day / week / month / year" }] }] },
+        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Boards, docs, canvases, tables, and file artifacts — all draggable, all linkable" }] }] },
+        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "An operations pipeline for automation and an in-app assistant that can build the grid for you" }] }] },
+      ] },
+    ] },
+  });
+
   const logoContModId = uid();
   const logoContOccId = uid();
   await new Module({ id: logoContModId, userId, gridId, role: "container", kind: "board", label: "viafluere" }).save();
-  await mkOcc({ id: logoContOccId, moduleId: logoContModId, parentId: null, occurrences: [logoArtOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
+  await mkOcc({ id: logoContOccId, moduleId: logoContModId, parentId: null, occurrences: [logoArtOccId, logoDescOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
 
   const logoPageModId = uid();
   const logoPageOccId = uid();
