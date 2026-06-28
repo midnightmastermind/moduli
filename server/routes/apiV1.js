@@ -2,6 +2,13 @@
 //
 // /api/v1 REST surface. Per docs/api-plan.md §1.
 //
+// selfBaseUrl: the assistant tools call the app's OWN API. Behind a proxy
+// (nginx / Cloudflare) `req.protocol` is "http", so building the base URL from
+// it makes the server POST to http://<host>/... which the proxy 301-redirects
+// to https → fetch downgrades the POST to a GET → the SPA catch-all returns
+// index.html and the import silently no-ops. Calling ourselves on loopback
+// skips the proxy (and its redirect) entirely. Override with ASSISTANT_BASE_URL.
+//
 // Phase 1: auth + read grid state + write single field + sync op invoke.
 // Phase 2: full CRUD for modules/occurrences/fields/operations,
 //          bulk field-write, batch endpoint, pagination.
@@ -34,6 +41,10 @@ import { runOperationServerSide } from "../services/serverExecutor.js";
 import { buildOpenApiDoc } from "./apiV1OpenApi.js";
 import { verifyToken } from "../utils/jwts.js";
 import ApiToken from "../models/ApiToken.js";
+
+// Loopback base for the assistant's self-calls (see header comment).
+const SELF_BASE_URL =
+  process.env.ASSISTANT_BASE_URL || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
 const uid = () => crypto.randomUUID();
 const err = (res, status, code, message, details) =>
@@ -1114,7 +1125,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
         userId: req.userId,
         gridId,
         context,
-        baseUrl: `${req.protocol}://${req.get("host")}`,
+        baseUrl: SELF_BASE_URL,
         apiToken: req.headers.authorization?.replace(/^Bearer /, ""),
         // Stream lightweight progress to the user's tabs so a slow local model
         // shows "thinking (2)…" / "running wikipedia_import…" instead of a
@@ -1202,7 +1213,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
           input,
           userId: req.userId,
           gridId,
-          baseUrl: `${req.protocol}://${req.get("host")}`,
+          baseUrl: SELF_BASE_URL,
           apiToken: req.headers.authorization?.replace(/^Bearer /, ""),
         });
         res.json(result);
