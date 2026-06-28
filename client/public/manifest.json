@@ -3,7 +3,7 @@
   "name": "Viafluere",
   "icons": [
     {
-      "src": "viafluere_new_logo.png",
+      "src": "viafluere_icon.png",
       "type": "image/png",
       "sizes": "192x192 512x512 any"
     }

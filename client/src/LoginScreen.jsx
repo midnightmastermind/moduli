@@ -88,8 +88,8 @@ export default function LoginScreen() {
           marginBottom: 4,
         }}>
           <img
-            src="/viafluere_new_logo.png"
-            alt="Viafluere"
+            src="/viafluere_sideways.png"
+            alt="Via Fluere"
             style={{ height: 48, width: "auto", display: "block" }}
           />
         </div>
