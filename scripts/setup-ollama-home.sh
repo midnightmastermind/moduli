@@ -51,9 +51,27 @@ ollama pull "$MODEL"
 
 echo "==> 3/5 cloudflared"
 if ! command -v cloudflared >/dev/null 2>&1; then
-  echo "cloudflared not found. Install it, then re-run:"
-  echo "  https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
-  exit 1
+  echo "Installing cloudflared…"
+  if command -v apt-get >/dev/null 2>&1; then
+    # Official Cloudflare apt repo (Debian/Ubuntu/WSL)
+    sudo mkdir -p --mode=0755 /usr/share/keyrings
+    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+    echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
+      | sudo tee /etc/apt/sources.list.d/cloudflared.list >/dev/null
+    sudo apt-get update -y && sudo apt-get install -y cloudflared
+  fi
+  # Fallback: direct .deb / binary by arch
+  if ! command -v cloudflared >/dev/null 2>&1; then
+    arch="$(dpkg --print-architecture 2>/dev/null || uname -m)"
+    case "$arch" in
+      amd64|x86_64) pkg="cloudflared-linux-amd64.deb";;
+      arm64|aarch64) pkg="cloudflared-linux-arm64.deb";;
+      *) echo "Unsupported arch '$arch' — install cloudflared manually: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"; exit 1;;
+    esac
+    curl -fL -o /tmp/cloudflared.deb "https://github.com/cloudflare/cloudflared/releases/latest/download/$pkg"
+    sudo dpkg -i /tmp/cloudflared.deb || sudo apt-get install -f -y
+  fi
+  command -v cloudflared >/dev/null 2>&1 || { echo "cloudflared install failed — install manually and re-run."; exit 1; }
 fi
 if [[ ! -f "$HOME/.cloudflared/cert.pem" ]]; then
   echo "Authorizing cloudflared (opens a browser)…"
