@@ -659,23 +659,22 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
         const subId = buildContainer(c, occurrenceId);
         childIds.push(subId);
       } else if (c.kind === "board") {
-        // Bullet items get the SAME inline-link minting as prose so list links
-        // (e.g. the "See also" section, which is a list of article links)
-        // become clickable chips instead of un-resolving link marks.
-        // Long lists (e.g. the Eminem "artists who cited him as an influence"
-        // list) get unwieldy as one tall column. The importer only sets a HEIGHT
-        // CAP (≈20 items tall); the client flows the list into as many columns as
-        // that height needs — so it responds to the block's height, not a fixed
-        // column count. Only set it when the list actually exceeds the cap.
-        const itemCount = (c.items || []).length;
-        const listCapRows = itemCount > 20 ? 20 : 0;
-        const tbId = buildTextblock([{
-          type: "bulletList",
-          content: (c.items || [])
-            .map((it) => ({ type: "listItem", content: [{ type: "paragraph", content: parseInline(String(it || ""), buildInlineLink) }] })),
-        }], listCapRows ? { listCapRows } : undefined);
-        childIds.push(tbId);
-        textblockChildIds.add(tbId);
+        // Each bullet item becomes its OWN mini-textblock occurrence (per user:
+        // "the bulletpoints should be mini textblocks") instead of one grouped
+        // bulletList textblock — so every point is an independently editable /
+        // draggable block. A leading "• " keeps the bullet reading. Inline-link
+        // minting is preserved (links in items still become clickable chips).
+        for (const it of (c.items || [])) {
+          const tbId = buildTextblock([{
+            type: "paragraph",
+            content: [
+              { type: "text", text: "• " },
+              ...parseInline(String(it || ""), buildInlineLink),
+            ],
+          }]);
+          childIds.push(tbId);
+          textblockChildIds.add(tbId);
+        }
       } else if (c.kind === "codeBlock") {
         childIds.push(buildTextblock([{
           type: "codeBlock",

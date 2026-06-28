@@ -33,6 +33,7 @@ import { idempotency } from "../middleware/idempotency.js";
 import { runOperationServerSide } from "../services/serverExecutor.js";
 import { buildOpenApiDoc } from "./apiV1OpenApi.js";
 import { verifyToken } from "../utils/jwts.js";
+import ApiToken from "../models/ApiToken.js";
 
 const uid = () => crypto.randomUUID();
 const err = (res, status, code, message, details) =>
@@ -1135,17 +1136,18 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   // port-forwarded server never leaks the token (it grants full grid CRUD).
   // Set ASSISTANT_BOOTSTRAP=off to disable entirely. Returns { token: null }
   // when unset / disabled / non-local.
-  router.get("/assistant/bootstrap-token", (req, res) => {
+  router.get("/assistant/bootstrap-token", async (req, res) => {
     if ((process.env.ASSISTANT_BOOTSTRAP || "").toLowerCase() === "off") return res.json({ token: null });
     // Primary path: a valid logged-in APP JWT. The user is already authenticated
-    // to the app over HTTPS, so handing them their own assistant API token is
-    // safe over ANY origin (this is what makes auto-connect work on the public
-    // domain, not just over the LAN). The drawer sends the app JWT it already has.
+    // to the app over HTTPS, so handing them an assistant API token is safe over
+    // ANY origin (this is what makes auto-connect work on the public domain, not
+    // just the LAN). The drawer sends the app JWT it already has.
     const jwtTok = (req.headers.authorization || "").replace(/^Bearer\s+/i, "") || req.query.jwt || "";
-    const jwtOk = jwtTok ? !!verifyToken(jwtTok) : false;
+    const decoded = jwtTok ? verifyToken(jwtTok) : null;
+    const userId = decoded?.userId ? String(decoded.userId) : null;
     // Fallback: loopback / private LAN origins (dev over WSL2 / LAN IP, before
     // login). Public IPs without a valid JWT are refused so a port-forwarded
-    // server never leaks the token (it grants full grid CRUD).
+    // server never leaks a token (it grants full grid CRUD).
     const host = (req.hostname || "").toLowerCase();
     const peer = (req.socket?.remoteAddress || req.ip || "").replace(/^::ffff:/, "");
     const localHost = ["localhost", "127.0.0.1", "::1"].includes(host);
@@ -1154,8 +1156,28 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       /^10\./.test(peer) || /^192\.168\./.test(peer) ||
       /^172\.(1[6-9]|2\d|3[01])\./.test(peer) || /^169\.254\./.test(peer) || // RFC1918 + link-local
       /^f[cd]/i.test(peer) || /^fe[89ab]/i.test(peer);                        // IPv6 ULA + link-local
-    if (!jwtOk && !localHost && !localPeer) return res.json({ token: null });
-    res.json({ token: process.env.ASSISTANT_API_TOKEN || null });
+    if (!userId && !localHost && !localPeer) return res.json({ token: null });
+
+    // Prefer the stable env token (server/.env ASSISTANT_API_TOKEN) when it
+    // actually authenticates against the DB AND carries write scope — that's the
+    // "specific one in our env" path.
+    const envTok = process.env.ASSISTANT_API_TOKEN || null;
+    if (envTok) {
+      try {
+        const doc = await ApiToken.authenticate(envTok);
+        if (doc && (doc.scopes || []).includes("write")) return res.json({ token: envTok });
+      } catch { /* fall through to mint */ }
+    }
+    // Env token missing / stale / DB-unsynced → for an authenticated app user,
+    // MINT a fresh valid token on the fly so the chat ALWAYS connects without a
+    // reseed. (Dev-LAN with no logged-in user can't mint — returns null.)
+    if (userId) {
+      try {
+        const { rawToken } = await ApiToken.mint({ userId, name: "assistant (auto)", scopes: ["read", "write"] });
+        return res.json({ token: rawToken });
+      } catch { return res.json({ token: null }); }
+    }
+    res.json({ token: envTok });
   });
 
   // Execute a single tool the user approved on a confirmation card. The chat

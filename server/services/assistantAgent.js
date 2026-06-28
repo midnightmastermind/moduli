@@ -562,10 +562,13 @@ async function ollamaLoop({ messages, tools, systemPrompt = SYSTEM_PROMPT, onPro
 async function pickBackend() {
   const forced = (process.env.ASSISTANT_BACKEND || "").toLowerCase();
   if (forced === "ollama" || forced === "anthropic" || forced === "deterministic") return forced;
-  // Auto: prefer local Ollama (offline, private, free), then cloud
-  // Anthropic if a key is set, else the no-model dispatcher.
-  if (await ollamaReachable()) return "ollama";
+  // KEY-FIRST: configuring ANTHROPIC_API_KEY is an explicit opt-in to Claude
+  // (the production setup), so prefer it — don't probe for / fall back to local
+  // Ollama when a cloud key is present. Without a key, prefer local Ollama
+  // (offline, private, free), else the no-model dispatcher. Set
+  // ASSISTANT_BACKEND=ollama to force local even with a key.
   if (process.env.ANTHROPIC_API_KEY) return "anthropic";
+  if (await ollamaReachable()) return "ollama";
   return "deterministic";
 }
 

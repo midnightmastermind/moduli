@@ -31,15 +31,16 @@ describe("markdownToModuli — article-like grouped rich textblocks", () => {
     expect(blob).not.toContain('"type":"link"');
   });
 
-  it("a markdown list becomes ONE textblock with a bulletList (not separate occurrences)", async () => {
+  it("each bullet item becomes its OWN mini-textblock occurrence (not a grouped bulletList)", async () => {
     const md = `# T\n\n## Discography\n\n- The Slim Shady LP\n- The Marshall Mathers LP`;
     const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
     expect(r.modules.some(m => m.role === "instance")).toBe(false); // no board list-item instances
     expect(r.stats.instances).toBe(0);
-    const tbOcc = r.occurrences.find(o => JSON.stringify(o.textmap || {}).includes('"bulletList"'));
-    expect(tbOcc).toBeTruthy();
-    const bl = tbOcc.textmap.content.find(n => n.type === "bulletList");
-    expect(bl.content.length).toBe(2); // two list items inside one bulletList
+    // No grouped bulletList node anymore — each item is its own textblock.
+    expect(r.occurrences.some(o => JSON.stringify(o.textmap || {}).includes('"bulletList"'))).toBe(false);
+    const itemTbs = r.occurrences.filter(o => JSON.stringify(o.textmap || {}).includes("The Slim Shady LP") || JSON.stringify(o.textmap || {}).includes("The Marshall Mathers LP"));
+    expect(itemTbs.length).toBe(2); // one mini-textblock per bullet
+    expect(JSON.stringify(itemTbs[0].textmap)).toContain("• "); // bullet marker preserved
   });
 
   it("an image ![alt](src) becomes an artifact", async () => {
@@ -82,14 +83,14 @@ describe("markdownToModuli — article-like grouped rich textblocks", () => {
     expect(idxQuote).toBeGreaterThan(idxPara);
   });
 
-  it("a long bullet list (>20 items) stamps meta.listCapRows for column flow", async () => {
+  it("a bullet list yields one mini-textblock per item (no grouped list / listCapRows)", async () => {
     const items = Array.from({ length: 25 }, (_, i) => `- Artist ${i + 1}`).join("\n");
     const md = `# T\n\n## Influences\n\n${items}`;
     const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
-    expect(r.occurrences.some(o => o.meta?.listCapRows === 20)).toBe(true);
-    // a short list does NOT
-    const r2 = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: `# T\n\n## S\n\n- a\n- b`, dryRun: true });
-    expect(r2.occurrences.some(o => o.meta?.listCapRows)).toBe(false);
+    // every item is its own mini-textblock; no listCapRows column-flow anymore
+    expect(r.occurrences.some(o => o.meta?.listCapRows)).toBe(false);
+    const itemTbs = r.occurrences.filter(o => /Artist \d+/.test(JSON.stringify(o.textmap || {})));
+    expect(itemTbs.length).toBe(25);
   });
 
   it("heading + its section nests as containers (Rule Set A)", async () => {
@@ -347,8 +348,9 @@ describe("markdownToModuli — plain text (degenerate markdown) round-trips clea
   it("a structural block (list) flushes the running prose so reading order is preserved", async () => {
     const md = `Para one.\n\nPara two.\n\n- item a\n- item b\n\nPara three.`;
     const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
-    // prose1+2 merge → 1 textblock; the list → 1 textblock; prose3 → 1 textblock = 3
-    expect(r.stats.textblocks).toBe(3);
+    // prose1+2 merge → 1 textblock; each list item → its own mini-textblock (2);
+    // prose3 → 1 textblock = 4
+    expect(r.stats.textblocks).toBe(4);
   });
 });
 
@@ -369,9 +371,9 @@ describe("markdownToModuli — 2026-06-09 import fixes (links/See-also/denylist/
     const blob = JSON.stringify(r.occurrences.map(o => o.textmap));
     expect(blob).toContain("instanceTextblockInline");
     expect(blob).not.toContain('"type":"link"'); // no un-resolving link marks
-    // the chips live inside a bulletList
-    const listTb = r.occurrences.find(o => JSON.stringify(o.textmap || {}).includes('"bulletList"'));
-    expect(JSON.stringify(listTb.textmap)).toContain("instanceTextblockInline");
+    // each item is now its own mini-textblock carrying the inline link chip
+    const itemTbs = r.occurrences.filter(o => JSON.stringify(o.textmap || {}).includes("instanceTextblockInline"));
+    expect(itemTbs.length).toBeGreaterThanOrEqual(2);
   });
 
   it("citation/nav cruft sections (References / Notes / External links) are dropped; 'See also' is kept", async () => {
