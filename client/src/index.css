@@ -1042,6 +1042,15 @@ body[data-clipboard-active="true"] {
   user-drag: none;
 }
 
+/* The Editor wrapper ships a Tailwind min-h-[100px] so an EMPTY top-level doc
+   page has a click target. Inside an embedded doc container (imported section
+   card) or a textblock card it reserves a "random empty line" at the bottom —
+   zero it so the card hugs its content. Top-level doc pages keep the 100px. */
+.container-doc .doc-editor-wrapper,
+.textblock-card .doc-editor-wrapper {
+  min-height: 0;
+}
+
 /* Prevent native text drag in editors — text can be selected but not dragged */
 .doc-editor-content.ProseMirror * {
   -webkit-user-drag: none;

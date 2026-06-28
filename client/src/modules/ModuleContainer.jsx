@@ -1161,7 +1161,7 @@ function Container({
           />
         </div>
       ) : isDocContainer ? (
-        <div ref={listDropRef} className="container-doc" style={{ flex: 1, minHeight: 100, overflow: embedded ? "visible" : "auto", position: "relative" }}>
+        <div ref={listDropRef} className="container-doc" style={{ flex: 1, minHeight: embedded ? 0 : 100, overflow: embedded ? "visible" : "auto", position: "relative" }}>
           <DocEditorShell
             occurrence={containerOccurrence}
             dispatch={dispatch}
