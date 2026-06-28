@@ -5733,30 +5733,64 @@ export async function createLiveData(userId, options = {}) {
   await new View({ id: logoArtViewId, userId, gridId, viewType: "display", artifactType: "image", layout: {} }).save();
   await mkOcc({ id: logoArtOccId, moduleId: logoArtModId, parentId: null, viewId: logoArtViewId, sortOrder: 0, iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
 
-  // App-description textblock, rendered beneath the logo in the same container.
-  const logoDescModId = uid();
-  const logoDescOccId = uid();
-  await new Module({ id: logoDescModId, userId, gridId, role: "textblock", kind: "doc", label: "" }).save();
-  await mkOcc({
-    id: logoDescOccId, moduleId: logoDescModId, parentId: null, sortOrder: 1,
-    iteration: { mode: "persistent" }, fields: {}, filterOverride: {},
-    textmap: { type: "doc", content: [
-      { type: "paragraph", content: [{ type: "text", marks: [{ type: "bold" }], text: "A modular, event-driven workspace where everything you do can be measured." }] },
-      { type: "paragraph", content: [{ type: "text", text: "Viafluere is a drag-and-drop daily command center — calendar, to-do list, habit tracker, and budget/nutrition/workout tracker in one. Plan your day by dropping tasks into time slots, then track what you actually did. Every task can be a simple checkbox or a checkbox plus numbers and text: minutes run, grams of protein, dollars saved, pomodoros studied." }] },
-      { type: "paragraph", content: [{ type: "text", text: "Content is built from reusable modules (templates) placed as occurrences. Pages render as boards, documents, canvases, or tables; typed fields collect data; and a transparent operations pipeline aggregates totals, streaks, and progress across any time window and category — explicit math, no black-box trackers." }] },
-      { type: "paragraph", content: [{ type: "text", text: "Iterations filter what belongs to today, this week, or any context, cascading from the grid down to each item. Rich-text docs embed live field and instance pills, the canvas links occurrences into mind-maps, and everything syncs in real time with optimistic, instant updates." }] },
-      { type: "bulletList", content: [
-        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Schedule, goals, and trackers that aggregate across day / week / month / year" }] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Boards, docs, canvases, tables, and file artifacts — all draggable, all linkable" }] }] },
-        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "An operations pipeline for automation and an in-app assistant that can build the grid for you" }] }] },
-      ] },
-    ] },
-  });
+  // App description — SEVERAL textblocks beneath the logo in the same container
+  // (each its own occurrence so it reads as a sectioned "about" page). Content
+  // drawn from docs/original-vision.md + docs/NEWOVERVIEW.md.
+  const _p  = (text, bold) => ({ type: "paragraph", content: [{ type: "text", ...(bold ? { marks: [{ type: "bold" }] } : {}), text }] });
+  const _h  = (text, level = 3) => ({ type: "heading", attrs: { level }, content: [{ type: "text", text }] });
+  const _ul = (items) => ({ type: "bulletList", content: items.map((t) => ({ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: t }] }] })) });
+
+  const descBlocks = [
+    [ _p("A modular, event-driven workspace where everything you do can be measured.", true) ],
+    [
+      _h("What it is"),
+      _p("A drag-and-drop daily command center — calendar, to-do list, habit tracker, and budget / nutrition / workout tracker in one. Plan your day by dropping tasks into time slots, then track what you actually did; the same slots are both your plan and your log."),
+    ],
+    [
+      _h("Anything you do can be measured"),
+      _p("A normal planner says “I did laundry.” Viafluere says:"),
+      _ul([
+        "Ran ✅ for 25 minutes",
+        "Ate ✅ 42g protein",
+        "Saved ✅ $20",
+        "Studied ✅ 2 pomodoros",
+      ]),
+      _p("Every task is a simple checkbox — or a checkbox plus numbers and text."),
+    ],
+    [
+      _h("Totals, streaks & progress — automatically"),
+      _p("A transparent operations pipeline aggregates by what the task was, the value you entered, the time lens (today / this week / month / year), and the category filter — explicit math, no black-box trackers. So it can answer “how much protein today?”, “how much did I save this month?”, or “what's my journaling streak?”"),
+    ],
+    [
+      _h("Build it your way"),
+      _ul([
+        "Boards, documents, canvases, tables, and file artifacts — all draggable, all linkable",
+        "Reusable modules placed as occurrences; typed fields collect the data",
+        "Iterations filter what belongs to today, this week, or any context — cascading grid → item",
+        "Rich-text docs embed live field & instance pills; the canvas links occurrences into mind-maps",
+        "Real-time sync with optimistic, instant updates",
+        "An in-app assistant that can build the grid for you",
+      ]),
+    ],
+  ];
+
+  const logoDescOccIds = [];
+  for (const content of descBlocks) {
+    const mId = uid();
+    const oId = uid();
+    await new Module({ id: mId, userId, gridId, role: "textblock", kind: "doc", label: "" }).save();
+    await mkOcc({
+      id: oId, moduleId: mId, parentId: null, sortOrder: logoDescOccIds.length + 1,
+      iteration: { mode: "persistent" }, fields: {}, filterOverride: {},
+      textmap: { type: "doc", content },
+    });
+    logoDescOccIds.push(oId);
+  }
 
   const logoContModId = uid();
   const logoContOccId = uid();
   await new Module({ id: logoContModId, userId, gridId, role: "container", kind: "board", label: "viafluere" }).save();
-  await mkOcc({ id: logoContOccId, moduleId: logoContModId, parentId: null, occurrences: [logoArtOccId, logoDescOccId], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
+  await mkOcc({ id: logoContOccId, moduleId: logoContModId, parentId: null, occurrences: [logoArtOccId, ...logoDescOccIds], iteration: { mode: "persistent" }, fields: {}, filterOverride: {} });
 
   const logoPageModId = uid();
   const logoPageOccId = uid();
@@ -5796,7 +5830,7 @@ export async function createLiveData(userId, options = {}) {
   await Module.insertMany([
     { id: toolkitPanelId,  userId, gridId, role: "panel", kind: "board", label: "Panel A", defaultDragMode: "copy", layout: panelLayout("Panel A") },
     { id: todoPanelId,     userId, gridId, role: "panel", kind: "board", label: "Panel B", defaultDragMode: "move", layout: { ...panelLayout("Panel B"), gapPx: 8 } },
-    { id: logoPanelId,     userId, gridId, role: "panel", kind: "board", label: "Viafluere", defaultDragMode: "copy", layout: { ...panelLayout("Viafluere"), flow: "row", scrollY: "hidden" } },
+    { id: logoPanelId,     userId, gridId, role: "panel", kind: "board", label: "Viafluere", defaultDragMode: "copy", layout: { ...panelLayout("Viafluere"), flow: "row", scrollY: "auto" } },
     { id: notebookPanelId, userId, gridId, role: "panel", kind: "board", label: "Panel C", defaultDragMode: "move", layout: panelLayout("Panel C") },
     { id: goalsPanelId,    userId, gridId, role: "panel", kind: "board", label: "Panel D", defaultDragMode: "move", layout: panelLayout("Panel D") },
     { id: accountsPanelId, userId, gridId, role: "panel", kind: "board", label: "Panel E", defaultDragMode: "move", layout: panelLayout("Panel E") },

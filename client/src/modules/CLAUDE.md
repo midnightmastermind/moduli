@@ -2,6 +2,23 @@
 
 _Updated: 2026-06-12. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-06-28 — full-bleed logo: scroll-to-center on load + tight lockup; multi-block description)
+- **`ArtifactCard.jsx`** — the full-bleed logo card (`kind:"image"` + `meta.fullBleed`,
+  the Viafluere top-middle cell) now scrolls itself vertically CENTERED in the nearest
+  scrollable ancestor on first mount (140ms post-layout, fullBleed-only, runs once per `src`).
+  So the cell "loads in" with the logo centered — the container header + filename bar scroll
+  up out of view, the description below is reached by scrolling further (user ask). Added
+  `useRef`/`useEffect` imports + `isFullBleed` guard.
+- **Logo lockup (`client/public/viafluere_lockup.svg`)** — viewBox tightened from 760→678 wide
+  (content measured at x[24.5..676]) + intrinsic `width=678` so the lockup fills its card
+  edge-to-edge (was an ~11% dead gap on the right that read as left-aligned). `.artifact-fullbleed-img`
+  stays `width:100%`.
+- **Seed (`server/scripts/createLiveData.js`)** — the logo container's single description
+  textblock is now SIX textblock occurrences (tagline + What it is / Anything you do can be
+  measured / Totals & streaks / Build it your way), content from docs/original-vision.md +
+  NEWOVERVIEW.md. Logo panel `scrollY` flipped `hidden`→`auto` so the expanded description is
+  scrollable. **Re-seed required** to apply the description + panel-scroll changes.
+
 ## Recent Changes (2026-06-15 — PageFolder: briefly flash newly-arrived cards (fresh imports))
 - **`pages/PageFolder.jsx`** — folder pages now pulse a card for ~1.3s when its
   occurrence id NEWLY appears in the folder (user: "since the import folder holds all

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="252" height="140" viewBox="0 0 252 140" role="img" aria-label="Viafluere mark">
+  <!-- Clean vector of the interlocking double-knot. Two rounded-diamond ribbon
+       rings overlap in the centre and weave OVER/UNDER at the two crossings.
+       Scalable + speckle-free alternative to moduli_logo.png. -->
+  <defs>
+    <linearGradient id="vfRibbon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#34f5e7"/>
+      <stop offset="45%" stop-color="#3ad2ff"/>
+      <stop offset="100%" stop-color="#2b4bff"/>
+    </linearGradient>
+    <linearGradient id="vfSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="38%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <!-- bottom-centre crossing region: where the RIGHT ring is re-drawn over the left -->
+    <clipPath id="vfBottomCross">
+      <rect x="100" y="74" width="52" height="40"/>
+    </clipPath>
+  </defs>
+
+  <!-- RIGHT ring (under, except where re-drawn) -->
+  <g transform="rotate(45 158 70)">
+    <rect x="123" y="35" width="70" height="70" rx="20" fill="none" stroke="url(#vfRibbon)" stroke-width="22"/>
+  </g>
+
+  <!-- LEFT ring on top (so left passes OVER right at the TOP crossing) -->
+  <g transform="rotate(45 94 70)">
+    <rect x="59" y="35" width="70" height="70" rx="20" fill="none" stroke="url(#vfRibbon)" stroke-width="22"/>
+  </g>
+
+  <!-- re-draw RIGHT ring clipped to the BOTTOM crossing → right passes OVER left there,
+       giving an alternating over/under weave -->
+  <g clip-path="url(#vfBottomCross)">
+    <g transform="rotate(45 158 70)">
+      <rect x="123" y="35" width="70" height="70" rx="20" fill="none" stroke="url(#vfRibbon)" stroke-width="22"/>
+    </g>
+  </g>
+
+  <!-- sheen overlay -->
+  <g opacity="0.9">
+    <g transform="rotate(45 94 70)"><rect x="59" y="35" width="70" height="70" rx="20" fill="none" stroke="url(#vfSheen)" stroke-width="22"/></g>
+    <g transform="rotate(45 158 70)"><rect x="123" y="35" width="70" height="70" rx="20" fill="none" stroke="url(#vfSheen)" stroke-width="22"/></g>
+  </g>
+</svg>

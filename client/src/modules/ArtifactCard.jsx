@@ -3,7 +3,7 @@
 //   - thumbnail mode (default): compact preview (image / video frame / 🎵 / 📕)
 //   - expanded mode: fills the parent instance row, with <video controls autoPlay>,
 //     a scaled <img>, an <audio controls>, or an <iframe> for pdf. X button collapses.
-import React, { useContext, useState, useCallback } from "react";
+import React, { useContext, useState, useCallback, useRef, useEffect } from "react";
 import { X, Maximize2, AlertCircle } from "lucide-react";
 import { Spinner } from "../components/ui/spinner.jsx";
 import { resolveFileRef } from "../helpers/fileRef";
@@ -32,6 +32,33 @@ export default function ArtifactCard({ module, label, occurrence }) {
     e?.stopPropagation();
     setExpanded((v) => !v);
   }, []);
+
+  // Full-bleed logo (Viafluere top-middle cell): on first mount, scroll the
+  // nearest scrollable ancestor so the LOGO sits vertically centered in the
+  // cell — the container header + filename bar scroll up out of the way and the
+  // description below is reached by scrolling further (user: "scroll a bit down
+  // to start so the image is centered in the cell").
+  const fullbleedRef = useRef(null);
+  const isFullBleed = kind === "image" && !!module?.meta?.fullBleed;
+  useEffect(() => {
+    if (!isFullBleed) return;
+    const el = fullbleedRef.current;
+    if (!el) return;
+    let sc = el.parentElement;
+    while (sc && sc !== document.body) {
+      const oy = getComputedStyle(sc).overflowY;
+      if ((oy === "auto" || oy === "scroll") && sc.scrollHeight > sc.clientHeight + 4) break;
+      sc = sc.parentElement;
+    }
+    if (!sc || sc === document.body) return;
+    const t = setTimeout(() => {
+      const er = el.getBoundingClientRect();
+      const sr = sc.getBoundingClientRect();
+      const delta = (er.top - sr.top) - Math.max(0, (sc.clientHeight - er.height) / 2);
+      if (delta > 8) sc.scrollTop += delta;
+    }, 140);
+    return () => clearTimeout(t);
+  }, [isFullBleed, src]);
 
   // Cancel an in-flight upload (audit gap #8): abort the XHR, delete the
   // placeholder occurrence + module, detach from the parent container's
@@ -126,10 +153,10 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // card width (responsive, no crop), with the file name pinned top-right —
   // opposite the instance drag handle (which sits top-left). Used by the
   // Viafluere logo board in the top-middle grid cell.
-  if (kind === "image" && module?.meta?.fullBleed) {
+  if (isFullBleed) {
     const fileName = module?.meta?.originalName || label || module?.label || "";
     return (
-      <div className="artifact-card artifact-card--fullbleed" data-kind="image">
+      <div ref={fullbleedRef} className="artifact-card artifact-card--fullbleed" data-kind="image">
         <div className="artifact-fullbleed-header">
           {fileName && <span className="artifact-fullbleed-name" title={fileName}>{fileName}</span>}
         </div>
