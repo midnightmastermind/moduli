@@ -38,7 +38,7 @@ export function Spinner({ size = "md", className }) {
       }}>
         {/* Inner div: rotation only */}
         <div style={{ animation: "spin-ccw 2.4s linear infinite", width: "100%" }}>
-          <img src="/moduli_logo.png" alt="" aria-hidden style={{ width: "100%", height: "auto", display: "block" }} />
+          <img src="/viafluere_mark.png" alt="" aria-hidden style={{ width: "100%", height: "auto", display: "block" }} />
         </div>
       </div>
     </div>

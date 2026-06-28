@@ -5721,12 +5721,12 @@ export async function createLiveData(userId, options = {}) {
   // Generated through the SAME markdown importer the Wikipedia import uses, so it
   // reads like a wiki article: ONE doc container, markdown-header sections, the
   // logo as a wrapped lead image (text flows around it). Content from
-  // docs/original-vision.md + docs/NEWOVERVIEW.md. The fileRef /viafluere_lockup.svg
-  // is the vector lockup served from the client build's public assets.
+  // docs/original-vision.md + docs/NEWOVERVIEW.md. The fileRef /viafluere_new_logo.png
+  // is the brand lockup served from the client build's public assets.
   const viafluereMd = [
     "# viafluere",
     "",
-    "![viafluere](/viafluere_lockup.svg)",
+    "![viafluere](/viafluere_new_logo.png)",
     "",
     "**Viafluere** is a modular, event-driven workspace where everything you do can be measured — a drag-and-drop daily command center that combines a calendar, to-do list, habit tracker, and budget / nutrition / workout tracker into one interface.",
     "",
