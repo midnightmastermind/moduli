@@ -765,7 +765,7 @@ export function createOccurrenceInContainer({ socket, instanceId, containerId, f
 // `kind` accepts "doc" (default — full block textblock) or "inline" (LT1 —
 // compact inline variant that renders inside doc text flow when embedded).
 export function createTextblockInContainer({
-  dispatch, socket, gridId, userId, containerOccurrence, label = "", kind = "doc",
+  dispatch, socket, gridId, userId, containerOccurrence, label = "", kind = "doc", index = null,
 }) {
   if (!gridId || !userId || !containerOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `tb-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -793,17 +793,135 @@ export function createTextblockInContainer({
   safeEmit(socket, "create_module", { module });
   safeEmit(socket, "create_occurrence", { occurrence });
 
-  // Append to container occurrences[].
+  // Splice into container occurrences[] at `index` (append when null/out of range).
+  const existing = Array.isArray(containerOccurrence.occurrences) ? [...containerOccurrence.occurrences] : [];
+  const at = (index == null || index < 0 || index > existing.length) ? existing.length : index;
+  existing.splice(at, 0, occurrenceId);
   updateOccurrence({
     dispatch, socket,
-    occurrence: {
-      id: containerOccurrence.id,
-      occurrences: [...(containerOccurrence.occurrences || []), occurrenceId],
-    },
+    occurrence: { id: containerOccurrence.id, occurrences: existing },
     emit: true,
   });
 
   return { moduleId, occurrenceId };
+}
+
+// Create a CONTAINER (board/doc/table/canvas) as a child of another container.
+// Splices into the parent's occurrences[] at `index` AND flips the parent module's
+// meta.allowChildContainers so the renderer actually shows the nested container
+// (ModuleContainer only renders child containers when that flag is set).
+export function createContainerInContainer({
+  dispatch, socket, gridId, userId, containerOccurrence, containerModule = null,
+  kind = "board", label = "", index = null,
+}) {
+  if (!gridId || !userId || !containerOccurrence) return null;
+  const moduleId = crypto?.randomUUID?.() || `cm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const occurrenceId = crypto?.randomUUID?.() || `co-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const module = { id: moduleId, userId, gridId, role: "container", kind, label: label || "" };
+  const occurrence = {
+    id: occurrenceId, userId, gridId, moduleId,
+    parentId: containerOccurrence.id,
+    occurrences: [],
+    // doc/canvas containers render a textmap; seed an empty one so they mount clean.
+    ...((kind === "doc" || kind === "canvas") ? { textmap: { type: "doc", content: [] } } : {}),
+  };
+
+  dispatch?.(createModuleAction(module));
+  dispatch?.(createOccurrenceAction(occurrence));
+  safeEmit(socket, "create_module", { module });
+  safeEmit(socket, "create_occurrence", { occurrence });
+
+  const existing = Array.isArray(containerOccurrence.occurrences) ? [...containerOccurrence.occurrences] : [];
+  const at = (index == null || index < 0 || index > existing.length) ? existing.length : index;
+  existing.splice(at, 0, occurrenceId);
+  updateOccurrence({
+    dispatch, socket,
+    occurrence: { id: containerOccurrence.id, occurrences: existing },
+    emit: true,
+  });
+
+  // Make the parent render nested containers (once).
+  const parentMeta = containerModule?.meta || {};
+  if (!parentMeta.allowChildContainers && containerOccurrence.moduleId) {
+    updateModule({
+      dispatch, socket,
+      module: { id: containerOccurrence.moduleId, meta: { ...parentMeta, allowChildContainers: true } },
+    });
+  }
+
+  return { moduleId, occurrenceId };
+}
+
+// Upload a file as an artifact and place it inside a container. Pre-mints the
+// module/occurrence ids so the server upsert lands on them, then optimistically
+// splices the new occurrence into the container's occurrences[] at `index`.
+export async function addArtifactToContainer({
+  dispatch, socket, gridId, userId, containerOccurrence, file, index = null,
+}) {
+  if (!gridId || !userId || !containerOccurrence || !file) return null;
+  const moduleId = crypto?.randomUUID?.() || `am-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const occurrenceId = crypto?.randomUUID?.() || `ao-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  // Optimistically splice the (not-yet-uploaded) occurrence into the container so
+  // the slot shows immediately; the server fills in the module/occurrence content.
+  const existing = Array.isArray(containerOccurrence.occurrences) ? [...containerOccurrence.occurrences] : [];
+  const at = (index == null || index < 0 || index > existing.length) ? existing.length : index;
+  existing.splice(at, 0, occurrenceId);
+  updateOccurrence({
+    dispatch, socket,
+    occurrence: { id: containerOccurrence.id, occurrences: existing },
+    emit: true,
+  });
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("userId", userId);
+  formData.append("gridId", gridId);
+  formData.append("moduleId", moduleId);
+  formData.append("occurrenceId", occurrenceId);
+  try {
+    const res = await fetch("/api/artifacts/upload", { method: "POST", body: formData });
+    const data = await res.json();
+    // Server emits module_created + occurrence_created; reducer is idempotent on id.
+    // Ensure the artifact occurrence stays parented into the container.
+    if (data?.occurrence?.id && data.occurrence.id !== occurrenceId) {
+      // server minted a different id (no occurrenceId support) — re-splice the real one.
+      const fixed = Array.isArray(containerOccurrence.occurrences) ? [...containerOccurrence.occurrences] : [];
+      const idx = fixed.indexOf(occurrenceId);
+      if (idx >= 0) fixed.splice(idx, 1, data.occurrence.id); else fixed.splice(at, 0, data.occurrence.id);
+      updateOccurrence({ dispatch, socket, occurrence: { id: containerOccurrence.id, occurrences: fixed }, emit: true });
+    }
+    return data.module;
+  } catch (err) {
+    console.error("Artifact upload failed:", err);
+    return null;
+  }
+}
+
+// One router the container header + the InsertGap both call. Routes a QuickAddMenu
+// "create" by kind/role to the right child-create path. Artifact needs a File
+// (the menu opens an OS picker and passes it through).
+export function createChildInContainer({
+  dispatch, socket, gridId, userId, containerOccurrence, containerModule = null,
+  kind = "instance", role = null, fieldIds = [], index = null, file = null,
+}) {
+  const args = { dispatch, socket, gridId, userId, containerOccurrence, index };
+  if (kind === "textblock" || role === "textblock") {
+    return createTextblockInContainer({ ...args, kind: "doc" });
+  }
+  if (kind === "artifact" || role === "artifact") {
+    if (!file) return null;
+    return addArtifactToContainer({ ...args, file });
+  }
+  if (["board", "doc", "table", "canvas"].includes(kind)) {
+    return createContainerInContainer({ ...args, containerModule, kind });
+  }
+  // default: a leaf instance (with any pre-picked fields)
+  return createLeafInstanceAtIndex({
+    ...args, role: "instance", kind: "board", fieldIds,
+    parentOccurrence: containerOccurrence,
+  });
 }
 
 // Creates a role:"instance" module + occurrence with optional initialFields,

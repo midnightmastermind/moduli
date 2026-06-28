@@ -441,6 +441,22 @@ function Container({
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: containerOccurrence.id, occurrences: updatedOccs }, emit: true });
   }, [containerOccurrence, module, dispatch, socket]);
 
+  // Header "+" create router: a plain Item keeps the existing focus-the-new-item
+  // path (onAdd); Textblock / Board / Doc / Table / Canvas / Artifact route through
+  // createChildInContainer (appends; nested containers also flip allowChildContainers).
+  const handleQuickCreate = useCallback((payload = {}) => {
+    const { kind, fieldIds = [], file } = payload;
+    if (!kind || kind === "instance") { onAdd?.(payload); return; }
+    CommitHelpers.createChildInContainer({
+      dispatch, socket,
+      gridId: ctxState?.gridId || ctxState?.grid?._id,
+      userId: ctxState?.userId,
+      containerOccurrence,
+      containerModule: module,
+      kind, fieldIds, file, index: null,
+    });
+  }, [onAdd, dispatch, socket, ctxState, containerOccurrence, module]);
+
   const handleConvertListToInstances = useCallback(async (texts) => {
     if (!texts?.length) return;
     const { grid } = ctxState || {};
@@ -1112,16 +1128,8 @@ function Container({
               <QuickAddMenu
                 targetRole="instance"
                 onSelect={handleQuickAddInstance}
-                onCreateNew={onAdd}
+                onCreateNew={handleQuickCreate}
                 createLabel="New instance"
-                onAddTextblock={() => {
-                  CommitHelpers.createTextblockInContainer({
-                    dispatch, socket,
-                    gridId: ctxState?.gridId || ctxState?.grid?._id,
-                    userId: ctxState?.userId,
-                    containerOccurrence,
-                  });
-                }}
                 hostOccurrence={containerOccurrence}
               />
             </div>

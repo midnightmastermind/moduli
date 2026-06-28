@@ -44,12 +44,11 @@ export const ALLOWED_KINDS_BY_ROLE = {
 // their creatable kinds; an instance creates a generic Item (+ a Textblock tile
 // when the host wired onAddTextblock). Artifacts aren't blank-creatable (they're
 // uploaded), so they never get a create tile — only a search match.
-export function tileKindsForRole(targetRole, { hasTextblock = false } = {}) {
-  if (targetRole === "instance") {
-    const tiles = ["instance"];
-    if (hasTextblock) tiles.push("textblock");
-    return tiles;
-  }
+export function tileKindsForRole(targetRole) {
+  // A container's "+" (targetRole "instance") can now create the full palette of
+  // children: a leaf Item, a Textblock, nested containers (Board/Doc/Table/Canvas),
+  // or an Artifact (file upload). The host routes each via createChildInContainer.
+  if (targetRole === "instance") return ["instance", "textblock", "board", "doc", "table", "canvas", "artifact"];
   if (targetRole === "container") return ["board", "doc", "canvas", "table"];
   if (targetRole === "page") return ["board", "doc", "canvas", "table", "folder"];
   return ["board"]; // panel
@@ -71,6 +70,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   const [fieldSearch, setFieldSearch] = useState("");
   const menuRef = useRef(null);
   const btnRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const reposition = useCallback(() => {
     if (!btnRef.current) return;
@@ -119,17 +119,33 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   // to its dedicated path; the instance Item tile opens the field-picker first
   // (when fields exist); container/page tiles pass the kind to onCreateNew.
   const createOfKind = useCallback((kind) => {
-    if (kind === "textblock") { onAddTextblock?.(); closeMenu(); return; }
+    // Artifact: open the OS file picker; the upload fires on file-select (onFilePicked).
+    if (kind === "artifact") { fileInputRef.current?.click(); return; }
+    if (kind === "textblock") {
+      if (onAddTextblock) onAddTextblock();
+      else onCreateNew?.({ fieldIds: [], kind: "textblock" });
+      closeMenu();
+      return;
+    }
     if (targetRole === "instance" && (kind === "instance" || kind == null)) {
       const hasFields = Object.values(fieldsById || {}).some(f => !f.trashed);
       if (hasFields) { setPickingFields([]); return; }
-      onCreateNew?.({ fieldIds: [], kind: undefined });
+      onCreateNew?.({ fieldIds: [], kind: "instance" });
       closeMenu();
       return;
     }
     onCreateNew?.({ fieldIds: [], kind });
     closeMenu();
   }, [targetRole, fieldsById, onCreateNew, onAddTextblock, closeMenu]);
+
+  // Artifact tile → OS file picker → route the File through onCreateNew so the
+  // host (createChildInContainer) uploads it into THIS container.
+  const onFilePicked = useCallback((e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) onCreateNew?.({ fieldIds: [], kind: "artifact", file });
+    closeMenu();
+  }, [onCreateNew, closeMenu]);
 
   // Close on outside click or Escape.
   useEffect(() => {
@@ -182,10 +198,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
       .slice(0, 30);
   }, [matchingModules, search]);
 
-  const tileKinds = useMemo(
-    () => tileKindsForRole(targetRole, { hasTextblock: !!onAddTextblock }),
-    [targetRole, onAddTextblock]
-  );
+  const tileKinds = useMemo(() => tileKindsForRole(targetRole), [targetRole]);
 
   const gridId = state?.grid?._id || state?.gridId;
   const allowedKinds = ALLOWED_KINDS_BY_ROLE[targetRole];
@@ -216,6 +229,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
       >
         <Plus size={12} />
       </button>
+      <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={onFilePicked} />
 
       {open && createPortal(
         <div
@@ -322,7 +336,11 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
               {/* Type tiles — instant create */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "8px", borderBottom: "1px solid var(--border-subtle)" }}>
                 {tileKinds.map(kind => {
-                  const { Icon, color } = getModuleTypeBadge({ role: kind === "instance" ? "instance" : "container", kind: kind === "instance" ? undefined : kind });
+                  const tileRole = kind === "instance" ? "instance"
+                    : kind === "textblock" ? "textblock"
+                    : kind === "artifact" ? "artifact"
+                    : "container";
+                  const { Icon, color } = getModuleTypeBadge({ role: tileRole, kind: ["instance", "textblock", "artifact"].includes(kind) ? undefined : kind });
                   const meta = KIND_TILE[kind] || { label: kind, desc: "" };
                   return (
                     <button

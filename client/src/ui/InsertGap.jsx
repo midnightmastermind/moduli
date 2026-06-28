@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { useGridActions } from "../GridActionsContext.js";
 import QuickAddMenu from "./QuickAddMenu.jsx";
-import { createLeafInstanceAtIndex } from "../helpers/CommitHelpers";
+import { createChildInContainer } from "../helpers/CommitHelpers";
 import { requestLabelEdit } from "../helpers/pendingLabelEdit.js";
 
 export default function InsertGap({
@@ -22,7 +22,7 @@ export default function InsertGap({
   targetRole = "instance",
   hostOccurrence = null,
 }) {
-  const { dispatch, socket, gridId, userId, state } = useGridActions() || {};
+  const { dispatch, socket, gridId, userId, state, modulesById } = useGridActions() || {};
   const resolvedGridId = gridId || state?.grid?._id || state?.gridId;
   const resolvedUserId = userId || state?.grid?.userId || state?.userId;
   // While the menu is open, force the gap revealed (it normally only shows on
@@ -31,15 +31,20 @@ export default function InsertGap({
 
   if (!parentOccurrence || !resolvedGridId || !resolvedUserId) return null;
 
-  const insertNew = ({ fieldIds } = {}) => {
-    const res = createLeafInstanceAtIndex({
+  const insertNew = ({ fieldIds = [], kind, file } = {}) => {
+    // Route by kind (Item / Textblock / Board / Doc / Table / Canvas / Artifact)
+    // and splice at THIS gap's index. Artifact returns a Promise (async upload).
+    const res = createChildInContainer({
       dispatch, socket, gridId: resolvedGridId, userId: resolvedUserId,
-      parentOccurrence, index,
-      role: targetRole === "instance" ? "instance" : targetRole,
+      containerOccurrence: parentOccurrence,
+      containerModule: modulesById?.[parentOccurrence?.moduleId] || null,
+      kind: kind || (targetRole === "instance" ? "instance" : targetRole),
       fieldIds: Array.isArray(fieldIds) ? fieldIds : [],
+      file, index,
     });
-    // Open the new item's label editor focused (see helpers/pendingLabelEdit).
-    if (res?.moduleId) requestLabelEdit(res.moduleId);
+    // Open the new item's label editor focused (see helpers/pendingLabelEdit) —
+    // sync creates only (artifact resolves to a Promise).
+    if (res && typeof res.then !== "function" && res.moduleId) requestLabelEdit(res.moduleId);
   };
 
   const insertExisting = (m) => {

@@ -615,9 +615,15 @@ function InstanceInner({
           )}
         </div>{/* end label+radial wrapper */}
 
-        {/* Custom body — used by ArtifactCard / TextblockCard. Replaces fields layout when provided. */}
+        {/* Custom body — used by ArtifactCard / TextblockCard. Replaces fields layout when provided.
+            The .instance-row sets user-select:none (so dragging an instance doesn't smear-select
+            its label); that cascades into a textblock's editor and blocked click-drag text
+            selection. Re-enable selection for the body subtree. */}
         {renderBody && (
-          <div className="instance-body" style={{ flex: 1, minWidth: 0, position: "relative" }}>
+          <div
+            className="instance-body"
+            style={{ flex: 1, minWidth: 0, position: "relative", userSelect: "text", WebkitUserSelect: "text" }}
+          >
             {renderBody()}
           </div>
         )}
