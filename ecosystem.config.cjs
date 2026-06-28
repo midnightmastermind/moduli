@@ -14,7 +14,11 @@ module.exports = {
       exec_mode: "fork",
       autorestart: true,
       max_memory_restart: "2G",
-      env: { NODE_ENV: "production" },
+      // ASSISTANT_BACKEND=ollama forces the assistant to use the (tunneled) home
+      // Ollama and ignore ANTHROPIC_API_KEY for now. Set OLLAMA_URL +
+      // CF_ACCESS_CLIENT_ID/SECRET in server/.env (the Cloudflare-tunnel target +
+      // service token). Remove this line to go back to auto/Claude.
+      env: { NODE_ENV: "production", ASSISTANT_BACKEND: "ollama" },
     },
   ],
 };

@@ -29,6 +29,29 @@ const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-2025100
 // lightweight default; swap via OLLAMA_MODEL (e.g. "llama3.1", "qwen2.5").
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen2.5-coder:7b";
+
+// Extra request headers for reaching Ollama through an AUTHENTICATED tunnel.
+// Ollama has no auth of its own, so when it's exposed via a Cloudflare Tunnel +
+// Access policy (Option B), the server must present a service token on EVERY
+// request. Supports Cloudflare Access service tokens (CF_ACCESS_CLIENT_ID /
+// CF_ACCESS_CLIENT_SECRET) and/or one generic header via OLLAMA_AUTH_HEADER
+// ("Header-Name: value", e.g. "Authorization: Bearer abc"). All optional —
+// unset → no extra headers (plain localhost / Tailscale).
+function ollamaHeaders(base = {}) {
+  const h = { ...base };
+  const cfId = process.env.CF_ACCESS_CLIENT_ID;
+  const cfSecret = process.env.CF_ACCESS_CLIENT_SECRET;
+  if (cfId && cfSecret) {
+    h["CF-Access-Client-Id"] = cfId;
+    h["CF-Access-Client-Secret"] = cfSecret;
+  }
+  const raw = process.env.OLLAMA_AUTH_HEADER;
+  if (raw && raw.includes(":")) {
+    const i = raw.indexOf(":");
+    h[raw.slice(0, i).trim()] = raw.slice(i + 1).trim();
+  }
+  return h;
+}
 // Ollama allocates only ~4096 tokens of context by default (regardless of the
 // model's trained max), which silently truncates our system prompt + ~40 tool
 // schemas before any grid data lands — the model then loses the tools/system
@@ -397,7 +420,7 @@ async function ollamaReachable() {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 800);
-    const res = await fetch(`${OLLAMA_URL}/api/tags`, { signal: ctrl.signal });
+    const res = await fetch(`${OLLAMA_URL}/api/tags`, { signal: ctrl.signal, headers: ollamaHeaders() });
     clearTimeout(t);
     return res.ok;
   } catch {
@@ -432,7 +455,7 @@ export function buildOllamaRequestBody({
 async function streamOllamaChat({ url, body, signal, onToken }) {
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: ollamaHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
     signal,
   });
