@@ -31,6 +31,18 @@ describe("markdownToModuli — article-like grouped rich textblocks", () => {
     expect(blob).not.toContain('"type":"link"');
   });
 
+  it("a blank-label link derives its chip label from the URL slug (no empty mini-textblocks)", async () => {
+    // Wikipedia's rendered HTML yields whitespace-text links → `[ ](/wiki/X)`.
+    const md = `# T\n\n## See also\n\n- [ ](https://en.wikipedia.org/wiki/The_Slim_Shady_LP) – debut album`;
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
+    const linkMod = r.modules.find(m => m.role === "textblock" && m.kind === "inline" && m.meta?.link);
+    expect(linkMod).toBeTruthy();
+    // label is derived from the slug, NOT left blank
+    expect(linkMod.label).toBe("The Slim Shady LP");
+    const blob = JSON.stringify(r.occurrences.map(o => o.textmap));
+    expect(blob).toContain("The Slim Shady LP");
+  });
+
   it("a list is ONE textblock (bulletList) whose items are inline mini-textblocks", async () => {
     const md = `# T\n\n## Discography\n\n- The Slim Shady LP\n- The Marshall Mathers LP`;
     const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });

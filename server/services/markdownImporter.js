@@ -108,6 +108,25 @@ function applyMarks(nodes, marks) {
   });
 }
 
+// Wikipedia's rendered HTML often yields links whose visible text is
+// whitespace-only (annotated "See also" links, discography/co-headlining list
+// entries) → `[ ](/wiki/Article_Name)`. The regex below matches a blank label,
+// so the chip came out empty. When the label is blank, derive a readable label
+// from the URL slug (for /wiki/X the slug IS the article name).
+function deriveLinkLabel(label, url) {
+  const t = String(label || "").trim();
+  if (t) return t;
+  const u = String(url || "");
+  let m = u.match(/\/wiki\/([^?#]+)/) || u.match(/\/([^/?#]+)\/?(?:[?#]|$)/);
+  if (m) {
+    try {
+      const slug = decodeURIComponent(m[1]).replace(/_/g, " ").trim();
+      if (slug) return slug;
+    } catch { /* malformed escape — fall through */ }
+  }
+  return u || "link";
+}
+
 // `mintLink(label, url) → { occurrenceId, moduleId }` (optional). When provided,
 // each [text](url) becomes an INLINE textblock occurrence (role:"textblock"
 // kind:"inline" carrying meta.link) embedded via an `instanceTextblockInline`
@@ -132,7 +151,7 @@ function parseInline(text, mintLink) {
       } else {
         out.push({
           type: "text",
-          text: linkMatch[1],
+          text: deriveLinkLabel(linkMatch[1], linkMatch[2]),
           marks: [{ type: "link", attrs: { href: linkMatch[2] } }],
         });
       }
@@ -422,17 +441,18 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
     const moduleId = uid();
     const occurrenceId = uid();
     const link = { kind: "url", url };
+    const display = deriveLinkLabel(label, url);
     modules.push({
       id: moduleId, userId, gridId,
       role: "textblock", kind: "inline",
-      label: label || "",
+      label: display,
       meta: { link },
     });
     occurrences.push({
       id: occurrenceId, userId, gridId,
       moduleId, parentId: null,
       meta: { link },
-      textmap: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: label || url }] }] },
+      textmap: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: display }] }] },
     });
     return { occurrenceId, moduleId };
   }
