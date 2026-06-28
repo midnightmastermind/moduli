@@ -1462,6 +1462,12 @@ function Container({
             {containerOccurrence && items.length > 0 && (
               <InsertGap parentOccurrence={containerOccurrence} index={itemsWithOccurrences.length} hostOccurrence={containerOccurrence} />
             )}
+            {/* Empty container still gets the insert-here / quick-add bar so you
+               can add the first item without dropping (gated on the occurrence
+               resolving, same as the between-item gaps). */}
+            {containerOccurrence && items.length === 0 && (
+              <InsertGap parentOccurrence={containerOccurrence} index={0} hostOccurrence={containerOccurrence} />
+            )}
             {items.length === 0 && (
               <div className="text-xs text-muted-foreground p-2 text-center empty-placeholder-inline">
                 Drop items here
