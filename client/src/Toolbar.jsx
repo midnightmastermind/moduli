@@ -175,8 +175,7 @@ const gridOptions = useMemo(
         <div className="flex items-center gap-1 shrink-0">
           {/* Logo */}
           <div className="header-logo flex items-center shrink-0" style={{ minWidth: isMobile ? 28 : 80 }}>
-            <img src="/moduli_logo.png" alt="Viafluere" style={{ height: 18, width: "auto", display: "block" }} />
-            {!isMobile && <span className="text-[10px] px-1 text-text-muted font-mono whitespace-nowrap">viafluere</span>}
+            <img src="/viafluere_new_logo.png" alt="Viafluere" style={{ height: 22, width: "auto", display: "block" }} />
           </div>
 
           {/* Add Panel button */}

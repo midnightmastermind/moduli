@@ -88,19 +88,10 @@ export default function LoginScreen() {
           marginBottom: 4,
         }}>
           <img
-            src="/moduli_logo.png"
+            src="/viafluere_new_logo.png"
             alt="Viafluere"
-            style={{ height: 36, width: "auto", display: "block" }}
+            style={{ height: 48, width: "auto", display: "block" }}
           />
-          <span style={{
-            fontFamily: "var(--font-mono, monospace)",
-            fontSize: 24,
-            fontWeight: 600,
-            color: "#e0e0e0",
-            letterSpacing: "0.02em",
-          }}>
-            Viafluere
-          </span>
         </div>
 
         {error && (
