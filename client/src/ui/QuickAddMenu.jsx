@@ -16,13 +16,6 @@ import { templatesByKind } from "../helpers/templateHelpers";
 import { commitApplyTemplate } from "../helpers/CommitHelpers";
 import { getModuleTypeBadge } from "../helpers/moduleIcons";
 
-const ROLE_COLORS = {
-  panel: "rgba(59,130,246,0.7)",
-  page: "rgba(6,182,212,0.7)",
-  container: "rgba(34,197,94,0.7)",
-  instance: "rgba(168,85,247,0.7)",
-};
-
 // Per-kind tile copy. The icon + color come from moduleIcons (getModuleTypeBadge);
 // this only supplies the human label + one-line description.
 const KIND_TILE = {
@@ -204,7 +197,6 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     return rows;
   }, [lookups, gridId, allowedKinds, hostOccurrence]);
 
-  const roleColor = ROLE_COLORS[targetRole] || ROLE_COLORS.instance;
   const picking = pickingFields != null;
 
   return (
@@ -314,9 +306,11 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                         width: 72, height: 58, padding: "6px 4px",
                         background: "var(--input-bg)", border: "1px solid var(--border-subtle)", borderRadius: 6,
                         cursor: "pointer", color: "var(--text-primary)", fontFamily: "var(--font-mono)",
+                        transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s, transform 0.1s",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--border-default)"; e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "var(--input-bg)"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--border-default)"; e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.28)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "var(--input-bg)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; }}
+                      onMouseDown={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}
                     >
                       <span style={{ width: 26, height: 26, borderRadius: 6, background: color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         <Icon size={14} color="white" />
