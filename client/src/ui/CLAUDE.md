@@ -2,6 +2,24 @@
 
 _Updated: 2026-06-12. Check this file before re-reading source._
 
+## Recent Changes (2026-06-28 — QuickAddMenu: matches dropdown under the search + logo speckle repair)
+- **`QuickAddMenu.jsx`** — restored search and moved the existing-matches list into a
+  **dropdown directly under the search input**, gated on a non-empty query (was a permanent
+  list under the create tiles, which cluttered the menu with every existing occurrence — the
+  1am–11am schedule slots — at rest). New order: search → matches dropdown (only while typing)
+  → create tiles → templates. Per user: "i want search dude" / "show the ones in a dropdown
+  underneath the search, not under the item block."
+- **Logo (`client/public/`)** — `moduli_logo.png` (the header/login/spinner mark) had baked-in
+  black speckle damage on a 169×99 source ("broken pixels"). Repaired in place via a
+  neighbour-aware despeckle (sharp raw-pixel pass: dark/blemish pixels surrounded by bright
+  cyan ribbon recoloured to the local average; intentional dark interior gaps left alone).
+  Re-embedded into `viafluere_lockup.svg` (the top-middle logo card's asset) and synced both to
+  `dist`. Also authored a **clean vector alternative** (`viafluere_mark_vector.svg` +
+  `viafluere_lockup_vector.svg`) — gradient interlocking double-knot, crisp/scalable — left
+  unwired for the user to evaluate (swap `createLiveData.js:5730` logo `fileRef` to adopt).
+  Note: `components/ModuliLogo.jsx`'s SVG paths are a CRUDER shape (renders as blobs, not a
+  clean knot) — don't use them as the mark.
+
 ## Recent Changes (2026-06-17 — Editor: detectSideHost hoisted, picks a side everywhere, returns line-level anchorOffset + per-line drop highlight)
 - **`Editor.jsx`** — `detectSideHost` (+ helper closures `isTextmappedHost` / `blockIndexAtY` / new
   `offsetFor`) HOISTED from inside the `onDrop` callback to component scope (a `useCallback`), so the

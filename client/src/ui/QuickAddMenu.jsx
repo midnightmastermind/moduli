@@ -2,8 +2,9 @@
 // The "+" add-occurrence menu mounted on panel / container / page headers and
 // the between-item insert-gaps. ONE unified screen (no drill level):
 //   • a search bar that filters the EXISTING modules of this role
+//   • a matches dropdown DIRECTLY UNDER the search (only while a query is typed —
+//     so the menu isn't cluttered by every existing occurrence at rest)
 //   • big module-type tiles that CREATE a new occurrence of that type instantly
-//   • the existing-match list (click → place a fresh occurrence)
 //   • template chips (when the host has matching saved templates)
 // Module-type icons come from helpers/moduleIcons.js so the tiles read the same
 // as the CategoryPathPicker / value picker. Portal-rendered to avoid layout push.
@@ -291,6 +292,33 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                 />
               </div>
 
+              {/* Existing matches — dropdown directly under the search, only while searching */}
+              {search.trim() && (
+                <div style={{ maxHeight: 168, overflowY: "auto", borderBottom: "1px solid var(--border-subtle)", background: "var(--input-bg)" }}>
+                  {filteredModules.map(m => {
+                    const { Icon, color } = getModuleTypeBadge(m);
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => { onSelect?.(m); closeMenu(); }}
+                        style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", padding: "5px 9px", background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                        onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+                      >
+                        <Icon size={12} color={color} style={{ flexShrink: 0 }} />
+                        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.label || m.name || "Untitled"}</span>
+                        {m.kind && m.kind !== "board" && (
+                          <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{m.kind}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {filteredModules.length === 0 && (
+                    <div style={emptyStyle}>No {targetRole}s match “{search.trim()}”</div>
+                  )}
+                </div>
+              )}
+
               {/* Type tiles — instant create */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "8px", borderBottom: "1px solid var(--border-subtle)" }}>
                 {tileKinds.map(kind => {
@@ -319,31 +347,6 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                     </button>
                   );
                 })}
-              </div>
-
-              {/* Existing matches */}
-              <div style={{ flex: 1, overflowY: "auto" }}>
-                {filteredModules.map(m => {
-                  const { Icon, color } = getModuleTypeBadge(m);
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => { onSelect?.(m); closeMenu(); }}
-                      style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", padding: "5px 9px", background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--input-bg)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                    >
-                      <Icon size={12} color={color} style={{ flexShrink: 0 }} />
-                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.label || m.name || "Untitled"}</span>
-                      {m.kind && m.kind !== "board" && (
-                        <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{m.kind}</span>
-                      )}
-                    </button>
-                  );
-                })}
-                {filteredModules.length === 0 && search.trim() && (
-                  <div style={emptyStyle}>No {targetRole}s match “{search.trim()}”</div>
-                )}
               </div>
 
               {/* Templates */}

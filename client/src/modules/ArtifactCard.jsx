@@ -133,7 +133,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
         <div className="artifact-fullbleed-header">
           {fileName && <span className="artifact-fullbleed-name" title={fileName}>{fileName}</span>}
         </div>
-        <img className="artifact-fullbleed-img" src={src} alt={label || "logo"} />
+        <img className="artifact-fullbleed-img" src={src} alt={label || "viafluere"} />
       </div>
     );
   }

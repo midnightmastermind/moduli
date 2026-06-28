@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="140" viewBox="0 0 760 140" role="img" aria-label="viafluere">
+  <!-- Vector lockup: clean interlocking-knot mark + "viafluere" wordmark.
+       Speckle-free, scalable alternative to viafluere_lockup.svg (which embeds
+       the repaired raster). Swap createLiveData's logo fileRef to this if chosen. -->
+  <defs>
+    <linearGradient id="vfRibbonL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#34f5e7"/>
+      <stop offset="45%" stop-color="#3ad2ff"/>
+      <stop offset="100%" stop-color="#2b4bff"/>
+    </linearGradient>
+    <linearGradient id="vfSheenL" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="38%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="vfBottomCrossL"><rect x="100" y="74" width="52" height="40"/></clipPath>
+  </defs>
+
+  <g transform="translate(8,0)">
+    <g transform="rotate(45 158 70)"><rect x="123" y="35" width="70" height="70" rx="20" fill="none" stroke="url(#vfRibbonL)" stroke-width="22"/></g>
+    <g transform="rotate(45 94 70)"><rect x="59" y="35" width="70" height="70" rx="20" fill="none" stroke="url(#vfRibbonL)" stroke-width="22"/></g>
+    <g clip-path="url(#vfBottomCrossL)"><g transform="rotate(45 158 70)"><rect x="123" y="35" width="70" height="70" rx="20" fill="none" stroke="url(#vfRibbonL)" stroke-width="22"/></g></g>
+    <g opacity="0.9">
+      <g transform="rotate(45 94 70)"><rect x="59" y="35" width="70" height="70" rx="20" fill="none" stroke="url(#vfSheenL)" stroke-width="22"/></g>
+      <g transform="rotate(45 158 70)"><rect x="123" y="35" width="70" height="70" rx="20" fill="none" stroke="url(#vfSheenL)" stroke-width="22"/></g>
+    </g>
+  </g>
+
+  <text x="262" y="96" fill="#e6f2f8" font-family="JetBrains Mono, IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="84" font-weight="700" letter-spacing="2">viafluere</text>
+</svg>
