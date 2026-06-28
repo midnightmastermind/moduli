@@ -620,10 +620,10 @@ function Page({
               <QuickAddMenu
                 targetRole="container"
                 onSelect={handleQuickAddContainer}
-                onCreateNew={() => {
+                onCreateNew={({ kind } = {}) => {
                   if (!occurrence?.id || !state?.userId || !state?.grid?._id) return;
                   const id = crypto.randomUUID();
-                  const mod = { id, role: "container", kind: "board", label: `List ${containersList.length + 1}` };
+                  const mod = { id, role: "container", kind: kind || "board", label: `List ${containersList.length + 1}` };
                   CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
                   const occId = crypto.randomUUID();
                   const occ = { id: occId, userId: state.userId, gridId: state.grid._id, moduleId: id, fields: {} };

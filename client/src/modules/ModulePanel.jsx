@@ -960,13 +960,14 @@ function Panel({
                 <QuickAddMenu
                   targetRole="page"
                   onSelect={handleQuickAddPage}
-                  onCreateNew={() => {
+                  onCreateNew={({ kind } = {}) => {
                     if (!panelOccurrence?.id || !module?.userId || !module?.gridId) return;
+                    const pageKind = kind || "board";
                     const modId = crypto.randomUUID();
                     const occId = crypto.randomUUID();
                     CommitHelpers.createPage({
                       dispatch, socket,
-                      module: { id: modId, userId: module.userId, gridId: module.gridId, role: "page", kind: "board", label: `Page ${(panelOccurrence.occurrences || []).length + 1}` },
+                      module: { id: modId, userId: module.userId, gridId: module.gridId, role: "page", kind: pageKind, label: `Page ${(panelOccurrence.occurrences || []).length + 1}` },
                       occurrence: { id: occId, userId: module.userId, gridId: module.gridId, moduleId: modId, parentId: globalFolderId, iteration: { mode: "persistent" }, fields: {} },
                       panelOccurrenceId: panelOccurrence.id,
                       ...(!resolvedViewId && {
