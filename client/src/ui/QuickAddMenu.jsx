@@ -1,15 +1,20 @@
 // ui/QuickAddMenu.jsx
-// Dropdown menu for quickly adding existing modules to a panel or container.
-// Panel mode: shows containers available to add
-// Container mode: shows instances available to add
-// Uses portal to prevent layout push on parent containers.
+// The "+" add-occurrence menu mounted on panel / container / page headers and
+// the between-item insert-gaps. ONE unified screen (no drill level):
+//   • a search bar that filters the EXISTING modules of this role
+//   • big module-type tiles that CREATE a new occurrence of that type instantly
+//   • the existing-match list (click → place a fresh occurrence)
+//   • template chips (when the host has matching saved templates)
+// Module-type icons come from helpers/moduleIcons.js so the tiles read the same
+// as the CategoryPathPicker / value picker. Portal-rendered to avoid layout push.
 
-import { useState, useMemo, useContext, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Plus, ChevronLeft, List, FileText, LayoutGrid, Image as ImageIcon, Box, FileQuestion, Check, Search } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { Plus, ChevronLeft, Check, Search } from "lucide-react";
+import { useGridActions } from "../GridActionsContext";
 import { templatesByKind } from "../helpers/templateHelpers";
 import { commitApplyTemplate } from "../helpers/CommitHelpers";
+import { getModuleTypeBadge } from "../helpers/moduleIcons";
 
 const ROLE_COLORS = {
   panel: "rgba(59,130,246,0.7)",
@@ -18,28 +23,43 @@ const ROLE_COLORS = {
   instance: "rgba(168,85,247,0.7)",
 };
 
-// Per-role category definitions: each kind shows up as a tile when at least
-// one matching module exists. Lets the user pick "Documents" instead of
-// scanning a flat list of mixed kinds.
+// Per-kind tile copy. The icon + color come from moduleIcons (getModuleTypeBadge);
+// this only supplies the human label + one-line description.
 const KIND_TILE = {
-  list:     { label: "Lists",       icon: List,         desc: "Drag-sortable items" },
-  doc:      { label: "Documents",   icon: FileText,     desc: "Rich-text editor with embedded pills" },
-  board:    { label: "Boards",      icon: LayoutGrid,   desc: "Containers as columns (kanban)" },
-  artifact: { label: "Artifacts",   icon: ImageIcon,    desc: "File-backed content (md / image / pdf)" },
-  textblock:{ label: "Textblocks",  icon: FileQuestion, desc: "Inline rich-text snippets" },
+  instance:  { label: "Item",      desc: "Trackable item with fields" },
+  board:     { label: "Board",     desc: "Containers as columns" },
+  doc:       { label: "Document",  desc: "Rich-text editor" },
+  canvas:    { label: "Canvas",    desc: "Free-form drawing surface" },
+  table:     { label: "Table",     desc: "Spreadsheet grid" },
+  folder:    { label: "Folder",    desc: "Card grid of child pages" },
+  textblock: { label: "Textblock", desc: "Inline rich-text snippet" },
+  artifact:  { label: "Artifact",  desc: "File-backed content" },
 };
-const KIND_FALLBACK = { label: "Other", icon: Box, desc: "" };
 
-// Which kinds are actually placeable in each role's add-menu. Containers
-// surface a flat list of leaf-placeable instance kinds (instances + textblocks);
-// they should not show "Documents" or "Boards" (those are container/page kinds).
-// Panels surface container kinds. Pages surface panel kinds.
-const ALLOWED_KINDS_BY_ROLE = {
+// Which kinds are placeable in each role's add-menu — used to filter the
+// existing-matches list (instances are leaf items + textblocks + artifacts;
+// containers carry board/doc/canvas/table; pages add folder).
+export const ALLOWED_KINDS_BY_ROLE = {
   instance:  new Set(["board", "textblock", "artifact"]),
   container: new Set(["board", "doc", "canvas", "table"]),
   panel:     new Set(["board"]),
   page:      new Set(["board", "doc", "canvas", "table", "folder"]),
 };
+
+// Ordered list of CREATE tiles for a role. Containers/pages/panels map 1:1 to
+// their creatable kinds; an instance creates a generic Item (+ a Textblock tile
+// when the host wired onAddTextblock). Artifacts aren't blank-creatable (they're
+// uploaded), so they never get a create tile — only a search match.
+export function tileKindsForRole(targetRole, { hasTextblock = false } = {}) {
+  if (targetRole === "instance") {
+    const tiles = ["instance"];
+    if (hasTextblock) tiles.push("textblock");
+    return tiles;
+  }
+  if (targetRole === "container") return ["board", "doc", "canvas", "table"];
+  if (targetRole === "page") return ["board", "doc", "canvas", "table", "folder"];
+  return ["board"]; // panel
+}
 
 export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null, onOpenChange }) {
   const { modulesById, roleByModuleId, socket, state, occurrencesById, manifestsById, foldersById, fieldsById } = useGridActions();
@@ -49,42 +69,36 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   );
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [pickedKind, setPickedKind] = useState(null); // null = showing categories
   const [pos, setPos] = useState({ top: 0, left: 0 });
-  // Field-picker step: when user clicks "New X", we show a multi-select
-  // field list so they can pre-bind fields to the new module before it's
-  // created. `null` = not in picker; `[]` = picker open with no fields chosen
-  // yet. The picker only opens for `instance` role (containers/panels/pages
-  // don't carry field bindings) AND only when at least one field exists on
-  // the grid.
+  // Field-picker sub-step (instance create): `null` = not picking; `[]` = open
+  // with no fields chosen yet. Only opens for the instance Item tile when the
+  // grid has at least one field.
   const [pickingFields, setPickingFields] = useState(null);
   const [fieldSearch, setFieldSearch] = useState("");
   const menuRef = useRef(null);
   const btnRef = useRef(null);
 
-  // Position the portal dropdown below the button
+  const reposition = useCallback(() => {
+    if (!btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    const left = Math.min(rect.left, window.innerWidth - 268);
+    setPos({ top: rect.bottom + 2, left: Math.max(0, left) });
+  }, []);
+
   const handleOpen = useCallback((e) => {
     e.stopPropagation();
-    if (!open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      // Clamp left so menu doesn't overflow viewport right edge
-      const left = Math.min(rect.left, window.innerWidth - 248);
-      setPos({ top: rect.bottom + 2, left: Math.max(0, left) });
-    }
-    if (open) setPickedKind(null);
+    if (!open) reposition();
     setOpen(v => !v);
-  }, [open]);
+  }, [open, reposition]);
 
   const closeMenu = useCallback(() => {
     setOpen(false);
     setSearch("");
-    setPickedKind(null);
     setPickingFields(null);
     setFieldSearch("");
   }, []);
 
-  // Sorted, search-filtered field list for the picker. Only computed when the
-  // picker is open. Reads `fieldsById` from context.
+  // Sorted, search-filtered field list for the picker.
   const fieldList = useMemo(() => {
     if (pickingFields == null) return [];
     const q = fieldSearch.trim().toLowerCase();
@@ -101,28 +115,29 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     });
   }, []);
 
-  // Confirm: call onCreateNew with the chosen fieldIds. Back-compat: callers
-  // that ignore the arg (current ModuleContainer / ModulePanel / ModulePage
-  // wiring) keep working — the picker is purely additive.
   const confirmCreate = useCallback(() => {
     const fieldIds = Array.isArray(pickingFields) ? pickingFields : [];
     onCreateNew?.({ fieldIds });
     closeMenu();
   }, [pickingFields, onCreateNew, closeMenu]);
 
-  // "New X" click handler — opens the field picker for instance role when
-  // any field exists; otherwise skips straight to creation.
-  const handleClickNew = useCallback(() => {
-    const hasFields = Object.values(fieldsById || {}).some(f => !f.trashed);
-    if (targetRole === "instance" && hasFields) {
-      setPickingFields([]);
+  // Tile click: create a new occurrence of `kind` immediately. Textblock routes
+  // to its dedicated path; the instance Item tile opens the field-picker first
+  // (when fields exist); container/page tiles pass the kind to onCreateNew.
+  const createOfKind = useCallback((kind) => {
+    if (kind === "textblock") { onAddTextblock?.(); closeMenu(); return; }
+    if (targetRole === "instance" && (kind === "instance" || kind == null)) {
+      const hasFields = Object.values(fieldsById || {}).some(f => !f.trashed);
+      if (hasFields) { setPickingFields([]); return; }
+      onCreateNew?.({ fieldIds: [], kind: undefined });
+      closeMenu();
       return;
     }
-    onCreateNew?.({ fieldIds: [] });
+    onCreateNew?.({ fieldIds: [], kind });
     closeMenu();
-  }, [fieldsById, targetRole, onCreateNew, closeMenu]);
+  }, [targetRole, fieldsById, onCreateNew, onAddTextblock, closeMenu]);
 
-  // Close on outside click or Escape
+  // Close on outside click or Escape.
   useEffect(() => {
     if (!open) return;
     const handle = (e) => {
@@ -138,34 +153,21 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     return () => { document.removeEventListener("mousedown", handle); document.removeEventListener("keydown", handleKeyDown); };
   }, [open, closeMenu]);
 
-  // Keep the menu OPEN on scroll — just reposition it to follow the anchor
-  // button. (Was: close-on-scroll, which fired on the menu's OWN internal list
-  // scroll AND any incidental page/trackpad scroll, so the menu "randomly
-  // disappeared" the moment the user tried to scroll it. The menu now closes
-  // only on an outside click or Escape.)
+  // Keep the menu open on scroll — reposition to follow the anchor button.
   useEffect(() => {
     if (!open) return;
-    const reposition = () => {
-      if (!btnRef.current) return;
-      const rect = btnRef.current.getBoundingClientRect();
-      const left = Math.min(rect.left, window.innerWidth - 248);
-      setPos({ top: rect.bottom + 2, left: Math.max(0, left) });
-    };
     window.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
     return () => {
       window.removeEventListener("scroll", reposition, true);
       window.removeEventListener("resize", reposition);
     };
-  }, [open]);
+  }, [open, reposition]);
 
-  // Let the host (e.g. InsertGap) keep its affordance revealed while open.
   useEffect(() => { onOpenChange?.(open); }, [open, onOpenChange]);
 
-  // All matching modules for this role (no kind filter yet — used for category buckets).
-  // Skip kinds that aren't placeable in this role's context (e.g. doc-kind
-  // instances are mini-blocks created by Editor's "Make mini block" — they
-  // aren't meant to be re-placed via the container add menu).
+  // All role-matching modules (existing-matches pool). Skip kinds that aren't
+  // placeable in this role's context.
   const matchingModules = useMemo(() => {
     const allowedKinds = ALLOWED_KINDS_BY_ROLE[targetRole] || null;
     return Object.values(modulesById || {})
@@ -178,20 +180,18 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
       });
   }, [modulesById, roleByModuleId, targetRole]);
 
-  // Categories: one per kind that has at least one matching module.
-  const categories = useMemo(() => {
-    const buckets = new Map();
-    for (const m of matchingModules) {
-      const kind = m.kind || "board";
-      if (!buckets.has(kind)) buckets.set(kind, []);
-      buckets.get(kind).push(m);
-    }
-    return Array.from(buckets.entries()).map(([kind, mods]) => ({
-      kind,
-      ...((KIND_TILE[kind] || { ...KIND_FALLBACK, label: kind })),
-      count: mods.length,
-    }));
-  }, [matchingModules]);
+  const filteredModules = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return matchingModules
+      .filter(m => !q || (m.label || m.name || "").toLowerCase().includes(q))
+      .sort((a, b) => (a.label || "").localeCompare(b.label || ""))
+      .slice(0, 30);
+  }, [matchingModules, search]);
+
+  const tileKinds = useMemo(
+    () => tileKindsForRole(targetRole, { hasTextblock: !!onAddTextblock }),
+    [targetRole, onAddTextblock]
+  );
 
   const gridId = state?.grid?._id || state?.gridId;
   const allowedKinds = ALLOWED_KINDS_BY_ROLE[targetRole];
@@ -199,29 +199,13 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     if (!hostOccurrence || !gridId || !allowedKinds) return [];
     const rows = [];
     for (const k of allowedKinds) {
-      for (const tpl of templatesByKind(lookups, gridId, k)) {
-        rows.push(tpl);
-      }
+      for (const tpl of templatesByKind(lookups, gridId, k)) rows.push(tpl);
     }
     return rows;
   }, [lookups, gridId, allowedKinds, hostOccurrence]);
 
-  // Modules filtered by picked kind + search.
-  const filteredModules = useMemo(() => {
-    return matchingModules
-      .filter(m => !pickedKind || (m.kind || "board") === pickedKind)
-      .filter(m => {
-        if (!search) return true;
-        return (m.label || m.name || "").toLowerCase().includes(search.toLowerCase());
-      })
-      .sort((a, b) => (a.label || "").localeCompare(b.label || ""))
-      .slice(0, 20);
-  }, [matchingModules, pickedKind, search]);
-
   const roleColor = ROLE_COLORS[targetRole] || ROLE_COLORS.instance;
-  // Skip the category step entirely when only one kind is present — no need
-  // to make the user pick from a single-tile menu.
-  const showCategories = !pickedKind && categories.length > 1;
+  const picking = pickingFields != null;
 
   return (
     <>
@@ -230,18 +214,10 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
         onClick={handleOpen}
         title={`Add ${targetRole}`}
         style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: "var(--text-faint)",
-          padding: "0 3px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          opacity: 0.5,
-          transition: "opacity 0.15s",
-          height: 20,
-          width: 20,
+          background: "none", border: "none", cursor: "pointer",
+          color: "var(--text-faint)", padding: "0 3px",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          opacity: 0.5, transition: "opacity 0.15s", height: 20, width: 20,
         }}
         className="quick-add-btn"
       >
@@ -252,28 +228,21 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
         <div
           ref={menuRef}
           style={{
-            position: "fixed",
-            top: pos.top,
-            left: pos.left,
-            zIndex: 1100,
+            position: "fixed", top: pos.top, left: pos.left, zIndex: 1100,
             background: "var(--body-bg, #1a1c1e)",
-            border: "1px solid var(--border-default)",
-            borderRadius: 6,
-            width: showCategories ? 240 : 220,
-            maxHeight: 320,
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
-            fontFamily: "var(--font-mono)",
+            border: "1px solid var(--border-default)", borderRadius: 6,
+            width: 260, maxHeight: 360, overflow: "hidden",
+            display: "flex", flexDirection: "column",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.4)", fontFamily: "var(--font-mono)",
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {pickingFields != null ? (
+          {picking ? (
+            // ── Field-picker sub-step (instance create) ──────────────────────
             <>
               <button
                 onClick={() => { setPickingFields(null); setFieldSearch(""); }}
-                style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 8px", background: "none", border: "none", borderBottom: "1px solid var(--border-subtle)", cursor: "pointer", color: "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-mono)", textAlign: "left" }}
+                style={backBtnStyle}
               >
                 <ChevronLeft size={10} /> Back
               </button>
@@ -283,40 +252,15 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
               <div style={{ position: "relative" }}>
                 <Search size={10} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "var(--text-faint)" }} />
                 <input
-                  autoFocus
-                  value={fieldSearch}
+                  autoFocus value={fieldSearch}
                   onChange={(e) => setFieldSearch(e.target.value)}
                   placeholder="Search fields…"
                   style={{ background: "var(--input-bg)", border: "none", borderBottom: "1px solid var(--border-subtle)", padding: "6px 8px 6px 22px", fontSize: 11, color: "var(--text-primary)", outline: "none", fontFamily: "var(--font-mono)", width: "100%", boxSizing: "border-box" }}
                 />
               </div>
-            </>
-          ) : !showCategories && (
-            <>
-              {pickedKind && categories.length > 1 && (
-                <button
-                  onClick={() => { setPickedKind(null); setSearch(""); }}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 8px", background: "none", border: "none", borderBottom: "1px solid var(--border-subtle)", cursor: "pointer", color: "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-mono)", textAlign: "left" }}
-                >
-                  <ChevronLeft size={10} /> Categories
-                </button>
-              )}
-              <input
-                autoFocus
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={`Search ${pickedKind ? (KIND_TILE[pickedKind]?.label || pickedKind) : targetRole}s…`}
-                style={{ background: "var(--input-bg)", border: "none", borderBottom: "1px solid var(--border-subtle)", padding: "6px 8px", fontSize: 11, color: "var(--text-primary)", outline: "none", fontFamily: "var(--font-mono)" }}
-              />
-            </>
-          )}
-          <div style={{ flex: 1, overflowY: "auto" }}>
-            {pickingFields != null && (
-              <>
+              <div style={{ flex: 1, overflowY: "auto" }}>
                 {fieldList.length === 0 && (
-                  <div style={{ padding: "8px", fontSize: 10, color: "var(--text-faint)", textAlign: "center" }}>
-                    No fields found
-                  </div>
+                  <div style={emptyStyle}>No fields found</div>
                 )}
                 {fieldList.map(f => {
                   const selected = pickingFields.includes(f.id);
@@ -331,173 +275,105 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                       <span style={{ width: 14, height: 14, borderRadius: 3, border: `1px solid ${selected ? "rgba(59,130,246,0.8)" : "var(--border-default)"}`, background: selected ? "rgba(59,130,246,0.8)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         {selected && <Check size={10} color="white" strokeWidth={3} />}
                       </span>
-                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {f.name || "(unnamed)"}
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name || "(unnamed)"}</span>
+                      {f.type && <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{f.type}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", gap: 6, padding: "6px 8px", borderTop: "1px solid var(--border-subtle)", background: "var(--input-bg)" }}>
+                <button onClick={() => { onCreateNew?.({ fieldIds: [] }); closeMenu(); }} style={{ flex: 1, padding: "5px 8px", background: "transparent", border: "1px solid var(--border-default)", borderRadius: 4, cursor: "pointer", color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}>Skip</button>
+                <button onClick={confirmCreate} style={{ flex: 1, padding: "5px 8px", background: "rgba(59,130,246,0.8)", border: "1px solid rgba(59,130,246,0.9)", borderRadius: 4, cursor: "pointer", color: "white", fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600 }}>Create</button>
+              </div>
+            </>
+          ) : (
+            // ── Unified: search + type tiles + existing matches + templates ──
+            <>
+              <div style={{ position: "relative", flexShrink: 0 }}>
+                <Search size={11} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--text-faint)" }} />
+                <input
+                  autoFocus value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={`Search ${targetRole}s…`}
+                  style={{ background: "var(--input-bg)", border: "none", borderBottom: "1px solid var(--border-subtle)", padding: "7px 8px 7px 26px", fontSize: 11, color: "var(--text-primary)", outline: "none", fontFamily: "var(--font-mono)", width: "100%", boxSizing: "border-box" }}
+                />
+              </div>
+
+              {/* Type tiles — instant create */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "8px", borderBottom: "1px solid var(--border-subtle)" }}>
+                {tileKinds.map(kind => {
+                  const { Icon, color } = getModuleTypeBadge({ role: kind === "instance" ? "instance" : "container", kind: kind === "instance" ? undefined : kind });
+                  const meta = KIND_TILE[kind] || { label: kind, desc: "" };
+                  return (
+                    <button
+                      key={kind}
+                      onClick={() => createOfKind(kind)}
+                      title={meta.desc}
+                      style={{
+                        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
+                        width: 72, height: 58, padding: "6px 4px",
+                        background: "var(--input-bg)", border: "1px solid var(--border-subtle)", borderRadius: 6,
+                        cursor: "pointer", color: "var(--text-primary)", fontFamily: "var(--font-mono)",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--border-default)"; e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "var(--input-bg)"; }}
+                    >
+                      <span style={{ width: 26, height: 26, borderRadius: 6, background: color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Icon size={14} color="white" />
                       </span>
-                      {f.type && (
-                        <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{f.type}</span>
+                      <span style={{ fontSize: 10, fontWeight: 600, lineHeight: 1 }}>{meta.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Existing matches */}
+              <div style={{ flex: 1, overflowY: "auto" }}>
+                {filteredModules.map(m => {
+                  const { Icon, color } = getModuleTypeBadge(m);
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => { onSelect?.(m); closeMenu(); }}
+                      style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", padding: "5px 9px", background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--input-bg)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+                    >
+                      <Icon size={12} color={color} style={{ flexShrink: 0 }} />
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.label || m.name || "Untitled"}</span>
+                      {m.kind && m.kind !== "board" && (
+                        <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{m.kind}</span>
                       )}
                     </button>
                   );
                 })}
-              </>
-            )}
-            {pickingFields == null && showCategories && (
-              <>
-                {categories.map(cat => {
-                  const Icon = cat.icon || Box;
-                  return (
-                    <button
-                      key={cat.kind}
-                      onClick={() => setPickedKind(cat.kind)}
-                      style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", padding: "8px 10px", background: "none", border: "none", borderBottom: "1px solid var(--border-subtle)", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--input-bg)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                    >
-                      <span style={{ width: 24, height: 24, borderRadius: 5, background: roleColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <Icon size={12} color="white" />
-                      </span>
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <span style={{ fontWeight: 600 }}>{cat.label}</span>
-                          <span style={{ fontSize: 9, color: "var(--text-faint)" }}>({cat.count})</span>
-                        </span>
-                        {cat.desc && <span style={{ display: "block", fontSize: 9, color: "var(--text-muted)", marginTop: 1 }}>{cat.desc}</span>}
-                      </span>
-                    </button>
-                  );
-                })}
-                {onCreateNew && (
-                  <button
-                    onClick={handleClickNew}
-                    style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", padding: "8px 10px", background: "none", border: "none", borderTop: "1px solid var(--border-subtle)", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "var(--input-bg)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                  >
-                    <span style={{ width: 24, height: 24, borderRadius: 5, background: "rgba(96,165,250,0.7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Plus size={12} color="white" />
-                    </span>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ display: "block", fontWeight: 600, color: "var(--accent-blue, #60a5fa)" }}>
-                        {createLabel || `New ${targetRole}`}
-                      </span>
-                      <span style={{ display: "block", fontSize: 9, color: "var(--text-muted)", marginTop: 1 }}>
-                        {targetRole === "instance" ? "Pick fields to attach, then create" : `Create a new ${targetRole} from scratch`}
-                      </span>
-                    </span>
-                  </button>
+                {filteredModules.length === 0 && search.trim() && (
+                  <div style={emptyStyle}>No {targetRole}s match “{search.trim()}”</div>
                 )}
-                {onAddTextblock && (
-                  <button
-                    onClick={() => { onAddTextblock(); closeMenu(); }}
-                    style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", padding: "8px 10px", background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "var(--input-bg)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                  >
-                    <span style={{ width: 24, height: 24, borderRadius: 5, background: "rgba(96,165,250,0.7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <FileQuestion size={12} color="white" />
-                    </span>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ display: "block", fontWeight: 600, color: "var(--accent-blue, #60a5fa)" }}>
-                        New Textblock
-                      </span>
-                      <span style={{ display: "block", fontSize: 9, color: "var(--text-muted)", marginTop: 1 }}>
-                        Inline rich-text snippet
-                      </span>
-                    </span>
-                  </button>
-                )}
-              </>
-            )}
-            {pickingFields == null && !showCategories && (
-              <>
-                {onCreateNew && (
-                  <button
-                    onClick={handleClickNew}
-                    style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "5px 8px", background: "none", border: "none", borderBottom: onAddTextblock ? "none" : "1px solid var(--border-subtle)", cursor: "pointer", color: "var(--accent-blue, #60a5fa)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
-                  >
-                    <Plus size={10} /> {createLabel || `New ${targetRole}`}
-                  </button>
-                )}
-                {onAddTextblock && (
-                  <button
-                    onClick={() => { onAddTextblock(); closeMenu(); }}
-                    style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "5px 8px", background: "none", border: "none", borderBottom: "1px solid var(--border-subtle)", cursor: "pointer", color: "var(--accent-blue, #60a5fa)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
-                  >
-                    <Plus size={10} /> Textblock
-                  </button>
-                )}
-                {filteredModules.length === 0 && (
-                  <div style={{ padding: "8px", fontSize: 10, color: "var(--text-faint)", textAlign: "center" }}>
-                    No {pickedKind ? (KIND_TILE[pickedKind]?.label || pickedKind) : targetRole}s found
-                  </div>
-                )}
-                {filteredModules.map(m => (
-                  <button
-                    key={m.id}
-                    onClick={() => { onSelect(m); closeMenu(); }}
-                    style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "4px 8px", background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "var(--input-bg)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                  >
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: roleColor, flexShrink: 0 }} />
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {m.label || m.name || "Untitled"}
-                    </span>
-                    {m.kind && m.kind !== "board" && (
-                      <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{m.kind}</span>
-                    )}
-                  </button>
-                ))}
-              </>
-            )}
-            {pickingFields == null && templateRows.length > 0 && (
-              <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "6px 8px" }}>
-                <div style={{ fontSize: 9, color: "var(--text-faint)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  Templates
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  {templateRows.map(tpl => (
-                    <button
-                      key={tpl.id}
-                      onClick={() => {
-                        commitApplyTemplate(socket, {
-                          templateOccurrenceId: tpl.id,
-                          targetOccurrenceId: hostOccurrence.id,
-                          mode: "append",
-                        });
-                        closeMenu();
-                      }}
-                      style={{
-                        fontSize: 11, padding: "3px 8px", borderRadius: 4,
-                        border: "1px solid var(--border-default)",
-                        background: "transparent", color: "var(--text-primary)", cursor: "pointer",
-                        fontFamily: "var(--font-mono)",
-                      }}
-                      title={`Apply template: ${tpl.meta?.templateName}`}
-                    >
-                      📋 {tpl.meta?.templateName || "(unnamed)"}
-                    </button>
-                  ))}
-                </div>
               </div>
-            )}
-          </div>
-          {pickingFields != null && (
-            <div style={{ display: "flex", gap: 6, padding: "6px 8px", borderTop: "1px solid var(--border-subtle)", background: "var(--input-bg)" }}>
-              <button
-                onClick={() => { onCreateNew?.({ fieldIds: [] }); closeMenu(); }}
-                style={{ flex: 1, padding: "5px 8px", background: "transparent", border: "1px solid var(--border-default)", borderRadius: 4, cursor: "pointer", color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}
-              >
-                Skip
-              </button>
-              <button
-                onClick={confirmCreate}
-                style={{ flex: 1, padding: "5px 8px", background: "rgba(59,130,246,0.8)", border: "1px solid rgba(59,130,246,0.9)", borderRadius: 4, cursor: "pointer", color: "white", fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600 }}
-              >
-                Create
-              </button>
-            </div>
+
+              {/* Templates */}
+              {templateRows.length > 0 && (
+                <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "6px 8px", flexShrink: 0 }}>
+                  <div style={{ fontSize: 9, color: "var(--text-faint)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>Templates</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {templateRows.map(tpl => (
+                      <button
+                        key={tpl.id}
+                        onClick={() => {
+                          commitApplyTemplate(socket, { templateOccurrenceId: tpl.id, targetOccurrenceId: hostOccurrence.id, mode: "append" });
+                          closeMenu();
+                        }}
+                        style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, border: "1px solid var(--border-default)", background: "transparent", color: "var(--text-primary)", cursor: "pointer", fontFamily: "var(--font-mono)" }}
+                        title={`Apply template: ${tpl.meta?.templateName}`}
+                      >
+                        📋 {tpl.meta?.templateName || "(unnamed)"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>,
         document.body
@@ -505,3 +381,6 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     </>
   );
 }
+
+const backBtnStyle = { display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 8px", background: "none", border: "none", borderBottom: "1px solid var(--border-subtle)", cursor: "pointer", color: "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-mono)", textAlign: "left" };
+const emptyStyle = { padding: "8px", fontSize: 10, color: "var(--text-faint)", textAlign: "center" };
