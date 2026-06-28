@@ -27,24 +27,41 @@ echo "==> 1/5 Ollama"
 if ! command -v ollama >/dev/null 2>&1; then
   echo "Installing ollama…"; curl -fsSL https://ollama.com/install.sh | sh
 fi
+# Wait (up to ~30s) for the Ollama HTTP API to accept connections.
+wait_ollama() {
+  for _ in $(seq 1 30); do
+    curl -fsS "http://localhost:$PORT/api/tags" >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  return 1
+}
 # Bind to all interfaces so the tunnel can reach it (default is localhost-only).
 if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files 2>/dev/null | grep -q '^ollama.service'; then
+  # A leftover manual `ollama serve` would hold the port and make the systemd
+  # service fail to bind — drop it before (re)starting the service.
+  pkill -f "ollama serve" 2>/dev/null || true
   sudo mkdir -p /etc/systemd/system/ollama.service.d
   printf '[Service]\nEnvironment=OLLAMA_HOST=0.0.0.0:%s\n' "$PORT" \
     | sudo tee /etc/systemd/system/ollama.service.d/override.conf >/dev/null
   sudo systemctl daemon-reload
   sudo systemctl restart ollama
-  echo "ollama bound to 0.0.0.0:$PORT (systemd override)"
+  echo "ollama bound to 0.0.0.0:$PORT (systemd override) — waiting for it to come up…"
 else
   echo "No systemd ollama service (WSL/manual)."
   if ! curl -fsS "http://localhost:$PORT/api/tags" >/dev/null 2>&1; then
     echo "Starting: OLLAMA_HOST=0.0.0.0:$PORT ollama serve (background → /tmp/ollama.log)"
     OLLAMA_HOST=0.0.0.0:$PORT nohup ollama serve >/tmp/ollama.log 2>&1 &
-    sleep 2
   else
     echo "Ollama already up on :$PORT — ensure it was started with OLLAMA_HOST=0.0.0.0:$PORT"
   fi
 fi
+if ! wait_ollama; then
+  echo "❌ Ollama isn't responding on :$PORT."
+  command -v systemctl >/dev/null 2>&1 && systemctl status ollama --no-pager -l | tail -20 || true
+  echo "Check the log above (port conflict? service failed?) and re-run."
+  exit 1
+fi
+echo "ollama is up on :$PORT"
 
 echo "==> 2/5 Pull model: $MODEL"
 ollama pull "$MODEL"

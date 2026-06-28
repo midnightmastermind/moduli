@@ -6,3 +6,6 @@ notes_codex_annotated/
 
 # Git worktrees (superpowers isolated workspaces)
 .worktrees/
+
+# build output (built on deploy, not tracked)
+client/dist/
