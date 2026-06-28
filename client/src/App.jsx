@@ -36,6 +36,7 @@ import { installMobileInputAutoScroll } from "./hooks/useMobileKeyboard";
 
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import * as LayoutHelpers from "./helpers/LayoutHelpers";
+import { requestLabelEdit } from "./helpers/pendingLabelEdit.js";
 import { buildLookup } from "./helpers/LayoutHelpers";
 import { computeRoleByModuleId } from "./state/selectors";
 
@@ -616,6 +617,8 @@ export default function App() {
         userId: state.userId,
         emit: true,
       });
+      // Open the new item's label editor focused so it can be named right away.
+      requestLabelEdit(id);
     },
     [dispatch, state.instances, state.gridId, state.userId, state.containers, socket, occurrencesById]
   );

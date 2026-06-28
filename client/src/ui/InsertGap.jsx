@@ -14,6 +14,7 @@ import { useState } from "react";
 import { useGridActions } from "../GridActionsContext.js";
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { createLeafInstanceAtIndex } from "../helpers/CommitHelpers";
+import { requestLabelEdit } from "../helpers/pendingLabelEdit.js";
 
 export default function InsertGap({
   parentOccurrence,
@@ -31,12 +32,14 @@ export default function InsertGap({
   if (!parentOccurrence || !resolvedGridId || !resolvedUserId) return null;
 
   const insertNew = ({ fieldIds } = {}) => {
-    createLeafInstanceAtIndex({
+    const res = createLeafInstanceAtIndex({
       dispatch, socket, gridId: resolvedGridId, userId: resolvedUserId,
       parentOccurrence, index,
       role: targetRole === "instance" ? "instance" : targetRole,
       fieldIds: Array.isArray(fieldIds) ? fieldIds : [],
     });
+    // Open the new item's label editor focused (see helpers/pendingLabelEdit).
+    if (res?.moduleId) requestLabelEdit(res.moduleId);
   };
 
   const insertExisting = (m) => {

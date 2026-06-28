@@ -39,6 +39,7 @@ import { CellEmbedContext } from "../docs/CellEmbedContext.js";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import { getEffectiveFieldVisibilityForOccurrence, fieldPassesVisibility } from "../state/selectors";
+import { consumeLabelEdit } from "../helpers/pendingLabelEdit.js";
 
 // ============================================================
 // INSTANCE INNER ROW — label, field pills, operation widgets
@@ -115,6 +116,12 @@ function InstanceInner({
   useEffect(() => {
     setDraft({ label: label ?? "" });
   }, [label, id]);
+
+  // Just-created via quick-add / insert-gap → open the label editor focused so
+  // the user can type the name immediately (see helpers/pendingLabelEdit).
+  useEffect(() => {
+    if (consumeLabelEdit(id)) setIsEditingLabel(true);
+  }, [id]);
 
   const commitLabel = useCallback(() => {
     const next = (draft?.label ?? "").trim();
@@ -557,7 +564,7 @@ function InstanceInner({
               />
             </PopoverContent>
           </Popover>
-          {effectiveShowLabel && hasLabel && (
+          {effectiveShowLabel && (
             isEditingLabel ? (
               <input
                 value={labelDraft}
@@ -569,6 +576,7 @@ function InstanceInner({
                   e.stopPropagation();
                 }}
                 onPointerDown={(e) => e.stopPropagation()}
+                onFocus={(e) => e.target.select()}
                 autoFocus
                 style={{
                   flex: "0 1 auto", minWidth: 0,
@@ -594,8 +602,12 @@ function InstanceInner({
                 title="Double-click to rename"
               >
                 {/* Auto-marquee: scrolls the label only when it's wider than the
-                    space it has; otherwise renders static. */}
-                <AutoMarquee>{label}</AutoMarquee>
+                    space it has; otherwise renders static. Empty labels still
+                    render a faint, double-clickable placeholder so a blank
+                    occurrence can be named. */}
+                {hasLabel
+                  ? <AutoMarquee>{label}</AutoMarquee>
+                  : <span style={{ opacity: 0.4, fontStyle: "italic" }}>Untitled</span>}
               </div>
             )
           )}

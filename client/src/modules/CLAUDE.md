@@ -2,6 +2,23 @@
 
 _Updated: 2026-06-12. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-06-28 LATE — logo → clean VECTOR lockup; empty-label editable; quick-add focuses new item)
+- **Logo (`client/public/viafluere_lockup.svg`)** — switched from the speckle-repaired
+  RASTER-embed to a pure **vector** lockup (interlocking double-knot, gradient ribbons woven
+  over/under + "viafluere" wordmark). The raster repair couldn't fully clean the damaged
+  upper-middle cluster (broken pixels persisted); vector = zero broken pixels. Tight viewBox
+  (`42 20 748 124`, content measured x[49.5..781]) so it fills the card edge-to-edge (kills the
+  right-side gap). Seed already points at `/viafluere_lockup.svg` → **no reseed needed**, just
+  rebuild dist. (Header `moduli_logo.png` still raster — tiny at 18px, speckles not visible.)
+- **`ModuleInstance.jsx` — empty labels are now editable.** The label slot was gated
+  `effectiveShowLabel && hasLabel`, so a blank-label occurrence rendered nothing to click.
+  Now gated on `effectiveShowLabel` alone; empty → a faint italic "Untitled" placeholder
+  (double-click to name). Inline input gained `onFocus → select()` so renaming replaces.
+- **Quick-add focuses the new item.** New `helpers/pendingLabelEdit.js` one-shot pub/sub:
+  the create site (`App.addInstanceToContainer`, `InsertGap.insertNew`) calls
+  `requestLabelEdit(moduleId)` after minting; `ModuleInstance` consumes it once on mount and
+  opens the label editor focused (text selected) so you can type the name immediately.
+
 ## Recent Changes (2026-06-28 — full-bleed logo: scroll-to-center on load + tight lockup; multi-block description)
 - **`ArtifactCard.jsx`** — the full-bleed logo card (`kind:"image"` + `meta.fullBleed`,
   the Viafluere top-middle cell) now scrolls itself vertically CENTERED in the nearest
