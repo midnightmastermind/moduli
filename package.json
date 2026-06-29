@@ -20,6 +20,8 @@
     "seed:load": "TMPDIR=$HOME/tmp node server/scripts/loadSeedData.js",
     "seed:reset": "TMPDIR=$HOME/tmp node server/scripts/resetData.js",
     "seed:live": "TMPDIR=$HOME/tmp node server/scripts/createLiveData.js",
+    "deploy": "bash scripts/deploy.sh",
+    "deploydata": "bash scripts/deploydata.sh",
     "test": "TMPDIR=$HOME/tmp npm --prefix ./client run test 2>&1 | tee test-results.txt",
     "test:client": "TMPDIR=$HOME/tmp npm --prefix ./client run test 2>&1 | tee test-results.txt",
     "test:watch": "TMPDIR=$HOME/tmp npm --prefix ./client run test:watch",
