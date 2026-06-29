@@ -87,6 +87,34 @@ export function wikiHtmlToMarkdown(html, title = "") {
       return `[${text}](${href.split("#")[0]})`;
     },
   });
+  // Real content tables (e.g. Wikipedia `.wikitable` discography / works lists) →
+  // a GFM pipe table the importer turns into a kind:"table" container. WITHOUT this
+  // rule, turndown-plugin-gfm `keep`s any table whose first row isn't a pure heading
+  // row (e.g. it has a <caption>, or mixed th/td) and emits the RAW <table> HTML
+  // verbatim — which then rendered as literal "<table class='wikitable'>…</table>"
+  // text in a textblock (the DOM leak the user saw). Cells use text only (the
+  // importer's table cells are plain text anyway). A <caption> becomes an H3 above
+  // the table so its title survives. MUST be added BEFORE `wikiPullQuote` so
+  // quote-box tables still route to the blockquote rule — turndown's `add` unshifts,
+  // so the LATER-added rule wins (`wikiPullQuote` stays in front for `.quotebox`).
+  td.addRule("wikiTable", {
+    filter: "table",
+    replacement: (_content, node) => {
+      const cellText = (c) => (c.textContent || "").replace(/\s+/g, " ").replace(/\|/g, "\\|").trim();
+      const matrix = Array.from(node.querySelectorAll("tr"))
+        .map((tr) => Array.from(tr.querySelectorAll("th, td")).map(cellText))
+        .filter((r) => r.length);
+      if (!matrix.length) return "";
+      const cols = Math.max(...matrix.map((r) => r.length));
+      const pad = (r) => { const c = r.slice(); while (c.length < cols) c.push(""); return c; };
+      const line = (cells) => `| ${pad(cells).join(" | ")} |`;
+      const sep = `| ${Array(cols).fill("---").join(" | ")} |`;
+      const capEl = node.querySelector("caption");
+      const cap = capEl ? (capEl.textContent || "").replace(/\s+/g, " ").trim() : "";
+      const tableMd = [line(matrix[0]), sep, ...matrix.slice(1).map(line)].join("\n");
+      return `\n\n${cap ? `### ${cap}\n\n` : ""}${tableMd}\n\n`;
+    },
+  });
   // Pull-quotes: Wikipedia's {{Quote box}}/{{Cquote}} render as `.quotebox` /
   // `.cquote` (often a <table>, NOT a <blockquote>), so turndown would mangle them
   // into a GFM table. Convert them to a real `> ` blockquote (+ "— attribution")

@@ -2,6 +2,39 @@
 
 _Updated: 2026-06-12. Check this file before re-reading source._
 
+## Recent Changes (2026-06-28 — FIX: raw `<table class="wikitable">` DOM dumped as literal text)
+- **`services/wikipediaTools.js` (`wikiHtmlToMarkdown`)** — added a `wikiTable` turndown rule
+  (filter `"table"`). **Root cause:** `turndown-plugin-gfm` calls `keep()` for any `<table>` whose
+  first row isn't a PURE heading row (`isHeadingRow(node.rows[0])` — see the plugin's
+  `turndown-plugin-gfm.cjs.js:132`); a `keep`-matched node is emitted as RAW HTML verbatim. A
+  Wikipedia content table like "Literary works" has a `<caption>` (so `rows[0]` / the heading-row
+  check fails) → the entire `<table class="wikitable">…</table>` survived into the markdown and
+  rendered as literal text in a textblock. The new rule converts EVERY table to a GFM pipe table
+  (header + `---` separator + body, cells = `textContent`, `|` escaped); a `<caption>` becomes an
+  `### ` heading above it so the title survives. turndown's `add` UNSHIFTS (later rule wins) and
+  checks `this.array` BEFORE `this._keep` (`turndown.cjs.js:289-295`), so this rule beats gfm's keep
+  AND gfm's own table rule. Placed BEFORE `wikiPullQuote` so `.quotebox`/`.cquote` tables still route
+  to the blockquote rule (wikiPullQuote added later = front-most). `.infobox` tables are already
+  removed by `WIKI_STRIP_SELECTORS` before turndown, so no double-infobox. The downstream
+  `markdownToModuli` pipe-table parser turns the result into a `kind:"table"` container. Regression
+  test in `__tests__/htmlToMarkdown.test.js` ("content tables become pipe tables …"). 222 server
+  tests pass. **Server restart + re-import to apply.**
+
+## Recent Changes (2026-06-28 — FIX: LINK bullets rendered empty / dropped their title (double-nested chip flattened))
+- **`services/markdownImporter.js` (`buildContainer`, bullet `c.kind === "board"` branch)** —
+  every bullet item was wrapped in a `buildInlineTextblock` mini-textblock whose textmap held
+  the item's inline content. For a LINK bullet (`[text](url)`), that content is a nested
+  `instanceTextblockInline` chip — but the client's inline renderer
+  (`InstanceTextblockInlineNode.textmapToInlineText`) flattens a mini-textblock to PLAIN TEXT
+  only (atom chips have no `.text`/`.content`), so the chip was silently dropped. Symptoms on the
+  Eminem import: Discography entries `[Album](url) (1999)` rendered as just " (1999)"; pure-link
+  "See also" / influence entries rendered EMPTY (`...` bullets). Fix: an item whose `parseInline`
+  result contains a link chip now renders that inline content DIRECTLY in the `listItem` paragraph
+  (like prose, which already worked) instead of wrapping it in a mini-textblock. Plain-text items
+  still get the draggable mini-textblock wrapper (preserves the existing design + tests). Regression
+  test added; one stale test (asserted the old per-item double-nesting) updated. 39 importer / 221
+  server tests pass. **Server restart + re-import to apply.**
+
 ## Recent Changes (2026-06-15 — FIX: lead aside is now a STRUCTURAL child of the root (empty preview column / unreachable lead image))
 - **`services/markdownImporter.js` (root `buildContainer`)** — the lead **aside**
   container (`asideId`, the image+infobox column) was referenced ONLY through the

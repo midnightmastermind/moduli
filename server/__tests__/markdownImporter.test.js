@@ -111,6 +111,39 @@ describe("markdownToModuli — article-like grouped rich textblocks", () => {
     expect(listTbs.length).toBe(1);
   });
 
+  it("a LINK bullet renders its chip directly in the list item (not flattened away in a mini-textblock)", async () => {
+    // Discography-shape: link + trailing year; and a pure-link "See also" shape.
+    const md = `# T\n\n## Discography\n\n- [The Slim Shady LP](https://en.wikipedia.org/wiki/The_Slim_Shady_LP) (1999)\n- [Award for music](https://en.wikipedia.org/wiki/Award_for_music)`;
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
+    const listTb = r.occurrences.find(o => JSON.stringify(o.textmap || {}).includes('"bulletList"'));
+    expect(listTb).toBeTruthy();
+    const bulletList = listTb.textmap.content.find(n => n.type === "bulletList")
+      || listTb.textmap.content.flatMap(n => n.content || []).find(n => n.type === "bulletList");
+    // The list lives via a moduleEmbed in the section textblock; locate it across occurrences.
+    const blob = JSON.stringify(r.occurrences.map(o => o.textmap));
+    // Each link bullet's chip occurrence carries the LABEL as text — the title must survive.
+    expect(blob).toContain("The Slim Shady LP");
+    expect(blob).toContain("Award for music");
+    // The link chips are minted as inline link textblocks (meta.link), NOT lost.
+    const linkMods = r.modules.filter(m => m.role === "textblock" && m.kind === "inline" && m.meta && m.meta.link);
+    expect(linkMods.length).toBe(2);
+    // The list item paragraph holds the chip DIRECTLY (a chip whose occurrence carries meta.link).
+    const linkOccIds = new Set(r.occurrences.filter(o => o.meta && o.meta.link).map(o => o.id));
+    const findListTb = r.occurrences.find(o => {
+      const m = JSON.stringify(o.textmap || {});
+      return m.includes('"bulletList"');
+    });
+    const chipIds = [];
+    const walk = (n) => {
+      if (!n) return;
+      if (n.type === "instanceTextblockInline" && n.attrs) chipIds.push(n.attrs.occurrenceId);
+      (n.content || []).forEach(walk);
+    };
+    walk(findListTb.textmap);
+    // At least the two link chips point straight at the meta.link occurrences.
+    expect(chipIds.filter(id => linkOccIds.has(id)).length).toBe(2);
+  });
+
   it("heading + its section nests as containers (Rule Set A)", async () => {
     const md = `# Top\n\nIntro.\n\n## Section\n\nBody.\n\n### Sub\n\nDeep.`;
     const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
@@ -397,9 +430,14 @@ describe("markdownToModuli — 2026-06-09 import fixes (links/See-also/denylist/
     const blob = JSON.stringify(r.occurrences.map(o => o.textmap));
     expect(blob).toContain("instanceTextblockInline");
     expect(blob).not.toContain('"type":"link"'); // no un-resolving link marks
-    // each item is now its own mini-textblock carrying the inline link chip
-    const itemTbs = r.occurrences.filter(o => JSON.stringify(o.textmap || {}).includes("instanceTextblockInline"));
-    expect(itemTbs.length).toBeGreaterThanOrEqual(2);
+    // each link is its OWN link-chip occurrence (meta.link) embedded DIRECTLY in the
+    // list textblock — NOT wrapped in a plain mini-textblock (which would flatten the
+    // chip away and render the bullet empty).
+    const linkMods = r.modules.filter(m => m.role === "textblock" && m.kind === "inline" && m.meta && m.meta.link);
+    expect(linkMods.length).toBe(2);
+    // the bullet labels survive (they'd be dropped by the old double-nesting bug)
+    expect(blob).toContain("Honorific nicknames");
+    expect(blob).toContain("List of winners");
   });
 
   it("citation/nav cruft sections (References / Notes / External links) are dropped; 'See also' is kept", async () => {

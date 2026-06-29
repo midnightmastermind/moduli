@@ -170,3 +170,33 @@ describe("htmlToMarkdown — stripClasses customization", () => {
     expect(md).toContain("Body");
   });
 });
+
+describe("wikiHtmlToMarkdown — content tables become pipe tables (not raw <table> DOM)", () => {
+  it("converts a .wikitable (with <caption>) to a GFM pipe table, never raw HTML", async () => {
+    const { wikiHtmlToMarkdown } = await import("../services/wikipediaTools.js");
+    const html = `
+      <div class="mw-parser-output">
+        <h2>Literary works</h2>
+        <table class="wikitable">
+          <caption>Eminem's published works</caption>
+          <tbody>
+            <tr><th>Title</th><th>Year</th><th>Pages</th></tr>
+            <tr><td><i><a href="/wiki/Angry_Blonde" title="Angry Blonde">Angry Blonde</a></i></td><td>2000</td><td>148</td></tr>
+            <tr><td><i>The Way I Am</i></td><td>2008</td><td>208</td></tr>
+          </tbody>
+        </table>
+      </div>`;
+    const md = wikiHtmlToMarkdown(html, "Eminem");
+    // The raw table DOM must NOT survive into the markdown.
+    expect(md).not.toContain("<table");
+    expect(md).not.toContain("class=\"wikitable\"");
+    expect(md).not.toContain("<td>");
+    // It IS a pipe table the importer recognizes (header + separator + body).
+    expect(md).toContain("| Title | Year | Pages |");
+    expect(md).toMatch(/\|\s*---\s*\|/);
+    expect(md).toContain("Angry Blonde");
+    expect(md).toContain("| 2000 |");
+    // The caption survives as a heading above the table.
+    expect(md).toContain("### Eminem's published works");
+  });
+});

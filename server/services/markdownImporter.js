@@ -696,6 +696,18 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
         // is still its own editable/draggable mini-textblock (instanceTextblockInline).
         // Does NOT flush — a STRUCTURAL block (container/code/image/table) still does.
         const listItems = (c.items || []).map((it) => {
+          // Parse the item inline (mints link chips for any [text](url)). A bullet
+          // that holds a link chip CANNOT be wrapped in a mini-textblock: the inline
+          // renderer (`textmapToInlineText`) flattens a mini-textblock to PLAIN TEXT
+          // only, silently dropping the nested `instanceTextblockInline` chip — so a
+          // discography entry `[Album](url) (1999)` rendered as just " (1999)" and a
+          // pure-link "See also" entry rendered EMPTY. Those items render their inline
+          // content (text + clickable chips) DIRECTLY in the list item, like prose does.
+          const inline = parseInline(String(it || ""), buildInlineLink);
+          if (inline.some((n) => n.type === "instanceTextblockInline")) {
+            return { type: "listItem", content: [{ type: "paragraph", content: inline }] };
+          }
+          // Plain-text items stay their own editable/draggable mini-textblock.
           const { occurrenceId: miniOccId, moduleId: miniModId } = buildInlineTextblock(it);
           return {
             type: "listItem",
