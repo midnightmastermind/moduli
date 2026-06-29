@@ -688,16 +688,13 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
         pendingPara.push({ type: "moduleEmbed", attrs: { occurrenceId: qId, align: "full" } });
         continue;
       }
-      flushPara(); // a non-prose block ends the running prose chunk
-      if (c.kind === "container") {
-        if (isDenylistedSection(c.label)) continue; // skip citation/nav cruft sections
-        const subId = buildContainer(c, occurrenceId);
-        childIds.push(subId);
-      } else if (c.kind === "board") {
-        // ONE textblock holding a real bulletList; each ITEM's content is a
-        // mini-textblock embedded inline (instanceTextblockInline). So the bullet
-        // marker comes from the list and each point is its own editable/draggable
-        // mini-block — but they all live in the SAME list/textblock (per user).
+      if (c.kind === "board") {
+        // A bullet list JOINS the running prose chunk (same textblock as the
+        // lead-in paragraph) so the bullets indent under their intro instead of
+        // becoming a detached block (user: "the 2 textblocks should be one block —
+        // the indentation would be off with the bulletpoints"). Each ITEM's content
+        // is still its own editable/draggable mini-textblock (instanceTextblockInline).
+        // Does NOT flush — a STRUCTURAL block (container/code/image/table) still does.
         const listItems = (c.items || []).map((it) => {
           const { occurrenceId: miniOccId, moduleId: miniModId } = buildInlineTextblock(it);
           return {
@@ -707,9 +704,14 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
             ] }],
           };
         });
-        const tbId = buildTextblock([{ type: "bulletList", content: listItems }]);
-        childIds.push(tbId);
-        textblockChildIds.add(tbId);
+        pendingPara.push({ type: "bulletList", content: listItems });
+        continue;
+      }
+      flushPara(); // a non-prose STRUCTURAL block ends the running prose chunk
+      if (c.kind === "container") {
+        if (isDenylistedSection(c.label)) continue; // skip citation/nav cruft sections
+        const subId = buildContainer(c, occurrenceId);
+        childIds.push(subId);
       } else if (c.kind === "codeBlock") {
         childIds.push(buildTextblock([{
           type: "codeBlock",

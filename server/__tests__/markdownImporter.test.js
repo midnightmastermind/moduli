@@ -363,17 +363,20 @@ describe("markdownToModuli — plain text (degenerate markdown) round-trips clea
     expect((tbs[0].textmap.content || []).filter(n => n.type === "paragraph").length).toBe(3);
   });
 
-  it("a structural block (list) flushes the running prose so reading order is preserved", async () => {
+  it("a list JOINS the running prose chunk (one block, so bullets indent under their intro)", async () => {
     const md = `Para one.\n\nPara two.\n\n- item a\n- item b\n\nPara three.`;
     const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: md, dryRun: true });
-    // prose1+2 merge → 1 textblock; the list → 1 bulletList textblock (its 2 items
-    // are inline mini-textblocks, +2 more textblock modules); prose3 → 1 textblock.
-    // Top-level (non-inline) textblocks in the reading flow = 3.
+    // A list is prose-flow content now (not a structural separator), so with nothing
+    // structural between them, prose + list + prose collapse to ONE flow textblock —
+    // the bullets sit with their lead-in (the 2 items stay inline mini-textblocks).
     const flowTbs = r.occurrences.filter(o => {
       const mod = r.modules.find(m => m.id === o.moduleId);
       return mod?.role === "textblock" && mod?.kind !== "inline";
     });
-    expect(flowTbs.length).toBe(3);
+    expect(flowTbs.length).toBe(1);
+    const content = flowTbs[0].textmap.content || [];
+    expect(content.filter(n => n.type === "paragraph").length).toBe(3);
+    expect(content.filter(n => n.type === "bulletList").length).toBe(1);
   });
 });
 

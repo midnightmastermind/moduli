@@ -25,7 +25,9 @@ if on_server; then
   # Build BEFORE restart: server only registers the SPA routes when
   # client/dist/index.html exists at boot.
   as_deploy npm --prefix ./client run build
-  as_deploy pm2 restart "$PM2_APP"
+  # --update-env re-applies ecosystem.config.cjs env (e.g. ASSISTANT_BACKEND=ollama)
+  # so a deploy never silently reverts the backend.
+  as_deploy pm2 restart "$PM2_APP" --update-env
   echo "✅ Deployed."
 else
   echo "==> Not on the server — deploying over ssh to ${SERVER_USER}@${SERVER_IP}"
