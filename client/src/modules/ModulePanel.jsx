@@ -334,7 +334,7 @@ function Panel({
   const manifestsById = useGridActionsSelector(s => s.manifestsById);
   const foldersById = useGridActionsSelector(s => s.foldersById);
   const { state } = useContext(GridDataContext);
-  const { isMobileLayout } = useContext(GridLiveContext);
+  const { isMobileLayout, isTouch } = useContext(GridLiveContext);
   const dragCtx = useDragContext();
   const {
     isContainerDrag,
@@ -1385,6 +1385,7 @@ function Panel({
             panel={module}
             cols={cols}
             rows={rows}
+            large={isTouch}
             onResize={({ width, height }) => setLiveSize({ w: width, h: height })}
             onResizeEnd={({ width, height }) => {
               setLiveSize({ w: null, h: null });

@@ -1,6 +1,6 @@
 import { useRef, useCallback } from "react";
 
-const ResizeHandle = ({ panel, cols, rows, onResize, onResizeEnd }) => {
+const ResizeHandle = ({ panel, cols, rows, onResize, onResizeEnd, large = false }) => {
   const startRef = useRef(null);
 
   const handleStart = useCallback((e) => {
@@ -93,27 +93,43 @@ const ResizeHandle = ({ panel, cols, rows, onResize, onResizeEnd }) => {
       onMouseDown={handleStart}
       onTouchStart={handleStart}
       style={{
-        width: 18,
-        height: 18,
+        // On touch, a large transparent grab area (finger-friendly) straddles
+        // the panel's bottom-right corner; the small visible nub stays put.
+        // Desktop keeps the compact 18px handle (no corner dead zone).
+        width: large ? 44 : 18,
+        height: large ? 44 : 18,
         cursor: "nwse-resize",
-        background: "rgba(100, 120, 150, 0.6)",
-        borderTopLeftRadius: 6,
+        background: "transparent",
         touchAction: "none",
         pointerEvents: "auto",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        opacity: 0.7,
-        transition: "opacity 0.15s",
+        alignItems: "flex-end",
+        justifyContent: "flex-end",
         flexShrink: 0,
         marginLeft: "auto",
+        marginRight: large ? -6 : 0,
+        marginBottom: large ? -6 : 0,
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; }}
-      onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.7; }}
     >
-      <svg width="10" height="10" viewBox="0 0 10 10" style={{ opacity: 0.5 }}>
-        <path d="M10 0 L10 10 L0 10 Z" fill="white" />
-      </svg>
+      <div
+        style={{
+          width: 18,
+          height: 18,
+          background: "rgba(100, 120, 150, 0.6)",
+          borderTopLeftRadius: 6,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: 0.7,
+          transition: "opacity 0.15s",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; }}
+        onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.7; }}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" style={{ opacity: 0.5 }}>
+          <path d="M10 0 L10 10 L0 10 Z" fill="white" />
+        </svg>
+      </div>
     </div>
   );
 };
