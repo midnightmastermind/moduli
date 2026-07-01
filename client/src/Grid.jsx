@@ -391,6 +391,8 @@ function GridInner() {
     redo,
     isProcessing,
     isMobile,
+    isTouch,
+    isMobileLayout,
     activeCell,
     setActiveCell,
     zoomedOut,
@@ -681,7 +683,8 @@ function GridInner() {
       onTick={onTick}
       activeCell={activeCell}
       setActiveCell={setActiveCell}
-      isMobile={isMobile}
+      isTouch={isTouch}
+      isMobileLayout={isMobileLayout}
     >
       {layoutTree && !isMobile ? (
         <GridMosaic

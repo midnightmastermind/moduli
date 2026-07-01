@@ -181,7 +181,8 @@ export function DragProvider({
   onTick,
   activeCell,
   setActiveCell,
-  isMobile,
+  isTouch,
+  isMobileLayout,
 }) {
   // ============================================================
   // STATE
@@ -223,8 +224,8 @@ export function DragProvider({
 
   const pointerRef = useRef({ x: 0, y: 0 });
   // B3: Stable ref for values that change but don't need to recreate callbacks
-  const dragConfigRef = useRef({ activeCell, setActiveCell, rows, cols, isMobile });
-  dragConfigRef.current = { activeCell, setActiveCell, rows, cols, isMobile };
+  const dragConfigRef = useRef({ activeCell, setActiveCell, rows, cols, isTouch, isMobileLayout });
+  dragConfigRef.current = { activeCell, setActiveCell, rows, cols, isTouch, isMobileLayout };
   const rafRef = useRef(0);
   // Mobile drag-to-edge cell navigation timer
   const dragEdgeTimerRef = useRef(null);
@@ -607,8 +608,8 @@ export function DragProvider({
     // hiccup mid-drag. Cleared in clearSession on drop / drag-end.
     if (typeof window !== "undefined") window.__moduli_interacting = true;
 
-    // Prevent Android split-screen gesture from intercepting drags on mobile.
-    if (dragConfigRef.current.isMobile) {
+    // Prevent Android split-screen gesture from intercepting drags on touch.
+    if (dragConfigRef.current.isTouch) {
       document.documentElement.style.touchAction = 'none';
       document.documentElement.style.overscrollBehavior = 'none';
       spawnEdgeBarriers();
@@ -737,7 +738,7 @@ export function DragProvider({
       // advances. Long enough to feel deliberate (not triggered by accidental
       // edge-grazes during a normal drop) but short enough to feel responsive.
       const dc = dragConfigRef.current;
-      if (dc.isMobile && dc.activeCell && dc.setActiveCell) {
+      if (dc.isMobileLayout && dc.activeCell && dc.setActiveCell) {
         const edgeZone = 60;
         const EDGE_DWELL_MS = 900;
         const vw = window.innerWidth;
@@ -1123,7 +1124,7 @@ export function DragProvider({
   // 4. Fullscreen mode on handle pointerdown → disables OS edge gesture zones
   // ============================================================
   useEffect(() => {
-    if (!isMobile) return;
+    if (!isTouch) return;
     const preventDrag = (e) => {
       if (sessionRef.current.dragging) {
         e.preventDefault();
@@ -1158,7 +1159,7 @@ export function DragProvider({
       document.removeEventListener('touchmove', preventTouch);
       document.removeEventListener('touchstart', preventEdgeTouch, { capture: true });
     };
-  }, [isMobile]);
+  }, [isTouch]);
 
   // Recovery: if Android triggers split-screen despite prevention, cancel the drag
   useEffect(() => {

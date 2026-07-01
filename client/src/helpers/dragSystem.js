@@ -36,9 +36,10 @@ import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
-import { MOBILE_BREAKPOINT } from "../hooks/useMobileDetect";
-
-const _isMobile = () => window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+// Touch-drag replaces HTML5 DnD on any coarse-pointer device (phone OR tablet),
+// independent of orientation/layout. Width is irrelevant — a landscape tablet
+// still needs finger dragging even while it shows the desktop grid.
+const _isTouch = () => window.matchMedia("(pointer: coarse)").matches;
 
 // Create a small pill element for mobile drag ghost
 function _createDragPill(label, type) {
@@ -560,7 +561,7 @@ export function useDragDrop({
     _registerDrop(el, { type, id, context, accepts, allowedEdges, stateRef });
 
     // ─── MOBILE: Touch drag + Pragmatic drop targets ───
-    if (_isMobile()) {
+    if (_isTouch()) {
       const triggerEl = handleEl || el;
       const prevTouchAction = triggerEl.style.touchAction;
       triggerEl.style.touchAction = 'none';
@@ -789,7 +790,7 @@ export function useDragDrop({
         const externalData = {
           [NATIVE_DND_MIME]: serializePayload(payload),
         };
-        if (!_isMobile()) {
+        if (!_isTouch()) {
           externalData['text/plain'] = data.label || data.name || id;
         }
         return externalData;
