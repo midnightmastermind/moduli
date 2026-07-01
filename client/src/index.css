@@ -3822,3 +3822,33 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .panel-already-open-flash {
   animation: panel-already-open-flash 1200ms ease-out 1;
 }
+
+/* =============================================================================
+   Touch targets — enlarge interactive affordances on coarse-pointer devices.
+   Desktop (fine pointer) is unaffected.
+   ============================================================================= */
+@media (pointer: coarse) {
+  .module-drag-handle .radial-handle {
+    width: 30px !important;
+    height: 30px !important;
+    max-width: 30px !important;
+  }
+  .radial-menu .radial-item,
+  .radial-menu button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .context-menu-item {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+  }
+  .quick-add-btn {
+    min-width: 34px;
+    min-height: 34px;
+  }
+  .panel-header-lip {
+    width: 64px;
+    height: 16px;
+  }
+}

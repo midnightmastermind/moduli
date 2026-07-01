@@ -76,6 +76,7 @@ export default function ContextMenu({ ctx, onClose }) {
         return (
           <button
             key={item.label}
+            className="context-menu-item"
             onClick={() => { item.onClick?.(); onClose(); }}
             disabled={item.disabled}
             style={{
