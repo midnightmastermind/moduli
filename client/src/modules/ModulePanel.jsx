@@ -112,7 +112,7 @@ function mergeLayout(panelLayout) {
 function TreePanelContent({ resolvedView, activeOcc, activeOccView, dispatch, socket }) {
   const [treeCollapsed, setTreeCollapsed] = useState(true);
   const [scrollHighlightId, setScrollHighlightId] = useState(null);
-  const { isMobile } = useContext(GridLiveContext);
+  const { isMobileLayout } = useContext(GridLiveContext);
   // Reset scroll highlight when active doc changes (user clicked a different doc)
   const activeOccId = activeOcc?.id;
   useEffect(() => { setScrollHighlightId(null); }, [activeOccId]);
@@ -130,7 +130,7 @@ function TreePanelContent({ resolvedView, activeOcc, activeOccView, dispatch, so
       view={resolvedView}
       dispatch={dispatch}
       socket={socket}
-      collapsed={isMobile ? false : treeCollapsed}
+      collapsed={isMobileLayout ? false : treeCollapsed}
       onToggleCollapse={() => setTreeCollapsed(v => !v)}
       scrollHighlightId={scrollHighlightId}
     />
@@ -150,7 +150,7 @@ function TreePanelContent({ resolvedView, activeOcc, activeOccView, dispatch, so
     </div>
   );
 
-  if (isMobile) {
+  if (isMobileLayout) {
     return (
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {!treeCollapsed && (
@@ -333,7 +333,7 @@ function Panel({
   const manifestsById = useGridActionsSelector(s => s.manifestsById);
   const foldersById = useGridActionsSelector(s => s.foldersById);
   const { state } = useContext(GridDataContext);
-  const { isMobile } = useContext(GridLiveContext);
+  const { isMobileLayout } = useContext(GridLiveContext);
   const dragCtx = useDragContext();
   const {
     isContainerDrag,
@@ -409,7 +409,7 @@ function Panel({
   // be seeded by createLiveData. Collapses pageHeader + breadcrumbBar; the
   // hover strip at the top of the panel reveals them.
   // On mobile, never autohide — the header serves as a tap target for expand.
-  const autohide = isMobile ? false : !!panelOccurrence?.meta?.autohide;
+  const autohide = isMobileLayout ? false : !!panelOccurrence?.meta?.autohide;
   const toggleAutohide = useCallback(() => {
     if (!panelOccurrence?.id) return;
     const nextMeta = { ...(panelOccurrence.meta || {}), autohide: !autohide };
@@ -809,7 +809,7 @@ function Panel({
         minHeight: 0,
         minWidth: 0,
         opacity: isDragging ? 0.4 : 1,
-        margin: (mosaic && !isFullscreen) ? 0 : (isFullscreen ? 0 : (isMobile ? "0px 2px 2px 2px" : "3px 6px 6px 6px")),
+        margin: (mosaic && !isFullscreen) ? 0 : (isFullscreen ? 0 : (isMobileLayout ? "0px 2px 2px 2px" : "3px 6px 6px 6px")),
         zIndex: isForeground ? 70 : (isExtended ? 60 : 1),
         pointerEvents: isPanelDrag && !isDragging ? "none" : "auto",
         ...(isFullscreen && {
@@ -1227,7 +1227,7 @@ function Panel({
               <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", position: "relative" }}>
                 {/* Local tree sidebar — LEFT, pushes content on desktop, overlays on mobile */}
                 {localTreeOpen && (
-                  isMobile ? (
+                  isMobileLayout ? (
                     <div style={{
                       position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 100,
                       width: "100%", maxHeight: "50%",
@@ -1260,7 +1260,7 @@ function Panel({
                 </div>
                 {/* Root tree sidebar — RIGHT, pushes content on desktop, overlays on mobile */}
                 {rootTreeOpen && (
-                  isMobile ? (
+                  isMobileLayout ? (
                     <div style={{
                       position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 100,
                       width: "100%", maxHeight: "50%",

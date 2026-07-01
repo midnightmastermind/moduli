@@ -141,7 +141,7 @@ export const CanvasContent = React.memo(function CanvasContent({
   onDoubleClickBackground, ctxState, containerId, panelId, renderCard,
   showToolbar = false,
 }) {
-  const { isMobileLayout: isMobile } = useMobileDetect();
+  const { isMobileLayout } = useMobileDetect();
   const [drawTool, setDrawTool] = useState("select");
   const [drawColor, setDrawColor] = useState("#e2e8f0");
   const [drawSize, setDrawSize] = useState(2);
@@ -1464,7 +1464,7 @@ export const CanvasContent = React.memo(function CanvasContent({
       style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, position: "relative" }}
     >
       {/* Toolbar — desktop horizontal bar, hidden when collapsed */}
-      {showToolbar && toolbarOpen && !isMobile && (
+      {showToolbar && toolbarOpen && !isMobileLayout && (
         <div className="canvas-toolbar canvas-toolbar-desktop" onPointerDown={e => e.stopPropagation()}>
           {toolButtons}
           {sep}
@@ -1489,7 +1489,7 @@ export const CanvasContent = React.memo(function CanvasContent({
       )}
 
       {/* Toolbar — mobile collapsed dropdown button + popout panel */}
-      {showToolbar && toolbarOpen && isMobile && (
+      {showToolbar && toolbarOpen && isMobileLayout && (
         <>
           <div className="canvas-toolbar canvas-toolbar-mobile" onPointerDown={e => e.stopPropagation()}>
             {/* Only the snap-to-center button is always-visible on mobile;

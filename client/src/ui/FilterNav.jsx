@@ -130,7 +130,7 @@ function QuickDatePicker({ currentDate, unit, onSelect }) {
  *   onSelectFilter    — (filterId) => void
  *   onFilterValueChange — (fieldId, value) => void   called when date nav changes
  */
-export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFilterValueChange, compact = false, isMobile = false }) {
+export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFilterValueChange, compact = false, isMobileLayout = false }) {
   const namedFilters = grid?.namedFilters || [];
   const activeFilterId = grid?.activeFilterId || namedFilters[0]?.id || null;
   const activeFilterValues = grid?.activeFilterValues || {};
@@ -294,7 +294,7 @@ export default function FilterNav({ grid, fieldsById = {}, onSelectFilter, onFil
   const textSz = compact ? "text-[10px]" : "text-xs";
 
   // Mobile: single Filter button → popover with full filter UI
-  if (isMobile) {
+  if (isMobileLayout) {
     return (
       <Popover>
         <PopoverTrigger asChild>

@@ -7,7 +7,8 @@ import { createContext } from "react";
 export const GridLiveContext = createContext({
   computedValues: Object.create(null),
   fullStateLoaded: false,
-  isMobile: false,
+  isTouch: false,
+  isMobileLayout: false,
   activeCell: null,
   setActiveCell: () => {},
   zoomedOut: false,

@@ -56,7 +56,7 @@ function StubTab({ label }) {
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-export default function CommandCenter({ open, onOpenChange, isMobile }) {
+export default function CommandCenter({ open, onOpenChange, isMobileLayout }) {
   const [activeTab, setActiveTab] = useState("fields");
 
   // Per user request: CC is centered horizontally with no side backdrop,
@@ -64,7 +64,7 @@ export default function CommandCenter({ open, onOpenChange, isMobile }) {
   // matches the longest tab (Shortcuts). Outer wrapper has no background —
   // only the inner centered card does — so the area to either side of the
   // CC stays transparent and the grid remains visible behind it.
-  const CC_MAX_H = isMobile ? "70vh" : "560px"; // 560px ≈ Shortcuts tab full height
+  const CC_MAX_H = isMobileLayout ? "70vh" : "560px"; // 560px ≈ Shortcuts tab full height
   const CC_MAX_W = "900px";
   return (
     <div
@@ -80,7 +80,7 @@ export default function CommandCenter({ open, onOpenChange, isMobile }) {
         // header autohide animation pattern, 2026-05-22 direction).
         transform: open ? "translateY(0)" : "translateY(-8px)",
         opacity: open ? 1 : 0,
-        transition: isMobile
+        transition: isMobileLayout
           ? "max-height 0.18s ease-out, transform 0.18s ease-out, opacity 0.18s ease-out"
           : "max-height 0.36s cubic-bezier(0.4, 0, 0.2, 1), transform 0.36s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.32s ease-out",
         // No outer bg/border so the grid shows through to the sides of the
@@ -93,7 +93,7 @@ export default function CommandCenter({ open, onOpenChange, isMobile }) {
         className="cc-card mx-auto overflow-hidden font-mono"
         style={{
           maxWidth: CC_MAX_W,
-          width: isMobile ? "100%" : "calc(100% - 32px)",
+          width: isMobileLayout ? "100%" : "calc(100% - 32px)",
           background: "var(--body-bg)",
           border: open ? "1px solid var(--border-default)" : "none",
           borderRadius: open ? 8 : 0,

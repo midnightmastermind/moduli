@@ -2963,6 +2963,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   object-fit: contain;   /* show the WHOLE image, never crop */
   order: 0;
   flex: 0 0 auto;
+  margin-top: 22px;      /* breathing room above the image in image occurrences */
 }
 .doc-editor-content .artifact-card[data-kind="image"] .artifact-thumb-info {
   display: flex;         /* override the .wrap-group hide so captions show */
@@ -3165,6 +3166,15 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    into the host sentence and must not be indented. */
 .textblock-card:not(.textblock-card--inline) .ProseMirror p {
   text-indent: 1.5em;
+}
+/* …and indent lists PAST the prose text-indent above. With the default 1.5em
+   list padding the bullet markers (rendered outside the li) land to the LEFT of
+   the indented prose column and read as outdented; 2.5em seats the markers under
+   the prose indent so the list reads as a proper nested, indented block. Scoped
+   to block textblock cards — doc-container lists have no prose indent. */
+.textblock-card:not(.textblock-card--inline) .ProseMirror ul,
+.textblock-card:not(.textblock-card--inline) .ProseMirror ol {
+  padding-left: 2.5em;
 }
 
 /* textblock-inline (kind:"inline" — task #6.6 / LT1) — same Editor shell

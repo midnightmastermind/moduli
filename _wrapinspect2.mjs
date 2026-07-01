@@ -1,0 +1,27 @@
+import { chromium } from 'playwright-core';
+const token = process.env.TOKEN;
+const exe = '/home/joshpoms/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome';
+const browser = await chromium.launch({ executablePath: exe, args:['--no-sandbox'] });
+const page = await browser.newPage({ viewport:{width:1400,height:1000} });
+await page.goto('http://localhost:5000', { waitUntil:'domcontentloaded' });
+await page.evaluate(([t,g,u]) => { localStorage.setItem('moduli-token',t); localStorage.setItem('moduli-gridId',g); localStorage.setItem('moduli-userId',u); }, [token,'6a2ff50a34a7ab5bd986ba23','699bbdfbf62b06018225b91a']);
+await page.reload({ waitUntil:'networkidle' });
+await page.waitForTimeout(4500);
+const info = await page.evaluate(() => {
+  const wg = document.querySelector('.wrap-group--on');
+  if (!wg) return { found:false };
+  const holder = wg.querySelector('.wrap-group-content > *');
+  const kids = Array.from(holder.children);
+  const neighbor = kids[0], hostEmbed = kids[kids.length-1];
+  const rect = el => el? (r=>({w:Math.round(r.width),h:Math.round(r.height),x:Math.round(r.left),y:Math.round(r.top),b:Math.round(r.bottom)}))(el.getBoundingClientRect()) : null;
+  const card = hostEmbed.querySelector('.textblock-card');
+  const pm = hostEmbed.querySelector('.ProseMirror');
+  const firstP = pm && pm.querySelector('p');
+  const lastP = pm && [...pm.querySelectorAll('p')].pop();
+  const beforeCS = pm ? (cs=>({content:cs.content, float:cs.float, w:cs.width, h:cs.height, display:cs.display}))(getComputedStyle(pm,'::before')) : null;
+  const cardCS = card ? (cs=>({display:cs.display, clipPath:cs.clipPath.slice(0,60), border:cs.borderTopWidth}))(getComputedStyle(card)) : null;
+  const pmCS = pm ? (cs=>({display:cs.display, columnCount:cs.columnCount}))(getComputedStyle(pm)) : null;
+  return { found:true, neighbor:rect(neighbor), hostEmbed:rect(hostEmbed), card:rect(card), cardCS, pm:rect(pm), pmCS, beforeCS, firstP:rect(firstP), firstPtext:(firstP&&firstP.textContent||'').slice(0,40), lastP:rect(lastP) };
+});
+console.log(JSON.stringify(info,null,1));
+await browser.close();

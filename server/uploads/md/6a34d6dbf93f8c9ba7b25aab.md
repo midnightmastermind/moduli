@@ -1,0 +1,1 @@
+{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"(78) Jesus said, \"Why have you come out into the desert? To see a reed shaken by the wind? And to see a man clothed in fine garments like your kings and your great men? Upon them are the fine garments, and they are unable to discern the truth.\""}]}]}

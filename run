@@ -1,0 +1,30 @@
+
+ RUN  v4.1.8 /home/joshpoms/moduli/client
+
+ ❯ src/__tests__/wrapAnchor.test.js (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/wrapAnchor.test.js [ src/__tests__/wrapAnchor.test.js ]
+RollupError: Parse failure: Expected ';', '}' or <eof>
+At file: /src/__tests__/wrapAnchor.test.js:2:6
+  File: /src/__tests__/wrapAnchor.test.js:2:6
+  1  |  
+  2  |   RUN  v4.1.8 /home/joshpoms/moduli/client
+     |        ^
+  3  |  
+  4  |  
+ ❯ getRollupError node_modules/rollup/dist/es/shared/parseAst.js:402:41
+ ❯ convertProgram node_modules/rollup/dist/es/shared/parseAst.js:1114:26
+ ❯ parseAstAsync node_modules/rollup/dist/es/shared/parseAst.js:2100:106
+ ❯ ssrTransformScript node_modules/vite/dist/node/chunks/config.js:15447:9
+ ❯ loadAndTransform node_modules/vite/dist/node/chunks/config.js:22777:64
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 59 passed (60)
+      Tests  1113 passed (1113)
+   Start at  06:55:19
+   Duration  10.63s (transform 11.55s, setup 7.31s, import 27.49s, tests 10.15s, environment 82.98s)
+

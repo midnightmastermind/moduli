@@ -17,7 +17,7 @@ export default function PageFolder({
   siblingOccs,
   dropRef,
   isOver,
-  isMobile,
+  isMobileLayout,
   modulesById,
   panelView,
   folderPageOccId,
@@ -392,7 +392,7 @@ export default function PageFolder({
         overflowY: "auto",
         WebkitOverflowScrolling: "touch",
         overscrollBehavior: "contain",
-        padding: isMobile ? "8px 8px 80px 8px" : "0px 0px 80px 0px",
+        padding: isMobileLayout ? "8px 8px 80px 8px" : "0px 0px 80px 0px",
       }}>
         <div className={viewLayout === "list" ? "preview-node-list" : "preview-node-grid"}>
           {filteredChildOccs.map((occ, i) => {

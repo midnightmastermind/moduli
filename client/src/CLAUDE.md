@@ -2,6 +2,24 @@
 
 _Updated: 2026-06-12. Check this file before re-reading source._
 
+## Recent Changes (2026-06-28 — 22px margin-top above the image in image occurrences)
+- **`index.css`** — `.doc-editor-content .artifact-card[data-kind="image"] .artifact-thumb` gained
+  `margin-top: 22px` for breathing room above imported/occurrence images. Client rebuild (deploy)
+  required to show on prod (no local dev server runs).
+
+## Recent Changes (2026-06-28 — textblock list bullets now indent past the prose text-indent)
+- **`index.css`** — added `.textblock-card:not(.textblock-card--inline) .ProseMirror ul/ol
+  { padding-left: 2.5em }` right after the existing `…p { text-indent: 1.5em }` rule.
+  Root cause (confirmed by a headless render of the real built cascade): block textblock
+  cards indent each paragraph's first line 1.5em (book style), and the default list
+  `padding-left: 1.5em` made the li-text align with that indented prose — so the bullet
+  markers (rendered OUTSIDE the li) hung ~1em to the LEFT of the prose column and read as
+  outdented (user: "the bulletpoints need to be indented", re: the seeded "Anything you do
+  can be measured" app-description textblock). 2.5em seats the markers under the prose
+  indent. Scoped to block textblock cards — doc-container lists have no prose text-indent
+  and are unchanged. Client rebuilt + verified via headless screenshot against the built
+  CSS.
+
 ## Recent Changes (2026-06-17 — LINE-LEVEL wrap morph shipped)
 - Image floats beside a host textblock can now anchor at ANY visual LINE (not just block boundaries):
   new `docs/wrapAnchor.js` (pure, tested) + `anchorOffset` (px) attr on `wrapGroup` → `--wrap-mt`;

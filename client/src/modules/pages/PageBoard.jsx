@@ -42,7 +42,7 @@ export default function PageBoard({
   socket,
   dropRef,
   isOver,
-  isMobile,
+  isMobileLayout,
   fullStateLoaded,
 }) {
   const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
@@ -112,7 +112,7 @@ export default function PageBoard({
         overflowX: mode === "flex-row" ? "auto" : undefined,
         WebkitOverflowScrolling: "touch",
         overscrollBehavior: "contain",
-        padding: isMobile ? "6px 6px 80px 6px" : "0px 5px 80px 5px",
+        padding: isMobileLayout ? "6px 6px 80px 6px" : "0px 5px 80px 5px",
         position: "relative",
         // Page-level isOver outline removed — it toggled via React state and
         // sputtered. The drop area is now shown by DragProvider's direct-DOM

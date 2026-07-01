@@ -1,0 +1,1 @@
+{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"(82) Jesus said, \"He who is near me is near the fire, and he who is far from me is far from the kingdom.\""}]}]}

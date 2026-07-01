@@ -259,7 +259,7 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
     canUndo: false, canRedo: false,
     undo: noop, redo: noop,
     isProcessing: false,
-    isMobile: false,
+    isTouch: false, isMobileLayout: false,
     activeCell: null, setActiveCell: noop,
     zoomedOut: false, setZoomedOut: noop,
   }), [noop, parentState?.computedValues]);

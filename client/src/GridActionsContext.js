@@ -61,7 +61,7 @@ const DEFAULT_VALUE = {
   // Filter system handlers
   onSelectFilter: () => {},
   onFilterValueChange: () => {},
-  // NOTE: computedValues, undo/redo, isMobile, activeCell, zoomedOut
+  // NOTE: computedValues, undo/redo, isMobileLayout, activeCell, zoomedOut
   // moved to GridLiveContext (C4 context split)
 };
 

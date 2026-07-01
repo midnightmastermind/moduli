@@ -267,9 +267,6 @@ export default function App() {
 
   // Mobile grid navigation state
   const { isTouch, isMobileLayout } = useMobileDetect();
-  // Transitional alias — removed in the final routing task. Downstream layout
-  // consumers still read `isMobile` until they are migrated to isMobileLayout.
-  const isMobile = isMobileLayout;
 
   // #23 mobile: install one-time global focusin → scrollIntoView so
   // typing into a field never leaves the cursor under the virtual
@@ -774,7 +771,6 @@ export default function App() {
       undo,
       redo,
       isProcessing,
-      isMobile,
       isTouch,
       isMobileLayout,
       activeCell,
@@ -790,7 +786,6 @@ export default function App() {
       undo,
       redo,
       isProcessing,
-      isMobile,
       isTouch,
       isMobileLayout,
       activeCell,
@@ -835,7 +830,7 @@ export default function App() {
           <CommandCenter
             open={commandCenterOpen}
             onOpenChange={setCommandCenterOpen}
-            isMobile={isMobile}
+            isMobileLayout={isMobileLayout}
           />
         )}
         </div>{/* end header wrapper */}
@@ -863,7 +858,7 @@ export default function App() {
             excluded). Alt held = replace selection on release. */}
         <RubberBandSelector />
 
-        <div data-testid="app-root" className={`app-root grid-frame bg-background2 shadow-inner ${isMobile ? 'p-0 border-0 rounded-none ring-0' : 'p-3 ring-1 ring-black/40 rounded-xl border border-border'}`}
+        <div data-testid="app-root" className={`app-root grid-frame bg-background2 shadow-inner ${isMobileLayout ? 'p-0 border-0 rounded-none ring-0' : 'p-3 ring-1 ring-black/40 rounded-xl border border-border'}`}
           style={{ position: "relative" }}
           onTouchStart={(ev) => {
             if (!commandCenterOpen) return;

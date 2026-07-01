@@ -84,7 +84,7 @@ function Page({
   const foldersById = useGridActionsSelector(s => s.foldersById);
   const childrenByParentId = useGridActionsSelector(s => s.childrenByParentId);
   const { state } = useContext(GridDataContext);
-  const { isMobile, fullStateLoaded } = useContext(GridLiveContext);
+  const { isMobileLayout, fullStateLoaded } = useContext(GridLiveContext);
   const selection = useContext(SelectionContext);
 
   const pageModule = occurrence?.moduleId ? modulesById[occurrence.moduleId] : null;
@@ -389,7 +389,7 @@ function Page({
         siblingOccs={folderChildOccs}
         dropRef={dropRef}
         isOver={isOver}
-        isMobile={isMobile}
+        isMobileLayout={isMobileLayout}
         modulesById={modulesById}
         panelView={panelView}
         folderPageOccId={occurrence?.id}
@@ -411,7 +411,7 @@ function Page({
         socket={socket}
         dropRef={dropRef}
         isOver={isOver}
-        isMobile={isMobile}
+        isMobileLayout={isMobileLayout}
         fullStateLoaded={fullStateLoaded}
       />
     );

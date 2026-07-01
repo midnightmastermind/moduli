@@ -1,0 +1,1 @@
+{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"(95) Jesus said, \"If you have money, do not lend it at interest, but give it to one from whom you will not get it back.\""}]}]}

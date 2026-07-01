@@ -154,8 +154,6 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
     },
   ]), [deleteNode]);
 
-  const displayText = storedText || (hasLink ? (link?.url || "link") : "inline textblock");
-
   return (
     <NodeViewWrapper
       as="span"
@@ -187,7 +185,14 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
       </span>
 
       {/* MIDDLE — editable content (text cursor). stopPropagation on mousedown
-          so a click edits here instead of node-selecting + scrolling the doc. */}
+          so a click edits here instead of node-selecting + scrolling the doc.
+          UNCONTROLLED: the content is owned imperatively by the sync effect (the
+          standard React contentEditable pattern). If we rendered the text as a
+          JSX child, every re-render (e.g. hover → RadialMenu mount) would
+          reconcile the text node and collapse the caret to offset 0 — so a click
+          to edit landed at the START instead of where the user pointed. With no
+          JSX child, React never touches the text subtree, so the native click
+          caret position is preserved. */}
       <span
         ref={contentRef}
         className="itbi-content"
@@ -198,9 +203,7 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
         onInput={(e) => setDraft(e.currentTarget.textContent || "")}
         onBlur={commit}
         onKeyDown={onKeyDown}
-      >
-        {displayText}
-      </span>
+      />
 
       {/* RIGHT — "enter" arrow: opens the link target in a new tab (URL) or
           jumps to the occurrence (in-app). Only for link chips. */}
