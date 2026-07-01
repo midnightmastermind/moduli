@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import RadialMenu from "../ui/RadialMenu";
 import { toast } from "../state/notificationStore";
 import ContextMenu from "../ui/ContextMenu";
+import { useLongPress } from "../hooks/useLongPress";
 import ContainerForm from "../ui/ContainerForm";
 import TransactionHistory from "../ui/TransactionHistory";
 import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
@@ -701,6 +702,99 @@ function Container({
     );
   }
 
+  // Build the container context menu at a given screen point. Called by the
+  // mouse handler (right-click) AND the touch long-press hook.
+  const openContainerMenu = ({ x, y }) => {
+    // Paste-here surfaces when there's a non-empty clipboard. The verb adapts
+    // to mode: Move N here / Paste N here / Paste linked N here.
+    const clip = selection.clipboard;
+    const pasteLabel = clip
+      ? clip.mode === "move"
+        ? `Move ${clip.ids.length} here`
+        : clip.mode === "copylink"
+          ? `Paste linked ${clip.ids.length} here`
+          : `Paste ${clip.ids.length} here`
+      : null;
+    setCtxMenu({
+      x, y,
+      items: [
+        clip && {
+          label: pasteLabel,
+          icon: ClipboardPaste,
+          onClick: () => {
+            const { pasted } = runPasteClipboard({
+              mode: clip.mode,
+              ids: clip.ids,
+              destinationOccurrence: containerOccurrence,
+              destinationModule: module,
+              occurrencesById,
+              dispatch, socket,
+              gridId: ctxState?.gridId || ctxState?.grid?._id,
+              userId: ctxState?.userId,
+              panelId,
+            });
+            selection.clearClipboard();
+            selection.clear();
+            if (pasted > 0) {
+              const verb = clip.mode === "move" ? "Moved" : clip.mode === "copylink" ? "Linked" : "Pasted";
+              toast.success(`${verb} ${pasted} item${pasted === 1 ? "" : "s"}`, { duration: 2000 });
+            } else {
+              toast.error("Nothing pasted", { duration: 2500 });
+            }
+          },
+        },
+        clip && { separator: true },
+        {
+          label: "Add new item here",
+          icon: Plus,
+          onClick: () => onAdd?.(),
+        },
+        {
+          label: "Add textblock here",
+          icon: FileText,
+          onClick: () => {
+            if (!containerOccurrence) return;
+            CommitHelpers.createTextblockInContainer({
+              dispatch, socket,
+              gridId: ctxState?.gridId || ctxState?.grid?._id,
+              userId: ctxState?.userId,
+              containerOccurrence,
+            });
+          },
+        },
+        {
+          label: "Add inline textblock here",
+          icon: Type,
+          onClick: () => {
+            if (!containerOccurrence) return;
+            CommitHelpers.createTextblockInContainer({
+              dispatch, socket,
+              gridId: ctxState?.gridId || ctxState?.grid?._id,
+              userId: ctxState?.userId,
+              containerOccurrence,
+              kind: "inline",
+            });
+          },
+        },
+        { separator: true },
+        {
+          label: "Copy container", icon: Copy, onClick: () => {
+            const newM = { ...module, id: crypto.randomUUID(), label: `${module.label} (Copy)` };
+            CommitHelpers.createModule({ dispatch, socket, module: newM, emit: true });
+          }
+        },
+        containerOccurrence?.linkedGroupId && {
+          label: "Break link",
+          icon: Unlink,
+          onClick: () => CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...containerOccurrence, linkedGroupId: null }, emit: true }),
+        },
+        { separator: true },
+        { label: "Remove from grid", icon: Trash2, danger: true, onClick: removeMe },
+      ].filter(Boolean),
+    });
+  };
+  const containerLongPress = useLongPress(openContainerMenu);
+
   return (
     <div
       ref={containerRef}
@@ -800,106 +894,8 @@ function Container({
             ? { gap: 6, padding: "4px 3px 2px 3px", minHeight: "20px" } // +2px above the items
             : { height: "20px", gap: 6, padding: "2px 3px" }
         }
-        onContextMenu={(e) => {
-          if ("ontouchstart" in window) return;
-          e.preventDefault();
-          e.stopPropagation();
-          // Paste-here surfaces when there's a non-empty clipboard. The
-          // verb adapts to mode: Move N here / Paste N here / Paste
-          // linked N here. Destination is this container.
-          const clip = selection.clipboard;
-          const pasteLabel = clip
-            ? clip.mode === "move"
-              ? `Move ${clip.ids.length} here`
-              : clip.mode === "copylink"
-                ? `Paste linked ${clip.ids.length} here`
-                : `Paste ${clip.ids.length} here`
-            : null;
-          setCtxMenu({
-            x: e.clientX, y: e.clientY,
-            items: [
-              clip && {
-                label: pasteLabel,
-                icon: ClipboardPaste,
-                onClick: () => {
-                  const { pasted } = runPasteClipboard({
-                    mode: clip.mode,
-                    ids: clip.ids,
-                    destinationOccurrence: containerOccurrence,
-                    destinationModule: module,
-                    occurrencesById,
-                    dispatch, socket,
-                    gridId: ctxState?.gridId || ctxState?.grid?._id,
-                    userId: ctxState?.userId,
-                    panelId,
-                  });
-                  selection.clearClipboard();
-                  selection.clear();
-                  // Toast feedback so the user knows the paste landed,
-                  // especially for moves where the visual change is in
-                  // both the source and destination.
-                  if (pasted > 0) {
-                    const verb = clip.mode === "move" ? "Moved" : clip.mode === "copylink" ? "Linked" : "Pasted";
-                    toast.success(`${verb} ${pasted} item${pasted === 1 ? "" : "s"}`, { duration: 2000 });
-                  } else {
-                    toast.error("Nothing pasted", { duration: 2500 });
-                  }
-                },
-              },
-              clip && { separator: true },
-              // CL4 — "Add new item here" entries. Direct creation under
-              // THIS container without opening the QuickAddMenu surface.
-              // Generic instance, plain textblock, and the new inline
-              // textblock variant (LT1).
-              {
-                label: "Add new item here",
-                icon: Plus,
-                onClick: () => onAdd?.(),
-              },
-              {
-                label: "Add textblock here",
-                icon: FileText,
-                onClick: () => {
-                  if (!containerOccurrence) return;
-                  CommitHelpers.createTextblockInContainer({
-                    dispatch, socket,
-                    gridId: ctxState?.gridId || ctxState?.grid?._id,
-                    userId: ctxState?.userId,
-                    containerOccurrence,
-                  });
-                },
-              },
-              {
-                label: "Add inline textblock here",
-                icon: Type,
-                onClick: () => {
-                  if (!containerOccurrence) return;
-                  CommitHelpers.createTextblockInContainer({
-                    dispatch, socket,
-                    gridId: ctxState?.gridId || ctxState?.grid?._id,
-                    userId: ctxState?.userId,
-                    containerOccurrence,
-                    kind: "inline",
-                  });
-                },
-              },
-              { separator: true },
-              {
-                label: "Copy container", icon: Copy, onClick: () => {
-                  const newM = { ...module, id: crypto.randomUUID(), label: `${module.label} (Copy)` };
-                  CommitHelpers.createModule({ dispatch, socket, module: newM, emit: true });
-                }
-              },
-              containerOccurrence?.linkedGroupId && {
-                label: "Break link",
-                icon: Unlink,
-                onClick: () => CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...containerOccurrence, linkedGroupId: null }, emit: true }),
-              },
-              { separator: true },
-              { label: "Remove from grid", icon: Trash2, danger: true, onClick: removeMe },
-            ].filter(Boolean),
-          });
-        }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openContainerMenu({ x: e.clientX, y: e.clientY }); }}
+        {...containerLongPress}
       >
         {embedded ? (
           /* Embedded: single-row header — handle + #label + filter */

@@ -8,6 +8,7 @@ import ResizeHandle from "../ResizeHandle";
 import RadialMenu from "../ui/RadialMenu";
 import ContainerKindSelector from "../ui/ContainerKindSelector";
 import ContextMenu from "../ui/ContextMenu";
+import { useLongPress } from "../hooks/useLongPress";
 import { buildStyleCascadeContext, resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
 import { bumpRender } from "../helpers/renderProbe";
 
@@ -526,7 +527,6 @@ function Panel({
   }, [panelOccurrence, dispatch, socket, state?.grid]);
 
   const handlePanelContextMenu = useCallback((e) => {
-    if ("ontouchstart" in window) return;
     e.preventDefault();
     e.stopPropagation();
     setCtxMenu({
@@ -548,6 +548,10 @@ function Panel({
       ].filter(Boolean),
     });
   }, [handleCopyPanel, handleCopylinkPanel, handleSplitPanel, handleUnsplitPanel, handleRemovePanel, isSplit, panelOccurrence, module.id, dispatch, socket, showHeader]);
+
+  // Touch: long-press opens the same panel menu.
+  const panelLongPress = useLongPress(({ x, y }) =>
+    handlePanelContextMenu({ clientX: x, clientY: y, preventDefault() {}, stopPropagation() {} }));
 
   // DISPLAY STATE
   const display = layout?.style?.display ?? "block";
@@ -793,6 +797,7 @@ function Panel({
       data-testid="panel-shell"
       className={`panel-shell bg-background rounded-lg border border-border shadow-md mod-${module.id}`}
       onContextMenu={handlePanelContextMenu}
+      {...panelLongPress}
       style={{
         // Mosaic panes are positioned by GridMosaic's absolute wrapper, so the
         // panel just fills it (no CSS-grid placement, no grid margin).

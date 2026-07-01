@@ -7,6 +7,7 @@ import React, { useRef, useMemo, useState, useCallback, useContext, useEffect } 
 import { toast } from "../state/notificationStore";
 import RadialMenu from "../ui/RadialMenu";
 import ContextMenu from "../ui/ContextMenu";
+import { useLongPress } from "../hooks/useLongPress";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Trash2, Copy, FileText, ArrowLeft, ChevronLeft, ChevronRight, ClipboardPaste } from "lucide-react";
@@ -274,7 +275,6 @@ function Page({
 
   // Context menu
   const handleContextMenu = useCallback((e) => {
-    if ("ontouchstart" in window) return;
     e.preventDefault();
     e.stopPropagation();
     // Paste-here surfaces when the multi-select clipboard is non-empty.
@@ -324,6 +324,10 @@ function Page({
       ].filter(Boolean),
     });
   }, [showHeader, startEdit, handleDelete, selection, occurrence, pageModule, occurrencesById, dispatch, socket, state, panelId]);
+
+  // Touch: long-press opens the same page menu.
+  const pageLongPress = useLongPress(({ x, y }) =>
+    handleContextMenu({ clientX: x, clientY: y, preventDefault() {}, stopPropagation() {} }));
 
   // Quick-add container inside this page
   const handleQuickAddContainer = useCallback((containerModule) => {
@@ -484,6 +488,7 @@ function Page({
       className={isNestedAsContainer ? "page-shell page-shell--nested" : "page-shell"}
       data-page-occ-id={occurrence?.id}
       onContextMenu={handleContextMenu}
+      {...pageLongPress}
       style={{
         display: "flex",
         flexDirection: "column",

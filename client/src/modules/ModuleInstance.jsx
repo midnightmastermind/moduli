@@ -9,6 +9,7 @@ import { useGridActionsSelector } from "../GridActionsContext";
 import { GridLiveContext } from "../GridLiveContext";
 import { SelectionContext } from "../state/SelectionContext";
 import ContextMenu from "../ui/ContextMenu";
+import { useLongPress } from "../hooks/useLongPress";
 import InstanceForm from "../ui/InstanceForm";
 import FieldRenderer from "../ui/FieldRenderer";
 import { bumpRender } from "../helpers/renderProbe";
@@ -798,7 +799,6 @@ function ModuleInstance({
   }, [occId, selection]);
 
   const handleContextMenu = useCallback((e) => {
-    if ("ontouchstart" in window) return;
     e.preventDefault();
     e.stopPropagation();
     // Bulk-action items appear on top when >1 occurrence is selected — keeps
@@ -895,6 +895,10 @@ function ModuleInstance({
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
   }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, occurrencesById]);
 
+  // Touch: long-press opens the same menu (right-click has no touch equivalent).
+  const instanceLongPress = useLongPress(({ x, y }) =>
+    handleContextMenu({ clientX: x, clientY: y, preventDefault() {}, stopPropagation() {} }));
+
   const handleRef = useRef(null);
 
   const { ref, isDragging, isOver, closestEdge, props } = useDragDrop({
@@ -927,6 +931,7 @@ function ModuleInstance({
       {...props}
       onClick={handleWrapperClick}
       onContextMenu={handleContextMenu}
+      {...instanceLongPress}
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
 
