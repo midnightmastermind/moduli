@@ -2,6 +2,38 @@
 
 _Updated: 2026-06-12. Check this file before re-reading source._
 
+## Recent Changes (2026-06-30 — mobile/touch: `isMobile` split into `isTouch` + `isMobileLayout`)
+- **Root cause of "tablet can't drag / no grid-switch buttons":** everything mobile
+  keyed off one width test (`isMobile = max-width:600px`). A tablet (>600px) reported
+  as desktop → no touch-drag, no `MobileGridNav`. Fixed by splitting the flag.
+- **`hooks/useMobileDetect.js`** now returns `{ isTouch, isMobileLayout }`:
+  - `isTouch = matchMedia("(pointer: coarse)")` — drives touch behaviors (drag,
+    finger-sized targets) in BOTH orientations. Any phone/tablet.
+  - `isMobileLayout = (isTouch && (portrait || width<980)) || width<=600` — drives the
+    single-cell nav / stacked panels / mobile spacing. Tablet **landscape = desktop grid**,
+    **portrait = mobile**; phones always mobile.
+- **Provided via `GridLiveContext`** (App.jsx) — every old `isMobile` reader routed to the
+  correct flag: touch → `isTouch` (`helpers/dragSystem.js` `_isTouch()`, `DragProvider.jsx`
+  drag-start touch-action + gesture-prevention effect); layout → `isMobileLayout`
+  (Grid nav + track resizers, ModulePanel/Page/PageBoard/PageFolder/CanvasContent/FilterNav/
+  CommandCenter). No `isMobile` reader remains.
+- **`hooks/useLongPress.js` (NEW)** — `useLongPress(onLongPress, {delayMs=450, moveTolerance=10})`
+  → touch handlers. Opens the SAME context menu on touch that right-click opens (native
+  long-press→contextmenu is unreliable). Ignores presses on `[data-dnd-handle]`/buttons/inputs.
+  Wired into all 4 `onContextMenu` handlers (container/instance/page/panel) — the
+  `"ontouchstart" in window` bail that disabled touch menus is removed.
+- **QuickAddMenu** gained an `openTrigger` prop (imperative open); the container long-press
+  menu's new **"Add item…"** row bumps it to surface the module picker on touch.
+- **Panel header lip** (`ModulePanel.jsx`) — autohide is now ON under `isMobileLayout`; the
+  centered lip tab is **tap-to-toggle** (chevron flips) since there's no hover.
+- **`ResizeHandle.jsx`** gained a `large` prop (`= isTouch`) → 44px transparent corner grab
+  zone on touch (desktop keeps the compact 18px nub, no corner dead zone).
+- **`index.css`** — `@media (pointer: coarse)` block enlarges radial handle / radial arc
+  items / context-menu rows / quick-add / lip to finger size.
+- Spec: `docs/superpowers/specs/2026-06-30-mobile-touch-optimization-design.md`;
+  plan: `docs/superpowers/plans/2026-06-30-mobile-touch-optimization.md`.
+  New tests: `__tests__/useMobileDetect.test.jsx`, `__tests__/useLongPress.test.jsx`.
+
 ## Recent Changes (2026-06-28 — 22px margin-top above the image in image occurrences)
 - **`index.css`** — `.doc-editor-content .artifact-card[data-kind="image"] .artifact-thumb` gained
   `margin-top: 22px` for breathing room above imported/occurrence images. Client rebuild (deploy)
