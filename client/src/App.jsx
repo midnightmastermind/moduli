@@ -266,7 +266,10 @@ export default function App() {
   useTheme(); // Applies data-theme + dark class from localStorage on mount
 
   // Mobile grid navigation state
-  const { isMobile } = useMobileDetect();
+  const { isTouch, isMobileLayout } = useMobileDetect();
+  // Transitional alias — removed in the final routing task. Downstream layout
+  // consumers still read `isMobile` until they are migrated to isMobileLayout.
+  const isMobile = isMobileLayout;
 
   // #23 mobile: install one-time global focusin → scrollIntoView so
   // typing into a field never leaves the cursor under the virtual
@@ -772,6 +775,8 @@ export default function App() {
       redo,
       isProcessing,
       isMobile,
+      isTouch,
+      isMobileLayout,
       activeCell,
       setActiveCell,
       zoomedOut,
@@ -786,6 +791,8 @@ export default function App() {
       redo,
       isProcessing,
       isMobile,
+      isTouch,
+      isMobileLayout,
       activeCell,
       setActiveCell,
       zoomedOut,

@@ -141,7 +141,7 @@ export const CanvasContent = React.memo(function CanvasContent({
   onDoubleClickBackground, ctxState, containerId, panelId, renderCard,
   showToolbar = false,
 }) {
-  const { isMobile } = useMobileDetect();
+  const { isMobileLayout: isMobile } = useMobileDetect();
   const [drawTool, setDrawTool] = useState("select");
   const [drawColor, setDrawColor] = useState("#e2e8f0");
   const [drawSize, setDrawSize] = useState(2);
