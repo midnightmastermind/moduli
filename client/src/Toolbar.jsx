@@ -43,7 +43,7 @@ export default function Toolbar({
   userId,
   onLogout,
   // Mobile grid navigation
-  isMobile,
+  isMobileLayout,
   activeCell,
   setActiveCell,
   zoomedOut,
@@ -131,7 +131,7 @@ const gridOptions = useMemo(
         padding: "2px 8px",
       }}
       onTouchStart={(e) => {
-        if (!isMobile) return;
+        if (!isMobileLayout) return;
         const startY = e.touches[0].clientY;
         const onMove = (ev) => {
           const dy = ev.touches[0].clientY - startY;
@@ -147,7 +147,7 @@ const gridOptions = useMemo(
       }}
     >
       {/* Notification pills — full stack on desktop, compact count pill on mobile */}
-      {isMobile ? (
+      {isMobileLayout ? (
         <div className="flex items-center" style={{ zIndex: 5 }}>
           <SocketStatusBanner />
           <TransactionNotificationStack compact />
@@ -174,7 +174,7 @@ const gridOptions = useMemo(
         {/* ── Left: Logo + Add Panel + Grid Select ── */}
         <div className="flex items-center gap-1 shrink-0">
           {/* Logo */}
-          <div className="header-logo flex items-center shrink-0" style={{ minWidth: isMobile ? 28 : 80 }}>
+          <div className="header-logo flex items-center shrink-0" style={{ minWidth: isMobileLayout ? 28 : 80 }}>
             <img src="/viafluere_sideways.png" alt="Via Fluere" style={{ height: 22, width: "auto", display: "block" }} />
           </div>
 
@@ -190,7 +190,7 @@ const gridOptions = useMemo(
           </Button>
 
           {/* Grid Select — desktop only (in drawer on mobile) */}
-          {!isMobile && (
+          {!isMobileLayout && (
             <Select
               value={gridId || "__none__"}
               onValueChange={(val) => { if (val !== "__none__") onGridChange?.({ target: { value: val } }); }}
@@ -208,7 +208,7 @@ const gridOptions = useMemo(
           )}
 
           {/* Mini grid map — mobile only, shows when grid has multiple cells */}
-          {isMobile && (grid?.rows > 1 || grid?.cols > 1) && (
+          {isMobileLayout && (grid?.rows > 1 || grid?.cols > 1) && (
             <MiniGridMap
               rows={grid?.rows || 1}
               cols={grid?.cols || 1}
@@ -228,7 +228,7 @@ const gridOptions = useMemo(
             tri-state day cycle. onNav writes to grid.activeFilterValues so the
             widget stays the toolbar's source of truth. */}
         <ToolbarFilterDropdown />
-        {!isMobile && activeFilter && primaryNavFieldId && (
+        {!isMobileLayout && activeFilter && primaryNavFieldId && (
           <FilterNavWidget
             filter={activeFilter}
             navConfig={null}
@@ -245,7 +245,7 @@ const gridOptions = useMemo(
         {/* ── Right: Filter + Pomodoro + Terminal + Account ── */}
         <div className="flex items-center gap-1 shrink-0">
           {/* Desktop-only items */}
-          {!isMobile && (
+          {!isMobileLayout && (
             <>
               <div className="w-px h-4 bg-border-default mx-0.5" />
               <PomodoroTimer />
@@ -276,7 +276,7 @@ const gridOptions = useMemo(
           </Button>
 
           {/* Desktop-only: Hide toolbar + Account */}
-          {!isMobile && (
+          {!isMobileLayout && (
             <>
               <Button
                 size="sm"
@@ -338,7 +338,7 @@ const gridOptions = useMemo(
           )}
 
           {/* Mobile-only: Drawer toggle */}
-          {isMobile && (
+          {isMobileLayout && (
             <Button
               size="sm"
               variant={drawerOpen ? "secondary" : "ghost"}
@@ -353,7 +353,7 @@ const gridOptions = useMemo(
       </div>
 
       {/* ── Mobile slide-out drawer ── */}
-      {isMobile && drawerOpen && (
+      {isMobileLayout && drawerOpen && (
         <>
           {/* Backdrop */}
           <div

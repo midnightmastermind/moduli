@@ -17,7 +17,7 @@ function renderNav({ rows, cols, activeCell }) {
       cols={cols}
       activeCell={activeCell}
       setActiveCell={() => {}}
-      isMobile={true}
+      isMobileLayout={true}
       zoomedOut={false}
       setZoomedOut={() => {}}
     >

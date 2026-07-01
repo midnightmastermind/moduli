@@ -87,7 +87,7 @@ export default function MobileGridNav({
   cols,
   activeCell,
   setActiveCell,
-  isMobile,
+  isMobileLayout,
   zoomedOut,
   setZoomedOut,
   visiblePanels = [],
@@ -148,7 +148,7 @@ export default function MobileGridNav({
   visiblePanelsRef.current = visiblePanels;
 
   useEffect(() => {
-    if (!isMobile || zoomedOut) return;
+    if (!isMobileLayout || zoomedOut) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
 
@@ -302,10 +302,10 @@ export default function MobileGridNav({
       viewport.removeEventListener('touchend', onTouchEnd);
       window.visualViewport?.removeEventListener('resize', onResize);
     };
-  }, [isMobile, zoomedOut, rows, cols, navigate]);
+  }, [isMobileLayout, zoomedOut, rows, cols, navigate]);
 
   // Desktop passthrough — zero overhead
-  if (!isMobile) return children;
+  if (!isMobileLayout) return children;
 
   const { row, col } = activeCell;
 

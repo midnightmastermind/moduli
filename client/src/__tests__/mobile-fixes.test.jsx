@@ -100,7 +100,7 @@ describe("Fix 4 — Rail buttons", () => {
         cols={cols}
         activeCell={activeCell}
         setActiveCell={() => {}}
-        isMobile={true}
+        isMobileLayout={true}
         zoomedOut={false}
         setZoomedOut={() => {}}
       >

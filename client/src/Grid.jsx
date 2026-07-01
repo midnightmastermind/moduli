@@ -138,7 +138,7 @@ function GridRender({
   sizesRef,
   onStartColResize,
   onStartRowResize,
-  isMobile,
+  isMobileLayout,
 }) {
   const [foregroundPanelId, setForegroundPanelId] = useState(null);
 
@@ -199,7 +199,7 @@ function GridRender({
       ref={gridRef}
       className={[
         "bg-background2 shadow-inner",
-        isMobile ? "" : "rounded-xl border border-border ring-1 ring-black/30",
+        isMobileLayout ? "" : "rounded-xl border border-border ring-1 ring-black/30",
         fullscreenPanelId !== null ? "pointer-events-none opacity-0" : "",
       ].join(" ")}
       style={{
@@ -212,7 +212,7 @@ function GridRender({
         overflow: "visible",
         transition: "opacity 0.15s ease",
         boxSizing: "border-box",
-        margin: isMobile ? "-2px" : "0",
+        margin: isMobileLayout ? "-2px" : "0",
       }}
     >
       {cellsData.map(({ r, c, dark, hasPanel, hasHiddenStack, stackCount }) => (
@@ -220,7 +220,7 @@ function GridRender({
       ))}
 
       {/* Vertical resize handles (between columns) — hidden on mobile */}
-      {!isMobile && [...Array(cols - 1)].map((_, i) => (
+      {!isMobileLayout && [...Array(cols - 1)].map((_, i) => (
         <div
           key={`col-resize-${i}`}
           onMouseDown={(e) => onStartColResize(e, i)}
@@ -250,7 +250,7 @@ function GridRender({
       ))}
 
       {/* Horizontal resize handles (between rows) — hidden on mobile */}
-      {!isMobile && [...Array(rows - 1)].map((_, i) => (
+      {!isMobileLayout && [...Array(rows - 1)].map((_, i) => (
         <div
           key={`row-resize-${i}`}
           onMouseDown={(e) => onStartRowResize(e, i)}
@@ -390,7 +390,6 @@ function GridInner() {
     undo,
     redo,
     isProcessing,
-    isMobile,
     isTouch,
     isMobileLayout,
     activeCell,
@@ -686,7 +685,7 @@ function GridInner() {
       isTouch={isTouch}
       isMobileLayout={isMobileLayout}
     >
-      {layoutTree && !isMobile ? (
+      {layoutTree && !isMobileLayout ? (
         <GridMosaic
           gridRef={gridRef}
           panelsRender={visiblePanels}
@@ -699,7 +698,7 @@ function GridInner() {
           addInstanceToContainer={addInstanceToContainer}
           sizesRef={sizesRef}
         />
-      ) : layoutTree && isMobile ? (
+      ) : layoutTree && isMobileLayout ? (
         <MosaicMobileStack
           gridRef={gridRef}
           layoutTree={layoutTree}
@@ -712,13 +711,13 @@ function GridInner() {
           fullscreenPanelId={fullscreenPanelId}
           setFullscreenPanelId={setFullscreenPanelId}
         />
-      ) : isMobile ? (
+      ) : isMobileLayout ? (
         <MobileGridNav
           rows={rows}
           cols={cols}
           activeCell={activeCell}
           setActiveCell={setActiveCell}
-          isMobile={isMobile}
+          isMobileLayout={isMobileLayout}
           zoomedOut={zoomedOut}
           setZoomedOut={setZoomedOut}
           visiblePanels={visiblePanels}
@@ -741,7 +740,7 @@ function GridInner() {
             sizesRef={sizesRef}
             onStartColResize={startColResize}
             onStartRowResize={startRowResize}
-            isMobile={isMobile}
+            isMobileLayout={isMobileLayout}
           />
         </MobileGridNav>
       ) : (

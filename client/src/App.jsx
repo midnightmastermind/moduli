@@ -823,7 +823,7 @@ export default function App() {
           historyOpen={historyOpen}
           userId={state.userId}
           onLogout={() => { socket?.emit("logout"); dispatch(logoutAction()); }}
-          isMobile={isMobile}
+          isMobileLayout={isMobileLayout}
           activeCell={activeCell}
           setActiveCell={setActiveCell}
           zoomedOut={zoomedOut}
