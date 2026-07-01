@@ -54,7 +54,7 @@ export function tileKindsForRole(targetRole) {
   return ["board"]; // panel
 }
 
-export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null, onOpenChange }) {
+export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null, onOpenChange, openTrigger = 0 }) {
   const { modulesById, roleByModuleId, socket, state, occurrencesById, manifestsById, foldersById, fieldsById } = useGridActions();
   const lookups = useMemo(
     () => ({ manifestsById, foldersById, occurrencesById, modulesById }),
@@ -84,6 +84,14 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     if (!open) reposition();
     setOpen(v => !v);
   }, [open, reposition]);
+
+  // Imperative open: a host bumps `openTrigger` (e.g. an "Add item…" context-menu
+  // row on touch) to open this menu without clicking its own + button.
+  const firstTriggerRef = useRef(true);
+  useEffect(() => {
+    if (firstTriggerRef.current) { firstTriggerRef.current = false; return; }
+    if (!open) { reposition(); setOpen(true); }
+  }, [openTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const closeMenu = useCallback(() => {
     setOpen(false);

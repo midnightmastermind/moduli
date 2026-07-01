@@ -260,6 +260,7 @@ function Container({
   const setShowHeader = useCallback(v => uiDispatch({ showHeader: v }), []);
   const setShowEmbeddedIterNav = useCallback(v => uiDispatch({ showEmbeddedIterNav: v }), []);
   const setFilterPopupPos = useCallback(v => uiDispatch({ filterPopupPos: v }), []);
+  const [quickAddTrigger, setQuickAddTrigger] = useState(0);
   const [dropdownAnchor, setDropdownAnchor] = useState(null);
   const openDropdown = useCallback((e) => {
     setDropdownAnchor(e.currentTarget.getBoundingClientRect());
@@ -750,6 +751,11 @@ function Container({
           onClick: () => onAdd?.(),
         },
         {
+          label: "Add item…",
+          icon: Plus,
+          onClick: () => setQuickAddTrigger((n) => n + 1),
+        },
+        {
           label: "Add textblock here",
           icon: FileText,
           onClick: () => {
@@ -1127,6 +1133,7 @@ function Container({
                 onCreateNew={handleQuickCreate}
                 createLabel="New instance"
                 hostOccurrence={containerOccurrence}
+                openTrigger={quickAddTrigger}
               />
             </div>
           </>
