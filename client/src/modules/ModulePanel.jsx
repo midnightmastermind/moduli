@@ -410,7 +410,9 @@ function Panel({
   // be seeded by createLiveData. Collapses pageHeader + breadcrumbBar; the
   // hover strip at the top of the panel reveals them.
   // On mobile, never autohide — the header serves as a tap target for expand.
-  const autohide = isMobileLayout ? false : !!panelOccurrence?.meta?.autohide;
+  // On touch/mobile the header retracts like desktop autohide, revealed by a
+  // tappable lip (hover doesn't exist). Desktop keeps the per-panel setting.
+  const autohide = isMobileLayout ? true : !!panelOccurrence?.meta?.autohide;
   const toggleAutohide = useCallback(() => {
     if (!panelOccurrence?.id) return;
     const nextMeta = { ...(panelOccurrence.meta || {}), autohide: !autohide };
@@ -1172,7 +1174,7 @@ function Panel({
           const headerCluster = (
             <div
               onMouseEnter={() => autohide && setHeaderRevealed(true)}
-              onMouseLeave={() => autohide && setHeaderRevealed(false)}
+              onMouseLeave={() => { if (autohide && !isMobileLayout) setHeaderRevealed(false); }}
               style={autohide ? {
                 flexShrink: 0,
                 overflow: "hidden",
@@ -1199,17 +1201,19 @@ function Panel({
                   full-width invisible strip gives a forgiving hover zone, and a
                   centered VISIBLE "lip" tab gives the user something specific to
                   aim at. Both reveal the header cluster on hover. */}
-              {autohide && !headerRevealed && (
+              {autohide && (!headerRevealed || isMobileLayout) && (
                 <>
+                  {!headerRevealed && (
+                    <div
+                      onMouseEnter={() => setHeaderRevealed(true)}
+                      style={{ position: "absolute", top: 0, left: 0, right: 0, height: 10, zIndex: 40, cursor: "pointer" }}
+                    />
+                  )}
                   <div
-                    onMouseEnter={() => setHeaderRevealed(true)}
-                    style={{ position: "absolute", top: 0, left: 0, right: 0, height: 10, zIndex: 40, cursor: "pointer" }}
-                  />
-                  <div
-                    onMouseEnter={() => setHeaderRevealed(true)}
-                    onClick={() => setHeaderRevealed(true)}
+                    onMouseEnter={() => { if (!isMobileLayout) setHeaderRevealed(true); }}
+                    onClick={() => setHeaderRevealed((v) => !v)}
                     className="panel-header-lip"
-                    title="Show header"
+                    title={headerRevealed ? "Hide header" : "Show header"}
                     style={{
                       position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
                       zIndex: 41, cursor: "pointer",
@@ -1222,7 +1226,7 @@ function Panel({
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}
                   >
-                    <ChevronDown size={10} style={{ opacity: 0.55 }} />
+                    <ChevronDown size={10} style={{ opacity: 0.55, transform: headerRevealed ? "rotate(180deg)" : "none" }} />
                   </div>
                 </>
               )}
