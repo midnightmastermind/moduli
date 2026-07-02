@@ -607,7 +607,7 @@ export function useDragDrop({
           offsetX = 40;
           offsetY = 14;
           clone = _createDragPill(data?.label || data?.name || type, type);
-          clone.style.transform = `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`;
+          clone.style.transform = `translate3d(${t.clientX - offsetX}px, ${t.clientY - offsetY}px, 0)`;
           document.body.appendChild(clone);
           lastHitX = t.clientX; lastHitY = t.clientY;
           lastHitTestTime = performance.now();
@@ -621,7 +621,7 @@ export function useDragDrop({
         e.preventDefault(); // Active drag — prevent scroll
         // Pill follows finger at 60fps (cheap DOM update)
         if (clone) {
-          clone.style.transform = `translate(${t.clientX - offsetX}px, ${t.clientY - offsetY}px)`;
+          clone.style.transform = `translate3d(${t.clientX - offsetX}px, ${t.clientY - offsetY}px, 0)`;
         }
 
         // A3+A4: Throttle hit-testing + cache when pointer barely moved

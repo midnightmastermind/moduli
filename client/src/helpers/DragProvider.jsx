@@ -235,6 +235,11 @@ export function DragProvider({
   // while the finger is actively moving (no touchmove → no autoscroll).
   const autoscrollRafRef = useRef(0);
   const autoscrollStateRef = useRef({ el: null, dir: 0 });
+  // Cache of the last scrollable-ancestor scan (elementsFromPoint + getComputedStyle
+  // is a per-frame style recalc — the main touch-drag jank on slower tablets).
+  // Re-scan at most every AUTOSCROLL_SCAN_MS; each frame only reads the cached
+  // element's rect (cheap) to decide scroll direction.
+  const autoscrollScanRef = useRef({ el: null, at: 0 });
   const stopAutoscroll = useCallback(() => {
     if (autoscrollRafRef.current) cancelAnimationFrame(autoscrollRafRef.current);
     autoscrollRafRef.current = 0;
@@ -705,15 +710,29 @@ export function DragProvider({
       const isDraggingPanel = s.payload?.type === DragType.PANEL;
       let nextScrollEl = null, nextScrollDir = 0;
       if (!isDraggingPanel) {
-        const stack = document.elementsFromPoint(clientX, clientY);
-        for (const el of stack) {
-          if (!el || el === document.body || el === document.documentElement) continue;
-          const cs = getComputedStyle(el);
-          const oy = cs.overflowY;
-          if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) {
-            nextScrollEl = el;
-            break;
+        // The scrollable ancestor under the finger almost never changes during a
+        // drag, but elementsFromPoint + getComputedStyle-per-element forces a
+        // style recalc every frame. Re-scan only every AUTOSCROLL_SCAN_MS; between
+        // scans reuse the cached element (its rect read below is cheap).
+        const AUTOSCROLL_SCAN_MS = 150;
+        const nowTs = performance.now();
+        const scan = autoscrollScanRef.current;
+        if (nowTs - scan.at > AUTOSCROLL_SCAN_MS || !scan.el || !scan.el.isConnected) {
+          let found = null;
+          const stack = document.elementsFromPoint(clientX, clientY);
+          for (const el of stack) {
+            if (!el || el === document.body || el === document.documentElement) continue;
+            const cs = getComputedStyle(el);
+            const oy = cs.overflowY;
+            if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) {
+              found = el;
+              break;
+            }
           }
+          autoscrollScanRef.current = { el: found, at: nowTs };
+          nextScrollEl = found;
+        } else {
+          nextScrollEl = scan.el;
         }
         if (nextScrollEl) {
           const rect = nextScrollEl.getBoundingClientRect();
