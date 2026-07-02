@@ -4,8 +4,11 @@
 // Merged from ModuleInstance.jsx + Instance.jsx.
 
 import React, { useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { GridDataContext } from "../GridDataContext";
-import { useGridActionsSelector } from "../GridActionsContext";
+import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
+
+// Stable empty array for selector fallbacks — a fresh [] per selector run
+// would defeat the Object.is stability the selector layer depends on.
+const EMPTY_ARR = [];
 import { GridLiveContext } from "../GridLiveContext";
 import { SelectionContext } from "../state/SelectionContext";
 import ContextMenu from "../ui/ContextMenu";
@@ -74,20 +77,53 @@ function InstanceInner({
   embedHideLabel = false,
 }) {
   bumpRender("instance");
-  const { state } = useContext(GridDataContext);
   // Split into per-slice selectors so this component only re-renders when
   // one of its actually-read slices changes identity. Was a single
   // useGridActions() that re-rendered on EVERY actionsValue rebuild — i.e.
   // on every filter change / drop / field edit anywhere on the grid.
+  //
+  // The occurrence-derived maps (occurrencesById / linkedGroupIndex) and the
+  // raw `state` are rebuilt on EVERY occurrence write — instances only
+  // subscribe to their OWN slices (linked group, ancestor chain, grid,
+  // activeId) and read the maps at compute/callback time via the stable
+  // non-subscribing getters. Module-derived maps stay whole-map (stable).
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const addInstanceToContainer = useGridActionsSelector(s => s.addInstanceToContainer);
-  const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
   const modulesById = useGridActionsSelector(s => s.modulesById);
-  const linkedGroupIndex = useGridActionsSelector(s => s.linkedGroupIndex);
   const instancesById = useGridActionsSelector(s => s.instancesById);
   const operationsById = useGridActionsSelector(s => s.operationsById);
+  const ctxGrid = useGridActionsSelector(s => s.state.grid);
+  const ctxActiveId = useGridActionsSelector(s => s.state.activeId);
+  // Fallback closures cover custom providers (tests/previews) that omit the
+  // getters; the app's getters are identity-stable.
+  const getOcc = useGridActionsSelector(s => s.getOcc || ((oid) => (oid ? s.occurrencesById?.[oid] || null : null)));
+  const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
+  const getState = useGridActionsSelector(s => s.getState || (() => s.state || {}));
+  // Own linked-group members — element-wise stable, so only a change to one
+  // of THIS instance's linked siblings re-renders it.
+  const linkedGroup = useGridActionsSelectorShallow(s =>
+    occurrence?.linkedGroupId ? (s.linkedGroupIndex?.[occurrence.linkedGroupId] || EMPTY_ARR) : EMPTY_ARR
+  );
+  // Ancestor occurrence refs root-ward — the reactive dep for the
+  // field-visibility cascade walk (and any future ancestor-derived memo).
+  const ancestorChain = useGridActionsSelectorShallow(s => {
+    const out = [];
+    let cursor = occurrence?.id;
+    let guard = 0;
+    while (cursor && guard++ < 64) {
+      const pid = s.parentByChildId?.[cursor];
+      const parent = pid ? s.occurrencesById?.[pid] : null;
+      if (!parent) break;
+      out.push(parent);
+      cursor = pid;
+    }
+    return out;
+  });
   const { computedValues } = useContext(GridLiveContext);
-  const isOriginalActive = !overlay && state?.activeId === id;
+  const isOriginalActive = !overlay && ctxActiveId === id;
+  // Lite state for FieldRenderer's `state?.grid` reads. Ops read the FULL
+  // fresh state via getState() in Field.jsx — never this object.
+  const ctxStateLite = useMemo(() => ({ grid: ctxGrid }), [ctxGrid]);
 
   // Per-occurrence dragMode overrides instance's defaultDragMode
   const entityDragMode = occurrence?.dragMode ?? instance?.defaultDragMode ?? "move";
@@ -106,9 +142,8 @@ function InstanceInner({
   // C3: O(1) linked sibling lookup via pre-indexed map
   const linkedSiblings = useMemo(() => {
     if (!occurrence?.linkedGroupId) return [];
-    const group = linkedGroupIndex?.[occurrence.linkedGroupId] || [];
-    return group.filter(o => o.id !== occurrence.id);
-  }, [occurrence?.linkedGroupId, linkedGroupIndex]);
+    return linkedGroup.filter(o => o.id !== occurrence.id);
+  }, [occurrence?.linkedGroupId, occurrence?.id, linkedGroup]);
 
   useEffect(() => {
     setDraft({ label: label ?? "" });
@@ -179,8 +214,10 @@ function InstanceInner({
 
   const effectiveFieldVisibility = useMemo(() => {
     if (columnFieldVisibility) return columnFieldVisibility;
-    return getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById });
-  }, [columnFieldVisibility, occurrence, occurrencesById]);
+    // ancestorChain is the reactive dep for the ancestor walk inside.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById: getOccMap() });
+  }, [columnFieldVisibility, occurrence, ancestorChain, getOccMap]);
 
   // Get fields for this instance based on fieldBindings (skip hidden bindings),
   // then apply the cascade-resolved field-visibility (show/hide whitelist).
@@ -281,13 +318,13 @@ function InstanceInner({
     const d = sourceData || {};
     let mod = null;
     if (d.type === "artifact" && d.occurrenceId) {
-      const occ = occurrencesById?.[d.occurrenceId];
+      const occ = getOcc(d.occurrenceId);
       mod = occ ? (modulesById?.[occ.moduleId || occ.targetId]) : null;
     } else if (d.type === "module" && d.role === "artifact") {
       mod = d.data || modulesById?.[d.id];
     }
     return mod?.fileRef || null;
-  }, [occurrencesById, modulesById]);
+  }, [getOcc, modulesById]);
 
   const [mediaDragOver, setMediaDragOver] = useState(false);
 
@@ -346,25 +383,25 @@ function InstanceInner({
     if (!op) return;
     const fieldsLookup = fieldsById || {};
     const operationsLookup = operationsById || {};
-    const occLookup = occurrencesById || {};
+    const occLookup = getOccMap();
     const transaction = { type: "ButtonOp", operationId: op.id, instanceId: id, occurrenceId: occurrence?.id };
     const updates = runMatchingOperations(
       Object.values(operationsLookup),
       "ButtonOp",
       transaction,
-      { state, fieldsById: fieldsLookup, operationsById: operationsLookup, occurrencesById: occLookup }
+      { state: getState(), fieldsById: fieldsLookup, operationsById: operationsLookup, occurrencesById: occLookup }
     );
     if (updates.length > 0) {
       const displayUpdates = updates.filter(u => !u._effect);
       if (displayUpdates.length > 0) dispatch(setComputedValuesAction(displayUpdates));
     }
-  }, [id, occurrence?.id, state, fieldsById, operationsById, occurrencesById, dispatch]);
+  }, [id, occurrence?.id, getState, fieldsById, operationsById, getOccMap, dispatch]);
 
   // Context for derived field calculations (includes filter unit for target
   // scaling — switching the D/W/M/Y toggle should re-scale every progress
   // target on screen).
   const fieldContext = useMemo(() => {
-    const grid = state?.grid;
+    const grid = ctxGrid;
     const namedFilters = grid?.namedFilters || [];
     const activeFilter = namedFilters.find(f => f.id === grid?.activeFilterId);
     const activeFilterValues = grid?.activeFilterValues || {};
@@ -398,15 +435,15 @@ function InstanceInner({
       iterationDate: dateStr || new Date().toISOString(),
       activeFilterUnit: unit || "day",
     };
-  }, [occurrence?.gridId, occurrence?.parentId, state?.grid]);
+  }, [occurrence?.gridId, occurrence?.parentId, ctxGrid]);
 
   // Resolved cascading style for this instance — passes state?.grid
   // as the 4th arg so grid.meta.defaultStyle (the Grid-level cascade
   // root) flows through panel/container defaults into the instance.
   // Per-occurrence overrides still win (handled inside the helper).
   const resolvedInstanceCSS = useMemo(
-    () => styleToCSS(resolveInstanceStyle(instance, container, panel, state?.grid)),
-    [instance, container, panel, state?.grid]
+    () => styleToCSS(resolveInstanceStyle(instance, container, panel, ctxGrid)),
+    [instance, container, panel, ctxGrid]
   );
 
   // Build radial menu items - include Break Link when occurrence is linked
@@ -650,7 +687,7 @@ function InstanceInner({
                   occurrence={occurrence}
                   instance={instance}
                   context={fieldContext}
-                  state={state}
+                  state={ctxStateLite}
                   dispatch={dispatch}
                   socket={socket}
                   compact={true}
@@ -767,13 +804,16 @@ function ModuleInstance({
   // Instances are the hot path — no reactive drag-state subscription (see
   // ModuleContainer). Drag-type gating rides on the hook's `accepts` list.
   const selection = useContext(SelectionContext);
-  // Pull occurrencesById so the bulk-delete handler can look up each
-  // selected occurrence (+ its parent) and pass them to removeOccurrence
-  // so MeasureOps fire and the parent's occurrences[] cleans up. Single-
-  // item delete below already does this for the right-clicked target.
-  const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
-  const parentByChildId = useGridActionsSelector(s => s.parentByChildId);
-  const linkedGroupIndex = useGridActionsSelector(s => s.linkedGroupIndex);
+  // The bulk-delete handler looks up each selected occurrence (+ its parent)
+  // at CALLBACK time via the non-subscribing getters — subscribing to the
+  // per-write-rebuilt maps here re-rendered every instance on every write.
+  const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
+  const getParentId = useGridActionsSelector(s => s.getParentId || ((oid) => (oid ? s.parentByChildId?.[oid] || null : null)));
+  // Linked-badge count for THIS instance's group — a number, so Object.is
+  // keeps it stable across unrelated writes.
+  const linkedGroupCount = useGridActionsSelector(s =>
+    occurrence?.linkedGroupId ? (s.linkedGroupIndex?.[occurrence.linkedGroupId]?.length || 0) : 0
+  );
   const [ctxMenu, setCtxMenu] = useState(null);
   const [showDoc, setShowDoc] = useState(false);
 
@@ -840,17 +880,15 @@ function ModuleInstance({
           // parent's occurrences[] list. Parent lookup mirrors the
           // pasteClipboard / dragHitTesting convention: reverse-scan
           // occurrences[] arrays, fall back to parentId.
+          const occMap = getOccMap();
           for (const id of ids) {
-            const target = occurrencesById?.[id];
-            let parentOcc = null;
-            if (occurrencesById) {
-              // O(1) parent lookup via App-level parentByChildId index.
-              // Was an O(N) scan over every occurrence per selected id
-              // (so bulk-delete of N items was O(N×total)).
-              const parentId = parentByChildId?.[id];
-              parentOcc = parentId ? occurrencesById[parentId] : null;
-              if (!parentOcc && target?.parentId) parentOcc = occurrencesById[target.parentId] || null;
-            }
+            const target = occMap[id];
+            // O(1) parent lookup via App-level parentByChildId index (read
+            // at callback time). Was an O(N) scan over every occurrence per
+            // selected id (so bulk-delete of N items was O(N×total)).
+            const parentId = getParentId(id);
+            let parentOcc = parentId ? occMap[parentId] : null;
+            if (!parentOcc && target?.parentId) parentOcc = occMap[target.parentId] || null;
             CommitHelpers.removeOccurrence({
               dispatch, socket, occurrenceId: id,
               occurrence: target || undefined,
@@ -889,7 +927,7 @@ function ModuleInstance({
       },
     ].filter(Boolean);
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
-  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, occurrencesById]);
+  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, getOccMap, getParentId]);
 
   // Touch: long-press opens the same menu (right-click has no touch equivalent).
   const instanceLongPress = useLongPress(({ x, y }) =>
@@ -936,8 +974,7 @@ function ModuleInstance({
       {isOver && closestEdge === "right" && <div className="drop-indicator drop-indicator-inst-right" />}
 
       {occurrence?.linkedGroupId && (() => {
-        const siblings = linkedGroupIndex?.[occurrence.linkedGroupId] || [];
-        const count = Math.max(0, siblings.length - 1);
+        const count = Math.max(0, linkedGroupCount - 1);
         const title = count > 0 ? `Linked to ${count} other ${count === 1 ? "copy" : "copies"}` : "Linked copy";
         return <Link2 title={title} className="linked-copy-badge" />;
       })()}

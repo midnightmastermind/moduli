@@ -42,7 +42,7 @@ import { createLeafInstanceInParent } from "../helpers/CommitHelpers";
 import { resolveFileRef } from "../helpers/fileRef";
 import RepresentationView from "./RepresentationView";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActionsSelector } from "../GridActionsContext";
 import { runMatchingOperations } from "../helpers/operationExecutor";
 import { setComputedValuesAction } from "../state/actions";
 
@@ -614,11 +614,28 @@ function Field({
   const [selectOpen, setSelectOpen] = useState(false); // for full-mode select popover
   const inputRef = useRef(null);
 
-  // Context needed for occurrence add-new: create a new instance in the library container
-  const { dispatch, socket, gridId, userId, occurrencesById, modulesById, fieldsById, operationsById, state: ctxState } = useGridActions();
-  // Use the prop-passed state when present, fall back to context's. Most
-  // callers thread the latest state via prop; the context is the safe net.
-  const effectiveOpState = state ?? ctxState;
+  // Context needed for occurrence add-new: create a new instance in the library container.
+  // Per-slice selectors instead of useGridActions() — the full-context subscription
+  // re-rendered EVERY mounted Field on every occurrence write (part of the
+  // multi-second drop pause). The per-write-rebuilt maps (occurrencesById /
+  // state) are read at callback time via the non-subscribing getters.
+  const dispatch = useGridActionsSelector(s => s.dispatch);
+  const socket = useGridActionsSelector(s => s.socket);
+  const gridId = useGridActionsSelector(s => s.gridId);
+  const userId = useGridActionsSelector(s => s.userId);
+  const modulesById = useGridActionsSelector(s => s.modulesById);
+  const fieldsById = useGridActionsSelector(s => s.fieldsById);
+  const operationsById = useGridActionsSelector(s => s.operationsById);
+  // Custom providers (tests, previews) may omit the getters — the fallback
+  // closure reads the maps they DO provide. The closure identity is unstable
+  // only for those providers; the app's getters are identity-stable.
+  const getOcc = useGridActionsSelector(s => s.getOcc || ((oid) => (oid ? s.occurrencesById?.[oid] || null : null)));
+  const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
+  const getState = useGridActionsSelector(s => s.getState || (() => s.state || {}));
+  // Ops want the FULL state (occurrences/instances/...) at RUN time. A caller
+  // that still threads a full state via prop wins; the lite state-shaped props
+  // (grid only) and absent props fall through to a fresh getState() read.
+  const resolveOpState = () => (state && state.occurrences ? state : getState());
 
   // occurrenceAddNewCfg is derived from field meta — stable reference, safe to compute here.
   // Read via field?.meta because the `meta` destructure happens later in the function.
@@ -628,7 +645,12 @@ function Field({
   // chipDisplay = the field's `meta.optionsSource.chipDisplay` config (or null).
   // When set, drives which fields/media render on each chip; otherwise the
   // OccurrenceOption auto-derives from the referenced module's bindings.
-  const occMaps = useMemo(() => ({ occurrencesById, modulesById, fieldsById }), [occurrencesById, modulesById, fieldsById]);
+  // `occurrencesById` is a live getter property so chip renderers always read
+  // the CURRENT map at render time without this component subscribing to it.
+  const occMaps = useMemo(
+    () => ({ get occurrencesById() { return getOccMap(); }, modulesById, fieldsById }),
+    [getOccMap, modulesById, fieldsById]
+  );
   const chipDisplay = field?.meta?.optionsSource?.chipDisplay || null;
   const renderOccurrenceOption = useCallback(
     (o) => <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} chipDisplay={chipDisplay} />,
@@ -662,7 +684,7 @@ function Field({
   const handleOccurrenceAddNew = useCallback(({ label: newLabel } = {}) => {
     if (!occurrenceAddNewCfg || !newLabel?.trim()) return;
     const { parentOccurrenceId, stampFields = {} } = occurrenceAddNewCfg;
-    const parentOcc = occurrencesById?.[parentOccurrenceId];
+    const parentOcc = getOcc(parentOccurrenceId);
     if (!parentOcc) return;
 
     // Capture current selections BEFORE the slug write that MultiSelectWithAdd fires after us.
@@ -683,7 +705,7 @@ function Field({
       handleChange(newSelected);
       onCommit?.(newSelected);
     });
-  }, [occurrenceAddNewCfg, occurrencesById, localValue, dispatch, socket, gridId, userId, handleChange, onCommit]);
+  }, [occurrenceAddNewCfg, getOcc, localValue, dispatch, socket, gridId, userId, handleChange, onCommit]);
 
   const handleCommit = useCallback(() => {
     setIsClickEditing(false);
@@ -741,7 +763,7 @@ function Field({
       const updates = runMatchingOperations(
         Object.values(operationsById || {}),
         "ButtonOp", transaction,
-        { state: effectiveOpState, fieldsById, operationsById, occurrencesById },
+        { state: resolveOpState(), fieldsById, operationsById, occurrencesById: getOccMap() },
       );
       if (updates.length > 0) {
         const displayUpdates = updates.filter(u => !u._effect);

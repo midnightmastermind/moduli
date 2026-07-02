@@ -14,7 +14,7 @@ import TransactionHistory from "../ui/TransactionHistory";
 import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { bumpRender } from "../helpers/renderProbe";
 
-import { useGridActionsSelector } from "../GridActionsContext";
+import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
 import { SelectionContext } from "../state/SelectionContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
@@ -201,15 +201,34 @@ function Container({
   // Per-slice selectors — only re-render when an actually-read slice's identity
   // changes (was a single useGridActions() that re-rendered on every actionsValue
   // rebuild — i.e. on every filter change anywhere on the grid).
-  const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
-  const occurrencesByModuleId = useGridActionsSelector(s => s.occurrencesByModuleId);
-  const parentByChildId = useGridActionsSelector(s => s.parentByChildId);
+  //
+  // IMPORTANT: the occurrence-derived maps (occurrencesById / occurrencesByModuleId /
+  // parentByChildId) and `state` are REBUILT ON EVERY OCCURRENCE WRITE — subscribing
+  // to them re-rendered every container on every write (the multi-second drop pause).
+  // Containers now subscribe only to their OWN slices (own occurrence, direct child
+  // refs, ancestor chain, grid) and read the full maps at compute/callback time via
+  // the stable non-subscribing getters. Module-derived maps (instancesById /
+  // leafModulesById / modulesById / viewsById / fieldsById) stay as whole-map
+  // subscriptions — they don't change identity on occurrence writes.
   const instancesById = useGridActionsSelector(s => s.instancesById);
   const leafModulesById = useGridActionsSelector(s => s.leafModulesById);
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const viewsById = useGridActionsSelector(s => s.viewsById);
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
-  const ctxState = useGridActionsSelector(s => s.state);
+  const ctxGrid = useGridActionsSelector(s => s.state.grid);
+  const ctxUserId = useGridActionsSelector(s => s.state.userId);
+  const ctxGridId = useGridActionsSelector(s => s.state.gridId) || ctxGrid?._id;
+  // Fallback closures cover custom providers (tests/previews) that omit the
+  // getters; the app's getters are identity-stable.
+  const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
+  const getParentId = useGridActionsSelector(s => s.getParentId || ((oid) => (oid ? s.parentByChildId?.[oid] || null : null)));
+  // Lite state for children that only read grid/gridId/userId off a
+  // state-shaped prop (FieldRenderer's gridFilters, ContainerPool). Ops in
+  // Field.jsx read the FULL fresh state via getState() — never this object.
+  const ctxStateLite = useMemo(
+    () => ({ grid: ctxGrid, gridId: ctxGridId, userId: ctxUserId }),
+    [ctxGrid, ctxGridId, ctxUserId]
+  );
   // Handlers/getters only — identity-stable, never re-renders this component.
   // Containers are the hot path (hundreds of mounts): NO reactive drag-state
   // subscription here. Drag-type gating rides on the hooks' `accepts` lists +
@@ -330,14 +349,43 @@ function Container({
     CommitHelpers.updateModule({ dispatch, socket, module: { ...module, defaultDragMode: nextMode }, emit: true });
   }, [module, dispatch, socket]);
 
-  const containerOccurrence = useMemo(() => {
-    if (occurrenceOverride) return occurrencesById[occurrenceOverride.id] || occurrenceOverride;
+  // Per-id reactive read of THIS container's occurrence — re-renders only when
+  // the own-occurrence ref changes, not on every map rebuild.
+  const containerOccurrence = useGridActionsSelector(s => {
+    if (occurrenceOverride) return s.occurrencesById?.[occurrenceOverride.id] || occurrenceOverride;
     // O(1) lookup via App-level occurrencesByModuleId index. Each
     // container previously scanned every occurrence on every render
     // (`Object.values(...).find`) — see #24 perf notes.
-    const matches = occurrencesByModuleId?.[module.id];
+    const matches = s.occurrencesByModuleId?.[module.id];
     return matches && matches.length > 0 ? matches[0] : undefined;
-  }, [occurrenceOverride, occurrencesById, occurrencesByModuleId, module.id]);
+  });
+
+  // Reactive trigger for child-derived memos: the array of DIRECT child
+  // occurrence refs. Element-wise stable (useGridActionsSelectorShallow), so
+  // this container re-renders only when its own child list or one of its own
+  // children changes — not on every occurrence write anywhere on the grid.
+  const childOccsKey = useGridActionsSelectorShallow(s => {
+    const ids = containerOccurrence?.occurrences || module?.occurrences || [];
+    return ids.map(id => s.occurrencesById?.[id] || null);
+  });
+
+  // Reactive trigger for ancestor-derived memos (filter cascade, layout
+  // cascade): the chain of ancestor occurrence refs root-ward from this
+  // container. A page filter-nav writes the page occurrence → the ref in this
+  // chain changes → descendants recompute. Everything else leaves it stable.
+  const ancestorChain = useGridActionsSelectorShallow(s => {
+    const out = [];
+    let cursor = containerOccurrence?.id;
+    let guard = 0;
+    while (cursor && guard++ < 64) {
+      const pid = s.parentByChildId?.[cursor];
+      const parent = pid ? s.occurrencesById?.[pid] : null;
+      if (!parent) break;
+      out.push(parent);
+      cursor = pid;
+    }
+    return out;
+  });
 
   const containerDragMode = containerOccurrence?.dragMode ?? module?.defaultDragMode ?? "move";
 
@@ -423,13 +471,12 @@ function Container({
 
   const removeMe = useCallback(() => {
     if (!containerOccurrence?.id) return;
-    // O(1) parent lookup via the App-level parentByChildId index.
-    // Previously scanned every occurrence looking for one whose
-    // `occurrences[]` contained this id. #24 perf.
-    const parentId = parentByChildId?.[containerOccurrence.id];
-    const parentOcc = parentId ? occurrencesById[parentId] : null;
+    // O(1) parent lookup via the App-level parentByChildId index, read at
+    // callback time through the non-subscribing getters. #24 perf.
+    const parentId = getParentId(containerOccurrence.id);
+    const parentOcc = parentId ? getOccMap()[parentId] : null;
     CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: containerOccurrence.id, occurrence: containerOccurrence, parentOccurrence: parentOcc || null, emit: true });
-  }, [containerOccurrence, occurrencesById, parentByChildId, dispatch, socket]);
+  }, [containerOccurrence, getOccMap, getParentId, dispatch, socket]);
 
   // Quick-add: create an occurrence of an existing instance module in this container
   const handleQuickAddInstance = useCallback((instanceModule) => {
@@ -456,25 +503,24 @@ function Container({
     if (!kind || kind === "instance") { onAdd?.(payload); return; }
     CommitHelpers.createChildInContainer({
       dispatch, socket,
-      gridId: ctxState?.gridId || ctxState?.grid?._id,
-      userId: ctxState?.userId,
+      gridId: ctxGridId,
+      userId: ctxUserId,
       containerOccurrence,
       containerModule: module,
       kind, fieldIds, file, index: null,
     });
-  }, [onAdd, dispatch, socket, ctxState, containerOccurrence, module]);
+  }, [onAdd, dispatch, socket, ctxGridId, ctxUserId, containerOccurrence, module]);
 
   const handleConvertListToInstances = useCallback(async (texts) => {
     if (!texts?.length) return;
-    const { grid } = ctxState || {};
-    const userId = ctxState?.userId;
-    const gridId = grid?._id;
+    const userId = ctxUserId;
+    const gridId = ctxGridId;
     if (!userId || !gridId) return;
     for (const text of texts) {
       CommitHelpers.createModule({ dispatch, socket, module: { role: "instance", kind: "board", label: text, userId, gridId, fieldBindings: [], iteration: { mode: "persistent" } }, emit: true });
     }
     toast.success(`${texts.length} instance${texts.length > 1 ? "s" : ""} created — drag from toolbar`);
-  }, [ctxState, dispatch, socket]);
+  }, [ctxGridId, ctxUserId, dispatch, socket]);
 
   const commitOccurrenceUpdate = useCallback((updates) => {
     if (!containerOccurrence?.id) return;
@@ -482,8 +528,8 @@ function Container({
   }, [containerOccurrence, dispatch, socket]);
 
   const resolvedContainerCSS = useMemo(
-    () => styleToCSS(resolveContainerStyle(module, panel, containerOccurrence, ctxState?.grid)),
-    [module, panel, containerOccurrence, ctxState?.grid]
+    () => styleToCSS(resolveContainerStyle(module, panel, containerOccurrence, ctxGrid)),
+    [module, panel, containerOccurrence, ctxGrid]
   );
 
   // Embedded doc card styles — used when this container is rendered inside Artifact.jsx (not a panel child)
@@ -504,14 +550,15 @@ function Container({
     CommitHelpers.updateModule({ dispatch, socket, module: { ...module, ...updates }, emit: true });
   }, [module, dispatch, socket]);
 
-  const ctxGrid = ctxState?.grid;
-
   const containerAllowedEdges = ALL_EDGES;
 
   const containerWithInstances = useMemo(() => {
-    const instanceObjects = getContainerItems(module, occurrencesById, leafModulesById);
+    // childOccsKey is the reactive dep (own children changed); the full map
+    // is read fresh at compute time via the non-subscribing getter.
+    const instanceObjects = getContainerItems(module, getOccMap(), leafModulesById);
     return { ...module, instanceObjects };
-  }, [module, occurrencesById, leafModulesById]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [module, childOccsKey, leafModulesById, getOccMap]);
 
   const { ref: containerRef, isDragging, isOver: isContainerOver, closestEdge, props: containerProps } = useDragDrop({
     type: DragType.CONTAINER,
@@ -545,12 +592,14 @@ function Container({
     if (!containerOccurrence?.id) return null;
     const ctx = buildLayoutCascadeContext({
       leafOccurrence: containerOccurrence,
-      occurrencesById,
+      occurrencesById: getOccMap(),
       modulesById,
-      grid: ctxState?.grid,
+      grid: ctxGrid,
     });
     return resolveLayoutCascade(ctx, "container");
-  }, [containerOccurrence, occurrencesById, modulesById, ctxState?.grid]);
+    // ancestorChain is the reactive dep for the ancestor walk inside.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [containerOccurrence, ancestorChain, modulesById, ctxGrid, getOccMap]);
   const stickyHeader = layoutCascade?.resolved?.stickyHeaders === true;
 
   // Occurrence controls order — pass containerOccurrence so ordering reads from occurrence.occurrences.
@@ -560,24 +609,29 @@ function Container({
   const allowChildContainers = !!module?.meta?.allowChildContainers;
   const childModuleLookup = allowChildContainers ? modulesById : leafModulesById;
   const allItemsWithOccurrences = useMemo(
-    () => getContainerItemsWithOccurrences(module, occurrencesById, childModuleLookup, undefined, containerOccurrence),
-    [module, occurrencesById, childModuleLookup, containerOccurrence]
+    // childOccsKey is the reactive dep (direct child refs); the map is a
+    // fresh read at compute time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => getContainerItemsWithOccurrences(module, getOccMap(), childModuleLookup, undefined, containerOccurrence),
+    [module, childOccsKey, childModuleLookup, containerOccurrence, getOccMap]
   );
 
   // Apply active filter: hide occurrences that don't match the effective filter values
   const activeNamedFilter = useMemo(() => {
-    const activeId = ctxState?.grid?.activeFilterId;
+    const activeId = ctxGrid?.activeFilterId;
     if (!activeId) return null;
-    return (ctxState?.grid?.namedFilters || []).find(f => f.id === activeId) || null;
-  }, [ctxState?.grid?.activeFilterId, ctxState?.grid?.namedFilters]);
+    return (ctxGrid?.namedFilters || []).find(f => f.id === activeId) || null;
+  }, [ctxGrid?.activeFilterId, ctxGrid?.namedFilters]);
 
   // Always walk the parent chain — `activeNamedFilter.lock` controls whether THIS
   // occurrence may write its own filterOverride (UI-level editability), not whether
   // ancestor overrides cascade. Mirrors the same fix in ModulePage.jsx — without
   // it, the schedule page's local date wouldn't propagate to slot containers below.
   const effectiveFilters = useMemo(
-    () => getEffectiveFilterForOccurrence(containerOccurrence, { grid: ctxState?.grid, occurrencesById }),
-    [containerOccurrence, ctxState?.grid, occurrencesById]
+    // ancestorChain is the reactive dep for the ancestor filter walk.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => getEffectiveFilterForOccurrence(containerOccurrence, { grid: ctxGrid, occurrencesById: getOccMap() }),
+    [containerOccurrence, ctxGrid, ancestorChain, getOccMap]
   );
 
   // Combine grid's active named-filter conditions with this container's own
@@ -622,15 +676,14 @@ function Container({
   // so both instances and doc/list containers can be dropped onto a canvas.
   const canvasItemsWithOccurrences = useMemo(() => {
     if (!isCanvasContainer) return [];
-    const ids = containerOccurrence?.occurrences || module?.occurrences || [];
-    return ids.map(occId => {
-      const occ = occurrencesById[occId];
+    // childOccsKey already holds the direct child occurrence refs in order.
+    return childOccsKey.map(occ => {
       if (!occ) return null;
       const mod = modulesById[occ.moduleId];
       if (!mod) return null;
       return { module: mod, occurrence: occ };
     }).filter(Boolean);
-  }, [isCanvasContainer, containerOccurrence, module, occurrencesById, modulesById]);
+  }, [isCanvasContainer, childOccsKey, modulesById]);
 
   // Canvas card renderer — wraps <ModuleInstance>/<Container> in an
   // absolute-positioning shell. The inner module handles its own drag
@@ -730,10 +783,10 @@ function Container({
               ids: clip.ids,
               destinationOccurrence: containerOccurrence,
               destinationModule: module,
-              occurrencesById,
+              occurrencesById: getOccMap(),
               dispatch, socket,
-              gridId: ctxState?.gridId || ctxState?.grid?._id,
-              userId: ctxState?.userId,
+              gridId: ctxGridId,
+              userId: ctxUserId,
               panelId,
             });
             selection.clearClipboard();
@@ -764,8 +817,8 @@ function Container({
             if (!containerOccurrence) return;
             CommitHelpers.createTextblockInContainer({
               dispatch, socket,
-              gridId: ctxState?.gridId || ctxState?.grid?._id,
-              userId: ctxState?.userId,
+              gridId: ctxGridId,
+              userId: ctxUserId,
               containerOccurrence,
             });
           },
@@ -777,8 +830,8 @@ function Container({
             if (!containerOccurrence) return;
             CommitHelpers.createTextblockInContainer({
               dispatch, socket,
-              gridId: ctxState?.gridId || ctxState?.grid?._id,
-              userId: ctxState?.userId,
+              gridId: ctxGridId,
+              userId: ctxUserId,
               containerOccurrence,
               kind: "inline",
             });
@@ -1007,7 +1060,7 @@ function Container({
                       binding={binding}
                       occurrence={containerOccurrence}
                       instance={module}
-                      state={ctxState}
+                      state={ctxStateLite}
                       dispatch={dispatch}
                       socket={socket}
                       compact={true}
@@ -1157,7 +1210,7 @@ function Container({
           socket={socket}
           listDropRef={listDropRef}
           module={module}
-          ctxState={ctxState}
+          ctxState={ctxStateLite}
         />
       ) : attachedBodyFields.length > 0 ? (
         /* Attached body field — markdown textarea replaces the body editor */
@@ -1195,7 +1248,7 @@ function Container({
           socket={socket}
           module={module}
           listDropRef={listDropRef}
-          ctxState={ctxState}
+          ctxState={ctxStateLite}
           containerId={module.id}
           panelId={panelId}
           onDoubleClickBackground={(e) => {
@@ -1203,9 +1256,8 @@ function Container({
             const rect = e.currentTarget.getBoundingClientRect();
             const x = Math.round(e.clientX - rect.left);
             const y = Math.round(e.clientY - rect.top);
-            const { grid } = ctxState || {};
-            const userId = ctxState?.userId;
-            const gridId = grid?._id;
+            const userId = ctxUserId;
+            const gridId = ctxGridId;
             if (!userId || !gridId) return;
             const instanceId = crypto.randomUUID();
             CommitHelpers.createInstanceInContainer({
@@ -1231,7 +1283,7 @@ function Container({
         };
 
         const siblingInstances = (fi?.siblingLinks || []).map(id => instancesById[id]).filter(Boolean);
-        const allOccurrences = Object.values(occurrencesById);
+        const allOccurrences = Object.values(getOccMap());
         const getOccDate = (occ) => occ?.meta?.date || occ?.updatedAt || occ?.createdAt || "";
         const foTimeStr = String(getOccDate(fo)).slice(0, 10);
 
@@ -1503,7 +1555,7 @@ function Container({
         <FilterOverridePopup
           pos={filterPopupPos}
           occurrence={containerOccurrence}
-          activeFilterValues={ctxState?.grid?.activeFilterValues || {}}
+          activeFilterValues={ctxGrid?.activeFilterValues || {}}
           onClose={() => setFilterPopupPos(null)}
           onSet={(override) => {
             commitOccurrenceUpdate({ filterOverride: override });
@@ -1516,7 +1568,7 @@ function Container({
       <TransactionHistory
         open={historyOpen}
         onOpenChange={setHistoryOpen}
-        gridId={ctxState?.grid?._id || ctxState?.gridId}
+        gridId={ctxGridId}
         moduleId={module.id}
       />
 

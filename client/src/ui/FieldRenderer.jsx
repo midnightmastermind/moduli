@@ -12,7 +12,8 @@
 import React, { useCallback, useContext, useMemo, useRef, useState, useEffect } from "react";
 import Field from "./Field";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActionsSelector } from "../GridActionsContext";
+import { bumpRender } from "../helpers/renderProbe";
 import { GridLiveContext } from "../GridLiveContext";
 import { resolveOptions } from "../helpers/optionsResolver";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
@@ -29,7 +30,21 @@ function FieldRenderer({
   compact = false,
   disabled = false,
 }) {
-  const { occurrencesById, modulesById, fieldsById, foldersById } = useGridActions();
+  bumpRender("field");
+  // Per-slice selectors instead of useGridActions() — the full-context
+  // subscription re-rendered EVERY mounted FieldRenderer on every occurrence
+  // write (part of the multi-second drop pause). occurrencesById (rebuilt per
+  // write) is read at compute time via the non-subscribing getter; the option
+  // pool re-resolves when the occurrence SET changes (create/delete), when the
+  // field/meta or owner occurrence changes, or when this component re-renders
+  // for any other reason. A field-value edit elsewhere that flips a find-mode
+  // predicate refreshes on the next of those — the always-fresh recompute per
+  // write was the render storm this replaces.
+  const modulesById = useGridActionsSelector(s => s.modulesById);
+  const fieldsById = useGridActionsSelector(s => s.fieldsById);
+  const foldersById = useGridActionsSelector(s => s.foldersById);
+  const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
+  const occSetKey = useGridActionsSelector(s => (s.state.occurrences || []).length);
   const { computedValues } = useContext(GridLiveContext);
 
   // Resolve dynamic options for select and occurrence fields via optionsResolver.
@@ -44,8 +59,11 @@ function FieldRenderer({
       field?.type === "occurrence" ||
       field?.meta?.randomizable === true;
     if (!wantsResolve) return { options: [], totalMatched: 0 };
-    return resolveOptions(field, { occurrencesById, modulesById, fieldsById, foldersById }, occurrence ?? null);
-  }, [field, occurrencesById, modulesById, fieldsById, foldersById, occurrence]);
+    // occSetKey (occurrence count) is the reactive dep; the map is a fresh
+    // read at compute time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return resolveOptions(field, { occurrencesById: getOccMap(), modulesById, fieldsById, foldersById }, occurrence ?? null);
+  }, [field, occSetKey, getOccMap, modulesById, fieldsById, foldersById, occurrence]);
 
   // Expose resolved options under _resolvedOptions for select and occurrence
   // fields (other types don't render an options chooser so the meta isn't read).
@@ -67,6 +85,19 @@ function FieldRenderer({
   // only by convention (per "trust the cascade — don't pre-stamp" memory):
   // instances opting in here is allowed but unusual.
   const gridFilters = state?.grid?.activeFilterValues || null;
+  // Auto-stamp source value — a dedicated REACTIVE selector (the effective-
+  // filter walk reads ancestor occurrences, which the prop-driven memo below
+  // can't see change). Returns the stored value ref / scalar, so Object.is
+  // keeps it stable across unrelated writes. Null when the field doesn't
+  // opt in — the selector then never re-renders this component.
+  const autoStampFromFilter = useGridActionsSelector(s => {
+    if (field?.meta?.autoStampFromFilter !== true || !occurrence) return null;
+    const eff = getEffectiveFilterForOccurrence(occurrence, {
+      grid: { activeFilterValues: gridFilters || {} },
+      occurrencesById: s.occurrencesById,
+    });
+    return eff?.[field.id] ?? null;
+  });
   const { value: inputValue, flow: currentFlow, hideName, hidePrefix, hidePostfix } = useMemo(() => {
     if (!occurrence?.fields || !field?.id) {
       return { value: undefined, flow: "in", hideName: false, hidePrefix: false, hidePostfix: false };
@@ -81,15 +112,10 @@ function FieldRenderer({
       flow = field?.meta?.flow || "in";
     }
     // Auto-stamp from filter when set + stored is empty.
-    if ((value == null || value === "") && field?.meta?.autoStampFromFilter === true) {
-      const eff = getEffectiveFilterForOccurrence(occurrence, {
-        grid: { activeFilterValues: gridFilters || {} },
-        occurrencesById,
-      });
-      const fromFilter = eff?.[field.id];
-      if (fromFilter != null && fromFilter !== "") {
-        value = (typeof fromFilter === "object" && "value" in fromFilter) ? fromFilter.value : fromFilter;
-      }
+    if ((value == null || value === "") && autoStampFromFilter != null && autoStampFromFilter !== "") {
+      value = (typeof autoStampFromFilter === "object" && "value" in autoStampFromFilter)
+        ? autoStampFromFilter.value
+        : autoStampFromFilter;
     }
     return {
       value,
@@ -98,7 +124,7 @@ function FieldRenderer({
       hidePrefix: stored?.hidePrefix === true,
       hidePostfix: stored?.hidePostfix === true,
     };
-  }, [occurrence, occurrencesById, gridFilters, field?.id, field?.meta?.flow, field?.meta?.autoStampFromFilter]);
+  }, [occurrence, autoStampFromFilter, field?.id, field?.meta?.flow]);
 
   // Computed result from operation executor
   const computedResult = useMemo(() => {

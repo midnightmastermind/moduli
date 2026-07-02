@@ -12,6 +12,7 @@
 //     the selector's return value changes via Object.is). Hot-path components
 //     (ModuleInstance / ModuleContainer / ModulePanel / ModulePage / PageBoard)
 //     use this to read their own occurrence/module by id.
+import { useRef } from "react";
 import { createContext, useContext, useContextSelector } from "use-context-selector";
 
 const DEFAULT_VALUE = {
@@ -20,6 +21,16 @@ const DEFAULT_VALUE = {
 
   // Full state object (for calculations)
   state: {},
+
+  // Stable NON-subscribing getters (see App.jsx lookupsRef) — callback-time /
+  // rare-path reads of the per-write-rebuilt maps without subscribing to them.
+  getOcc: () => null,
+  getMod: () => null,
+  getOccMap: () => ({}),
+  getModMap: () => ({}),
+  getParentId: () => null,
+  getLinkedGroup: () => [],
+  getState: () => ({}),
 
   // action creators (passed in)
   updatePanel: () => {},
@@ -73,4 +84,28 @@ export function useGridActions() {
 
 export function useGridActionsSelector(selector) {
   return useContextSelector(GridActionsContext, selector);
+}
+
+// Like useGridActionsSelector, but for selectors that RETURN AN ARRAY built
+// fresh each call (e.g. a container mapping its child ids to occurrence
+// objects). Object.is on a fresh array always differs, which would re-render
+// the subscriber on EVERY context change — the exact broad-map storm this
+// selector layer exists to prevent. This variant returns the PREVIOUS array
+// when the new one is element-wise identical, so subscribers re-render only
+// when a member reference actually changed.
+export function useGridActionsSelectorShallow(selector) {
+  const cache = useRef(null);
+  return useContextSelector(GridActionsContext, (s) => {
+    const next = selector(s);
+    const prev = cache.current;
+    if (
+      Array.isArray(next) && Array.isArray(prev) &&
+      prev.length === next.length &&
+      next.every((v, i) => v === prev[i])
+    ) {
+      return prev;
+    }
+    cache.current = next;
+    return next;
+  });
 }

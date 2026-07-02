@@ -17,7 +17,7 @@
 import React, { useContext, useMemo } from "react";
 import Container from "../ModuleContainer.jsx";
 import { Spinner } from "../../components/ui/spinner";
-import { useGridActionsSelector } from "../../GridActionsContext";
+import { useGridActionsSelector, useGridActionsSelectorShallow } from "../../GridActionsContext";
 import { resolveEffectiveLayout } from "../../helpers/layoutCascade";
 
 // Resolve a sortable numeric key from a child occurrence's field value.
@@ -45,13 +45,30 @@ export default function PageBoard({
   isMobileLayout,
   fullStateLoaded,
 }) {
-  const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
+  // occurrencesById rebuilds on every occurrence write — subscribe only to
+  // the ancestor chain (the reactive dep of the layout-cascade walk) and read
+  // the full map at compute time via the non-subscribing getter.
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const grid = useGridActionsSelector(s => s.grid);
+  const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
+  const ancestorChain = useGridActionsSelectorShallow(s => {
+    const out = [];
+    let cursor = occurrence?.id;
+    let guard = 0;
+    while (cursor && guard++ < 64) {
+      const pid = s.parentByChildId?.[cursor];
+      const parent = pid ? s.occurrencesById?.[pid] : null;
+      if (!parent) break;
+      out.push(parent);
+      cursor = pid;
+    }
+    return out;
+  });
 
   const layout = useMemo(
-    () => resolveEffectiveLayout({ occurrence, occurrencesById, modulesById, grid }),
-    [occurrence, occurrencesById, modulesById, grid]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => resolveEffectiveLayout({ occurrence, occurrencesById: getOccMap(), modulesById, grid }),
+    [occurrence, ancestorChain, modulesById, grid, getOccMap]
   );
 
   const mode = layout?.mode || "stack";

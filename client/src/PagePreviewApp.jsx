@@ -3,7 +3,7 @@
 // Reads state from window.parent.__moduli_state__ (same origin) — no socket needed.
 // Renders the actual Page component at full size — the parent iframe handles CSS scaling.
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { GridActionsContext } from "./GridActionsContext";
 import { GridDataContext } from "./GridDataContext";
 import { GridLiveContext } from "./GridLiveContext";
@@ -232,9 +232,22 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
   );
 
   const noop = useMemo(() => () => {}, []);
+  // Mirror App.jsx's stable non-subscribing getters so hot-path components
+  // (ModuleContainer / ModuleInstance) work identically under preview.
+  const lookupsRef = useRef({});
+  lookupsRef.current = { occurrencesById, modulesById, childrenByParentId, state: parentState || {} };
+  const getOcc = useCallback((id) => (id ? lookupsRef.current.occurrencesById?.[id] || null : null), []);
+  const getMod = useCallback((id) => (id ? lookupsRef.current.modulesById?.[id] || null : null), []);
+  const getOccMap = useCallback(() => lookupsRef.current.occurrencesById || {}, []);
+  const getModMap = useCallback(() => lookupsRef.current.modulesById || {}, []);
+  const getParentId = useCallback(() => null, []);
+  const getLinkedGroup = useCallback(() => [], []);
+  const getState = useCallback(() => lookupsRef.current.state || {}, []);
   const actionsValue = useMemo(() => ({
     dispatch: noop,
     socket: null,
+    state: parentState || {},
+    getOcc, getMod, getOccMap, getModMap, getParentId, getLinkedGroup, getState,
     occurrencesById,
     modulesById,
     viewsById,
@@ -251,7 +264,7 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
     roleByModuleId,
     linkedGroupIndex: {},
     childrenByParentId,
-  }), [occurrencesById, modulesById, viewsById, fieldsById, containersById, instancesById, artifactsById, textblocksById, leafModulesById, manifestsById, foldersById, operationsById, roleByModuleId, childrenByParentId, noop]);
+  }), [occurrencesById, modulesById, viewsById, fieldsById, containersById, instancesById, artifactsById, textblocksById, leafModulesById, manifestsById, foldersById, operationsById, roleByModuleId, childrenByParentId, noop, parentState, getOcc, getMod, getOccMap, getModMap, getParentId, getLinkedGroup, getState]);
 
   const dataValue = useMemo(() => ({ state: parentState || {} }), [parentState]);
   const liveValue = useMemo(() => ({

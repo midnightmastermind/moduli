@@ -9,11 +9,16 @@ import { Spinner } from "../components/ui/spinner.jsx";
 import { resolveFileRef } from "../helpers/fileRef";
 import { getUploadController } from "../helpers/uploadWithProgress";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
+import { useGridActionsSelector } from "../GridActionsContext.js";
 
 export default function ArtifactCard({ module, label, occurrence }) {
   const [expanded, setExpanded] = useState(false);
-  const { dispatch, socket, occurrencesById } = useGridActions() || {};
+  // Per-slice selectors — a full useGridActions() re-rendered every artifact
+  // card on every occurrence write. The parent lookup happens at callback time
+  // via the non-subscribing getter.
+  const dispatch = useGridActionsSelector(s => s.dispatch);
+  const socket = useGridActionsSelector(s => s.socket);
+  const getOcc = useGridActionsSelector(s => s.getOcc || ((oid) => (oid ? s.occurrencesById?.[oid] || null : null)));
   const fileRef = module?.fileRef;
   const kind = module?.kind;
   const status = module?.meta?.uploadStatus;
@@ -73,7 +78,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
     if (!occId || !dispatch || !socket) return;
     // Detach from parent container's occurrences[] (if known via the registry).
     const parentOccId = ctrl?.containerOccurrenceId;
-    const parentOcc = parentOccId ? occurrencesById?.[parentOccId] : null;
+    const parentOcc = parentOccId ? getOcc(parentOccId) : null;
     if (parentOcc) {
       CommitHelpers.updateOccurrence({
         dispatch, socket,
@@ -88,7 +93,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
     if (module?.id) {
       CommitHelpers.deleteModule({ dispatch, socket, moduleId: module.id, emit: true });
     }
-  }, [occurrence, module, dispatch, socket, occurrencesById]);
+  }, [occurrence, module, dispatch, socket, getOcc]);
 
   if (status === "pending") {
     const rawProgress = typeof module?.meta?.uploadProgress === "number" ? module.meta.uploadProgress : 0;

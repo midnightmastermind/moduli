@@ -41,8 +41,11 @@ import { getEffectiveViewMode } from "../helpers/viewMode";
 import { resolveEffectiveViewModeFromCascade, classifyOccurrenceContext } from "../helpers/layoutCascade";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 
-import { useGridActionsSelector } from "../GridActionsContext";
-import { GridDataContext } from "../GridDataContext";
+import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
+
+// Stable empty array for selector fallbacks — a fresh [] per selector run
+// would defeat the Object.is stability the selector layer depends on.
+const EMPTY_ARR = [];
 import { GridLiveContext } from "../GridLiveContext";
 import { SelectionContext } from "../state/SelectionContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
@@ -78,15 +81,41 @@ function Page({
   onDrilldownComplete,
 }) {
   bumpRender("page");
-  const occurrencesById = useGridActionsSelector(s => s.occurrencesById);
+  // Occurrence-derived maps (occurrencesById / childrenByParentId) rebuild on
+  // every write — pages subscribe only to their OWN slices (direct children,
+  // ancestor chain, folder children, grid) and read the maps at compute /
+  // callback time via the non-subscribing getters. Module-derived maps stay
+  // whole-map (stable across occurrence writes).
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const containersById = useGridActionsSelector(s => s.containersById);
   const viewsById = useGridActionsSelector(s => s.viewsById);
   const foldersById = useGridActionsSelector(s => s.foldersById);
-  const childrenByParentId = useGridActionsSelector(s => s.childrenByParentId);
-  const { state } = useContext(GridDataContext);
+  const ctxGrid = useGridActionsSelector(s => s.state.grid);
+  const ctxUserId = useGridActionsSelector(s => s.state.userId);
+  const ctxGridId = useGridActionsSelector(s => s.state.gridId) || ctxGrid?._id;
+  const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const { isMobileLayout, fullStateLoaded } = useContext(GridLiveContext);
   const selection = useContext(SelectionContext);
+
+  // Direct child occurrence refs — the reactive dep for child-derived memos.
+  const childOccsKey = useGridActionsSelectorShallow(s =>
+    (occurrence?.occurrences || []).map(id => s.occurrencesById?.[id] || null)
+  );
+  // Ancestor occurrence refs root-ward (panel → …) — reactive dep for the
+  // filter/style cascade walks.
+  const ancestorChain = useGridActionsSelectorShallow(s => {
+    const out = [];
+    let cursor = occurrence?.id;
+    let guard = 0;
+    while (cursor && guard++ < 64) {
+      const pid = s.parentByChildId?.[cursor];
+      const parent = pid ? s.occurrencesById?.[pid] : null;
+      if (!parent) break;
+      out.push(parent);
+      cursor = pid;
+    }
+    return out;
+  });
 
   const pageModule = occurrence?.moduleId ? modulesById[occurrence.moduleId] : null;
   const pageView = occurrence?.viewId ? viewsById[occurrence.viewId] : null;
@@ -117,16 +146,18 @@ function Page({
     if (!occurrence) return null;
     const ctx = buildStyleCascadeContext({
       leafOccurrence: occurrence,
-      occurrencesById,
+      occurrencesById: getOccMap(),
       modulesById,
-      grid: state?.grid,
+      grid: ctxGrid,
     });
     return resolveStyleCascade(ctx, "page");
-  }, [occurrence, occurrencesById, modulesById, state?.grid]);
+    // ancestorChain is the reactive dep for the ancestor walk inside.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [occurrence, ancestorChain, modulesById, ctxGrid, getOccMap]);
 
   // Tree view: resolve active occurrence from page view
   const treeActiveOccId = isTreeView ? pageView?.activeOccurrenceId : null;
-  const treeActiveOcc = treeActiveOccId ? occurrencesById[treeActiveOccId] : null;
+  const treeActiveOcc = useGridActionsSelector(s => (treeActiveOccId ? s.occurrencesById?.[treeActiveOccId] || null : null));
   const treeActiveOccView = treeActiveOcc?.viewId ? viewsById[treeActiveOcc.viewId] : null;
   const handleRef = useRef(null);
 
@@ -152,10 +183,10 @@ function Page({
 
   // Container list for board pages
   const pageActiveNamedFilter = useMemo(() => {
-    const activeId = state?.grid?.activeFilterId;
+    const activeId = ctxGrid?.activeFilterId;
     if (!activeId) return null;
-    return (state?.grid?.namedFilters || []).find(f => f.id === activeId) || null;
-  }, [state?.grid?.activeFilterId, state?.grid?.namedFilters]);
+    return (ctxGrid?.namedFilters || []).find(f => f.id === activeId) || null;
+  }, [ctxGrid?.activeFilterId, ctxGrid?.namedFilters]);
 
   // Always walk the parent chain — `pageActiveNamedFilter.lock` controls whether
   // THIS occurrence may write its own `filterOverride` (UI-level editability),
@@ -163,8 +194,10 @@ function Page({
   // here was breaking the cascade — e.g. navigating the Schedule page's local
   // date wouldn't propagate to the slot containers below.
   const pageEffectiveFilters = useMemo(
-    () => getEffectiveFilterForOccurrence(occurrence, { grid: state?.grid, occurrencesById }),
-    [occurrence, state?.grid, occurrencesById]
+    // ancestorChain is the reactive dep for the ancestor filter walk.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => getEffectiveFilterForOccurrence(occurrence, { grid: ctxGrid, occurrencesById: getOccMap() }),
+    [occurrence, ctxGrid, ancestorChain, getOccMap]
   );
 
   // Combine grid's active named-filter conditions with the page's own
@@ -183,13 +216,17 @@ function Page({
   // Includes: (1) page/doc occurrences with parentId = this folder
   //           (2) folder-page occurrences for each sub-folder of this folder
   // Excludes self, templates.
-  const folderChildOccs = useMemo(() => {
-    if (kind !== "folder") return [];
+  // Shallow context selector (not a useMemo over childrenByParentId — that map
+  // rebuilds on every occurrence write): the result is an array of occurrence
+  // REFS, so element-wise comparison keeps folder pages from re-rendering on
+  // unrelated writes while still reacting when a folder child changes.
+  const folderChildOccs = useGridActionsSelectorShallow(s => {
+    if (kind !== "folder") return EMPTY_ARR;
     const folderId = occurrence?.parentId;
-    if (!folderId) return [];
+    if (!folderId) return EMPTY_ARR;
 
     // Direct children: occurrences whose parentId matches this folder
-    const directChildren = (childrenByParentId[folderId] || [])
+    const directChildren = (s.childrenByParentId?.[folderId] || [])
       .filter(occ => {
         if (occ.id === occurrence.id) return false;
         if (occ.meta?.isTemplate) return false;
@@ -197,14 +234,14 @@ function Page({
       });
 
     // Sub-folder pages: find child folders, then find their folder-page occurrences
-    const childFolders = Object.values(foldersById || {})
+    const childFolders = Object.values(s.foldersById || {})
       .filter(f => f.parentId === folderId);
     const seenIds = new Set(directChildren.map(c => c.id));
     const subFolderPageOccs = [];
     for (const sf of childFolders) {
-      const sfChildren = childrenByParentId[sf.id] || [];
+      const sfChildren = s.childrenByParentId?.[sf.id] || [];
       const folderPageOcc = sfChildren.find(occ => {
-        const mod = modulesById[occ.moduleId];
+        const mod = s.modulesById?.[occ.moduleId];
         return mod?.kind === "folder" && mod?.role === "page";
       });
       if (folderPageOcc && !seenIds.has(folderPageOcc.id)) {
@@ -214,10 +251,13 @@ function Page({
 
     return [...directChildren, ...subFolderPageOccs]
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  }, [kind, occurrence?.parentId, occurrence?.id, childrenByParentId, modulesById, foldersById]);
+  });
 
   const containersList = useMemo(() => {
     if (!occurrence) return [];
+    // childOccsKey is the reactive dep (direct child refs); the full map is a
+    // fresh read at compute time via the non-subscribing getter.
+    const occurrencesById = getOccMap();
     // Pages can host any module role (containers, artifacts, textblocks, nested pages).
     // Pass full modulesById so non-container child modules also resolve.
     const childModules = getPageChildrenModules(occurrence, occurrencesById, modulesById);
@@ -251,7 +291,8 @@ function Page({
     // Strip the temporary `instance` field so we don't leak it into the
     // existing PageBoard call sites that expect `{ container, occurrence }`.
     return sorted.map(({ container, occurrence }) => ({ container, occurrence }));
-  }, [occurrence, occurrencesById, modulesById, pageEffectiveFilters, pageActiveFilterConditions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [occurrence, childOccsKey, modulesById, pageEffectiveFilters, pageActiveFilterConditions, getOccMap]);
 
   // Label editing
   const startEdit = useCallback(() => {
@@ -300,10 +341,10 @@ function Page({
               ids: clip.ids,
               destinationOccurrence: occurrence,
               destinationModule: pageModule,
-              occurrencesById,
+              occurrencesById: getOccMap(),
               dispatch, socket,
-              gridId: pageModule?.gridId || state?.grid?._id,
-              userId: pageModule?.userId || state?.userId,
+              gridId: pageModule?.gridId || ctxGridId,
+              userId: pageModule?.userId || ctxUserId,
               panelId,
             });
             selection.clearClipboard();
@@ -323,7 +364,7 @@ function Page({
         { label: "Remove page", icon: Trash2, danger: true, onClick: handleDelete },
       ].filter(Boolean),
     });
-  }, [showHeader, startEdit, handleDelete, selection, occurrence, pageModule, occurrencesById, dispatch, socket, state, panelId]);
+  }, [showHeader, startEdit, handleDelete, selection, occurrence, pageModule, getOccMap, dispatch, socket, ctxGridId, ctxUserId, panelId]);
 
   // Touch: long-press opens the same page menu.
   const pageLongPress = useLongPress(({ x, y }) =>
@@ -435,9 +476,9 @@ function Page({
   // sets navAllowChange=false.
   const pageViewMode = resolveEffectiveViewModeFromCascade({
     occurrence,
-    occurrencesById,
+    occurrencesById: getOccMap(),
     modulesById,
-    grid: state?.grid,
+    grid: ctxGrid,
   }) || getEffectiveViewMode(occurrence, "default");
   if (pageViewMode === "representation") {
     return (
@@ -471,7 +512,7 @@ function Page({
   // inline as a container.
   const pageContextKind = classifyOccurrenceContext({
     occurrence,
-    occurrencesById,
+    occurrencesById: getOccMap(),
     modulesById,
   });
   // D4 (2026-05-24): top-level pages also accept `actual-converted` so
@@ -626,12 +667,12 @@ function Page({
                 targetRole="container"
                 onSelect={handleQuickAddContainer}
                 onCreateNew={({ kind } = {}) => {
-                  if (!occurrence?.id || !state?.userId || !state?.grid?._id) return;
+                  if (!occurrence?.id || !ctxUserId || !ctxGridId) return;
                   const id = crypto.randomUUID();
                   const mod = { id, role: "container", kind: kind || "board", label: `List ${containersList.length + 1}` };
                   CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
                   const occId = crypto.randomUUID();
-                  const occ = { id: occId, userId: state.userId, gridId: state.grid._id, moduleId: id, fields: {} };
+                  const occ = { id: occId, userId: ctxUserId, gridId: ctxGridId, moduleId: id, fields: {} };
                   CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
                   const updatedOccs = [...(occurrence.occurrences || []), occId];
                   CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });

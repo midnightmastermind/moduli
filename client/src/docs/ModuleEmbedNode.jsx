@@ -4,7 +4,7 @@
 // into the module's own RadialMenu via extraItems — no separate wrapper handle.
 import { NodeViewWrapper } from "@tiptap/react";
 import { useContext, useRef, useCallback, useState, useMemo, useEffect } from "react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
+import { useGridActionsSelector } from "../GridActionsContext.js";
 import Container from "../modules/ModuleContainer.jsx";
 import ModuleInstance from "../modules/ModuleInstance.jsx";
 import ArtifactContent from "../modules/ArtifactContent.jsx";
@@ -37,14 +37,22 @@ function alignStyle(align, width) {
 }
 
 export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos, deleteNode }) {
-  const { occurrencesById, modulesById, viewsById, dispatch, socket, fieldsById } = useGridActions() || {};
+  // Per-slice selectors — a full useGridActions() re-rendered EVERY embed on
+  // every occurrence write (doc pages mount one of these per embedded module).
+  // The embed subscribes only to ITS occurrence; module/view maps are stable
+  // across occurrence writes.
+  const modulesById = useGridActionsSelector(s => s.modulesById);
+  const viewsById = useGridActionsSelector(s => s.viewsById);
+  const dispatch = useGridActionsSelector(s => s.dispatch);
+  const socket = useGridActionsSelector(s => s.socket);
+  const fieldsById = useGridActionsSelector(s => s.fieldsById);
   // Cell-mode projection: set by the enclosing cell <Editor> when the column
   // has a displayFieldId configured. Null/undefined = full doc-mode render.
   const { displayFieldId, hideLabel: cellHideLabel } = useContext(CellEmbedContext) || {};
   const occurrenceId = node.attrs.occurrenceId;
   const align = node.attrs.align || "full";
   const width = node.attrs.width || null;
-  const occurrence = occurrencesById?.[occurrenceId];
+  const occurrence = useGridActionsSelector(s => (occurrenceId ? s.occurrencesById?.[occurrenceId] : undefined));
   const mod = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const occView = occurrence?.viewId ? viewsById?.[occurrence.viewId] : null;
 
@@ -63,7 +71,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
     };
     embedDeleteRegistry.set(occurrenceId, onRegistryDelete);
     return () => { embedDeleteRegistry.delete(occurrenceId); };
-  }, [occurrenceId, deleteNode, editor, occurrencesById, dispatch, socket]);
+  }, [occurrenceId, deleteNode, editor, dispatch, socket]);
 
   // Resize drag state
   const resizeRef = useRef(null);
@@ -188,7 +196,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
     });
 
     return items;
-  }, [align, updateAttributes, editor, getPos, mod, node.nodeSize, occurrenceId, occurrencesById, dispatch, socket]);
+  }, [align, updateAttributes, editor, getPos, mod, node.nodeSize, occurrenceId, dispatch, socket]);
 
   if (!mod) {
     return (

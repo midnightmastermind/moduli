@@ -687,10 +687,32 @@ export default function App() {
     [state.pages]
   );
 
+  // Stable NON-subscribing getters for callback-time / rare-path reads of the
+  // per-write-rebuilt maps. Components that only need a map inside an event
+  // handler (bulk delete, drop resolution, popup content) use these instead of
+  // subscribing to the whole map — subscribing made every container/instance
+  // re-render on every occurrence write (the multi-second drop pause).
+  const lookupsRef = useRef({});
+  lookupsRef.current = { occurrencesById, modulesById, parentByChildId, linkedGroupIndex, state };
+  const getOcc = useCallback((id) => (id ? lookupsRef.current.occurrencesById?.[id] || null : null), []);
+  const getMod = useCallback((id) => (id ? lookupsRef.current.modulesById?.[id] || null : null), []);
+  const getOccMap = useCallback(() => lookupsRef.current.occurrencesById || {}, []);
+  const getModMap = useCallback(() => lookupsRef.current.modulesById || {}, []);
+  const getParentId = useCallback((id) => (id ? lookupsRef.current.parentByChildId?.[id] || null : null), []);
+  const getLinkedGroup = useCallback((groupId) => (groupId ? lookupsRef.current.linkedGroupIndex?.[groupId] || [] : []), []);
+  const getState = useCallback(() => lookupsRef.current.state || {}, []);
+
   const actionsValue = useMemo(
     () => ({
       socket,
       dispatch,
+      getOcc,
+      getMod,
+      getOccMap,
+      getModMap,
+      getParentId,
+      getLinkedGroup,
+      getState,
 
       // Full state object for calculations
       state,
@@ -725,6 +747,7 @@ export default function App() {
     }),
     [
       dispatch,
+      getOcc, getMod, getOccMap, getModMap, getParentId, getLinkedGroup, getState,
       // Granular state deps — deliberately excludes state.computedValues
       // so that frequent computedValues changes (via GridLiveContext) don't
       // force all GridActionsContext consumers to re-render.
