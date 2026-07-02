@@ -10,7 +10,10 @@ const ResizeHandle = ({ panel, cols, rows, onResize, onResizeEnd, large = false 
     const panelEl = e.target.closest('[data-panel-id]');
     const gridEl = panelEl?.closest('[style*="display: grid"]') || panelEl?.parentElement?.parentElement;
 
-    if (!panelEl || !gridEl) return;
+    if (!panelEl || !gridEl) {
+      if (typeof window !== "undefined" && window.__resizeDebug) console.log("[resize] start ABORTED — no panelEl/gridEl", { hasPanelEl: !!panelEl, hasGridEl: !!gridEl, target: e.target?.className });
+      return;
+    }
 
     const startX = e.clientX || e.touches?.[0]?.clientX;
     const startY = e.clientY || e.touches?.[0]?.clientY;
@@ -37,6 +40,11 @@ const ResizeHandle = ({ panel, cols, rows, onResize, onResizeEnd, large = false 
 
     const handleMove = (moveEvent) => {
       if (!startRef.current) return;
+      // Touch: claim the gesture so the browser doesn't interpret it as a page
+      // scroll (which fires touchcancel, skips handleEnd, and corrupts the next
+      // resize — the "works once then dead" symptom). Requires the touchmove
+      // listener to be registered non-passive (below).
+      if (moveEvent.cancelable) moveEvent.preventDefault();
 
       const clientX = moveEvent.clientX || moveEvent.touches?.[0]?.clientX;
       const clientY = moveEvent.clientY || moveEvent.touches?.[0]?.clientY;
@@ -80,12 +88,19 @@ const ResizeHandle = ({ panel, cols, rows, onResize, onResizeEnd, large = false 
       document.removeEventListener('mouseup', handleEnd);
       document.removeEventListener('touchmove', handleMove);
       document.removeEventListener('touchend', handleEnd);
+      document.removeEventListener('touchcancel', handleEnd);
+      if (typeof window !== "undefined" && window.__resizeDebug) console.log("[resize] end", { finalCellWidth, finalCellHeight });
     };
 
     document.addEventListener('mousemove', handleMove);
     document.addEventListener('mouseup', handleEnd);
-    document.addEventListener('touchmove', handleMove);
+    // Non-passive so handleMove's preventDefault actually suppresses page scroll.
+    document.addEventListener('touchmove', handleMove, { passive: false });
     document.addEventListener('touchend', handleEnd);
+    // A cancelled touch (scroll/system gesture) must still clean up, or the next
+    // resize inherits stale listeners + a non-null startRef.
+    document.addEventListener('touchcancel', handleEnd);
+    if (typeof window !== "undefined" && window.__resizeDebug) console.log("[resize] start", { startX, startY, startCellWidth, startCellHeight, cellWidth: Math.round(cellWidth), cellHeight: Math.round(cellHeight) });
   }, [panel, cols, rows, onResize, onResizeEnd]);
 
   return (

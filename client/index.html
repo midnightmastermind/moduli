@@ -14,6 +14,20 @@
 <body>
   <noscript>You need to enable JavaScript to run this app.</noscript>
   <div id="root"></div>
+  <!-- On-device debug console: visit any page with ?debug to load eruda (a
+       floating console) + enable the drag/resize probes. Tap the console
+       bubble to read [dragPerf] / [resize] logs directly on a tablet. -->
+  <script>
+    if (location.search.includes('debug') || localStorage.getItem('moduli_debug') === '1') {
+      localStorage.setItem('moduli_debug', '1');
+      window.__resizeDebug = true;
+      window.__dragPerf = true;
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/eruda';
+      s.onload = function () { try { window.eruda && window.eruda.init(); } catch (e) {} };
+      document.head.appendChild(s);
+    }
+  </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 
