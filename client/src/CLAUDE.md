@@ -2,6 +2,36 @@
 
 _Updated: 2026-06-12. Check this file before re-reading source._
 
+## Recent Changes (2026-07-02 — tablet perf/UX batch: drop cascade, track resize, scroll traps, radial, doc touch drops)
+All deployed + prod reseeded (`c0a124db`). Follows the drag-start fix (`67c2a3e3`, stable
+DragContext + DragStateContext split — see the account2 session + commit message).
+- **`state/bindSocketToStore.js` (`endDropBatch`)** — the deferred post-drop op flush is now
+  CHUNKED (one fire per macrotask, paint/input interleave) and DEDUPED (one shared cascade
+  Set across the burst — each matching op runs ONCE instead of once per MeasureOp fire; same
+  semantic as `fireOperationsBatch`). Set installed only around each synchronous sweep so
+  interleaved user fires never dedup against it. `[drop] op drain done` log under `__dragPerf`.
+- **`Grid.jsx`** — track resizers (`startColResize`/`startRowResize`): non-passive touchmove +
+  `preventDefault` + `touchcancel` cleanup (passive listener made the gesture a page scroll →
+  touchcancel stranded listeners = "works once then dead"). Lanes `touchAction:"none"` (the
+  real gesture claim — React's onTouchStart is passive) + width/height 6→28px on touch
+  (`isTouch` threaded into GridRender). Radial handle 30→36px under coarse pointers (index.css).
+- **`index.css` `.container-list`** — `height:auto; overflow-y:visible` (was 100% + auto):
+  every board container had a few px of internal scroll that ate the touch gesture and blocked
+  page scrolling. PageBoard is the single scroll context (same pattern as embedded containers).
+- **`helpers/dragSystem.js` + `ui/RadialMenu.jsx`** — touch onEnd preventDefaults after a real
+  drag (kills the synthesized click) + stamps `__moduliDragEndAt`; `handleToggle` ignores
+  clicks within 400ms of a drag end → the radial menu no longer pops open after drags.
+- **Doc drops on TOUCH (`dragSystem.registerDocTouchDrop` + `getDocTouchDrop`)** — the doc
+  editor's drop target is Pragmatic-only, so our custom touch drags NEVER reached it and
+  DragProvider's `.doc-editor` guard swallowed the drop → every doc drop (wrap-beside/
+  page-split, embed insert/reorder) was dead on tablets. `Editor.jsx` now names its shared
+  `canDropDoc`/`handleDocDrop` and registers them as a touch drop zone; dragSystem's touch
+  onEnd + the DragProvider guard route doc-landing touch drops there with a synthetic
+  Pragmatic-shaped `location` (single-entry dropTargets stack). Zone lookup climbs past
+  sub-editors to the registered page editor.
+- **Seed** (`server/scripts/createLiveData.js`) — middle column flipped: Notebook/Schedule hub
+  on TOP (mosaic ratio [1, 0.28], rows×cols (0,1)), logo small beneath. Reseeded on prod.
+
 ## Recent Changes (2026-06-30 — mobile/touch: `isMobile` split into `isTouch` + `isMobileLayout`)
 - **Root cause of "tablet can't drag / no grid-switch buttons":** everything mobile
   keyed off one width test (`isMobile = max-width:600px`). A tablet (>600px) reported
