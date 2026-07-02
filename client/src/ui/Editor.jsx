@@ -30,7 +30,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TaskListMarkdown } from "../docs/TaskListMarkdown";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { NATIVE_DND_MIME } from "../helpers/dragSystem";
+import { NATIVE_DND_MIME, registerDocTouchDrop } from "../helpers/dragSystem";
 import { embedDeleteRegistry } from "../helpers/embedRegistry";
 import { findGroupMember, unwrapGroupAt, isNeighborMember } from "../helpers/wrapGroupOps";
 import { sideFromFrac, anchorOffsetForDrop } from "../docs/wrapAnchor";
@@ -1393,10 +1393,9 @@ const Editor = forwardRef(function Editor({
     el.addEventListener("dragover", onDragOver);
     el.addEventListener("dragleave", onDragLeaveNative);
 
-    const cleanup = dropTargetForElements({
-      element: el,
-      getData: () => ({ type: "doc-editor" }),
-      canDrop: ({ source }) => {
+    // Named so BOTH the Pragmatic registration (desktop) and the touch drop
+    // zone (registerDocTouchDrop below) share the exact same drop logic.
+    const canDropDoc = ({ source }) => {
         const sd = source.data || {};
         const type = sd.type;
         // Self-drop guard: when the dragged item's source occurrence IS this
@@ -1414,10 +1413,8 @@ const Editor = forwardRef(function Editor({
         // a field pill instead.
         if (sd.sourceType === "command-center" && (type === "field" || type === "operation")) return false;
         return type === "instance" || type === "field" || type === "container" || type === "artifact" || type === "module";
-      },
-      onDragEnter: () => setIsDropTarget(true),
-      onDragLeave: () => { setIsDropTarget(false); setDragGap(null); setWrapDrop(null); },
-      onDrop: ({ source, location }) => {
+    };
+    const handleDocDrop = ({ source, location }) => {
         setIsDropTarget(false);
         setDragGap(null);
         setWrapDrop(null);
@@ -1660,13 +1657,34 @@ const Editor = forwardRef(function Editor({
           return;
         }
         DLOG("NO BRANCH MATCHED type", type);
-      },
+    };
+
+    const cleanup = dropTargetForElements({
+      element: el,
+      getData: () => ({ type: "doc-editor" }),
+      canDrop: canDropDoc,
+      onDragEnter: () => setIsDropTarget(true),
+      onDragLeave: () => { setIsDropTarget(false); setDragGap(null); setWrapDrop(null); },
+      onDrop: handleDocDrop,
+    });
+
+    // TOUCH: our custom touch drags never fire Pragmatic drop targets, so the
+    // doc editor registers the SAME drop handler as a touch drop zone.
+    // dragSystem / DragProvider route doc-landing touch drops here with a
+    // synthetic single-entry dropTargets stack (this editor = the outermost).
+    const touchDropCleanup = registerDocTouchDrop(el, ({ source, clientX, clientY }) => {
+      if (!canDropDoc({ source })) return;
+      handleDocDrop({
+        source,
+        location: { current: { input: { clientX, clientY }, dropTargets: [{ data: { type: "doc-editor" }, element: el }] } },
+      });
     });
 
     return () => {
       el.removeEventListener("dragover", onDragOver);
       el.removeEventListener("dragleave", onDragLeaveNative);
       cleanup();
+      touchDropCleanup();
     };
   }, [resolveInsertPos, insertAtPos, occurrence?.id]);
 

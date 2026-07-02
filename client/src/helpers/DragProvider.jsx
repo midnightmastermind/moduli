@@ -22,6 +22,7 @@ import {
   NATIVE_DND_MIME,
   parseExternalDrop,
   getWindowId,
+  getDocTouchDrop,
   setupAutoScroll,
 } from "./dragSystem";
 import * as CommitHelpers from "./CommitHelpers";
@@ -788,8 +789,19 @@ export function DragProvider({
     // reads as "the page resets / the block doesn't move." The narrow doc-CONTAINER guard
     // below missed a `role:"textblock"` wrap host, so broaden it: bail whenever the drop
     // point is over a doc editor and let the Editor handle it.
-    if (document.elementFromPoint(x, y)?.closest?.(".doc-editor")) {
-      s.dropHandled = true; clearSession(); return;
+    //
+    // TOUCH: the editor's Pragmatic target never fires for our custom touch
+    // drags, so bailing here silently killed EVERY doc drop on tablets
+    // (wrap-beside/page-split included). Route the drop to the editor's
+    // registered touch handler instead (desktop drops skip this — the editor
+    // already processed them).
+    const docEditorEl = document.elementFromPoint(x, y)?.closest?.(".doc-editor");
+    if (docEditorEl) {
+      s.dropHandled = true;
+      if (dropTarget.isTouchDrop && dropTarget.source) {
+        getDocTouchDrop(docEditorEl)?.({ source: { data: dropTarget.source }, clientX: x, clientY: y });
+      }
+      clearSession(); return;
     }
     const dt = { ...dropTarget, clientX: x, clientY: y };
     const hovered = getHoveredIds(x, y);

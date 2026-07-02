@@ -329,6 +329,37 @@ function _unregisterDrop(el) {
   _dropRegistry.delete(el);
 }
 
+// ============================================================
+// DOC EDITOR TOUCH-DROP ZONES
+// ============================================================
+// Doc editors register their drop handler here for the TOUCH path. The editor's
+// drop target is Pragmatic-only (never fires for our custom touch drags), and
+// DragProvider's `.doc-editor` guard intentionally bails on doc drops (on
+// desktop the editor's own target already handled them) — so without this
+// bridge every doc drop was DEAD on touch: no wrap-beside/page-split, no embed
+// insert or reorder. Keyed by the `.doc-editor` wrapper element; the handler
+// receives ({ source, clientX, clientY }) with source shaped like a Pragmatic
+// drop source ({ data: payload }).
+const _docTouchDropZones = new Map();
+
+export function registerDocTouchDrop(el, fn) {
+  _docTouchDropZones.set(el, fn);
+  return () => _docTouchDropZones.delete(el);
+}
+
+export function getDocTouchDrop(el) {
+  // The drop may land on a textblock/cell SUB-editor's `.doc-editor` — those
+  // never register (the page editor owns doc drops). Climb to the nearest
+  // ANCESTOR editor that did register (the outermost/page editor).
+  let cur = el;
+  while (cur) {
+    const fn = _docTouchDropZones.get(cur);
+    if (fn) return fn;
+    cur = cur.parentElement?.closest?.(".doc-editor") || null;
+  }
+  return null;
+}
+
 function _computeClosestEdge(el, clientX, clientY, allowedEdges) {
   const rect = el.getBoundingClientRect();
   const distances = {
@@ -710,7 +741,21 @@ export function useDragDrop({
             context: { ...curTarget.context, instanceId: curTarget.id, closestEdge: edge },
             clientX: t.clientX, clientY: t.clientY,
             source: payload,
+            // Lets DragProvider's .doc-editor guard route the drop to the
+            // editor's touch handler (on desktop the editor's own Pragmatic
+            // target already ran — touch has no equivalent).
+            isTouchDrop: true,
           });
+        } else {
+          // No registered target under the finger — but doc-editor prose isn't
+          // in the touch registry at all. Route drops landing on a doc straight
+          // to the editor's touch handler (wrap-beside / embed insert).
+          const docEl = document.elementFromPoint(t.clientX, t.clientY)?.closest?.(".doc-editor");
+          const docZone = getDocTouchDrop(docEl);
+          if (docZone) {
+            if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
+            docZone({ source: { data: payload }, clientX: t.clientX, clientY: t.clientY });
+          }
         }
 
         curTarget = null;
