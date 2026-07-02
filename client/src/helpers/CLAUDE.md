@@ -1,6 +1,31 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-06-12. Check this file before re-reading source._
+_Updated: 2026-07-02. Check this file before re-reading source._
+
+## Recent Changes (2026-07-02 — drag-start lag: DragContext split into stable handlers + reactive DragStateContext)
+- **Why:** tablet perf probe showed drag-START lag. Two compounding costs at drag start:
+  (1) the old DragContext value changed identity at drag start/end, so every
+  `useDroppable`/`useDragDrop` hook (hundreds) re-rendered AND tore down / re-registered its
+  Pragmatic DnD targets + touch listeners (`dragCtx` is in the registration effect's deps);
+  (2) reactive `disabled:` props on hot components (387 containers / 193 instances) flipped at
+  drag start, forcing the same re-registration even with a stable context.
+- **`dragSystem.js`** — `DragContext` is now identity-STABLE (handlers/getters only; value built
+  ONCE in DragProvider via `useState(() => ...)`, delegating to the latest callbacks through
+  `apiRef`). New `DragStateContext` + `useDragStateContext()` carries the reactive state
+  (`activePayload/activeType/activeId/isDragging/dragMode/isCopyMode/isMoveMode/isCopylinkMode/`
+  `isPanelDrag/isPageDrag/isContainerDrag/isInstanceDrag/isExternalDrag`) — subscribe ONLY where
+  render output needs it (GridCell, ModulePanel). `getActiveType()` on the stable context gives
+  non-reactive render-time reads (safe where a local `isOver` already re-rendered the component).
+- **`DragProvider.jsx`** — the pre-insertion "draft preview" system is GONE (deepClonePanels/
+  deepCloneContainers/cloneOccurrencesForDraft, previewMoveInstance/previewMoveContainer, and the
+  two big preview blocks in `handleDragMove`) — it deep-cloned panels/containers at drag start
+  (the drag-start pause) and occurrences lazily. Drop indicators (direct-DOM) remain the preview.
+  At drag start `document.body.dataset.dragType/dragKind` are stamped (kind = panel|container|
+  page|leaf) so CSS can gate hot-path behavior with zero re-renders; cleared in `clearSession`.
+- **Consumers migrated 2026-07-02** (prior session did Grid.jsx then hit its limit): ModulePanel →
+  `useDragStateContext`; ModuleContainer/ModuleInstance → NO subscription (dropped their reactive
+  `disabled:` flags — redundant with `accepts` filtering — and use `getActiveType()` / the new
+  `body[data-drag-kind="panel"] .container-shell{pointer-events:none}` CSS rule in index.css).
 
 ## Recent Changes (2026-06-16 — DragProvider: bail on ANY drop over a `.doc-editor` (fixes wrap re-morph "page resets"))
 - **`DragProvider.jsx` (`handleDrop`)** — added an early guard: `if (document.elementFromPoint(x,y)?.closest(".doc-editor")) { s.dropHandled=true; clearSession(); return; }`. The doc Editor's OWN Pragmatic drop target already owns drops landing in a doc editor (re-morph a wrap top↔middle, reorder/insert an embed, form a wrap-beside column). The monitor fired for the SAME drop and ALSO routed it as an occurrence MOVE → embed re-parented + ops re-fired = "the page resets / the block doesn't move." The pre-existing narrow guard only skipped a doc-CONTAINER hover (missed a `role:"textblock"` wrap host). This broad element-at-point check covers all doc hosts. Build clean, 1113 tests.

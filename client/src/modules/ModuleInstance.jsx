@@ -27,7 +27,6 @@ import { Link2, Unlink, Settings, Copy, Move, Play, Zap, ArrowBigDown, Eye, EyeO
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   useDragDrop,
-  useDragContext,
   DragType,
   DropAccepts,
 } from "../helpers/dragSystem";
@@ -89,9 +88,6 @@ function InstanceInner({
   const operationsById = useGridActionsSelector(s => s.operationsById);
   const { computedValues } = useContext(GridLiveContext);
   const isOriginalActive = !overlay && state?.activeId === id;
-
-  const dragCtx = useDragContext();
-  const { isDragging } = dragCtx;
 
   // Per-occurrence dragMode overrides instance's defaultDragMode
   const entityDragMode = occurrence?.dragMode ?? instance?.defaultDragMode ?? "move";
@@ -768,8 +764,8 @@ function ModuleInstance({
   renderBody = null,
   floatHandle = false,
 }) {
-  const dragCtx = useDragContext();
-  const { isContainerDrag } = dragCtx;
+  // Instances are the hot path — no reactive drag-state subscription (see
+  // ModuleContainer). Drag-type gating rides on the hook's `accepts` list.
   const selection = useContext(SelectionContext);
   // Pull occurrencesById so the bulk-delete handler can look up each
   // selected occurrence (+ its parent) and pass them to removeOccurrence
@@ -906,7 +902,6 @@ function ModuleInstance({
     id: module.id,
     data: { ...module, occurrence },
     context: { containerId, containerOccurrenceId: containerOccurrence?.id || null, panelId, instanceId: module.id, occurrenceId: occurrence?.id, sourceType: embedSourceType },
-    disabled: isContainerDrag,
     nativeEnabled: true,
     accepts: DropAccepts.INSTANCE,
     allowedEdges,

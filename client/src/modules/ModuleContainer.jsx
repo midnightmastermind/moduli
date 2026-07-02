@@ -210,8 +210,13 @@ function Container({
   const viewsById = useGridActionsSelector(s => s.viewsById);
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const ctxState = useGridActionsSelector(s => s.state);
+  // Handlers/getters only — identity-stable, never re-renders this component.
+  // Containers are the hot path (hundreds of mounts): NO reactive drag-state
+  // subscription here. Drag-type gating rides on the hooks' `accepts` lists +
+  // the body[data-drag-kind] CSS stamped by DragProvider; one-off render-time
+  // reads use dragCtx.getActiveType() (safe wherever a local isOver state has
+  // already forced a re-render).
   const dragCtx = useDragContext();
-  const { isContainerDrag, isInstanceDrag, isExternalDrag, isPanelDrag } = dragCtx;
   const selection = useContext(SelectionContext);
 
   const [draft, setDraft] = useState(() => ({ label: module.label ?? "" }));
@@ -513,7 +518,6 @@ function Container({
     id: module.id,
     data: { ...containerWithInstances, occurrenceId: containerOccurrence?.id || null, defaultDragMode: containerDragMode },
     context: { panelId, containerId: module.id, occurrenceId: containerOccurrence?.id || null, pageOccurrenceId: pageOccurrenceId || null, sourceType: embedSourceType },
-    disabled: isInstanceDrag || isExternalDrag,
     accepts: [DragType.CONTAINER],
     allowedEdges: containerAllowedEdges,
     dragHandleRef: containerHandleRef,
@@ -524,7 +528,6 @@ function Container({
     id: `container-header:${module.id}`,
     context: { panelId, containerId: module.id, occurrenceId: containerOccurrence?.id || null, insertAt: 0 },
     accepts: DropAccepts.CONTAINER_LIST,
-    disabled: isContainerDrag,
   });
 
   const { ref: listDropRef, isOver: isListOver } = useDroppable({
@@ -532,7 +535,6 @@ function Container({
     id: `container-list:${module.id}`,
     context: { panelId, containerId: module.id, occurrenceId: containerOccurrence?.id || null },
     accepts: DropAccepts.CONTAINER_LIST,
-    disabled: isContainerDrag,
   });
 
   // Resolve the layout cascade for this container so render-time decisions
@@ -819,7 +821,8 @@ function Container({
       style={{
         display: "flex", flexDirection: "column", minHeight: 0, overflow: "visible",
         borderRadius: 10,
-        pointerEvents: (isDragging || isPanelDrag) ? "none" : "auto",
+        // Panel-drag pass-through is CSS: body[data-drag-kind="panel"] .container-shell
+        pointerEvents: isDragging ? "none" : "auto",
         position: "relative", zIndex: isDragging ? 0 : 1,
         opacity: isDragging ? 0.4 : 1,
         transition: "opacity 0.15s",
@@ -1139,7 +1142,8 @@ function Container({
           </>
         )}
 
-        {isHeaderOver && (isInstanceDrag || isExternalDrag) && items.length > 0 && (
+        {isHeaderOver && items.length > 0 &&
+          [DragType.INSTANCE, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL].includes(dragCtx.getActiveType()) && (
           <div className="drop-indicator drop-indicator-insert" style={{ left: 4, right: 4 }} />
         )}
       </div>

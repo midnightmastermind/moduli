@@ -24,7 +24,7 @@ import { GridActionsContext, useGridActions } from "./GridActionsContext";
 import { GridLiveContext } from "./GridLiveContext";
 
 import { DragProvider } from "./helpers/DragProvider";
-import { useDragContext, useDragHotContext, useDroppable, DragType, DropAccepts } from "./helpers/dragSystem";
+import { useDragContext, useDragStateContext, useDragHotContext, useDroppable, DragType, DropAccepts } from "./helpers/dragSystem";
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import { getGridPanels } from "./state/selectors";
 import { applyLocalSort } from "./helpers/LayoutHelpers";
@@ -35,7 +35,8 @@ import { Layers } from "lucide-react";
 // GRID CELL - Drop zone for panels
 // ============================================================
 const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack, stackCount, rows, cols }) {
-  const { isPanelDrag, cyclePanelStack } = useDragContext();
+  const { cyclePanelStack } = useDragContext();
+  const { isPanelDrag } = useDragStateContext();
   const { panelOverCellId } = useDragHotContext();
 
   const cellId = `cell-${r}-${c}`;

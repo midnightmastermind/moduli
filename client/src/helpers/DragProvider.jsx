@@ -16,6 +16,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DragContext,
+  DragStateContext,
   DragHotContext,
   DragType,
   NATIVE_DND_MIME,
@@ -40,26 +41,15 @@ function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
-function deepClonePanels(panels = []) {
-  return panels.map((p) => ({
-    ...p,
-    layout: p.layout ? { ...p.layout, style: { ...(p.layout.style || {}) } } : p.layout,
-    _occurrence: p._occurrence
-      ? { ...p._occurrence, occurrences: [...(p._occurrence.occurrences || [])] }
-      : null,
-  }));
-}
-
-function deepCloneContainers(containers = []) {
-  return containers.map((c) => ({ ...c }));
-}
-
-function cloneOccurrencesForDraft(occurrencesById) {
-  const draft = Object.create(null);
-  for (const [id, occ] of Object.entries(occurrencesById)) {
-    draft[id] = { ...occ, occurrences: [...(occ.occurrences || [])] };
-  }
-  return draft;
+// Classify a drag payload type into a coarse "kind" stamped on <body> as
+// data-drag-kind at drag start (direct DOM — zero React re-renders). CSS rules
+// gate drop indicators / pointer-events off it, so hot components (containers,
+// instances) don't need a reactive drag-state subscription at all.
+function dragKindOf(type) {
+  if (type === DragType.PANEL) return "panel";
+  if (type === DragType.CONTAINER) return "container";
+  if (type === DragType.PAGE) return "page";
+  return "leaf"; // instance / module / artifact / external / file / text / url
 }
 
 function cellKeyFromPanel(p) {
@@ -216,11 +206,6 @@ export function DragProvider({
   const sessionRef = useRef({
     dragging: false,
     payload: null,
-    startPanels: null,
-    startContainers: null,
-    draftPanels: null,
-    draftContainers: null,
-    draftOccurrences: null,
   });
 
   const pointerRef = useRef({ x: 0, y: 0 });
@@ -260,8 +245,6 @@ export function DragProvider({
   // jumping to the outer parent container when the cursor crosses gaps between
   // child containers (the "outer schedule container border sputter").
   const dropBoxElRef = useRef(null);
-  // B2: Cache last preview target to skip redundant draft mutations
-  const lastPreviewRef = useRef({ containerId: null, instanceId: null, panelId: null });
 
   // Direct DOM highlight — bypasses React state for zero-lag drop outline.
   // Targets either container (data-container-id) or panel (data-panel-id)
@@ -334,22 +317,14 @@ export function DragProvider({
   }, [state?.modules]);
 
   // ============================================================
-  // DRAFT-AWARE GETTERS
+  // GETTERS (the pre-insertion-line "draft preview" copies are gone — these
+  // now return the base data directly; kept for API compat with stack helpers)
   // ============================================================
-  const getWorkingPanels = useCallback(() => {
-    const s = sessionRef.current;
-    return s.dragging && s.draftPanels ? s.draftPanels : basePanels;
-  }, [basePanels]);
+  const getWorkingPanels = useCallback(() => basePanels, [basePanels]);
 
-  const getWorkingAllPanels = useCallback(() => {
-    const s = sessionRef.current;
-    return s.dragging && s.draftPanels ? s.draftPanels : baseAllPanels;
-  }, [baseAllPanels]);
+  const getWorkingAllPanels = useCallback(() => baseAllPanels, [baseAllPanels]);
 
-  const getWorkingContainers = useCallback(() => {
-    const s = sessionRef.current;
-    return s.dragging && s.draftContainers ? s.draftContainers : baseContainers;
-  }, [baseContainers]);
+  const getWorkingContainers = useCallback(() => baseContainers, [baseContainers]);
 
   // ============================================================
   // GEOMETRY
@@ -443,15 +418,15 @@ export function DragProvider({
     s.dropHandled = false;
     s.payload = payload;
     s.mode = mode; // Store mode in session ref for immediate access in drop handlers
-    s.startPanels = deepClonePanels(basePanels);
-    s.startContainers = deepCloneContainers(baseContainers);
-    s.draftPanels = deepClonePanels(basePanels);
-    s.draftContainers = deepCloneContainers(baseContainers);
-    s.draftOccurrences = null; // lazy-init on first live-preview access (see handleDragMove)
+
+    // Direct-DOM drag markers — CSS gates drop indicators / pointer-events off
+    // these so hot components need no reactive drag-state subscription.
+    document.body.dataset.dragType = payload?.type || "";
+    document.body.dataset.dragKind = dragKindOf(payload?.type);
 
     setActivePayload(payload);
     setDragMode(mode); // Also set state for UI updates
-  }, [basePanels, baseContainers]);
+  }, []);
 
   // Ref for mobile edge barrier elements (anti-split-screen)
   const edgeBarriersRef = useRef(null);
@@ -514,16 +489,13 @@ export function DragProvider({
     s.dragging = false;
     s.payload = null;
     s.mode = 'move'; // Reset mode to default
-    s.startPanels = null;
-    s.startContainers = null;
-    s.draftPanels = null;
-    s.draftContainers = null;
-    s.draftOccurrences = null;
+
+    delete document.body.dataset.dragType;
+    delete document.body.dataset.dragKind;
 
     setActivePayload(null);
     setPanelOverCellId(null);
     lastHotRef.current = { panelId: null, containerId: null, instanceId: null };
-    lastPreviewRef.current = { containerId: null, instanceId: null, panelId: null };
     setDropHighlight(null);
     hideDropIndicators();
     dropBoxElRef.current = null;
@@ -544,58 +516,6 @@ export function DragProvider({
 
     onTick?.();
   }, [onTick, removeEdgeBarriers]);
-
-  // ============================================================
-  // PREVIEW MUTATIONS
-  // ============================================================
-  // Preview mutations work on draftOccurrences — occurrence.occurrences is the sole source of ordering.
-  const previewMoveInstance = useCallback(({ occurrenceId, toContainerOccId, toIndex }) => {
-    const s = sessionRef.current;
-    if (!s.draftOccurrences || !occurrenceId) return;
-
-    // Remove from all container occurrences
-    for (const occ of Object.values(s.draftOccurrences)) {
-      if (Array.isArray(occ.occurrences) && occ.occurrences.includes(occurrenceId)) {
-        occ.occurrences = occ.occurrences.filter((id) => id !== occurrenceId);
-      }
-    }
-
-    // Add to target container occurrence
-    const toContainerOcc = s.draftOccurrences[toContainerOccId];
-    if (!toContainerOcc) return;
-
-    const list = toContainerOcc.occurrences || [];
-    if (toIndex != null && toIndex >= 0) {
-      list.splice(toIndex, 0, occurrenceId);
-    } else {
-      list.push(occurrenceId);
-    }
-    toContainerOcc.occurrences = list;
-  }, []);
-
-  const previewMoveContainer = useCallback(({ occurrenceId, toPanelOccId, toIndex }) => {
-    const s = sessionRef.current;
-    if (!s.draftOccurrences || !occurrenceId) return;
-
-    // Remove from all panel occurrences
-    for (const occ of Object.values(s.draftOccurrences)) {
-      if (Array.isArray(occ.occurrences) && occ.occurrences.includes(occurrenceId)) {
-        occ.occurrences = occ.occurrences.filter((id) => id !== occurrenceId);
-      }
-    }
-
-    // Add to target panel occurrence
-    const toPanelOcc = s.draftOccurrences[toPanelOccId];
-    if (!toPanelOcc) return;
-
-    const list = toPanelOcc.occurrences || [];
-    if (toIndex != null && toIndex >= 0) {
-      list.splice(toIndex, 0, occurrenceId);
-    } else {
-      list.push(occurrenceId);
-    }
-    toPanelOcc.occurrences = list;
-  }, []);
 
   // ============================================================
   // DRAG HANDLERS
@@ -801,180 +721,11 @@ export function DragProvider({
         }
       }
 
-      // Lazy-init draftOccurrences on first live-preview access — avoids an
-      // O(N) clone of all occurrences at drag-start (which caused the drag-start pause).
-      if (!s.draftOccurrences &&
-          (s.payload?.type === DragType.INSTANCE || s.payload?.type === DragType.CONTAINER)) {
-        s.draftOccurrences = cloneOccurrencesForDraft(occurrencesById);
-      }
-
-      // Live preview for instance sorting (B2: skip if same target)
-      // Ordering is in draftOccurrences (occurrence.occurrences), not draftContainers.
-      if (s.payload?.type === DragType.INSTANCE && containerId &&
-          (lastPreviewRef.current.containerId !== containerId || lastPreviewRef.current.instanceId !== instanceId)) {
-        lastPreviewRef.current = { containerId, instanceId, panelId };
-        const toC = s.draftContainers?.find((c) => c.id === containerId);
-        const fromC = s.startContainers?.find((c) => c.id === s.payload.context?.containerId);
-        let toIndex = null;
-
-        // Resolve container occurrences. Schedule slots have one occurrence per
-        // day sharing the same module id, so prefer the per-occurrence ids
-        // exposed via DOM attributes / payload context. Falling back to a
-        // moduleId-based find() picks the first day's slot — which is rarely
-        // the visible one.
-        const fromCOccId = s.payload.context?.containerOccurrenceId
-          || s.payload.context?.containerOccId
-          || s.payload.context?.parentOccurrenceId
-          || null;
-        const fromCOcc = (fromCOccId && s.draftOccurrences?.[fromCOccId])
-          || (fromC ? Object.values(s.draftOccurrences || {}).find(o => o.moduleId === fromC.id) : null);
-        const toCOcc = (containerOccId && s.draftOccurrences?.[containerOccId])
-          || (toC ? Object.values(s.draftOccurrences || {}).find(o => o.moduleId === toC.id) : null);
-
-        // Source occurrence ID — prefer payload context (set by ModuleInstance) so
-        // we don't have to walk fromCOcc.occurrences[] looking for a target match.
-        const draggedOccId = s.payload.context?.occurrenceId
-          || (fromCOcc ? LayoutHelpers.findOccurrenceIdByTarget(
-            s.payload.id,
-            fromCOcc.occurrences || [],
-            occurrencesById
-          ) : null);
-
-        if (toCOcc && instanceId && instanceId !== s.payload.id && draggedOccId) {
-          // Find the index of hovered instance in target container occurrence
-          const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(
-            instanceId,
-            toCOcc.occurrences || [],
-            occurrencesById
-          );
-
-          if (hoveredIndex !== -1) {
-            // Calculate edge from cursor position. Prefer the per-occurrence
-            // attribute so we hit the SPECIFIC DOM node under the cursor —
-            // querying by data-instance-id alone returns the first match,
-            // which can be far offscreen when the same instance module
-            // appears in multiple slots.
-            const instanceEl = (instanceOccId && document.querySelector(`[data-occurrence-id="${instanceOccId}"]`))
-              || document.querySelector(`[data-instance-id="${instanceId}"]`);
-            if (instanceEl) {
-              const rect = instanceEl.getBoundingClientRect();
-              const { x, y } = pointerRef.current;
-
-              // Determine container orientation
-              const isHorizontal = toC?.layout?.orientation === 'horizontal';
-
-              // Calculate which side of the element we're on
-              if (isHorizontal) {
-                const midX = rect.left + rect.width / 2;
-                const isLeft = x < midX;
-                toIndex = isLeft ? hoveredIndex : hoveredIndex + 1;
-              } else {
-                const midY = rect.top + rect.height / 2;
-                const isTop = y < midY;
-                toIndex = isTop ? hoveredIndex : hoveredIndex + 1;
-              }
-
-              // Adjust if moving within same container
-              if (fromCOcc && fromCOcc.id === toCOcc.id) {
-                const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(
-                  s.payload.id,
-                  fromCOcc.occurrences || [],
-                  occurrencesById
-                );
-                if (fromIndex !== -1 && fromIndex < hoveredIndex) {
-                  toIndex = Math.max(0, toIndex - 1);
-                }
-              }
-            }
-          }
-        }
-
-        if (draggedOccId && toCOcc) {
-          previewMoveInstance({ occurrenceId: draggedOccId, toContainerOccId: toCOcc.id, toIndex });
-        }
-      }
-
-      // Live preview for container sorting (B2: skip if same target)
-      // Ordering is in draftOccurrences (occurrence.occurrences), not draftPanels.
-      if (s.payload?.type === DragType.CONTAINER && panelId &&
-          (lastPreviewRef.current.panelId !== panelId || lastPreviewRef.current.containerId !== containerId)) {
-        lastPreviewRef.current = { containerId, instanceId, panelId };
-        const toPanel = s.draftPanels?.find((p) => p.id === panelId);
-        const fromPanel = s.startPanels?.find((p) => p.id === s.payload.context?.panelId);
-        const hoveredContainerId = containerId; // Already resolved by getHoveredIds above
-        let toIndex = null;
-
-        // Find panel occurrences via draftOccurrences (panel occ = occ with moduleId === panel.id)
-        const fromPanelOcc = fromPanel?._occurrence ? (s.draftOccurrences?.[fromPanel._occurrence.id] || null) : null;
-        const toPanelOcc = toPanel?._occurrence ? (s.draftOccurrences?.[toPanel._occurrence.id] || null) : null;
-
-        // Find the occurrence ID for the dragged container within the from panel occurrence
-        const draggedOccId = fromPanelOcc ? LayoutHelpers.findOccurrenceIdByTarget(
-          s.payload.id,
-          fromPanelOcc.occurrences || [],
-          occurrencesById
-        ) : null;
-
-        if (toPanelOcc && hoveredContainerId && hoveredContainerId !== s.payload.id && draggedOccId) {
-          // Find the index of hovered container in target panel occurrence
-          const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(
-            hoveredContainerId,
-            toPanelOcc.occurrences || [],
-            occurrencesById
-          );
-
-          if (hoveredIndex !== -1) {
-            // Calculate edge from cursor position - use 4-directional detection
-            const containerEl = document.querySelector(`[data-container-id="${hoveredContainerId}"]`);
-            if (containerEl) {
-              const rect = containerEl.getBoundingClientRect();
-              const { x, y } = pointerRef.current;
-
-              // Calculate distances to all four edges
-              const distanceToTop = Math.abs(y - rect.top);
-              const distanceToBottom = Math.abs(y - rect.bottom);
-              const distanceToLeft = Math.abs(x - rect.left);
-              const distanceToRight = Math.abs(x - rect.right);
-
-              // Find closest edge
-              const minDistance = Math.min(distanceToTop, distanceToBottom, distanceToLeft, distanceToRight);
-              let closestEdge;
-              if (minDistance === distanceToTop) closestEdge = 'top';
-              else if (minDistance === distanceToBottom) closestEdge = 'bottom';
-              else if (minDistance === distanceToLeft) closestEdge = 'left';
-              else closestEdge = 'right';
-
-              // All edges use sequential insertion - layout determines visual arrangement
-              if (closestEdge === 'top' || closestEdge === 'left') {
-                toIndex = hoveredIndex;  // Insert before
-              } else {
-                toIndex = hoveredIndex + 1;  // Insert after
-              }
-
-              // Adjust if moving within same panel
-              if (fromPanelOcc && fromPanelOcc.id === toPanelOcc.id) {
-                const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(
-                  s.payload.id,
-                  fromPanelOcc.occurrences || [],
-                  occurrencesById
-                );
-                if (fromIndex !== -1 && fromIndex < hoveredIndex) {
-                  toIndex = Math.max(0, toIndex - 1);
-                }
-              }
-            }
-          }
-        }
-
-        if (draggedOccId && toPanelOcc) {
-          previewMoveContainer({ occurrenceId: draggedOccId, toPanelOccId: toPanelOcc.id, toIndex });
-        }
-      }
 
       onTick?.();
       dragPerf.frame(performance.now() - _frameT0);
     });
-  }, [getCellFromPoint, getHoveredIds, previewMoveInstance, previewMoveContainer, occurrencesById, onTick]);
+  }, [getCellFromPoint, getHoveredIds, onTick]);
 
   const handleDragOver = useCallback((target) => {
     // Called by useDroppable/useDragDrop on dragover. Pragmatic DnD fires
@@ -1421,57 +1172,72 @@ export function DragProvider({
   // CONTEXT VALUE
   // ============================================================
   // Stable context — only changes at drag start/end, NOT during hover
-  const contextValue = useMemo(() => ({
-    // Handlers
-    handleDragStart,
-    handleDragMove,
-    handleDragOver,
-    handleDrop,
-    handleDragEnd,
+  // ============================================================
+  // CONTEXT — split into an identity-STABLE handler context and a small
+  // reactive drag-state context.
+  //
+  // Every useDroppable/useDragDrop hook (hundreds of components) subscribes to
+  // DragContext AND has it in its registration effect's deps. When this value's
+  // identity changed at drag start/end, all of them re-rendered AND tore down /
+  // re-registered their Pragmatic DnD targets + touch listeners — the tablet's
+  // drag-start lag. The value below is created ONCE (delegates read the latest
+  // callbacks off apiRef), so its identity never changes. Reactive drag state
+  // lives in DragStateContext, consumed only by the few components that render
+  // from it (GridCell, ModulePanel).
+  // ============================================================
+  const apiRef = useRef(null);
+  apiRef.current = {
+    handleDragStart, handleDragMove, handleDragOver, handleDrop, handleDragEnd,
+    setDragMode, toggleDragMode,
+    getWorkingPanels, getWorkingAllPanels, getWorkingContainers,
+    getStacksByCell, getStackForPanel, setActivePanelInCell, cyclePanelStack,
+    getHoveredPanelId, getHoveredContainerId,
+  };
+  const [contextValue] = useState(() => ({
+    // Handlers (delegate to the latest render's callbacks via apiRef)
+    handleDragStart: (...a) => apiRef.current.handleDragStart(...a),
+    handleDragMove: (...a) => apiRef.current.handleDragMove(...a),
+    handleDragOver: (...a) => apiRef.current.handleDragOver(...a),
+    handleDrop: (...a) => apiRef.current.handleDrop(...a),
+    handleDragEnd: (...a) => apiRef.current.handleDragEnd(...a),
     getActiveType: () => sessionRef.current.payload?.type || null,
 
-    // State (drag start/end only — not hover)
+    // Copy/Move mode setters
+    setDragMode: (...a) => apiRef.current.setDragMode(...a),
+    toggleDragMode: (...a) => apiRef.current.toggleDragMode(...a),
+
+    // Getters
+    getWorkingPanels: (...a) => apiRef.current.getWorkingPanels(...a),
+    getWorkingAllPanels: (...a) => apiRef.current.getWorkingAllPanels(...a),
+    getWorkingContainers: (...a) => apiRef.current.getWorkingContainers(...a),
+
+    // Stack helpers
+    getStacksByCell: (...a) => apiRef.current.getStacksByCell(...a),
+    getStackForPanel: (...a) => apiRef.current.getStackForPanel(...a),
+    setActivePanelInCell: (...a) => apiRef.current.setActivePanelInCell(...a),
+    cyclePanelStack: (...a) => apiRef.current.cyclePanelStack(...a),
+
+    // Hit testing
+    getHoveredPanelId: (...a) => apiRef.current.getHoveredPanelId(...a),
+    getHoveredContainerId: (...a) => apiRef.current.getHoveredContainerId(...a),
+  }));
+
+  // Reactive drag state — changes at drag start/end + mode toggles only.
+  const dragStateValue = useMemo(() => ({
     activePayload,
     activeType,
     activeId,
     isDragging,
-
-    // Copy/Move mode
     dragMode,
-    setDragMode,
-    toggleDragMode,
     isCopyMode: dragMode === 'copy',
     isMoveMode: dragMode === 'move',
     isCopylinkMode: dragMode === 'copylink',
-
-    // Booleans (from activeType — drag start/end only)
     isPanelDrag: activeType === DragType.PANEL,
+    isPageDrag: activeType === DragType.PAGE,
     isContainerDrag: activeType === DragType.CONTAINER,
     isInstanceDrag: activeType === DragType.INSTANCE,
     isExternalDrag: [DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL].includes(activeType),
-
-    // Getters
-    getWorkingPanels,
-    getWorkingAllPanels,
-    getWorkingContainers,
-
-    // Stack helpers
-    getStacksByCell,
-    getStackForPanel,
-    setActivePanelInCell,
-    cyclePanelStack,
-
-    // Hit testing
-    getHoveredPanelId,
-    getHoveredContainerId,
-  }), [
-    handleDragStart, handleDragMove, handleDragOver, handleDrop, handleDragEnd,
-    activePayload, activeType, activeId, isDragging,
-    dragMode, toggleDragMode,
-    getWorkingPanels, getWorkingAllPanels, getWorkingContainers,
-    getStacksByCell, getStackForPanel, setActivePanelInCell, cyclePanelStack,
-    getHoveredPanelId, getHoveredContainerId,
-  ]);
+  }), [activePayload, activeType, activeId, isDragging, dragMode]);
 
   // Hot context — changes during drag hover (container crossings)
   // Separated so container/instance components don't re-render on every crossing.
@@ -1481,6 +1247,7 @@ export function DragProvider({
 
   return (
     <DragContext.Provider value={contextValue}>
+      <DragStateContext.Provider value={dragStateValue}>
       <DragHotContext.Provider value={hotContextValue}>
         {children}
         {externalImportPreview && (
@@ -1492,6 +1259,7 @@ export function DragProvider({
           />
         )}
       </DragHotContext.Provider>
+      </DragStateContext.Provider>
     </DragContext.Provider>
   );
 }

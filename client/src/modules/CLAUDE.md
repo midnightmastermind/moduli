@@ -1,6 +1,31 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-06-12. This folder implements occurrence-based view routing._
+_Updated: 2026-07-02. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-07-02 — drag context split: hot components drop reactive drag-state reads)
+Part of the drag-start-lag fix (see helpers/CLAUDE.md 2026-07-02 for the full design).
+- **`ModuleContainer.jsx`** — no longer destructures `isContainerDrag/isInstanceDrag/isExternalDrag/`
+  `isPanelDrag` from the drag context (those fields moved to `DragStateContext`, which containers do
+  NOT subscribe to — they're the 387-mount hot path). The three reactive `disabled:` props on its
+  useDragDrop/useDroppable hooks are REMOVED: they flipped at drag start and re-registered every
+  container's Pragmatic targets + touch listeners (the drag-start lag); the hooks' `accepts` lists
+  already reject the same drag types, so behavior is identical. Shell `pointerEvents` inline style
+  keeps only local `isDragging`; the panel-drag pass-through moved to CSS
+  (`body[data-drag-kind="panel"] .container-shell{pointer-events:none!important}` in index.css).
+  Header insert indicator now gates on `dragCtx.getActiveType()` (non-reactive read — `isHeaderOver`
+  flipping already re-rendered the component).
+- **`ModuleInstance.jsx`** — same treatment (193-mount hot path): dead `isDragging` context read in
+  InstanceInner deleted; wrapper's `disabled: isContainerDrag` removed (accepts list already rejects
+  container drags); `useDragContext` import dropped.
+- **`ModulePanel.jsx`** — panels are few, so they're a sanctioned reactive consumer: booleans
+  (`isContainerDrag/isInstanceDrag/isExternalDrag/isPanelDrag`) now come from
+  `useDragStateContext()`; the stable `useDragContext()` is kept for stack helpers
+  (`getStackForPanel`/`cyclePanelStack`). `isChildDrag → disabled:` flip on the panel's own
+  useDragDrop stays (≈18 panels — cheap, and it must not be draggable mid-child-drag).
+- **`ModulePage.jsx` / pages/** — unchanged: their `disabled:` flags are static (`!pageModule`), so
+  they never had reactive drag-state reads; they benefit automatically from the stable context (no
+  re-registration at drag start). New `isPageDrag` is available on DragStateContext for future
+  page-drop affordances.
 
 ## Recent Changes (2026-06-28 LATE — logo → clean VECTOR lockup; empty-label editable; quick-add focuses new item)
 - **Logo (`client/public/viafluere_lockup.svg`)** — switched from the speckle-repaired

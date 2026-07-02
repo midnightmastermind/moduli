@@ -937,6 +937,16 @@ body[data-clipboard-active="true"] {
    10. DRAG SYSTEM (overlays, drop indicators)
    ============================================================================= */
 
+/* body[data-drag-kind] — stamped by DragProvider at drag start (direct DOM,
+   zero React re-renders). Hot components (containers/instances) gate their
+   drag-type behavior off these instead of a reactive context subscription.
+   During a PANEL drag, containers pass pointer events through so the grid
+   cells underneath receive the hover/drop. (!important beats the shell's
+   inline pointerEvents:auto.) */
+body[data-drag-kind="panel"] .container-shell {
+  pointer-events: none !important;
+}
+
 /* Drop target highlight — set by DragProvider via direct DOM mutation */
 [data-drop-active="true"] {
   outline: 2px solid rgba(50, 150, 255, 0.95) !important;

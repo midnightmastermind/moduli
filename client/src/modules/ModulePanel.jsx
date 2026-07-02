@@ -36,6 +36,7 @@ import {
   useDragDrop,
   useDroppable,
   useDragContext,
+  useDragStateContext,
   DragType,
   DropAccepts,
 } from "../helpers/dragSystem";
@@ -335,12 +336,16 @@ function Panel({
   const foldersById = useGridActionsSelector(s => s.foldersById);
   const { state } = useContext(GridDataContext);
   const { isMobileLayout, isTouch } = useContext(GridLiveContext);
+  // Stable handler context (stack helpers) + the small reactive drag-state
+  // context. Panels are few (~dozens), so a reactive subscription here is the
+  // sanctioned pattern (see dragSystem.js DragStateContext).
   const dragCtx = useDragContext();
   const {
     isContainerDrag,
     isInstanceDrag,
     isExternalDrag,
-  } = dragCtx;
+    isPanelDrag,
+  } = useDragStateContext();
   // LAYOUT STATE
   const layout = useMemo(() => mergeLayout(module?.layout), [module?.layout]);
   const layoutSaveTimer = useRef(null);
@@ -750,7 +755,6 @@ function Panel({
   const cellWidth = liveSize.w !== null ? liveSize.w : (module.width || 1);
   const cellHeight = liveSize.h !== null ? liveSize.h : (module.height || 1);
   const isExtended = cellWidth > 1 || cellHeight > 1;
-  const isPanelDrag = dragCtx.isPanelDrag;
 
   const panelChildOccIds = panelOccurrence?.occurrences || [];
 

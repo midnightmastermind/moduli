@@ -96,15 +96,16 @@ export const DropAccepts = {
 };
 
 // ============================================================
-// DRAG CONTEXT (stable — handlers + drag-start/end state)
+// DRAG CONTEXT (identity-STABLE — handlers/getters only, value created once
+// by DragProvider). Safe for the hundreds of useDroppable/useDragDrop hooks:
+// it never changes, so they never re-render or re-register because of it.
 // ============================================================
 const DragContext = createContext(null);
 
 const NOOP_DRAG_CTX = {
-  isContainerDrag: false, isInstanceDrag: false, isExternalDrag: false,
-  isPanelDrag: false, activePayload: null,
   handleDragStart: () => {}, handleDragMove: () => {}, handleDragEnd: () => {},
   handleDrop: () => {}, handleDragOver: () => {},
+  getActiveType: () => null,
   getStackForPanel: () => [], cyclePanelStack: () => {},
   setDropHighlight: () => {}, clearDropHighlight: () => {},
 };
@@ -115,6 +116,23 @@ export function useDragContext() {
 }
 
 export { DragContext };
+
+// ============================================================
+// DRAG STATE CONTEXT (reactive — flips at drag start/end + mode toggles).
+// Subscribe ONLY where the render output depends on it (GridCell, ModulePanel);
+// hot-path components use the body[data-drag-kind] CSS gating instead.
+// ============================================================
+const DragStateContext = createContext({
+  activePayload: null, activeType: null, activeId: null, isDragging: false,
+  dragMode: "move", isCopyMode: false, isMoveMode: true, isCopylinkMode: false,
+  isPanelDrag: false, isPageDrag: false, isContainerDrag: false, isInstanceDrag: false, isExternalDrag: false,
+});
+
+export function useDragStateContext() {
+  return useContext(DragStateContext);
+}
+
+export { DragStateContext };
 
 // ============================================================
 // DRAG HOT CONTEXT (changes during drag hover — hotTarget + panelOverCellId)
