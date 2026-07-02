@@ -548,9 +548,14 @@ select:disabled { cursor: not-allowed; }
 
 .container-list {
   min-height: 50px !important;
-  height: 100%;
+  /* Expand naturally — the PAGE (PageBoard) is the scroll container. The old
+     height:100% + overflow-y:auto gave every board container a few px of its
+     own scrollable overflow (keycap margins), which ate the touch gesture and
+     blocked page scrolling ("tiny scroll with one instance in it"). Same
+     pattern the embedded .artifact-markdown containers already use. */
+  height: auto;
   flex: 1;
-  overflow-y: auto !important;
+  overflow-y: visible;
   /* #18 recessed pocket — the drop area sits SUNKEN inside the raised
      container frame so the instance keycaps read as popped up out of a well.
      The black overlay darkens theme-agnostically (light + dark); the inset
