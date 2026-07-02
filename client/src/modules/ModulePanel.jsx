@@ -316,6 +316,9 @@ function Panel({
     return () => ro.disconnect();
   }, []);
   const [pendingDrilldown, setPendingDrilldown] = useState(null);
+  // Stable ref — an inline closure here defeated <Page>'s React.memo on EVERY
+  // panel render, cascading a full page/container/instance re-render per write.
+  const handleDrilldownComplete = useCallback(() => setPendingDrilldown(null), []);
   const [dropdownAnchor, setDropdownAnchor] = useState(null);
   const openDropdown = useCallback((e) => setDropdownAnchor(e.currentTarget.getBoundingClientRect()), []);
   const closeDropdown = useCallback(() => setDropdownAnchor(null), []);
@@ -1046,7 +1049,7 @@ function Panel({
                   dispatch={dispatch}
                   socket={socket}
                   drilldownTarget={pendingDrilldown}
-                  onDrilldownComplete={() => setPendingDrilldown(null)}
+                  onDrilldownComplete={handleDrilldownComplete}
                 />
               ) : (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", fontSize: 12, height: "100%" }}>

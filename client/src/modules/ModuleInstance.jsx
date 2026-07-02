@@ -93,7 +93,10 @@ function InstanceInner({
   const instancesById = useGridActionsSelector(s => s.instancesById);
   const operationsById = useGridActionsSelector(s => s.operationsById);
   const ctxGrid = useGridActionsSelector(s => s.state.grid);
-  const ctxActiveId = useGridActionsSelector(s => s.state.activeId);
+  // Select the BOOLEAN, not the raw activeId — the raw value changes for every
+  // instance when a drag sets/clears it, re-rendering all of them; the boolean
+  // changes only for the affected instance.
+  const isOriginalActiveSel = useGridActionsSelector(s => s.state.activeId === id);
   // Fallback closures cover custom providers (tests/previews) that omit the
   // getters; the app's getters are identity-stable.
   const getOcc = useGridActionsSelector(s => s.getOcc || ((oid) => (oid ? s.occurrencesById?.[oid] || null : null)));
@@ -120,7 +123,7 @@ function InstanceInner({
     return out;
   });
   const { computedValues } = useContext(GridLiveContext);
-  const isOriginalActive = !overlay && ctxActiveId === id;
+  const isOriginalActive = !overlay && isOriginalActiveSel;
   // Lite state for FieldRenderer's `state?.grid` reads. Ops read the FULL
   // fresh state via getState() in Field.jsx — never this object.
   const ctxStateLite = useMemo(() => ({ grid: ctxGrid }), [ctxGrid]);
