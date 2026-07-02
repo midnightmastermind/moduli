@@ -31,6 +31,7 @@ import { routeDrop } from "./dropHandlers";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND } from "./dragHitTesting";
 import { snapshotRenders, diffRenders } from "./renderProbe";
+import { dragPerf } from "./dragPerf";
 
 // ============================================================
 // UTILITIES
@@ -645,6 +646,7 @@ export function DragProvider({
     if (rafRef.current) return;
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = 0;
+      const _frameT0 = performance.now();
 
       const { panelId, containerId: rawContainerId, containerOccId: rawContainerOccId, containerEl: rawContainerEl, instanceId, instanceOccId } = getHoveredIds(clientX, clientY);
       const cell = getCellFromPoint(clientX, clientY);
@@ -970,6 +972,7 @@ export function DragProvider({
       }
 
       onTick?.();
+      dragPerf.frame(performance.now() - _frameT0);
     });
   }, [getCellFromPoint, getHoveredIds, previewMoveInstance, previewMoveContainer, occurrencesById, onTick]);
 

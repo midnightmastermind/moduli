@@ -36,6 +36,7 @@ import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
+import { dragPerf } from "./dragPerf";
 // Touch-drag replaces HTML5 DnD on any coarse-pointer device (phone OR tablet),
 // independent of orientation/layout. Width is irrelevant — a landscape tablet
 // still needs finger dragging even while it shows the desktop grid.
@@ -615,9 +616,11 @@ export function useDragDrop({
           // Per-occurrence dragMode overrides entity's defaultDragMode
           const mode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? 'move';
           dragCtx.handleDragStart(payload, startX, startY, { mode });
+          dragPerf.start();
           return;
         }
 
+        const _pm0 = performance.now();
         e.preventDefault(); // Active drag — prevent scroll
         // Pill follows finger at 60fps (cheap DOM update)
         if (clone) {
@@ -630,13 +633,16 @@ export function useDragDrop({
         if (now - lastHitTestTime < _HIT_TEST_INTERVAL || (dx * dx + dy * dy < _HIT_CACHE_DIST * _HIT_CACHE_DIST)) {
           // Still update DragProvider position (for auto-scroll etc)
           dragCtx.handleDragMove(t.clientX, t.clientY);
+          dragPerf.move(performance.now() - _pm0);
           return;
         }
         lastHitTestTime = now;
         lastHitX = t.clientX; lastHitY = t.clientY;
 
         // Hit-test drop targets
+        const _h0 = performance.now();
         const target = _findDropTarget(t.clientX, t.clientY, payload.type, el);
+        dragPerf.hit(performance.now() - _h0);
 
         if (target?.el !== curTarget?.el) {
           curTarget?.stateRef?.current?.setIsOver?.(false);
@@ -657,6 +663,7 @@ export function useDragDrop({
             clientX: t.clientX, clientY: t.clientY,
           });
         }
+        dragPerf.move(performance.now() - _pm0);
       };
 
       const onEnd = (e) => {
@@ -688,6 +695,7 @@ export function useDragDrop({
         setIsDragging(false);
         document.documentElement.style.touchAction = '';
         document.documentElement.style.overscrollBehavior = '';
+        dragPerf.end();
         setTimeout(() => dragCtx.handleDragEnd(), 0);
       };
 
