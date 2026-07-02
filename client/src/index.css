@@ -3839,9 +3839,9 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    ============================================================================= */
 @media (pointer: coarse) {
   .module-drag-handle .radial-handle {
-    width: 30px !important;
-    height: 30px !important;
-    max-width: 30px !important;
+    width: 36px !important;
+    height: 36px !important;
+    max-width: 36px !important;
   }
   .radial-menu .radial-item,
   .radial-menu button {

@@ -140,6 +140,7 @@ function GridRender({
   onStartColResize,
   onStartRowResize,
   isMobileLayout,
+  isTouch,
 }) {
   const [foregroundPanelId, setForegroundPanelId] = useState(null);
 
@@ -231,9 +232,13 @@ function GridRender({
             top: 0,
             bottom: 0,
             left: `${getColPosition(i)}%`,
-            width: 6,
+            // Touch: fat invisible lane (finger-sized); desktop keeps the slim 6px.
+            width: isTouch ? 28 : 6,
             transform: 'translateX(-50%)',
             cursor: "col-resize",
+            // touch-action:none is the actual gesture claim on touch — React's
+            // onTouchStart is passive, so preventDefault can't stop the scroll.
+            touchAction: "none",
             zIndex: 2,
             background: "transparent",
             borderRadius: 2,
@@ -261,9 +266,10 @@ function GridRender({
             left: 0,
             right: 0,
             top: `${getRowPosition(i)}%`,
-            height: 6,
+            height: isTouch ? 28 : 6,
             transform: 'translateY(-50%)',
             cursor: "row-resize",
+            touchAction: "none",
             zIndex: 2,
             background: "transparent",
             borderRadius: 2,
@@ -622,7 +628,10 @@ function GridInner() {
     let startX = getClientX(e);
 
     const move = (ev) => {
-      ev.preventDefault();
+      // Touch: claim the gesture so the browser doesn't treat it as a page
+      // scroll (which fires touchcancel and strands the listeners — the
+      // "resize works once then dies" bug). Needs the non-passive listener below.
+      if (ev.cancelable) ev.preventDefault();
       const currentX = getClientX(ev);
       const delta = currentX - startX;
       startX = currentX;
@@ -634,13 +643,15 @@ function GridInner() {
       window.removeEventListener("mouseup", stop);
       window.removeEventListener("touchmove", move);
       window.removeEventListener("touchend", stop);
+      window.removeEventListener("touchcancel", stop);
       finalizeResize();
     };
 
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", stop);
-    window.addEventListener("touchmove", move);
+    window.addEventListener("touchmove", move, { passive: false });
     window.addEventListener("touchend", stop);
+    window.addEventListener("touchcancel", stop);
   }, [resizeColumn, finalizeResize]);
 
   const startRowResize = useCallback((e, i) => {
@@ -648,7 +659,9 @@ function GridInner() {
     let startY = getClientY(e);
 
     const move = (ev) => {
-      ev.preventDefault();
+      // See startColResize — non-passive + preventDefault keeps the gesture
+      // from becoming a page scroll (touchcancel stranded the listeners).
+      if (ev.cancelable) ev.preventDefault();
       const currentY = getClientY(ev);
       const delta = currentY - startY;
       startY = currentY;
@@ -660,13 +673,15 @@ function GridInner() {
       window.removeEventListener("mouseup", stop);
       window.removeEventListener("touchmove", move);
       window.removeEventListener("touchend", stop);
+      window.removeEventListener("touchcancel", stop);
       finalizeResize();
     };
 
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", stop);
-    window.addEventListener("touchmove", move);
+    window.addEventListener("touchmove", move, { passive: false });
     window.addEventListener("touchend", stop);
+    window.addEventListener("touchcancel", stop);
   }, [resizeRow, finalizeResize]);
 
   return (
@@ -719,6 +734,7 @@ function GridInner() {
           activeCell={activeCell}
           setActiveCell={setActiveCell}
           isMobileLayout={isMobileLayout}
+          isTouch={isTouch}
           zoomedOut={zoomedOut}
           setZoomedOut={setZoomedOut}
           visiblePanels={visiblePanels}
@@ -742,6 +758,7 @@ function GridInner() {
             onStartColResize={startColResize}
             onStartRowResize={startRowResize}
             isMobileLayout={isMobileLayout}
+            isTouch={isTouch}
           />
         </MobileGridNav>
       ) : (
@@ -763,6 +780,8 @@ function GridInner() {
           sizesRef={sizesRef}
           onStartColResize={startColResize}
           onStartRowResize={startRowResize}
+          isMobileLayout={isMobileLayout}
+          isTouch={isTouch}
         />
       )}
 
