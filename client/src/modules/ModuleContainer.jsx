@@ -1404,7 +1404,10 @@ function Container({
           style={{
             flex: items.length === 0 ? 1 : "0 0 auto",
             minHeight: items.length === 0 ? 40 : "fit-content",
-            overflow: "auto", padding: 0,
+            // overflow visible — containers expand and the PAGE scrolls. An
+            // inline "auto" here silently beat the .container-list stylesheet
+            // fix and kept the few-px micro-scrollbar that ate touch scrolling.
+            overflow: "visible", padding: 0,
             display: "flex", flexDirection: "column", position: "relative",
           }}
         >

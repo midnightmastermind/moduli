@@ -3844,9 +3844,23 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    ============================================================================= */
 @media (pointer: coarse) {
   .module-drag-handle .radial-handle {
+    /* Big tap target, but the GLYPH hugs the module's top-left corner with
+       minimal padding (it floated centered in the box = read as a tiny icon
+       swimming in padding) — and render it bigger than the desktop 12px. */
     width: 36px !important;
     height: 36px !important;
     max-width: 36px !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    padding: 1px 0 0 1px !important;
+  }
+  .module-drag-handle .radial-handle svg {
+    width: 19px !important;
+    height: 19px !important;
+  }
+  .module-drag-handle {
+    margin-top: 0 !important;
   }
   .radial-menu .radial-item,
   .radial-menu button {

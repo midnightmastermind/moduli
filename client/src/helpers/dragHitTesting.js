@@ -193,6 +193,62 @@ export function buildRawDropEvent({ dropTarget, payload, sessionMode, hovered = 
 //     modifiers: { shift, alt, ctrl, meta },
 //     pointer:   { x, y } }
 //
+// Resolve where a leaf dropped on a container BODY should land among the
+// container's children, from the pointer position — matching what the
+// insertion-line indicator shows. Covers instance children AND nested
+// container children (the hovered-instance sibling branch never fires for
+// those, so such drops used to append at "the last spot"). Maps DOM position
+// → occurrences[] index via the neighbor card's occurrence id, so
+// hidden/filtered children don't skew the index. Returns null when the
+// container element / cards can't be resolved (caller appends — old behavior).
+export function computeInsertIndexFromPointer(targetOcc, ptr) {
+  if (!targetOcc || !ptr || typeof document === "undefined") return null;
+  const esc = (v) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(v)) : String(v));
+  const containerEl =
+    document.querySelector(`[data-occ-id="${esc(targetOcc.id)}"]`) ||
+    (targetOcc.moduleId ? document.querySelector(`[data-container-id="${esc(targetOcc.moduleId)}"]`) : null);
+  if (!containerEl) return null;
+
+  // Direct member cards: leaf rows (.instance-wrap) and nested container
+  // shells. A shell carries [data-container-id] itself, so its "owning
+  // container" is the nearest such ancestor ABOVE itself.
+  const cards = Array.from(containerEl.querySelectorAll(".instance-wrap, [data-container-id]")).filter((el) => {
+    if (el === containerEl) return false;
+    const owner = el.classList.contains("instance-wrap")
+      ? el.closest("[data-container-id]")
+      : el.parentElement?.closest?.("[data-container-id]");
+    return owner === containerEl;
+  });
+  if (cards.length === 0) return null;
+
+  const r0 = cards[0].getBoundingClientRect();
+  const r1 = cards.length > 1 ? cards[1].getBoundingClientRect() : null;
+  const horizontal = r1 ? Math.abs(r1.left - r0.left) > Math.abs(r1.top - r0.top) : false;
+  const p = horizontal ? ptr.x : ptr.y;
+
+  let beforeCard = null;
+  for (const c of cards) {
+    const r = c.getBoundingClientRect();
+    const mid = horizontal ? r.left + r.width / 2 : r.top + r.height / 2;
+    if (p < mid) { beforeCard = c; break; }
+  }
+
+  const occIdOf = (el) =>
+    el.getAttribute("data-occurrence-id") ||
+    el.getAttribute("data-occ-id") ||
+    el.querySelector?.("[data-occurrence-id]")?.getAttribute("data-occurrence-id") ||
+    null;
+  const list = Array.isArray(targetOcc.occurrences) ? targetOcc.occurrences : [];
+  if (beforeCard) {
+    const id = occIdOf(beforeCard);
+    const idx = id ? list.indexOf(id) : -1;
+    return idx >= 0 ? idx : null;
+  }
+  const lastId = occIdOf(cards[cards.length - 1]);
+  const lastIdx = lastId ? list.indexOf(lastId) : -1;
+  return lastIdx >= 0 ? lastIdx + 1 : null;
+}
+
 // DropContext shape: see spec §4.
 export function buildDropContext(rawEvent, env) {
   if (!rawEvent || !env) return null;
@@ -277,13 +333,14 @@ export function buildDropContext(rawEvent, env) {
     edge = null;
   } else if (targetIsContainer && sourceIsLeaf && Array.isArray(targetOcc.occurrences)) {
     // Dropping a LEAF onto the CONTAINER body/edge (not onto a specific child
-    // instance) → nest it INSIDE the container at the END (the "last spot").
-    // Without this, the branch below computed the container's index within its
-    // PARENT page (e.g. 1) and misapplied it as the leaf's index inside the
-    // container, so an edge-of-container drop landed mid-list. Precise
-    // mid-list placement still works by dropping onto a specific instance —
-    // that target IS the instance, handled by the sibling branch below.
-    insertIndex = targetOcc.occurrences.length;
+    // instance) → nest it INSIDE the container AT THE POINTER position — the
+    // same spot the insertion-line indicator showed. This is what places the
+    // drop correctly when the container's children are CONTAINERS (nested
+    // boards): the hovered-child branch below only fires for instance targets,
+    // so those drops used to silently append at the end. Falls back to append
+    // when the DOM can't be resolved.
+    const ptrIndex = computeInsertIndexFromPointer(targetOcc, ptr);
+    insertIndex = ptrIndex != null ? ptrIndex : targetOcc.occurrences.length;
     edge = null;
   } else if (parentOcc && Array.isArray(parentOcc.occurrences)) {
     const hoveredIndex = parentOcc.occurrences.indexOf(targetOcc.id);

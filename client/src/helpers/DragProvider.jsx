@@ -124,9 +124,19 @@ function showDropIndicators(containerEl, x, y) {
     width: `${cr.width}px`, height: `${cr.height}px`,
   });
 
-  // Only direct cards of THIS container (exclude nested-container children).
-  const cards = Array.from(containerEl.querySelectorAll(".instance-wrap"))
-    .filter((c) => c.closest("[data-container-id]") === containerEl);
+  // Direct member cards of THIS container: leaf rows AND nested container
+  // shells (a shell carries [data-container-id] itself, so its owner is the
+  // nearest such ancestor ABOVE it). Without the shells, the insertion line
+  // never rendered between nested containers — and the drop index couldn't
+  // match what the user aimed at.
+  const cards = Array.from(containerEl.querySelectorAll(".instance-wrap, [data-container-id]"))
+    .filter((c) => {
+      if (c === containerEl) return false;
+      const owner = c.classList.contains("instance-wrap")
+        ? c.closest("[data-container-id]")
+        : c.parentElement?.closest?.("[data-container-id]");
+      return owner === containerEl;
+    });
   if (cards.length === 0) {
     // Empty container — the box border IS the indicator; no line.
     line.style.display = "none";
