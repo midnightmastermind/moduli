@@ -204,6 +204,11 @@ export default function RadialMenu({
     (e) => {
       e.stopPropagation();
       if (disabled) return;
+      // A click synthesized right after a touch drag (some browsers fire one
+      // even though dragSystem preventDefaults the touchend) must not open the
+      // menu — the user was dragging by this handle, not tapping it.
+      if (typeof window !== "undefined" && window.__moduliDragEndAt &&
+          performance.now() - window.__moduliDragEndAt < 400) return;
       // Call updateAnchor() directly (not inside setIsOpen updater) so React 18
       // batches setOpenDirection + setAnchor + setIsOpen in the same render.
       // Calling setState from inside a setState updater can split batches,

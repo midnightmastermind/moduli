@@ -689,6 +689,11 @@ export function useDragDrop({
           // Tap — browser fires native click since we never preventDefault'd
           return;
         }
+        // A drag happened — suppress the click some browsers still synthesize
+        // on touchend (it was opening the RadialMenu right after a drag), and
+        // stamp the moment so click handlers can double-check.
+        if (e.cancelable) e.preventDefault();
+        if (typeof window !== "undefined") window.__moduliDragEndAt = performance.now();
         const t = e.changedTouches[0];
         if (clone) { clone.remove(); clone = null; }
 
