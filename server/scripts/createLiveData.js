@@ -5817,13 +5817,14 @@ export async function createLiveData(userId, options = {}) {
     goals:    goalsPanelId,
     accounts: accountsPanelId,
   };
-  // Middle column is split: logo board on top (row 0), Notebook/Schedule hub
-  // beneath it (row 1). The mosaic tree below mirrors this split.
+  // Middle column is split: Notebook/Schedule hub on TOP (row 0 — the "top
+  // middle cell"), logo board beneath it (row 1). The mosaic tree below
+  // mirrors this split (hub dominant, logo short).
   const placements = [
     { key: "toolkit",  panelId: toolkitPanelId,  row: 0, col: 0, width: 1, height: 1, viewId: toolkitHubViewId  },
     { key: "todo",     panelId: todoPanelId,     row: 1, col: 0, width: 1, height: 1, viewId: null              },
-    { key: "logo",     panelId: logoPanelId,     row: 0, col: 1, width: 1, height: 1, viewId: null              },
-    { key: "notebook", panelId: notebookPanelId, row: 1, col: 1, width: 1, height: 1, viewId: notebookHubViewId },
+    { key: "notebook", panelId: notebookPanelId, row: 0, col: 1, width: 1, height: 1, viewId: notebookHubViewId },
+    { key: "logo",     panelId: logoPanelId,     row: 1, col: 1, width: 1, height: 1, viewId: null              },
     { key: "goals",    panelId: goalsPanelId,    row: 0, col: 2, width: 1, height: 1, viewId: null              },
     { key: "accounts", panelId: accountsPanelId, row: 1, col: 2, width: 1, height: 1, viewId: null              },
   ];
@@ -5864,10 +5865,11 @@ export async function createLiveData(userId, options = {}) {
         { id: "mosaic-leaf-toolkit", panelOccId: panelOccIds.toolkit },
         { id: "mosaic-leaf-todo",    panelOccId: panelOccIds.todo },
       ] },
-      // Middle: logo board (short) on top, Notebook/Schedule hub beneath.
-      { id: "mosaic-col1", dir: "h", ratio: [0.28, 1], children: [
-        { id: "mosaic-leaf-logo",     panelOccId: panelOccIds.logo },
+      // Middle: Notebook/Schedule hub on TOP (dominant — the "top middle cell,
+      // extends down"), logo board (short) beneath it.
+      { id: "mosaic-col1", dir: "h", ratio: [1, 0.28], children: [
         { id: "mosaic-leaf-notebook", panelOccId: panelOccIds.notebook },
+        { id: "mosaic-leaf-logo",     panelOccId: panelOccIds.logo },
       ] },
       { id: "mosaic-col2", dir: "h", ratio: [1, 1], children: [
         { id: "mosaic-leaf-goals",    panelOccId: panelOccIds.goals },
