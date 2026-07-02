@@ -1488,12 +1488,37 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // item appeared at the drop spot when the destination runs operations.
     // Waiting TWO frames lets the browser paint the move first, then runs the
     // op work on the following frame so the drop feels instant.
-    const run = () => {
-      for (const { transactionType, transaction, occurrencesOverride } of batch) {
-        fireOperations(transactionType, transaction, { occurrencesOverride });
+    //
+    // The drain is CHUNKED (one fire per macrotask) and DEDUPED (one shared
+    // cascade Set across the whole burst, same semantic as fireOperationsBatch):
+    // a drop emits OccurrenceListOp + one MeasureOp per field, and each sweep
+    // used to re-run the same Build/Tracker ops — N× the work — all in ONE
+    // synchronous frame, freezing the UI for seconds right after the paint.
+    // Now each matching op runs once for the burst, and the browser can paint /
+    // take input between sweeps.
+    const cascadeSet = new Set();
+    const t0 = performance.now();
+    const total = batch.length;
+    const step = () => {
+      const next = batch.shift();
+      if (!next) {
+        if (typeof window !== "undefined" && window.__dragPerf === true) {
+          console.log(`[drop] op drain done — ${total} fires, ${cascadeSet.size} ops, ${Math.round(performance.now() - t0)}ms`);
+        }
+        return;
       }
+      // Install the shared dedup Set only for the duration of this synchronous
+      // sweep so interleaved user-initiated fires never dedup against it.
+      const prev = _navCascadeFiredOps;
+      _navCascadeFiredOps = cascadeSet;
+      try {
+        fireOperations(next.transactionType, next.transaction, { occurrencesOverride: next.occurrencesOverride });
+      } finally {
+        _navCascadeFiredOps = prev;
+      }
+      setTimeout(step, 0);
     };
-    requestAnimationFrame(() => { requestAnimationFrame(run); });
+    requestAnimationFrame(() => { requestAnimationFrame(step); });
   };
 
   // Expose on module-level bridge so CommitHelpers can call optimistically
