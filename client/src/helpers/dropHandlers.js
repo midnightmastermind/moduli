@@ -91,6 +91,7 @@ import { embedDeleteRegistry } from "./embedRegistry";
 import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
 import { createModuleAction, createOccurrenceAction } from "../state/actions";
 import { mimeToKind } from "./fileKind";
+import { snapPanelToEdge } from "./gridSnap";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import { toast } from "../state/notificationStore";
 import { jumpToOccurrence } from "./jumpToOccurrence";
@@ -310,6 +311,22 @@ export function handlePanelDrop(dropContext, ctx) {
   if (dropTarget.dataTransfer) {
     const parsed = parseExternalDrop(dropTarget.dataTransfer);
     isCrossWindow = parsed.isCrossWindow;
+  }
+
+  // Tablet-landscape snap: dropping a panel on the grid's outer edge band
+  // grows the grid by one track there and moves the panel into the new track
+  // (getSnapEdge is non-null only for touch drags in the desktop layout —
+  // the drag counterpart of the desktop Ctrl+Alt+Arrow snap).
+  if (!isCrossWindow) {
+    const snapEdge = ctx.getSnapEdge?.(x, y);
+    if (snapEdge) {
+      const panel = baseAllPanels.find(p => p.id === payload.moduleId);
+      const panelOcc = panel?._occurrenceId ? occurrencesById[panel._occurrenceId] : null;
+      if (panelOcc) {
+        snapPanelToEdge({ edge: snapEdge, panelOcc, grid: state?.grid, occurrencesById, dispatch, socket });
+        return;
+      }
+    }
   }
 
   let cell = null;

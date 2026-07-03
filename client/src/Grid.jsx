@@ -29,6 +29,7 @@ import * as CommitHelpers from "./helpers/CommitHelpers";
 import { getGridPanels } from "./state/selectors";
 import { applyLocalSort, createPanelInGrid } from "./helpers/LayoutHelpers";
 import { ensureFolderPageOcc } from "./helpers/importsFolder";
+import { snapPanelInDirection } from "./helpers/gridSnap";
 import MobileGridNav from "./mobile/MobileGridNav";
 import { Layers } from "lucide-react";
 
@@ -632,6 +633,40 @@ function GridInner() {
 
   const getClientX = (e) => (e.touches ? e.touches[0].clientX : e.clientX);
   const getClientY = (e) => (e.touches ? e.touches[0].clientY : e.clientY);
+
+  // ── Windows-style panel snap (desktop rows×cols grids) ────────────────────
+  // Ctrl+Alt+Arrow moves the LAST-CLICKED panel one cell; at the grid boundary
+  // it ADDS a row/col and moves the panel into the new track (Win+Arrow
+  // semantics — the vacated cell stays free for new panels). Tablet landscape
+  // gets the drag-to-edge variant (DragProvider getSnapEdge → snapPanelToEdge).
+  const lastPanelIdRef = useRef(null);
+  useEffect(() => {
+    const onDown = (e) => {
+      const el = e.target?.closest?.("[data-panel-id]");
+      if (el) lastPanelIdRef.current = el.getAttribute("data-panel-id");
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, []);
+
+  useEffect(() => {
+    if (isMobileLayout || layoutTree) return; // rows×cols desktop only
+    const DIR_BY_KEY = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
+    const onKey = (e) => {
+      if (!e.ctrlKey || !e.altKey) return;
+      const direction = DIR_BY_KEY[e.key];
+      if (!direction) return;
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
+      const panel = visiblePanels.find((p) => p.id === lastPanelIdRef.current) || visiblePanels[0];
+      const occ = panel?._occurrenceId ? occurrencesById?.[panel._occurrenceId] : null;
+      if (!occ) return;
+      e.preventDefault();
+      snapPanelInDirection({ direction, panelOcc: occ, grid, occurrencesById, dispatch, socket });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isMobileLayout, layoutTree, visiblePanels, occurrencesById, grid, dispatch, socket]);
 
   // Click an EMPTY grid cell → mint a panel there whose active page is the
   // ROOT FOLDER page (the full card grid of everything on the grid), so an

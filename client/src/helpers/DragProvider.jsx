@@ -371,6 +371,24 @@ export function DragProvider({
     };
   }, [gridRef, rows, cols, rowSizes, colSizes]);
 
+  // Tablet-landscape "snap" drop zone: a PANEL dropped within an edge band of
+  // the grid frame grows the grid by one track at that edge and moves the
+  // panel into it (the drag counterpart of the desktop Ctrl+Alt+Arrow snap —
+  // see helpers/gridSnap.js). Touch + desktop-layout only: mobile has the
+  // grid-map nav, and desktop mice have the keyboard.
+  const getSnapEdge = useCallback((x, y) => {
+    if (!isTouch || isMobileLayout) return null;
+    const el = gridRef?.current;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    const BAND = 26;
+    if (x < r.left + BAND) return "left";
+    if (x > r.right - BAND) return "right";
+    if (y < r.top + BAND) return "up";
+    if (y > r.bottom - BAND) return "down";
+    return null;
+  }, [isTouch, isMobileLayout, gridRef]);
+
   // ============================================================
   // HIT TESTING — single elementsFromPoint per frame (B1)
   // ============================================================
@@ -869,7 +887,7 @@ export function DragProvider({
       dispatch, socket,
       state: { ...state, modulesById },
       occurrencesById, baseAllPanels, baseContainers,
-      clearSession, sessionRef, getCellFromPoint,
+      clearSession, sessionRef, getCellFromPoint, getSnapEdge,
     });
     operationsBridge.endDropBatch?.();
     _lap("routeDrop returned (sync mutations + op fires done)");
@@ -889,7 +907,7 @@ export function DragProvider({
         console.log(`[drop-renders] panel=${d.panel} container=${d.container} instance=${d.instance} page=${d.page} field=${d.field || 0}`);
       });
     });
-  }, [dispatch, socket, getCellFromPoint, getHoveredIds, baseAllPanels, baseContainers, occurrencesById, modulesById, clearSession, state]);
+  }, [dispatch, socket, getCellFromPoint, getSnapEdge, getHoveredIds, baseAllPanels, baseContainers, occurrencesById, modulesById, clearSession, state]);
 
   const handleDragEnd = useCallback(() => {
     clearSession();
