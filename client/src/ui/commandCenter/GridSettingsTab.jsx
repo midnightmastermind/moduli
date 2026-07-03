@@ -10,6 +10,7 @@ import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { uid } from "../../uid";
 import { COMPARATOR_OPTIONS } from "../../helpers/comparators";
 import { deriveTreeFromPlacements } from "../../helpers/bspTree";
+import { LAYOUT_MODES } from "../../helpers/layoutRules";
 import SortSection from "../SortSection";
 import StyleEditor from "../StyleEditor";
 import LayoutCascadeEditor from "../LayoutCascadeEditor";
@@ -133,6 +134,29 @@ export function GridSettingsTab() {
 
   const commitRows = useCallback((val) => commitAxis("row", val), [commitAxis]);
   const commitCols = useCallback((val) => commitAxis("col", val), [commitAxis]);
+
+  // ── Responsive layout rules (grid.meta.layoutRules) ───────────────────────
+  // Read-modify-write the whole meta (same pattern as the mosaic toggle) so
+  // sibling meta keys survive.
+  const saveLayoutRules = useCallback((rules) => {
+    if (!gridId) return;
+    const meta = { ...(grid?.meta || {}) };
+    if (rules.length === 0) delete meta.layoutRules;
+    else meta.layoutRules = rules;
+    CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta }, emit: true });
+  }, [gridId, grid?.meta, dispatch, socket]);
+
+  const addLayoutRule = useCallback(() => {
+    saveLayoutRules([...(grid?.meta?.layoutRules || []), { id: "lr_" + uid(), layout: "desktop" }]);
+  }, [grid?.meta?.layoutRules, saveLayoutRules]);
+
+  const updateLayoutRule = useCallback((ruleId, patch) => {
+    saveLayoutRules((grid?.meta?.layoutRules || []).map(r => (r.id === ruleId ? { ...r, ...patch } : r)));
+  }, [grid?.meta?.layoutRules, saveLayoutRules]);
+
+  const deleteLayoutRule = useCallback((ruleId) => {
+    saveLayoutRules((grid?.meta?.layoutRules || []).filter(r => r.id !== ruleId));
+  }, [grid?.meta?.layoutRules, saveLayoutRules]);
 
   const deleteGrid = useCallback(() => {
     if (!gridId) return;
@@ -277,6 +301,68 @@ export function GridSettingsTab() {
         </div>
       </div>
       )}
+
+      {/* ── Responsive layout rules (grid.meta.layoutRules) ─────────
+          The FIRST rule whose viewport bounds all match wins and pins the
+          layout (desktop grid vs mobile stack); no match → the built-in
+          heuristic. Lets a tablet pin BOTH orientations to the desktop grid
+          so rotating never swaps (and remounts) the whole layout. */}
+      <div className="mb-3">
+        <label className="text-[10px] text-foregroundScale-2 block mb-1">
+          Responsive layout rules
+        </label>
+        <p className="text-[9px] text-foregroundScale-2 mb-1.5">
+          First matching rule wins. Blank bounds match any size; sizes are px.
+          No match → automatic (touch + orientation heuristic).
+        </p>
+        {(grid?.meta?.layoutRules || []).map((rule) => (
+          <div key={rule.id} className="flex items-center gap-1 mb-1">
+            {[
+              ["minWidth", "min W"], ["maxWidth", "max W"],
+              ["minHeight", "min H"], ["maxHeight", "max H"],
+            ].map(([k, ph]) => (
+              <input
+                key={k}
+                type="number"
+                min={0}
+                placeholder={ph}
+                title={ph}
+                className={inputCls}
+                style={{ width: 52, padding: "2px 4px" }}
+                value={rule[k] ?? ""}
+                onChange={(e) => updateLayoutRule(rule.id, { [k]: e.target.value === "" ? null : Number(e.target.value) })}
+              />
+            ))}
+            <select
+              className={inputCls}
+              style={{ flex: 1, padding: "2px 4px" }}
+              value={rule.layout || "desktop"}
+              onChange={(e) => updateLayoutRule(rule.id, { layout: e.target.value })}
+            >
+              {LAYOUT_MODES.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="text-[11px] px-1"
+              style={{ color: "var(--danger-text, #f87171)" }}
+              title="Delete rule"
+              onClick={() => deleteLayoutRule(rule.id)}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="text-[10px] rounded border px-2 py-1 mt-0.5"
+          style={{ borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}
+          onClick={addLayoutRule}
+        >
+          + Add layout rule
+        </button>
+      </div>
 
       <Separator className="mb-3" />
 

@@ -32,6 +32,7 @@ import { useAnimations } from "./hooks/useAnimations";
 import { useScheduler } from "./state/useScheduler";
 import { useTheme } from "./helpers/useTheme";
 import { useMobileDetect } from "./hooks/useMobileDetect";
+import { useLayoutRuleMode } from "./hooks/useLayoutRuleMode";
 import { installMobileInputAutoScroll } from "./hooks/useMobileKeyboard";
 
 import * as CommitHelpers from "./helpers/CommitHelpers";
@@ -265,8 +266,13 @@ export default function App() {
   const { captureAllPositions, animateToNewPositions, flashElement } = useAnimations();
   useTheme(); // Applies data-theme + dark class from localStorage on mount
 
-  // Mobile grid navigation state
-  const { isTouch, isMobileLayout } = useMobileDetect();
+  // Mobile grid navigation state. The user can pin the layout per viewport
+  // size via grid.meta.layoutRules (GridSettingsTab) — a matching rule wins
+  // over the built-in heuristic (e.g. pin tablet portrait AND landscape to the
+  // desktop grid so rotation never remounts the whole tree).
+  const { isTouch, isMobileLayout: detectedMobileLayout } = useMobileDetect();
+  const ruledLayoutMode = useLayoutRuleMode(state.grid?.meta?.layoutRules);
+  const isMobileLayout = ruledLayoutMode ? ruledLayoutMode === "mobile" : detectedMobileLayout;
 
   // #23 mobile: install one-time global focusin → scrollIntoView so
   // typing into a field never leaves the cursor under the virtual
