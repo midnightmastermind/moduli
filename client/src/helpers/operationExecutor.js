@@ -868,6 +868,15 @@ export function runMatchingOperations(operations, transactionType, transaction, 
   // descendant first matched is immaterial. See CommitHelpers.fireOperationsBatch.
   const cascadeFiredOps = context?.cascadeFiredOps || null;
 
+  // Build the occurrences[] reverse map ONCE per sweep — executePipeline used
+  // to rebuild it per op (×20 in a drop cascade). Sharing is correct across
+  // the sweep: CREATE patches new child links into this map in place (see
+  // operationActions CREATE), and walkers null-guard entries whose occurrence
+  // was deleted mid-sweep.
+  if (context && !context._parentByChildId && context.occurrencesById) {
+    context._parentByChildId = buildParentMap(context.occurrencesById);
+  }
+
   // Stamp the created/deleted occurrence's ROLE onto the transaction so an
   // onAdd/onDelete `subjectRole:"instance", targetId:""` trigger can match only
   // same-role creates. Without it, every unscoped tracker (Task Countdown, the
@@ -1156,7 +1165,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
 
   // parentId on the occurrence itself is not always set — the authoritative ordering
   // is maintained via parent.occurrences[] — so we derive the parent from those arrays.
-  const parentByChildId = buildParentMap(occurrencesById);
+  const parentByChildId = context._parentByChildId || buildParentMap(occurrencesById);
 
   // Resolve an ancestor chain (closest ancestor first, capped at depth 12).
   // Used to enrich $allItems entries so HAS_ANCESTOR rules in $allItems-driven
