@@ -1,6 +1,18 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-06-12. Check this file before re-reading source._
+_Updated: 2026-07-03. Check this file before re-reading source._
+
+## Recent Changes (2026-07-03 — wrap channel shows PAGE bg: clip wall + seam moved to the prose edge)
+- **`WrapGroupNode.jsx` `measure`** — `--notch-w` and the seam `left` both moved from
+  `SEAM_GAP/2` (mid-channel) to the FULL `SEAM_GAP`: the host-bg clip wall and the seam's
+  column-rule line now sit at the PROSE column's edge, so the ENTIRE 14px channel between
+  the wrapped occurrences shows the page background (user: "make the color between the
+  wrapped occurances be the background color of the page … right now its the color of the
+  wrapped textblock"). Coupled move — the visible line still borders the clipped bg edge
+  exactly, and the `::after` notch-bottom line still spans wall→host outer edge (both
+  shifted by the same 7px). Pairs with index.css dropping the float's 6px OUTER margin
+  (see client/src/CLAUDE.md) so the neighbor's border aligns flush with the host's
+  full-width bottom bar (was "overextending past the borders").
 
 ## Recent Changes (2026-06-17 — LINE-LEVEL wrap morph: anchorOffset (px) replaces anchorIndex)
 - **`wrapAnchor.js` (NEW)** — pure, unit-tested geometry: `sideFromFrac(frac)` (no dead middle —

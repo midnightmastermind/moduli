@@ -130,15 +130,15 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     const hostBox = els[els.length - 1].querySelector(".instance-row, .container-shell");
     if (hostBox) {
       const c = hostBox.getBoundingClientRect();
-      // Extend the notch by HALF the float-margin gap (SEAM_GAP/2) — exactly to the
-      // resize-seam line (which sits at the gap's midpoint). This (a) clips the host's
-      // column background out of the sliver to the RIGHT of the seam so it shows the
-      // PARENT background, and (b) lands the host's clipped top border ON the seam so
-      // the top border meets the resize handle (no gap between them). A FULL SEAM_GAP
-      // pulled the border a half-gap left of the seam, leaving that gap unbordered.
+      // Extend the notch by the FULL float-margin gap (SEAM_GAP) — the clip wall
+      // lands at the prose column's edge, so the ENTIRE channel between the text
+      // and the neighbor shows the PAGE background (per user: the color between
+      // the wrapped occurrences must be the page bg, not the host textblock's
+      // tint). The seam element (and its column-rule line) moves with it (below),
+      // so the visible line still sits exactly on the host bg's clipped edge.
       const notchW = side === "right"
-        ? Math.round(c.right - left + SEAM_GAP / 2)
-        : Math.round(right - c.left + SEAM_GAP / 2);
+        ? Math.round(c.right - left + SEAM_GAP)
+        : Math.round(right - c.left + SEAM_GAP);
       // L (anchorIndex 0): notch starts at the very top (0) so no bg/border strip is
       // left above the neighbor. C (anchorIndex > 0): notch sits at the neighbor's top.
       const anchorIdx = Number(node.attrs.anchorIndex) || 0;
@@ -154,11 +154,12 @@ export default function WrapGroupNode({ node, updateAttributes }) {
       setMeasuredShape(anchorIdx <= 0 ? "top" : (reachesBottom ? "bottom" : "middle"));
     }
 
-    // Seam sits in the gap at the INNER edge of the neighbor column (works for the
-    // flex two-column layout AND a float, since it reads the live rendered box).
+    // Seam sits at the PROSE edge of the gap (= the clip wall above) so its
+    // column-rule line borders the host bg exactly where the clip cuts it; the
+    // whole 14px channel to the neighbor stays clean page background.
     const seamLeft = side === "right"
-      ? Math.round(left - wrapRect.left - SEAM_GAP / 2)
-      : Math.round(right - wrapRect.left + SEAM_GAP / 2);
+      ? Math.round(left - wrapRect.left - SEAM_GAP)
+      : Math.round(right - wrapRect.left + SEAM_GAP);
     // Seam height = the neighbor's height PLUS the bottom gap, so the seam's ::after
     // (the notch-bottom line = the full-width bottom bar's TOP border) sits BELOW the
     // image with a margin above it, not flush against the image bottom.

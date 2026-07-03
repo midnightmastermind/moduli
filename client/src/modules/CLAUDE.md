@@ -1,6 +1,24 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-07-02. This folder implements occurrence-based view routing._
+_Updated: 2026-07-03. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-07-03 — panel header ALWAYS VISIBLE; tree toggles moved into it; Local/Root bar + autohide DELETED)
+Per user: "keep the panel header visible at all times … put a button on each side …
+get rid of the top bar that shows local and root."
+- **`ModulePanel.jsx`** — the page-panel header is now permanently visible. REMOVED the
+  whole autohide machinery: `headerRevealed`/`headerH`/`headerInnerRef` + measure effect,
+  `autohide`/`toggleAutohide` (the persisted `meta.autohide` flag is now inert), the
+  radial "Autohide header" extraItem, the hover strip + `.panel-header-lip` tab (CSS rules
+  deleted too), and the `headerCluster` max-height slide wrapper — `pageHeader` renders
+  inline. Mobile no longer force-retracts the header.
+- **Nav bar (Local | breadcrumbs | cycle arrows | Root) DELETED** along with its helpers
+  `pageBreadcrumbs` + `openFolderCrumb` (breadcrumb path lives in the Root tree; page
+  cycling via the Local tree). The two tree toggles moved INTO the page header as icon
+  buttons: **FileText right of the drag handle → Local tree** (left sidebar), **Folder
+  replacing the + QuickAddMenu → Root tree** (right sidebar). Both keep the
+  drag-enter-to-open affordance. The panel-header QuickAddMenu (`targetRole="page"`) +
+  `handleQuickAddPage` + `globalFolderId` are gone — page creation lives in the trees'
+  own + menus. Header order: `[drag handle][Local][page label][Root][stack][fullscreen]`.
 
 ## Recent Changes (2026-07-02 — drag context split: hot components drop reactive drag-state reads)
 Part of the drag-start-lag fix (see helpers/CLAUDE.md 2026-07-02 for the full design).

@@ -49,14 +49,10 @@ import {
   SplitSquareHorizontal,
   Merge,
   X,
-  ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Folder,
   FileText,
   Layers,
-  Eye,
-  EyeOff,
   Maximize2,
   Minimize2,
 } from "lucide-react";
@@ -64,7 +60,6 @@ import {
 import Container from "./ModuleContainer.jsx";
 import Page from "./ModulePage.jsx";
 import { CanvasDrawSection } from "./CanvasContent.jsx";
-import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
@@ -298,23 +293,6 @@ function Panel({
   const [showHeader, setShowHeader] = useState(true);
   const [rootTreeOpen, setRootTreeOpen] = useState(false);
   const [localTreeOpen, setLocalTreeOpen] = useState(false);
-  // Autohide reveal state — ephemeral. The persisted `autohide` flag itself
-  // lives on panelOccurrence.meta.autohide and is read further down (after
-  // panelOccurrence is resolved).
-  const [headerRevealed, setHeaderRevealed] = useState(false);
-  // Measured natural height of the autohide header cluster, so it can slide
-  // (animate max-height) in/out smoothly instead of popping.
-  const headerInnerRef = useRef(null);
-  const [headerH, setHeaderH] = useState(0);
-  useEffect(() => {
-    const el = headerInnerRef.current;
-    if (!el) return;
-    const measure = () => setHeaderH(el.offsetHeight);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
   const [pendingDrilldown, setPendingDrilldown] = useState(null);
   // Stable ref — an inline closure here defeated <Page>'s React.memo on EVERY
   // panel render, cascading a full page/container/instance re-render per write.
@@ -414,59 +392,10 @@ function Panel({
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, ...updates }, emit: true });
   }, [panelOccurrence, dispatch, socket]);
 
-  // Autohide setting — persisted on panelOccurrence.meta.autohide so it can
-  // be seeded by createLiveData. Collapses pageHeader + breadcrumbBar; the
-  // hover strip at the top of the panel reveals them.
-  // On mobile, never autohide — the header serves as a tap target for expand.
-  // On touch/mobile the header retracts like desktop autohide, revealed by a
-  // tappable lip (hover doesn't exist). Desktop keeps the per-panel setting.
-  const autohide = isMobileLayout ? true : !!panelOccurrence?.meta?.autohide;
-  const toggleAutohide = useCallback(() => {
-    if (!panelOccurrence?.id) return;
-    const nextMeta = { ...(panelOccurrence.meta || {}), autohide: !autohide };
-    CommitHelpers.updateOccurrence({
-      dispatch, socket,
-      occurrence: { id: panelOccurrence.id, meta: nextMeta },
-      emit: true,
-    });
-  }, [panelOccurrence, autohide, dispatch, socket]);
-
   // View: check occurrence.viewId first (new system), fall back to module.viewId (legacy)
   const resolvedViewId = panelOccurrence?.viewId || module.viewId;
   const currentView = resolvedViewId ? viewsById[resolvedViewId] : null;
   const currentViewType = currentView?.viewType || "board";
-
-  // Global folder ID for the user manifest (page library)
-  const globalFolderId = useMemo(() => {
-    const manifestId = state?.grid?.manifestId;
-    if (!manifestId) return null;
-    const manifest = manifestsById[manifestId];
-    if (!manifest?.rootFolderId) return null;
-    return manifest?.rootFolderId || null;
-  }, [state?.grid?.manifestId, manifestsById, foldersById]);
-
-  // Quick-add: create an occurrence of an existing page module in this panel
-  const handleQuickAddPage = useCallback((pageModule) => {
-    if (!panelOccurrence || !pageModule?.id) return;
-    const occId = crypto.randomUUID();
-    const occ = {
-      id: occId,
-      userId: module.userId,
-      gridId: module.gridId,
-      moduleId: pageModule.id,
-      parentId: globalFolderId,
-      iteration: { mode: "persistent" },
-      fields: {},
-    };
-    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
-    const updatedOccs = [...(panelOccurrence.occurrences || []), occId];
-    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: panelOccurrence.id, occurrences: updatedOccs }, emit: true });
-    // OPEN it in this panel — pinning it as a tab isn't enough; the panel's view
-    // must point its activeOccurrenceId at the new page or it stays hidden.
-    if (currentView?.id) {
-      CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: occId, scrollAnchor: null }, emit: true });
-    }
-  }, [panelOccurrence, module, globalFolderId, currentView, dispatch, socket]);
 
   const handleViewTypeChange = useCallback((e) => {
     const newViewType = e.target.value;
@@ -718,32 +647,6 @@ function Panel({
     setRootTreeOpen(false);
   }, [openPage]);
 
-  // Breadcrumb click — opens a folder as a page. Crumb.id is a folder.id
-  // (from `pageBreadcrumbs`'s parentId-walk through `foldersById`). Mirrors
-  // ManifestTree's openFolderAsPage: find an existing folder-page occurrence
-  // under this folder, otherwise mint module + occurrence and navigate to it.
-  const openFolderCrumb = useCallback((folderId) => {
-    if (!folderId) return;
-    const existingFolderPage = Object.values(occurrencesById || {}).find(occ => {
-      if (occ.parentId !== folderId) return false;
-      const mod = modulesById?.[occ.moduleId];
-      return mod?.kind === "folder" && mod?.role === "page";
-    });
-    if (existingFolderPage) {
-      openPage(existingFolderPage.id);
-      return;
-    }
-    const userId = state?.userId;
-    const gridId = state?.grid?._id || state?.gridId;
-    const folder = foldersById?.[folderId];
-    if (!dispatch || !socket || !userId || !gridId || !folder) return;
-    const modId = crypto.randomUUID();
-    const occId = crypto.randomUUID();
-    CommitHelpers.createModule({ dispatch, socket, module: { id: modId, userId, gridId, role: "page", kind: "folder", label: folder.name }, emit: true });
-    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module", parentId: folderId, sortOrder: -1, iteration: { mode: "persistent" }, fields: {}, meta: {} }, emit: true });
-    openPage(occId);
-  }, [openPage, occurrencesById, modulesById, foldersById, dispatch, socket, state]);
-
   const closePage = useCallback((occId) => {
     if (!occId || !panelOccurrence?.id) return;
     CommitHelpers.unpinPageFromPanel({ dispatch, socket, pageOccurrenceId: occId, panelOccurrenceId: panelOccurrence.id });
@@ -774,25 +677,6 @@ function Panel({
     }
     return pagesList[0] || null;
   })();
-
-  // B3: Compute folder-path breadcrumbs for the active page (walks up parentId → foldersById)
-  const pageBreadcrumbs = useMemo(() => {
-    if (!activePageEntry) return [];
-    const crumbs = [];
-    // Walk up through folders (skip root — it has no parentId)
-    let folderId = activePageEntry.occurrence?.parentId;
-    let safety = 0;
-    while (folderId && safety < 8) {
-      const folder = foldersById?.[folderId];
-      if (!folder || !folder.parentId) break; // root folder has no parentId
-      crumbs.unshift({ id: folder.id, label: folder.name, isFolder: true });
-      folderId = folder.parentId;
-      safety++;
-    }
-    // Page itself at end
-    crumbs.push({ id: activePageEntry.occurrence.id, label: activePageEntry.page?.label || "Page", isPage: true });
-    return crumbs;
-  }, [activePageEntry, foldersById]);
 
   return (
     <div
@@ -880,7 +764,8 @@ function Panel({
             />
           );
 
-          // Page panel header — drag handle on LEFT, then page name, then QuickAdd + filters
+          // Page panel header — always visible. Drag handle on LEFT, then the
+          // Local tree toggle, page name, then Root tree toggle + stack/fullscreen.
           const activePageLabel = activePageEntry?.page?.label || "Untitled";
           const pageHeader = (
             <div className="page-header" style={{
@@ -914,11 +799,6 @@ function Panel({
                       onHistory={() => setHistoryOpen(true)}
                       onTemplate={openTemplates}
                       onDelete={handleRemovePanel}
-                      extraItems={[{
-                        icon: autohide ? Eye : EyeOff,
-                        label: autohide ? "Disable autohide" : "Autohide header",
-                        onClick: () => { toggleAutohide(); setHeaderRevealed(false); },
-                      }]}
                     />
                   </div>
                 </PopoverAnchor>
@@ -949,6 +829,25 @@ function Panel({
                 </PopoverContent>
               </Popover>
 
+              {/* Local tree toggle — right of the drag handle (per user). Opens
+                  the LEFT sidebar listing this panel's pages. Drag-enter opens
+                  it too so a drag can drop into the tree. */}
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => { setLocalTreeOpen(v => !v); setRootTreeOpen(false); }}
+                onDragEnter={(e) => { e.preventDefault(); setLocalTreeOpen(true); setRootTreeOpen(false); }}
+                onDragOver={(e) => e.preventDefault()}
+                title="Local pages"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  padding: "3px 5px", border: "none", borderRadius: 4, cursor: "pointer",
+                  background: localTreeOpen ? "rgba(6,182,212,0.12)" : "transparent",
+                  color: localTreeOpen ? "#06b6d4" : "var(--text-muted)",
+                }}
+              >
+                <FileText size={11} style={{ opacity: 0.8 }} />
+              </button>
+
               {/* Active page name — flex-grows to fill space between handle and actions */}
               <span style={{
                 flex: 1, minWidth: 0,
@@ -971,34 +870,24 @@ function Panel({
                   still inherit grid + higher-ancestor filters past a panel
                   with all its local filters off ("skip generations"). */}
               <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 5, alignItems: "center" }}>
-                <QuickAddMenu
-                  targetRole="page"
-                  onSelect={handleQuickAddPage}
-                  onCreateNew={({ kind } = {}) => {
-                    if (!panelOccurrence?.id || !module?.userId || !module?.gridId) return;
-                    const pageKind = kind || "board";
-                    const modId = crypto.randomUUID();
-                    const occId = crypto.randomUUID();
-                    CommitHelpers.createPage({
-                      dispatch, socket,
-                      module: { id: modId, userId: module.userId, gridId: module.gridId, role: "page", kind: pageKind, label: `Page ${(panelOccurrence.occurrences || []).length + 1}` },
-                      occurrence: { id: occId, userId: module.userId, gridId: module.gridId, moduleId: modId, parentId: globalFolderId, iteration: { mode: "persistent" }, fields: {} },
-                      panelOccurrenceId: panelOccurrence.id,
-                      ...(!resolvedViewId && {
-                        panelViewData: { id: crypto.randomUUID(), userId: module.userId, gridId: module.gridId, viewType: "board", activeOccurrenceId: occId },
-                      }),
-                      emit: true,
-                    });
-                    // OPEN the new page in this panel (pin + set activeOccurrenceId).
-                    // When the panel already has a view, createPage's panelViewData
-                    // isn't sent, so the view's active page never moved → it stayed
-                    // hidden. openPage activates it (no-op when the brand-new view
-                    // already points at it).
-                    openPage(occId);
+                {/* Root tree toggle — replaces the + quick-add (per user). Opens
+                    the RIGHT sidebar with the root page directory; page creation
+                    lives in the tree's own + menu. Drag-enter opens it so a drag
+                    can drop into the tree. */}
+                <button
+                  onClick={() => { setRootTreeOpen(v => !v); setLocalTreeOpen(false); }}
+                  onDragEnter={(e) => { e.preventDefault(); setRootTreeOpen(true); setLocalTreeOpen(false); }}
+                  onDragOver={(e) => e.preventDefault()}
+                  title="Root directory"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    padding: "3px 5px", border: "none", borderRadius: 4, cursor: "pointer",
+                    background: rootTreeOpen ? "rgba(100,180,255,0.12)" : "transparent",
+                    color: rootTreeOpen ? "rgba(100,180,255,1)" : "var(--text-muted)",
                   }}
-                  createLabel="New page"
-                  hostOccurrence={panelOccurrence}
-                />
+                >
+                  <Folder size={11} style={{ opacity: 0.8 }} />
+                </button>
                 {(() => {
                   const stack = dragCtx.getStackForPanel?.(module) || [];
                   if (stack.length <= 1) return null;
@@ -1059,186 +948,12 @@ function Panel({
             </div>
           );
 
-          // Nav bar — Root toggle (left) | breadcrumb trail (middle, when applicable) | Local toggle (right).
-          // Always visible for page panels.
-          const activeFolderKind = activePageEntry?.page?.kind === "folder";
-          const breadcrumbBar = (
-            <div style={{
-              display: "flex", alignItems: "center",
-              flexShrink: 0, padding: "2px 4px",
-              borderBottom: "1px solid var(--border-default)",
-              background: "var(--surface-base)",
-              gap: 2,
-            }}>
-              {/* Local tree toggle — left */}
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => { setLocalTreeOpen(v => !v); setRootTreeOpen(false); }}
-                onDragEnter={(e) => { e.preventDefault(); setLocalTreeOpen(true); setRootTreeOpen(false); }}
-                onDragOver={(e) => e.preventDefault()}
-                style={{
-                  display: "flex", alignItems: "center", gap: 3, flexShrink: 0,
-                  padding: "2px 7px", border: "none", borderRadius: 4, cursor: "pointer",
-                  background: localTreeOpen ? "rgba(6,182,212,0.12)" : "transparent",
-                  color: localTreeOpen ? "#06b6d4" : "var(--text-muted)",
-                  fontSize: 10, fontFamily: "var(--font-mono)",
-                }}
-              >
-                <FileText size={10} style={{ opacity: 0.7 }} />
-                Local
-              </button>
-
-              {/* Breadcrumb trail — middle, folder-path derived */}
-              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 3, overflow: "hidden", minWidth: 0 }}>
-                {!activeFolderKind && pageBreadcrumbs.length > 1 && pageBreadcrumbs.map((crumb, i) => {
-                  const isLast = i === pageBreadcrumbs.length - 1;
-                  const clickable = !isLast && crumb.isFolder;
-                  return (
-                    <React.Fragment key={crumb.id}>
-                      {i > 0 && <span style={{ color: "var(--text-faint)", fontSize: 9, flexShrink: 0 }}>›</span>}
-                      <span
-                        onClick={clickable ? (e) => { e.stopPropagation(); openFolderCrumb(crumb.id); } : undefined}
-                        onPointerDown={clickable ? (e) => e.stopPropagation() : undefined}
-                        style={{
-                          fontSize: 10, fontFamily: "var(--font-mono)",
-                          color: isLast ? "var(--text-primary)" : "var(--text-muted)",
-                          cursor: clickable ? "pointer" : "default",
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80,
-                          flexShrink: crumb.isPage ? 0 : 1,
-                        }}
-                        title={clickable ? `Open ${crumb.label}` : crumb.label}
-                      >
-                        {crumb.label}
-                      </span>
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-
-              {/* Page cycle arrows — cycle through this panel's local pages */}
-              {pagesList.length > 1 && (() => {
-                const activeId = activePageEntry?.occurrence?.id;
-                const idx = activeId ? pagesList.findIndex(p => p.occurrence.id === activeId) : -1;
-                const total = pagesList.length;
-                const prevPage = idx >= 0 ? pagesList[(idx - 1 + total) % total] : null;
-                const nextPage = idx >= 0 ? pagesList[(idx + 1) % total] : null;
-                const btnStyle = {
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0, padding: "2px 4px", border: "none",
-                  borderRadius: 4, cursor: "pointer", background: "transparent",
-                  color: "var(--text-muted)",
-                };
-                return (
-                  <>
-                    <button
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => { e.stopPropagation(); if (prevPage) openPage(prevPage.occurrence.id); }}
-                      title={prevPage ? `Prev: ${prevPage.page?.label || "Untitled"}` : "Previous page"}
-                      style={btnStyle}
-                    >
-                      <ChevronLeft size={11} />
-                    </button>
-                    <button
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => { e.stopPropagation(); if (nextPage) openPage(nextPage.occurrence.id); }}
-                      title={nextPage ? `Next: ${nextPage.page?.label || "Untitled"}` : "Next page"}
-                      style={btnStyle}
-                    >
-                      <ChevronRight size={11} />
-                    </button>
-                  </>
-                );
-              })()}
-
-              {/* Root tree toggle — right */}
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => { setRootTreeOpen(v => !v); setLocalTreeOpen(false); }}
-                onDragEnter={(e) => { e.preventDefault(); setRootTreeOpen(true); setLocalTreeOpen(false); }}
-                onDragOver={(e) => e.preventDefault()}
-                style={{
-                  display: "flex", alignItems: "center", gap: 3, flexShrink: 0,
-                  padding: "2px 7px", border: "none", borderRadius: 4, cursor: "pointer",
-                  background: rootTreeOpen ? "rgba(100,180,255,0.12)" : "transparent",
-                  color: rootTreeOpen ? "rgba(100,180,255,1)" : "var(--text-muted)",
-                  fontSize: 10, fontFamily: "var(--font-mono)",
-                }}
-              >
-                <Folder size={10} style={{ opacity: 0.7 }} />
-                Root
-              </button>
-            </div>
-          );
-
-          // Autohide: header + breadcrumb collapse and a thin top hover strip
-          // reveals them. When revealed they stay in normal flow and push the
-          // page content down (not overlaid). When NOT autohiding, render inline.
-          const headersVisible = !autohide || headerRevealed;
-          // When autohiding, keep the cluster mounted and animate its measured
-          // height + opacity so it SLIDES in/out (instead of popping). The inner
-          // div is measured via ResizeObserver → headerH. Non-autohide panels
-          // render the header inline, unchanged.
-          const headerCluster = (
-            <div
-              onMouseEnter={() => autohide && setHeaderRevealed(true)}
-              onMouseLeave={() => { if (autohide && !isMobileLayout) setHeaderRevealed(false); }}
-              style={autohide ? {
-                flexShrink: 0,
-                overflow: "hidden",
-                // Fallback to a generous cap when the natural height hasn't been
-                // measured yet (the cluster starts collapsed, so the mount-time
-                // measure can read 0) — otherwise the header would never reveal
-                // on hover. The cap only bounds the slide animation.
-                maxHeight: headersVisible ? (headerH || 1000) : 0,
-                opacity: headersVisible ? 1 : 0,
-                pointerEvents: headersVisible ? "auto" : "none",
-                transition: "max-height 260ms cubic-bezier(0.22,1,0.36,1), opacity 200ms ease",
-              } : { flexShrink: 0 }}
-            >
-              <div ref={headerInnerRef}>
-                {pageHeader}
-                {breadcrumbBar}
-              </div>
-            </div>
-          );
-
           return (
             <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
-              {/* Retracted-header affordance — only when autohide is on. A
-                  full-width invisible strip gives a forgiving hover zone, and a
-                  centered VISIBLE "lip" tab gives the user something specific to
-                  aim at. Both reveal the header cluster on hover. */}
-              {autohide && (!headerRevealed || isMobileLayout) && (
-                <>
-                  {!headerRevealed && (
-                    <div
-                      onMouseEnter={() => setHeaderRevealed(true)}
-                      style={{ position: "absolute", top: 0, left: 0, right: 0, height: 10, zIndex: 40, cursor: "pointer" }}
-                    />
-                  )}
-                  <div
-                    onMouseEnter={() => { if (!isMobileLayout) setHeaderRevealed(true); }}
-                    onClick={() => setHeaderRevealed((v) => !v)}
-                    className="panel-header-lip"
-                    title={headerRevealed ? "Hide header" : "Show header"}
-                    style={{
-                      position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
-                      zIndex: 41, cursor: "pointer",
-                      width: 48, height: 10,
-                      background: "var(--surface-card, rgba(36,40,48,0.92))",
-                      border: "1px solid var(--border-default)",
-                      borderTop: "none",
-                      borderRadius: "0 0 8px 8px",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}
-                  >
-                    <ChevronDown size={10} style={{ opacity: 0.55, transform: headerRevealed ? "rotate(180deg)" : "none" }} />
-                  </div>
-                </>
-              )}
-              {/* Always mounted so autohide can animate; non-autohide is always visible. */}
-              {headerCluster}
+              {/* Panel header — always visible (per user; the old autohide
+                  hover-hide + Local/Root nav bar are gone — the tree toggles
+                  live in the header itself now). */}
+              {pageHeader}
               {/* On desktop: sidebars push content (flex row). On mobile: sidebars overlay (absolute). */}
               <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", position: "relative" }}>
                 {/* Local tree sidebar — LEFT, pushes content on desktop, overlays on mobile */}

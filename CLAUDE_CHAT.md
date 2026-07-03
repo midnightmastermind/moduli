@@ -2165,3 +2165,15 @@ When we start: run the brainstorming skill first (this is a real feature design)
 Touch points to scope: Command Center panel UI (new tab), a Connection model/store
 (credentials, kind, status), operations pipeline `sources`/triggers + a new outbound
 action type, and how incoming webhooks/events map onto the executor's `$vars`.
+
+---
+
+## 2026-07-03 — wrap visual polish + panel header rework (account2 hit spend limit; picked up by .claude)
+
+Two directives arrived at the end of the account2 session (12:39 / 12:44 UTC) and went unanswered when the account hit its monthly spend limit. Direct quotes:
+
+> "also look at the latest screenshot. could you make the color between the wrapped occurances be the background color of the page. or make it opaique i mean. right now its the color of the wrapped textblock. and it looks like its overextending itself passed the borders currently. also make sure that the occurance with the infobox doesnt get an unnecessary horizontal scroll like it does now"
+
+(Screenshot: `screenshots/Screenshot 2026-07-03 073632.png` — shows the Eminem import: seam/gap between wrapped occurrences carries the textblock tint instead of the page bg, and the infobox card shows a horizontal scrollbar.)
+
+> "also switch up the hover hide of the panel header, to keep the panel header but put a button on each side (one to the right of the drag handle of the panel header, and the other (for the root side of the side bar directory of the pages) replace the plus button in the header. get rid of the top bar that shows local and root. and then keep the panel header visible at all times."

@@ -1,6 +1,31 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-06-12. Check this file before re-reading source._
+_Updated: 2026-07-03. Check this file before re-reading source._
+
+## Recent Changes (2026-07-03 LATE — wrap channel/edges + infobox scroll + always-visible panel header)
+Continuation of the account2 session that hit its spend limit (directives logged in
+CLAUDE_CHAT.md 2026-07-03). All verified headlessly against the live-grid Eminem import
+(local server on prod Atlas DB + vite dev + playwright probes).
+- **Wrap channel = page bg** — `docs/WrapGroupNode.jsx` moves the host clip wall + seam
+  line from mid-channel (SEAM_GAP/2) to the prose edge (full SEAM_GAP): the whole 14px
+  gap between wrapped occurrences shows the PAGE background, not the host textblock tint.
+- **Wrap edge alignment** — `index.css` float rules drop the 6px OUTER margin
+  (`margin-right`/`margin-left: 0` on the floated neighbor): the infobox/image border now
+  sits flush with the host's outer edge, aligned with the full-width bottom bar (was
+  poking 6px past → "overextending past the borders"). Measured: neighbor right == host
+  right (1157==1157).
+- **Phantom table h-scroll KILLED** — `.table-add-col-th` had `min-width: 80px` while the
+  ContainerTable width scaler budgets exactly `ROW_ACTION_COL_W` (32px) for it → the
+  header row's min-content exceeded the body width by 48px on EVERY table (blatant in the
+  narrow wrap infobox: clientWidth 298 vs scrollWidth 346). Now `min-width: 0` + flex
+  centering; measured 298==298, zero scrollable descendants.
+- **Panel header rework** — see modules/CLAUDE.md: header always visible; autohide + lip
+  + Local/Root nav bar deleted; Local (FileText, right of drag handle) + Root (Folder,
+  replaces the + quick-add) tree toggles live in the header. `.panel-header-lip` CSS
+  removed (base + coarse-pointer variants).
+- **Test drift fixed** — `__tests__/quickAddMenu.test.js` expectations updated to the
+  current full child palette `tileKindsForRole("instance")` (artifact tile is intentional
+  since the 2026-07-01 quick-add extension). 1136/1136 client tests green.
 
 ## Recent Changes (2026-07-03 — drop re-render storm killed + snap/layout-rules/seed batch; ALL DEPLOYED + RESEEDED)
 **Perf (drop → paint 2855ms → ~1400ms @5x throttle; measured via scratchpad dropProbe + CDP CPU profile):**

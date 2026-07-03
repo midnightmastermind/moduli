@@ -867,19 +867,6 @@ body[data-clipboard-active="true"] {
   transform: translateY(0);
 }
 
-/* Retracted (autohide) panel header lip — a small centered tab the user can aim
-   at to reveal the hidden header. Subtle at rest, brightens + drops slightly on
-   hover so it reads as a pull-down handle. */
-.panel-header-lip {
-  opacity: 0.5;
-  transition: opacity 0.2s ease, height 0.2s ease;
-}
-.panel-shell:hover .panel-header-lip { opacity: 0.8; }
-.panel-header-lip:hover {
-  opacity: 1 !important;
-  height: 13px !important;
-}
-
 /* Cog: radial hidden at rest, stem+ball visible. On hover: radial shown, stem+ball hidden. */
 .container-cog-handle .radial-menu {
   display: none;
@@ -2673,10 +2660,12 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   position: relative;
   z-index: 20;
 }
-/* margin toward the prose (14px) + a small OUTER margin so the image doesn't sit flush
-   against / overlap the host's outer (right for a right float, left for a left float) edge. */
-.wrap-group--on.wrap-group--right .wrap-group-content > * > :not(:last-child) { float: right; margin-left: 14px; margin-right: 6px; }
-.wrap-group--on.wrap-group--left  .wrap-group-content > * > :not(:last-child) { float: left;  margin-right: 14px; margin-left: 6px; }
+/* margin toward the prose (14px); NO outer margin — the neighbor's outer border
+   must sit flush on the host's outer edge, aligned with the full-width bottom
+   bar below it (an outer margin left the bottom bar poking 6px past the
+   neighbor's border — "overextending past the borders"). */
+.wrap-group--on.wrap-group--right .wrap-group-content > * > :not(:last-child) { float: right; margin-left: 14px; margin-right: 0; }
+.wrap-group--on.wrap-group--left  .wrap-group-content > * > :not(:last-child) { float: left;  margin-right: 14px; margin-left: 0; }
 /* Host: a plain full-width block whose prose line-boxes wrap around the float. */
 .wrap-group--on .wrap-group-content > * > :last-child {
   display: block !important;
@@ -3631,10 +3620,14 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .table-resize-grip:hover,
 .table-resize-grip:active { background: var(--accent-blue); opacity: 0.6; }
 
-/* +Column button cell */
+/* +Column button cell. min-width MUST stay 0: the width scaler budgets exactly
+   ROW_ACTION_COL_W (32px) for this cell, and a flex item's min-content floor
+   would push the header row wider than the body rows — every table then gets a
+   phantom horizontal scrollbar (worst in narrow hosts like the wrap infobox). */
 .table-add-col-th {
   background: transparent; border-color: transparent !important;
-  min-width: 80px;
+  min-width: 0;
+  display: flex; align-items: center; justify-content: center;
 }
 .table-add-col-btn {
   background: none; border: 1px dashed var(--border-subtle);
@@ -3875,9 +3868,5 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   .quick-add-btn {
     min-width: 34px;
     min-height: 34px;
-  }
-  .panel-header-lip {
-    width: 64px;
-    height: 16px;
   }
 }

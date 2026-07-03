@@ -14,13 +14,8 @@ describe("tileKindsForRole — create tiles per role", () => {
     expect(tileKindsForRole("panel")).toEqual(["board"]);
   });
 
-  it("instance → generic Item, plus Textblock only when onAddTextblock is wired", () => {
-    expect(tileKindsForRole("instance")).toEqual(["instance"]);
-    expect(tileKindsForRole("instance", { hasTextblock: true })).toEqual(["instance", "textblock"]);
-  });
-
-  it("instance never offers a blank Artifact create tile (artifacts are uploaded)", () => {
-    expect(tileKindsForRole("instance", { hasTextblock: true })).not.toContain("artifact");
+  it("instance → full child palette: Item, Textblock, nested containers, Artifact upload", () => {
+    expect(tileKindsForRole("instance")).toEqual(["instance", "textblock", "board", "doc", "table", "canvas", "artifact"]);
   });
 });
 
