@@ -11,9 +11,11 @@
 //     outer edge band grows the grid at that edge and places the panel in the
 //     new track, keeping its perpendicular position.
 //
-// The vacated cell is left empty on purpose — that's the free slot for the
-// next panel. No auto-shrink (mirror of Windows snapping); the user compacts
-// via the rows/cols inputs in Grid settings.
+// GROW moves leave the vacated cell empty on purpose — that's the free slot
+// for the next panel. IN-BOUNDS moves compact afterwards: any row/column left
+// with no panel at all is removed (placements shift to close the gap), so
+// snapping a panel back also SHRINKS the grid instead of accumulating empty
+// tracks. Minimum 1×1. The rows/cols inputs in Grid settings compact too.
 import * as CommitHelpers from "./CommitHelpers";
 
 const DIRS = {
@@ -63,6 +65,51 @@ function growGrid({ dispatch, socket, grid, occurrencesById, axis, atStart }) {
   return dims;
 }
 
+// Remove every row/column that no panel covers (anchor..anchor+span-1),
+// shifting placements to close the gaps. `overrides` supplies just-committed
+// placements the render-time occurrencesById snapshot doesn't reflect yet
+// (the panel that snapped this tick, or a swap partner).
+function compactEmptyTracks({ dispatch, socket, grid, occurrencesById, overrides = {} }) {
+  const rows = grid.rows ?? 1;
+  const cols = grid.cols ?? 1;
+  const occs = panelOccsOf(grid, occurrencesById);
+  const place = (o) => {
+    const p = placementOf(o);
+    return overrides[o.id] ? { ...p, ...overrides[o.id] } : p;
+  };
+  const usedRows = new Set();
+  const usedCols = new Set();
+  for (const o of occs) {
+    const p = place(o);
+    for (let r = p.row; r < p.row + p.height; r++) usedRows.add(r);
+    for (let c = p.col; c < p.col + p.width; c++) usedCols.add(c);
+  }
+  const keptRows = [...Array(rows).keys()].filter((r) => usedRows.has(r));
+  const keptCols = [...Array(cols).keys()].filter((c) => usedCols.has(c));
+  const nRows = Math.max(1, keptRows.length);
+  const nCols = Math.max(1, keptCols.length);
+  if (nRows === rows && nCols === cols) return false;
+  const rowRank = {};
+  keptRows.forEach((r, i) => { rowRank[r] = i; });
+  const colRank = {};
+  keptCols.forEach((c, i) => { colRank[c] = i; });
+  for (const o of occs) {
+    const p = place(o);
+    const nr = rowRank[p.row] ?? p.row;
+    const nc = colRank[p.col] ?? p.col;
+    // Re-commit when the rank shifted the anchor; the overridden (just-moved)
+    // panel was already committed by the caller at its pre-rank position.
+    if (nr !== p.row || nc !== p.col) {
+      commitPlacement({ dispatch, socket, occ: o, row: nr, col: nc });
+    }
+  }
+  CommitHelpers.updateGrid({
+    dispatch, socket, gridId: grid._id || grid.id,
+    grid: { rows: nRows, cols: nCols }, emit: true,
+  });
+  return true;
+}
+
 /**
  * Keyboard snap. Returns true when it did something.
  */
@@ -98,10 +145,16 @@ export function snapPanelInDirection({ direction, panelOcc, grid, occurrencesByI
     const op = placementOf(o);
     return op.row === targetRow && op.col === targetCol;
   });
+  const overrides = { [panelOcc.id]: { row: targetRow, col: targetCol } };
   if (occupant) {
     commitPlacement({ dispatch, socket, occ: occupant, row: p.row, col: p.col });
+    overrides[occupant.id] = { row: p.row, col: p.col };
   }
   commitPlacement({ dispatch, socket, occ: panelOcc, row: targetRow, col: targetCol });
+  // In-bounds moves SHRINK: if the vacated track (or any other) is now fully
+  // empty, compact it away. Grow moves above skip this — their empty track is
+  // the intended free cell.
+  compactEmptyTracks({ dispatch, socket, grid, occurrencesById, overrides });
   return true;
 }
 
