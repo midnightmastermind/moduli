@@ -31,7 +31,9 @@ export function registerStateHandlers(socket, {
       }
 
       if (!gridDoc) {
-        const newGrid = await Grid.create({ rows: 2, cols: 3, rowSizes: [], colSizes: [], userId, name: "" });
+        // Fresh/empty grids start as a single empty cell (2026-07-03, per user) —
+          // the snap/arrow-key workflow grows the grid from there.
+          const newGrid = await Grid.create({ rows: 1, cols: 1, rowSizes: [], colSizes: [], userId, name: "" });
         gridId = newGrid._id.toString();
         gridDoc = newGrid.toObject();
       }

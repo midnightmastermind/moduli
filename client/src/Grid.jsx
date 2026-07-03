@@ -27,14 +27,15 @@ import { DragProvider } from "./helpers/DragProvider";
 import { useDragContext, useDragStateContext, useDragHotContext, useDroppable, DragType, DropAccepts } from "./helpers/dragSystem";
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import { getGridPanels } from "./state/selectors";
-import { applyLocalSort } from "./helpers/LayoutHelpers";
+import { applyLocalSort, createPanelInGrid } from "./helpers/LayoutHelpers";
+import { ensureFolderPageOcc } from "./helpers/importsFolder";
 import MobileGridNav from "./mobile/MobileGridNav";
 import { Layers } from "lucide-react";
 
 // ============================================================
 // GRID CELL - Drop zone for panels
 // ============================================================
-const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack, stackCount, rows, cols }) {
+const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack, stackCount, rows, cols, onEmptyCellClick }) {
   const { cyclePanelStack } = useDragContext();
   const { isPanelDrag } = useDragStateContext();
   const { panelOverCellId } = useDragHotContext();
@@ -92,9 +93,13 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
           <span style={{ fontSize: 9, fontWeight: 600 }}>{stackCount}</span>
         </button>
       )}
-      {/* Show pocket effect when cell is empty */}
+      {/* Show pocket effect when cell is empty. Click → new panel opened on
+          the root folder page (see GridInner.handleEmptyCellClick). */}
       {!hasPanel && (
         <div
+          onClick={onEmptyCellClick ? () => onEmptyCellClick(r, c) : undefined}
+          role={onEmptyCellClick ? "button" : undefined}
+          title={onEmptyCellClick ? "Add a panel here (opens the root folder)" : undefined}
           style={{
             position: "absolute",
             inset: "6px",
@@ -102,14 +107,15 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
             background: "rgba(69, 72, 74, 0.4)",
             border: "1px solid rgba(0, 0, 0, 0.5)",
             boxShadow: "inset 0 2px 4px rgba(0, 0, 0, 0.3)",
-            pointerEvents: "none",
+            pointerEvents: onEmptyCellClick ? "auto" : "none",
+            cursor: onEmptyCellClick ? "pointer" : undefined,
           }}
         >
           <div
             className="text-xs text-muted-foreground p-2 text-center"
-            style={{ fontStyle: "italic", opacity: 0.6, width: "100%", position: "absolute", top: "50%", transform: "translateY(-50%)" }}
+            style={{ fontStyle: "italic", opacity: 0.6, width: "100%", position: "absolute", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
           >
-            Drop panel here
+            Tap to add a panel
           </div>
         </div>
       )}
@@ -139,6 +145,7 @@ function GridRender({
   sizesRef,
   onStartColResize,
   onStartRowResize,
+  onEmptyCellClick,
   isMobileLayout,
   isTouch,
 }) {
@@ -218,7 +225,7 @@ function GridRender({
       }}
     >
       {cellsData.map(({ r, c, dark, hasPanel, hasHiddenStack, stackCount }) => (
-        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} hasHiddenStack={hasHiddenStack} stackCount={stackCount} rows={rows} cols={cols} />
+        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} hasHiddenStack={hasHiddenStack} stackCount={stackCount} rows={rows} cols={cols} onEmptyCellClick={onEmptyCellClick} />
       ))}
 
       {/* Vertical resize handles (between columns) — hidden on mobile */}
@@ -389,6 +396,9 @@ function GridInner() {
     createField,
     updateField,
     deleteField,
+    occurrencesById,
+    modulesById,
+    manifestsById,
   } = useGridActions();
 
   const {
@@ -623,6 +633,52 @@ function GridInner() {
   const getClientX = (e) => (e.touches ? e.touches[0].clientX : e.clientX);
   const getClientY = (e) => (e.touches ? e.touches[0].clientY : e.clientY);
 
+  // Click an EMPTY grid cell → mint a panel there whose active page is the
+  // ROOT FOLDER page (the full card grid of everything on the grid), so an
+  // empty cell is one tap away from useful content (2026-07-03, per user).
+  const handleEmptyCellClick = useCallback((r, c) => {
+    if (!grid || !state?.userId) return;
+    const manifest = manifestsById?.[grid.manifestId];
+    const rootFolderId = manifest?.rootFolderId;
+    if (!rootFolderId) return;
+    // Find the root folder-page occurrence (ManifestTree/PageFolder mint these
+    // with kind:"folder" role:"page" parented under the folder), or create it.
+    const existing = Object.values(occurrencesById || {}).find((o) => {
+      if (!o || o.parentId !== rootFolderId) return false;
+      if (o.meta?.folderPage === true) return true;
+      const mod = modulesById?.[o.moduleId];
+      return mod?.role === "page" && mod?.kind === "folder";
+    });
+    const folderPageOccId = existing?.id || ensureFolderPageOcc({
+      folderId: rootFolderId, label: manifest?.name || "Root", gridId,
+      occurrencesById, dispatch, socket, userId: state.userId,
+    });
+    if (!folderPageOccId) return;
+    const viewId = crypto.randomUUID();
+    CommitHelpers.createView({
+      dispatch, socket,
+      view: { id: viewId, userId: state.userId, gridId, viewType: "board", activeOccurrenceId: folderPageOccId },
+      emit: true,
+    });
+    const result = createPanelInGrid({
+      dispatch, socket, grid,
+      panel: {
+        id: crypto.randomUUID(), userId: state.userId, gridId, kind: "board", label: "Panel",
+        defaultDragMode: "move",
+        layout: { name: "Panel", display: "flex", flow: "column", wrap: "nowrap", gapPx: 4, scrollY: "auto", padding: "sm" },
+      },
+      placement: { row: r, col: c, width: 1, height: 1 },
+      userId: state.userId,
+    });
+    if (result?.occurrence?.id) {
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: result.occurrence.id, viewId, occurrences: [folderPageOccId] },
+        emit: true,
+      });
+    }
+  }, [grid, gridId, state?.userId, manifestsById, occurrencesById, modulesById, dispatch, socket]);
+
   const startColResize = useCallback((e, i) => {
     e.preventDefault();
     let startX = getClientX(e);
@@ -757,6 +813,7 @@ function GridInner() {
             sizesRef={sizesRef}
             onStartColResize={startColResize}
             onStartRowResize={startRowResize}
+            onEmptyCellClick={handleEmptyCellClick}
             isMobileLayout={isMobileLayout}
             isTouch={isTouch}
           />
@@ -780,6 +837,7 @@ function GridInner() {
           sizesRef={sizesRef}
           onStartColResize={startColResize}
           onStartRowResize={startRowResize}
+          onEmptyCellClick={handleEmptyCellClick}
           isMobileLayout={isMobileLayout}
           isTouch={isTouch}
         />

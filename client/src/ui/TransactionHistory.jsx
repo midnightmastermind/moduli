@@ -60,6 +60,9 @@ const STATE_CONFIG = {
   redone: { label: "Redone", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
 };
 
+// Undo/redo temporarily disabled (broken server-side) — see TransactionRow.
+const UNDO_REDO_ENABLED = false;
+
 /**
  * Single transaction row
  */
@@ -76,8 +79,11 @@ function TransactionRow({
 
   const isUndone = transaction.state === "undone";
   const isRedone = transaction.state === "redone";
-  const canUndo = transaction.state === "applied" || transaction.state === "redone";
-  const canRedo = transaction.state === "undone";
+  // Undo/redo are DISABLED for now (2026-07-03, per user — "the undo and redo
+  // don't even work right now so let's hide that"). History stays viewable;
+  // flip UNDO_REDO_ENABLED when the server-side undo path is fixed.
+  const canUndo = UNDO_REDO_ENABLED && (transaction.state === "applied" || transaction.state === "redone");
+  const canRedo = UNDO_REDO_ENABLED && transaction.state === "undone";
 
   const timestamp = transaction.timestamp
     ? formatDistanceToNow(new Date(transaction.timestamp), { addSuffix: true })

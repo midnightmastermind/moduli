@@ -69,7 +69,9 @@ export function registerCrudHandlers(socket, {
         const filtered = remaining.filter(g => g.id !== gridId);
         let nextId = filtered.length ? filtered[0].id : null;
         if (!nextId) {
-          const newGrid = await Grid.create({ rows: 2, cols: 3, rowSizes: [], colSizes: [], userId, name: "" });
+          // Fresh/empty grids start as a single empty cell (2026-07-03, per user) —
+          // the snap/arrow-key workflow grows the grid from there.
+          const newGrid = await Grid.create({ rows: 1, cols: 1, rowSizes: [], colSizes: [], userId, name: "" });
           nextId = newGrid._id.toString();
         }
         // Tell the client to reload with the new grid

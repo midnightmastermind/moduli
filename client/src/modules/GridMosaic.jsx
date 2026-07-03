@@ -21,7 +21,12 @@ import {
   computeLayout, resizeSplit, removeLeaf, splitLeaf, allPanelOccIds, makeLeaf,
 } from "../helpers/bspTree";
 
-const SPLITTER = 6; // px hit/visual band
+// Coarse pointers (tablet/phone) get a finger-sized splitter band — the 6px
+// desktop band was nearly impossible to hit, so touch presses landed on the
+// pane underneath and opened its long-press menu instead of resizing.
+// Static per load: pointer coarseness doesn't change at runtime.
+const IS_COARSE = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)")?.matches;
+const SPLITTER = IS_COARSE ? 28 : 6; // px hit band (visual nub styled separately)
 
 export default function GridMosaic({
   gridRef,
@@ -136,12 +141,17 @@ export default function GridMosaic({
       window.removeEventListener("mouseup", stop);
       window.removeEventListener("touchmove", move);
       window.removeEventListener("touchend", stop);
+      window.removeEventListener("touchcancel", stop);
       persist(treeRef.current);
     };
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", stop);
     window.addEventListener("touchmove", move, { passive: false });
     window.addEventListener("touchend", stop);
+    // Without this, an OS-interrupted gesture (notification shade, palm)
+    // stranded the listeners — "works once then dead" (same bug class as the
+    // rows×cols track resizers).
+    window.addEventListener("touchcancel", stop);
   }, [persist]);
 
   // ---- drag a panel onto a pane edge → re-split ----------------------------
@@ -191,6 +201,7 @@ export default function GridMosaic({
       {splitters.map((s) => (
         <div
           key={s.id}
+          data-dnd-handle="true"
           onMouseDown={(e) => startSplitterDrag(e, s)}
           onTouchStart={(e) => startSplitterDrag(e, s)}
           style={{
@@ -199,13 +210,17 @@ export default function GridMosaic({
             cursor: s.dir === "v" ? "col-resize" : "row-resize",
             zIndex: 30,
             display: "flex", alignItems: "center", justifyContent: "center",
+            // Claim the gesture — React's onTouchStart is passive, so its
+            // preventDefault can't stop the browser turning the drag into a
+            // page scroll (→ touchcancel → "resize doesn't work on tablet").
+            touchAction: "none",
           }}
         >
           <div style={{
-            background: "rgba(255,255,255,0.18)",
-            borderRadius: 2,
-            width: s.dir === "v" ? 2 : 18,
-            height: s.dir === "v" ? 18 : 2,
+            background: IS_COARSE ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.18)",
+            borderRadius: 3,
+            width: s.dir === "v" ? (IS_COARSE ? 5 : 2) : (IS_COARSE ? 44 : 18),
+            height: s.dir === "v" ? (IS_COARSE ? 44 : 18) : (IS_COARSE ? 5 : 2),
           }} />
         </div>
       ))}

@@ -5775,11 +5775,13 @@ export async function createLiveData(userId, options = {}) {
     textmap: { type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: logoRootOccId } }] },
   });
 
-  // Notebook hub View — Schedule is the default active tab (it lives in the
-  // bottom-middle panel now, beneath the logo board). Interfaces folder-page /
-  // Canvas / Schedule Table / Schedule Canvas remain pinned + reachable.
+  // Notebook hub View — the middle column is ONE full-height panel now
+  // (2026-07-03, per user: "make the top middle panel extend to the bottom
+  // middle … start it off as the description site image page"). The Viafluere
+  // description/logo page is the default active tab; Schedule / Interfaces
+  // folder-page / Canvas / Schedule Table / Schedule Canvas stay pinned.
   const notebookHubViewId = uid();
-  await new View({ id: notebookHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: schedPageOccId }).save();
+  await new View({ id: notebookHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: logoPageOccId }).save();
 
   // Daily Toolkit View — folder-page (card grid of all 11 wellness pages) is
   // the default active tab; per-wellness pages remain pinned as tabs.
@@ -5794,7 +5796,6 @@ export async function createLiveData(userId, options = {}) {
 
   const toolkitPanelId  = uid();
   const todoPanelId     = uid();
-  const logoPanelId     = uid();
   const notebookPanelId = uid();
   const goalsPanelId    = uid();
   const accountsPanelId = uid();
@@ -5802,7 +5803,6 @@ export async function createLiveData(userId, options = {}) {
   await Module.insertMany([
     { id: toolkitPanelId,  userId, gridId, role: "panel", kind: "board", label: "Panel A", defaultDragMode: "copy", layout: panelLayout("Panel A") },
     { id: todoPanelId,     userId, gridId, role: "panel", kind: "board", label: "Panel B", defaultDragMode: "move", layout: { ...panelLayout("Panel B"), gapPx: 8 } },
-    { id: logoPanelId,     userId, gridId, role: "panel", kind: "board", label: "Viafluere", defaultDragMode: "copy", layout: { ...panelLayout("Viafluere"), flow: "row", scrollY: "auto" } },
     { id: notebookPanelId, userId, gridId, role: "panel", kind: "board", label: "Panel C", defaultDragMode: "move", layout: panelLayout("Panel C") },
     { id: goalsPanelId,    userId, gridId, role: "panel", kind: "board", label: "Panel D", defaultDragMode: "move", layout: panelLayout("Panel D") },
     { id: accountsPanelId, userId, gridId, role: "panel", kind: "board", label: "Panel E", defaultDragMode: "move", layout: panelLayout("Panel E") },
@@ -5812,19 +5812,17 @@ export async function createLiveData(userId, options = {}) {
   const panelModuleIds = {
     toolkit:  toolkitPanelId,
     todo:     todoPanelId,
-    logo:     logoPanelId,
     notebook: notebookPanelId,
     goals:    goalsPanelId,
     accounts: accountsPanelId,
   };
-  // Middle column is split: Notebook/Schedule hub on TOP (row 0 — the "top
-  // middle cell"), logo board beneath it (row 1). The mosaic tree below
-  // mirrors this split (hub dominant, logo short).
+  // Middle column is ONE full-height hub panel (height 2 spans both rows).
+  // The Viafluere description/logo page is its active tab (see the View
+  // above); Schedule and the rest stay pinned as tabs.
   const placements = [
     { key: "toolkit",  panelId: toolkitPanelId,  row: 0, col: 0, width: 1, height: 1, viewId: toolkitHubViewId  },
     { key: "todo",     panelId: todoPanelId,     row: 1, col: 0, width: 1, height: 1, viewId: null              },
-    { key: "notebook", panelId: notebookPanelId, row: 0, col: 1, width: 1, height: 1, viewId: notebookHubViewId },
-    { key: "logo",     panelId: logoPanelId,     row: 1, col: 1, width: 1, height: 1, viewId: null              },
+    { key: "notebook", panelId: notebookPanelId, row: 0, col: 1, width: 1, height: 2, viewId: notebookHubViewId },
     { key: "goals",    panelId: goalsPanelId,    row: 0, col: 2, width: 1, height: 1, viewId: null              },
     { key: "accounts", panelId: accountsPanelId, row: 1, col: 2, width: 1, height: 1, viewId: null              },
   ];
@@ -5847,30 +5845,26 @@ export async function createLiveData(userId, options = {}) {
   // pages (Task 11) are NOT pinned — they live only under notesFolderId.
   await Occurrence.findOneAndUpdate({ id: panelOccIds.toolkit },  { $set: { occurrences: [toolkitFolderPageOccId, ...wellnessPageOccList] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.todo },     { $set: { occurrences: [todoPageOccId] } });
-  await Occurrence.findOneAndUpdate({ id: panelOccIds.logo },     { $set: { occurrences: [logoPageOccId] } });
-  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [schedPageOccId, notebookFolderPageOccId, schedCanvasPageOccId, examplesPageOccId].filter(Boolean) } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [logoPageOccId, schedPageOccId, notebookFolderPageOccId, schedCanvasPageOccId, examplesPageOccId].filter(Boolean) } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.goals },    { $set: { occurrences: [goalsPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.accounts }, { $set: { occurrences: [accountsPageOccId] } });
 
   // ── STEP 11: Finalize grid ──────────────────────────────────────────────────
   // Open the seeded grid in BSP "mosaic" layout (opt-in per grid — see
   // client/src/helpers/bspTree.js). Mirrors the rows×cols placement above:
-  // col0 = toolkit over todo, col1 = Viafluere logo board over the Notebook/
-  // Schedule hub, col2 = goals over accounts. The user re-tunes pane sizes by
-  // dragging the splitter bars.
+  // col0 = toolkit over todo, col1 = the full-height Viafluere/Notebook hub,
+  // col2 = goals over accounts. Side columns ~20% thinner than the middle
+  // (2026-07-03, per user). The user re-tunes pane sizes by dragging the
+  // splitter bars.
   const mosaicLayoutTree = {
-    id: "mosaic-root", dir: "v", ratio: [1, 1.15, 1],
+    id: "mosaic-root", dir: "v", ratio: [0.8, 1, 0.8],
     children: [
       { id: "mosaic-col0", dir: "h", ratio: [1, 1], children: [
         { id: "mosaic-leaf-toolkit", panelOccId: panelOccIds.toolkit },
         { id: "mosaic-leaf-todo",    panelOccId: panelOccIds.todo },
       ] },
-      // Middle: Notebook/Schedule hub on TOP (dominant — the "top middle cell,
-      // extends down"), logo board (short) beneath it.
-      { id: "mosaic-col1", dir: "h", ratio: [1, 0.28], children: [
-        { id: "mosaic-leaf-notebook", panelOccId: panelOccIds.notebook },
-        { id: "mosaic-leaf-logo",     panelOccId: panelOccIds.logo },
-      ] },
+      // Middle: ONE full-height hub pane (Viafluere description page active).
+      { id: "mosaic-leaf-notebook", panelOccId: panelOccIds.notebook },
       { id: "mosaic-col2", dir: "h", ratio: [1, 1], children: [
         { id: "mosaic-leaf-goals",    panelOccId: panelOccIds.goals },
         { id: "mosaic-leaf-accounts", panelOccId: panelOccIds.accounts },
@@ -5880,7 +5874,8 @@ export async function createLiveData(userId, options = {}) {
   // Fresh seed marker every run — the assistant drawer compares this to the one
   // it last saw (localStorage) and clears its chat history when it changes, so a
   // reseed starts the Jonah conversation fresh (see client AssistantDrawer).
-  await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds, "meta.layoutTree": mosaicLayoutTree, "meta.assistantSeedId": uid() } });
+  // colSizes mirrors the mosaic ratio for the rows×cols fallback path.
+  await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds, colSizes: [0.8, 1, 0.8], "meta.layoutTree": mosaicLayoutTree, "meta.assistantSeedId": uid() } });
 
   // ── STEP 12: Operations ─────────────────────────────────────────────────────
   //
