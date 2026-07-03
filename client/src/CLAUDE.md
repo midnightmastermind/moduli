@@ -2,6 +2,50 @@
 
 _Updated: 2026-06-12. Check this file before re-reading source._
 
+## Recent Changes (2026-07-03 — drop re-render storm killed + snap/layout-rules/seed batch; ALL DEPLOYED + RESEEDED)
+**Perf (drop → paint 2855ms → ~1400ms @5x throttle; measured via scratchpad dropProbe + CDP CPU profile):**
+- **Per-id/shallow selector migration (the queued context-perf step, DONE).** The occurrence-derived
+  maps (occurrencesById/occurrencesByModuleId/parentByChildId/childrenByParentId/linkedGroupIndex)
+  + raw `state` rebuild on EVERY write; anything subscribed re-rendered per write of the drop cascade.
+  Hot components now subscribe only to their OWN slices and read maps at compute/callback time via
+  stable non-subscribing getters (`getOcc/getMod/getOccMap/getModMap/getParentId/getLinkedGroup/getState`
+  on App.jsx lookupsRef + PagePreviewApp + no-op defaults in GridActionsContext). New
+  `useGridActionsSelectorShallow` (element-wise-stable arrays) drives childOccsKey / ancestorChain /
+  folderChildOccs / linked-group selectors. Converted: ModuleContainer, ModuleInstance (both comps),
+  ModulePage, PageBoard, Field.jsx, FieldRenderer (bumpRender("field") added), ModuleEmbedNode,
+  ArtifactCard, QuickAddMenu, Editor.jsx (occurrencesByIdRef is now a live-getter object).
+- **CPU-profile finds:** QuickAddMenu re-walked templatesByKind over all occurrences per render ×~180
+  mounts (now computed only while OPEN); Editor's @: embed list same (gated on picker open);
+  AutoMarquee measured (forced reflow) EVERY render (mount-once + RO now); ModuleInstance selects the
+  activeId BOOLEAN not the raw id; ModulePanel's inline onDrilldownComplete closure defeated Page's memo.
+- **Op-drain CPU:** `makeEffectiveFilterResolver` (state/selectors.js) memoizes ancestor filter
+  contexts → executePipeline's $allItems enrichment O(N×depth)→O(N); runMatchingOperations builds
+  parentByChildId ONCE per sweep (context._parentByChildId; CREATE patches it in place).
+- **Remaining lever (documented):** frame-1 flush still ~1.3s@5x — needs component-level React
+  profiling; drain sweep (1 fire × 20 ops synchronous) could be sliced per-op.
+
+**Features:**
+- **Undo/redo DISABLED** (broken server-side; per user) — `UNDO_REDO_ENABLED=false` in TransactionHistory.jsx.
+- **GridMosaic splitters work on touch** — touchAction:none (React onTouchStart is passive →
+  preventDefault was a no-op → gesture became scroll → pane long-press menu), touchcancel cleanup,
+  28px band + bigger nub under coarse pointers (IS_COARSE module const).
+- **Empty grid cells are tap-to-add** — pocket click mints a panel at that cell opened on the ROOT
+  FOLDER page (Grid.jsx GridInner.handleEmptyCellClick; reuses importsFolder.ensureFolderPageOcc).
+  Fresh/empty grids default 1×1 (server state.js + crud.js).
+- **Per-grid responsive layout rules** — `grid.meta.layoutRules` [{minWidth/maxWidth/minHeight/
+  maxHeight, layout:"desktop"|"mobile"}], first match wins, edited in GridSettingsTab; resolver
+  `helpers/layoutRules.js` (7 tests) + `hooks/useLayoutRuleMode`; App overrides isMobileLayout.
+  Pin both tablet orientations to desktop = no rotation remount. useMobileDetect recompute is
+  debounced 200ms + identity-stable (rotation resize burst = ONE layout swap; was the rotation lag).
+- **Windows-style snap** — `helpers/gridSnap.js`: Ctrl+Alt+Arrow moves the LAST-CLICKED panel
+  (pointerdown capture on data-panel-id) one cell; at the boundary grows the grid one track
+  (grow-at-start shifts all placements) and moves the panel in; exact-anchor occupant swaps.
+  Tablet landscape: dropping a panel within 26px of the grid frame edge (DragProvider.getSnapEdge →
+  handlePanelDrop → snapPanelToEdge) grows + snaps. rows×cols grids only (mosaic has drag-to-split).
+- **Seed:** middle column is ONE full-height hub panel starting on the Viafluere description/logo
+  page (logo panel removed; page is the hub's first tab + View activeOccurrenceId); side columns 20%
+  thinner (mosaic root ratio + colSizes [0.8,1,0.8]). Verified live post-reseed via headless screenshot.
+
 ## Recent Changes (2026-07-02 — tablet perf/UX batch: drop cascade, track resize, scroll traps, radial, doc touch drops)
 All deployed + prod reseeded (`c0a124db`). Follows the drag-start fix (`67c2a3e3`, stable
 DragContext + DragStateContext split — see the account2 session + commit message).
