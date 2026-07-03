@@ -5875,7 +5875,11 @@ export async function createLiveData(userId, options = {}) {
   // it last saw (localStorage) and clears its chat history when it changes, so a
   // reseed starts the Jonah conversation fresh (see client AssistantDrawer).
   // colSizes mirrors the mosaic ratio for the rows×cols fallback path.
-  await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds, colSizes: [0.8, 1, 0.8], "meta.layoutTree": mosaicLayoutTree, "meta.assistantSeedId": uid() } });
+  // meta.defaultGrid: the server's full_state fallback prefers this grid when
+  // the client has no / a stale gridId — so the site loads the seeded grid by
+  // default. Cleared on the user's other grids first so exactly one is default.
+  await Grid.updateMany({ userId }, { $unset: { "meta.defaultGrid": "" } });
+  await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds, colSizes: [0.8, 1, 0.8], "meta.layoutTree": mosaicLayoutTree, "meta.assistantSeedId": uid(), "meta.defaultGrid": true } });
 
   // ── STEP 12: Operations ─────────────────────────────────────────────────────
   //

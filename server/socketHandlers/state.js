@@ -20,14 +20,19 @@ export function registerStateHandlers(socket, {
       // ── Resolve gridId ────────────────────────────────────────────
       // maxTimeMS guards against a hung query starving the connection pool;
       // socketTimeoutMS in server.js is the broader safety net.
+      // Fallback prefers the grid the seed stamped as default (createLiveData
+      // sets grid.meta.defaultGrid — 2026-07-03, per user: the site should load
+      // the seeded Live Grid, not the oldest grid, when the client's stored
+      // gridId is missing/stale after a reseed).
+      const fallbackGrid = async () =>
+        (await Grid.findOne({ userId, "meta.defaultGrid": true }).maxTimeMS(8000).lean()) ||
+        (await Grid.findOne({ userId }).sort({ createdAt: 1 }).lean());
       let gridDoc;
       if (gridId) {
         gridDoc = await Grid.findOne({ _id: gridId, userId }).maxTimeMS(8000).lean();
-        if (!gridDoc) {
-          gridDoc = await Grid.findOne({ userId }).sort({ createdAt: 1 }).lean();
-        }
+        if (!gridDoc) gridDoc = await fallbackGrid();
       } else {
-        gridDoc = await Grid.findOne({ userId }).sort({ createdAt: 1 }).lean();
+        gridDoc = await fallbackGrid();
       }
 
       if (!gridDoc) {
