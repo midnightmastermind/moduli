@@ -20,6 +20,11 @@ export default function AutoMarquee({ children, className = "" }) {
   const innerRef = useRef(null);
   const [shift, setShift] = useState(0);
 
+  // Mount-once ([] deps): the ResizeObserver below covers every subsequent
+  // box/content size change, including children swaps that change the inner
+  // width. Running this effect on EVERY render (the previous no-deps form)
+  // forced a synchronous reflow (scrollWidth read) + observer teardown/rebuild
+  // per re-rendered label — hundreds per drop commit in the CPU profile.
   useLayoutEffect(() => {
     const box = boxRef.current;
     const inner = innerRef.current;
@@ -34,7 +39,7 @@ export default function AutoMarquee({ children, className = "" }) {
     ro.observe(box);
     ro.observe(inner);
     return () => ro.disconnect();
-  });
+  }, []);
 
   const duration = shift > 0
     ? Math.max(MIN_DURATION_S, shift / SPEED_PX_PER_SEC)

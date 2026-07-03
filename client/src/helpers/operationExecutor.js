@@ -18,7 +18,7 @@ import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { resolveExpr, evalRule, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleAgainstRecord } from "./operationActions";
 import { buildParentMap } from "./dragHitTesting";
 import { isEventCompatible } from "./triggerTypes";
-import { getEffectiveFilterForOccurrence } from "../state/selectors";
+import { getEffectiveFilterForOccurrence, makeEffectiveFilterResolver } from "../state/selectors";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { analyzeAllOperations } from "./operationIntrospection";
 import { applyDisplayRules } from "./displayRules";
@@ -1181,9 +1181,14 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   // know what date the user is viewing without firing as a NavigationOp.
   const allTemplates = state?.modules ?? [];
   const templateById = Object.fromEntries(allTemplates.map(t => [t.id, t]));
+  // Memoized batch resolver — enriching every item used to re-walk each
+  // occurrence's full ancestor chain (O(N × depth) per pipeline run, ×20 ops
+  // per drop sweep in the CPU profile). Same semantics, ancestor contexts
+  // computed once.
+  const effFilterFor = makeEffectiveFilterResolver({ grid: state?.grid, occurrencesById, parentByChildId });
   const allItems = Object.values(occurrencesById).map(occ => {
     const tpl = occ.moduleId ? templateById[occ.moduleId] : null;
-    const effFilter = getEffectiveFilterForOccurrence(occ, { grid: state?.grid, occurrencesById, parentByChildId });
+    const effFilter = effFilterFor(occ);
     // Task #60 — autoStampFromFilter: when a field's meta opts in and the
     // stored value is empty, substitute the occurrence's effective filter
     // value for that field. Pure read-time substitution (no DB write).
