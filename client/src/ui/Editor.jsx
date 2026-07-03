@@ -53,7 +53,7 @@ import CommandPalette from "../docs/suggestions/CommandPalette";
 import DocLinkSuggestion from "../docs/suggestions/DocLinkSuggestion";
 import DocToolbar from "../docs/DocToolbar";
 import ContextMenu from "./ContextMenu";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActionsSelector } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type } from "lucide-react";
@@ -213,7 +213,14 @@ const Editor = forwardRef(function Editor({
   // Cell mode: opt-in via mode="cell". Gates doc-only behaviors and enables
   // spreadsheet navigation keymaps. The default mode="doc" path is unchanged.
   const isCell = mode === "cell";
-  const { fieldsById, instancesById, occurrencesById, modulesById } = useGridActions() || {};
+  // Per-slice selectors — the previous full useGridActions() subscription
+  // re-rendered EVERY mounted editor (one per doc container / textblock) on
+  // every occurrence write. occurrencesById is read at callback time via the
+  // non-subscribing getter; module/field maps are stable across writes.
+  const fieldsById = useGridActionsSelector(s => s.fieldsById);
+  const instancesById = useGridActionsSelector(s => s.instancesById);
+  const modulesById = useGridActionsSelector(s => s.modulesById);
+  const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
 
   // Suggestion / palette state
   const [showSuggestion, setShowSuggestion] = useState(false);
@@ -319,11 +326,12 @@ const Editor = forwardRef(function Editor({
 
   // Keep drop-handler refs fresh — the dropTargetForElements effect only re-registers when
   // editor changes, so occurrencesById/dispatch/socket would otherwise be stale closures.
-  const occurrencesByIdRef = useRef(occurrencesById);
+  // occurrencesByIdRef reads through the non-subscribing getter so `.current` is
+  // ALWAYS the live map without this editor subscribing to per-write rebuilds.
+  const occurrencesByIdRef = useMemo(() => ({ get current() { return getOccMap(); } }), [getOccMap]);
   const modulesByIdRef = useRef(modulesById);
   const dispatchRef = useRef(dispatch);
   const socketRef = useRef(socket);
-  occurrencesByIdRef.current = occurrencesById;
   modulesByIdRef.current = modulesById;
   dispatchRef.current = dispatch;
   socketRef.current = socket;
@@ -493,7 +501,7 @@ const Editor = forwardRef(function Editor({
             tr.setMeta("skipAutoCreate", true);
             for (let i = merges.length - 1; i >= 0; i--) {
               const { offset: off, nodeSize, occId, nodeJson } = merges[i];
-              const targetOcc = occurrencesById?.[occId];
+              const targetOcc = getOccMap()[occId];
               if (targetOcc) {
                 const tm = targetOcc.textmap || { type: "doc", content: [] };
                 const existing = tm.content || [];
@@ -589,7 +597,7 @@ const Editor = forwardRef(function Editor({
             tr.setMeta("skipAutoCreate", true);
             for (let i = merges.length - 1; i >= 0; i--) {
               const { offset, nodeSize, occId, nodeJson } = merges[i];
-              const targetOcc = occurrencesById?.[occId];
+              const targetOcc = getOccMap()[occId];
               if (targetOcc) {
                 const tm = targetOcc.textmap || { type: "doc", content: [] };
                 CommitHelpers.updateOccurrence({
@@ -1797,7 +1805,7 @@ const Editor = forwardRef(function Editor({
     const items = container.occurrences || [];
     if (items.length > 0 && instancesById) {
       const listItems = items.map(itemId => {
-        const occ = occurrencesById?.[itemId];
+        const occ = getOccMap()[itemId];
         const inst = instancesById[occ?.moduleId || itemId];
         if (!inst) return null;
         return { type: "listItem", content: [{ type: "paragraph", content: [{ type: "instancePill", attrs: { instanceId: inst.id, instanceLabel: inst.label || inst.id, occurrenceId: occ?.id || null, containerId: container.id, showIcon: true } }] }] };
@@ -1806,7 +1814,7 @@ const Editor = forwardRef(function Editor({
     }
     editor.chain().focus().insertContent(nodes).run();
     setShowSuggestion(false); setSuggestionQuery("");
-  }, [editor, deleteAtTrigger, instancesById, occurrencesById]);
+  }, [editor, deleteAtTrigger, instancesById, getOccMap]);
 
   // ── expr pill insertion (= trigger) ──────────────────────────
   const handleSelectEmbed = useCallback((occurrenceId) => {
@@ -1821,7 +1829,10 @@ const Editor = forwardRef(function Editor({
   }, [editor]);
 
   const filteredEmbedContainers = useMemo(() => {
-    const occs = occurrencesById ? Object.values(occurrencesById) : [];
+    // Only computed while the @: embed picker is OPEN — scanning every
+    // occurrence per editor per render was a top entry in the drop CPU profile.
+    if (!showEmbedPicker) return [];
+    const occs = Object.values(getOccMap());
     return occs.filter(occ => {
       const mod = modulesById?.[occ.moduleId];
       return mod?.role === "container" && mod?.label;
@@ -1830,7 +1841,8 @@ const Editor = forwardRef(function Editor({
       const mod = modulesById?.[occ.moduleId];
       return mod?.label?.toLowerCase().includes(embedQuery.toLowerCase());
     }).slice(0, 12);
-  }, [occurrencesById, modulesById, embedQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showEmbedPicker, getOccMap, modulesById, embedQuery]);
 
   // Reset keyboard nav index when filtered list changes
   useEffect(() => { setExprActiveIndex(-1); }, [exprQuery]);

@@ -12,7 +12,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Plus, ChevronLeft, Check, Search } from "lucide-react";
-import { useGridActions } from "../GridActionsContext";
+import { useGridActionsSelector } from "../GridActionsContext";
 import { templatesByKind } from "../helpers/templateHelpers";
 import { commitApplyTemplate } from "../helpers/CommitHelpers";
 import { getModuleTypeBadge } from "../helpers/moduleIcons";
@@ -55,11 +55,21 @@ export function tileKindsForRole(targetRole) {
 }
 
 export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null, onOpenChange, openTrigger = 0 }) {
-  const { modulesById, roleByModuleId, socket, state, occurrencesById, manifestsById, foldersById, fieldsById } = useGridActions();
-  const lookups = useMemo(
-    () => ({ manifestsById, foldersById, occurrencesById, modulesById }),
-    [manifestsById, foldersById, occurrencesById, modulesById]
-  );
+  // Per-slice selectors — the previous full useGridActions() subscription
+  // re-rendered EVERY mounted QuickAddMenu (~one per container/page header) on
+  // every occurrence write, and each render re-walked the templates tree over
+  // all occurrences (templatesByKind) — a top self-time entry in the drop CPU
+  // profile. occurrencesById is read at OPEN time via the non-subscribing
+  // getter; the module/folder maps are stable across occurrence writes.
+  const modulesById = useGridActionsSelector(s => s.modulesById);
+  const roleByModuleId = useGridActionsSelector(s => s.roleByModuleId);
+  const socket = useGridActionsSelector(s => s.socket);
+  const manifestsById = useGridActionsSelector(s => s.manifestsById);
+  const foldersById = useGridActionsSelector(s => s.foldersById);
+  const fieldsById = useGridActionsSelector(s => s.fieldsById);
+  const ctxGrid = useGridActionsSelector(s => s.state.grid);
+  const ctxGridId = useGridActionsSelector(s => s.state.gridId) || ctxGrid?._id;
+  const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -187,6 +197,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   // All role-matching modules (existing-matches pool). Skip kinds that aren't
   // placeable in this role's context.
   const matchingModules = useMemo(() => {
+    if (!open) return []; // menu closed → nothing rendered, skip the walk
     const allowedKinds = ALLOWED_KINDS_BY_ROLE[targetRole] || null;
     return Object.values(modulesById || {})
       .filter(m => !m.trashed)
@@ -196,7 +207,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
         if (allowedKinds && m.kind && !allowedKinds.has(m.kind)) return false;
         return true;
       });
-  }, [modulesById, roleByModuleId, targetRole]);
+  }, [open, modulesById, roleByModuleId, targetRole]);
 
   const filteredModules = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -208,16 +219,21 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
 
   const tileKinds = useMemo(() => tileKindsForRole(targetRole), [targetRole]);
 
-  const gridId = state?.grid?._id || state?.gridId;
+  const gridId = ctxGridId;
   const allowedKinds = ALLOWED_KINDS_BY_ROLE[targetRole];
   const templateRows = useMemo(() => {
-    if (!hostOccurrence || !gridId || !allowedKinds) return [];
+    // Only computed while the menu is OPEN — templatesByKind walks every
+    // occurrence per templates-folder, which is far too hot to run per render
+    // across ~180 mounted menus. The map is a fresh read at open time.
+    if (!open || !hostOccurrence || !gridId || !allowedKinds) return [];
+    const lookups = { manifestsById, foldersById, occurrencesById: getOccMap(), modulesById };
     const rows = [];
     for (const k of allowedKinds) {
       for (const tpl of templatesByKind(lookups, gridId, k)) rows.push(tpl);
     }
     return rows;
-  }, [lookups, gridId, allowedKinds, hostOccurrence]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, manifestsById, foldersById, modulesById, getOccMap, gridId, allowedKinds, hostOccurrence]);
 
   const picking = pickingFields != null;
 
