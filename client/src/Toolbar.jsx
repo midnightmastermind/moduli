@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import PomodoroTimer from "./ui/PomodoroTimer";
 import MiniGridMap from "./mobile/MiniGridMap";
+import { allPanelOccIds } from "./helpers/bspTree";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -98,6 +99,13 @@ const gridOptions = useMemo(
         };
       }),
     [availableGrids]
+  );
+
+  // Mosaic grids: the mobile pager is a 1×N panel walk, so the mini map must
+  // mirror that shape (0 = not a mosaic grid → use rows×cols).
+  const mosaicPanelCount = useMemo(
+    () => (grid?.meta?.layoutTree ? allPanelOccIds(grid.meta.layoutTree).length : 0),
+    [grid?.meta?.layoutTree]
   );
 
   // Avatar: first char of userId, uppercased
@@ -207,12 +215,17 @@ const gridOptions = useMemo(
             </Select>
           )}
 
-          {/* Mini grid map — mobile only, shows when grid has multiple cells */}
-          {isMobileLayout && (grid?.rows > 1 || grid?.cols > 1) && (
+          {/* Mini grid map — mobile only, shows when there are multiple cells.
+              Mosaic grids page one panel per "cell" (1×N — see Grid.jsx
+              MosaicMobileNav), so the map mirrors that shape instead of the
+              rows×cols record. */}
+          {isMobileLayout && (mosaicPanelCount > 0
+            ? mosaicPanelCount > 1
+            : (grid?.rows > 1 || grid?.cols > 1)) && (
             <MiniGridMap
-              rows={grid?.rows || 1}
-              cols={grid?.cols || 1}
-              activeRow={activeCell?.row ?? 0}
+              rows={mosaicPanelCount > 0 ? 1 : (grid?.rows || 1)}
+              cols={mosaicPanelCount > 0 ? mosaicPanelCount : (grid?.cols || 1)}
+              activeRow={mosaicPanelCount > 0 ? 0 : (activeCell?.row ?? 0)}
               activeCol={activeCell?.col ?? 0}
               onMapClick={() => setZoomedOut?.(prev => !prev)}
             />

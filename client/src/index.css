@@ -3870,3 +3870,26 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
     min-height: 34px;
   }
 }
+
+/* MOBILE LAYOUT — compact drag handles again. The coarse-pointer bumps above
+   (36px box, and 40px effective height via the .radial-menu button min-height
+   leaking onto the handle) ate phone-width rows and pushed labels/fields onto
+   extra lines (user: "the big icons are taking up too much space, pushing
+   content"). The TABLET desktop layout keeps the big touch targets; the
+   in-flow HANDLE compacts only under the mobile layout (body[data-layout] is
+   stamped by App.jsx). The radial ARC items stay 40px — they overlay, so they
+   never push content. */
+body[data-layout="mobile"] .module-drag-handle .radial-handle {
+  width: 22px !important;
+  height: 22px !important;
+  max-width: 22px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
+  width: 14px !important;
+  height: 14px !important;
+}

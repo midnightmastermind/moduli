@@ -1,6 +1,19 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-07-03. This folder implements occurrence-based view routing._
+_Updated: 2026-07-04. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-07-04 — GridMosaic reconcile keys off grid.occurrences, NOT the rendered panel set)
+- **`GridMosaic.jsx` reconcile effect** — pruned/added tree leaves against the rendered
+  `panelsRender` set, which goes transiently PARTIAL (filter cascade / hydration). One
+  partial pass pruned live panels, re-added them as largest-pane splits, and PERSISTED
+  the scrambled tree (corrupted the seeded Live Grid into a 4-column split — the user's
+  "tablet layout is messed up"). Now reconciles against the authoritative
+  `grid.occurrences` id list (deps swapped `panelByOccId` → `grid?.occurrences`).
+  Behavior note: a panel hidden by filters keeps its pane and renders EMPTY (pane map
+  already guards `if (!panel) return null`) — same semantic as a hidden panel's
+  reserved rows×cols cell; only "Remove from grid" (which pulls the id from
+  `grid.occurrences`) collapses a pane. The corrupted prod tree itself was repaired by
+  a one-shot script this session (see client/src/CLAUDE.md).
 
 ## Recent Changes (2026-07-03 — panel header ALWAYS VISIBLE; tree toggles moved into it; Local/Root bar + autohide DELETED)
 Per user: "keep the panel header visible at all times … put a button on each side …

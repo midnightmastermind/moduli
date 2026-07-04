@@ -274,6 +274,14 @@ export default function App() {
   const ruledLayoutMode = useLayoutRuleMode(state.grid?.meta?.layoutRules);
   const isMobileLayout = ruledLayoutMode ? ruledLayoutMode === "mobile" : detectedMobileLayout;
 
+  // Expose the resolved layout to CSS (same pattern as body[data-drag-kind]).
+  // Lets the coarse-pointer touch-size bumps stay tablet-only: under the
+  // mobile layout the drag handles compact again so they don't push content
+  // on phone-width rows (see index.css body[data-layout="mobile"] rules).
+  useEffect(() => {
+    document.body.dataset.layout = isMobileLayout ? "mobile" : "desktop";
+  }, [isMobileLayout]);
+
   // #23 mobile: install one-time global focusin → scrollIntoView so
   // typing into a field never leaves the cursor under the virtual
   // keyboard. Idempotent + safely no-ops on desktop / unsupported

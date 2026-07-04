@@ -1,6 +1,40 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-07-03. Check this file before re-reading source._
+_Updated: 2026-07-04. Check this file before re-reading source._
+
+## Recent Changes (2026-07-04 — mobile pager for mosaic grids + compact mobile handles + mosaic reconcile corruption fix + stale grid removed)
+All verified headlessly (iPhone-13 emulation + 1280×800 touch tablet) against the live
+grid; 1136/1136 tests.
+- **Mosaic grids get the cell-switch nav back on mobile** — `Grid.jsx MosaicMobileStack`
+  (plain scroll stack, no rail buttons) REPLACED by `MosaicMobileNav`: wraps the existing
+  `MobileGridNav` modeling the tree's panel order as a **1×N cell space** (each panel =
+  one col). Rail edge buttons / overscroll-to-navigate / zoom-out picker all work
+  unchanged via synthetic `{row:0, col:i, width:1, height:1}` placements. The persisted
+  activeCell is clamped into 1×N at render (no off-screen flash) and only persisted
+  once panels have hydrated (an empty order must not clobber the saved index).
+  `Toolbar.jsx` MiniGridMap mirrors the 1×N shape for mosaic grids (`allPanelOccIds`
+  count) instead of the rows×cols record.
+- **Mobile layout compacts drag handles** — `App.jsx` stamps
+  `document.body.dataset.layout = "mobile"|"desktop"` (same pattern as
+  `body[data-drag-kind]`). `index.css` `body[data-layout="mobile"]` drops the
+  coarse-pointer 36px handle box (which rendered 36×40 — the `.radial-menu button`
+  min-height leaked onto the handle) to 22×22 + 14px glyph, so labels/fields sit inline
+  again on phone-width rows (user: big icons "pushing content"). Tablet desktop layout
+  keeps the 36px touch targets; radial ARC items stay 40px everywhere (overlay — they
+  never push content).
+- **GridMosaic reconcile corruption FIXED** (root cause of "tablet layout is messed up /
+  extra panels in the middle") — the reconcile effect pruned/re-added panels against the
+  RENDERED panel set, which goes transiently partial (filters/hydration); a partial pass
+  pruned live panels then re-added them as largest-pane splits and PERSISTED the
+  scramble (the seeded 3-col Live Grid had become a 4-col split). Now reconciles against
+  the authoritative `grid.occurrences` id list; a filtered-out/hidden panel keeps its
+  pane (renders empty — same semantic as a hidden panel's reserved rows×cols cell).
+- **Data repair (one-shot, already applied to prod Atlas)** — restored the Live Grid's
+  seeded `meta.layoutTree` (3 columns [toolkit/todo | notebook hub | goals/accounts],
+  ratio [0.8,1,0.8]) and deleted the stale unnamed grid `6a46fabd…` (0 panels, reseed
+  leftover) + its 2 orphan occurrences (user: "3 grids… there should only be 2").
+  Grid records are read fresh per full_state (`getAllGridsForUser` + gridDoc), so the
+  repair lands on next reload without a server restart.
 
 ## Recent Changes (2026-07-03 LATE — wrap channel/edges + infobox scroll + always-visible panel header)
 Continuation of the account2 session that hit its spend limit (directives logged in

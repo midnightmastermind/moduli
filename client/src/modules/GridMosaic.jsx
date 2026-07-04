@@ -90,17 +90,24 @@ export default function GridMosaic({
     [tree, size.w, size.h]
   );
 
-  // Keep the tree in sync with the live panel set:
-  //   • PRUNE leaves whose panel was removed ("Remove from grid" → pane collapses).
-  //   • ADD new panels (e.g. the +Panel button) by splitting the largest pane.
-  // Guards: only reconcile once measured (mounted) with a non-empty panel set,
-  // so a transient empty/partial load can never wipe the persisted tree.
+  // Keep the tree in sync with the AUTHORITATIVE panel set — grid.occurrences
+  // (the grid record's panel-occurrence id list):
+  //   • PRUNE leaves whose id left grid.occurrences ("Remove from grid").
+  //   • ADD ids in grid.occurrences missing from the tree (+Panel button) by
+  //     splitting the largest pane.
+  // MUST NOT key off the rendered/visible panel set: filters and hydration can
+  // make it transiently PARTIAL, and a reconcile against a partial set prunes
+  // live panels then re-adds them as largest-pane splits — permanently
+  // scrambling the persisted tree (this corrupted the seeded Live Grid into a
+  // 4-column split, 2026-07-04). A filtered-out panel keeps its pane (renders
+  // empty — same semantic as a hidden panel's reserved rows×cols cell).
   useEffect(() => {
     if (!tree || size.w === 0) return;
-    const liveIds = Object.keys(panelByOccId);
-    if (liveIds.length === 0) return;
+    const liveIds = Array.isArray(grid?.occurrences) ? grid.occurrences : null;
+    if (!liveIds || liveIds.length === 0) return;
+    const liveSet = new Set(liveIds);
     const inTree = new Set(allPanelOccIds(tree));
-    const dead = [...inTree].filter((id) => !panelByOccId[id]);
+    const dead = [...inTree].filter((id) => !liveSet.has(id));
     const added = liveIds.filter((id) => !inTree.has(id));
     if (dead.length === 0 && added.length === 0) return;
 
@@ -120,7 +127,7 @@ export default function GridMosaic({
     if (!next) return; // never persist an empty tree
     setTree(next);
     persist(next);
-  }, [tree, panelByOccId, size.w, size.h, persist]);
+  }, [tree, grid?.occurrences, size.w, size.h, persist]);
 
   // ---- splitter drag → resizeSplit ----------------------------------------
   const startSplitterDrag = useCallback((e, splitter) => {

@@ -339,30 +339,61 @@ function GridRender({
 }
 
 // ============================================================
-// MOSAIC MOBILE STACK — deferred mobile fallback for mosaic grids.
-// A plain vertical scroll-stack of the tree's panels (no tree nav yet).
+// MOSAIC MOBILE NAV — one-panel-at-a-time pager for mosaic grids on mobile.
+// Reuses MobileGridNav (rail buttons, overscroll-to-navigate, zoom-out cell
+// picker) by modeling the tree's panel order as a 1×N cell space: each panel
+// is one "cell" (its col index). Replaces the old plain scroll-stack, which
+// had no way to switch cells (user: "the edge buttons to switch cells are no
+// longer there").
 // ============================================================
-function MosaicMobileStack({ gridRef, layoutTree, visiblePanels, dispatch, socket, addContainerToPanel, addInstanceToContainer, sizesRef, fullscreenPanelId, setFullscreenPanelId }) {
+function MosaicMobileNav({ gridRef, layoutTree, visiblePanels, activeCell, setActiveCell, zoomedOut, setZoomedOut, isTouch, dispatch, socket, addContainerToPanel, addInstanceToContainer, sizesRef, fullscreenPanelId, setFullscreenPanelId }) {
   const panelByOccId = useMemo(() => {
     const m = Object.create(null);
     for (const p of visiblePanels || []) if (p?._occurrenceId) m[p._occurrenceId] = p;
     return m;
   }, [visiblePanels]);
-  const order = useMemo(() => allPanelOccIds(layoutTree), [layoutTree]);
+  // Tree order, filtered to panels that actually render right now.
+  const order = useMemo(
+    () => allPanelOccIds(layoutTree).filter((id) => panelByOccId[id]),
+    [layoutTree, panelByOccId]
+  );
+  const n = Math.max(1, order.length);
+  // Clamp the persisted activeCell (which may carry a rows×cols shape from a
+  // previous layout) into the 1×N space at RENDER time — no off-screen flash —
+  // then write the clamp back so localStorage/state converge. Skip persisting
+  // while order is still EMPTY (panels hydrating): clamping against n=1 then
+  // would clobber the user's saved panel index on every load.
+  const col = Math.min(Math.max(activeCell?.col ?? 0, 0), n - 1);
+  const cellRow = activeCell?.row ?? 0;
+  const hydrated = order.length > 0;
+  useEffect(() => {
+    if (!hydrated) return;
+    if (cellRow !== 0 || (activeCell?.col ?? 0) !== col) setActiveCell({ row: 0, col });
+  }, [hydrated, cellRow, col, activeCell?.col, setActiveCell]);
+  // Synthetic 1×N placements so MobileGridNav's rail/boundary/overscroll
+  // logic works unchanged (each panel = a single-cell pane at row 0, col i).
+  const navPanels = useMemo(
+    () => order.map((occId, i) => ({ ...panelByOccId[occId], row: 0, col: i, width: 1, height: 1 })),
+    [order, panelByOccId]
+  );
   return (
-    <div
-      ref={gridRef}
-      className="bg-background2"
-      style={{ width: "100%", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, padding: 4, boxSizing: "border-box" }}
+    <MobileGridNav
+      rows={1}
+      cols={n}
+      activeCell={{ row: 0, col }}
+      setActiveCell={setActiveCell}
+      isMobileLayout
+      isTouch={isTouch}
+      zoomedOut={zoomedOut}
+      setZoomedOut={setZoomedOut}
+      visiblePanels={navPanels}
     >
-      {order.map((occId) => {
-        const panel = panelByOccId[occId];
-        if (!panel) return null;
-        return (
-          <div key={occId} style={{ flex: "0 0 auto", minHeight: 320, display: "flex" }}>
-            <ErrorBoundary label={panel.label || "Panel"}>
+      <div ref={gridRef} className="bg-background2" style={{ display: "flex", width: "100%", height: "100%" }}>
+        {order.map((occId) => (
+          <div key={occId} style={{ width: `${100 / n}%`, height: "100%", flex: "0 0 auto", display: "flex", boxSizing: "border-box", padding: 4 }}>
+            <ErrorBoundary label={panelByOccId[occId].label || "Panel"}>
               <Panel
-                module={panel}
+                module={panelByOccId[occId]}
                 mosaic
                 dispatch={dispatch}
                 socket={socket}
@@ -374,9 +405,9 @@ function MosaicMobileStack({ gridRef, layoutTree, visiblePanels, dispatch, socke
               />
             </ErrorBoundary>
           </div>
-        );
-      })}
-    </div>
+        ))}
+      </div>
+    </MobileGridNav>
   );
 }
 
@@ -806,10 +837,15 @@ function GridInner() {
           sizesRef={sizesRef}
         />
       ) : layoutTree && isMobileLayout ? (
-        <MosaicMobileStack
+        <MosaicMobileNav
           gridRef={gridRef}
           layoutTree={layoutTree}
           visiblePanels={visiblePanels}
+          activeCell={activeCell}
+          setActiveCell={setActiveCell}
+          zoomedOut={zoomedOut}
+          setZoomedOut={setZoomedOut}
+          isTouch={isTouch}
           dispatch={dispatch}
           socket={socket}
           addContainerToPanel={addContainerToPanel}

@@ -2177,3 +2177,11 @@ Two directives arrived at the end of the account2 session (12:39 / 12:44 UTC) an
 (Screenshot: `screenshots/Screenshot 2026-07-03 073632.png` — shows the Eminem import: seam/gap between wrapped occurrences carries the textblock tint instead of the page bg, and the infobox card shows a horizontal scrollbar.)
 
 > "also switch up the hover hide of the panel header, to keep the panel header but put a button on each side (one to the right of the drag handle of the panel header, and the other (for the root side of the side bar directory of the pages) replace the plus button in the header. get rid of the top bar that shows local and root. and then keep the panel header visible at all times."
+
+## 2026-07-04 — mobile viewer regressions
+
+> "can you look into mobile viewer. the edge buttons to switch cells are no longer there. and the big icons are taking up too much space, pushing content (for the drag handles) (just on mobile viewer its an issue right now)"
+
+Two issues, scoped to the MOBILE viewer only: (1) the cell-switch edge buttons (MobileGridNav lips) are gone; (2) the enlarged touch icons (drag handles) eat too much space and push content.
+
+> "also we have 3 grids right now. there should only be 2. and the tablet layout is messed up. its either not a 3 by 3 grid anymore (for creatLiveData) or the grid cells are wrapping or something. there should be only 1 panel in the middle too"
