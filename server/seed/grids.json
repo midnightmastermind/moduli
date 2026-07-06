@@ -1,17 +1,10 @@
 [
   {
     "_id": "6a2b76b23c6b5fcb91d25d97",
-    "rows": 2,
-    "cols": 3,
-    "colSizes": [
-      1,
-      0.7522779043280179,
-      1.2477220956719814
-    ],
-    "rowSizes": [
-      0.9522012578616352,
-      1.0477987421383648
-    ],
+    "rows": 1,
+    "cols": 1,
+    "colSizes": [],
+    "rowSizes": [],
     "userId": "{{USER_ID}}",
     "occurrences": [],
     "namedFilters": [],
@@ -22,180 +15,23 @@
     "templates": []
   },
   {
-    "_id": "6a3cf6cf3d1e29406a137ed1",
-    "name": "Live Grid",
-    "rows": 2,
-    "cols": 3,
-    "colSizes": [],
-    "rowSizes": [],
+    "_id": "6a46fabdc1bbb1d6f079b405",
     "userId": "{{USER_ID}}",
-    "occurrences": [
-      "QbjoJgQpDOu1",
-      "WO0kXvLucX4v",
-      "jaGlHzGiAL_m",
-      "t1mA7m2hZqeH",
-      "bzprkqJU-km1",
-      "lWu54lMKF3hP"
-    ],
-    "namedFilters": [
-      {
-        "id": "filter_daily",
-        "name": "Daily",
-        "conditions": [
-          {
-            "fieldId": "WAwMXTe0GA0P",
-            "comparator": "SAME_DAY",
-            "isNav": true
-          }
-        ],
-        "timeScale": null,
-        "primaryDateFieldId": null,
-        "timeUnit": "day",
-        "lock": false,
-        "_id": "6a3cf6cf3d1e29406a137ed2"
-      }
-    ],
-    "activeFilterId": "filter_daily",
-    "toolbarNavFilters": [],
-    "fieldIds": [
-      "EUtm0DqXPGD_",
-      "WAwMXTe0GA0P",
-      "jsj8IkQ96wha",
-      "LWVfxIFyKOgk",
-      "gujXWys_EU84",
-      "hOWbYuRGB65_",
-      "VCOXHErenCMf",
-      "51nU84tcxHLC",
-      "xKHv4Q4mCyIQ",
-      "WRLq8hjDnQZ3",
-      "He7L4Ss9ItWV",
-      "2FOf5T9Ht8mr",
-      "uTazfykP70I3",
-      "ob5KuVtaT9qX",
-      "xRCnebk3L0fI",
-      "79nh3SNi38vA",
-      "fgXOnF7QBTqf",
-      "G28Pj3O1pKfe",
-      "j6Sa41n47fuj",
-      "7HdiX7x0lNdK",
-      "JKk-nwiefqA-",
-      "I6ywPrYc0xxH",
-      "UTDmdcQwljZW",
-      "0SeeHug2JeRD",
-      "XhVxa6fk2re8",
-      "t80Ls3fgaIyC",
-      "vNoNvR4N8tNm",
-      "0Jq54fNZ59-u",
-      "BOBP8cJNZbq3",
-      "epWVHVfAHes7",
-      "P935wkCt3SuY",
-      "StFAwPWT2Z7i",
-      "HV2PS8aiWVBk",
-      "UfHdmoX3SrAq",
-      "5Mrn52m8O_Yc",
-      "V3Nw6UUcRLtN",
-      "GMN8wAgC1wLu",
-      "yt6WrzHkSVgv",
-      "QUdhz-tdhMO0",
-      "9mW5nJWMAY-J",
-      "ULwwn8AsqvCN",
-      "Coa1x-JzFPW9",
-      "hkrqeyIs1GUM",
-      "oe__fEdxH0Kd",
-      "HjLGxYG7kLDz",
-      "nz11Kr0UCOd3",
-      "zyXm4VVK9zwp",
-      "sXxLSHuUKifC",
-      "fkojyxau_j7j",
-      "zMX_ht79sT6w",
-      "A0Dd8zLgk3Ca",
-      "rvUygue3nXLF",
-      "rd9AG5aQdmxB",
-      "P6P4JogSwIwD",
-      "rNv2piSyAkSV",
-      "RRtqLPZX3KR9",
-      "--ZPrSLa933z",
-      "PSFHktQUL8rf",
-      "SXLzZsW8pygx",
-      "VRVJP-LNM_ii",
-      "nHZNCJIIbdjL",
-      "TkYLyxoodprJ",
-      "bIK1DLI4-tIP",
-      "AlDgZUtkPWGd",
-      "Ne-N-BPKJYpw",
-      "ayoiF7CeLqI_",
-      "tx2o1GnHAYdR",
-      "PD00IuX08WlW",
-      "9oumTcO_2_vc",
-      "qgA9fBKvjXu3",
-      "BsPakvVtQCqU",
-      "-lASOr1Ju0ET",
-      "7S71wpHrhfFD",
-      "xLxuOw0z3jCJ",
-      "Q6a266h4sbT_",
-      "rWteRbFDF0-t",
-      "1paZ4ag6RSJr",
-      "HiLzvyfDp82J",
-      "TlVdW1_5sBqi",
-      "XE6lX3hzOumr",
-      "CYEX2AqZtNgc",
-      "UwNXHY08s9gS",
-      "AXh3dWrk9Xs_",
-      "v-G61fRtxBv1",
-      "RIkzXDbc9gaE",
-      "1lOU7p_T8Srm",
-      "upAdmBGlDjFI",
-      "WGlq9Vn1nb4t",
-      "hFldCQuFEArY",
-      "f-yBUC62zfNZ",
-      "NueXxrpwWHrT",
-      "ZDwvqssOayQO",
-      "bq4yCrXaANqV",
-      "gDz8BlPVNE67",
-      "1vFb9_0vuYd5",
-      "FYhlZ5kfWdJm",
-      "DcTNuCC_txwA",
-      "HKDY9nhyxPfr",
-      "kxG8q5x-Tdv2",
-      "E4bUryYjuKdC",
-      "BiMjaEt9uX4B",
-      "16HGwiAk5oDk",
-      "YYxLMbccKZ9H",
-      "nO2P4TS54_ns",
-      "EYfGqB2rZIRL",
-      "vKMb3GU2Rfoy",
-      "kKL6ZDjvphxY",
-      "A_eG8sS1xkqW",
-      "sdDJHrp6lmTJ",
-      "FSRpgH-_AVgZ",
-      "aePYf8YMCflc",
-      "1CTnzzGbSqNq",
-      "lBHsrB9UY_xH",
-      "vhOiVRCmyNsf",
-      "7U95dz5nNWpM",
-      "s0oxunDGQrWg",
-      "Zhu8V-e-cjxG",
-      "9e50TDtEARfu",
-      "jIaonnGMZjy1",
-      "oIjFaIa8JcPc",
-      "w7WRq8rXvVqk",
-      "GYL4Qjk9V7f-",
-      "LWRv93RzERPF",
-      "rAjoFGR1scn_",
-      "iXVaScdDJzRb",
-      "PLpwMZ1Y48yt"
-    ],
-    "manifestId": "eL9XSx__ZCT7",
-    "templates": [],
+    "activeFilterId": null,
+    "activeFilterValues": {},
+    "colSizes": [],
+    "cols": 3,
+    "fieldIds": [],
+    "manifestId": null,
     "meta": {
-      "assistantSeedId": "NVpH4SyvlCTR",
+      "assistantSeedId": "YmiN0C3p3jvm",
       "layoutTree": {
         "id": "mosaic-root",
         "dir": "v",
         "ratio": [
-          1,
-          1.15,
-          1
+          0.3162527250077858,
+          2.1450774336659646,
+          0.6886698413262495
         ],
         "children": [
           {
@@ -208,11 +44,11 @@
             "children": [
               {
                 "id": "mosaic-leaf-toolkit",
-                "panelOccId": "QbjoJgQpDOu1"
+                "panelOccId": "sczTkIGs07Vc"
               },
               {
                 "id": "mosaic-leaf-todo",
-                "panelOccId": "WO0kXvLucX4v"
+                "panelOccId": "ibC0a8HCehmc"
               }
             ]
           },
@@ -220,17 +56,17 @@
             "id": "mosaic-col1",
             "dir": "h",
             "ratio": [
-              0.28,
-              1
+              1,
+              0.28
             ],
             "children": [
               {
-                "id": "mosaic-leaf-logo",
-                "panelOccId": "jaGlHzGiAL_m"
+                "id": "mosaic-leaf-notebook",
+                "panelOccId": "yWklnQ34r5Uw"
               },
               {
-                "id": "mosaic-leaf-notebook",
-                "panelOccId": "t1mA7m2hZqeH"
+                "id": "mosaic-leaf-logo",
+                "panelOccId": "ClbdkwC30yIF"
               }
             ]
           },
@@ -244,11 +80,242 @@
             "children": [
               {
                 "id": "mosaic-leaf-goals",
-                "panelOccId": "bzprkqJU-km1"
+                "panelOccId": "GH0pd-_HIbss"
               },
               {
                 "id": "mosaic-leaf-accounts",
-                "panelOccId": "lWu54lMKF3hP"
+                "panelOccId": "4mAHfEoqmSeY"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "namedFilters": [],
+    "occurrences": [],
+    "rowSizes": [],
+    "rows": 2,
+    "templates": [],
+    "toolbarNavFilters": []
+  },
+  {
+    "_id": "6a4c0634dadc47ffd70e8285",
+    "name": "Live Grid",
+    "rows": 2,
+    "cols": 3,
+    "colSizes": [
+      0.8,
+      1,
+      0.8
+    ],
+    "rowSizes": [],
+    "userId": "{{USER_ID}}",
+    "occurrences": [
+      "JUDji5A158wJ",
+      "TMN2LY1vbpow",
+      "C3PD8YUjWtmX",
+      "pJdrIAPcFK9j",
+      "ked8JhYJiuO-"
+    ],
+    "namedFilters": [
+      {
+        "id": "filter_daily",
+        "name": "Daily",
+        "conditions": [
+          {
+            "fieldId": "tbwEyTXWiDfG",
+            "comparator": "SAME_DAY",
+            "isNav": true
+          }
+        ],
+        "timeScale": null,
+        "primaryDateFieldId": null,
+        "timeUnit": "day",
+        "lock": false,
+        "_id": "6a4c0634dadc47ffd70e8286"
+      }
+    ],
+    "activeFilterId": "filter_daily",
+    "toolbarNavFilters": [],
+    "fieldIds": [
+      "URtVoE6dHGDB",
+      "tbwEyTXWiDfG",
+      "tCw5Mb10l2z5",
+      "bUkDVHS_fd7q",
+      "7hGyQboqxPKO",
+      "yM1AnOPZs83b",
+      "oAtq3I51iJ0v",
+      "boT11ufcQLgL",
+      "6NzlLuY9R6nI",
+      "ODf6JgYmTUGv",
+      "GeQX0UCzqI8G",
+      "Au8OcjqPkOxF",
+      "90DK9ILuwxQi",
+      "z72Uk80dzrUG",
+      "gP-01iXMv210",
+      "UCI_cTteDoDx",
+      "gET9H6YWIOsh",
+      "PmeaFU3gIJ55",
+      "hGy23-1VeXyX",
+      "cJelYM3zNsla",
+      "xo3R68YQZNGS",
+      "L5ELbt32bIbn",
+      "U3tVjTb_iiQS",
+      "vyGDy7Mdvo8t",
+      "LsiFQXy-o36G",
+      "LJdjJWuuknWA",
+      "_4TdffNrTBpg",
+      "mMCKCl--gnLJ",
+      "Z2yCHuAjv8HN",
+      "L9k_XnxLE2TL",
+      "zRiLLShmkaZp",
+      "PrjRPutzj0Kt",
+      "qgeqilzI4Gqb",
+      "jr1Z69FtM-2n",
+      "NVAn9lRgQaqA",
+      "Ug2sOJLS1SB5",
+      "fhUGdaHlxqwX",
+      "oXe7OS9mfgww",
+      "3leAh3kBDBDM",
+      "w7GKwykDXkqy",
+      "_FFmENwZN5Xz",
+      "GmnTgUtZ7Pcq",
+      "aLDRy_FNm26C",
+      "Zr0VF8B9nMGG",
+      "XfIQXDYE0AFm",
+      "Ad2YTJClaFLj",
+      "ZNHGgalwl492",
+      "cy6Jm-nAsXsT",
+      "THFC9q6QDKUL",
+      "m4tIJSvyfAUQ",
+      "3_TLJ_rvDkod",
+      "VzgCjDJjleRO",
+      "3s3cyJeOXh91",
+      "e4IR3OE_2tMd",
+      "U6cjirnzImCh",
+      "m3FXtEmCidHn",
+      "MUwZUD7Oesk7",
+      "uyLfjdyWbHTZ",
+      "ywMjeVHm_j_x",
+      "12zPCrtrvuIn",
+      "2OJwAWIKH4vi",
+      "LvD733Tcw_HV",
+      "PTnDRJ5k44QV",
+      "6vlDBMW1BsOs",
+      "paQHMwdHQqpW",
+      "Mv84KwcaztY0",
+      "g7MaWcbaURkB",
+      "KFc4xh6OlS0j",
+      "6kUMMX8Bz_oM",
+      "5zdd4agtdSrF",
+      "GdXgc0O0IJqx",
+      "rHr7TsB-dVjy",
+      "YbPQzThKmUCa",
+      "w2HT1lO1TUgb",
+      "9srBvMt7gra_",
+      "eXKf1oNB2AI8",
+      "7v4YOto_zobG",
+      "t2JsX6RLpO0Y",
+      "MHyFbnWklHDO",
+      "CGSWB7R87n_M",
+      "W-6WzGCIJ0ig",
+      "d71UIIUVy4Wy",
+      "OmA6C8bgOjKH",
+      "j9m5BiYzAaqm",
+      "StdmAFTgbE1W",
+      "XBJmPELSCuzn",
+      "z00SFu9u6X4Q",
+      "LN35yHy7S_IM",
+      "fgbaZ8d6U3Qn",
+      "FhIgXs4JkpYd",
+      "XQUZUP462RMM",
+      "co-Logxh_M-y",
+      "ECoe0zVe7oH5",
+      "3h3NPhagazWL",
+      "8e2wA-rCIE93",
+      "BAgoSigLCDuT",
+      "4nETdKAiXhPb",
+      "N0Wz6Gsw9n1Y",
+      "me99lMgAMeM5",
+      "hDGeMEu07_QG",
+      "bhzoW2oW4k5Y",
+      "bKsGGbEBRXer",
+      "a46YREqNf18Z",
+      "mEZLhb2sBfCN",
+      "l1jkX0JGKwp7",
+      "R3LTI40MNkXR",
+      "06DajM8MvPoV",
+      "RCQ27v4u1L1c",
+      "tda1p_tQJV30",
+      "vv3dRxyCt_2d",
+      "GKUo1x8YfVr4",
+      "B9ct-m9631JN",
+      "Zhq3vXc57hV3",
+      "cPMrOxeEtSzm",
+      "m-6IpGRLZGvg",
+      "XrbB5WhQ0yFz",
+      "miAS4MbREVo_",
+      "XtNAq24zyMen",
+      "2lglaY1zDUKh",
+      "Tj58IsNma43S",
+      "AK26Vkwhq96j",
+      "M2yMJ7TfWAMn",
+      "BLfEu3H-pccz",
+      "q_-rSKcBDE5s",
+      "a1NHB5c7q_YA",
+      "3YYARR4T0NJZ"
+    ],
+    "manifestId": "VlJD6KTl7Y36",
+    "templates": [],
+    "meta": {
+      "assistantSeedId": "VcHu_3dZAlYR",
+      "defaultGrid": true,
+      "layoutTree": {
+        "id": "mosaic-root",
+        "dir": "v",
+        "ratio": [
+          0.8,
+          1,
+          0.8
+        ],
+        "children": [
+          {
+            "id": "mosaic-col0",
+            "dir": "h",
+            "ratio": [
+              1,
+              1
+            ],
+            "children": [
+              {
+                "id": "mosaic-leaf-toolkit",
+                "panelOccId": "JUDji5A158wJ"
+              },
+              {
+                "id": "mosaic-leaf-todo",
+                "panelOccId": "TMN2LY1vbpow"
+              }
+            ]
+          },
+          {
+            "id": "mosaic-leaf-notebook",
+            "panelOccId": "C3PD8YUjWtmX"
+          },
+          {
+            "id": "mosaic-col2",
+            "dir": "h",
+            "ratio": [
+              1,
+              1
+            ],
+            "children": [
+              {
+                "id": "mosaic-leaf-goals",
+                "panelOccId": "pJdrIAPcFK9j"
+              },
+              {
+                "id": "mosaic-leaf-accounts",
+                "panelOccId": "ked8JhYJiuO-"
               }
             ]
           }

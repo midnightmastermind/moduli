@@ -2185,3 +2185,9 @@ Two directives arrived at the end of the account2 session (12:39 / 12:44 UTC) an
 Two issues, scoped to the MOBILE viewer only: (1) the cell-switch edge buttons (MobileGridNav lips) are gone; (2) the enlarged touch icons (drag handles) eat too much space and push content.
 
 > "also we have 3 grids right now. there should only be 2. and the tablet layout is messed up. its either not a 3 by 3 grid anymore (for creatLiveData) or the grid cells are wrapping or something. there should be only 1 panel in the middle too"
+
+## 2026-07-06 — mid-execution direction (audit-fix session)
+
+> "after, look into dropping in a doc, and doc container, especially nested ones. the drop was reloading the entire page"
+
+Queued as follow-up after the 2026-07-06 audit-fix plan (docs/superpowers/plans/2026-07-06-dnd-wrap-menus-audit-fixes.md). Symptom echoes the 2026-06-16 "page resets" class (DragProvider monitor + Editor drop target double-handling); investigate with __dragDiag tracing on doc + NESTED doc-container drops.
