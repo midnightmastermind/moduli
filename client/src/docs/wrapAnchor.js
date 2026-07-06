@@ -19,3 +19,20 @@ export function anchorOffsetForDrop({ dropY, hostProseTop, lineTops = null }) {
   for (const t of lineTops) { if (t <= raw) snapped = t; else break; }
   return snapped;
 }
+
+// Whether the wrap anchors BELOW the host top (middle/bottom shape family).
+// Line-level nodes carry `anchorOffset` (px — authoritative when present);
+// legacy nodes only carry `anchorIndex` (host block index).
+export function hasMidAnchor({ anchorIndex, anchorOffset }) {
+  if (anchorOffset != null && Number.isFinite(Number(anchorOffset))) return Number(anchorOffset) > 0;
+  return (Number(anchorIndex) || 0) > 0;
+}
+
+// Classify the measured wrap shape from the anchor + measured boxes:
+//   top    — notch at the very top corner (prose beside + full width below)
+//   middle — prose full-width ABOVE and BELOW the neighbor
+//   bottom — neighbor reaches the host bottom (no prose below → upside-down L)
+export function classifyWrapShape({ anchorIndex, anchorOffset, neighborBottom, hostBottom, threshold = 24 }) {
+  if (!hasMidAnchor({ anchorIndex, anchorOffset })) return "top";
+  return hostBottom - neighborBottom < threshold ? "bottom" : "middle";
+}

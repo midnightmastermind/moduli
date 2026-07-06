@@ -12,6 +12,7 @@
 // wraps content AFTER it, so the neighbor must precede the host in source order.
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import { useRef, useEffect, useCallback, useState } from "react";
+import { hasMidAnchor, classifyWrapShape } from "./wrapAnchor";
 
 const DEFAULT_NW = 300;   // px — default neighbor column width when unset
 const MIN_NW = 120;       // px — splitter clamp floor
@@ -139,19 +140,16 @@ export default function WrapGroupNode({ node, updateAttributes }) {
       const notchW = side === "right"
         ? Math.round(c.right - left + SEAM_GAP)
         : Math.round(right - c.left + SEAM_GAP);
-      // L (anchorIndex 0): notch starts at the very top (0) so no bg/border strip is
-      // left above the neighbor. C (anchorIndex > 0): notch sits at the neighbor's top.
-      const anchorIdx = Number(node.attrs.anchorIndex) || 0;
-      const notchY = anchorIdx > 0 ? Math.max(0, Math.round(top - c.top)) : 0;
+      // Top-anchored wraps cut from the very top (no bg strip above the neighbor);
+      // mid-anchored ones (line-level anchorOffset OR legacy anchorIndex — see
+      // wrapAnchor.hasMidAnchor) cut the band the neighbor actually floats in.
+      const anchorAttrs = { anchorIndex: node.attrs.anchorIndex, anchorOffset: node.attrs.anchorOffset };
+      const notchY = hasMidAnchor(anchorAttrs) ? Math.max(0, Math.round(top - c.top)) : 0;
       const notchH = Math.round(bottom - top);
       wrapEl.style.setProperty("--notch-w", `${Math.max(0, notchW)}px`);
       wrapEl.style.setProperty("--notch-y", `${Math.max(0, notchY)}px`);
       wrapEl.style.setProperty("--notch-h", `${Math.max(0, notchH)}px`);
-      // Classify the shape from the measured boxes: `top` (notch at top), else `bottom`
-      // when the neighbor reaches the host BOTTOM (no full-width prose below → upside-down
-      // L), else `middle` (neighbor mid-column, prose above AND below).
-      const reachesBottom = (c.bottom - bottom) < 24;
-      setMeasuredShape(anchorIdx <= 0 ? "top" : (reachesBottom ? "bottom" : "middle"));
+      setMeasuredShape(classifyWrapShape({ ...anchorAttrs, neighborBottom: bottom, hostBottom: c.bottom }));
     }
 
     // Seam sits at the PROSE edge of the gap (= the clip wall above) so its

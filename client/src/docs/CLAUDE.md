@@ -1,6 +1,20 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-07-03. Check this file before re-reading source._
+_Updated: 2026-07-06. Check this file before re-reading source._
+
+## Recent Changes (2026-07-06 — line-level (anchorOffset) wraps clip + classify the correct band)
+- **`wrapAnchor.js`** — two new pure helpers (unit-tested in `__tests__/wrapAnchor.test.js`):
+  `hasMidAnchor({anchorIndex, anchorOffset})` (true when the wrap anchors below the host top —
+  line-level `anchorOffset` is authoritative when present; legacy `anchorIndex > 0` fallback) and
+  `classifyWrapShape({anchorIndex, anchorOffset, neighborBottom, hostBottom, threshold=24})` →
+  `"top" | "middle" | "bottom"`.
+- **`WrapGroupNode.jsx` `measure`** — notchY + shape classification now consume those helpers.
+  BUG FIXED: the old inline logic read **legacy `anchorIndex` only**, so every line-level wrap
+  (`anchorOffset > 0`, `anchorIndex` null — the post-2026-06-17 shape) got `notchY = 0` and
+  `shape-top`: the host-background clip cut the TOP band instead of the band the neighbor
+  actually floats in. Verified headless against the live-grid Eminem import (wrap flipped to
+  `anchorOffset:150`): `notchY 148px` / `shape-middle`, clip band flush with the floated image
+  (`screenshots/wrap-midanchor-probe.png`); DB state restored after the probe.
 
 ## Recent Changes (2026-07-03 — wrap channel shows PAGE bg: clip wall + seam moved to the prose edge)
 - **`WrapGroupNode.jsx` `measure`** — `--notch-w` and the seam `left` both moved from
