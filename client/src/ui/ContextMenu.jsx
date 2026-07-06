@@ -38,10 +38,12 @@ export default function ContextMenu({ ctx, onClose }) {
 
   if (!ctx) return null;
 
-  // Keep menu inside viewport
-  const W = 168;
-  const approxH = ctx.items.length * 30 + 8;
-  const x = Math.min(ctx.x, window.innerWidth - W - 6);
+  // Keep menu inside viewport. Width is content-sized within [168, 240];
+  // height caps at 70vh with internal scroll (bulk multi-select menus were
+  // overflowing small screens).
+  const MAX_W = 240;
+  const approxH = Math.min(ctx.items.length * 30 + 8, window.innerHeight * 0.7);
+  const x = Math.min(ctx.x, window.innerWidth - MAX_W - 6);
   const y = Math.min(ctx.y, window.innerHeight - approxH - 6);
 
   return createPortal(
@@ -51,7 +53,11 @@ export default function ContextMenu({ ctx, onClose }) {
         position: "fixed",
         top: y,
         left: x,
-        width: W,
+        width: "max-content",
+        minWidth: 168,
+        maxWidth: MAX_W,
+        maxHeight: "70vh",
+        overflowY: "auto",
         zIndex: 2147483646,
         background: "var(--surface-card)",
         border: "1px solid rgba(80,120,180,0.35)",

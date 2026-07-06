@@ -2,6 +2,18 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 — ContextMenu: cap height at 70vh with scroll + content-sized width)
+- **`ContextMenu.jsx`** — replaced hard-coded 168px width with content-sized flexible width (min 168px, max 240px)
+  and capped menu height at 70vh with internal scroll. Root cause of multi-select bulk-action menus overflowing on
+  small screens. (1) Removed `const W = 168` and replaced with `const MAX_W = 240`. (2) Changed `approxH` from
+  `ctx.items.length * 30 + 8` to `Math.min(ctx.items.length * 30 + 8, window.innerHeight * 0.7)` so menus never
+  exceed 70% of viewport height. (3) Updated `x` calculation to use `MAX_W` instead of `W`. (4) In the portal
+  `style` object, replaced `width: W,` with `width: "max-content", minWidth: 168, maxWidth: MAX_W, maxHeight: "70vh",
+  overflowY: "auto"` — menu width shrinks to fit items (min 168px) or grows to max 240px, and tall menus scroll
+  internally instead of overflowing. Byte-identical on typical short menus; only multi-select menus >7 items see
+  scroll on narrow viewports.
+- **Verification**: grep confirms no remaining `W\b` references (only `MAX_W`); all 1137 client tests pass; build clean.
+
 ## Recent Changes (2026-07-06 — RadialMenu cleanup: drop dead onAddChild/addLabel props + fix key collision)
 - **`RadialMenu.jsx`** — removed two dead props (`onAddChild` and `addLabel`) that were accepted but never used
   by the component (the default item list never renders anything that calls them). These handlers were meant for
