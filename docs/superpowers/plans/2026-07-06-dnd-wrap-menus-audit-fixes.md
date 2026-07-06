@@ -1362,12 +1362,23 @@ Context: 2026-07-03 got drop→paint from 2855ms → ~1400ms @5x CPU throttle (p
 
 - [ ] **Step 3: Fill in this table (edit this plan file) and decide**
 
-| Metric (@5x throttle) | Before plan | After plan |
+| Metric (@5x throttle) | Before plan (b8fb96bd) | After plan (branch tip) |
 |---|---|---|
-| drop → routeDrop returned (ms) | | |
-| drop → rAF #2 painted (ms) | | |
-| [drop-renders] instance count | | |
-| [dragPerf] touch fps / onMove_avgMs | | |
+| drop → routeDrop returned (ms) | 84 / 50 / 46 (median 50) | 54 / 41 / 52 (median 52) |
+| drop → rAF #2 painted (ms) | 1742 / 1609 / 1784 (median 1742) | 1578 / 1378 / 1321 (median 1378) |
+| [drop-renders] instance count | 156 / 156 / 157 | 156 / 156 / 156 |
+| [dragPerf] touch fps / onMove_avgMs | (no summary emitted by probe) | (no summary emitted by probe) |
+
+**Method (2026-07-06):** local server on prod Atlas serving the built dist; headless chromium
+(playwright-core, 1600×1000 hasTouch) with CDP 5x CPU throttle; Schedule page temporarily pinned to
+the hub panel view; 3 real touch drags of a Todo item ("Buy groceries" etc.) into the Schedule
+12:00am slot per build; fresh reseed before each build's runs; final reseed after to clear probe
+pollution. `window.__dragPerf = true` on the post-plan build (baseline logs unconditionally).
+
+**Decision (per the rule below):** median drop→paint fell 1742ms → 1378ms (~21%) but is NOT under
+~600ms @5x — the remaining cost is the frame-1 React flush (unchanged render counts: 183 container /
+156 instance / 535 field renders per drop). Docket entry "drop frame-1 flush profiling" filed in
+`client/src/CLAUDE.md`; component-level React profiling is a separate session.
 
 Decision rule: if "drop → rAF #2 painted" is now under ~600ms @5x (≈ instant at 1x), close the item. If not, file a new docket entry in `client/src/CLAUDE.md` titled "drop frame-1 flush profiling" with the captured numbers and the top-3 components from a React DevTools profiler pass — that work is a separate session, not this plan.
 

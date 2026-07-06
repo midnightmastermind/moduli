@@ -2,6 +2,18 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## DOCKET — drop frame-1 flush profiling (filed 2026-07-06, needs its own session)
+The 2026-07-06 audit-fix plan (Tasks 9–10: member-card scan cache + live-ref drag payloads) cut
+drop→paint @5x throttle from median **1742ms → 1378ms** (~21%; routeDrop itself is flat at ~50ms),
+but the decision threshold was <600ms. The remaining cost is the FRAME-1 React flush — render
+counts per drop are unchanged: **panel=15 container=183 instance=156 page=22 field=535**
+([drop-renders], todo-item → Schedule 12:00am slot, 3-run medians, method recorded in
+`docs/superpowers/plans/2026-07-06-dnd-wrap-menus-audit-fixes.md` Task 14). Next lever is
+component-level attribution: React DevTools profiler pass (or a bumpRender split per module label)
+to find why ~183 containers + 535 fields render on a single-slot drop when only one container
+changed. Selector-level hypotheses were exhausted 2026-07-03 (see perf memory); the other
+documented lever is slicing the op drain per-op across macrotasks (bindSocketToStore endDropBatch).
+
 ## Recent Changes (2026-07-06 — MobileGridNav: scrollable ancestor resolved once per gesture)
 - **`mobile/MobileGridNav.jsx`** — `onTouchMove` used to call `findScrollableAncestor` (a
   `getComputedStyle` walk) on EVERY touchmove during normal scrolling. Now resolved once per
