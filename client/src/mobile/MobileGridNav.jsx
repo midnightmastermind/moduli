@@ -168,6 +168,7 @@ export default function MobileGridNav({
         touchTarget: e.target,
         panelEl,
         atBoundary: false,
+        scrollEl: undefined,
       };
     };
 
@@ -179,8 +180,12 @@ export default function MobileGridNav({
       const dy = touch.clientY - t.startY;
       const dx = touch.clientX - t.startX;
 
-      // Re-find scrollable ancestor each move — keyboard show/hide changes dimensions
-      const scrollEl = findScrollableAncestor(t.touchTarget || e.target, viewport);
+      // Resolve the scrollable ancestor ONCE per gesture (getComputedStyle walk
+      // — too hot for every touchmove). Keyboard show/hide correctness is kept
+      // by the visualViewport resize handler below, which resets the touch
+      // state (including this cache) when dimensions change.
+      if (t.scrollEl === undefined) t.scrollEl = findScrollableAncestor(t.touchTarget || e.target, viewport);
+      const scrollEl = t.scrollEl;
 
       // Determine dominant axis on first significant move
       if (!t.axis && (Math.abs(dy) > 10 || Math.abs(dx) > 10)) {
@@ -282,12 +287,12 @@ export default function MobileGridNav({
     };
 
     const onTouchEnd = () => {
-      touchRef.current = { startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, boundaryY: 0, boundaryX: 0, axis: null, touchTarget: null, panelEl: null, atBoundary: false };
+      touchRef.current = { startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, boundaryY: 0, boundaryX: 0, axis: null, touchTarget: null, panelEl: null, atBoundary: false, scrollEl: undefined };
     };
 
     // Reset touch state on viewport resize (keyboard show/hide) so boundary tracking stays fresh
     const onResize = () => {
-      touchRef.current = { startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, boundaryY: 0, boundaryX: 0, axis: null, touchTarget: null, panelEl: null, atBoundary: false };
+      touchRef.current = { startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, boundaryY: 0, boundaryX: 0, axis: null, touchTarget: null, panelEl: null, atBoundary: false, scrollEl: undefined };
       cooldownRef.current = false;
     };
 

@@ -1,6 +1,15 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-07-04. Check this file before re-reading source._
+_Updated: 2026-07-06. Check this file before re-reading source._
+
+## Recent Changes (2026-07-06 — MobileGridNav: scrollable ancestor resolved once per gesture)
+- **`mobile/MobileGridNav.jsx`** — `onTouchMove` used to call `findScrollableAncestor` (a
+  `getComputedStyle` walk) on EVERY touchmove during normal scrolling. Now resolved once per
+  gesture and cached on `touchRef.current.scrollEl` (`undefined` = not yet resolved; `null` is a
+  valid "no scrollable" result). Cache reset in `onTouchStart`, `onTouchEnd`, and the
+  `visualViewport` `onResize` handler — so keyboard show/hide (which changes dimensions) still
+  re-resolves on the next gesture. Verified headless (iPhone-size touch emulation vs the live
+  grid): in-cell content scrolling works; horizontal overscroll still navigates cells.
 
 ## Recent Changes (2026-07-04 — mobile pager for mosaic grids + compact mobile handles + mosaic reconcile corruption fix + stale grid removed)
 All verified headlessly (iPhone-13 emulation + 1280×800 touch tablet) against the live
