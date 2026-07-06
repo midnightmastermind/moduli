@@ -42,10 +42,10 @@ import { dragPerf } from "./dragPerf";
 // still needs finger dragging even while it shows the desktop grid.
 const _isTouch = () => window.matchMedia("(pointer: coarse)").matches;
 
-// Create a small pill element for mobile drag ghost
-function _createDragPill(label, type) {
+// Create a small pill element for mobile drag ghost — label on top, the action
+// verb (Move / Copy / Copy-link) underneath, mirroring the desktop native ghost.
+function _createDragPill(label, mode) {
   const pill = document.createElement('div');
-  pill.textContent = label || type || 'item';
   Object.assign(pill.style, {
     position: 'fixed', left: '0', top: '0',
     maxWidth: '140px',
@@ -62,8 +62,15 @@ function _createDragPill(label, type) {
     willChange: 'transform',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
-    textOverflow: 'ellipsis',
   });
+  const title = document.createElement('div');
+  title.textContent = label || 'item';
+  Object.assign(title.style, { overflow: 'hidden', textOverflow: 'ellipsis' });
+  const action = document.createElement('div');
+  action.textContent = mode === 'copy' ? 'Copy' : mode === 'copylink' ? 'Copy-link' : 'Move';
+  Object.assign(action.style, { fontSize: '9px', opacity: '0.7', letterSpacing: '0.02em' });
+  pill.appendChild(title);
+  pill.appendChild(action);
   return pill;
 }
 
@@ -686,14 +693,14 @@ export function useDragDrop({
           offsetY = 14;
           payload = buildPayload();
           const liveData = dataRef.current;
-          clone = _createDragPill(liveData?.label || liveData?.name || type, type);
+          // Per-occurrence dragMode overrides entity's defaultDragMode
+          const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? 'move';
+          clone = _createDragPill(liveData?.label || liveData?.name || type, mode);
           clone.style.transform = `translate3d(${t.clientX - offsetX}px, ${t.clientY - offsetY}px, 0)`;
           document.body.appendChild(clone);
           lastHitX = t.clientX; lastHitY = t.clientY;
           lastHitTestTime = performance.now();
 
-          // Per-occurrence dragMode overrides entity's defaultDragMode
-          const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? 'move';
           dragCtx.handleDragStart(payload, startX, startY, { mode });
           dragPerf.start();
           return;

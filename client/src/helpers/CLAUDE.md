@@ -2,6 +2,13 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 — touch drag pill shows the action verb (Move/Copy/Copy-link))
+- **`dragSystem.js` `_createDragPill(label, mode)`** — second arg is now the drag mode (was the drag
+  type, only used as a label fallback). The pill renders two lines: label on top, the action verb
+  (Move / Copy / Copy-link) underneath in 9px muted text — parity with the desktop native ghost
+  (`attachDragPreview`). The touch threshold-cross block computes `mode` BEFORE the clone and passes
+  it in. Verified headless (touch emulation): a copy-mode item's pill reads label + "Copy".
+
 ## Recent Changes (2026-07-06 — dragSystem live-ref payloads: no JSON.stringify deps, no re-registration on occurrence writes)
 - **`dragSystem.js` `useDroppable` + `useDragDrop`** — the registration effects' dep arrays no longer
   contain `JSON.stringify(data/context/accepts/allowedEdges)`. `ModuleInstance` passes
