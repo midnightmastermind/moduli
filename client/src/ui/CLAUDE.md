@@ -2,6 +2,13 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 — drop-path debug logging gated behind __dragPerf/__dragDiag flags)
+- **`Editor.jsx`** — `detectSideHost` callback and `handleDocDrop` onDrop handler's diagnostic logs
+  are now gated behind opt-in `window.__dragDiag === true` flag. (1) `detectSideHost`'s `bail()`
+  helper wraps its console.log in the flag check; (2) `handleDocDrop`'s `DLOG()` helper wraps its
+  console.log in the flag check. 21 DLOG call sites remain unchanged (gate is inside the helper).
+  No behavior changes when flag is false; byte-identical when true.
+
 ## Recent Changes (2026-07-06 — InsertGap: fix missing createLeafInstanceAtIndex import + test coverage)
 - **`InsertGap.jsx`** — fixed a regression crash: the `insertExisting` callback (when picking an
   existing module to insert at a gap index) called `createLeafInstanceAtIndex`, which was never

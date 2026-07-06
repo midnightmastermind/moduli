@@ -797,9 +797,12 @@ export function DragProvider({
   const handleDrop = useCallback((dropTarget) => {
     // STOPWATCH — instrument the drop pipeline so we can see where time goes
     // between "user releases mouse" and "browser paints the result".
-    const _dropT0 = performance.now();
-    const _lap = (label) => console.log(`[drop] +${Math.round(performance.now() - _dropT0)}ms ${label}`);
-    const _renders0 = snapshotRenders();
+    const _diag = typeof window !== "undefined" && window.__dragPerf === true;
+    const _dropT0 = _diag ? performance.now() : 0;
+    const _lap = _diag
+      ? (label) => console.log(`[drop] +${Math.round(performance.now() - _dropT0)}ms ${label}`)
+      : () => {};
+    const _renders0 = _diag ? snapshotRenders() : null;
     _lap("handleDrop entry");
     const s = sessionRef.current;
     if (s.dropHandled) return;
@@ -899,14 +902,16 @@ export function DragProvider({
     // setTimeout(0) fires after that frame has been committed. The gap between
     // "handleDrop synchronous end" and "first frame after commit" is render +
     // paint cost — i.e. time that is NOT operations.
-    requestAnimationFrame(() => {
-      _lap("rAF #1 (pre-paint of next frame)");
+    if (_diag) {
       requestAnimationFrame(() => {
-        _lap("rAF #2 (next frame painted)");
-        const d = diffRenders(_renders0);
-        console.log(`[drop-renders] panel=${d.panel} container=${d.container} instance=${d.instance} page=${d.page} field=${d.field || 0}`);
+        _lap("rAF #1 (pre-paint of next frame)");
+        requestAnimationFrame(() => {
+          _lap("rAF #2 (next frame painted)");
+          const d = diffRenders(_renders0);
+          console.log(`[drop-renders] panel=${d.panel} container=${d.container} instance=${d.instance} page=${d.page} field=${d.field || 0}`);
+        });
       });
-    });
+    }
   }, [dispatch, socket, getCellFromPoint, getSnapEdge, getHoveredIds, baseAllPanels, baseContainers, occurrencesById, modulesById, clearSession, state]);
 
   const handleDragEnd = useCallback(() => {

@@ -1,6 +1,21 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-07-02. Check this file before re-reading source._
+_Updated: 2026-07-06. Check this file before re-reading source._
+
+## Recent Changes (2026-07-06 — drop stopwatch + detectSideHost bail + handleDocDrop DLOG all gated behind __dragPerf/__dragDiag)
+- **`DragProvider.jsx` (`handleDrop`)** — drop performance stopwatch + render-diff logging now gated
+  behind `window.__dragPerf === true`. Three changes: (1) `_dropT0 = _diag ? performance.now() : 0`;
+  (2) `_lap` becomes a no-op function when flag is off; (3) `_renders0` and the trailing
+  `requestAnimationFrame` pair measuring paint cost wrapped in `if (_diag)`. When flag is false,
+  all stopwatch branches are dead code (no I/O). When true, behavior is byte-identical to before.
+- **`Editor.jsx` (`detectSideHost`)** — `bail` function now checks `window.__dragDiag === true` before
+  logging "[detectSideHost] null —" diagnostic. Wrapped the console.log in the gate; function
+  signature and return value unchanged. When flag is false, bail logs nothing. When true,
+  behavior identical to before.
+- **`Editor.jsx` (`handleDocDrop`)** — `DLOG` helper function now checks `window.__dragDiag === true`
+  before calling console.log for any "[DROP ed=...]" diagnostic. The 21 `DLOG(...)` call sites
+  remain unchanged (gate is inside the helper). When flag is false, all calls are no-ops. When
+  true, behavior identical to before.
 
 ## Recent Changes (2026-07-02 — drag-start lag: DragContext split into stable handlers + reactive DragStateContext)
 - **Why:** tablet perf probe showed drag-START lag. Two compounding costs at drag start:

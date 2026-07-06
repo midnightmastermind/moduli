@@ -1309,7 +1309,10 @@ const Editor = forwardRef(function Editor({
   const detectSideHost = useCallback((input) => {
     // [WRAP-DIAG] one structured log per null so a single live drop reveals exactly
     // which guard rejects the wrap. Remove once the host-detection is solid.
-    const bail = (why, extra) => { console.log("[detectSideHost] null —", why, extra || ""); return null; };
+    const bail = (why, extra) => {
+      if (typeof window !== "undefined" && window.__dragDiag === true) console.log("[detectSideHost] null —", why, extra || "");
+      return null;
+    };
     if (!editor?.view || !input || input.clientX == null) return bail("no editor/input");
     const res = editor.view.posAtCoords({ left: input.clientX, top: input.clientY });
     if (!res) return bail("posAtCoords miss", { x: input.clientX, y: input.clientY });
@@ -1433,7 +1436,9 @@ const Editor = forwardRef(function Editor({
         // inner textblock/cell sub-editor; both register drop targets so the
         // INNERMOST under the pointer wins). DLOG every branch so a full test
         // shows exactly what each droppable does. Remove once drop is solid.
-        const DLOG = (...a) => console.log(`[DROP ed=${occurrence?.id || "?"}]`, ...a);
+        const DLOG = (...a) => {
+          if (typeof window !== "undefined" && window.__dragDiag === true) console.log(`[DROP ed=${occurrence?.id || "?"}]`, ...a);
+        };
         DLOG("onDrop fired", { type, role: sd.role || data?.role, sourceType: context?.sourceType, occId: context?.occurrenceId || data?.occurrenceId || sd.occurrenceId, fromDoc: source.data?.fromDoc, x: dropInput?.clientX, y: dropInput?.clientY });
         // ONE editor per drop. Pragmatic DnD fires onDrop on EVERY registered drop
         // target under the pointer (innermost-first). A nested textblock sub-editor
