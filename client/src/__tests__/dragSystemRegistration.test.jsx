@@ -86,4 +86,23 @@ describe("dragSystem registration stability", () => {
     const cfg = adapters.dropTargetForElements.mock.calls.at(-1)[0];
     expect(cfg.getData().context.extra).toBe(1);
   });
+
+  it("touch-primary + any-pointer:fine registers the Pragmatic draggable too (tablet with a mouse)", () => {
+    const prev = window.matchMedia;
+    window.matchMedia = vi.fn((q) => ({
+      matches: q === "(pointer: coarse)" || q === "(any-pointer: fine)",
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    try {
+      const before = adapters.draggable.mock.calls.length;
+      render(<DragProbe data={{ label: "a" }} context={{}} />);
+      expect(adapters.draggable.mock.calls.length).toBe(before + 1);
+      // payload still reads the live refs
+      const cfg = adapters.draggable.mock.calls.at(-1)[0];
+      expect(cfg.getInitialData().data.label).toBe("a");
+    } finally {
+      window.matchMedia = prev;
+    }
+  });
 });

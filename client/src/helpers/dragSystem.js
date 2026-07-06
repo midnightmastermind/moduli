@@ -815,6 +815,52 @@ export function useDragDrop({
       triggerEl.addEventListener('touchend', onEnd);
       triggerEl.addEventListener('touchcancel', onEnd);
 
+      // A tablet with a mouse/trackpad reports pointer:coarse (primary) AND
+      // any-pointer:fine. Register the desktop draggable too so MOUSE drags
+      // work — HTML5 drag events never fire from touch on our elements because
+      // the capture-phase dragstart guard below cancels touch-initiated ones
+      // (Android can start a native drag from a long-press, which is exactly
+      // the OS-intercept path the touch system bypasses).
+      let lastPointerType = null;
+      const onPointerDownType = (e) => { lastPointerType = e.pointerType; };
+      const onNativeDragStart = (e) => {
+        if (lastPointerType === 'touch' || lastPointerType === 'pen') {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      };
+      let mouseDragCleanup = null;
+      if (window.matchMedia("(any-pointer: fine)").matches) {
+        el.addEventListener('pointerdown', onPointerDownType, { capture: true });
+        el.addEventListener('dragstart', onNativeDragStart, { capture: true });
+        mouseDragCleanup = draggable({
+          element: el,
+          ...(handleEl ? { dragHandle: handleEl } : {}),
+          getInitialData: () => buildPayload(),
+          getInitialDataForExternal: () => ({ [NATIVE_DND_MIME]: serializePayload(buildPayload()) }),
+          onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
+            const liveData = dataRef.current;
+            const label = liveData?.label || liveData?.name || liveData?.occurrence?.label || "item";
+            const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? "move";
+            const action = mode === "copy" ? "Copy" : mode === "copylink" ? "Copy-link" : "Move";
+            attachDragPreview(el, location, nativeSetDragImage, { label, action });
+          },
+          onDragStart: ({ location }) => {
+            setIsDragging(true);
+            const liveData = dataRef.current;
+            const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? 'move';
+            dragCtx.handleDragStart(buildPayload(), location.current.input.clientX, location.current.input.clientY, { mode });
+          },
+          onDrag: ({ location }) => {
+            dragCtx.handleDragMove(location.current.input.clientX, location.current.input.clientY);
+          },
+          onDrop: () => {
+            setIsDragging(false);
+            setTimeout(() => dragCtx.handleDragEnd(), 0);
+          },
+        });
+      }
+
       // Drop targets still registered via Pragmatic DnD (for desktop fallback)
       const dropCleanup = combine(
         dropTargetForElements({
@@ -894,6 +940,9 @@ export function useDragDrop({
         triggerEl.removeEventListener('touchmove', onMove);
         triggerEl.removeEventListener('touchend', onEnd);
         triggerEl.removeEventListener('touchcancel', onEnd);
+        el.removeEventListener('pointerdown', onPointerDownType, { capture: true });
+        el.removeEventListener('dragstart', onNativeDragStart, { capture: true });
+        mouseDragCleanup?.();
         dropCleanup();
         _unregisterDrop(el);
         if (clone) { clone.remove(); }

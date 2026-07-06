@@ -2,6 +2,20 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 — mouse drags on touch-primary devices (any-pointer:fine))
+- **`dragSystem.js` `useDragDrop` touch branch** — a tablet with a mouse/trackpad reports
+  `pointer:coarse` (primary) AND `any-pointer:fine`; previously the touch branch never registered
+  Pragmatic `draggable()`, so a mouse could not drag at all. Now, when `any-pointer:fine` matches,
+  the desktop `draggable()` is registered alongside the touch listeners (live-ref payload, native
+  ghost with label+verb). A capture-phase `dragstart` guard cancels native HTML5 drags initiated by
+  TOUCH/PEN input (tracked via a capture-phase `pointerdown` pointerType sniff) — Android can start
+  a native drag from a long-press, which is exactly the OS-intercept path the touch system bypasses.
+  Cleanup removes both capture listeners + the draggable. Unit-tested (registration under
+  coarse+fine matchMedia mock); finger drags verified unaffected headlessly. **If the Android
+  long-press guard proves insufficient on the real tablet (native ghost still appears), revert this
+  task's commit only — it's isolated by design.** Playwright's touch emulation reports
+  `any-pointer:fine` = false, so the mouse path can't be exercised headlessly.
+
 ## Recent Changes (2026-07-06 — touch drag pill shows the action verb (Move/Copy/Copy-link))
 - **`dragSystem.js` `_createDragPill(label, mode)`** — second arg is now the drag mode (was the drag
   type, only used as a label fallback). The pill renders two lines: label on top, the action verb
