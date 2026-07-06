@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { useGridActions } from "../GridActionsContext.js";
 import QuickAddMenu from "./QuickAddMenu.jsx";
-import { createChildInContainer } from "../helpers/CommitHelpers";
+import { createChildInContainer, createLeafInstanceAtIndex } from "../helpers/CommitHelpers";
 import { requestLabelEdit } from "../helpers/pendingLabelEdit.js";
 
 export default function InsertGap({

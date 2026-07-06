@@ -1,6 +1,18 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-06-12. Check this file before re-reading source._
+_Updated: 2026-07-06. Check this file before re-reading source._
+
+## Recent Changes (2026-07-06 — InsertGap: fix missing createLeafInstanceAtIndex import + test coverage)
+- **`InsertGap.jsx`** — fixed a regression crash: the `insertExisting` callback (when picking an
+  existing module to insert at a gap index) called `createLeafInstanceAtIndex`, which was never
+  imported from CommitHelpers. Line 16 import updated to also export `createLeafInstanceAtIndex`
+  alongside `createChildInContainer`. Root cause: the 2026-07-01 `createChildInContainer` refactor
+  introduced the new helper but didn't update the InsertGap call site to import it.
+- **`__tests__/insertGap.test.jsx` (NEW)** — regression test capturing the crash: mocks
+  CommitHelpers and GridActionsContext, renders InsertGap, triggers the QuickAddMenu's onSelect
+  with an existing module object, asserts that `createLeafInstanceAtIndex` is called with the
+  correct splice parameters. Prevents this path from going untested again (the bug only surfaced
+  on user interaction, not in the initial test pass).
 
 ## Recent Changes (2026-06-28 — QuickAddMenu: matches dropdown under the search + logo speckle repair)
 - **`QuickAddMenu.jsx`** — restored search and moved the existing-matches list into a
