@@ -222,12 +222,11 @@ function buildSectionBody(childIds, { imageChildIds, textblockChildIds, asideId 
     for (const id of pendingImgs) content.push(embed(id, { align: "full" }));
     pendingImgs = [];
   };
-  // Lead aside (main image stacked over the infobox) sits in a COLUMN beside the
-  // FIRST prose textblock — a `wrapGroup` in plain side-by-side mode (`wrap:false`,
-  // i.e. two columns, NO L-shape morph yet). The parent-float approach didn't place
-  // them next to each other, so we pair them explicitly. Neighbor-first order
-  // `[aside, firstTextblock]`; `side:right` + `wrap:false` renders the host
-  // (text) on the LEFT and the neighbor (aside) on the RIGHT.
+  // Lead aside (main image stacked over the infobox) pairs with the FIRST prose
+  // textblock in a `wrapGroup` — neighbor-first `[aside, firstTextblock]`,
+  // `side:right`. The client always wraps when a neighbor exists (the real-float
+  // L; WrapGroupNode ignores any legacy `wrap` attr), and the draggable seam
+  // owns column width (neighborWidth is just the start).
   let asidePairedTextblockId = null;
   if (asideId) {
     asidePairedTextblockId = childIds.find(
@@ -236,7 +235,7 @@ function buildSectionBody(childIds, { imageChildIds, textblockChildIds, asideId 
     if (asidePairedTextblockId) {
       content.push({
         type: "wrapGroup",
-        attrs: { side: "right", anchor: "top", anchorIndex: 0, wrap: false, neighborWidth: 320 },
+        attrs: { side: "right", anchorIndex: 0, neighborWidth: 320 },
         content: [embed(asideId), embed(asidePairedTextblockId)],
       });
     } else {
@@ -248,12 +247,12 @@ function buildSectionBody(childIds, { imageChildIds, textblockChildIds, asideId 
     if (id === asideId || id === asidePairedTextblockId) continue; // already placed in the lead column
     if (imageChildIds.has(id)) { pendingImgs.push(id); continue; }
     if (textblockChildIds.has(id) && pendingImgs.length) {
-      // Section image(s) + the following prose sit in a COLUMN (`wrap:false`):
-      // image on the right, text on the left, side by side. No L-morph yet —
-      // that's the wrap (`wrap:true`) the user explicitly isn't expecting.
+      // Section image(s) fold in front of the following prose textblock —
+      // neighbor-first so the float wraps the host's prose (L-shape, reflows
+      // natively). neighborWidth is the floated column's start width.
       content.push({
         type: "wrapGroup",
-        attrs: { side: "right", anchor: "top", anchorIndex: 0, wrap: false, neighborWidth: 260 },
+        attrs: { side: "right", anchorIndex: 0, neighborWidth: 260 },
         content: [...pendingImgs.map((imgId) => embed(imgId)), embed(id)],
       });
       pendingImgs = [];

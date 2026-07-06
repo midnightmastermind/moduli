@@ -494,14 +494,18 @@ describe("markdownToModuli — 2026-06-09 import fixes (links/See-also/denylist/
 });
 
 describe("markdownToModuli — 2026-06-09 lead aside (main image + infobox table)", () => {
-  it("the lead aside (image over infobox) sits in a two-COLUMN wrapGroup beside the first textblock (wrap:false, no L-morph)", async () => {
+  it("the lead aside (image over infobox) pairs with the first textblock in a neighbor-first wrapGroup", async () => {
     const md = `# Eminem\n\n![Eminem](https://x/e.png)\n\n| | |\n| --- | --- |\n| Born | Marshall |\n| Labels | Shady |\n\nMarshall Bruce Mathers III is a rapper.\n\n## Early life\n\nHe was born in Missouri.`;
     const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, title: "Eminem", dryRun: true });
     const root = r.occurrences.find(o => o.id === r.rootOccurrenceId);
-    // The aside + first textblock are paired in a wrapGroup COLUMN (side-by-side, no float, no L).
+    // The aside + first textblock are paired in a neighbor-first wrapGroup.
     const wg = root.textmap.content[0];
     expect(wg.type).toBe("wrapGroup");
-    expect(wg.attrs.wrap).toBe(false); // columns only — no L-morph yet
+    expect(wg.attrs.side).toBe("right");
+    expect(wg.attrs.anchorIndex).toBe(0);
+    expect(wg.attrs.neighborWidth).toBe(320);
+    expect(wg.attrs).not.toHaveProperty("wrap");
+    expect(wg.attrs).not.toHaveProperty("anchor");
     // neighbor-first: [aside, firstTextblock]
     const asideEmbed = wg.content[0];
     const aside = r.occurrences.find(o => o.id === asideEmbed.attrs.occurrenceId);
@@ -524,13 +528,17 @@ describe("markdownToModuli — 2026-06-09 lead aside (main image + infobox table
     expect(rootMod.meta?.leadFloat).toBeFalsy();
   });
 
-  it("with NO sub-container, the aside still columns beside the first textblock", async () => {
+  it("with NO sub-container, the aside still pairs with the first textblock in a neighbor-first wrapGroup", async () => {
     const md = `# Eminem\n\n![Eminem](https://x/e.png)\n\n| | |\n| --- | --- |\n| Born | Marshall |\n\nMarshall Bruce Mathers III is a rapper.`;
     const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, title: "Eminem", dryRun: true });
     const root = r.occurrences.find(o => o.id === r.rootOccurrenceId);
     const wg = root.textmap.content[0];
     expect(wg.type).toBe("wrapGroup");
-    expect(wg.attrs.wrap).toBe(false);
+    expect(wg.attrs.side).toBe("right");
+    expect(wg.attrs.anchorIndex).toBe(0);
+    expect(wg.attrs.neighborWidth).toBe(320);
+    expect(wg.attrs).not.toHaveProperty("wrap");
+    expect(wg.attrs).not.toHaveProperty("anchor");
     const asideMod = r.modules.find(m => m.id === r.occurrences.find(o => o.id === wg.content[0].attrs.occurrenceId).moduleId);
     expect(asideMod.meta.leadAside).toBe(true);
     const proseMod = r.modules.find(m => m.id === r.occurrences.find(o => o.id === wg.content[1].attrs.occurrenceId).moduleId);
@@ -572,12 +580,16 @@ describe("markdownToModuli — 2026-06-09 lead aside (main image + infobox table
     expect(asideEmbedCount).toBe(1);
   });
 
-  it("a plain lead image with NO infobox table columns beside the prose (wrap:false, no aside)", async () => {
+  it("a plain lead image with NO infobox table pairs with the prose in a neighbor-first wrapGroup", async () => {
     const md = `# T\n\n![photo](https://x/p.png)\n\nIntro prose.`;
     const r = await markdownToModuli({ gridId: "g", userId: "u", markdown: md, dryRun: true });
     const root = r.occurrences.find(o => o.id === r.rootOccurrenceId);
     const wg = root.textmap.content.find(n => n.type === "wrapGroup");
-    expect(wg.attrs.wrap).toBe(false); // columns: image beside prose, no L-morph yet
+    expect(wg.attrs.side).toBe("right");
+    expect(wg.attrs.anchorIndex).toBe(0);
+    expect(wg.attrs.neighborWidth).toBe(260);
+    expect(wg.attrs).not.toHaveProperty("wrap");
+    expect(wg.attrs).not.toHaveProperty("anchor");
     const neighborId = wg.content[0].attrs.occurrenceId; // neighbor-first source order
     const neighborMod = r.modules.find(m => m.id === r.occurrences.find(o => o.id === neighborId).moduleId);
     expect(neighborMod.role).toBe("artifact"); // single image neighbor, NOT a leadAside doc container

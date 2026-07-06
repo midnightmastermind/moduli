@@ -1,6 +1,10 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-06-12. Check this file before re-reading source._
+_Updated: 2026-07-06. Check this file before re-reading source._
+
+## Recent Changes (2026-07-06 — Importer: stop emitting dead `wrap`/`anchor` wrapGroup attrs)
+- **`services/markdownImporter.js` (lines 225-230, 251-253, 239, 256)** — removed `anchor: "top"` and `wrap: false` from both wrapGroup `attrs` emissions (lead aside and section image pairs). The client's `WrapGroupNode` always wraps when neighbors exist and never reads these attrs — they were dead knobs. New attrs: `{ side: "right", anchorIndex: 0, neighborWidth: 320|260 }`. Replaced the stale comments explaining wrap/anchor behavior with clarity on neighbor-first ordering and the draggable seam owning resize.
+- **`server/__tests__/markdownImporter.test.js` (tests at lines 497, 531, 575)** — updated 3 test cases: (1) renamed "wrap:false, no L-morph" → "neighbor-first wrapGroup"; (2) removed `expect(attrs.wrap).toBe(false)` + `expect(attrs.anchor).toBe("top")`; (3) added assertions for `attrs.side === "right"`, `attrs.anchorIndex === 0`, `attrs.neighborWidth === 320|260`, and `expect(attrs).not.toHaveProperty("wrap")` + `expect(attrs).not.toHaveProperty("anchor")`. All 222 server tests pass; 39 markdownImporter tests green. **Importer behavior unchanged — clients already ignore the dead attrs; existing docs keep them until re-imported.**
 
 ## Recent Changes (2026-06-28 — FIX: raw `<table class="wikitable">` DOM dumped as literal text)
 - **`services/wikipediaTools.js` (`wikiHtmlToMarkdown`)** — added a `wikiTable` turndown rule
