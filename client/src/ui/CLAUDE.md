@@ -2,6 +2,17 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 — Editor: rAF-throttled dragover boundary + wrap-host math)
+- **`Editor.jsx` (drop-target effect `onDragOver`)** — the live drop-indicator math
+  (`nearestDocBoundary` + `detectSideHost` → `offsetFor`, which `getClientRects()`-walks EVERY
+  block of the hovered host) used to run on every native dragover event. On imported Wikipedia
+  articles (hundreds of blocks) that was the doc-drag jank source. Now throttled to one
+  `requestAnimationFrame` per frame and skipped while the pointer sits still (<4px movement,
+  squared-distance check). `onDragLeaveNative` + the effect cleanup cancel any pending rAF so a
+  stale frame can't paint after leave/unmount. `lastNativeEvent` still updates per event (the
+  drop handler reads it). Verified headless: gap indicator appears, tracks across boundaries,
+  stays put under 4px jitter, clears on dragleave.
+
 ## Recent Changes (2026-07-06 — QuickAddMenu: flip menu above anchor when would overflow bottom)
 - **`QuickAddMenu.jsx`** — extracted pure `menuPosition(rect, vw, vh, {width=260, height=360})` helper
   function that computes anchor-relative placement. Default: opens below anchor at `rect.bottom + 2`.

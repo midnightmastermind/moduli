@@ -1380,26 +1380,40 @@ const Editor = forwardRef(function Editor({
     // one of these card/cell wrappers; the page editor never does. So it bails here.
     if (el.closest?.(".textblock-card, .instance-textblock-block, .table-td")) return;
     let lastNativeEvent = null;
-    // Live drop indicator: on every dragover, resolve the nearest top-level block
-    // boundary and surface a glowing line there so the user sees where the block
-    // will land (was a blind guess → finicky). Mirrors the gap-hover math.
+    // Live drop indicator math (nearestDocBoundary + detectSideHost → offsetFor,
+    // which getClientRects()-walks EVERY block of the hovered host) is throttled
+    // to one rAF per frame and skipped while the pointer sits still (<4px) — on
+    // long imported articles the per-dragover version was the doc-drag jank.
+    let dragOverRaf = 0;
+    let lastGapX = -Infinity, lastGapY = -Infinity;
     const onDragOver = (e) => {
       lastNativeEvent = e;
       if (!editor?.view) return;
-      const b = nearestDocBoundary(editor.view, editor.state.doc, el, e.clientY);
-      setDragGap((prev) => (b && prev && prev.pos === b.pos ? prev : b));
-      const sh = detectSideHost(e);
-      if (sh && sh.anchorOffset != null) {
-        const pm = el.querySelector(".ProseMirror");
-        const proseTop = pm ? pm.getBoundingClientRect().top - el.getBoundingClientRect().top : 0;
-        setWrapDrop({ top: Math.round(proseTop + sh.anchorOffset), side: sh.side });
-      } else {
-        setWrapDrop(null);
-      }
+      const x = e.clientX, y = e.clientY;
+      const dx = x - lastGapX, dy = y - lastGapY;
+      if (dragOverRaf || dx * dx + dy * dy < 16) return;
+      dragOverRaf = requestAnimationFrame(() => {
+        dragOverRaf = 0;
+        lastGapX = x; lastGapY = y;
+        const b = nearestDocBoundary(editor.view, editor.state.doc, el, y);
+        setDragGap((prev) => (b && prev && prev.pos === b.pos ? prev : b));
+        const sh = detectSideHost({ clientX: x, clientY: y });
+        if (sh && sh.anchorOffset != null) {
+          const pm = el.querySelector(".ProseMirror");
+          const proseTop = pm ? pm.getBoundingClientRect().top - el.getBoundingClientRect().top : 0;
+          setWrapDrop({ top: Math.round(proseTop + sh.anchorOffset), side: sh.side });
+        } else {
+          setWrapDrop(null);
+        }
+      });
     };
     const onDragLeaveNative = (e) => {
       // Only clear when the drag actually left the editor (not entering a child).
-      if (!el.contains(e.relatedTarget)) { setDragGap(null); setWrapDrop(null); }
+      if (!el.contains(e.relatedTarget)) {
+        if (dragOverRaf) { cancelAnimationFrame(dragOverRaf); dragOverRaf = 0; }
+        setDragGap(null);
+        setWrapDrop(null);
+      }
     };
     el.addEventListener("dragover", onDragOver);
     el.addEventListener("dragleave", onDragLeaveNative);
@@ -1694,6 +1708,7 @@ const Editor = forwardRef(function Editor({
     });
 
     return () => {
+      if (dragOverRaf) cancelAnimationFrame(dragOverRaf);
       el.removeEventListener("dragover", onDragOver);
       el.removeEventListener("dragleave", onDragLeaveNative);
       cleanup();
