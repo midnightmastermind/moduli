@@ -2,6 +2,19 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 — QuickAddMenu: flip menu above anchor when would overflow bottom)
+- **`QuickAddMenu.jsx`** — extracted pure `menuPosition(rect, vw, vh, {width=260, height=360})` helper
+  function that computes anchor-relative placement. Default: opens below anchor at `rect.bottom + 2`.
+  When menu would overflow viewport bottom (`top + height > vh`), flips above anchor at
+  `rect.top - 2 - height` (never less than 4px from top edge). Left clamping clamped to stay on-screen
+  (`Math.max(0, Math.min(rect.left, vw - width - 8))`). `reposition` callback now consumes `menuPosition`,
+  reducing from 3 lines of positioning logic to 1 call. Pure function is unit-testable; `reposition`
+  becomes a thin wrapper. Backward compatible — default placement (below, left-clamped) is byte-identical
+  to the old behavior when there's room; only phones/small viewports with near-bottom anchors see the
+  flip.
+- **`__tests__/quickAddMenu.test.js`** — added 4 tests: default below placement, left clamping, flip-above
+  on bottom overflow, clamp-to-top when viewport too small. All 9 tests (5 existing + 4 new) pass.
+
 ## Recent Changes (2026-07-06 — ContextMenu: cap height at 70vh with scroll + content-sized width)
 - **`ContextMenu.jsx`** — replaced hard-coded 168px width with content-sized flexible width (min 168px, max 240px)
   and capped menu height at 70vh with internal scroll. Root cause of multi-select bulk-action menus overflowing on

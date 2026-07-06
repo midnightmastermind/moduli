@@ -27,3 +27,26 @@ describe("ALLOWED_KINDS_BY_ROLE — existing-match filter", () => {
     expect(ALLOWED_KINDS_BY_ROLE.instance.has("artifact")).toBe(true);
   });
 });
+
+import { menuPosition } from "../ui/QuickAddMenu.jsx";
+
+describe("menuPosition (anchor-relative placement)", () => {
+  it("opens below the anchor by default", () => {
+    const rect = { top: 100, bottom: 120, left: 50 };
+    expect(menuPosition(rect, 1280, 800)).toEqual({ top: 122, left: 50 });
+  });
+  it("clamps left so the 260px menu stays on-screen", () => {
+    const rect = { top: 100, bottom: 120, left: 1200 };
+    expect(menuPosition(rect, 1280, 800).left).toBe(1280 - 260 - 8);
+  });
+  it("flips ABOVE the anchor when the menu would overflow the bottom", () => {
+    const rect = { top: 700, bottom: 720, left: 50 };
+    const pos = menuPosition(rect, 1280, 780);
+    expect(pos.top).toBe(700 - 2 - 360);
+  });
+  it("never goes above the top edge when flipping", () => {
+    const rect = { top: 40, bottom: 60, left: 50 };
+    const pos = menuPosition(rect, 400, 300); // too small either way
+    expect(pos.top).toBeGreaterThanOrEqual(4);
+  });
+});

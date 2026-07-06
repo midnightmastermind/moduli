@@ -17,6 +17,16 @@ import { templatesByKind } from "../helpers/templateHelpers";
 import { commitApplyTemplate } from "../helpers/CommitHelpers";
 import { getModuleTypeBadge } from "../helpers/moduleIcons";
 
+// Anchor-relative menu placement. Opens below the anchor; flips above when the
+// menu would overflow the viewport bottom (phone + on-screen keyboard). Pure —
+// unit-tested in __tests__/quickAddMenu.test.js.
+export function menuPosition(rect, vw, vh, { width = 260, height = 360 } = {}) {
+  const left = Math.max(0, Math.min(rect.left, vw - width - 8));
+  let top = rect.bottom + 2;
+  if (top + height > vh) top = Math.max(4, rect.top - 2 - height);
+  return { top, left };
+}
+
 // Per-kind tile copy. The icon + color come from moduleIcons (getModuleTypeBadge);
 // this only supplies the human label + one-line description.
 const KIND_TILE = {
@@ -85,8 +95,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   const reposition = useCallback(() => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
-    const left = Math.min(rect.left, window.innerWidth - 268);
-    setPos({ top: rect.bottom + 2, left: Math.max(0, left) });
+    setPos(menuPosition(rect, window.innerWidth, window.innerHeight));
   }, []);
 
   const handleOpen = useCallback((e) => {
