@@ -24,9 +24,14 @@ revert just that commit if Android long-press still starts a native ghost) · dr
 (14): median 1742ms → 1378ms @5x throttle; still >600ms, so a **"drop frame-1 flush profiling"
 docket entry** is filed in `client/src/CLAUDE.md` (separate session).
 
-Queued next (CLAUDE_CHAT 2026-07-06): "look into dropping in a doc, and doc container, especially
-nested ones. the drop was reloading the entire page" — investigate with `__dragDiag` tracing on doc
-+ NESTED doc-container drops (echoes the 2026-06-16 double-handling class).
+~~Queued next (CLAUDE_CHAT 2026-07-06): "look into dropping in a doc, and doc container, especially
+nested ones. the drop was reloading the entire page"~~ — **DONE 2026-07-06 LATE.** Traced with
+`__dragDiag` probes: not a reload, not double-handling — the page editor owned every doc drop and
+its nearest top-level boundary hoisted the item to the TOP of the page (source list lost it =
+"the page reset"). Fixed: nested doc-container editors register delegate-only drop zones; the page
+editor + touch routing hand them drops landing inside (`getDocTouchDropZone`). Verified headless on
+desktop + touch; embeds persist in the NESTED container's textmap. See ui/ + helpers/ CLAUDE.md.
+Follow-up polish: page-level gap indicator still draws during dragover over a nested container.
 
 ---
 

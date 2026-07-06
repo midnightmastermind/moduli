@@ -2,6 +2,34 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 LATE — nested doc-container drops land INSIDE the container (delegate-only zones))
+- **Root cause of "dropping in a doc / doc container, especially nested ones, reloads the page"
+  (CLAUDE_CHAT 2026-07-06):** traced live with `__dragDiag` probes — NOT a reload and NOT the
+  2026-06-16 double-handling (one `[DROP ed=…]` per drop, guards hold on desktop + touch). The
+  page editor owned EVERY doc drop, and its `nearestDocBoundary` only sees the page doc's
+  top-level blocks — usually one giant embed — so a drop aimed inside a nested doc container
+  resolved to insertPos 0/1: the item left the pointer, landed at the very TOP of the page,
+  and the source list lost it. Visually reads as "the drop reset/reloaded the page."
+- **`Editor.jsx` (drop-target registration)** — a nested DOC-CONTAINER editor (role:"container"
+  kind:"doc", NOT inside `.textblock-card`/`.instance-textblock-block`/`.table-td`) now registers
+  a **delegate-only zone**: `registerDocTouchDrop` only, NO Pragmatic target and no dragover
+  listeners — so one-Pragmatic-editor-per-native-drop still holds. Textblock/cell sub-editors
+  still register nothing. `[doc-zone] register?` log under `__dragDiag`.
+- **`Editor.jsx` (`handleDocDrop`)** — after the outermost-stack guard: resolve the innermost
+  `.doc-editor` at the drop point; if `getDocTouchDropZone` maps it to a zone whose element isn't
+  this editor, DELEGATE the whole drop (`zone.fn({source, clientX, clientY})`) and return. The
+  nested editor then runs the same handler against ITS doc — correct insert position, wrap-beside
+  detection, and detach. Touch drops route via DragProvider → `getDocTouchDrop`, which now finds
+  the nested container's zone directly (no code change needed there).
+- **Verified headless** (local server on Atlas + built dist, desktop synthetic DnD + CDP touch):
+  instance dropped on a section container inside the viafluere doc → delegated `[DROP ed=<section>]`,
+  embed persisted in the SECTION's textmap (gunzipped DB check), source detached; touch drop went
+  straight to the section zone. Zero page reloads either way. 1159/1159 tests
+  (`__tests__/docTouchDropZone.test.js` NEW — 4 registry-climb cases).
+- **Follow-up polish (not done):** during dragover the PAGE editor still draws its own top-level
+  gap indicator even when the drop will delegate — the line shows at the page level while the
+  drop lands in the nested container. Small: gate the indicator with the same zone lookup.
+
 ## Recent Changes (2026-07-06 — Editor: rAF-throttled dragover boundary + wrap-host math)
 - **`Editor.jsx` (drop-target effect `onDragOver`)** — the live drop-indicator math
   (`nearestDocBoundary` + `detectSideHost` → `offsetFor`, which `getClientRects()`-walks EVERY

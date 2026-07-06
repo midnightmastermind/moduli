@@ -354,17 +354,23 @@ export function registerDocTouchDrop(el, fn) {
   return () => _docTouchDropZones.delete(el);
 }
 
-export function getDocTouchDrop(el) {
+export function getDocTouchDropZone(el) {
   // The drop may land on a textblock/cell SUB-editor's `.doc-editor` — those
-  // never register (the page editor owns doc drops). Climb to the nearest
-  // ANCESTOR editor that did register (the outermost/page editor).
+  // never register. Climb to the nearest ANCESTOR editor that did register:
+  // a nested doc-container editor (delegate-only zone) or the page editor.
+  // Returns { el, fn } so callers can tell WHICH editor matched (the page
+  // editor delegates drops whose nearest zone isn't itself).
   let cur = el;
   while (cur) {
     const fn = _docTouchDropZones.get(cur);
-    if (fn) return fn;
+    if (fn) return { el: cur, fn };
     cur = cur.parentElement?.closest?.(".doc-editor") || null;
   }
   return null;
+}
+
+export function getDocTouchDrop(el) {
+  return getDocTouchDropZone(el)?.fn || null;
 }
 
 function _computeClosestEdge(el, clientX, clientY, allowedEdges) {

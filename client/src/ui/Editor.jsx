@@ -30,7 +30,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TaskListMarkdown } from "../docs/TaskListMarkdown";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { NATIVE_DND_MIME, registerDocTouchDrop } from "../helpers/dragSystem";
+import { NATIVE_DND_MIME, registerDocTouchDrop, getDocTouchDropZone } from "../helpers/dragSystem";
 import { embedDeleteRegistry } from "../helpers/embedRegistry";
 import { findGroupMember, unwrapGroupAt, isNeighborMember } from "../helpers/wrapGroupOps";
 import { sideFromFrac, anchorOffsetForDrop } from "../docs/wrapAnchor";
@@ -1364,13 +1364,13 @@ const Editor = forwardRef(function Editor({
     const el = wrapperRef.current;
     if (!el) return;
     // A SUB-EDITOR (a textblock / embedded doc rendered INSIDE another doc
-    // editor) must NOT register its own drop target. The OUTER (page) editor
-    // owns every doc drop, so a block dropped on/near a textblock reorders at
-    // the page level — instead of being captured by the textblock's own editor
+    // editor) must NOT register its own Pragmatic drop target. The OUTER (page)
+    // editor owns every doc drop, so a block dropped on/near a textblock reorders
+    // at the page level — instead of being captured by the textblock's own editor
     // (which silently no-op'd, and let DragProvider's monitor re-route the drag
     // to a board container on another panel). Detected at runtime: el is the
     // `.doc-editor` wrapper; if it has an ANCESTOR `.doc-editor`, it's nested.
-    if (el.parentElement?.closest?.(".doc-editor")) return;
+    const nestedInDoc = !!el.parentElement?.closest?.(".doc-editor");
     // Belt-and-suspenders: a textblock CARD / inline mini-textblock / table CELL
     // editor renders INSIDE the page prose, but its `.doc-editor` ancestor can be
     // hidden from the check above when the embed NodeView is portal-rendered — so it
@@ -1378,7 +1378,21 @@ const Editor = forwardRef(function Editor({
     // dropped embed inside ITSELF + detaches the source = "the move didn't happen /
     // it landed in the wrong place / it reloaded"). Such an editor always sits inside
     // one of these card/cell wrappers; the page editor never does. So it bails here.
-    if (el.closest?.(".textblock-card, .instance-textblock-block, .table-td")) return;
+    const isCardOrCell = !!el.closest?.(".textblock-card, .instance-textblock-block, .table-td");
+    // EXCEPTION: a nested DOC-CONTAINER editor (kind:"doc" container embedded in
+    // the page prose) owns its OWN textmap. Without a zone of its own, a drop
+    // aimed inside it is processed by the page editor, whose nearest top-level
+    // boundary is the top/bottom of the whole embed — the item leaves the pointer,
+    // lands at the very top of the page, and the source list loses it ("the drop
+    // reloaded the page"). It registers a DELEGATE-ONLY zone (no Pragmatic target,
+    // so one-editor-per-native-drop still holds): the page editor's handleDocDrop
+    // and DragProvider's touch routing both hand it drops landing inside it.
+    const ownMod = occurrence?.moduleId ? modulesByIdRef.current?.[occurrence.moduleId] : null;
+    const delegateOnly = nestedInDoc && !isCardOrCell && ownMod?.role === "container" && ownMod?.kind === "doc";
+    if (typeof window !== "undefined" && window.__dragDiag === true) {
+      console.log("[doc-zone] register?", { occId: occurrence?.id, label: ownMod?.label, nestedInDoc, isCardOrCell, kind: ownMod?.kind, delegateOnly, bails: (nestedInDoc || isCardOrCell) && !delegateOnly });
+    }
+    if ((nestedInDoc || isCardOrCell) && !delegateOnly) return;
     let lastNativeEvent = null;
     // Live drop indicator math (nearestDocBoundary + detectSideHost → offsetFor,
     // which getClientRects()-walks EVERY block of the hovered host) is throttled
@@ -1415,8 +1429,10 @@ const Editor = forwardRef(function Editor({
         setWrapDrop(null);
       }
     };
-    el.addEventListener("dragover", onDragOver);
-    el.addEventListener("dragleave", onDragLeaveNative);
+    if (!delegateOnly) {
+      el.addEventListener("dragover", onDragOver);
+      el.addEventListener("dragleave", onDragLeaveNative);
+    }
 
     // Named so BOTH the Pragmatic registration (desktop) and the touch drop
     // zone (registerDocTouchDrop below) share the exact same drop logic.
@@ -1467,6 +1483,25 @@ const Editor = forwardRef(function Editor({
           return;
         }
         if (source.data?.fromDoc) { DLOG("BAIL fromDoc (field pill self-drag)"); return; }
+        // A drop INSIDE a nested doc-container embed belongs to THAT container's
+        // textmap. Nested doc-container editors register delegate-only zones
+        // (registerDocTouchDrop, no Pragmatic target) — route the drop to the
+        // innermost zone under the point when it isn't this editor itself.
+        // getDocTouchDropZone climbs past unregistered sub-editors (textblocks,
+        // cells), so those still resolve to this editor and reorder at this level.
+        {
+          const px = dropInput?.clientX ?? lastNativeEvent?.clientX;
+          const py = dropInput?.clientY ?? lastNativeEvent?.clientY;
+          const innerEl = px != null ? document.elementFromPoint(px, py)?.closest?.(".doc-editor") : null;
+          if (innerEl && innerEl !== el && el.contains(innerEl)) {
+            const zone = getDocTouchDropZone(innerEl);
+            if (zone && zone.el !== el) {
+              DLOG("DELEGATE → nested doc-container editor under the point");
+              zone.fn({ source, clientX: px, clientY: py });
+              return;
+            }
+          }
+        }
         // (Removed the old "drop landed inside a nested .instance-textblock-block"
         // bail — sub-editors no longer register drop targets, so the page editor
         // OWNS drops that land on a textblock and reorders it instead of bailing.)
@@ -1686,7 +1721,10 @@ const Editor = forwardRef(function Editor({
         DLOG("NO BRANCH MATCHED type", type);
     };
 
-    const cleanup = dropTargetForElements({
+    // A delegate-only (nested doc-container) editor registers NO Pragmatic
+    // target — native drops still fire once, on the page editor, which then
+    // hands them here through the zone registry.
+    const cleanup = delegateOnly ? null : dropTargetForElements({
       element: el,
       getData: () => ({ type: "doc-editor" }),
       canDrop: canDropDoc,
@@ -1711,7 +1749,7 @@ const Editor = forwardRef(function Editor({
       if (dragOverRaf) cancelAnimationFrame(dragOverRaf);
       el.removeEventListener("dragover", onDragOver);
       el.removeEventListener("dragleave", onDragLeaveNative);
-      cleanup();
+      cleanup?.();
       touchDropCleanup();
     };
   }, [resolveInsertPos, insertAtPos, occurrence?.id]);

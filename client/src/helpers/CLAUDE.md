@@ -2,6 +2,16 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 LATE — dragSystem: getDocTouchDropZone (nested doc-container delegation))
+- **`dragSystem.js`** — `getDocTouchDropZone(el) → { el, fn } | null` extracted from
+  `getDocTouchDrop` (which is now a thin `.fn` wrapper). Same ancestor climb, but callers can
+  tell WHICH `.doc-editor` matched: the page editor's `handleDocDrop` delegates a drop to the
+  zone under the point when `zone.el !== el` (nested doc-container editors now register
+  delegate-only zones — see ui/CLAUDE.md). DragProvider's touch routing is unchanged and now
+  resolves nested container zones automatically. 4 new tests in
+  `__tests__/docTouchDropZone.test.js` (climb past unregistered sub-editors, innermost-registered
+  wins, null when none, fallback after unregister).
+
 ## Recent Changes (2026-07-06 — mouse drags on touch-primary devices (any-pointer:fine))
 - **`dragSystem.js` `useDragDrop` touch branch** — a tablet with a mouse/trackpad reports
   `pointer:coarse` (primary) AND `any-pointer:fine`; previously the touch branch never registered
