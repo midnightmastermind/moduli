@@ -2,6 +2,27 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 — dragSystem live-ref payloads: no JSON.stringify deps, no re-registration on occurrence writes)
+- **`dragSystem.js` `useDroppable` + `useDragDrop`** — the registration effects' dep arrays no longer
+  contain `JSON.stringify(data/context/accepts/allowedEdges)`. `ModuleInstance` passes
+  `data: { ...module, occurrence }` (occurrence includes `fields` and, for textblocks, full TipTap
+  `textmap`) — so every render of ~580 mounted components stringified KBs, and ANY occurrence write
+  (incl. the whole post-drop op cascade) tore down + re-registered Pragmatic adapters AND touch
+  listeners. Now: `data`/`context`/`accepts`/`allowedEdges` live in refs read at EVENT time
+  (`buildPayload()` at drag start / `getData` at hit time); deps are
+  `[type, id, disabled(, nativeEnabled), acceptsKey, edgesKey, dragCtx(, handleNode)]` where
+  `acceptsKey = accepts.join("|")` (content-keyed, so real accepts changes still re-register).
+- **Touch registry shape changed** — `_registerDrop` entries carry `contextRef`/`acceptsRef`/`edgesRef`
+  (live) instead of frozen `context`/`accepts`/`allowedEdges`; `_findDropTarget` + the touch
+  `onMove`/`onEnd` read `.current` at event time. The touch payload is built at threshold-cross (not
+  at effect registration), so a drop always carries the freshest occurrence data. Registry is private
+  to dragSystem.js — no external consumers of the old shape.
+- **Tests** — new `__tests__/dragSystemRegistration.test.jsx` (4): no re-register on data/context
+  identity churn, `getInitialData` reads latest data/context, re-register on real accepts change,
+  droppable getData reads live context. Verified headless (touch emulation vs the live grid):
+  long-press pill shows the live label, hover highlights the target container via the ref-based
+  registry, cancel cleans up.
+
 ## Recent Changes (2026-07-06 — member-card scan shared (dragHitTesting ↔ DragProvider) + 150ms cache)
 - **`dragHitTesting.js`** — new export `collectMemberCards(containerEl) → Element[]`: the direct
   member cards of a container (leaf `.instance-wrap` rows + nested `[data-container-id]` shells

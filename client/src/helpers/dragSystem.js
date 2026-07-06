@@ -390,7 +390,8 @@ function _findDropTarget(clientX, clientY, dragType, sourceEl) {
       if (node === sourceEl) { node = node.parentElement; continue; }
       const config = _dropRegistry.get(node);
       if (config) {
-        if (config.accepts.length === 0 || config.accepts.includes(dragType)) {
+        const accepts = config.acceptsRef.current;
+        if (accepts.length === 0 || accepts.includes(dragType)) {
           return { el: node, ...config };
         }
       }
@@ -419,35 +420,45 @@ export function useDroppable({
   const stateRef = useRef({ setIsOver });
   stateRef.current = { setIsOver };
 
+  // Live refs — every handler reads these at EVENT time, so context/accepts
+  // identity churn never tears down + re-registers the Pragmatic targets.
+  const contextRef = useRef(context);
+  contextRef.current = context;
+  const acceptsRef = useRef(accepts);
+  acceptsRef.current = accepts;
+  const acceptsKey = accepts.join("|");
+
   useEffect(() => {
     const el = ref.current;
     if (!el || disabled) return;
 
     // Register in drop target registry (for mobile touch hit-testing)
-    _registerDrop(el, { type, id, context, accepts, allowedEdges: null, stateRef });
+    _registerDrop(el, { type, id, contextRef, acceptsRef, allowedEdges: null, stateRef });
 
     const canAccept = (source) => {
       // Empty accepts list = reject all drops. Lets pure drag sources
       // (panels, pages, canvas cards) register useDragDrop without
       // unintentionally swallowing drops meant for their parent target.
-      if (accepts.length === 0) return false;
+      const list = acceptsRef.current;
+      if (list.length === 0) return false;
       const dragType = source?.data?.type;
-      return accepts.includes(dragType);
+      return list.includes(dragType);
     };
 
     const canAcceptExternal = () => {
-      return accepts.includes(DragType.INSTANCE) ||
-             accepts.includes(DragType.FILE) ||
-             accepts.includes(DragType.TEXT) ||
-             accepts.includes(DragType.URL) ||
-             accepts.includes(DragType.EXTERNAL);
+      const list = acceptsRef.current;
+      return list.includes(DragType.INSTANCE) ||
+             list.includes(DragType.FILE) ||
+             list.includes(DragType.TEXT) ||
+             list.includes(DragType.URL) ||
+             list.includes(DragType.EXTERNAL);
     };
 
     const cleanup = combine(
       dropTargetForElements({
         element: el,
         canDrop: ({ source }) => canAccept(source),
-        getData: () => ({ type, id, context }),
+        getData: () => ({ type, id, context: contextRef.current }),
         onDragEnter: ({ self, source }) => {
           if (canAccept(source)) {
             setIsOver(true);
@@ -456,14 +467,14 @@ export function useDroppable({
         onDrag: ({ self, source, location }) => {
           const clientX = location.current.input.clientX;
           const clientY = location.current.input.clientY;
-          dragCtx.handleDragOver?.({ type, id, context, clientX, clientY });
+          dragCtx.handleDragOver?.({ type, id, context: contextRef.current, clientX, clientY });
         },
         onDragLeave: () => {
           setIsOver(false);
           // Clear container highlight when leaving. If pointer enters another container
           // immediately after, its onDrag fires handleDragOver and cancels the RAF clear.
-          if (context.containerId) {
-            dragCtx.handleDragOver?.({ type, id, context: { ...context, containerId: null } });
+          if (contextRef.current.containerId) {
+            dragCtx.handleDragOver?.({ type, id, context: { ...contextRef.current, containerId: null } });
           }
         },
         onDrop: ({ self, source, location, nativeEvent }) => {
@@ -475,7 +486,7 @@ export function useDroppable({
           dragCtx.handleDrop({
             type,
             id,
-            context,
+            context: contextRef.current,
             clientX,
             clientY,
             targetRect,
@@ -487,7 +498,7 @@ export function useDroppable({
       dropTargetForExternal({
         element: el,
         canDrop: () => canAcceptExternal(),
-        getData: () => ({ type, id, context }),
+        getData: () => ({ type, id, context: contextRef.current }),
         onDragEnter: () => {
           if (canAcceptExternal()) {
             setIsOver(true);
@@ -496,12 +507,12 @@ export function useDroppable({
         onDrag: ({ location }) => {
           const clientX = location.current.input.clientX;
           const clientY = location.current.input.clientY;
-          dragCtx.handleDragOver?.({ type, id, context, clientX, clientY });
+          dragCtx.handleDragOver?.({ type, id, context: contextRef.current, clientX, clientY });
         },
         onDragLeave: () => {
           setIsOver(false);
-          if (context.containerId) {
-            dragCtx.handleDragOver?.({ type, id, context: { ...context, containerId: null } });
+          if (contextRef.current.containerId) {
+            dragCtx.handleDragOver?.({ type, id, context: { ...contextRef.current, containerId: null } });
           }
         },
         onDrop: ({ location, source }) => {
@@ -514,7 +525,7 @@ export function useDroppable({
           dragCtx.handleDrop({
             type,
             id,
-            context,
+            context: contextRef.current,
             clientX,
             clientY,
             source: {
@@ -533,7 +544,7 @@ export function useDroppable({
       cleanup();
       _unregisterDrop(el);
     };
-  }, [type, id, JSON.stringify(context), JSON.stringify(accepts), disabled, dragCtx]);
+  }, [type, id, acceptsKey, disabled, dragCtx]);
 
   return {
     ref,
@@ -572,6 +583,20 @@ export function useDragDrop({
   const stateRef = useRef({ setIsOver, setClosestEdge });
   stateRef.current = { setIsOver, setClosestEdge };
 
+  // Live refs (see useDroppable) — data can be KB-scale ({ ...module, occurrence }
+  // with fields/textmap), so neither stringify-diffing it per render nor
+  // re-registering listeners on every occurrence write is acceptable.
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const contextRef = useRef(context);
+  contextRef.current = context;
+  const acceptsRef = useRef(accepts);
+  acceptsRef.current = accepts;
+  const edgesRef = useRef(allowedEdges);
+  edgesRef.current = allowedEdges;
+  const acceptsKey = accepts.join("|");
+  const edgesKey = (allowedEdges || []).join("|");
+
   // Track the handle DOM node via state so the main effect re-runs when
   // the handle mounts/unmounts. Otherwise a ref whose .current is null at
   // first effect run (conditional render of the handle, e.g. page-panel
@@ -587,28 +612,30 @@ export function useDragDrop({
     const el = ref.current;
     if (!el || disabled) return;
 
-    const payload = createPayload(type, id, data, context);
+    const buildPayload = () => createPayload(type, id, dataRef.current, contextRef.current);
     const handleEl = handleNode;
 
     const canAccept = (source) => {
       // Empty accepts list = reject all drops. Lets pure drag sources
       // (panels, pages, canvas cards) register useDragDrop without
       // unintentionally swallowing drops meant for their parent target.
-      if (accepts.length === 0) return false;
+      const list = acceptsRef.current;
+      if (list.length === 0) return false;
       const dragType = source?.data?.type;
-      return accepts.includes(dragType);
+      return list.includes(dragType);
     };
 
     const canAcceptExternal = () => {
-      return accepts.includes(DragType.INSTANCE) ||
-             accepts.includes(DragType.FILE) ||
-             accepts.includes(DragType.TEXT) ||
-             accepts.includes(DragType.URL) ||
-             accepts.includes(DragType.EXTERNAL);
+      const list = acceptsRef.current;
+      return list.includes(DragType.INSTANCE) ||
+             list.includes(DragType.FILE) ||
+             list.includes(DragType.TEXT) ||
+             list.includes(DragType.URL) ||
+             list.includes(DragType.EXTERNAL);
     };
 
     // Register in drop target registry (for mobile touch hit-testing)
-    _registerDrop(el, { type, id, context, accepts, allowedEdges, stateRef });
+    _registerDrop(el, { type, id, contextRef, acceptsRef, edgesRef, stateRef });
 
     // ─── MOBILE: Touch drag + Pragmatic drop targets ───
     if (_isTouch()) {
@@ -617,6 +644,7 @@ export function useDragDrop({
       triggerEl.style.touchAction = 'none';
 
       let clone = null;
+      let payload = null; // built at threshold-cross from the live refs
       let dragging = false;
       let startX, startY, offsetX, offsetY;
       let curTarget = null;
@@ -656,14 +684,16 @@ export function useDragDrop({
 
           offsetX = 40;
           offsetY = 14;
-          clone = _createDragPill(data?.label || data?.name || type, type);
+          payload = buildPayload();
+          const liveData = dataRef.current;
+          clone = _createDragPill(liveData?.label || liveData?.name || type, type);
           clone.style.transform = `translate3d(${t.clientX - offsetX}px, ${t.clientY - offsetY}px, 0)`;
           document.body.appendChild(clone);
           lastHitX = t.clientX; lastHitY = t.clientY;
           lastHitTestTime = performance.now();
 
           // Per-occurrence dragMode overrides entity's defaultDragMode
-          const mode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? 'move';
+          const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? 'move';
           dragCtx.handleDragStart(payload, startX, startY, { mode });
           dragPerf.start();
           return;
@@ -699,8 +729,12 @@ export function useDragDrop({
           curTarget = target;
           target?.stateRef?.current?.setIsOver?.(true);
         }
-        if (curTarget?.allowedEdges) {
-          const edge = _computeClosestEdge(curTarget.el, t.clientX, t.clientY, curTarget.allowedEdges);
+        // Optional chain is a shape difference, not a fallback: useDroppable
+        // entries register no edgesRef (no closest-edge behavior), useDragDrop
+        // entries always do.
+        const targetEdges = curTarget?.edgesRef?.current;
+        if (targetEdges) {
+          const edge = _computeClosestEdge(curTarget.el, t.clientX, t.clientY, targetEdges);
           curTarget.stateRef?.current?.setClosestEdge?.(edge);
         }
 
@@ -708,7 +742,7 @@ export function useDragDrop({
         if (curTarget) {
           dragCtx.handleDragOver?.({
             type: curTarget.type, id: curTarget.id,
-            context: curTarget.context,
+            context: curTarget.contextRef.current,
             clientX: t.clientX, clientY: t.clientY,
           });
         }
@@ -731,14 +765,15 @@ export function useDragDrop({
         if (curTarget) {
           // A1: Haptic double-tap on successful drop
           if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
-          const edge = curTarget.allowedEdges
-            ? _computeClosestEdge(curTarget.el, t.clientX, t.clientY, curTarget.allowedEdges)
+          const endEdges = curTarget.edgesRef?.current;
+          const edge = endEdges
+            ? _computeClosestEdge(curTarget.el, t.clientX, t.clientY, endEdges)
             : null;
           curTarget.stateRef?.current?.setIsOver?.(false);
           curTarget.stateRef?.current?.setClosestEdge?.(null);
           dragCtx.handleDrop({
             type: curTarget.type, id: curTarget.id,
-            context: { ...curTarget.context, instanceId: curTarget.id, closestEdge: edge },
+            context: { ...curTarget.contextRef.current, instanceId: curTarget.id, closestEdge: edge },
             clientX: t.clientX, clientY: t.clientY,
             source: payload,
             // Lets DragProvider's .doc-editor guard route the drop to the
@@ -760,6 +795,7 @@ export function useDragDrop({
 
         curTarget = null;
         dragging = false;
+        payload = null;
         setIsDragging(false);
         document.documentElement.style.touchAction = '';
         document.documentElement.style.overscrollBehavior = '';
@@ -778,8 +814,8 @@ export function useDragDrop({
           element: el,
           canDrop: ({ source }) => canAccept(source),
           getData: ({ input, element }) => {
-            const data = { type, id, context, instanceId: id };
-            return attachClosestEdge(data, { input, element, allowedEdges });
+            const d = { type, id, context: contextRef.current, instanceId: id };
+            return attachClosestEdge(d, { input, element, allowedEdges: edgesRef.current });
           },
           onDragEnter: ({ source, self }) => {
             if (canAccept(source)) {
@@ -790,7 +826,7 @@ export function useDragDrop({
           onDrag: ({ location, self }) => {
             const clientX = location.current.input.clientX;
             const clientY = location.current.input.clientY;
-            dragCtx.handleDragOver?.({ type, id, context, clientX, clientY });
+            dragCtx.handleDragOver?.({ type, id, context: contextRef.current, clientX, clientY });
             setClosestEdge(extractClosestEdge(self.data));
           },
           onDragLeave: () => { setIsOver(false); setClosestEdge(null); },
@@ -801,7 +837,7 @@ export function useDragDrop({
             const edge = extractClosestEdge(self.data);
             dragCtx.handleDrop({
               type, id,
-              context: { ...context, instanceId: id, closestEdge: edge },
+              context: { ...contextRef.current, instanceId: id, closestEdge: edge },
               clientX, clientY,
               source: source.data,
               dataTransfer: nativeEvent?.dataTransfer,
@@ -812,8 +848,8 @@ export function useDragDrop({
           element: el,
           canDrop: () => canAcceptExternal(),
           getData: ({ input, element }) => {
-            const data = { type, id, context, instanceId: id };
-            return attachClosestEdge(data, { input, element, allowedEdges });
+            const d = { type, id, context: contextRef.current, instanceId: id };
+            return attachClosestEdge(d, { input, element, allowedEdges: edgesRef.current });
           },
           onDragEnter: ({ self }) => {
             if (canAcceptExternal()) {
@@ -825,7 +861,7 @@ export function useDragDrop({
             const clientX = location.current.input.clientX;
             const clientY = location.current.input.clientY;
             setClosestEdge(extractClosestEdge(self.data));
-            dragCtx.handleDragOver?.({ type, id, context, clientX, clientY });
+            dragCtx.handleDragOver?.({ type, id, context: contextRef.current, clientX, clientY });
           },
           onDragLeave: () => { setIsOver(false); setClosestEdge(null); },
           onDrop: ({ location, source, self }) => {
@@ -836,7 +872,7 @@ export function useDragDrop({
             const parsed = parseExternalDrop(source);
             dragCtx.handleDrop({
               type, id,
-              context: { ...context, instanceId: id, closestEdge: edge },
+              context: { ...contextRef.current, instanceId: id, closestEdge: edge },
               clientX, clientY,
               source: { type: parsed.type, id: parsed.id, data: parsed.data, context: parsed.context || {} },
               dataTransfer: source,
@@ -861,13 +897,14 @@ export function useDragDrop({
     const dragCleanup = draggable({
       element: el,
       ...(handleEl ? { dragHandle: handleEl } : {}),
-      getInitialData: () => payload,
+      getInitialData: () => buildPayload(),
       getInitialDataForExternal: () => {
+        const liveData = dataRef.current;
         const externalData = {
-          [NATIVE_DND_MIME]: serializePayload(payload),
+          [NATIVE_DND_MIME]: serializePayload(buildPayload()),
         };
         if (!_isTouch()) {
-          externalData['text/plain'] = data.label || data.name || id;
+          externalData['text/plain'] = liveData.label || liveData.name || id;
         }
         return externalData;
       },
@@ -876,8 +913,9 @@ export function useDragDrop({
           console.log("[dragDiag] genPreview (native ghost)", { type, id, nativeEnabled });
         }
         if (nativeEnabled) {
-          const label = data?.label || data?.name || data?.occurrence?.label || "item";
-          const mode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? "move";
+          const liveData = dataRef.current;
+          const label = liveData?.label || liveData?.name || liveData?.occurrence?.label || "item";
+          const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? "move";
           const action = mode === "copy" ? "Copy" : mode === "copylink" ? "Copy-link" : "Move";
           attachDragPreview(el, location, nativeSetDragImage, { label, action });
         }
@@ -886,8 +924,9 @@ export function useDragDrop({
         setIsDragging(true);
         const clientX = location.current.input.clientX;
         const clientY = location.current.input.clientY;
-        const mode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? 'move';
-        dragCtx.handleDragStart(payload, clientX, clientY, { mode });
+        const liveData = dataRef.current;
+        const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? 'move';
+        dragCtx.handleDragStart(buildPayload(), clientX, clientY, { mode });
       },
       onDrag: ({ location }) => {
         const clientX = location.current.input.clientX;
@@ -908,11 +947,11 @@ export function useDragDrop({
         element: el,
         canDrop: ({ source }) => canAccept(source),
         getData: ({ input, element }) => {
-          const data = { type, id, context, instanceId: id };
-          return attachClosestEdge(data, {
+          const d = { type, id, context: contextRef.current, instanceId: id };
+          return attachClosestEdge(d, {
             input,
             element,
-            allowedEdges,
+            allowedEdges: edgesRef.current,
           });
         },
         onDragEnter: ({ source, self }) => {
@@ -928,7 +967,7 @@ export function useDragDrop({
         onDrag: ({ location, self }) => {
           const clientX = location.current.input.clientX;
           const clientY = location.current.input.clientY;
-          dragCtx.handleDragOver?.({ type, id, context, clientX, clientY });
+          dragCtx.handleDragOver?.({ type, id, context: contextRef.current, clientX, clientY });
           const edge = extractClosestEdge(self.data);
           setClosestEdge(edge);
           if (typeof window !== "undefined" && window.__dragDiag === true && lastDiagEdgeRef.current !== edge) {
@@ -953,7 +992,7 @@ export function useDragDrop({
           dragCtx.handleDrop({
             type,
             id,
-            context: { ...context, instanceId: id, closestEdge: edge },
+            context: { ...contextRef.current, instanceId: id, closestEdge: edge },
             clientX,
             clientY,
             source: source.data,
@@ -965,11 +1004,11 @@ export function useDragDrop({
         element: el,
         canDrop: () => canAcceptExternal(),
         getData: ({ input, element }) => {
-          const data = { type, id, context, instanceId: id };
-          return attachClosestEdge(data, {
+          const d = { type, id, context: contextRef.current, instanceId: id };
+          return attachClosestEdge(d, {
             input,
             element,
-            allowedEdges,
+            allowedEdges: edgesRef.current,
           });
         },
         onDragEnter: ({ self }) => {
@@ -984,7 +1023,7 @@ export function useDragDrop({
           const clientY = location.current.input.clientY;
           const edge = extractClosestEdge(self.data);
           setClosestEdge(edge);
-          dragCtx.handleDragOver?.({ type, id, context, clientX, clientY });
+          dragCtx.handleDragOver?.({ type, id, context: contextRef.current, clientX, clientY });
         },
         onDragLeave: () => {
           setIsOver(false);
@@ -1000,7 +1039,7 @@ export function useDragDrop({
           dragCtx.handleDrop({
             type,
             id,
-            context: { ...context, instanceId: id, closestEdge: edge },
+            context: { ...contextRef.current, instanceId: id, closestEdge: edge },
             clientX,
             clientY,
             source: {
@@ -1019,7 +1058,7 @@ export function useDragDrop({
       cleanup();
       _unregisterDrop(el);
     };
-  }, [type, id, JSON.stringify(data), JSON.stringify(context), disabled, nativeEnabled, JSON.stringify(accepts), JSON.stringify(allowedEdges), dragCtx, handleNode]);
+  }, [type, id, disabled, nativeEnabled, acceptsKey, edgesKey, dragCtx, handleNode]);
 
   return {
     ref,
