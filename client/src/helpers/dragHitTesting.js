@@ -193,6 +193,25 @@ export function buildRawDropEvent({ dropTarget, payload, sessionMode, hovered = 
 //     modifiers: { shift, alt, ctrl, meta },
 //     pointer:   { x, y } }
 //
+// ------------------------------------------------------------
+// collectMemberCards
+// ------------------------------------------------------------
+// The direct member cards of a container element: leaf rows (.instance-wrap)
+// AND nested container shells. A shell carries [data-container-id] itself, so
+// its owner is the nearest such ancestor ABOVE it. Shared by the drop-indicator
+// renderer (DragProvider) and the pointer→index resolver below — one scan
+// definition, two consumers.
+export function collectMemberCards(containerEl) {
+  if (!containerEl) return [];
+  return Array.from(containerEl.querySelectorAll(".instance-wrap, [data-container-id]")).filter((el) => {
+    if (el === containerEl) return false;
+    const owner = el.classList.contains("instance-wrap")
+      ? el.closest("[data-container-id]")
+      : el.parentElement?.closest?.("[data-container-id]");
+    return owner === containerEl;
+  });
+}
+
 // Resolve where a leaf dropped on a container BODY should land among the
 // container's children, from the pointer position — matching what the
 // insertion-line indicator shows. Covers instance children AND nested
@@ -209,16 +228,7 @@ export function computeInsertIndexFromPointer(targetOcc, ptr) {
     (targetOcc.moduleId ? document.querySelector(`[data-container-id="${esc(targetOcc.moduleId)}"]`) : null);
   if (!containerEl) return null;
 
-  // Direct member cards: leaf rows (.instance-wrap) and nested container
-  // shells. A shell carries [data-container-id] itself, so its "owning
-  // container" is the nearest such ancestor ABOVE itself.
-  const cards = Array.from(containerEl.querySelectorAll(".instance-wrap, [data-container-id]")).filter((el) => {
-    if (el === containerEl) return false;
-    const owner = el.classList.contains("instance-wrap")
-      ? el.closest("[data-container-id]")
-      : el.parentElement?.closest?.("[data-container-id]");
-    return owner === containerEl;
-  });
+  const cards = collectMemberCards(containerEl);
   if (cards.length === 0) return null;
 
   const r0 = cards[0].getBoundingClientRect();

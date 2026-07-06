@@ -2,6 +2,18 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 — member-card scan shared (dragHitTesting ↔ DragProvider) + 150ms cache)
+- **`dragHitTesting.js`** — new export `collectMemberCards(containerEl) → Element[]`: the direct
+  member cards of a container (leaf `.instance-wrap` rows + nested `[data-container-id]` shells
+  whose owner is `containerEl`). `computeInsertIndexFromPointer` now consumes it — the identical
+  inline scan it carried was a DRY violation with DragProvider's. 2 new jsdom tests.
+- **`DragProvider.jsx`** — `showDropIndicators` no longer re-runs `querySelectorAll` + a
+  `closest()` filter walk per rAF frame while hovering a container: new module-level
+  `memberCardsCached(containerEl)` reuses the card LIST for 150ms while the hover stays on the
+  same container (rects are still read fresh each frame; drops re-resolve via
+  `computeInsertIndexFromPointer` at drop time, so staleness can't misplace a drop).
+  `hideDropIndicators` invalidates the cache so a new drag starts fresh.
+
 ## Recent Changes (2026-07-06 — drop stopwatch + detectSideHost bail + handleDocDrop DLOG all gated behind __dragPerf/__dragDiag)
 - **`DragProvider.jsx` (`handleDrop`)** — drop performance stopwatch + render-diff logging now gated
   behind `window.__dragPerf === true`. Three changes: (1) `_dropT0 = _diag ? performance.now() : 0`;

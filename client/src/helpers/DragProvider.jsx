@@ -31,7 +31,7 @@ import { runMatchingOperations } from "./operationExecutor";
 import { batchUpdateModulesAction } from "../state/actions";
 import { routeDrop } from "./dropHandlers";
 import { operationsBridge } from "../state/bindSocketToStore";
-import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND } from "./dragHitTesting";
+import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND, collectMemberCards } from "./dragHitTesting";
 import { snapshotRenders, diffRenders } from "./renderProbe";
 import { dragPerf } from "./dragPerf";
 
@@ -106,6 +106,24 @@ function hideDropIndicators() {
   if (l) l.style.display = "none";
   const a = document.getElementById("__moduli_drop_area");
   if (a) a.style.display = "none";
+  _cardScan.el = null;
+  _cardScan.cards = null;
+}
+
+// Per-frame member-card scan cache: while the drop-area box stays on the same
+// container, reuse the card list for 150ms instead of re-running
+// querySelectorAll + a closest() walk per rAF tick (rects are still read fresh
+// each frame — only the LIST is cached; a drop mid-cache re-resolves via
+// computeInsertIndexFromPointer at drop time, so staleness can't misplace a drop).
+const _cardScan = { el: null, cards: null, at: 0 };
+function memberCardsCached(containerEl) {
+  const now = performance.now();
+  if (_cardScan.el === containerEl && _cardScan.cards && now - _cardScan.at < 150) return _cardScan.cards;
+  const cards = collectMemberCards(containerEl);
+  _cardScan.el = containerEl;
+  _cardScan.cards = cards;
+  _cardScan.at = now;
+  return cards;
 }
 
 // Outline the hovered container (drop area) + draw the insertion line at the
@@ -124,19 +142,10 @@ function showDropIndicators(containerEl, x, y) {
     width: `${cr.width}px`, height: `${cr.height}px`,
   });
 
-  // Direct member cards of THIS container: leaf rows AND nested container
-  // shells (a shell carries [data-container-id] itself, so its owner is the
-  // nearest such ancestor ABOVE it). Without the shells, the insertion line
-  // never rendered between nested containers — and the drop index couldn't
-  // match what the user aimed at.
-  const cards = Array.from(containerEl.querySelectorAll(".instance-wrap, [data-container-id]"))
-    .filter((c) => {
-      if (c === containerEl) return false;
-      const owner = c.classList.contains("instance-wrap")
-        ? c.closest("[data-container-id]")
-        : c.parentElement?.closest?.("[data-container-id]");
-      return owner === containerEl;
-    });
+  // Direct member cards of THIS container (leaf rows AND nested container
+  // shells — see dragHitTesting.collectMemberCards), cached for 150ms while
+  // the hover stays on the same container.
+  const cards = memberCardsCached(containerEl);
   if (cards.length === 0) {
     // Empty container — the box border IS the indicator; no line.
     line.style.display = "none";

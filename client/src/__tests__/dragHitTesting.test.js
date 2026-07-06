@@ -222,3 +222,28 @@ describe("buildDropContext", () => {
     expect(ctx.mode).toBe("copy");
   });
 });
+
+import { collectMemberCards } from "../helpers/dragHitTesting.js";
+
+describe("collectMemberCards", () => {
+  it("returns direct leaf rows and nested container shells, not grandchildren", () => {
+    document.body.innerHTML = `
+      <div id="outer" data-container-id="outer">
+        <div class="instance-wrap" id="leaf1"></div>
+        <div>
+          <div data-container-id="nested" id="nestedShell">
+            <div class="instance-wrap" id="grandchildLeaf"></div>
+          </div>
+        </div>
+      </div>`;
+    const outer = document.getElementById("outer");
+    const ids = collectMemberCards(outer).map((el) => el.id);
+    expect(ids).toContain("leaf1");
+    expect(ids).toContain("nestedShell");
+    expect(ids).not.toContain("grandchildLeaf"); // owned by the nested shell
+    expect(ids).not.toContain("outer");
+  });
+  it("returns [] for a null container", () => {
+    expect(collectMemberCards(null)).toEqual([]);
+  });
+});
