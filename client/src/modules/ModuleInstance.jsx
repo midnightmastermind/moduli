@@ -571,7 +571,6 @@ function InstanceInner({
                   dragMode={entityDragMode}
                   onToggleDragMode={toggleEntityDragMode}
                   onSettings={() => setSettingsOpen(true)}
-                  addLabel="Item"
                   size="sm"
                   forceDirection="down"
                   items={radialItems}

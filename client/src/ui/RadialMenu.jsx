@@ -26,15 +26,13 @@ export function calcOpenDirection(centerX, centerY, viewportW, viewportH, spread
 
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Settings, Plus, Copy, Move, ChevronUp, ChevronDown, ChevronRight, Eye, EyeOff, Filter, LayoutTemplate, Clock, Trash2 } from "lucide-react";
+import { Settings, Copy, Move, ChevronUp, ChevronDown, ChevronRight, Eye, EyeOff, Filter, LayoutTemplate, Clock, Trash2 } from "lucide-react";
 
 export default function RadialMenu({
   // Standard drag handle props (used when items not provided)
   dragMode = "move",
   onToggleDragMode,
   onSettings,
-  onAddChild,
-  addLabel = "Item",
 
   // Custom items mode - pass array of { icon, label, onClick, color }
   items = null,
@@ -358,7 +356,7 @@ export default function RadialMenu({
       const angles = getAnglesForDirection(openDirection, defaultItems.length);
       return defaultItems.map((item, i) => ({ ...item, angle: angles[i] }));
     },
-    [items, extraItems, addLabel, dragMode, onAddChild, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, openDirection, getAnglesForDirection]
+    [items, extraItems, dragMode, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, openDirection, getAnglesForDirection]
   );
 
   // PORTALED arc menu
@@ -463,7 +461,7 @@ export default function RadialMenu({
 
             return (
               <button
-                key={item.label}
+                key={`${item.label}-${index}`}
                 type="button"
                 onClick={(e) => handleAction(item.onClick, e)}
                 disabled={disabled || !item.onClick}

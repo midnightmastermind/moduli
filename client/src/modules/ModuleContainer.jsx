@@ -909,8 +909,6 @@ function Container({
                 dragMode={containerDragMode}
                 onToggleDragMode={toggleContainerDragModeQuick}
                 onSettings={() => setSettingsOpen(true)}
-                onAddChild={onAdd}
-                addLabel="Item"
                 size="sm"
                 forceDirection="down"
                 onToggleCollapse={null}
@@ -972,8 +970,6 @@ function Container({
                       dragMode={containerDragMode}
                       onToggleDragMode={toggleContainerDragModeQuick}
                       onSettings={() => setSettingsOpen(true)}
-                      onAddChild={onAdd}
-                      addLabel="Item"
                       size="sm"
                       forceDirection="down"
                       onToggleCollapse={isDocContainer ? () => setIsBodyCollapsed(v => !v) : null}
@@ -1082,8 +1078,6 @@ function Container({
                     dragMode={containerDragMode}
                     onToggleDragMode={toggleContainerDragModeQuick}
                     onSettings={() => setSettingsOpen(true)}
-                    onAddChild={onAdd}
-                    addLabel="Item"
                     size="sm"
                     forceDirection="down"
                     onToggleCollapse={isDocContainer ? () => setIsBodyCollapsed(v => !v) : null}

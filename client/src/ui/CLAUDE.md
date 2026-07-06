@@ -2,6 +2,20 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 — RadialMenu cleanup: drop dead onAddChild/addLabel props + fix key collision)
+- **`RadialMenu.jsx`** — removed two dead props (`onAddChild` and `addLabel`) that were accepted but never used
+  by the component (the default item list never renders anything that calls them). These handlers were meant for
+  adding children via the radial menu, but adding is now exclusively handled by QuickAddMenu (+ buttons) and
+  the long-press/right-click "Add item…" row on containers. (1) Removed `Plus` import (line 29) — verify grep
+  finds zero hits for Plus outside the removed import. (2) Removed `onAddChild` + `addLabel = "Item"` from the
+  props destructuring (lines 36-37). (3) Removed both from the `menuItems` useMemo deps array (line 361) to
+  prevent stale closure issues. (4) Fixed button key from `key={item.label}` to `key={`${item.label}-${index}`}`
+  (line 466) to prevent collisions when multiple items have the same label.
+- **Call sites cleanup** — removed dead prop passing at 4 locations: ModulePanel.jsx (lines 788-794),
+  ModuleContainer.jsx (3 sites: 912-913, 975-976, 1085-1086), ModuleInstance.jsx (line 574). `onAdd` remains
+  used in ModuleContainer by QuickAddMenu and drop handlers; verified via grep.
+- **Verification**: RadialMenu.test.js passes (10 tests), full client suite passes (1137 tests), build succeeds.
+
 ## Recent Changes (2026-07-06 — drop-path debug logging gated behind __dragPerf/__dragDiag flags)
 - **`Editor.jsx`** — `detectSideHost` callback and `handleDocDrop` onDrop handler's diagnostic logs
   are now gated behind opt-in `window.__dragDiag === true` flag. (1) `detectSideHost`'s `bail()`

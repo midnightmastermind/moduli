@@ -785,13 +785,6 @@ function Panel({
                       dragMode={panelDragMode}
                       onToggleDragMode={togglePanelDragModeQuick}
                       onSettings={() => setSettingsOpen(true)}
-                      onAddChild={(e) => {
-                        const rect = e?.currentTarget?.getBoundingClientRect?.();
-                        if (rect) setKindSelectorPos({ top: rect.bottom + 8, left: rect.left });
-                        else setKindSelectorPos(null);
-                        setKindSelectorOpen(true);
-                      }}
-                      addLabel="Container"
                       size="sm"
                       forceDirection="down"
                       onToggleHeader={() => setShowHeader(false)}
