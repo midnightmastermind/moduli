@@ -6,6 +6,30 @@
 
 ---
 
+## Handoff — 2026-07-06 (branch `audit-fixes-dnd-wrap-menus`, all 14 plan tasks shipped)
+
+The full 14-task audit-fix plan (`docs/superpowers/plans/2026-07-06-dnd-wrap-menus-audit-fixes.md`)
+is implemented and committed on `audit-fixes-dnd-wrap-menus` (not merged to master yet).
+1154/1154 client + 222/222 server tests, build clean, **live data reseeded** after the perf probes.
+
+Shipped: InsertGap crash fix (Task 1) · drop-path debug logs gated behind `__dragPerf`/`__dragDiag`
+(2) · RadialMenu dead-prop cleanup (3) · ContextMenu 70vh scroll + flexible width (4) · QuickAddMenu
+flip-above (5) · importer drops dead `wrap`/`anchor` attrs (6) · **line-level wraps clip/classify the
+correct band** via new `wrapAnchor.hasMidAnchor`/`classifyWrapShape` (7) · Editor dragover math
+rAF-throttled (8) · member-card scan shared + cached (9) · **dragSystem live-ref payloads — no
+JSON.stringify deps, no listener re-registration on occurrence writes** (10, the perf core) ·
+MobileGridNav scrollable-ancestor once per gesture (11) · touch pill shows Move/Copy/Copy-link (12) ·
+mouse drags on touch-primary devices with a touch-dragstart guard (13 — **needs a real-tablet check**;
+revert just that commit if Android long-press still starts a native ghost) · drop→paint re-baselined
+(14): median 1742ms → 1378ms @5x throttle; still >600ms, so a **"drop frame-1 flush profiling"
+docket entry** is filed in `client/src/CLAUDE.md` (separate session).
+
+Queued next (CLAUDE_CHAT 2026-07-06): "look into dropping in a doc, and doc container, especially
+nested ones. the drop was reloading the entire page" — investigate with `__dragDiag` tracing on doc
++ NESTED doc-container drops (echoes the 2026-06-16 double-handling class).
+
+---
+
 ## Test checklist — 2026-05-20
 
 Re-seed live data first: `node --env-file=.env server/scripts/createLiveData.js`.
