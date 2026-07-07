@@ -2,6 +2,24 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## DOCKET — editor static-until-focus (filed 2026-07-06 perf audit, needs its own session)
+Every doc container / textblock mounts a LIVE TipTap editor eagerly (`TextblockCard.jsx` wraps
+`<Editor>` unconditionally; doc containers same) — an imported Wikipedia page mounts 100+
+ProseMirror instances, the live grid mounts dozens at first paint. Biggest first-paint/page-switch
+cost after the frame-1 flush. Proposed: render textmaps as static HTML (`generateHTML` with the
+same extensions) and swap in the live editor on first pointerdown/focus, or gate offscreen mounts
+with an IntersectionObserver. CAREFUL: the editor registers drop zones (`registerDocTouchDrop`,
+Pragmatic targets, wrap morphs) — a static render must keep drops + wraps working, so this needs
+its own headless-verified session. Would also shrink the frame-1 flush (fewer live editors
+re-measuring during drops).
+
+## DOCKET — on-load op sweep slicing (still open)
+`bindSocketToStore.js` onFullState defers the sweep past first paint (good) but then runs all ops
+in ONE synchronous `runMatchingOperations` block — measured 556ms on the live grid (58 ops fired;
+Build Schedule 114ms, Table: Build 56ms). Slicing per-op across macrotasks (the endDropBatch
+pattern) changes op-batch semantics (in-batch liveOccs overlay, cascade dedup) — needs its own
+session with the freeze-regression history in mind.
+
 ## DOCKET — drop frame-1 flush profiling (filed 2026-07-06, needs its own session)
 The 2026-07-06 audit-fix plan (Tasks 9–10: member-card scan cache + live-ref drag payloads) cut
 drop→paint @5x throttle from median **1742ms → 1378ms** (~21%; routeDrop itself is flat at ~50ms),
@@ -13,6 +31,20 @@ component-level attribution: React DevTools profiler pass (or a bumpRender split
 to find why ~183 containers + 535 fields render on a single-slot drop when only one container
 changed. Selector-level hypotheses were exhausted 2026-07-03 (see perf memory); the other
 documented lever is slicing the op drain per-op across macrotasks (bindSocketToStore endDropBatch).
+
+## Recent Changes (2026-07-06 LATE — perf audit: lazy CommandCenter + adaptive scheduler tick)
+- **`App.jsx`** — `CommandCenter` is now `React.lazy` (+ Suspense fallback null at the render
+  site). It was already mount-gated behind `commandCenterEverOpened`, so the lazy chunk
+  (**201KB** — the whole commandCenter tab tree + blocks op editor; only CommandCenter.jsx
+  imported it) loads on first open. App chunk 484KB → **284KB**. Verified headless: chunk absent
+  before open, fetched + panel renders on click, zero console errors.
+- **`state/useScheduler.js`** — tick interval 1s → adaptive: 5s default, tightened to the
+  smallest enabled schedule cadence when sub-5s (preserves the documented sub-minute display-op
+  contract; nothing seeded is finer than 5 minutes, hourly chime disabled).
+- **`vite.config.js`** — stale chunk comment fixed (ModulePage lazy split no longer exists;
+  tiptap is eager by design — editors render at first paint).
+- Server half (WS deflate + gzip + cache headers) in server/CLAUDE.md. 1159/1159 client +
+  222/222 server tests, build clean, headless grid load verified (44 containers, no errors).
 
 ## Recent Changes (2026-07-06 — MobileGridNav: scrollable ancestor resolved once per gesture)
 - **`mobile/MobileGridNav.jsx`** — `onTouchMove` used to call `findScrollableAncestor` (a

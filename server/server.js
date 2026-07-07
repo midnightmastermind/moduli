@@ -4,6 +4,7 @@
 import express from "express";
 import http from "http";
 import cors from "cors";
+import compression from "compression";
 import mongoose from "mongoose";
 import { Server } from "socket.io";
 import multer from "multer";
@@ -96,6 +97,9 @@ function serializeTipTapToMarkdown(tipTapJson) {
 // ========================================================
 const app = express();
 app.use(cors());
+// Gzip every compressible response (API JSON, static JS/CSS when Cloudflare
+// isn't in front — LAN/tablet access hits the origin directly).
+app.use(compression());
 // JSON body parser for all routes EXCEPT /api/webhooks/* — those need
 // the raw bytes for HMAC verification and parse JSON themselves after.
 app.use((req, res, next) => {
@@ -121,6 +125,10 @@ const io = new Server(server, {
   pingTimeout: 60000,    // 60s (default 20s) — remote DB can block event loop during cache load
   pingInterval: 25000,   // 25s (default 25s)
   maxHttpBufferSize: 64 * 1024 * 1024,
+  // Socket.io v4 disables WS compression by default. full_state is ~1.5MB+ of
+  // JSON (textmaps ship decompressed) and Cloudflare does not compress WS
+  // frames — deflate cuts it ~85%. Threshold skips the tiny per-field events.
+  perMessageDeflate: { threshold: 1024 },
 });
 
 io.engine.on("connection_error", (err) => { console.error("❌ [io.engine] connection_error:", err.req?.url, err.code, err.message); });
@@ -343,7 +351,19 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
-app.use("/uploads", express.static(uploadsDir));
+// Uploaded files get timestamp-random names (immutable once written) → cache
+// hard. md/ and thumbnails/ are REWRITTEN under the same name on save →
+// always revalidate those.
+app.use("/uploads", express.static(uploadsDir, {
+  setHeaders: (res, filePath) => {
+    const rel = path.relative(uploadsDir, filePath);
+    if (rel.startsWith("md/") || rel.startsWith("thumbnails/")) {
+      res.setHeader("Cache-Control", "no-cache");
+    } else {
+      res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
+    }
+  },
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -949,8 +969,21 @@ setInterval(async () => {
 // ========================================================
 const clientDistDir = path.join(__dirname, "../client/dist");
 if (fs.existsSync(path.join(clientDistDir, "index.html"))) {
-  app.use(express.static(clientDistDir));
-  app.get("/{*splat}", (_req, res) => res.sendFile(path.join(clientDistDir, "index.html")));
+  // Vite content-hashes everything under assets/ → cache forever. index.html
+  // (and other root files) must always revalidate so a deploy takes effect.
+  app.use(express.static(clientDistDir, {
+    setHeaders: (res, filePath) => {
+      const rel = path.relative(clientDistDir, filePath);
+      res.setHeader(
+        "Cache-Control",
+        rel.startsWith("assets/") ? "public, max-age=31536000, immutable" : "no-cache"
+      );
+    },
+  }));
+  app.get("/{*splat}", (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(path.join(clientDistDir, "index.html"));
+  });
 }
 
 // ========================================================

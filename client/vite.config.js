@@ -15,14 +15,16 @@ export default defineConfig({
   },
   build: {
     sourcemap: true,
-    // Bumped from 800 kB. The two remaining large chunks are intentional
+    // Bumped from 800 kB. The remaining large chunks are intentional
     // lazy splits, not initial-load cost:
     //   - highlight.js (~969 kB) — only loaded when user opens a code
     //     file in ArtifactContent's CodeViewer
-    //   - ModulePage  (~761 kB) — only loaded after React.lazy resolves
-    //     on first grid render
+    //   - CommandCenter (settings tabs + blocks op editor) — React.lazy
+    //     in App.jsx, loaded on first open
+    //   - PagePreviewApp — only loaded in ?previewOcc iframes
     // Initial entry is ~3 kB; the app shell is split across react /
-    // radix / dnd / App chunks each well under the warning threshold.
+    // radix / tiptap / dnd / App chunks. tiptap IS eager — editors
+    // render at first paint.
     chunkSizeWarningLimit: 1024,
     rollupOptions: {
       output: {

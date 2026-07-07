@@ -2,6 +2,21 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 LATE — perf audit: WS deflate + HTTP compression + cache headers)
+- **`server.js` (io options)** — `perMessageDeflate: { threshold: 1024 }`. Socket.io v4 ships WS
+  compression DISABLED; full_state is ~1.9MB of JSON (854 occs live grid, textmaps decompressed)
+  and Cloudflare does NOT compress WS frames — deflate cuts it ~85% on the wire. Threshold skips
+  tiny per-field events. Verified: handshake echoes `Sec-WebSocket-Extensions: permessage-deflate`
+  and an authenticated full_state round-trips clean (854 occs / 785 mods / 70 ops).
+- **`server.js` (express)** — `app.use(compression())` right after cors (new `compression` dep).
+  Gzips API JSON + static when Cloudflare isn't in front (LAN/tablet direct-IP access). Measured:
+  App chunk 284KB → 82KB over the wire.
+- **`server.js` (static cache headers)** — client dist: `assets/*` (content-hashed) →
+  `public, max-age=31536000, immutable`; `index.html` + other root files → `no-cache` (deploys
+  take effect immediately). `/uploads`: `md/` + `thumbnails/` are REWRITTEN under the same name →
+  `no-cache`; everything else has timestamp-random names → 30d immutable.
+- No reseed; **server restart** (and `npm i` in server/ for the compression dep) to apply.
+
 ## Recent Changes (2026-07-06 — Importer: stop emitting dead `wrap`/`anchor` wrapGroup attrs)
 - **`services/markdownImporter.js` (lines 225-230, 251-253, 239, 256)** — removed `anchor: "top"` and `wrap: false` from both wrapGroup `attrs` emissions (lead aside and section image pairs). The client's `WrapGroupNode` always wraps when neighbors exist and never reads these attrs — they were dead knobs. New attrs: `{ side: "right", anchorIndex: 0, neighborWidth: 320|260 }`. Replaced the stale comments explaining wrap/anchor behavior with clarity on neighbor-first ordering and the draggable seam owning resize.
 - **`server/__tests__/markdownImporter.test.js` (tests at lines 497, 531, 575)** — updated 3 test cases: (1) renamed "wrap:false, no L-morph" → "neighbor-first wrapGroup"; (2) removed `expect(attrs.wrap).toBe(false)` + `expect(attrs.anchor).toBe("top")`; (3) added assertions for `attrs.side === "right"`, `attrs.anchorIndex === 0`, `attrs.neighborWidth === 320|260`, and `expect(attrs).not.toHaveProperty("wrap")` + `expect(attrs).not.toHaveProperty("anchor")`. All 222 server tests pass; 39 markdownImporter tests green. **Importer behavior unchanged — clients already ignore the dead attrs; existing docs keep them until re-imported.**

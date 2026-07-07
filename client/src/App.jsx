@@ -18,7 +18,9 @@ import { useBoardState } from "./state/useBoardState";
 
 import Toolbar from "./Toolbar";
 import TransactionHistory from "./ui/TransactionHistory";
-import CommandCenter from "./ui/CommandCenter";
+// Lazy: CommandCenter pulls the whole settings-tab tree + the blocks
+// operations editor — none of it is needed before the user opens it.
+const CommandCenter = React.lazy(() => import("./ui/CommandCenter"));
 import AssistantDrawer from "./ui/AssistantDrawer";
 import ClipboardDropOverlay from "./ui/ClipboardDropOverlay";
 import RubberBandSelector from "./ui/RubberBandSelector";
@@ -864,11 +866,13 @@ export default function App() {
 
         {/* CommandCenter — keep mounted once opened so slide-up animation works on close */}
         {commandCenterEverOpened && (
-          <CommandCenter
-            open={commandCenterOpen}
-            onOpenChange={setCommandCenterOpen}
-            isMobileLayout={isMobileLayout}
-          />
+          <React.Suspense fallback={null}>
+            <CommandCenter
+              open={commandCenterOpen}
+              onOpenChange={setCommandCenterOpen}
+              isMobileLayout={isMobileLayout}
+            />
+          </React.Suspense>
         )}
         </div>{/* end header wrapper */}
 
