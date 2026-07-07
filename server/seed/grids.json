@@ -12,94 +12,12 @@
     "toolbarNavFilters": [],
     "fieldIds": [],
     "manifestId": null,
-    "templates": []
-  },
-  {
-    "_id": "6a46fabdc1bbb1d6f079b405",
-    "userId": "{{USER_ID}}",
-    "activeFilterId": null,
-    "activeFilterValues": {},
-    "colSizes": [],
-    "cols": 3,
-    "fieldIds": [],
-    "manifestId": null,
-    "meta": {
-      "assistantSeedId": "YmiN0C3p3jvm",
-      "layoutTree": {
-        "id": "mosaic-root",
-        "dir": "v",
-        "ratio": [
-          0.3162527250077858,
-          2.1450774336659646,
-          0.6886698413262495
-        ],
-        "children": [
-          {
-            "id": "mosaic-col0",
-            "dir": "h",
-            "ratio": [
-              1,
-              1
-            ],
-            "children": [
-              {
-                "id": "mosaic-leaf-toolkit",
-                "panelOccId": "sczTkIGs07Vc"
-              },
-              {
-                "id": "mosaic-leaf-todo",
-                "panelOccId": "ibC0a8HCehmc"
-              }
-            ]
-          },
-          {
-            "id": "mosaic-col1",
-            "dir": "h",
-            "ratio": [
-              1,
-              0.28
-            ],
-            "children": [
-              {
-                "id": "mosaic-leaf-notebook",
-                "panelOccId": "yWklnQ34r5Uw"
-              },
-              {
-                "id": "mosaic-leaf-logo",
-                "panelOccId": "ClbdkwC30yIF"
-              }
-            ]
-          },
-          {
-            "id": "mosaic-col2",
-            "dir": "h",
-            "ratio": [
-              1,
-              1
-            ],
-            "children": [
-              {
-                "id": "mosaic-leaf-goals",
-                "panelOccId": "GH0pd-_HIbss"
-              },
-              {
-                "id": "mosaic-leaf-accounts",
-                "panelOccId": "4mAHfEoqmSeY"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "namedFilters": [],
-    "occurrences": [],
-    "rowSizes": [],
-    "rows": 2,
     "templates": [],
-    "toolbarNavFilters": []
+    "createdAt": "2026-06-24T00:00:00.569Z",
+    "updatedAt": "2026-07-07T11:28:02.815Z"
   },
   {
-    "_id": "6a4cd7144219a0a9f82646e6",
+    "_id": "6a4ce2926f5971f59fcd3eda",
     "name": "Live Grid",
     "rows": 2,
     "cols": 3,
@@ -111,11 +29,11 @@
     "rowSizes": [],
     "userId": "{{USER_ID}}",
     "occurrences": [
-      "0nExA3RGtje9",
-      "m_KvX-6lN7aC",
-      "mIvwjmWjKQ7K",
-      "kyYOq9CSNczQ",
-      "DRWKCObh12u5"
+      "CnHFDPtemFpp",
+      "_LBGZwm4qlsf",
+      "6tstU36cesKF",
+      "hIfRwDig_8sj",
+      "RHtkDAy2Rb3C"
     ],
     "namedFilters": [
       {
@@ -123,7 +41,7 @@
         "name": "Daily",
         "conditions": [
           {
-            "fieldId": "uAe3EJzB1P14",
+            "fieldId": "z1gUvl5d0-wu",
             "comparator": "SAME_DAY",
             "isNav": true
           }
@@ -132,143 +50,145 @@
         "primaryDateFieldId": null,
         "timeUnit": "day",
         "lock": false,
-        "_id": "6a4cd7144219a0a9f82646e7"
+        "_id": "6a4ce2926f5971f59fcd3edb"
       }
     ],
     "activeFilterId": "filter_daily",
     "toolbarNavFilters": [],
     "fieldIds": [
-      "ljEymGG0gv2b",
-      "uAe3EJzB1P14",
-      "5qs68uCaJ6fB",
-      "e50njnj73fit",
-      "0pqx6FanEyOw",
-      "zg-tHshb5Csp",
-      "t7fkntNw8BBm",
-      "VMzRyOIuRYXn",
-      "8T9iN_Eqc3Gs",
-      "sF8K01JtMFDS",
-      "XQ3qSZLCvfYa",
-      "N2UDXLHKtOA3",
-      "zkQ6bLAsL1tA",
-      "znbGNUpUvdR_",
-      "Jbv5oMlCRT0F",
-      "bQheL6gAI2bv",
-      "jnrjWQ_Zv6mI",
-      "I5ybd4QCztTo",
-      "kXt25d3nBuu5",
-      "7t8WxwdY6bjv",
-      "XMwNA7nGIAJD",
-      "uOgv8zMZcFio",
-      "u5KZMp_IGIFL",
-      "HwR2wePF6bAV",
-      "AnPAa5qPG0E_",
-      "laC_EMlLgZ7v",
-      "sHS-eOZHM31A",
-      "FGQQHAGBe81g",
-      "BunSn6Jw65WI",
-      "GTYyZL4fR_QV",
-      "Xqdsb6knIjh-",
-      "XRN8OROECLa5",
-      "NHmIFueyvzxV",
-      "N-79EraNCU5e",
-      "kTG_4mnDVesO",
-      "GdQf0QMwyqEk",
-      "RJWoWPpoXMFT",
-      "wRjQWsOtxnpm",
-      "GanPJagQ83II",
-      "HpEW0Lue56jP",
-      "Bk4bP5-nSoJx",
-      "JcV8ebZ3BCpT",
-      "hwCtie_iYgWd",
-      "CIWe7a1DP2zz",
-      "Qrtb3G_XBXdK",
-      "KE5vaII8Km0l",
-      "nRXC5LE7Fl_0",
-      "KclprX_MESYR",
-      "BdFSE_UsaLG5",
-      "Zf4yernqli9R",
-      "BZfX5JejPlBR",
-      "0rekTJAkMs-Q",
-      "QFr1wE8eOvgh",
-      "05a-Ee_W8N_g",
-      "hpBayBRLwV_1",
-      "xyjgRoKvWNqq",
-      "6XVMctgoTCMx",
-      "NexIMMRAHTN0",
-      "hIvfjqoCL-Yf",
-      "wreuGhDwlxfH",
-      "6EK79b1mCxsP",
-      "LPhXFYM68IQS",
-      "CEhH8ClJ-6Or",
-      "-RKnBaD2BEVY",
-      "yQFSTOTZL0Cy",
-      "hz8itRo5Xg_B",
-      "dv9ps7256hqX",
-      "QCqmgKL-aR5Z",
-      "BitKiSm_YmhC",
-      "XQAlTEItr037",
-      "uv6oUENZwa7F",
-      "OA4j8y9yNHHQ",
-      "ggIy6grsEk_X",
-      "N4LU-FzeX5vz",
-      "1Hl2vQZ1TU8Z",
-      "XfW1vs5HvPt4",
-      "UJdhrtxahimA",
-      "wMwQN7ix_isQ",
-      "5VE8LG0DAJ43",
-      "X2CBkk0B967y",
-      "UmOB0KMqYstp",
-      "WXllXtQ_VImE",
-      "eCLWWOGDniTz",
-      "z_6df7V54hht",
-      "8Ifmf5RDecGL",
-      "8wf5Ocwt-JOK",
-      "t615GKlLmrn4",
-      "oiH11lS59BGZ",
-      "0DiGe18WWO2G",
-      "h55IO6HJhxfh",
-      "ZsPkykrrngiA",
-      "VengqP19-Lgc",
-      "M8yesqb1gTBC",
-      "XqVFda8Lvo46",
-      "dnepp5TvPWpz",
-      "TF0UMT9JdOlE",
-      "thWx2jj0trPL",
-      "x4dDVATTihE2",
-      "qnRAkoT7w_uZ",
-      "9lEbbCJF5uP9",
-      "tKno40fmCrrk",
-      "1FR5P_rHhn_a",
-      "9BCZBFYtJ6QN",
-      "8UHgVXmYfKxi",
-      "O-DIVQBSNd_b",
-      "EhejNxU_66Zi",
-      "TUvgEEfEA0-K",
-      "yy7DTX5fuNA8",
-      "jRo5lGrxyCSF",
-      "88BDNu_bwedK",
-      "NUi6u8vGNMi_",
-      "36i1sgs3ebaX",
-      "wLHa3xLRSeyE",
-      "V9L2pNyZDCMS",
-      "IyQL1J_8Mjcn",
-      "K-Wqp22S-siK",
-      "wi1_fptHOVi9",
-      "zJTN4i9993gY",
-      "u9IaHyNTGfiD",
-      "pBeUTNg-4YYg",
-      "_x-25QBYBtYC",
-      "dQo2wf2okbFO",
-      "vltHaQxRu07N",
-      "sodWjFzMDnIA",
-      "LMlYjCFbIhfi",
-      "EWvVW5PngdK-"
+      "28DPOXaouSQY",
+      "z1gUvl5d0-wu",
+      "fcgEZFRhgCOU",
+      "1tFaE5Yh_VHy",
+      "tIIdBIX6kbC-",
+      "iBrE4JgFAsCu",
+      "bqbLEZBMBm6H",
+      "xcTZdjB4zICM",
+      "zSxRw-_J8V7e",
+      "pXdVqSvvCudh",
+      "Pt936_xJedQH",
+      "yaGiehkreyPp",
+      "L8uf3YZqxg-w",
+      "NiT2fQxvCO3C",
+      "5ifFbsH_bYIQ",
+      "fu_3QI_Tghro",
+      "xtytiCE93N3C",
+      "moIJTzLzsVsY",
+      "A_fXtbEGW5jr",
+      "_jF3HekF2xGQ",
+      "fd52nHcn4Ci4",
+      "PvH5aQxy4NNW",
+      "-LBtr4mE-jzh",
+      "xNzxijKl3toz",
+      "EIB5au-mIVyg",
+      "TzNkC22ipNXu",
+      "V6rFWSwDjgpW",
+      "V1AnasjY2ry7",
+      "VpglpdyRtn3P",
+      "5vh2EnCRmbj_",
+      "AOjvLLG9qOMx",
+      "G4kscmutBdCI",
+      "-mq6xJVe7DFq",
+      "fzDyj-TerDXN",
+      "M-w9nN2JNKSV",
+      "tWRyw9jBs34A",
+      "EV9tF2AB8Whq",
+      "EP0qxEJUFjDZ",
+      "T-P4djSRmB-4",
+      "ZfsQbtLlEIRa",
+      "BjO1_HCQITJ6",
+      "F-1L87zgCPYL",
+      "Pnzg9bc6ZOyX",
+      "V--keEfjUURj",
+      "DNge-6Y9n_1e",
+      "Ol9onCUmHXLG",
+      "Ok0xIdyf1IUv",
+      "rQZayyTIDb-2",
+      "QGXPorwXJNKf",
+      "kg6J9eSHJ3Em",
+      "-WRCn97yk7UU",
+      "b6mYKIn0xaVj",
+      "t6yU1BhrC0Dp",
+      "KAppR1m_iH4u",
+      "05sK2plpDCJd",
+      "N-CizPS5JS3m",
+      "xKbmfT0AtQGM",
+      "3fCOLCe0q4Bd",
+      "139EZTE99CT9",
+      "Wp6aslW0r6fS",
+      "QVlh99m0fvrz",
+      "626Gmk8kJcIl",
+      "Sqssqq4BN1UI",
+      "xi0ZhYETVyJE",
+      "3ELPwpL6z5Pd",
+      "fgmAENe0LQ_U",
+      "HX2ehvApqV-j",
+      "0Gsz3qg2iKIQ",
+      "xF6_-wchVbfZ",
+      "u65FUavsiKta",
+      "z1kBuW_k7_lS",
+      "UWc1eysX07bZ",
+      "BKfQcDb-PD6C",
+      "b0i1ymJGQIMj",
+      "YhHnHd98n-aj",
+      "lt392JN56GRB",
+      "7jcjyXLv_3iQ",
+      "mVMJ2FoqzQ3-",
+      "NbLAUGVzEZX6",
+      "qViQNWlPlkLv",
+      "7jPWHm5tEPMv",
+      "gnSw9cmd5zOv",
+      "s1F-gtbHpVk4",
+      "neN3kukt11uA",
+      "Evm7A-x4h1QZ",
+      "qLyq4QIYwrJS",
+      "svwJs2F2KX9w",
+      "pb7BK7Occ0gh",
+      "ol0t2ISawKjZ",
+      "effKotHy1OJF",
+      "kR0xTAt4J1Gq",
+      "BZxNodt1u13m",
+      "4ycaKE-dgZN_",
+      "VuikmrdhEMeU",
+      "ICpUhXxdRyq_",
+      "QGppoKf2Xe-H",
+      "I0U1p90cbrGe",
+      "m5a8t3YHtqDw",
+      "l3NSR7KqgZTx",
+      "o0k8WUJhvkOx",
+      "FEpx-VbAUMLb",
+      "83_0hcQ09w1E",
+      "AKcVCuuG0r6G",
+      "N1oWaI2MDHCd",
+      "Wz6dRRht6dtO",
+      "GiDZSI5VDlxn",
+      "dah9WqsNDMxa",
+      "yRgobnIfQLFO",
+      "XqrlIhsrxLSP",
+      "B7ruKUFFyEiu",
+      "LuImKZc_6Yl9",
+      "gVOyu1TDZt6H",
+      "O_UBzb6IlKUc",
+      "BhgWvCJboFxz",
+      "MUlYN1Lbm9hQ",
+      "5S7A86mwonpq",
+      "op6_VmdVCrOk",
+      "-3_vH00LNj2l",
+      "1xL1DYI1xZVl",
+      "xtd0cQ3b4Nhl",
+      "Mt8X9iQjUGDy",
+      "Flf8vf-a0S9D",
+      "FcuBQd8U9q77",
+      "Zp_yg8Uh-XFe",
+      "BXcsutWDz6u9",
+      "xmtQv98PmmbP"
     ],
-    "manifestId": "qMJk-UIOttF6",
+    "manifestId": "QWvxF73nEHGV",
     "templates": [],
+    "createdAt": "2026-07-07T11:27:14.479Z",
+    "updatedAt": "2026-07-07T11:31:10.568Z",
     "meta": {
-      "assistantSeedId": "1LYDSpEslmH6",
+      "assistantSeedId": "LOXQjLvxTFm6",
       "defaultGrid": true,
       "layoutTree": {
         "id": "mosaic-root",
@@ -289,17 +209,17 @@
             "children": [
               {
                 "id": "mosaic-leaf-toolkit",
-                "panelOccId": "0nExA3RGtje9"
+                "panelOccId": "CnHFDPtemFpp"
               },
               {
                 "id": "mosaic-leaf-todo",
-                "panelOccId": "m_KvX-6lN7aC"
+                "panelOccId": "_LBGZwm4qlsf"
               }
             ]
           },
           {
             "id": "mosaic-leaf-notebook",
-            "panelOccId": "mIvwjmWjKQ7K"
+            "panelOccId": "6tstU36cesKF"
           },
           {
             "id": "mosaic-col2",
@@ -311,11 +231,11 @@
             "children": [
               {
                 "id": "mosaic-leaf-goals",
-                "panelOccId": "kyYOq9CSNczQ"
+                "panelOccId": "hIfRwDig_8sj"
               },
               {
                 "id": "mosaic-leaf-accounts",
-                "panelOccId": "DRWKCObh12u5"
+                "panelOccId": "RHtkDAy2Rb3C"
               }
             ]
           }

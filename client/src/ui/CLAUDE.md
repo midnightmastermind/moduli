@@ -1,6 +1,32 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-07-06. Check this file before re-reading source._
+_Updated: 2026-07-07. Check this file before re-reading source._
+
+## Recent Changes (2026-07-07 — ImagePickerMenu (Calibre-style image lookup) + Field.jsx wiring)
+- **`ImagePickerMenu.jsx` (NEW)** — reusable image picker modal, three tabs: **Search** (keyless
+  web image search via server proxy `/api/images/search` — DuckDuckGo primary, Wikipedia fallback;
+  query prefills from the subject's label, Calibre "download cover" behavior: auto-searches on
+  open), **Upload** (file → `/api/images/upload`, bare upload that mints NO module/occurrence),
+  **URL** (paste a direct link). Picked value is always a URL string handed to `onPick(url)`.
+  ONE `<ImagePickerHost/>` is mounted in App (call sites live inside popovers that unmount on
+  outside click); call sites open it imperatively via `openImagePicker({ query, title, onPick })`.
+- **`Field.jsx`** — three wirings:
+  - **Occurrence dropdown option rows** (`OccurrenceOption`): each option's media slot carries a
+    hover "Set image…" button (`ImagePlus`) → `handleSetOptionImage` resolves the option
+    occurrence's media-role binding (fallback: a field literally named "Poster"; if NO media
+    binding exists, it hidden-binds the shared Poster field on pick so ANY occurrence can get an
+    image) and opens the picker with a Library-aware query ("<label> movie poster" / "book
+    cover"). The pick writes THAT occurrence's media field → thumbnail updates everywhere.
+  - **Media-role field pills** (compact input, `binding.role === "media"`, type text): renders a
+    thumbnail + click-to-set pill that opens the picker instead of a raw URL text input.
+  - `OccurrenceOption.isImg` also treats extension-less `http(s)` URLs as images (remote posters).
+- **Verification (headless, live grid)** — Account dropdown → options render with Set-image
+  buttons → modal opens prefilled → URL pick commits the field write. This e2e surfaced the two
+  optionsResolver bugs fixed in helpers/ (see helpers/CLAUDE.md 2026-07-07): every
+  ancestor-scoped occurrence dropdown had been resolving to ZERO options.
+- **`modules/ArtifactContent.jsx`** — image branch gained a "Replace" button (top-right cluster)
+  → opens the picker, pick rewrites `module.fileRef` (all placements update).
+
 
 ## Recent Changes (2026-07-06 LATE-2 — FieldRenderer: per-key computedValues subscription)
 - **`FieldRenderer.jsx`** — the computed-result read moved off `GridLiveContext` to

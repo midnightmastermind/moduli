@@ -12,7 +12,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import RadialMenu from "../ui/RadialMenu.jsx";
 import { resolveFileRef } from "../helpers/fileRef.js";
 import "highlight.js/styles/atom-one-dark.css";
-import { Settings, Download, ScanText, Loader2 } from "lucide-react";
+import { Settings, Download, ScanText, Loader2, ImagePlus } from "lucide-react";
 import { toast } from "../state/notificationStore";
 
 // Human-readable byte count. Mirrors ArtifactCard's formatBytes —
@@ -680,6 +680,36 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
             dispatch={dispatch} socket={socket}
             gridId={gridId} userId={userId}
           />
+          {/* Replace image — search / upload / URL via the global picker.
+              The pick rewrites module.fileRef, so every placement of this
+              artifact updates. */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              openImagePicker({
+                query: module?.label || originalName || "",
+                title: `Replace image — ${module?.label || originalName || "artifact"}`,
+                onPick: (url) => {
+                  CommitHelpers.updateModule({ dispatch, socket, module: { ...module, fileRef: url }, emit: true });
+                },
+              });
+            }}
+            title="Replace this image (search the web, upload, or paste a URL)"
+            style={{
+              position: "absolute", top: 10, right: 290, zIndex: 5,
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "4px 10px", borderRadius: 14,
+              background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              color: "rgba(255,255,255,0.92)",
+              fontFamily: "var(--font-mono)", fontSize: 10,
+              border: "1px solid rgba(255,255,255,0.18)",
+              cursor: "pointer",
+            }}
+          >
+            <ImagePlus size={12} />
+            <span>Replace</span>
+          </button>
         </div>
         {/* OCR result(s) — one editable textblock per OCR run. */}
         {childTextblocks.length > 0 && (

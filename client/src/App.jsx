@@ -26,6 +26,7 @@ import ClipboardDropOverlay from "./ui/ClipboardDropOverlay";
 import RubberBandSelector from "./ui/RubberBandSelector";
 import { Spinner } from "./components/ui/spinner";
 import UserInputModal from "./ui/UserInputModal";
+import { ImagePickerHost } from "./ui/ImagePickerMenu";
 import { SelectionContext, useSelectionProvider } from "./state/SelectionContext";
 import { publishComputedValues } from "./state/computedValuesStore";
 
@@ -974,6 +975,12 @@ export default function App() {
           onSubmit={handleInputSubmit}
           onCancel={handleInputCancel}
         />
+
+        {/* Image picker modal — single global host; call sites (occurrence
+            dropdown rows, media-role field inputs, the artifact image
+            viewer) open it imperatively via openImagePicker() so it
+            survives their popovers unmounting. */}
+        <ImagePickerHost />
       </SelectionContext.Provider>
       </GridDataContext.Provider>
       </GridLiveContext.Provider>

@@ -528,11 +528,15 @@ export function evalGroup(group, $vars) {
 
 export function resolveRecordPath(record, path) {
   if (record == null || !path) return null;
-  // Tolerate legacy `$item.X` predicates from seed data — the editor writes
-  // bare record paths (`label`, `fields.X.value`) going forward, but DB rows
-  // saved under the old FIND-inside-loop pattern still carry `$item.` prefixes.
-  // Stripping it here means we never need to touch existing data.
-  const normalized = path.startsWith("$item.") ? path.slice(6) : path;
+  // Tolerate legacy `$item.X` / `$record.X` predicates from seed data — the
+  // editor writes bare record paths (`label`, `fields.X.value`) going
+  // forward, but DB rows saved under older patterns carry these prefixes
+  // (`$record.` appears in optionsSource find predicates, e.g. the Account
+  // picker's `$record._ancestors HAS_ANCESTOR <library>`). Stripping here
+  // means we never need to touch existing data.
+  const normalized = path.startsWith("$item.") ? path.slice(6)
+    : path.startsWith("$record.") ? path.slice(8)
+    : path;
   const parts = String(normalized).split(".");
   let cur = record;
   for (const seg of parts) {

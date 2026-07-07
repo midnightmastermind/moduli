@@ -22,7 +22,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Equal, Shuffle, Link2, Pause, Play, Square, Star, Minus, AlertCircle, AlertTriangle } from "lucide-react";
+import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Equal, Shuffle, Link2, Pause, Play, Square, Star, Minus, AlertCircle, AlertTriangle, ImagePlus } from "lucide-react";
 
 // Icon-name → lucide component lookup for display rules.
 // Authored values are short names (e.g. "ArrowUp", "Pause"); resolved
@@ -38,7 +38,8 @@ import {
   getScaledTargetValue,
   calculateProgress,
 } from "../helpers/CalculationHelpers";
-import { createLeafInstanceInParent } from "../helpers/CommitHelpers";
+import { createLeafInstanceInParent, setOccurrenceFieldValue, updateModule } from "../helpers/CommitHelpers";
+import { openImagePicker } from "./ImagePickerMenu";
 import { resolveFileRef } from "../helpers/fileRef";
 import RepresentationView from "./RepresentationView";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
@@ -413,22 +414,41 @@ function resolveOccCard(occId, { occurrencesById, modulesById, fieldsById }, chi
   };
 }
 
-function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null }) {
+function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null, onSetImage = null }) {
   const card = resolveOccCard(occId, maps, chipDisplay);
   const label = card?.label || (card && chipDisplay && chipDisplay.showLabel === false ? null : (fallbackLabel || occId));
   const mediaVal = card?.mediaVal;
   const ext = typeof mediaVal === "string" ? (mediaVal.split(".").pop() || "").toLowerCase() : "";
-  const isImg = ["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"].includes(ext);
+  const isImg = ["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"].includes(ext)
+    || (typeof mediaVal === "string" && /^https?:\/\//.test(mediaVal)); // remote URLs often carry no extension
   // Hide the media slot entirely when chipDisplay opts out (showMedia=false).
   const renderMediaSlot = chipDisplay ? chipDisplay.showMedia !== false : true;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, width: "100%" }}>
       {renderMediaSlot && (
-        <div style={{ width: 34, height: 46, flexShrink: 0, borderRadius: 4, overflow: "hidden",
+        <div style={{ width: 34, height: 46, flexShrink: 0, borderRadius: 4, overflow: "hidden", position: "relative",
           background: "var(--input-bg, rgba(255,255,255,0.04))", display: "flex", alignItems: "center", justifyContent: "center" }}>
           {mediaVal && isImg
             ? <img src={resolveFileRef(mediaVal)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             : <Link2 style={{ width: 12, height: 12, opacity: 0.4 }} />}
+          {onSetImage && (
+            // "Set image" — Calibre-style cover lookup for THIS option. A real
+            // click target inside the option row: swallow the event so it
+            // doesn't select the option or close the popover.
+            <span
+              role="button"
+              title="Set image…"
+              onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSetImage(occId, label || fallbackLabel || ""); }}
+              style={{
+                position: "absolute", right: 1, bottom: 1, padding: 2, borderRadius: 4,
+                background: "rgba(10,16,24,0.72)", color: "rgba(190,215,235,0.9)",
+                display: "flex", alignItems: "center", cursor: "pointer",
+              }}
+            >
+              <ImagePlus style={{ width: 11, height: 11 }} />
+            </span>
+          )}
         </div>
       )}
       <div style={{ minWidth: 0, flex: 1 }}>
@@ -652,9 +672,71 @@ function Field({
     [getOccMap, modulesById, fieldsById]
   );
   const chipDisplay = field?.meta?.optionsSource?.chipDisplay || null;
+
+  // "Set image" on a picker option — resolves the option occurrence's
+  // media-role binding (fallback: a binding whose field is literally named
+  // "Poster") and opens the global ImagePicker prefilled with a
+  // Calibre-style lookup query ("<label> movie poster" / "<label> book
+  // cover" when the occurrence carries a Library tag). The pick writes that
+  // occurrence's media field, so the thumbnail updates everywhere the
+  // occurrence renders (picker chips, representation views, table cells).
+  const handleSetOptionImage = useCallback((occId, optLabel) => {
+    const occMap = getOccMap();
+    const occ = occMap?.[occId];
+    if (!occ) return;
+    const mod = modulesById?.[occ.moduleId || occ.targetId] || null;
+    const bindings = Array.isArray(mod?.fieldBindings) ? mod.fieldBindings : [];
+    let mediaFieldId =
+      bindings.find(b => b.role === "media")?.fieldId ||
+      bindings.find(b => (fieldsById?.[b.fieldId]?.name || "").toLowerCase() === "poster")?.fieldId ||
+      null;
+    // No media binding yet → bind the shared "Poster" field (hidden) so ANY
+    // occurrence option can be given an image, not just movies/people that
+    // shipped with one. The binding is what makes the thumbnail render in
+    // picker chips / representation views.
+    let bindOnPick = null;
+    if (!mediaFieldId) {
+      const posterField = Object.values(fieldsById || {}).find(f => (f?.name || "").toLowerCase() === "poster");
+      if (!posterField || !mod) return;
+      mediaFieldId = posterField.id;
+      bindOnPick = () => {
+        const already = (mod.fieldBindings || []).some(b => b.fieldId === posterField.id);
+        if (already) return;
+        updateModule({
+          dispatch, socket,
+          module: { ...mod, fieldBindings: [...(mod.fieldBindings || []), { fieldId: posterField.id, role: "media", hidden: true, order: 99 }] },
+          emit: true,
+        });
+      };
+    }
+    // Query hint from the occurrence's Library tag when present.
+    const libB = bindings.find(b => (fieldsById?.[b.fieldId]?.name || "").toLowerCase() === "library");
+    const libVal = libB ? occ.fields?.[libB.fieldId]?.value : null;
+    const suffix = libVal === "movie" ? " movie poster"
+      : libVal === "book" ? " book cover"
+      : libVal === "tv show" ? " tv show poster"
+      : libVal === "podcast" ? " podcast cover"
+      : "";
+    const label = optLabel || mod?.label || occ.label || "";
+    openImagePicker({
+      query: `${label}${suffix}`.trim(),
+      title: `Set image — ${label}`,
+      onPick: (url) => {
+        bindOnPick?.();
+        setOccurrenceFieldValue({
+          dispatch, socket,
+          occurrencesById: getOccMap(),
+          occurrenceId: occId,
+          fieldId: mediaFieldId,
+          value: url,
+        });
+      },
+    });
+  }, [getOccMap, modulesById, fieldsById, dispatch, socket]);
+
   const renderOccurrenceOption = useCallback(
-    (o) => <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} chipDisplay={chipDisplay} />,
-    [occMaps, chipDisplay]
+    (o) => <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} chipDisplay={chipDisplay} onSetImage={handleSetOptionImage} />,
+    [occMaps, chipDisplay, handleSetOptionImage]
   );
 
   useEffect(() => {
@@ -799,6 +881,41 @@ function Field({
   // EDITABLE — INPUT RENDERING
   // ══════════════════════════════════════════════════════════════
   if (isEditable) {
+    // ── Media-role binding (cover / photo URL) — image-picker pill ────────
+    // A text field bound with role:"media" holds the occurrence's image URL
+    // (movie poster, person photo, book cover). Instead of a raw URL text
+    // pill, render a thumbnail + "Set image…" that opens the global
+    // ImagePicker (search / upload / paste-URL). The pick commits through
+    // the normal field path so onChange trackers fire like any edit.
+    const isMediaBinding = binding?.role === "media";
+    if (compact && isMediaBinding && type === "text" && !isClickEditing) {
+      const src = typeof localValue === "string" && localValue ? resolveFileRef(localValue) : null;
+      const hostLabel = modulesById?.[hostOccurrence?.moduleId || hostOccurrence?.targetId]?.label
+        || hostOccurrence?.label || "";
+      return (
+        <button type="button" disabled={disabled}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (disabled) return;
+            openImagePicker({
+              query: hostLabel,
+              title: `Set image — ${hostLabel || name}`,
+              onPick: (url) => { handleChange(url); onCommit?.(url); },
+            });
+          }}
+          className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
+            ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
+          style={{ background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(180,225,245)" }}
+          title={`${name}: ${localValue || "no image"} — click to set`}
+        >
+          {src
+            ? <img src={src} alt="" style={{ width: 14, height: 18, objectFit: "cover", borderRadius: 2 }} />
+            : <ImagePlus style={{ width: 10, height: 10, opacity: 0.7 }} />}
+          {!hideName && name && <span className="opacity-70">{name}</span>}
+        </button>
+      );
+    }
+
     // Compact click-to-edit mode for numeric/text/duration fields
     const useClickToEdit = compact && (type === "number" || type === "text" || type === "duration");
 
@@ -1030,7 +1147,7 @@ function Field({
                         border: "none", cursor: "pointer", textAlign: "left",
                       }}
                     >
-                      <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} chipDisplay={chipDisplay} />
+                      <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} chipDisplay={chipDisplay} onSetImage={handleSetOptionImage} />
                     </button>
                   ))}
             </div>

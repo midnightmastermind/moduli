@@ -6,6 +6,24 @@
 
 ---
 
+## Handoff — 2026-07-07 LATE (image picker shipped + options-resolver fix + grid sweep)
+
+Continuation of account2's session (hit spend limit mid-verify). **ImagePickerMenu** (Calibre-style
+Search/Upload/URL image lookup) shipped and wired into occurrence-dropdown option rows, media-role
+field pills, and the artifact image viewer; server proxy routes `/api/images/search` (DDG+Wikipedia)
++ `/api/images/upload` (bare upload). Verification surfaced + fixed two latent optionsResolver bugs
+that had EVERY ancestor-scoped occurrence dropdown resolving to zero options (`$record.` prefix not
+stripped in `resolveRecordPath`; `_ancestors` never enriched in `buildCollection`). 1162/1162 client
++ 222/222 server tests, build clean, e2e verified headless (Account dropdown → options → Set image →
+URL commit). **Live grid reseeded + probe writes surgically removed.** Also per user: stale unnamed
+2×3 skeleton grid deleted (again — recurrence of 2026-07-04) and `createLiveData` now auto-sweeps
+dead skeleton grids on every default reseed (`sweepStaleGrids`); exactly 2 grids remain (Live Grid +
+the 1×1 empty scratch grid). Queued (from account2, user notes mid-session): **goals overhaul —
+"full representation of everything tracked/goaled, trackers included; extreme granularity is the
+bar"** (task #9 successor).
+
+---
+
 ## Handoff — 2026-07-06 (branch `audit-fixes-dnd-wrap-menus`, all 14 plan tasks shipped)
 
 The full 14-task audit-fix plan (`docs/superpowers/plans/2026-07-06-dnd-wrap-menus-audit-fixes.md`)

@@ -2,6 +2,27 @@
 
 _Updated: 2026-07-07. Check this file before re-reading source._
 
+## Recent Changes (2026-07-07 — image search/upload routes + reseed stale-grid sweep)
+- **`server.js`** — two new app-internal routes for the client's ImagePickerMenu (same auth class
+  as `/api/artifacts/upload`):
+  - `GET /api/images/search?q=` — keyless web image search proxy. Primary: DuckDuckGo images
+    (two-step vqd-token flow, browser UA headers); fallback: Wikipedia pageimages. Returns
+    `{ results: [{ image, thumbnail, title, width, height, source }], source }`. Picked URLs are
+    stored directly in field values / `module.fileRef` (external URLs pass through
+    `resolveFileRef` verbatim; `scripts/mirrorRemoteImages.js` can localize later).
+  - `POST /api/images/upload` — bare image upload: stores under `uploads/user/YYYY-MM/` and
+    returns `{ fileRef, url }`; mints NO module/occurrence (for images that become FIELD values —
+    person photo, movie poster — vs standalone artifacts). Rejects non-image mimetypes.
+- **`scripts/createLiveData.js`** — new exported `sweepStaleGrids(userId)`, called on every
+  DEFAULT (non `--clear`) reseed after `dropExistingLiveGrid`. Deletes grids with ZERO panel
+  occurrences that are NOT 1×1, plus their scoped docs. Partial/interrupted reseeds leave
+  unnamed 2×3 skeletons that accumulate (user hit this 2026-07-04 AND again 2026-07-07:
+  "there shouldnt be 3 grids, only two"). Deliberately preserved: the user's empty 1×1 scratch
+  grid (0 panels but 1×1), the Live Grid, any grid with panels. One stale skeleton
+  (`6a46fabd…`, 2 orphan occs + 1 manifest + 1 folder) was swept from prod Atlas directly the
+  same day; seed re-exported (grids.json now carries exactly 2 grids).
+
+
 ## Recent Changes (2026-07-07 — full operations audit + People: Show Profile fix)
 - **All 70 ops audited** (report: `docs/op-audit-2026-07-07.md`). Methods: static pipeline
   validation vs seed, headless load sweep (58 ops, 0 errors), REAL value-change UI tests

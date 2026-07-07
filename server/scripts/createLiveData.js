@@ -89,6 +89,36 @@ export async function dropExistingLiveGrid(userId, gridName = DEFAULT_GRID_NAME)
   return true;
 }
 
+// Stale-skeleton sweep, run on EVERY default reseed. Partial/interrupted
+// reseeds (and app-side grid minting against a dead localStorage gridId)
+// leave behind unnamed grids with ZERO panels — dead skeletons that
+// accumulate and re-surface in the grid picker ("we have 3 grids, there
+// should only be 2", 2026-07-04 + 2026-07-07). Rule: a grid with no panel
+// occurrences that is NOT 1×1 is a dead skeleton → delete it + its scoped
+// docs. Deliberately kept: the user's empty 1×1 scratch grid (0 panels but
+// 1×1), the Live Grid (has panels), and any real grid with content.
+export async function sweepStaleGrids(userId) {
+  const grids = await Grid.find({ userId }).lean();
+  const stale = grids.filter(g =>
+    (g.occurrences || []).length === 0 && !(g.rows === 1 && g.cols === 1)
+  );
+  for (const g of stale) {
+    const gridId = g._id.toString();
+    await Promise.all([
+      Occurrence.deleteMany({ gridId }),
+      Module.deleteMany({ gridId }),
+      Field.deleteMany({ gridId }),
+      Manifest.deleteMany({ gridId }),
+      View.deleteMany({ gridId }),
+      Folder.deleteMany({ gridId }),
+      Operation.deleteMany({ gridId }),
+      Transaction.deleteMany({ gridId }),
+    ]);
+    await Grid.deleteOne({ _id: g._id });
+  }
+  return stale.map(g => ({ id: g._id.toString(), name: g.name || "(unnamed)", rows: g.rows, cols: g.cols }));
+}
+
 // `--clear` flag: nuke EVERY grid + every grid-scoped doc for the user
 // before reseeding. The single-grid `dropExistingLiveGrid` above only
 // drops the one named "Live Grid", so prior runs with different grid
@@ -10100,6 +10130,10 @@ async function main() {
       console.log(dropped
         ? `🗑️  Dropped existing "${DEFAULT_GRID_NAME}" + scoped data\n`
         : `🆕 No existing "${DEFAULT_GRID_NAME}" to drop\n`);
+      const swept = await sweepStaleGrids(userId);
+      if (swept.length) {
+        console.log(`🧹 Swept ${swept.length} stale skeleton grid(s): ${swept.map(s => `${s.name} ${s.rows}×${s.cols} (${s.id})`).join(", ")}\n`);
+      }
     }
 
     const result = await createLiveData(userId);

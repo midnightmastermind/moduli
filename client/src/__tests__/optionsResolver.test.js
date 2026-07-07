@@ -383,3 +383,59 @@ describe("resolveOptions — find mode (live-seed flat shape, regression for han
     expect(options.map(o => o.label)).toEqual(["Inception"]);
   });
 });
+
+describe("resolveOptions — ancestor-scoped predicates (2026-07-07 regression)", () => {
+  // The Account picker's seed predicate is
+  //   `$record._ancestors HAS_ANCESTOR <library accounts container>`.
+  // Two independent bugs made every ancestor-scoped optionsSource resolve to
+  // ZERO options: (1) resolveRecordPath didn't strip the `$record.` prefix,
+  // (2) buildCollection never enriched records with `_ancestors` at all.
+  const ctx = {
+    occurrencesById: {
+      lib: { id: "lib", moduleId: "libMod", occurrences: ["acct1", "acct2"] },
+      acct1: { id: "acct1", moduleId: "acctMod1", parentId: "lib" },
+      acct2: { id: "acct2", moduleId: "acctMod2" }, // linked only via lib.occurrences[]
+      other: { id: "other", moduleId: "otherMod" },
+    },
+    modulesById: {
+      libMod: { id: "libMod", role: "container", label: "Accounts" },
+      acctMod1: { id: "acctMod1", role: "instance", label: "Checking" },
+      acctMod2: { id: "acctMod2", role: "instance", label: "Savings" },
+      otherMod: { id: "otherMod", role: "instance", label: "Loose Task" },
+    },
+    fieldsById: {},
+    foldersById: {},
+  };
+  const field = {
+    type: "occurrence",
+    meta: {
+      optionsSource: {
+        mode: "find",
+        over: "$allInstances",
+        predicate: {
+          conjunction: "AND",
+          rules: [{ left: "$record._ancestors", comparator: "HAS_ANCESTOR", right: "lib" }],
+        },
+        valuePath: "id",
+        labelPath: "label",
+      },
+    },
+  };
+
+  it("resolves records under the ancestor — via parentId AND via parent occurrences[]", () => {
+    const { options } = resolveOptions(field, ctx);
+    expect(options.map(o => o.value).sort()).toEqual(["acct1", "acct2"]);
+  });
+
+  it("excludes records outside the ancestor", () => {
+    const { options } = resolveOptions(field, ctx);
+    expect(options.map(o => o.value)).not.toContain("other");
+  });
+
+  it("bare `_ancestors` path (no $record. prefix) matches identically", () => {
+    const bare = JSON.parse(JSON.stringify(field));
+    bare.meta.optionsSource.predicate.rules[0].left = "_ancestors";
+    const { options } = resolveOptions(bare, ctx);
+    expect(options.map(o => o.value).sort()).toEqual(["acct1", "acct2"]);
+  });
+});

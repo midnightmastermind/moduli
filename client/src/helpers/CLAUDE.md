@@ -2,6 +2,20 @@
 
 _Updated: 2026-07-07. Check this file before re-reading source._
 
+## Recent Changes (2026-07-07 — optionsResolver: ancestor-scoped dropdowns fixed (2 latent bugs))
+Root cause of "No occurrences available" in the Account (and every other ancestor-scoped)
+occurrence dropdown — found while verifying the ImagePickerMenu e2e:
+- **`operationActions.js` (`resolveRecordPath`)** — now also strips a `$record.` prefix (alongside
+  the existing `$item.` strip). Seeded optionsSource find predicates carry lefts like
+  `$record._ancestors`; unstripped, the path walked `record["$record"]` → null → rule failed.
+- **`optionsResolver.js` (`buildCollection`)** — records are now enriched with
+  `_ancestors` (via `buildParentMap` from dragHitTesting + parentId fallback, cycle-guarded),
+  mirroring the executor's $allItems enrichment. Previously `HAS_ANCESTOR` predicates evaluated
+  against `undefined` → every ancestor-scoped optionsSource silently resolved to zero options.
+- 3 regression tests in `__tests__/optionsResolver.test.js` (ancestor via parentId AND via parent
+  `occurrences[]`, exclusion, bare-path equivalence). 31/31 in suite; 1162/1162 client-wide.
+
+
 ## Recent Changes (2026-07-07 — renderProbe: render-cause attribution (gated))
 - **`renderProbe.js`** — `useRenderAttribution(kind, inputs, tag)` + `snapshotAttrs`/`diffAttrs`,
   active only under `window.__RENDER_ATTR === true`: per render, diffs the captured props/selector

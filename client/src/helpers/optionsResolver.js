@@ -1,4 +1,5 @@
 import { evalGroupAgainstRecord, resolveRecordPath } from "./operationActions";
+import { buildParentMap } from "./dragHitTesting";
 
 const COLLECTION_KEYS = {
   $allOccurrences: "all",
@@ -18,6 +19,24 @@ function buildCollection(over, ctx) {
   if (filter === "templates") return Object.values(modulesById);
   if (filter === "fields") return Object.values(fieldsById);
 
+  // Ancestor chains for HAS_ANCESTOR predicates (e.g. the Account picker's
+  // `_ancestors HAS_ANCESTOR <library container>`). The executor enriches
+  // its $allItems this way; the resolver never did, so every ancestor-scoped
+  // optionsSource silently resolved to zero options (2026-07-07 audit).
+  const parentByChildId = buildParentMap(occurrencesById);
+  const ancestorsFor = (id) => {
+    const out = [];
+    let cursor = id;
+    let guard = 0;
+    while (cursor && guard++ < 64) {
+      const pid = parentByChildId[cursor] ?? occurrencesById[cursor]?.parentId ?? null;
+      if (!pid || out.includes(pid)) break;
+      out.push(pid);
+      cursor = pid;
+    }
+    return out;
+  };
+
   const records = Object.values(occurrencesById).map(occ => {
     const tpl = occ.moduleId ? modulesById[occ.moduleId] : null;
     return {
@@ -28,6 +47,7 @@ function buildCollection(over, ctx) {
       kind: occ.kind ?? tpl?.kind ?? null,
       meta: { ...(tpl?.meta || {}), ...(occ.meta || {}) },
       templateId: occ.moduleId ?? null,
+      _ancestors: ancestorsFor(occ.id),
     };
   });
   if (filter === "all") return records;

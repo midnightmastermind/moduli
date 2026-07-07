@@ -9,42 +9,36 @@
     "manifestType": "templates",
     "icon": "folder-tree",
     "sortOrder": 0,
-    "meta": {}
-  },
-  {
-    "_id": "6a482114e31f5c6a6e56da1a",
-    "id": "tpl-mfst-6a46fabdc1bbb1d6f079b405",
-    "gridId": "6a46fabdc1bbb1d6f079b405",
-    "icon": "folder-tree",
-    "manifestType": "templates",
     "meta": {},
-    "name": "Templates",
-    "rootFolderId": "tpl-root-6a46fabdc1bbb1d6f079b405",
-    "sortOrder": 0,
-    "userId": "{{USER_ID}}"
+    "createdAt": "2026-06-24T00:00:34.045Z",
+    "updatedAt": "2026-06-24T00:00:34.045Z"
   },
   {
-    "_id": "6a4cd7224219a0a9f82650f9",
-    "id": "qMJk-UIOttF6",
+    "_id": "6a4ce2a46f5971f59fcd48ed",
+    "id": "QWvxF73nEHGV",
     "userId": "{{USER_ID}}",
-    "gridId": "6a4cd7144219a0a9f82646e6",
+    "gridId": "6a4ce2926f5971f59fcd3eda",
     "name": "Files",
-    "rootFolderId": "4FmItpaZA56q",
+    "rootFolderId": "We7LDTyLv5sk",
     "manifestType": "user",
     "icon": "folder-tree",
     "sortOrder": 0,
-    "meta": {}
+    "meta": {},
+    "createdAt": "2026-07-07T11:27:32.234Z",
+    "updatedAt": "2026-07-07T11:27:32.234Z"
   },
   {
-    "_id": "6a4cd7234219a0a9f8265131",
-    "id": "CjF2luI2hYup",
+    "_id": "6a4ce2a56f5971f59fcd4925",
+    "id": "F3TwuWwHn8Ry",
     "userId": "{{USER_ID}}",
-    "gridId": "6a4cd7144219a0a9f82646e6",
+    "gridId": "6a4ce2926f5971f59fcd3eda",
     "name": "Templates",
-    "rootFolderId": "7cbfeIf3_xdp",
+    "rootFolderId": "o56L1YHOoVUl",
     "manifestType": "templates",
     "icon": "folder-tree",
     "sortOrder": 0,
-    "meta": {}
+    "meta": {},
+    "createdAt": "2026-07-07T11:27:33.028Z",
+    "updatedAt": "2026-07-07T11:27:33.028Z"
   }
 ]

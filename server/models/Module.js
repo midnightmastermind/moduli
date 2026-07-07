@@ -51,6 +51,18 @@ const ModuleSchema = new mongoose.Schema(
         fieldId: { type: String, required: true },
         order: { type: Number },
         hidden: { type: Boolean },
+        // "media" marks the binding whose value is the occurrence's
+        // cover/photo URL (picker chips, RepresentationView thumbs, the
+        // People Table photo column, the image-picker write target).
+        // "input"/"display" are used by the FieldsTab attach flow.
+        // NOTE: this key was AUTHORED by the seed since 2026-05 but the
+        // schema didn't declare it, so Mongoose strict mode silently
+        // STRIPPED it on save — no media thumbnail ever rendered.
+        // (Found in the 2026-07-07 image-picker work.)
+        role: { type: String },
+        // Per-binding display config ({ showLabel, showUnit, ... }) read
+        // by Field.jsx — same silent-strip bug as `role`.
+        display: { type: mongoose.Schema.Types.Mixed },
       },
     ],
 
