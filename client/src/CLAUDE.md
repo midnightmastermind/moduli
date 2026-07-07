@@ -32,6 +32,38 @@ to find why ~183 containers + 535 fields render on a single-slot drop when only 
 changed. Selector-level hypotheses were exhausted 2026-07-03 (see perf memory); the other
 documented lever is slicing the op drain per-op across macrotasks (bindSocketToStore endDropBatch).
 
+**2026-07-06 LATE-2 — computedValues-context hypothesis CLOSED (A/B measured, no frame-1 effect).**
+The per-key `state/computedValuesStore` migration (below) was A/B-probed same-night, same machine,
+same method (fresh reseed + 3 accumulating runs each build, `_dropprobe.mjs` at repo root — note:
+it must EXCLUDE `.preview-node-preview` cards when picking the drag source, and set
+`window.__dragPerf = true` at runtime since Task 2 re-gated the logs): pre-migration median
+**1750ms** (1918/1624/1750), per-key store median **1831ms** (1858/1831/1742) — within run noise;
+[drop-renders] counts byte-identical both builds. So the 535-field/183-container frame-1 storm is
+NOT computedValues context churn — the drop's ~20 display updates only touch ~20 keys. The
+profiler-attribution lever above is still the open path. (Earlier 1378ms median = machine-condition
+variance, not a regression.)
+
+## Recent Changes (2026-07-06 LATE-2 — computedValues off GridLiveContext → per-key store)
+- **`state/computedValuesStore.js` (NEW)** — `useSyncExternalStore`-based per-key subscription
+  layer for computedValues (keys `fieldId` / `fieldId:occId`). `publishComputedValues(map)` +
+  `useComputedValue(key)` / `useComputedValueWithFallback(primary, fallback)` /
+  `useComputedValuesMap()` (whole-map, doc pills only) / `getComputedValuesMap()`. The reducer
+  stays the source of truth — `SET_COMPUTED_VALUES`'s spread-merge preserves unchanged entry
+  identities, so a per-key snapshot only changes when THAT key was written.
+- **`App.jsx`** — `computedValues` removed from the `GridLiveContext` value; published to the
+  store via `useLayoutEffect` on `state.computedValues` (subscribers commit pre-paint).
+  `PagePreviewApp.jsx` publishes the parent snapshot the same way for preview iframes.
+- **Consumers migrated** — `ui/FieldRenderer.jsx` (per-key with occ-key→field-key fallback),
+  `modules/ModuleInstance.jsx` (op display widget extracted to `OpDisplayPill` so the per-key
+  subscription lives on the pill, not the whole instance), `docs/hooks/useDocFieldValues.js` +
+  `docs/pills/ExprPillNode.jsx` (whole-map — they scan all keys). `GridLiveContext` now carries
+  only undo/mobile/activeCell state.
+- **Why + measured outcome:** every SET_COMPUTED_VALUES used to swap the context value → ALL
+  consumers re-rendered per op-drain wave. By construction that waste is gone; but the A/B drop
+  probe showed **no frame-1 improvement** (see docket update above) — frame-1's render storm has
+  a different driver. Kept for the architectural win. 1159/1159 tests, build clean, live grid
+  reseeded post-probe.
+
 ## Recent Changes (2026-07-06 LATE — perf audit: lazy CommandCenter + adaptive scheduler tick)
 - **`App.jsx`** — `CommandCenter` is now `React.lazy` (+ Suspense fallback null at the render
   site). It was already mount-gated behind `commandCenterEverOpened`, so the lazy chunk

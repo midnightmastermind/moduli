@@ -9,12 +9,12 @@
 // - Determining inputEnabled / displayEnabled from field schema
 // ============================================================
 
-import React, { useCallback, useContext, useMemo, useRef, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import Field from "./Field";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext";
 import { bumpRender } from "../helpers/renderProbe";
-import { GridLiveContext } from "../GridLiveContext";
+import { useComputedValueWithFallback } from "../state/computedValuesStore";
 import { resolveOptions } from "../helpers/optionsResolver";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 
@@ -45,7 +45,6 @@ function FieldRenderer({
   const foldersById = useGridActionsSelector(s => s.foldersById);
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const occSetKey = useGridActionsSelector(s => (s.state.occurrences || []).length);
-  const { computedValues } = useContext(GridLiveContext);
 
   // Resolve dynamic options for select and occurrence fields via optionsResolver.
   // Pass the owner occurrence as $this so find-mode predicates can reference
@@ -126,13 +125,14 @@ function FieldRenderer({
     };
   }, [occurrence, autoStampFromFilter, field?.id, field?.meta?.flow]);
 
-  // Computed result from operation executor
-  const computedResult = useMemo(() => {
-    if (!field?.id || !displayEnabled) return undefined;
-    const occKey = occurrence?.id ? `${field.id}:${occurrence.id}` : null;
-    if (occKey && computedValues[occKey] !== undefined) return computedValues[occKey];
-    return computedValues[field.id];
-  }, [field?.id, displayEnabled, occurrence?.id, computedValues]);
+  // Computed result from operation executor — per-key subscription: this
+  // component re-renders ONLY when its own entry changes, not on every
+  // SET_COMPUTED_VALUES batch (which used to re-render every mounted field).
+  const wantsComputed = !!field?.id && displayEnabled;
+  const computedResult = useComputedValueWithFallback(
+    wantsComputed && occurrence?.id ? `${field.id}:${occurrence.id}` : null,
+    wantsComputed ? field.id : null
+  );
 
   const computedValue = computedResult != null && typeof computedResult === "object" && "value" in computedResult
     ? computedResult.value : computedResult;

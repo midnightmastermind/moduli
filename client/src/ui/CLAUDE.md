@@ -2,6 +2,12 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 LATE-2 — FieldRenderer: per-key computedValues subscription)
+- **`FieldRenderer.jsx`** — the computed-result read moved off `GridLiveContext` to
+  `useComputedValueWithFallback("<fieldId>:<occId>", "<fieldId>")` from the new
+  `state/computedValuesStore` — the component re-renders only when ITS entry changes, not on
+  every SET_COMPUTED_VALUES batch. Full rationale + A/B probe numbers in client/src/CLAUDE.md.
+
 ## Recent Changes (2026-07-06 LATE — nested doc-container drops land INSIDE the container (delegate-only zones))
 - **Root cause of "dropping in a doc / doc container, especially nested ones, reloads the page"
   (CLAUDE_CHAT 2026-07-06):** traced live with `__dragDiag` probes — NOT a reload and NOT the

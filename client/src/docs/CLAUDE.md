@@ -2,6 +2,12 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 — doc pills read computedValues via useComputedValuesMap)
+- **`hooks/useDocFieldValues.js` + `pills/ExprPillNode.jsx`** — computedValues now come from
+  `state/computedValuesStore.useComputedValuesMap()` (whole-map subscription — these consumers
+  scan arbitrary keys) instead of `GridLiveContext`. Same re-render cadence as before for
+  these files; part of the per-key store migration (client/src/CLAUDE.md).
+
 ## Recent Changes (2026-07-06 — line-level (anchorOffset) wraps clip + classify the correct band)
 - **`wrapAnchor.js`** — two new pure helpers (unit-tested in `__tests__/wrapAnchor.test.js`):
   `hasMidAnchor({anchorIndex, anchorOffset})` (true when the wrap anchors below the host top —

@@ -2,6 +2,16 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-06 LATE-2 — computedValuesStore.js NEW: per-key subscription fan-out)
+- **`computedValuesStore.js` (NEW)** — module-level map + listener set with
+  `useSyncExternalStore` hooks (`useComputedValue` / `useComputedValueWithFallback` /
+  `useComputedValuesMap`) so computedValues consumers subscribe per-KEY instead of riding
+  `GridLiveContext` (which re-rendered every consumer per SET_COMPUTED_VALUES). App.jsx
+  publishes the reducer's map via `useLayoutEffect`; the reducer stays the store of record —
+  its spread-merge preserves unchanged entry identities, which is what gives the per-key
+  snapshots their granularity. A/B drop probe showed frame-1 drop→paint UNCHANGED (the storm
+  isn't computedValues-driven — see client/src/CLAUDE.md docket); kept for the drain-wave win.
+
 ## Recent Changes (2026-07-06 — useScheduler adaptive tick)
 - **`useScheduler.js`** — the scheduler interval is no longer a fixed 1s. Tick = 5s default,
   tightened to the smallest enabled schedule's cadence when that's under 5s (`Math.min` over

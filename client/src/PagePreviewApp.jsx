@@ -3,10 +3,11 @@
 // Reads state from window.parent.__moduli_state__ (same origin) — no socket needed.
 // Renders the actual Page component at full size — the parent iframe handles CSS scaling.
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { GridActionsContext } from "./GridActionsContext";
 import { GridDataContext } from "./GridDataContext";
 import { GridLiveContext } from "./GridLiveContext";
+import { publishComputedValues } from "./state/computedValuesStore";
 import { buildLookup } from "./helpers/LayoutHelpers";
 import { computeRoleByModuleId } from "./state/selectors";
 import { useTheme } from "./helpers/useTheme";
@@ -267,15 +268,19 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
   }), [occurrencesById, modulesById, viewsById, fieldsById, containersById, instancesById, artifactsById, textblocksById, leafModulesById, manifestsById, foldersById, operationsById, roleByModuleId, childrenByParentId, noop, parentState, getOcc, getMod, getOccMap, getModMap, getParentId, getLinkedGroup, getState]);
 
   const dataValue = useMemo(() => ({ state: parentState || {} }), [parentState]);
+  // Preview iframes have their own module graph → their own computedValues
+  // store instance. Publish the parent snapshot so field displays resolve.
+  useLayoutEffect(() => {
+    publishComputedValues(parentState?.computedValues || {});
+  }, [parentState?.computedValues]);
   const liveValue = useMemo(() => ({
-    computedValues: parentState?.computedValues || {},
     canUndo: false, canRedo: false,
     undo: noop, redo: noop,
     isProcessing: false,
     isTouch: false, isMobileLayout: false,
     activeCell: null, setActiveCell: noop,
     zoomedOut: false, setZoomedOut: noop,
-  }), [noop, parentState?.computedValues]);
+  }), [noop]);
 
   if (!occurrence || !module) {
     return <div style={{ width: "100%", height: "100%", background: "var(--body-bg, #101318)" }} />;

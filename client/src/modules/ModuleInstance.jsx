@@ -9,7 +9,6 @@ import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridAc
 // Stable empty array for selector fallbacks — a fresh [] per selector run
 // would defeat the Object.is stability the selector layer depends on.
 const EMPTY_ARR = [];
-import { GridLiveContext } from "../GridLiveContext";
 import { SelectionContext } from "../state/SelectionContext";
 import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
@@ -43,6 +42,27 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import { getEffectiveFieldVisibilityForOccurrence, fieldPassesVisibility } from "../state/selectors";
 import { consumeLabelEdit } from "../helpers/pendingLabelEdit.js";
+import { useComputedValue } from "../state/computedValuesStore";
+
+// Operation display widget — its own component so the per-key
+// computedValues subscription lives HERE, not on the whole instance
+// (which used to re-render every instance on every op-drain batch).
+function OpDisplayPill({ binding, op }) {
+  const val = useComputedValue(op.targetFieldId);
+  return (
+    <span
+      title={binding.displayName || op.name}
+      style={{
+        fontSize: 11, fontFamily: "monospace", padding: "2px 8px",
+        borderRadius: 999, background: "var(--accent-green-bg)",
+        border: "1px solid var(--accent-green-border)", color: "var(--accent-green-text)",
+      }}
+    >
+      <Zap style={{ width: 9, height: 9, display: "inline", marginRight: 3 }} />
+      {val !== undefined && val !== null ? String(val) : "—"}
+    </span>
+  );
+}
 
 // ============================================================
 // INSTANCE INNER ROW — label, field pills, operation widgets
@@ -122,7 +142,6 @@ function InstanceInner({
     }
     return out;
   });
-  const { computedValues } = useContext(GridLiveContext);
   const isOriginalActive = !overlay && isOriginalActiveSel;
   // Lite state for FieldRenderer's `state?.grid` reads. Ops read the FULL
   // fresh state via getState() in Field.jsx — never this object.
@@ -739,21 +758,7 @@ function InstanceInner({
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center", marginLeft: hasFields ? 0 : "auto" }}>
             {operationWidgets.map(({ binding, op }) => {
               if (binding.widgetType === "display") {
-                const val = computedValues?.[op.targetFieldId];
-                return (
-                  <span
-                    key={binding.operationId}
-                    title={binding.displayName || op.name}
-                    style={{
-                      fontSize: 11, fontFamily: "monospace", padding: "2px 8px",
-                      borderRadius: 999, background: "var(--accent-green-bg)",
-                      border: "1px solid var(--accent-green-border)", color: "var(--accent-green-text)",
-                    }}
-                  >
-                    <Zap style={{ width: 9, height: 9, display: "inline", marginRight: 3 }} />
-                    {val !== undefined && val !== null ? String(val) : "—"}
-                  </span>
-                );
+                return <OpDisplayPill key={binding.operationId} binding={binding} op={op} />;
               }
               // Default: trigger button
               return (

@@ -1,5 +1,5 @@
 // App.jsx — STEP 2: commits routed through CommitHelpers / LayoutHelpers
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { preventUnhandled } from "@atlaskit/pragmatic-drag-and-drop/prevent-unhandled";
 
@@ -27,6 +27,7 @@ import RubberBandSelector from "./ui/RubberBandSelector";
 import { Spinner } from "./components/ui/spinner";
 import UserInputModal from "./ui/UserInputModal";
 import { SelectionContext, useSelectionProvider } from "./state/SelectionContext";
+import { publishComputedValues } from "./state/computedValuesStore";
 
 import { useUndoRedo } from "./hooks/useUndoRedo";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -799,11 +800,18 @@ export default function App() {
     ]
   );
 
+  // computedValues fan out through the per-key subscription store — NOT via
+  // context. Riding on GridLiveContext meant every SET_COMPUTED_VALUES swap
+  // re-rendered every consumer (all fields/instances/panels/pages), several
+  // waves per drop. useLayoutEffect so subscribers commit pre-paint.
+  useLayoutEffect(() => {
+    publishComputedValues(state.computedValues || {});
+  }, [state.computedValues]);
+
   // C4: Frequently-changing values in separate context — only consumers
-  // that need computedValues/undo/mobile state subscribe here
+  // that need undo/mobile state subscribe here
   const liveValue = useMemo(
     () => ({
-      computedValues: state.computedValues || {},
       fullStateLoaded: state.fullStateLoaded ?? false,
       canUndo,
       canRedo,
@@ -818,7 +826,6 @@ export default function App() {
       setZoomedOut,
     }),
     [
-      state.computedValues,
       state.fullStateLoaded,
       canUndo,
       canRedo,

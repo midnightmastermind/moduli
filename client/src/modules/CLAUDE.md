@@ -2,6 +2,12 @@
 
 _Updated: 2026-07-04. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-07-06 — ModuleInstance: op display widget extracted to OpDisplayPill)
+- **`ModuleInstance.jsx`** — the operation "display" widget is its own `OpDisplayPill` component
+  reading `useComputedValue(op.targetFieldId)` from the new `state/computedValuesStore`;
+  `InstanceInner` no longer subscribes to computedValues at all (it used to re-render every
+  instance on every op-drain batch via GridLiveContext). Details in client/src/CLAUDE.md.
+
 ## Recent Changes (2026-07-04 — GridMosaic reconcile keys off grid.occurrences, NOT the rendered panel set)
 - **`GridMosaic.jsx` reconcile effect** — pruned/added tree leaves against the rendered
   `panelsRender` set, which goes transiently PARTIAL (filter cascade / hydration). One
