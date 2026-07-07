@@ -9,6 +9,7 @@ import { ActionTypes } from "./actions";
 import { runMatchingOperations, executeOperation, executePipeline, setOpApplyingEffects } from "../helpers/operationExecutor";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, updateOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast, pushTxNotification } from "./notificationStore";
+import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
 import {
   setOccurrenceFieldValue,
   moveOccurrence,
@@ -192,10 +193,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // Without this overlay, the onLoad fire below reads stale occurrences
       // and re-creates the same items the NavigationOp pass already created.
       const overlay = Object.assign({}, occurrencesById, localOccsById);
-      const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById }, {
-        onError: (name, err) => pushTxNotification({ kind: "error", label: err?.message ? `Operation "${name}" failed — ${err.message}` : `Operation "${name}" failed` }),
-        onSuccess: (name) => pushTxNotification({ kind: "success", label: `Operation "${name}" ran` }),
-      });
+      const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById },
+        makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById, occurrencesById: Object.assign({}, occurrencesById, localOccsById), modulesById })));
       const tOps1 = performance.now();
       const displayUpdates = allUpdates.filter(u => !u._effect);
       const effects = allUpdates.filter(u => u._effect);
@@ -1389,10 +1388,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // MeasureOp/OccurrenceCreateOp) must NOT consult it or they'd be wrongly
     // skipped when an already-fired op legitimately re-runs under a new trigger.
     const cascadeFiredOps = _fireDepth === 1 ? _navCascadeFiredOps : null;
-    const allUpdates = runMatchingOperations(operations, transactionType, transaction, { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById, modulesById: _cachedModulesById, cascadeFiredOps }, {
-      onError: (name, err) => pushTxNotification({ kind: "error", label: err?.message ? `Operation "${name}" failed — ${err.message}` : `Operation "${name}" failed` }),
-      onSuccess: (name) => pushTxNotification({ kind: "success", label: `Operation "${name}" ran` }),
-    });
+    const allUpdates = runMatchingOperations(operations, transactionType, transaction, { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById, modulesById: _cachedModulesById, cascadeFiredOps },
+      makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById: _cachedFieldsById, occurrencesById, modulesById: _cachedModulesById })));
 
     // Separate display updates (computedValues) from real CRUD effects
     const displayUpdates = allUpdates.filter(u => !u._effect);

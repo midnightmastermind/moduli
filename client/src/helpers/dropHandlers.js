@@ -86,6 +86,8 @@ import { setOccurrenceFieldValue } from "./CommitHelpers";
 import * as LayoutHelpers from "./LayoutHelpers";
 import { DragType, parseExternalDrop } from "./dragSystem";
 import { runMatchingOperations } from "./operationExecutor";
+import { makeOpNotificationCallbacks } from "./opResultSummary";
+import { pushTxNotification } from "../state/notificationStore";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { embedDeleteRegistry } from "./embedRegistry";
 import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
@@ -757,6 +759,8 @@ export function handleDocEmbedDrop(dropContext, ctx) {
 
   const isCopy = sessionRef.current.mode === "copy";
   const gridId = state?.gridId || state?.grid?._id;
+  const movedLabel = movedOcc.label || state?.modulesById?.[movedOcc.moduleId]?.label || "item";
+  const dropVerb = isCopy ? "Copied" : "Moved";
 
   // Helper: clone the occurrence (used for copy mode).
   const cloneOccurrence = (extra = {}) => {
@@ -813,6 +817,7 @@ export function handleDocEmbedDrop(dropContext, ctx) {
       embedDeleteRegistry.get(occurrenceId)?.();
       autoAppendOnDrop({ ctx, newOccurrence: movedOcc, parentOccurrenceId: toPageOccId });
     }
+    toast.success(`${dropVerb} "${movedLabel}" → ${toPageOcc.label || toPageMod?.label || "canvas"}`);
     clearSession();
     return;
   }
@@ -888,6 +893,7 @@ export function handleDocEmbedDrop(dropContext, ctx) {
     embedDeleteRegistry.get(occurrenceId)?.();
     autoAppendOnDrop({ ctx, newOccurrence: movedOcc, parentOccurrenceId: toCOcc.id });
   }
+  toast.success(`${dropVerb} "${movedLabel}" → ${toCOcc.label || toC.label || "container"}`);
   clearSession();
 }
 
@@ -1290,6 +1296,23 @@ export function handleOccurrenceMove(dropContext, ctx) {
   const _contName = (cMod, cOcc) => cOcc?.label || _nmods[cMod?.id]?.label || cMod?.label || "container";
   // 1-based landing position. toIndex null = appended → end of the dest list.
   const _destPos = (cOcc) => (toIndex == null ? (cOcc?.occurrences?.length ?? 0) : toIndex) + 1;
+  // Destination with its page context: "Schedule › 1:00am" instead of a bare
+  // "1:00am". Walks the occurrences[] reverse map to the nearest page-role
+  // ancestor — purely structural, whatever the page is named.
+  const _destName = (cMod, cOcc) => {
+    const base = _contName(cMod, cOcc);
+    if (!cOcc) return base;
+    const rev = buildReverseMap(Object.values(occurrencesById));
+    let cur = cOcc, page = null;
+    for (let i = 0; i < 20 && cur; i++) {
+      const parent = rev[cur.id] ? occurrencesById[rev[cur.id]] : null;
+      if (!parent) break;
+      const pm = _nmods[parent.moduleId];
+      if (pm?.role === "page") { page = parent.label || pm.label; break; }
+      cur = parent;
+    }
+    return page && page !== base ? `${page} › ${base}` : base;
+  };
 
   if ((isCopylinkMode || isCopyMode) && sameContainer) {
     if (fromCOcc) {
@@ -1313,7 +1336,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
       iterationMode: "specific", iterationValue: currentIterationDate,
       sourceOccurrence: occurrenceId ? occurrencesById[occurrenceId] : null,
     });
-    toast.success(`Linked "${_occName(occurrenceId)}" → ${_contName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
+    toast.success(`Linked "${_occName(occurrenceId)}" → ${_destName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
   } else if (isCopyMode) {
     const _revMap = buildReverseMap(Object.values(occurrencesById));
     const _gridOccSet = new Set(state?.grid?.occurrences || []);
@@ -1353,7 +1376,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
     if (copyResult?.occurrence && toCOcc) {
       autoAppendOnDrop({ ctx, newOccurrence: copyResult.occurrence, parentOccurrenceId: toCOcc.id });
     }
-    toast.success(`Copied "${_occName(occurrenceId)}" → ${_contName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
+    toast.success(`Copied "${_occName(occurrenceId)}" → ${_destName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
 
     // Trackers + onChange-bound aggregations fire while createOccurrence is
     // still inside the OccurrenceCreateOp dispatch — at that moment the new
@@ -1401,7 +1424,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
         parentContainerOcc: dayColOcc || toCOcc,
       });
       autoAppendOnDrop({ ctx, newOccurrenceId: occurrenceId, parentOccurrenceId: toCOcc.id });
-      toast.success(`Moved "${_occName(occurrenceId)}": ${_contName(fromC, fromCOcc)} → ${_contName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
+      toast.success(`Moved "${_occName(occurrenceId)}": ${_contName(fromC, fromCOcc)} → ${_destName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
 
       // Fire OccurrenceMoveOp
       const _revMap = buildReverseMap(Object.values(occurrencesById));
@@ -1421,7 +1444,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
       const fieldsById = Object.fromEntries((state?.fields || []).map(f => [f.id, f]));
       const allUpdates = runMatchingOperations(operations, "OccurrenceMoveOp", tx, {
         state, fieldsById, operationsById: state?.operationsById || {}, occurrencesById: { ...occurrencesById },
-      });
+      }, makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById, occurrencesById, modulesById: state?.modulesById || {} })));
       if (allUpdates?.length) {
         // Split display updates from effect updates (legacy non-effect rows feed
         // computedValues; UPDATE_DISPLAY_VALUE effects are routed alongside).
