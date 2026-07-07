@@ -24,6 +24,12 @@ revert just that commit if Android long-press still starts a native ghost) · dr
 (14): median 1742ms → 1378ms @5x throttle; still >600ms, so a **"drop frame-1 flush profiling"
 docket entry** is filed in `client/src/CLAUDE.md` (separate session).
 
+**2026-07-06 LATE-3 (`b6a98e14`):** computedValues moved off GridLiveContext to a per-key
+`state/computedValuesStore` (all consumers migrated, 1159/1159 tests). A/B drop probe proved the
+frame-1 flush is **NOT computedValues-driven** (pre 1750ms / post 1831ms median @5x, identical
+render counts) — that hypothesis is closed; component-level profiler attribution is the remaining
+frame-1 lever (docket updated). Migration kept for the drain-wave render win. Live grid reseeded.
+
 ~~Queued next (CLAUDE_CHAT 2026-07-06): "look into dropping in a doc, and doc container, especially
 nested ones. the drop was reloading the entire page"~~ — **DONE 2026-07-06 LATE.** Traced with
 `__dragDiag` probes: not a reload, not double-handling — the page editor owned every doc drop and
