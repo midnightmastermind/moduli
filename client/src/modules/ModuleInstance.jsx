@@ -14,7 +14,7 @@ import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import InstanceForm from "../ui/InstanceForm";
 import FieldRenderer from "../ui/FieldRenderer";
-import { bumpRender } from "../helpers/renderProbe";
+import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 import RadialMenu from "../ui/RadialMenu";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
@@ -146,6 +146,27 @@ function InstanceInner({
   // Lite state for FieldRenderer's `state?.grid` reads. Ops read the FULL
   // fresh state via getState() in Field.jsx — never this object.
   const ctxStateLite = useMemo(() => ({ grid: ctxGrid }), [ctxGrid]);
+
+  // DIAG (window.__RENDER_ATTR): which input changed → this render.
+  useRenderAttribution("instance", {
+    p_id: id, p_label: label, p_instance: instance, p_occurrence: occurrence,
+    p_panel: panel, p_container: container, p_containerOccurrence: containerOccurrence,
+    p_dragAttributes: dragAttributes, p_dragListeners: dragListeners,
+    p_dragHandleRef: dragHandleRef, p_onDoubleClick: onDoubleClick,
+    p_toggleDoc: toggleDoc, p_renderBody: renderBody,
+    s_fieldsById: fieldsById, s_addInstanceToContainer: addInstanceToContainer,
+    s_modulesById: modulesById, s_instancesById: instancesById,
+    s_operationsById: operationsById, s_ctxGrid: ctxGrid, s_isActive: isOriginalActiveSel,
+    s_getOcc: getOcc, s_getOccMap: getOccMap, s_getState: getState,
+    s_linkedGroup: linkedGroup, s_ancestorChain: ancestorChain,
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    s_selection: useContext(SelectionContext),
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    s_cellEmbedCtx: useContext(CellEmbedContext),
+    p_overlay: overlay, p_dispatch: dispatch, p_socket: socket,
+    p_embedRadialItems: embedRadialItems, p_embedOnDelete: embedOnDelete,
+    p_floatHandle: floatHandle, p_embedHideLabel: embedHideLabel,
+  }, label);
 
   // Per-occurrence dragMode overrides instance's defaultDragMode
   const entityDragMode = occurrence?.dragMode ?? instance?.defaultDragMode ?? "move";

@@ -43,6 +43,52 @@ NOT computedValues context churn — the drop's ~20 display updates only touch ~
 profiler-attribution lever above is still the open path. (Earlier 1378ms median = machine-condition
 variance, not a regression.)
 
+**2026-07-07 — ATTRIBUTED + LARGELY FIXED (median 1750ms → 1066ms, renders 183/156/535 →
+54/~10/~2).** The new gated `__RENDER_ATTR` attribution probe (renderProbe `useRenderAttribution` +
+`[drop-attr]` in DragProvider + a reducer action tally) split the storm into three measured causes,
+all fixed same-session (commit on this branch):
+1. **Inline preview snapshot coupling** — PreviewNode fed `window.__moduli_state__` (fresh ref per
+   App render) straight into PagePreviewBody, whose lookup-map memos all rebuilt → every component
+   inside every folder-page preview card re-rendered inside the write's own commit (401 of 535
+   frame-1 field renders). Now held in state + refreshed via a 500ms no-op-deduped poll.
+2. **`addInstanceToContainer` identity churn** (~90 renders) — depended on per-write-rebuilt
+   state slices; now reads `stateRef` at call time, identity-stable.
+3. **use-context-selector phantom renders (~350 renders — the core)** — u-c-s v2 dispatches into
+   every consumer's reducer per provider value change; when React can't take the eager same-state
+   bailout (busy lanes during the drop commit) the consumer body renders once even with an
+   UNCHANGED slice (probe signature: identical props + selector outputs, "(none)" cause).
+   GridActionsContext migrated to a per-provider store + `useSyncExternalStoreWithSelector`
+   (react-redux pattern) — unchanged snapshot = NO render at all. Public API unchanged.
+Remaining (still >600ms target, so the docket stays open but much smaller): ~54 container renders
+(Schedule slots, cause still unattributed — suspect DragStateContext/panel-cascade at drag end),
+15 panel renders (DragStateContext by design), and the op drain. Method: same `_dropprobe.mjs`,
+plus a headless field-edit smoke (due-date edit → dependent "Days Until Due" op output re-rendered)
+verifying store reactivity end-to-end.
+
+## Recent Changes (2026-07-07 — frame-1 drop flush attributed + fixed: uSES selector store, preview decoupling, stable adder)
+- **`GridActionsContext.js` REWRITTEN** — use-context-selector → per-provider store carried in a
+  plain React context + `useSyncExternalStoreWithSelector` (`use-sync-external-store/with-selector`,
+  already a transitive dep). Public API identical (`GridActionsContext.Provider` compat shim,
+  `useGridActions`, `useGridActionsSelector`, `useGridActionsSelectorShallow` — the shallow variant
+  now passes an element-wise `isEqual` instead of the ref-cache hack). Why: u-c-s phantom-rendered
+  every consumer with an unchanged slice ~1-2× per drop (~350 components). Store publishes from the
+  provider's layout effect (same staleness window u-c-s had). Per-provider store keeps
+  PagePreviewApp/test scoping intact.
+- **`modules/PreviewNode.jsx`** — InlinePreview holds `window.__moduli_state__` in state, refreshed
+  by a 500ms poll with a same-ref setState no-op, instead of re-reading per render (which pulled
+  every preview subtree into every write's commit). Also a `window.__NO_PREVIEWS` diag flag that
+  renders preview cards empty (lets the probe split preview vs main-tree renders).
+- **`App.jsx`** — `addInstanceToContainer` reads `stateRef.current` at call time; deps now
+  `[dispatch, socket]` (was re-created per occurrence write, re-rendering all prop/selector takers).
+- **`helpers/renderProbe.js`** — new gated (`window.__RENDER_ATTR`) `useRenderAttribution(kind,
+  inputs, tag)` + `snapshotAttrs`/`diffAttrs`: buckets each render by WHICH captured input changed
+  (`(none) @tag #bin` rows carry the component label + 250ms time bin). Wired into FieldRenderer
+  (early + `field-late` computedResult capture), InstanceInner, Container; `[drop-attr]` rows
+  logged from DragProvider's rAF#2 diag block. `masterReducer` tallies action types into
+  `window.__actionTally` under the same flag. All zero-cost when the flag is off.
+- Numbers + method in the docket entry above. 1159/1159 tests, build clean, live grid reseeded
+  after probing.
+
 ## Recent Changes (2026-07-06 LATE-2 — computedValues off GridLiveContext → per-key store)
 - **`state/computedValuesStore.js` (NEW)** — `useSyncExternalStore`-based per-key subscription
   layer for computedValues (keys `fieldId` / `fieldId:occId`). `publishComputedValues(map)` +

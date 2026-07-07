@@ -12,7 +12,7 @@ import { useLongPress } from "../hooks/useLongPress";
 import ContainerForm from "../ui/ContainerForm";
 import TransactionHistory from "../ui/TransactionHistory";
 import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
-import { bumpRender } from "../helpers/renderProbe";
+import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
 import { SelectionContext } from "../state/SelectionContext";
@@ -386,6 +386,24 @@ function Container({
     }
     return out;
   });
+
+  // DIAG (window.__RENDER_ATTR): which input changed → this render.
+  useRenderAttribution("container", {
+    p_module: module, p_panel: panel, p_panelId: panelId,
+    p_pageOccurrenceId: pageOccurrenceId, p_addInstanceToContainer: addInstanceToContainer,
+    p_dispatch: dispatch, p_socket: socket, p_onInstanceFocus: onInstanceFocus,
+    p_occurrenceOverride: occurrenceOverride,
+    s_instancesById: instancesById, s_leafModulesById: leafModulesById,
+    s_modulesById: modulesById, s_viewsById: viewsById, s_fieldsById: fieldsById,
+    s_ctxGrid: ctxGrid, s_ctxUserId: ctxUserId,
+    s_getOccMap: getOccMap, s_getParentId: getParentId,
+    s_containerOccurrence: containerOccurrence, s_childOccsKey: childOccsKey,
+    s_ancestorChain: ancestorChain,
+    s_selection: selection, s_dragCtx: dragCtx,
+    p_gapPx: gapPx, p_embedded: embedded, p_orientation: panelLayoutOrientation,
+    p_embedRadialItems: embedRadialItems, p_embedOnDelete: embedOnDelete,
+    p_embedSourceType: embedSourceType,
+  }, module?.label);
 
   const containerDragMode = containerOccurrence?.dragMode ?? module?.defaultDragMode ?? "move";
 

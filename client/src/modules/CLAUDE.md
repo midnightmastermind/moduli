@@ -2,6 +2,15 @@
 
 _Updated: 2026-07-04. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-07-07 — PreviewNode: inline preview decoupled from the write commit)
+- **`PreviewNode.jsx` InlinePreview** — `window.__moduli_state__` is now held in state and
+  refreshed by a 500ms poll (same-ref setState no-ops), NOT re-read per render. The synchronous
+  read meant every occurrence write re-rendered every preview card's whole subtree inside the
+  write's own commit — 401 of 535 frame-1 field renders on a drop (measured). Sub-second preview
+  staleness is invisible (cards are non-interactive). `window.__NO_PREVIEWS === true` renders the
+  cards empty (probe diagnostics). Attribution instrumentation also added to ModuleContainer /
+  ModuleInstance (`useRenderAttribution`, gated) — see helpers/CLAUDE.md.
+
 ## Recent Changes (2026-07-06 — ModuleInstance: op display widget extracted to OpDisplayPill)
 - **`ModuleInstance.jsx`** — the operation "display" widget is its own `OpDisplayPill` component
   reading `useComputedValue(op.targetFieldId)` from the new `state/computedValuesStore`;

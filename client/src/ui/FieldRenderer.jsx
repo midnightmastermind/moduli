@@ -13,7 +13,7 @@ import React, { useCallback, useMemo, useRef, useState, useEffect } from "react"
 import Field from "./Field";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext";
-import { bumpRender } from "../helpers/renderProbe";
+import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 import { useComputedValueWithFallback } from "../state/computedValuesStore";
 import { resolveOptions } from "../helpers/optionsResolver";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
@@ -45,6 +45,15 @@ function FieldRenderer({
   const foldersById = useGridActionsSelector(s => s.foldersById);
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const occSetKey = useGridActionsSelector(s => (s.state.occurrences || []).length);
+
+  // DIAG (window.__RENDER_ATTR): which input changed → this render.
+  useRenderAttribution("field", {
+    p_field: field, p_binding: binding, p_occurrence: occurrence,
+    p_instance: instance, p_context: context, p_state: state,
+    p_dispatch: dispatch, p_socket: socket, p_compact: compact, p_disabled: disabled,
+    s_modulesById: modulesById, s_fieldsById: fieldsById, s_foldersById: foldersById,
+    s_getOccMap: getOccMap, s_occSetKey: occSetKey,
+  }, field?.name);
 
   // Resolve dynamic options for select and occurrence fields via optionsResolver.
   // Pass the owner occurrence as $this so find-mode predicates can reference
@@ -133,6 +142,9 @@ function FieldRenderer({
     wantsComputed && occurrence?.id ? `${field.id}:${occurrence.id}` : null,
     wantsComputed ? field.id : null
   );
+
+  // DIAG (window.__RENDER_ATTR): late-stage inputs (per-key store + memos).
+  useRenderAttribution("field-late", { computedResult }, field?.name);
 
   const computedValue = computedResult != null && typeof computedResult === "object" && "value" in computedResult
     ? computedResult.value : computedResult;

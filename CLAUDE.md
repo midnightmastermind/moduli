@@ -30,6 +30,15 @@ frame-1 flush is **NOT computedValues-driven** (pre 1750ms / post 1831ms median 
 render counts) — that hypothesis is closed; component-level profiler attribution is the remaining
 frame-1 lever (docket updated). Migration kept for the drain-wave render win. Live grid reseeded.
 
+**2026-07-07:** frame-1 flush ATTRIBUTED (new gated `__RENDER_ATTR` probe) and largely fixed —
+drop→paint median **1750ms → 1066ms @5x**, renders 183/156/535 → 54/~10/~2. Three causes:
+preview cards re-rendering inside every write's commit (PreviewNode now polls the state snapshot,
+500ms deduped), `addInstanceToContainer` identity churn (now stateRef at call time), and
+**use-context-selector phantom renders** — GridActionsContext rewritten to a per-provider store +
+`useSyncExternalStoreWithSelector` (public API unchanged; 1159/1159 tests; headless field-edit +
+drag/drop smoke verified). Docket stays open for the residual (~54 slot-container renders, op
+drain). Live grid reseeded after probing.
+
 ~~Queued next (CLAUDE_CHAT 2026-07-06): "look into dropping in a doc, and doc container, especially
 nested ones. the drop was reloading the entire page"~~ — **DONE 2026-07-06 LATE.** Traced with
 `__dragDiag` probes: not a reload, not double-handling — the page editor owned every doc drop and

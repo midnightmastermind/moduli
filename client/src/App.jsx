@@ -604,40 +604,46 @@ export default function App() {
   // Optional second arg `{ fieldIds }` pre-binds those fields onto the new
   // module — used by QuickAddMenu's "New X" field picker so the user can
   // attach a starter set of fields before creation.
+  // Identity-STABLE: reads everything from stateRef at call time. It used to
+  // depend on state.instances/state.containers/occurrencesById — all rebuilt
+  // per occurrence write — so its identity churned on every write and
+  // re-rendered every ModuleInstance/ModuleContainer that takes it as a
+  // prop/selector (~90 renders per drop, measured via __RENDER_ATTR).
   const addInstanceToContainer = useCallback(
     (containerId, opts) => {
-      if (!containerId || !state.gridId || !state.userId) return;
+      const s = stateRef.current;
+      if (!containerId || !s.gridId || !s.userId) return;
       const fieldIds = Array.isArray(opts?.fieldIds) ? opts.fieldIds : [];
 
       const id = crypto.randomUUID();
-      const label = `Item ${(state.instances?.length || 0) + 1}`;
+      const label = `Item ${(s.instances?.length || 0) + 1}`;
       // Module with role: "instance". Pre-bind any fields the user picked
       // in the QuickAddMenu field-picker step. Default role="input" so the
       // field renders as an editable pill (matches FieldsTab "attach" flow).
       const fieldBindings = fieldIds.map(fid => ({ fieldId: fid, role: "input", hidden: false }));
       const module = { id, role: "instance", kind: "board", label, fieldBindings };
 
-      const container = (state.containers || []).find((c) => c.id === containerId);
+      const container = (s.containers || []).find((c) => c.id === containerId);
       if (!container) return;
 
       // Find the container occurrence so createInstanceInContainer can update ordering
-      const containerOcc = Object.values(occurrencesById || {}).find(o => o.moduleId === containerId);
+      const containerOcc = (s.occurrences || []).find(o => o.moduleId === containerId);
 
       // Use the occurrence-based helper which creates module + occurrence + adds to container
       LayoutHelpers.createInstanceInContainer({
         dispatch,
         socket,
-        gridId: state.gridId,
+        gridId: s.gridId,
         container,
         containerOccurrence: containerOcc || null,
         instance: module,
-        userId: state.userId,
+        userId: s.userId,
         emit: true,
       });
       // Open the new item's label editor focused so it can be named right away.
       requestLabelEdit(id);
     },
-    [dispatch, state.instances, state.gridId, state.userId, state.containers, socket, occurrencesById]
+    [dispatch, socket]
   );
 
 

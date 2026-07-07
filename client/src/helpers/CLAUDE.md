@@ -1,6 +1,14 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-07-06. Check this file before re-reading source._
+_Updated: 2026-07-07. Check this file before re-reading source._
+
+## Recent Changes (2026-07-07 — renderProbe: render-cause attribution (gated))
+- **`renderProbe.js`** — `useRenderAttribution(kind, inputs, tag)` + `snapshotAttrs`/`diffAttrs`,
+  active only under `window.__RENDER_ATTR === true`: per render, diffs the captured props/selector
+  outputs against the previous render and buckets by changed-key set (unchanged → `(none) @tag
+  #250ms-bin`). This is what attributed the drop frame-1 flush (see client/src/CLAUDE.md docket).
+- **`DragProvider.jsx`** — the `_diag` rAF#2 block additionally logs `[drop-attr]` rows (top
+  buckets per kind) when `__RENDER_ATTR` is set; snapshots taken next to `_renders0`.
 
 ## Recent Changes (2026-07-06 LATE — dragSystem: getDocTouchDropZone (nested doc-container delegation))
 - **`dragSystem.js`** — `getDocTouchDropZone(el) → { el, fn } | null` extracted from
