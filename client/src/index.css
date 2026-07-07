@@ -2352,8 +2352,10 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .artifact-quote-text {
   margin: 0;
   font-style: italic;
-  font-size: 14px;
-  line-height: 1.5;
+  /* Match the doc editor's 13px body text (.doc-editor-content.ProseMirror)
+     so quotes read at the same size as sibling textblocks. */
+  font-size: 13px;
+  line-height: 1.6;
   color: var(--text-primary);
 }
 .artifact-quote-attr {

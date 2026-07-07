@@ -221,10 +221,6 @@ export async function createLiveData(userId, options = {}) {
   const timeslotFilterId = uid();
   const goalsFilterId    = uid();
   const accountsFilterId = uid();
-  // isTask: hidden boolean marker on every task module. Tracker: Tasks
-  // Completed filters on `isTask IS true` so non-task items in Schedule
-  // (mood logs, water logs, etc.) don't pad the count.
-  const isTaskFieldId    = uid();
   // scheduleFormat: stamped on every Schedule day-column container. Values
   // "timeslot" (≤7-day view — slot containers visible inside the day-col)
   // and "shortened" (>7-day view — flat day-col with no slots, laid out in
@@ -714,17 +710,6 @@ export async function createLiveData(userId, options = {}) {
       inputEnabled: true,
       displayEnabled: false,
       meta: {},
-      folderId: fieldCategoryIds.scheduling,
-    },
-    // isTask: hidden boolean marker. Pre-stamped true on every task module's
-    // occurrence so trackers can filter `isTask IS true` to exclude non-task
-    // schedule items from the count.
-    isTask: {
-      id: isTaskFieldId,
-      name: "Is Task",
-      type: "boolean",
-      inputEnabled: true,
-      displayEnabled: false,
       folderId: fieldCategoryIds.scheduling,
     },
     // scheduleFormat: stamped on every Schedule day-column container.
@@ -2351,9 +2336,8 @@ export async function createLiveData(userId, options = {}) {
     // Pomodoro Session template — sits in the Intellectual wellness page as
     // a normal task, AND is the COPY_LINK source for Pomodoro: Start (which
     // mints a session occurrence under the current Schedule slot every time
-    // the toolbar timer starts a work phase). isTask=true so the trackers'
-    // isTask filter picks it up; date+timeslot are hidden bindings stamped
-    // by the Start op (kept hidden via fieldHidden in CREATE/COPY_LINK).
+    // the toolbar timer starts a work phase). date+timeslot are hidden
+    // bindings stamped by the Start op (kept hidden via fieldHidden).
     pomodoro: {
       id: uid(), label: "Pomodoro", kind: "board",
       defaultDragMode: "copy",
@@ -2364,7 +2348,6 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.pomodoroPhase.id,    role: "input", order: 3 },
         { fieldId: dateFieldId,                role: "input", order: 4, hidden: false },
         { fieldId: timeslotFieldId,            role: "input", order: 5, hidden: false },
-        { fieldId: isTaskFieldId,              role: "input", order: 6, hidden: true },
       ],
     },
 
@@ -6031,7 +6014,6 @@ export async function createLiveData(userId, options = {}) {
                 { id: uid(), type: "if",
                   condition: { operator: "AND", rules: [
                     { id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS", right: true },
-                    { id: uid(), left: `$item.fields.${isTaskFieldId}.value`, comparator: "IS", right: true },
                     { id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                     { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                   ] },
@@ -6099,6 +6081,8 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: fields.mood.id, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
@@ -6195,6 +6179,8 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId,      priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
@@ -6341,7 +6327,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Pomodoros Today",
     goalLabel: "Pomodoros", goalOccurrenceId: goalOccIds.intellectualPomodoros, goalFieldId: fields.pomoCount.id,
-    agg: "countTrue", timeFilter: "daily", isTaskFieldId,
+    agg: "countTrue", timeFilter: "daily", presenceFieldId: fields.pomodoroNumber.id,
     // Pomodoros has a daily target (3) on its display field — apply
     // the Water pattern: green ArrowUp on met, red ArrowUp on notMet.
     displayRules: {
@@ -6655,6 +6641,10 @@ export async function createLiveData(userId, options = {}) {
     ...trackerArgs, name: "Total Workouts",
     goalLabel: "Fitness Stats", goalOccurrenceId: accountOccIds.fitnessAccount, goalFieldId: fields.totalWorkouts.id,
     agg: "countTrue", timeFilter: "all",
+    // Only items that carry a muscleGroup value are workouts — without this
+    // gate every completed Schedule item (water logs, mood checks) counted
+    // as a workout (caught by the 2026-07-07 behavioral probe).
+    presenceFieldId: fields.muscleGroup.id,
     // All-time accumulating counter — Pages pattern. Blue at 0/null, green
     // once filled. No target on the display field, so no target-based rules.
     displayRules: {
@@ -6734,6 +6724,8 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: moviesWatchedFieldId, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
@@ -6873,6 +6865,8 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: booksReadFieldId, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
@@ -7009,6 +7003,8 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: podcastsListenedFieldId, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
@@ -7148,6 +7144,8 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: coursesTakenFieldId, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
@@ -8106,9 +8104,8 @@ export async function createLiveData(userId, options = {}) {
                 [fields.pomodoroNumber.id]:  "$trigger.pomoNumber",
                 [fields.pomodoroPhase.id]:   "$trigger.phase",
                 [completedFieldId]:        false,
-                [isTaskFieldId]:           true,
               },
-              fieldHidden: { [dateFieldId]: false, [timeslotFieldId]: false, [isTaskFieldId]: true },
+              fieldHidden: { [dateFieldId]: false, [timeslotFieldId]: false },
             } },
           ],
           else: [],
@@ -8562,7 +8559,7 @@ export async function createLiveData(userId, options = {}) {
   // Body-seeds the Tasks Completed container minted by buildDayPageTemplate.
   // Runs at priority 4 — after Build Day, Stamp, and trackers — so the
   // completion state and date stamps it reads are settled.
-  await new Operation(makeDayPageBuildTasksCompletedOp({ userId, gridId, dateFieldId, completedFieldId, isTaskFieldId })).save();
+  await new Operation(makeDayPageBuildTasksCompletedOp({ userId, gridId, dateFieldId, completedFieldId })).save();
   // Project: Create — APPLY_TEMPLATEs the Project Page template into
   // the Projects folder with {ProjectName} + {ProjectScope} replacements.
   // triggerType:"manual" so it only fires when the user explicitly runs

@@ -390,3 +390,52 @@ describe("makeTrackerOp", () => {
     expect(divSteps[0].config).toHaveProperty("by", "$tot");
   });
 });
+
+describe("trackers fire on instance drops + carry no task-concept rules (2026-07-07 fixes)", () => {
+  const base = {
+    userId: "u", gridId: "g",
+    dateFieldId: "DF", completedFieldId: "CF",
+    scopePageLabel: "Schedule", goalOccurrenceId: "GOAL1", schedPageOccId: "SCHED1",
+  };
+
+  it("makeTrackerOp triggers include instance-role onAdd + onDelete (drops must re-aggregate)", () => {
+    const op = makeTrackerOp({ ...base, name: "Completed", goalLabel: "x", goalFieldId: "TC", agg: "countTrue", timeFilter: "daily" });
+    const roles = (ev) => op.triggerObjects.filter(t => t.eventType === ev).map(t => t.subjectRole);
+    expect(roles("onAdd")).toContain("instance");
+    expect(roles("onDelete")).toContain("instance");
+  });
+
+  it("makeTrackerOp accepts no isTaskFieldId and emits no is-task rule", () => {
+    const op = makeTrackerOp({ ...base, name: "Completed", goalLabel: "x", goalFieldId: "TC", agg: "countTrue", timeFilter: "daily", isTaskFieldId: "ITF" });
+    expect(JSON.stringify(op.pipeline)).not.toContain("ITF");
+  });
+
+  it("makeTrackerOp presenceFieldId gates the loop on field presence (data-driven discriminator)", () => {
+    const op = makeTrackerOp({ ...base, name: "Pomodoros Today", goalLabel: "x", goalFieldId: "PC", agg: "countTrue", timeFilter: "daily", presenceFieldId: "PNUM" });
+    const s = JSON.stringify(op.pipeline);
+    expect(s).toContain('"$item.fields.PNUM.value"');
+    expect(s).toContain("IS_NOT_EMPTY");
+  });
+
+  it("makeDayPageBuildTasksCompletedOp emits no is-task rule", () => {
+    const op = makeDayPageBuildTasksCompletedOp({ userId: "u", gridId: "g", dateFieldId: "DF", completedFieldId: "CF", isTaskFieldId: "ITF" });
+    expect(JSON.stringify(op.pipeline)).not.toContain("ITF");
+  });
+
+  it("buildDailyRoutineTemplate ignores isTaskFieldId (no task-marker stamping)", async () => {
+    const occs = [];
+    const mods = [];
+    const mkOcc = async (o) => { occs.push(o); return o.id; };
+    class FakeModule { constructor(d) { this.d = d; } async save() { mods.push(this.d); } }
+    await buildDailyRoutineTemplate({
+      userId: "u", gridId: "g",
+      timeSlots: [{ label: "6:00am" }],
+      timeslotFieldId: "TSF",
+      routineBySlot: { "6:00am": [{ sourceModId: null, label: "Drink Water" }] },
+      tplManifestRootFolderId: "F",
+      mkOcc, Module: FakeModule, findModule: async () => null,
+      completedFieldId: "CF", waterFieldId: "WF", isTaskFieldId: "ITF",
+    });
+    expect(JSON.stringify(occs)).not.toContain("ITF");
+  });
+});
