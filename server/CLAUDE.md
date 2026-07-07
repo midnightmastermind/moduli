@@ -1,6 +1,22 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-07-06. Check this file before re-reading source._
+_Updated: 2026-07-07. Check this file before re-reading source._
+
+## Recent Changes (2026-07-07 — full operations audit + People: Show Profile fix)
+- **All 70 ops audited** (report: `docs/op-audit-2026-07-07.md`). Methods: static pipeline
+  validation vs seed, headless load sweep (58 ops, 0 errors), REAL value-change UI tests
+  (completed toggle → Tasks Completed 0/10→2/10; water 5 + complete → Daily Water 0→5oz;
+  due-date edit → Days Until Due recompute; protein edit fanned to all 3 linked copies), and
+  API dry-runs of every op via `/api/v1/operations/:id/run` (66/70 ok; 4 expected-fails:
+  2 GET_USER_INPUT suspensions + 2 drop-trigger ops refusing manual context).
+- **`scripts/createLiveData.js` ("People: Show Profile") FIXED** — its APPLY_TEMPLATE used
+  `templateId`/`targetId`, keys the executor never reads (`templateRef`/`targetOccurrenceVar`),
+  so the action silently no-op'd since it was seeded. Reseeded + verified (dry-run stages the
+  template clone now).
+- Findings (unfixed, see report): Wellness Score occurrence is written by NO op (shows -/0
+  forever); bootstrap-token mints an "assistant (auto)" ApiToken per page load when the running
+  server's env token is stale vs the DB (120+ rows piled up — restart server after minting, or
+  prune); client `save_op_run_log` emits to a server handler that no longer exists.
 
 ## Recent Changes (2026-07-06 LATE — perf audit: WS deflate + HTTP compression + cache headers)
 - **`server.js` (io options)** — `perMessageDeflate: { threshold: 1024 }`. Socket.io v4 ships WS

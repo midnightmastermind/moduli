@@ -9937,10 +9937,13 @@ export async function createLiveData(userId, options = {}) {
         //    swapping bracket tokens with the person's field values. Mode
         //    "replace" wipes the card's previous content first so the swap
         //    is clean (no leftover from a prior person's profile).
+        // NOTE (2026-07-07 op audit): the executor reads cfg.templateRef +
+        // cfg.targetOccurrenceVar — this op originally used templateId/targetId,
+        // which APPLY_TEMPLATE never reads, so it silently no-op'd forever.
         { id: uid(), type: "action", config: {
           type: "APPLY_TEMPLATE",
-          templateId: profileTemplateOccId,
-          targetId: profileCardOccId,
+          templateRef: profileTemplateOccId,
+          targetOccurrenceVar: profileCardOccId,
           mode: "replace",
           replacements: {
             "{name}":             `$person.fields.${personNameFieldId}.value`,
