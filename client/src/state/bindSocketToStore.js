@@ -398,11 +398,6 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       payload: { occurrenceId },
     });
 
-    // The occurrence is gone from localOccsById at this point, so the executor
-    // can no longer enrich $trigger.occurrence from state. Pass the snapshot
-    // as an override so onRemove / onDelete operations still see the full data.
-    const override = removedOcc ? { [occurrenceId]: removedOcc } : null;
-
     // Skip if THIS client already fired the delete trigger optimistically
     // (CommitHelpers.deleteOccurrence). Otherwise the server's own-echo of an
     // op-deleted occurrence re-fires OccurrenceDeleteOp at depth 0 (outside the
@@ -431,7 +426,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         fields: removedOcc?.fields || {},
         _ancestorIds: delAncestors.ids,
         _ancestorLabels: delAncestors.labels,
-      }, { occurrencesOverride: override });
+        // Trigger-context snapshot — see CommitHelpers.deleteOccurrence.
+        _occurrenceSnapshot: removedOcc || null,
+      });
     }
     optimisticFiredSet.delete(occurrenceId);
     opEmittedOccIds.delete(occurrenceId);
@@ -1255,12 +1252,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // so a runaway cycle doesn't flood the console.
   const _fireWarnAt = new Map();
 
-  function fireOperations(transactionType, transaction, { occurrencesOverride } = {}) {
+  function fireOperations(transactionType, transaction) {
     // During a drop batch (beginDropBatch active), collect top-level fires instead
     // of executing them synchronously. endDropBatch flushes them after rAF so the
     // browser paints the visual drop result before any operation work runs.
     if (_dropBatchFires !== null && _fireDepth === 0) {
-      _dropBatchFires.push({ transactionType, transaction, occurrencesOverride });
+      _dropBatchFires.push({ transactionType, transaction });
       return;
     }
     if (_fireDepth >= _FIRE_DEPTH_LIMIT) {
@@ -1320,13 +1317,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }
     _fireDepth++;
     try {
-      return _fireOperationsInner(transactionType, transaction, { occurrencesOverride });
+      return _fireOperationsInner(transactionType, transaction);
     } finally {
       _fireDepth--;
     }
   }
 
-  function _fireOperationsInner(transactionType, transaction, { occurrencesOverride } = {}) {
+  function _fireOperationsInner(transactionType, transaction) {
     const state = stateRef.current || {};
     const operations = state.operations || [];
     const fields = state.fields || [];
@@ -1364,10 +1361,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       _lastModules = modules;
     }
     // Overlay localOccsById on top of cached base (localOccsById is always fresh).
-    // occurrencesOverride wins over both — used by delete handlers to keep a
-    // just-removed occurrence visible to the executor for this one call so
-    // $trigger.occurrence enrichment still works.
-    const occurrencesById = Object.assign({}, _cachedBaseOccsById, localOccsById, occurrencesOverride || null);
+    // Deleted occurrences are NOT re-injected here — a delete transaction
+    // carries its own `_occurrenceSnapshot` for $trigger.occurrence enrichment
+    // (operationExecutor), so tracker recounts see post-delete state.
+    const occurrencesById = Object.assign({}, _cachedBaseOccsById, localOccsById);
 
     // ── DIAG: fire entry log ────────────────────────────────────────────────
     // Each top-level fire (depth=1) logs trigger + matched-op preview so the
@@ -1509,7 +1506,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       const prev = _navCascadeFiredOps;
       _navCascadeFiredOps = cascadeSet;
       try {
-        fireOperations(next.transactionType, next.transaction, { occurrencesOverride: next.occurrencesOverride });
+        fireOperations(next.transactionType, next.transaction);
       } finally {
         _navCascadeFiredOps = prev;
       }

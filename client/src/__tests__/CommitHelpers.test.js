@@ -167,7 +167,7 @@ describe("Occurrence commit helpers", () => {
   // `$trigger.occurrence._ancestors HAS_ANCESTOR <ownPageId>` and skip the
   // rebuild. Without it the rebuild's orphan-sweep deletes re-fire the rebuild
   // → exponential freeze.
-  test("deleteOccurrence sources snapshot from cache and passes it as override", async () => {
+  test("deleteOccurrence sources snapshot from cache and carries it on the transaction", async () => {
     const { dispatch, socket } = makeMocks();
     const { operationsBridge } = await import("../state/bindSocketToStore");
     const snap = { id: "occ1", moduleId: "mod1", parentId: "tbl1", fields: {} };
@@ -181,8 +181,14 @@ describe("Occurrence commit helpers", () => {
       expect(getLocalOcc).toHaveBeenCalledWith("occ1");
       const deleteCall = fireOperations.mock.calls.find(c => c[0] === "OccurrenceDeleteOp");
       expect(deleteCall).toBeTruthy();
-      expect(deleteCall[1]).toMatchObject({ occurrenceId: "occ1", containerId: "tbl1" });
-      expect(deleteCall[2]).toEqual({ occurrencesOverride: { occ1: snap } });
+      // Snapshot rides ON the transaction (trigger context only) — 2026-07-07:
+      // the old occurrencesOverride re-injected the deleted occurrence into
+      // executor state, so tracker recounts still counted it (deleting a
+      // completed task never decremented Tasks Completed).
+      expect(deleteCall[1]).toMatchObject({
+        occurrenceId: "occ1", containerId: "tbl1", _occurrenceSnapshot: snap,
+      });
+      expect(deleteCall[2]).toBeUndefined();
     } finally {
       operationsBridge.getLocalOcc = null;
       operationsBridge.removeLocalOcc = null;

@@ -1045,7 +1045,7 @@ function trimRunForWire(payload) {
 // can see them. Mirrors the effect handlers in bindSocketToStore but only
 // touches the speculative overlay — actual dispatch still happens once
 // runMatchingOperations returns.
-function applyEffectsToLiveOccs(liveOccs, effects) {
+export function applyEffectsToLiveOccs(liveOccs, effects) {
   if (!Array.isArray(effects) || effects.length === 0) return;
   for (const eff of effects) {
     if (!eff?._effect) continue;
@@ -1430,27 +1430,39 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     const enriched = { type: transaction?.type || "onLoad" };
     for (const [k, v] of Object.entries(transaction)) {
       if (k.startsWith("iteration") || k === "_iterationTimeValue" || k === "_iterationCategoryValue") continue;
+      if (k === "_occurrenceSnapshot") continue; // consumed below, not a $trigger key
       enriched[k] = v;
     }
     const occId = transaction.occurrenceId;
-    if (occId && occurrencesById[occId]) {
-      const occ = occurrencesById[occId];
+    // Live occurrence wins; a DELETED occurrence resolves from the snapshot the
+    // delete transaction carries (transaction._occurrenceSnapshot). The snapshot
+    // is TRIGGER CONTEXT only — it never re-enters occurrencesById, so tracker
+    // recounts correctly exclude the deleted item while gates like
+    // `$trigger.occurrence.fields.<date> DATE_IN_PERIOD $goalPeriod` still pass.
+    // (Previously deletes injected the snapshot into the whole executor overlay
+    // via occurrencesOverride — the recount then still counted the deleted item,
+    // so deleting a completed task never decremented Tasks Completed.)
+    const liveOcc = occId ? occurrencesById[occId] : null;
+    const occSource = liveOcc || transaction._occurrenceSnapshot || null;
+    if (occId && occSource) {
       const fields = {};
-      for (const [fid, fdata] of Object.entries(occ.fields || {})) {
+      for (const [fid, fdata] of Object.entries(occSource.fields || {})) {
         fields[fid] = {
           value: fdata?.value !== undefined ? fdata.value : fdata,
           flow: fdata?.flow ?? null,
         };
       }
       enriched.occurrence = {
-        id: occ.id,
-        moduleId: occ.moduleId,
-        parentId: occ.parentId,
+        id: occSource.id,
+        moduleId: occSource.moduleId,
+        parentId: occSource.parentId,
         fields,
         // Ordered ancestor occurrence IDs (closest first). Lets a rebuild op
         // tell "the Schedule source changed" apart from "I just deleted my own
         // derived copy" via `$trigger.occurrence._ancestors HAS_ANCESTOR <ownPageId>`.
-        _ancestors: ancestorsFor(occ.id),
+        // Post-eviction the tree walk is dead — use the chain the delete
+        // transaction captured before evicting.
+        _ancestors: liveOcc ? ancestorsFor(occId) : (transaction._ancestorIds || []),
       };
     }
     $vars["$trigger"] = enriched;
