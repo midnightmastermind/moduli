@@ -2,6 +2,26 @@
 
 _Updated: 2026-07-07. Check this file before re-reading source._
 
+## Recent Changes (2026-07-07 LATE — delete recount fix + opResultSummary + drag toast page context)
+- **`operationExecutor.js`** — `$trigger.occurrence` enrichment now falls back to
+  `transaction._occurrenceSnapshot` when the occurrence is gone from state (deletes); `_ancestors`
+  from `transaction._ancestorIds` in that case. `applyEffectsToLiveOccs` is exported (behavioral
+  test harness). WHY: deletes used to re-inject the snapshot into the whole executor overlay via
+  `occurrencesOverride` → tracker recounts still counted the deleted item → deleting a completed
+  task never decremented Tasks Completed. Snapshot is TRIGGER CONTEXT only now.
+- **`CommitHelpers.js`** — `deleteOccurrence`/`removeOccurrence` stamp `_occurrenceSnapshot` on the
+  OccurrenceDeleteOp instead of passing `occurrencesOverride` (plumbing removed in
+  bindSocketToStore too).
+- **`opResultSummary.js` (NEW)** — `summarizeOpResults(results, {fieldsById, occurrencesById,
+  modulesById})` names every op effect for the notification pills (field writes with values,
+  creates/deletes/moves by label, all other effect types by name; >12 segments → "+N more");
+  `makeOpNotificationCallbacks(push, getCtx)` shared by all three runMatchingOperations sites
+  (full_state, generic fire, dropHandlers move — the last previously passed NO callbacks: silent
+  successes AND failures). 12 tests.
+- **`dropHandlers.js`** — `_destName` prefixes drag toasts with the nearest page-role ancestor
+  ("Schedule › 1:00am"); doc-embed drag-outs (canvas + list branches) toast Moved/Copied.
+
+
 ## Recent Changes (2026-07-07 — optionsResolver: ancestor-scoped dropdowns fixed (2 latent bugs))
 Root cause of "No occurrences available" in the Account (and every other ancestor-scoped)
 occurrence dropdown — found while verifying the ImagePickerMenu e2e:

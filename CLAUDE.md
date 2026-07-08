@@ -6,6 +6,40 @@
 
 ---
 
+## Handoff — 2026-07-07 LATE-2 (trackers fixed both orders + notifications overhaul + behavioral test suite + delete-recount fix)
+
+Continuation of the `.claude`-account session (hit its limit mid-edit of createLiveData). All on
+`audit-fixes-dnd-wrap-menus`, 4 commits. **Root cause shipped**: tracker ops only had
+container-role onAdd/onDelete triggers — instance drops into Schedule slots never re-aggregated.
+Every makeTrackerOp now registers the instance-role pair; the `isTask` marker field is REMOVED
+(no-hardcoding rule) in favor of the generic `presenceFieldId` (IS_NOT_EMPTY) discriminator
+(Pomodoros→pomodoroNumber, Total Workouts→muscleGroup — Workouts was counting water logs).
+Verified BOTH orders headless + as tests (complete→drop bumps on the DROP; drop→complete on the
+toggle). **Second real bug found & fixed**: deletes never decremented trackers — the delete
+snapshot rode `occurrencesOverride` back into executor state (recount still counted the deleted
+item). Now the snapshot rides ON the transaction (`_occurrenceSnapshot`, trigger-context only);
+override plumbing removed end-to-end.
+
+**Notifications**: op pills carry actual results ("Monthly Bills: Amount→2040.97", "+2 Stretching",
+per-item Days Until Due) via `helpers/opResultSummary.js`, shared across all three fire sites
+(the drop-move site previously swallowed successes AND failures). Drag toasts name the destination
+with page context ("Moved X: Finance & Admin → Schedule › 3:00am (#1)") via a structural
+page-ancestor walk; doc-embed drag-outs toast too.
+
+**Behavioral audit is now a test suite** (`client/src/__tests__/liveOpsBehavioral.test.js`, 18
+tests): boots the executor on the exported seed (server/seed/*.json), replays the onLoad sweep,
+fires real transactions for EVERY input type (boolean/number/duration/select/amount+flow/reps) +
+drops/deletes + a multi-day picker selection rebuilding the Schedule (3 day-cols), asserting
+tracker VALUES read from each op's own pipeline targets. `datePickerSelection.test.js` locks the
+single/range/multi/week/month/year classifier rules. Picker: today-hint is now much lighter than
+selection (user ask). Quote artifacts render 13px = doc body. **DnD matrix audit** delivered:
+`docs/dnd-matrix-2026-07-07.md`. **Feed plan** (occurrence-menu feed pulling occurrences by
+filter-menu conditions) written + soundness-reviewed, NOT implemented — awaiting user review:
+`docs/superpowers/specs/2026-07-07-occurrence-feed-plan.md` (3 open questions at the bottom).
+1200/1200 client + 227/227 server, build clean, live grid reseeded (probe writes swept).
+
+---
+
 ## Handoff — 2026-07-07 LATE (image picker shipped + options-resolver fix + grid sweep)
 
 Continuation of account2's session (hit spend limit mid-verify). **ImagePickerMenu** (Calibre-style
