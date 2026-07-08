@@ -53,15 +53,33 @@ function InlinePreview({ occurrenceId, landscape = false }) {
   }, [iframeW]);
 
   // PagePreviewBody expects a parentState prop. App.jsx writes the live
-  // store snapshot to `window.__moduli_state__` synchronously on every
-  // parent render — reading it here gives us a fresh ref on every
-  // PreviewNode render, and PagePreviewBody's internal memos refilter on
-  // ref change. That's the same coupling the iframe path had via its
-  // 100ms poll; here it's tighter (synchronous) and cheaper (no postMessage,
-  // no IPC). Falling back to null lets the body render an empty
+  // store snapshot to `window.__moduli_state__` on every parent render.
+  // DON'T read it synchronously per render: a fresh ref every render meant
+  // every occurrence write anywhere rebuilt PagePreviewBody's entire lookup
+  // map set → every component inside every preview card re-rendered INSIDE
+  // the write's own commit (measured: 401 of 535 frame-1 field renders on a
+  // drop were preview-card fields). Instead hold the snapshot in state and
+  // refresh on a 500ms poll — same coalescing the old iframe path had, and
+  // the setState no-ops (same ref → React bails) when nothing changed.
+  // Previews are non-interactive thumbnails; sub-second staleness is
+  // invisible. Falling back to null lets the body render an empty
   // placeholder before the parent has hydrated state.
-  const parentState = typeof window !== "undefined" ? window.__moduli_state__ : null;
+  const [parentState, setParentState] = useState(() =>
+    typeof window !== "undefined" ? window.__moduli_state__ : null
+  );
+  useEffect(() => {
+    const id = setInterval(() => {
+      const next = (typeof window !== "undefined" && window.__moduli_state__) || null;
+      setParentState(prev => (prev === next ? prev : next));
+    }, 500);
+    return () => clearInterval(id);
+  }, []);
 
+  // DIAG (window.__NO_PREVIEWS): render nothing — lets the drop probe split
+  // "preview subtree renders" from "main tree renders".
+  if (typeof window !== "undefined" && window.__NO_PREVIEWS === true) {
+    return <div style={{ width: "100%", height: "100%" }} />;
+  }
   if (!occurrenceId) {
     return (
       <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>

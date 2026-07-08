@@ -73,8 +73,20 @@ export default function PageCanvas({ pageModule, occurrence, panelId, dispatch, 
       } else if (mod.role === "artifact") {
         renderBody = () => <ArtifactCard module={mod} label={mod.label} />;
       }
+      // Position-less cards (e.g. feed-minted copies — occurrence.feed
+      // materializes children without meta.x/y) stack in a tidy column by
+      // child order instead of piling at the CanvasSlot (20,20) default.
+      // Anchored near the world CENTER (the initial viewport) — the 4000px
+      // canvas world scrolls, so corner coordinates render off-screen (the
+      // old Canvas: Build op stamped ~1760/1850 for the same reason).
+      // First drag persists a real meta.x/y and takes over.
+      const childIdx = Math.max(0, (occurrence?.occurrences || []).indexOf(occ.id));
+      // Wrap into columns (8 per column, 260px apart, 110px row step) so tall
+      // cards don't bury each other in one overlapping stack.
+      const fallbackX = 1760 + Math.floor(childIdx / 8) * 260;
+      const fallbackY = 1850 + (childIdx % 8) * 110;
       return (
-        <CanvasSlot key={occ.id} x={occ?.meta?.x} y={occ?.meta?.y}>
+        <CanvasSlot key={occ.id} x={occ?.meta?.x ?? fallbackX} y={occ?.meta?.y ?? fallbackY}>
           {mod.role === "container" ? (
             <Container
               module={mod}

@@ -10,11 +10,12 @@ import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { Trash2, Copy, FileText, ArrowLeft, ChevronLeft, ChevronRight, ClipboardPaste } from "lucide-react";
+import { Trash2, Copy, FileText, ArrowLeft, ChevronLeft, ChevronRight, ClipboardPaste, Rss } from "lucide-react";
 import HeaderChevron from "../ui/HeaderChevron";
 import { bumpRender } from "../helpers/renderProbe";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import FeedSection from "../ui/FeedSection";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import ViewModeSection from "../ui/ViewModeSection";
@@ -635,6 +636,9 @@ function Page({
           <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 0", marginLeft: "auto" }}>
             {/* Filter (HeaderChevron) now leads; the add (QuickAddMenu) moved to the end. */}
             <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center" }}>
+              {occurrence?.feed?.enabled && (
+                <Rss size={10} style={{ color: "rgba(96,165,250,0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
+              )}
               <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={occurrence} />
             </div>
             <KindIcon size={10} style={{ opacity: 0.35, flexShrink: 0 }} />
@@ -693,6 +697,7 @@ function Page({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={occurrence} />
+          <FeedSection occurrence={occurrence} />
           <SortSection occurrence={occurrence} />
           <FieldVisibilitySection occurrence={occurrence} />
           <ViewModeSection occurrence={occurrence} />

@@ -147,7 +147,7 @@ export function ensureModuleBindingsForOccurrenceFields({ dispatch, socket, occu
   });
 }
 
-export function createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null, containerLabel = "", panelLabel = "" }) {
+export function createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null, containerLabel = "", panelLabel = "", fireTrigger = true }) {
   if (!occurrence?.id) return;
   operationsBridge.updateLocalOcc?.(occurrence);
   dispatch?.(createOccurrenceAction(occurrence));
@@ -155,6 +155,13 @@ export function createOccurrence({ dispatch, socket, occurrence, emit = true, pa
   // Module-level binding contract: if the new occurrence carries values for
   // fields the module doesn't bind, add the bindings now so the pill renders.
   ensureModuleBindingsForOccurrenceFields({ dispatch, socket, occurrence });
+  // CYCLE BREAKER (mirror of deleteOccurrence's) — fireTrigger:false marks
+  // DERIVED-data creates (feed-minted copies). No OccurrenceCreateOp fires,
+  // and the id is marked so the server echo doesn't re-fire either.
+  if (!fireTrigger) {
+    operationsBridge.markDerivedOcc?.(occurrence.id);
+    return;
+  }
   // Compute the new occurrence's ancestor chain so ancestor-scoped triggers
   // (e.g. `ancestorLabel: "Daily Goals"` on a tracker's onAdd) can match.
   // Without this enrichment, every tracker with an unscoped onAdd matched
@@ -468,12 +475,13 @@ export function deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, e
   // trackers update normally. Pairs with the async-echo suppression
   // (opEmittedOccIds in bindSocketToStore) — same policy, both paths.
   if (!fireTrigger) return;
-  const deleteOverride = snap ? { [occurrenceId]: snap } : null;
-  const deleteOpts = deleteOverride ? { occurrencesOverride: deleteOverride } : undefined;
   // ONE trigger per user action. Delete fires OccurrenceDeleteOp only,
   // carrying the deleted occurrence's fields so field-scoped onDelete
   // subscribers (subjectType:"field" → transaction.fields[targetId]) match.
   // No piggyback MeasureOp — onChange is reserved for value edits.
+  // The snapshot rides ON THE TRANSACTION (trigger context) instead of an
+  // occurrencesOverride into executor state — state must exclude the deleted
+  // occurrence or tracker recounts still count it (stale Tasks Completed).
   operationsBridge.fireOperations?.("OccurrenceDeleteOp", {
     type: "OccurrenceDeleteOp",
     occurrenceId,
@@ -482,11 +490,12 @@ export function deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, e
     fields: snap?.fields || {},
     _ancestorIds: ancestors.ids,
     _ancestorLabels: ancestors.labels,
-  }, deleteOpts);
+    _occurrenceSnapshot: snap || null,
+  });
 }
 
 // Remove occurrence from grid + clean up parent reference (optimistic)
-export function removeOccurrence({ dispatch, socket, occurrenceId, occurrence, parentOccurrence, grid, emit = true }) {
+export function removeOccurrence({ dispatch, socket, occurrenceId, occurrence, parentOccurrence, grid, emit = true, fireTrigger = true }) {
   if (!occurrenceId) return;
   // Capture ancestor chain BEFORE eviction (see deleteOccurrence for rationale).
   const ancestors = operationsBridge.getAncestorChain?.(occurrenceId) || { ids: [], labels: [] };
@@ -504,10 +513,16 @@ export function removeOccurrence({ dispatch, socket, occurrenceId, occurrence, p
   // Delete the occurrence (server cascades children + cleans parent)
   dispatch?.(deleteOccurrenceAction(occurrenceId));
   if (shouldEmit(emit)) safeEmit(socket, "delete_occurrence", { occurrenceId });
-  const removeOverride = occurrence ? { [occurrenceId]: occurrence } : null;
-  const removeOpts = removeOverride ? { occurrencesOverride: removeOverride } : undefined;
+  // CYCLE BREAKER — derived-data sweeps (feed copies) skip the trigger and
+  // suppress the server echo (see deleteOccurrence's fireTrigger doc).
+  if (!fireTrigger) {
+    operationsBridge.markDerivedOcc?.(occurrenceId);
+    return;
+  }
   // ONE trigger per user action — see deleteOccurrence above. The delete
   // carries fields so field-scoped onDelete/onRemove subscribers match.
+  // Snapshot rides on the transaction (trigger context only) — see
+  // deleteOccurrence for why it must not re-enter executor state.
   operationsBridge.fireOperations?.("OccurrenceDeleteOp", {
     type: "OccurrenceDeleteOp",
     occurrenceId,
@@ -516,7 +531,8 @@ export function removeOccurrence({ dispatch, socket, occurrenceId, occurrence, p
     fields: occurrence?.fields || {},
     _ancestorIds: ancestors.ids,
     _ancestorLabels: ancestors.labels,
-  }, removeOpts);
+    _occurrenceSnapshot: occurrence || null,
+  });
 }
 
 // ===== TRASH (soft delete) =====

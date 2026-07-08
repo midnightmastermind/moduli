@@ -32,7 +32,7 @@ import { batchUpdateModulesAction } from "../state/actions";
 import { routeDrop } from "./dropHandlers";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND, collectMemberCards } from "./dragHitTesting";
-import { snapshotRenders, diffRenders } from "./renderProbe";
+import { snapshotRenders, diffRenders, snapshotAttrs, diffAttrs } from "./renderProbe";
 import { dragPerf } from "./dragPerf";
 
 // ============================================================
@@ -812,6 +812,7 @@ export function DragProvider({
       ? (label) => console.log(`[drop] +${Math.round(performance.now() - _dropT0)}ms ${label}`)
       : () => {};
     const _renders0 = _diag ? snapshotRenders() : null;
+    const _attrs0 = _diag && window.__RENDER_ATTR === true ? snapshotAttrs() : null;
     _lap("handleDrop entry");
     const s = sessionRef.current;
     if (s.dropHandled) return;
@@ -918,6 +919,13 @@ export function DragProvider({
           _lap("rAF #2 (next frame painted)");
           const d = diffRenders(_renders0);
           console.log(`[drop-renders] panel=${d.panel} container=${d.container} instance=${d.instance} page=${d.page} field=${d.field || 0}`);
+          if (_attrs0) {
+            const a = diffAttrs(_attrs0);
+            for (const kind of Object.keys(a)) {
+              const top = Object.entries(a[kind]).sort((x, y) => y[1] - x[1]).slice(0, 8);
+              for (const [cause, n] of top) console.log(`[drop-attr] ${kind} ×${n}: ${cause}`);
+            }
+          }
         });
       });
     }

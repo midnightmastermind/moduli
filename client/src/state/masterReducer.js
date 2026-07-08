@@ -31,6 +31,11 @@ function deriveRoleArrays(modules = []) {
 }
 
 export function masterReducer(state, action) {
+    // DIAG (window.__RENDER_ATTR): tally every action so the drop probe can
+    // attribute render storms to the dispatches that caused them.
+    if (typeof window !== "undefined" && window.__RENDER_ATTR === true && action?.type) {
+        (window.__actionTally ||= {})[action.type] = (window.__actionTally[action.type] || 0) + 1;
+    }
     switch (action.type) {
         // ======================================================
         // FULL STATE HYDRATE

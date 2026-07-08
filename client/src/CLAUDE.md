@@ -2,6 +2,24 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## DOCKET — editor static-until-focus (filed 2026-07-06 perf audit, needs its own session)
+Every doc container / textblock mounts a LIVE TipTap editor eagerly (`TextblockCard.jsx` wraps
+`<Editor>` unconditionally; doc containers same) — an imported Wikipedia page mounts 100+
+ProseMirror instances, the live grid mounts dozens at first paint. Biggest first-paint/page-switch
+cost after the frame-1 flush. Proposed: render textmaps as static HTML (`generateHTML` with the
+same extensions) and swap in the live editor on first pointerdown/focus, or gate offscreen mounts
+with an IntersectionObserver. CAREFUL: the editor registers drop zones (`registerDocTouchDrop`,
+Pragmatic targets, wrap morphs) — a static render must keep drops + wraps working, so this needs
+its own headless-verified session. Would also shrink the frame-1 flush (fewer live editors
+re-measuring during drops).
+
+## DOCKET — on-load op sweep slicing (still open)
+`bindSocketToStore.js` onFullState defers the sweep past first paint (good) but then runs all ops
+in ONE synchronous `runMatchingOperations` block — measured 556ms on the live grid (58 ops fired;
+Build Schedule 114ms, Table: Build 56ms). Slicing per-op across macrotasks (the endDropBatch
+pattern) changes op-batch semantics (in-batch liveOccs overlay, cascade dedup) — needs its own
+session with the freeze-regression history in mind.
+
 ## DOCKET — drop frame-1 flush profiling (filed 2026-07-06, needs its own session)
 The 2026-07-06 audit-fix plan (Tasks 9–10: member-card scan cache + live-ref drag payloads) cut
 drop→paint @5x throttle from median **1742ms → 1378ms** (~21%; routeDrop itself is flat at ~50ms),
@@ -13,6 +31,98 @@ component-level attribution: React DevTools profiler pass (or a bumpRender split
 to find why ~183 containers + 535 fields render on a single-slot drop when only one container
 changed. Selector-level hypotheses were exhausted 2026-07-03 (see perf memory); the other
 documented lever is slicing the op drain per-op across macrotasks (bindSocketToStore endDropBatch).
+
+**2026-07-06 LATE-2 — computedValues-context hypothesis CLOSED (A/B measured, no frame-1 effect).**
+The per-key `state/computedValuesStore` migration (below) was A/B-probed same-night, same machine,
+same method (fresh reseed + 3 accumulating runs each build, `_dropprobe.mjs` at repo root — note:
+it must EXCLUDE `.preview-node-preview` cards when picking the drag source, and set
+`window.__dragPerf = true` at runtime since Task 2 re-gated the logs): pre-migration median
+**1750ms** (1918/1624/1750), per-key store median **1831ms** (1858/1831/1742) — within run noise;
+[drop-renders] counts byte-identical both builds. So the 535-field/183-container frame-1 storm is
+NOT computedValues context churn — the drop's ~20 display updates only touch ~20 keys. The
+profiler-attribution lever above is still the open path. (Earlier 1378ms median = machine-condition
+variance, not a regression.)
+
+**2026-07-07 — ATTRIBUTED + LARGELY FIXED (median 1750ms → 1066ms, renders 183/156/535 →
+54/~10/~2).** The new gated `__RENDER_ATTR` attribution probe (renderProbe `useRenderAttribution` +
+`[drop-attr]` in DragProvider + a reducer action tally) split the storm into three measured causes,
+all fixed same-session (commit on this branch):
+1. **Inline preview snapshot coupling** — PreviewNode fed `window.__moduli_state__` (fresh ref per
+   App render) straight into PagePreviewBody, whose lookup-map memos all rebuilt → every component
+   inside every folder-page preview card re-rendered inside the write's own commit (401 of 535
+   frame-1 field renders). Now held in state + refreshed via a 500ms no-op-deduped poll.
+2. **`addInstanceToContainer` identity churn** (~90 renders) — depended on per-write-rebuilt
+   state slices; now reads `stateRef` at call time, identity-stable.
+3. **use-context-selector phantom renders (~350 renders — the core)** — u-c-s v2 dispatches into
+   every consumer's reducer per provider value change; when React can't take the eager same-state
+   bailout (busy lanes during the drop commit) the consumer body renders once even with an
+   UNCHANGED slice (probe signature: identical props + selector outputs, "(none)" cause).
+   GridActionsContext migrated to a per-provider store + `useSyncExternalStoreWithSelector`
+   (react-redux pattern) — unchanged snapshot = NO render at all. Public API unchanged.
+Remaining (still >600ms target, so the docket stays open but much smaller): ~54 container renders
+(Schedule slots, cause still unattributed — suspect DragStateContext/panel-cascade at drag end),
+15 panel renders (DragStateContext by design), and the op drain. Method: same `_dropprobe.mjs`,
+plus a headless field-edit smoke (due-date edit → dependent "Days Until Due" op output re-rendered)
+verifying store reactivity end-to-end.
+
+## Recent Changes (2026-07-07 — frame-1 drop flush attributed + fixed: uSES selector store, preview decoupling, stable adder)
+- **`GridActionsContext.js` REWRITTEN** — use-context-selector → per-provider store carried in a
+  plain React context + `useSyncExternalStoreWithSelector` (`use-sync-external-store/with-selector`,
+  already a transitive dep). Public API identical (`GridActionsContext.Provider` compat shim,
+  `useGridActions`, `useGridActionsSelector`, `useGridActionsSelectorShallow` — the shallow variant
+  now passes an element-wise `isEqual` instead of the ref-cache hack). Why: u-c-s phantom-rendered
+  every consumer with an unchanged slice ~1-2× per drop (~350 components). Store publishes from the
+  provider's layout effect (same staleness window u-c-s had). Per-provider store keeps
+  PagePreviewApp/test scoping intact.
+- **`modules/PreviewNode.jsx`** — InlinePreview holds `window.__moduli_state__` in state, refreshed
+  by a 500ms poll with a same-ref setState no-op, instead of re-reading per render (which pulled
+  every preview subtree into every write's commit). Also a `window.__NO_PREVIEWS` diag flag that
+  renders preview cards empty (lets the probe split preview vs main-tree renders).
+- **`App.jsx`** — `addInstanceToContainer` reads `stateRef.current` at call time; deps now
+  `[dispatch, socket]` (was re-created per occurrence write, re-rendering all prop/selector takers).
+- **`helpers/renderProbe.js`** — new gated (`window.__RENDER_ATTR`) `useRenderAttribution(kind,
+  inputs, tag)` + `snapshotAttrs`/`diffAttrs`: buckets each render by WHICH captured input changed
+  (`(none) @tag #bin` rows carry the component label + 250ms time bin). Wired into FieldRenderer
+  (early + `field-late` computedResult capture), InstanceInner, Container; `[drop-attr]` rows
+  logged from DragProvider's rAF#2 diag block. `masterReducer` tallies action types into
+  `window.__actionTally` under the same flag. All zero-cost when the flag is off.
+- Numbers + method in the docket entry above. 1159/1159 tests, build clean, live grid reseeded
+  after probing.
+
+## Recent Changes (2026-07-06 LATE-2 — computedValues off GridLiveContext → per-key store)
+- **`state/computedValuesStore.js` (NEW)** — `useSyncExternalStore`-based per-key subscription
+  layer for computedValues (keys `fieldId` / `fieldId:occId`). `publishComputedValues(map)` +
+  `useComputedValue(key)` / `useComputedValueWithFallback(primary, fallback)` /
+  `useComputedValuesMap()` (whole-map, doc pills only) / `getComputedValuesMap()`. The reducer
+  stays the source of truth — `SET_COMPUTED_VALUES`'s spread-merge preserves unchanged entry
+  identities, so a per-key snapshot only changes when THAT key was written.
+- **`App.jsx`** — `computedValues` removed from the `GridLiveContext` value; published to the
+  store via `useLayoutEffect` on `state.computedValues` (subscribers commit pre-paint).
+  `PagePreviewApp.jsx` publishes the parent snapshot the same way for preview iframes.
+- **Consumers migrated** — `ui/FieldRenderer.jsx` (per-key with occ-key→field-key fallback),
+  `modules/ModuleInstance.jsx` (op display widget extracted to `OpDisplayPill` so the per-key
+  subscription lives on the pill, not the whole instance), `docs/hooks/useDocFieldValues.js` +
+  `docs/pills/ExprPillNode.jsx` (whole-map — they scan all keys). `GridLiveContext` now carries
+  only undo/mobile/activeCell state.
+- **Why + measured outcome:** every SET_COMPUTED_VALUES used to swap the context value → ALL
+  consumers re-rendered per op-drain wave. By construction that waste is gone; but the A/B drop
+  probe showed **no frame-1 improvement** (see docket update above) — frame-1's render storm has
+  a different driver. Kept for the architectural win. 1159/1159 tests, build clean, live grid
+  reseeded post-probe.
+
+## Recent Changes (2026-07-06 LATE — perf audit: lazy CommandCenter + adaptive scheduler tick)
+- **`App.jsx`** — `CommandCenter` is now `React.lazy` (+ Suspense fallback null at the render
+  site). It was already mount-gated behind `commandCenterEverOpened`, so the lazy chunk
+  (**201KB** — the whole commandCenter tab tree + blocks op editor; only CommandCenter.jsx
+  imported it) loads on first open. App chunk 484KB → **284KB**. Verified headless: chunk absent
+  before open, fetched + panel renders on click, zero console errors.
+- **`state/useScheduler.js`** — tick interval 1s → adaptive: 5s default, tightened to the
+  smallest enabled schedule cadence when sub-5s (preserves the documented sub-minute display-op
+  contract; nothing seeded is finer than 5 minutes, hourly chime disabled).
+- **`vite.config.js`** — stale chunk comment fixed (ModulePage lazy split no longer exists;
+  tiptap is eager by design — editors render at first paint).
+- Server half (WS deflate + gzip + cache headers) in server/CLAUDE.md. 1159/1159 client +
+  222/222 server tests, build clean, headless grid load verified (44 containers, no errors).
 
 ## Recent Changes (2026-07-06 — MobileGridNav: scrollable ancestor resolved once per gesture)
 - **`mobile/MobileGridNav.jsx`** — `onTouchMove` used to call `findScrollableAncestor` (a

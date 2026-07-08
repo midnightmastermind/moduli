@@ -9,13 +9,12 @@ import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridAc
 // Stable empty array for selector fallbacks — a fresh [] per selector run
 // would defeat the Object.is stability the selector layer depends on.
 const EMPTY_ARR = [];
-import { GridLiveContext } from "../GridLiveContext";
 import { SelectionContext } from "../state/SelectionContext";
 import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import InstanceForm from "../ui/InstanceForm";
 import FieldRenderer from "../ui/FieldRenderer";
-import { bumpRender } from "../helpers/renderProbe";
+import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 import RadialMenu from "../ui/RadialMenu";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
@@ -43,6 +42,27 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import { getEffectiveFieldVisibilityForOccurrence, fieldPassesVisibility } from "../state/selectors";
 import { consumeLabelEdit } from "../helpers/pendingLabelEdit.js";
+import { useComputedValue } from "../state/computedValuesStore";
+
+// Operation display widget — its own component so the per-key
+// computedValues subscription lives HERE, not on the whole instance
+// (which used to re-render every instance on every op-drain batch).
+function OpDisplayPill({ binding, op }) {
+  const val = useComputedValue(op.targetFieldId);
+  return (
+    <span
+      title={binding.displayName || op.name}
+      style={{
+        fontSize: 11, fontFamily: "monospace", padding: "2px 8px",
+        borderRadius: 999, background: "var(--accent-green-bg)",
+        border: "1px solid var(--accent-green-border)", color: "var(--accent-green-text)",
+      }}
+    >
+      <Zap style={{ width: 9, height: 9, display: "inline", marginRight: 3 }} />
+      {val !== undefined && val !== null ? String(val) : "—"}
+    </span>
+  );
+}
 
 // ============================================================
 // INSTANCE INNER ROW — label, field pills, operation widgets
@@ -122,11 +142,31 @@ function InstanceInner({
     }
     return out;
   });
-  const { computedValues } = useContext(GridLiveContext);
   const isOriginalActive = !overlay && isOriginalActiveSel;
   // Lite state for FieldRenderer's `state?.grid` reads. Ops read the FULL
   // fresh state via getState() in Field.jsx — never this object.
   const ctxStateLite = useMemo(() => ({ grid: ctxGrid }), [ctxGrid]);
+
+  // DIAG (window.__RENDER_ATTR): which input changed → this render.
+  useRenderAttribution("instance", {
+    p_id: id, p_label: label, p_instance: instance, p_occurrence: occurrence,
+    p_panel: panel, p_container: container, p_containerOccurrence: containerOccurrence,
+    p_dragAttributes: dragAttributes, p_dragListeners: dragListeners,
+    p_dragHandleRef: dragHandleRef, p_onDoubleClick: onDoubleClick,
+    p_toggleDoc: toggleDoc, p_renderBody: renderBody,
+    s_fieldsById: fieldsById, s_addInstanceToContainer: addInstanceToContainer,
+    s_modulesById: modulesById, s_instancesById: instancesById,
+    s_operationsById: operationsById, s_ctxGrid: ctxGrid, s_isActive: isOriginalActiveSel,
+    s_getOcc: getOcc, s_getOccMap: getOccMap, s_getState: getState,
+    s_linkedGroup: linkedGroup, s_ancestorChain: ancestorChain,
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    s_selection: useContext(SelectionContext),
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    s_cellEmbedCtx: useContext(CellEmbedContext),
+    p_overlay: overlay, p_dispatch: dispatch, p_socket: socket,
+    p_embedRadialItems: embedRadialItems, p_embedOnDelete: embedOnDelete,
+    p_floatHandle: floatHandle, p_embedHideLabel: embedHideLabel,
+  }, label);
 
   // Per-occurrence dragMode overrides instance's defaultDragMode
   const entityDragMode = occurrence?.dragMode ?? instance?.defaultDragMode ?? "move";
@@ -739,21 +779,7 @@ function InstanceInner({
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center", marginLeft: hasFields ? 0 : "auto" }}>
             {operationWidgets.map(({ binding, op }) => {
               if (binding.widgetType === "display") {
-                const val = computedValues?.[op.targetFieldId];
-                return (
-                  <span
-                    key={binding.operationId}
-                    title={binding.displayName || op.name}
-                    style={{
-                      fontSize: 11, fontFamily: "monospace", padding: "2px 8px",
-                      borderRadius: 999, background: "var(--accent-green-bg)",
-                      border: "1px solid var(--accent-green-border)", color: "var(--accent-green-text)",
-                    }}
-                  >
-                    <Zap style={{ width: 9, height: 9, display: "inline", marginRight: 3 }} />
-                    {val !== undefined && val !== null ? String(val) : "—"}
-                  </span>
-                );
+                return <OpDisplayPill key={binding.operationId} binding={binding} op={op} />;
               }
               // Default: trigger button
               return (

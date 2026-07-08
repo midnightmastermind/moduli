@@ -162,7 +162,15 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
       }
     };
 
-    const id = setInterval(tick, 1_000);
+    // Adaptive tick: 5s covers minute+ cadences (the finest anything real
+    // uses) without waking the CPU every second; only a sub-5s display-only
+    // schedule (e.g. a live clock op) tightens it back down to its cadence.
+    let tickMs = 5_000;
+    for (const opId of Object.keys(operationsById)) {
+      const op = operationsById[opId];
+      if (op?.enabled && op.schedule) tickMs = Math.min(tickMs, Math.max(1_000, cadenceMs(op.schedule)));
+    }
+    const id = setInterval(tick, tickMs);
     return () => {
       clearInterval(id);
       // Cancel any pending in-flight clear timers on unmount.

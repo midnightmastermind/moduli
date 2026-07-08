@@ -94,7 +94,7 @@ export async function buildTemplatesManifest({ userId, gridId, Folder, Manifest 
 export async function buildDailyRoutineTemplate({
   userId, gridId, timeSlots, timeslotFieldId, routineBySlot,
   tplManifestRootFolderId, mkOcc, Module, findModule,
-  completedFieldId, waterFieldId, isTaskFieldId,
+  completedFieldId, waterFieldId,
   // When set, every slot container is stamped scheduleFormat="slot" via the
   // module's fieldBindings + the occurrence's fields. Live data passes this;
   // test grid leaves it null and relies on the legacy meta.scheduleSlot
@@ -189,9 +189,6 @@ export async function buildDailyRoutineTemplate({
       };
       if (r.completed && completedFieldId) initialFields[completedFieldId] = { value: true, flow: "in" };
       if (r.water != null && waterFieldId) initialFields[waterFieldId] = { value: r.water, flow: "in" };
-      // Mark every daily-routine instance as a task so the cloned occurrences
-      // (per-day copies minted by APPLY_TEMPLATE) inherit isTask=true.
-      if (isTaskFieldId) initialFields[isTaskFieldId] = { value: true, flow: "in" };
       await mkOcc({
         id: tplInstOccId,
         moduleId: tplInstModId,
@@ -261,7 +258,7 @@ export async function buildDailyRoutineTemplate({
 export async function buildScheduleTemplatePage({
   userId, gridId, timeSlots, timeslotFieldId, routineBySlot,
   libraryTemplatesFolderId, mkOcc, Module, findModule,
-  completedFieldId, waterFieldId, isTaskFieldId,
+  completedFieldId, waterFieldId,
   scheduleFormatFieldId = null,
 }) {
   const schedTplPageModId = uid();
@@ -333,7 +330,6 @@ export async function buildScheduleTemplatePage({
       };
       if (r.completed && completedFieldId) initialFields[completedFieldId] = { value: true, flow: "in" };
       if (r.water != null && waterFieldId) initialFields[waterFieldId] = { value: r.water, flow: "in" };
-      if (isTaskFieldId) initialFields[isTaskFieldId] = { value: true, flow: "in" };
       await mkOcc({
         id: tplInstOccId,
         moduleId: tplInstModId,
@@ -1673,7 +1669,7 @@ export function makeProjectStatusRouterOp({ userId, gridId, statusFieldId }) {
 }
 
 export function makeDayPageBuildTasksCompletedOp({
-  userId, gridId, dateFieldId, completedFieldId, isTaskFieldId,
+  userId, gridId, dateFieldId, completedFieldId,
 }) {
   return {
     id: uid(), userId, gridId, name: "Day Page: Build Tasks Completed",
@@ -1792,7 +1788,6 @@ export function makeDayPageBuildTasksCompletedOp({
                     { id: uid(), left: "_ancestors",                              comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                     { id: uid(), left: `fields.${dateFieldId}.value`,             comparator: "SAME_DAY",     right: "$dayDate" },
                     { id: uid(), left: `fields.${completedFieldId}.value`,        comparator: "IS",           right: "true" },
-                    { id: uid(), left: `fields.${isTaskFieldId}.value`,           comparator: "IS",           right: "true" },
                   ]},
                   body: [
                     // PUSH_TO_ARRAY deep-resolves `$task.id` inside the embed
@@ -1942,10 +1937,12 @@ export function makeTrackerOp({
   accountRefFieldId,
   accountOccurrenceId,
   description,
-  // Optional filter: only count items where this boolean field is true.
-  // Used by Tracker: Tasks Completed to filter out non-task items dragged
-  // into Schedule (mood checks, water logs, etc. that don't have isTask=true).
-  isTaskFieldId,
+  // Optional data-driven discriminator: only count items that CARRY this
+  // field (IS_NOT_EMPTY). The system has no hardcoded item-type concept —
+  // "what counts" is defined purely by which fields an item carries (e.g.
+  // Pomodoros Today gates on the pomodoroNumber field's presence so only
+  // pomodoro-session items contribute).
+  presenceFieldId,
   // Optional Command Center folder routing. When set, the returned op
   // carries this folderId so the Trackers column groups it without
   // relying on name-prefix regex post-processing.
@@ -2007,17 +2004,22 @@ export function makeTrackerOp({
     } else {
       rules.push({ id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$scopePageId" });
     }
+    // Feed copies never aggregate — a feed (occurrence.feed) mints copy-linked
+    // mirrors marked meta.feedSourceId; counting them would double-count the
+    // source when a feed sits inside an aggregation scope.
+    {
+      rules.push({ id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" });
+    }
     // Flow direction filter (in/out aggregations like income vs expense).
     if (flowField && flow === "in") {
       rules.push({ id: uid(), left: `$item.fields.${flowField}.flow`, comparator: "IS", right: "in" });
     } else if (flowField && flow === "out") {
       rules.push({ id: uid(), left: `$item.fields.${flowField}.flow`, comparator: "IS", right: "out" });
     }
-    // isTask gate — only items explicitly marked as tasks. Lets the Tasks
-    // Completed tracker exclude non-task items in Schedule (mood checks,
-    // water logs, etc.).
-    if (isTaskFieldId) {
-      rules.push({ id: uid(), left: `$item.fields.${isTaskFieldId}.value`, comparator: "IS", right: true });
+    // Presence discriminator (see presenceFieldId doc above) — no item-type
+    // markers, just "does this item carry the field that defines the metric".
+    if (presenceFieldId) {
+      rules.push({ id: uid(), left: `$item.fields.${presenceFieldId}.value`, comparator: "IS_NOT_EMPTY", right: "" });
     }
     return rules;
   }
@@ -2256,6 +2258,12 @@ export function makeTrackerOp({
       // Pairs with the executor's matchAncestorScope extension covering onAdd/onDelete.
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      // Instance-role pair: an ITEM dropped into / deleted from a Schedule
+      // slot must re-aggregate too — the container pair alone only fires on
+      // slot-container CRUD (2026-07-07 root cause of "trackers don't update
+      // when I drop something onto the schedule").
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],

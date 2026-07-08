@@ -12,7 +12,7 @@ import { useLongPress } from "../hooks/useLongPress";
 import ContainerForm from "../ui/ContainerForm";
 import TransactionHistory from "../ui/TransactionHistory";
 import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
-import { bumpRender } from "../helpers/renderProbe";
+import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
 import { SelectionContext } from "../state/SelectionContext";
@@ -35,6 +35,7 @@ import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getLocalFilterCon
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import FeedSection from "../ui/FeedSection";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
@@ -108,8 +109,7 @@ import {
   ClipboardPaste,
   Plus,
   FileText,
-  Type,
-} from "lucide-react";
+  Type, Rss } from "lucide-react";
 
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import { DocEditorShell } from "./DocContent.jsx";
@@ -386,6 +386,24 @@ function Container({
     }
     return out;
   });
+
+  // DIAG (window.__RENDER_ATTR): which input changed → this render.
+  useRenderAttribution("container", {
+    p_module: module, p_panel: panel, p_panelId: panelId,
+    p_pageOccurrenceId: pageOccurrenceId, p_addInstanceToContainer: addInstanceToContainer,
+    p_dispatch: dispatch, p_socket: socket, p_onInstanceFocus: onInstanceFocus,
+    p_occurrenceOverride: occurrenceOverride,
+    s_instancesById: instancesById, s_leafModulesById: leafModulesById,
+    s_modulesById: modulesById, s_viewsById: viewsById, s_fieldsById: fieldsById,
+    s_ctxGrid: ctxGrid, s_ctxUserId: ctxUserId,
+    s_getOccMap: getOccMap, s_getParentId: getParentId,
+    s_containerOccurrence: containerOccurrence, s_childOccsKey: childOccsKey,
+    s_ancestorChain: ancestorChain,
+    s_selection: selection, s_dragCtx: dragCtx,
+    p_gapPx: gapPx, p_embedded: embedded, p_orientation: panelLayoutOrientation,
+    p_embedRadialItems: embedRadialItems, p_embedOnDelete: embedOnDelete,
+    p_embedSourceType: embedSourceType,
+  }, module?.label);
 
   const containerDragMode = containerOccurrence?.dragMode ?? module?.defaultDragMode ?? "move";
 
@@ -1176,6 +1194,9 @@ function Container({
 
             {/* Filter (HeaderChevron) BEFORE the add (QuickAddMenu), both right-aligned. */}
             <div className="ml-auto mr-1" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4 }} onPointerDown={(e) => e.stopPropagation()}>
+              {containerOccurrence?.feed?.enabled && (
+                <Rss size={10} style={{ color: "rgba(96,165,250,0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
+              )}
               <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={containerOccurrence} />
               <QuickAddMenu
                 targetRole="instance"
@@ -1569,6 +1590,7 @@ function Container({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={containerOccurrence} />
+          <FeedSection occurrence={containerOccurrence} />
           <SortSection occurrence={containerOccurrence} />
           <FieldVisibilitySection occurrence={containerOccurrence} />
           <ViewModeSection occurrence={containerOccurrence} />

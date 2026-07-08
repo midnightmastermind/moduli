@@ -128,8 +128,11 @@ function DayGrid({ anchor, selected, onToggle, onShiftToggle, onDrillIntoDay }) 
               style={{
                 ...CELL_BASE, height: 26,
                 background: isSelected ? "rgba(96,165,250,0.22)" : "transparent",
-                borderColor: isToday ? "rgba(96,165,250,0.55)" : (isSelected ? "rgba(96,165,250,0.5)" : "transparent"),
-                color: isSelected ? "rgb(186,214,255)" : (isToday ? "rgb(186,214,255)" : "var(--text-primary)"),
+                // Selection wins; today is only a FAINT hint (much lighter than
+                // the selected ring) so "today + selected" vs "today, not
+                // selected" read at a glance (per user 2026-07-07).
+                borderColor: isSelected ? "rgba(96,165,250,0.5)" : (isToday ? "rgba(96,165,250,0.18)" : "transparent"),
+                color: isSelected ? "rgb(186,214,255)" : (isToday ? "rgba(186,214,255,0.5)" : "var(--text-primary)"),
               }}
             >
               {d.getDate()}

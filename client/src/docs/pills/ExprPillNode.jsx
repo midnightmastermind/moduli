@@ -5,10 +5,10 @@
 // Field names resolved against computedValues + fieldsById
 // ============================================================
 
-import { useContext, useMemo, useState, useCallback, useRef } from "react";
+import { useMemo, useState, useCallback, useRef } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { GridActionsContext, useGridActions } from "../../GridActionsContext";
-import { GridLiveContext } from "../../GridLiveContext";
+import { useComputedValuesMap } from "../../state/computedValuesStore";
 import { Trash2, Settings } from "lucide-react";
 import RadialMenu from "../../ui/RadialMenu";
 
@@ -56,7 +56,7 @@ function evalExpr(expr, valueMap) {
 
 export default function ExprPillNode({ node, updateAttributes, selected, deleteNode }) {
   const { fieldsById = {} } = useGridActions() || {};
-  const { computedValues = {} } = useContext(GridLiveContext) || {};
+  const computedValues = useComputedValuesMap();
 
   const { expr } = node.attrs;
   const [hovered, setHovered] = useState(false);

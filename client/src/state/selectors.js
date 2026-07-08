@@ -1,6 +1,6 @@
 // state/selectors.js
 // Selectors for working with occurrences and entities in the state
-import { evalRule, evalGroup } from "../helpers/operationActions";
+import { evalRule, evalGroup, evalRuleAgainstRecord } from "../helpers/operationActions";
 import { buildParentMap } from "../helpers/dragHitTesting";
 
 /**
@@ -459,6 +459,106 @@ export function fieldPassesVisibility(fieldId, fv) {
 // condition (e.g. the legacy schedFilterId OR-block) are NOT synthesized here;
 // they're either evaluated through their own rule tree elsewhere or are dead
 // code that the active grid filter already covers.
+// ── Feed resolution (2026-07-07) ───────────────────────────────────────────
+// A feed is a MATERIALIZED FIND (per user): `occ.feed = { enabled, conditions,
+// roles, scope, sort, limit }` selects source occurrences via filter-menu-
+// shaped conditions; helpers/feedSync.js then mints COPY-LINKED children of
+// the feed owner for each match (and sweeps copies whose source stops
+// matching). Copies are marked `meta.feedSourceId` and locked to copy drag
+// mode. This resolver answers only "which sources match right now" — the
+// sync engine owns minting/sweeping. Sources that are themselves feed copies
+// (meta.feedSourceId) are never pullable (no copy-of-copy cascades).
+export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {}) {
+  const feed = feedOcc?.feed;
+  if (!feed?.enabled || !occurrencesById) return [];
+  const roles = Array.isArray(feed.roles) && feed.roles.length ? feed.roles : ["instance"];
+  const limit = Number(feed.limit) > 0 ? Number(feed.limit) : 50;
+  const conditions = Array.isArray(feed.conditions) ? feed.conditions : [];
+
+  const pbc = buildParentMap(occurrencesById);
+  const ancestorsOf = (id) => {
+    const out = [];
+    let cur = id;
+    const seen = new Set();
+    while (cur && !seen.has(cur)) {
+      seen.add(cur);
+      const next = pbc[cur] ?? occurrencesById[cur]?.parentId;
+      if (!next) break;
+      out.push(next);
+      cur = next;
+    }
+    return out;
+  };
+  // The feed owner + its ancestors are never pullable (recursion), and
+  // anything ALREADY under the owner is excluded — those render as the
+  // occurrence's own children (per user: own children stay visible).
+  const ownChain = new Set([feedOcc.id, ...ancestorsOf(feedOcc.id)]);
+
+  const out = [];
+  for (const occ of Object.values(occurrencesById)) {
+    if (!occ?.id || ownChain.has(occ.id)) continue;
+    if (occ.meta?.feedSourceId) continue; // feed copies are never sources
+    const mod = modulesById?.[occ.moduleId];
+    const role = occ.role ?? mod?.role ?? null;
+    if (!roles.includes(role)) continue;
+    const ancestors = ancestorsOf(occ.id);
+    if (ancestors.includes(feedOcc.id)) continue; // already an owned descendant
+    if (feed.scope && !ancestors.includes(feed.scope)) continue;
+    let match = true;
+    for (const c of conditions) {
+      if (!c?.fieldId) continue;
+      const rule = { left: `fields.${c.fieldId}.value`, comparator: c.comparator || "IS", right: c.value };
+      if (!evalRuleAgainstRecord(rule, { ...occ, _ancestors: ancestors }, {})) { match = false; break; }
+    }
+    if (!match) continue;
+    out.push({ occurrence: occ, module: mod || null });
+  }
+
+  if (feed.sort?.fieldId) {
+    const dir = feed.sort.dir === "desc" ? -1 : 1;
+    const val = (o) => {
+      const v = o.occurrence.fields?.[feed.sort.fieldId];
+      return v && typeof v === "object" && "value" in v ? v.value : v;
+    };
+    out.sort((a, b) => compareFieldValues(val(a), val(b)) * dir);
+  }
+  return out.slice(0, limit);
+}
+
+// Type-aware compare for feed/table ordering. Lexical compare mis-sorts the
+// two shapes this system is full of: time-slot labels ("10:00am" < "2:00am")
+// and numeric strings. Order of coercion: 12h/24h time label → minutes since
+// midnight, then Number, then Date-parseable string, else localeCompare.
+// Nullish sorts last regardless of direction.
+const _TIME_LABEL_RE = /^\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*$/i;
+function _timeLabelToMinutes(v) {
+  if (typeof v !== "string") return null;
+  const m = v.match(_TIME_LABEL_RE);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2] || 0);
+  const ap = m[3]?.toLowerCase();
+  if (!ap && !m[2]) return null; // bare number — treat as numeric, not time
+  if (h > 23 || min > 59) return null;
+  if (ap === "pm" && h !== 12) h += 12;
+  if (ap === "am" && h === 12) h = 0;
+  return h * 60 + min;
+}
+export function compareFieldValues(va, vb) {
+  if (va == null && vb == null) return 0;
+  if (va == null) return 1;
+  if (vb == null) return -1;
+  const ta = _timeLabelToMinutes(va), tb = _timeLabelToMinutes(vb);
+  if (ta != null && tb != null) return ta - tb;
+  const na = typeof va === "number" ? va : (va !== "" && !isNaN(Number(va)) ? Number(va) : null);
+  const nb = typeof vb === "number" ? vb : (vb !== "" && !isNaN(Number(vb)) ? Number(vb) : null);
+  if (na != null && nb != null) return na - nb;
+  const da = typeof va === "string" ? Date.parse(va) : NaN;
+  const db = typeof vb === "string" ? Date.parse(vb) : NaN;
+  if (!isNaN(da) && !isNaN(db)) return da - db;
+  return String(va).localeCompare(String(vb));
+}
+
 export function getLocalFilterConditions(occ) {
   const out = [];
   for (const f of (occ?.filters || [])) {

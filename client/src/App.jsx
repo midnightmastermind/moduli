@@ -1,5 +1,5 @@
 // App.jsx — STEP 2: commits routed through CommitHelpers / LayoutHelpers
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { preventUnhandled } from "@atlaskit/pragmatic-drag-and-drop/prevent-unhandled";
 
@@ -18,13 +18,17 @@ import { useBoardState } from "./state/useBoardState";
 
 import Toolbar from "./Toolbar";
 import TransactionHistory from "./ui/TransactionHistory";
-import CommandCenter from "./ui/CommandCenter";
+// Lazy: CommandCenter pulls the whole settings-tab tree + the blocks
+// operations editor — none of it is needed before the user opens it.
+const CommandCenter = React.lazy(() => import("./ui/CommandCenter"));
 import AssistantDrawer from "./ui/AssistantDrawer";
 import ClipboardDropOverlay from "./ui/ClipboardDropOverlay";
 import RubberBandSelector from "./ui/RubberBandSelector";
 import { Spinner } from "./components/ui/spinner";
 import UserInputModal from "./ui/UserInputModal";
+import { ImagePickerHost } from "./ui/ImagePickerMenu";
 import { SelectionContext, useSelectionProvider } from "./state/SelectionContext";
+import { publishComputedValues } from "./state/computedValuesStore";
 
 import { useUndoRedo } from "./hooks/useUndoRedo";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -601,40 +605,46 @@ export default function App() {
   // Optional second arg `{ fieldIds }` pre-binds those fields onto the new
   // module — used by QuickAddMenu's "New X" field picker so the user can
   // attach a starter set of fields before creation.
+  // Identity-STABLE: reads everything from stateRef at call time. It used to
+  // depend on state.instances/state.containers/occurrencesById — all rebuilt
+  // per occurrence write — so its identity churned on every write and
+  // re-rendered every ModuleInstance/ModuleContainer that takes it as a
+  // prop/selector (~90 renders per drop, measured via __RENDER_ATTR).
   const addInstanceToContainer = useCallback(
     (containerId, opts) => {
-      if (!containerId || !state.gridId || !state.userId) return;
+      const s = stateRef.current;
+      if (!containerId || !s.gridId || !s.userId) return;
       const fieldIds = Array.isArray(opts?.fieldIds) ? opts.fieldIds : [];
 
       const id = crypto.randomUUID();
-      const label = `Item ${(state.instances?.length || 0) + 1}`;
+      const label = `Item ${(s.instances?.length || 0) + 1}`;
       // Module with role: "instance". Pre-bind any fields the user picked
       // in the QuickAddMenu field-picker step. Default role="input" so the
       // field renders as an editable pill (matches FieldsTab "attach" flow).
       const fieldBindings = fieldIds.map(fid => ({ fieldId: fid, role: "input", hidden: false }));
       const module = { id, role: "instance", kind: "board", label, fieldBindings };
 
-      const container = (state.containers || []).find((c) => c.id === containerId);
+      const container = (s.containers || []).find((c) => c.id === containerId);
       if (!container) return;
 
       // Find the container occurrence so createInstanceInContainer can update ordering
-      const containerOcc = Object.values(occurrencesById || {}).find(o => o.moduleId === containerId);
+      const containerOcc = (s.occurrences || []).find(o => o.moduleId === containerId);
 
       // Use the occurrence-based helper which creates module + occurrence + adds to container
       LayoutHelpers.createInstanceInContainer({
         dispatch,
         socket,
-        gridId: state.gridId,
+        gridId: s.gridId,
         container,
         containerOccurrence: containerOcc || null,
         instance: module,
-        userId: state.userId,
+        userId: s.userId,
         emit: true,
       });
       // Open the new item's label editor focused so it can be named right away.
       requestLabelEdit(id);
     },
-    [dispatch, state.instances, state.gridId, state.userId, state.containers, socket, occurrencesById]
+    [dispatch, socket]
   );
 
 
@@ -797,11 +807,18 @@ export default function App() {
     ]
   );
 
+  // computedValues fan out through the per-key subscription store — NOT via
+  // context. Riding on GridLiveContext meant every SET_COMPUTED_VALUES swap
+  // re-rendered every consumer (all fields/instances/panels/pages), several
+  // waves per drop. useLayoutEffect so subscribers commit pre-paint.
+  useLayoutEffect(() => {
+    publishComputedValues(state.computedValues || {});
+  }, [state.computedValues]);
+
   // C4: Frequently-changing values in separate context — only consumers
-  // that need computedValues/undo/mobile state subscribe here
+  // that need undo/mobile state subscribe here
   const liveValue = useMemo(
     () => ({
-      computedValues: state.computedValues || {},
       fullStateLoaded: state.fullStateLoaded ?? false,
       canUndo,
       canRedo,
@@ -816,7 +833,6 @@ export default function App() {
       setZoomedOut,
     }),
     [
-      state.computedValues,
       state.fullStateLoaded,
       canUndo,
       canRedo,
@@ -864,11 +880,13 @@ export default function App() {
 
         {/* CommandCenter — keep mounted once opened so slide-up animation works on close */}
         {commandCenterEverOpened && (
-          <CommandCenter
-            open={commandCenterOpen}
-            onOpenChange={setCommandCenterOpen}
-            isMobileLayout={isMobileLayout}
-          />
+          <React.Suspense fallback={null}>
+            <CommandCenter
+              open={commandCenterOpen}
+              onOpenChange={setCommandCenterOpen}
+              isMobileLayout={isMobileLayout}
+            />
+          </React.Suspense>
         )}
         </div>{/* end header wrapper */}
 
@@ -957,6 +975,12 @@ export default function App() {
           onSubmit={handleInputSubmit}
           onCancel={handleInputCancel}
         />
+
+        {/* Image picker modal — single global host; call sites (occurrence
+            dropdown rows, media-role field inputs, the artifact image
+            viewer) open it imperatively via openImagePicker() so it
+            survives their popovers unmounting. */}
+        <ImagePickerHost />
       </SelectionContext.Provider>
       </GridDataContext.Provider>
       </GridLiveContext.Provider>

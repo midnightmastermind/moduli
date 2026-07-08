@@ -2191,3 +2191,49 @@ Two issues, scoped to the MOBILE viewer only: (1) the cell-switch edge buttons (
 > "after, look into dropping in a doc, and doc container, especially nested ones. the drop was reloading the entire page"
 
 Queued as follow-up after the 2026-07-06 audit-fix plan (docs/superpowers/plans/2026-07-06-dnd-wrap-menus-audit-fixes.md). Symptom echoes the 2026-06-16 "page resets" class (DragProvider monitor + Editor drop target double-handling); investigate with __dragDiag tracing on doc + NESTED doc-container drops.
+
+## 2026-07-07 — ops audit, image picker menu, grid count (account2 hit spend limit mid-verify; picked up by .claude)
+
+> "could you do an audit now on all the operations and make sure each of them work"
+
+(Done in account2's session — commit `8a592afb`, 70-op audit + People: Show Profile APPLY_TEMPLATE fix.)
+
+> "can you add in an image upload menu and put it in the necessary spots. put inside there the option for an image look up with google like calibre (the book app), this should go with artifact images as well as images for instances (like person profile picture and such) (or movie poster for that list). i want when i go to select a movie from the dropdown, we can set the image there."
+
+Shipped as `ui/ImagePickerMenu.jsx` (Search / Upload / URL tabs, DDG+Wikipedia keyless search proxy) wired into: occurrence-dropdown option rows ("Set image…" on each option), media-role field pills, and the artifact image viewer ("Replace" button). Verification surfaced two latent optionsResolver bugs (`$record.` prefix + missing `_ancestors`) that had EVERY ancestor-scoped dropdown (Account, etc.) resolving to zero options — both fixed.
+
+> "tthere shouldnt be 3 grids, only two. the live grid, and an empty grid thats 1 grid cell"
+
+Stale unnamed 2×3 skeleton grid (0 panels, partial-reseed leftover — same class as the one removed 2026-07-04) deleted again, and `createLiveData` now sweeps dead skeletons (0 panels, not 1×1) on every default reseed so they can't accumulate.
+
+## 2026-07-07/08 — trackers, notifications, audits, FEEDS (account3 session)
+
+> "okay, off the bat, the tasks completed and tasks left arent updating at all, streak only updates when i drop the first physical onto the schedule … we need to show the updated and also if it failed in notifications. we also need notification for the moves and copies."
+
+Root-caused (instance-role tracker triggers missing) + fixed; notifications show op results + move/copy toasts with page context.
+
+> "make sure its not just drop and then completed. completed and then drop should work too. and make sure you are looking at all the operations and not just the completed" / "the reaudit should be for all the inputs too" / "make sure these are all added as tests"
+
+Behavioral audit became `liveOpsBehavioral.test.js` (seed-driven, all input types). Found + fixed: deletes never decremented trackers (`_occurrenceSnapshot` replaces occurrencesOverride); Workouts counted water logs (muscleGroup presence gate).
+
+> "also make sure goals and trackers are not hard coded in the system. the system doesnt know that. anything i say pertaining to goals, trackers, tasks, schedule, etc. can be in the createLiveGrid but the system itself should not know thats what they are."
+
+Verified: domain names live only in seed/builders; isTask marker removed for presenceFieldId.
+
+> "make the quotes in the doc container, the same textsize as the other textblocks" — 13px, done.
+
+> "reaudit the drag and drop for all occurances and the drops they can do. show me a list … include nested stuff … all occurrence types" — docs/dnd-matrix-2026-07-07.md.
+
+> "audit the datepicker … the icon or color for today should be alot lighter, so it can show if its selected or not better … make sure all the other select rules apply … make sure the schedule updates with those selections" — today-hint lightened; rules + schedule-rebuild locked as tests.
+
+> "we want a plan to add in a feed option in the occurance menu … pull, using the filter menu as the conditions, from all the occurances, and display them. filters can still be applied after the fact … make it a plan first … review if this is a sound addition."
+
+Plan written; then during review the user pivoted the design:
+
+> "build it to replace the operations for schedule table and canvas" / "dont hide the containers old children" / "lock the feeded occurances in copy mode" / "like the feed just copies those occurances — copylinks i mean" / "it should be a copy of the occurance added to the parent actually" / "we should do pages too i mean"
+
+FEEDS SHIPPED as materialized copy-links (helpers/feedSync.js engine); Table: Build + Canvas: Build ops deleted; Schedule Table/Canvas pages run on seeded feeds. Spec + as-built: docs/superpowers/specs/2026-07-07-occurrence-feed-plan.md.
+
+> "wait why cant they be used in operations … like if i drag from there to a schedule, will it still count"
+
+Answered + regression-tested: feed copies participate in ops fully (onChange fires; only their mint/sweep lifecycle is silent, and stock trackers skip them to avoid double-counting their linked source). Dragging OUT of a feed mints a clean copy (no feedSourceId) that counts like any toolkit drop.

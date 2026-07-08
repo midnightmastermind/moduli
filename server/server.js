@@ -4,6 +4,7 @@
 import express from "express";
 import http from "http";
 import cors from "cors";
+import compression from "compression";
 import mongoose from "mongoose";
 import { Server } from "socket.io";
 import multer from "multer";
@@ -96,6 +97,9 @@ function serializeTipTapToMarkdown(tipTapJson) {
 // ========================================================
 const app = express();
 app.use(cors());
+// Gzip every compressible response (API JSON, static JS/CSS when Cloudflare
+// isn't in front — LAN/tablet access hits the origin directly).
+app.use(compression());
 // JSON body parser for all routes EXCEPT /api/webhooks/* — those need
 // the raw bytes for HMAC verification and parse JSON themselves after.
 app.use((req, res, next) => {
@@ -121,6 +125,10 @@ const io = new Server(server, {
   pingTimeout: 60000,    // 60s (default 20s) — remote DB can block event loop during cache load
   pingInterval: 25000,   // 25s (default 25s)
   maxHttpBufferSize: 64 * 1024 * 1024,
+  // Socket.io v4 disables WS compression by default. full_state is ~1.5MB+ of
+  // JSON (textmaps ship decompressed) and Cloudflare does not compress WS
+  // frames — deflate cuts it ~85%. Threshold skips the tiny per-field events.
+  perMessageDeflate: { threshold: 1024 },
 });
 
 io.engine.on("connection_error", (err) => { console.error("❌ [io.engine] connection_error:", err.req?.url, err.code, err.message); });
@@ -343,7 +351,19 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
-app.use("/uploads", express.static(uploadsDir));
+// Uploaded files get timestamp-random names (immutable once written) → cache
+// hard. md/ and thumbnails/ are REWRITTEN under the same name on save →
+// always revalidate those.
+app.use("/uploads", express.static(uploadsDir, {
+  setHeaders: (res, filePath) => {
+    const rel = path.relative(uploadsDir, filePath);
+    if (rel.startsWith("md/") || rel.startsWith("thumbnails/")) {
+      res.setHeader("Cache-Control", "no-cache");
+    } else {
+      res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
+    }
+  },
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -827,6 +847,97 @@ app.use("/api/v1", makeApiV1Router({
   opRunBridge,
 }));
 
+// ─── Image search + bare image upload (ImagePickerMenu) ───────────────────
+// Calibre-style "look up cover": the client's ImagePickerMenu queries this
+// proxy by name (e.g. "Inception movie poster") and shows a thumbnail grid.
+// Same auth class as /api/artifacts/upload (app-internal, no API token).
+//
+// Primary source: DuckDuckGo images (keyless; two-step vqd-token flow).
+// Fallback: Wikipedia pageimages (famous subjects). Results are
+// { image, thumbnail, title, width, height, source } — the client stores
+// the picked `image` URL directly in the field value / module.fileRef
+// (external URLs pass through resolveFileRef verbatim, same as the seeded
+// Wikimedia artwork; scripts/mirrorRemoteImages.js can localize later).
+const IMG_SEARCH_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+  Referer: "https://duckduckgo.com/",
+};
+async function searchImagesDDG(q, max = 24) {
+  const tokenPage = await fetch(
+    `https://duckduckgo.com/?q=${encodeURIComponent(q)}&iax=images&ia=images`,
+    { headers: IMG_SEARCH_HEADERS },
+  );
+  const html = await tokenPage.text();
+  const m = html.match(/vqd=["']?([\d-]+)["']?/);
+  if (!m) throw new Error("no vqd token in DDG response");
+  const r = await fetch(
+    `https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(q)}&vqd=${m[1]}&f=,,,&p=1`,
+    { headers: IMG_SEARCH_HEADERS },
+  );
+  if (!r.ok) throw new Error(`DDG i.js ${r.status}`);
+  const j = await r.json();
+  return (j.results || []).slice(0, max).map((it) => ({
+    image: it.image, thumbnail: it.thumbnail, title: it.title,
+    width: it.width, height: it.height, source: it.url,
+  }));
+}
+async function searchImagesWikipedia(q, max = 8) {
+  const url =
+    `https://en.wikipedia.org/w/api.php?action=query&generator=search` +
+    `&gsrsearch=${encodeURIComponent(q)}&gsrlimit=${max}` +
+    `&prop=pageimages&piprop=original|thumbnail&pithumbsize=300&format=json&formatversion=2`;
+  const r = await fetch(url, { headers: { "User-Agent": "moduli/1.0" } });
+  if (!r.ok) throw new Error(`wikipedia ${r.status}`);
+  const j = await r.json();
+  return (j?.query?.pages || [])
+    .filter((p) => p.original?.source || p.thumbnail?.source)
+    .map((p) => ({
+      image: p.original?.source || p.thumbnail?.source,
+      thumbnail: p.thumbnail?.source || p.original?.source,
+      title: p.title, width: p.original?.width, height: p.original?.height,
+      source: `https://en.wikipedia.org/wiki/${encodeURIComponent(p.title)}`,
+    }));
+}
+app.get("/api/images/search", async (req, res) => {
+  const q = String(req.query.q || "").trim();
+  if (!q) return res.status(400).json({ error: "q required" });
+  try {
+    const results = await searchImagesDDG(q);
+    if (results.length) return res.json({ results, source: "duckduckgo" });
+  } catch (e) {
+    console.warn("[images/search] ddg failed:", e.message);
+  }
+  try {
+    const results = await searchImagesWikipedia(q);
+    return res.json({ results, source: "wikipedia" });
+  } catch (e) {
+    return res.status(502).json({ error: "image_search_unavailable", message: e.message });
+  }
+});
+
+// Bare image upload — stores the file under uploads/user/YYYY-MM/ and returns
+// its URL. Mints NO module/occurrence (unlike /api/artifacts/upload): the
+// ImagePickerMenu uses this when the picked image becomes a FIELD VALUE
+// (person photo, movie poster) rather than a standalone artifact.
+app.post("/api/images/upload", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "file required" });
+    if (!req.file.mimetype?.startsWith("image/")) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: "image files only" });
+    }
+    const shard = yearMonthShard();
+    const shardDir = path.join(uploadsDir, "user", shard);
+    fs.mkdirSync(shardDir, { recursive: true });
+    const destPath = path.join(shardDir, req.file.filename);
+    fs.renameSync(req.file.path, destPath);
+    const fileRef = `user/${shard}/${req.file.filename}`;
+    res.json({ fileRef, url: `/uploads/${fileRef}` });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── Wikipedia import (no-/v1, no-API-token) ──────────────────────────────
 // Mirror of /api/v1/research/wikipedia/import but uses {userId,gridId} from the
 // request body the same way /api/artifacts/upload does. Lets the in-app
@@ -949,8 +1060,21 @@ setInterval(async () => {
 // ========================================================
 const clientDistDir = path.join(__dirname, "../client/dist");
 if (fs.existsSync(path.join(clientDistDir, "index.html"))) {
-  app.use(express.static(clientDistDir));
-  app.get("/{*splat}", (_req, res) => res.sendFile(path.join(clientDistDir, "index.html")));
+  // Vite content-hashes everything under assets/ → cache forever. index.html
+  // (and other root files) must always revalidate so a deploy takes effect.
+  app.use(express.static(clientDistDir, {
+    setHeaders: (res, filePath) => {
+      const rel = path.relative(clientDistDir, filePath);
+      res.setHeader(
+        "Cache-Control",
+        rel.startsWith("assets/") ? "public, max-age=31536000, immutable" : "no-cache"
+      );
+    },
+  }));
+  app.get("/{*splat}", (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(path.join(clientDistDir, "index.html"));
+  });
 }
 
 // ========================================================

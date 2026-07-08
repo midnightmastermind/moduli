@@ -1,6 +1,35 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-06-03. Check this file before re-reading source._
+_Updated: 2026-07-06. Check this file before re-reading source._
+
+## Recent Changes (2026-07-08 — feed resolver + sync scheduler; delete snapshot)
+- **`selectors.js`** — `resolveFeedItems(feedOcc, {occurrencesById, modulesById})`: the feed query
+  (roles + scope HAS_ANCESTOR + filter-menu conditions via evalRuleAgainstRecord; skips feed
+  copies/owner/its chain/owned descendants; sort via new exported `compareFieldValues` —
+  time-label/number/date-aware — + limit). Engine that consumes it: helpers/feedSync.js.
+- **`bindSocketToStore.js`** — debounced `scheduleFeedSync()` (300ms) → `syncAllFeeds` after
+  full_state (400ms), grid filter changes, fireOperationsBatch, and occurrence CRUD echoes.
+  `operationsBridge.markDerivedOcc` exposes the opEmittedOccIds suppression for derived-data
+  creates/sweeps. `occurrencesOverride` plumbing REMOVED (deletes carry `_occurrenceSnapshot`
+  on the transaction instead — executor enrichment falls back to it).
+
+## Recent Changes (2026-07-06 LATE-2 — computedValuesStore.js NEW: per-key subscription fan-out)
+- **`computedValuesStore.js` (NEW)** — module-level map + listener set with
+  `useSyncExternalStore` hooks (`useComputedValue` / `useComputedValueWithFallback` /
+  `useComputedValuesMap`) so computedValues consumers subscribe per-KEY instead of riding
+  `GridLiveContext` (which re-rendered every consumer per SET_COMPUTED_VALUES). App.jsx
+  publishes the reducer's map via `useLayoutEffect`; the reducer stays the store of record —
+  its spread-merge preserves unchanged entry identities, which is what gives the per-key
+  snapshots their granularity. A/B drop probe showed frame-1 drop→paint UNCHANGED (the storm
+  isn't computedValues-driven — see client/src/CLAUDE.md docket); kept for the drain-wave win.
+
+## Recent Changes (2026-07-06 — useScheduler adaptive tick)
+- **`useScheduler.js`** — the scheduler interval is no longer a fixed 1s. Tick = 5s default,
+  tightened to the smallest enabled schedule's cadence when that's under 5s (`Math.min` over
+  `cadenceMs` per enabled scheduled op, floor 1s). Nothing seeded is finer than 5 minutes
+  (hourly chime disabled), so in practice the app wakes 12×/min less — battery/CPU on tablets.
+  Sub-minute display-only ops (live clock) still work: their cadence pulls the tick back down.
+  atTimes (HH:MM) ops are unaffected — a 5s tick still lands inside the minute window.
 
 ## Recent Changes (2026-06-10 — import-freeze / frozen progress timer: skip per-entity triggers during a bulk create burst)
 - **`bindSocketToStore.js` (`onOccurrenceCreated`)** — root cause of "the importer

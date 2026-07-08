@@ -1,6 +1,60 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-07-06. Check this file before re-reading source._
+_Updated: 2026-07-07. Check this file before re-reading source._
+
+## Recent Changes (2026-07-07 LATE-2 — feedSync.js NEW: the occurrence-feed engine)
+- **`feedSync.js` (NEW)** — materializes `occurrence.feed` pull-queries as copy-linked children
+  (replaces Table: Build / Canvas: Build ops). Scan-based self-healing diff on
+  `meta.feedSourceId`+parentId; mints via `copylinkInstanceToContainer` (new `dragMode` +
+  `fireTrigger` params); sweeps/re-links; ACCUMULATES the parent ref across writes (stale per-mint
+  reads = child-list clobber, caught headless). Scheduled debounced from bindSocketToStore.
+- **`CommitHelpers.js`** — `createOccurrence` + `removeOccurrence` gained `fireTrigger=true`
+  (false = derived data: no op fire, `operationsBridge.markDerivedOcc` suppresses the echo).
+- **`LayoutHelpers.js`** — `copylinkInstanceToContainer` passes through `dragMode` (stamped on the
+  minted occurrence) + `fireTrigger`.
+
+
+## Recent Changes (2026-07-07 LATE — delete recount fix + opResultSummary + drag toast page context)
+- **`operationExecutor.js`** — `$trigger.occurrence` enrichment now falls back to
+  `transaction._occurrenceSnapshot` when the occurrence is gone from state (deletes); `_ancestors`
+  from `transaction._ancestorIds` in that case. `applyEffectsToLiveOccs` is exported (behavioral
+  test harness). WHY: deletes used to re-inject the snapshot into the whole executor overlay via
+  `occurrencesOverride` → tracker recounts still counted the deleted item → deleting a completed
+  task never decremented Tasks Completed. Snapshot is TRIGGER CONTEXT only now.
+- **`CommitHelpers.js`** — `deleteOccurrence`/`removeOccurrence` stamp `_occurrenceSnapshot` on the
+  OccurrenceDeleteOp instead of passing `occurrencesOverride` (plumbing removed in
+  bindSocketToStore too).
+- **`opResultSummary.js` (NEW)** — `summarizeOpResults(results, {fieldsById, occurrencesById,
+  modulesById})` names every op effect for the notification pills (field writes with values,
+  creates/deletes/moves by label, all other effect types by name; >12 segments → "+N more");
+  `makeOpNotificationCallbacks(push, getCtx)` shared by all three runMatchingOperations sites
+  (full_state, generic fire, dropHandlers move — the last previously passed NO callbacks: silent
+  successes AND failures). 12 tests.
+- **`dropHandlers.js`** — `_destName` prefixes drag toasts with the nearest page-role ancestor
+  ("Schedule › 1:00am"); doc-embed drag-outs (canvas + list branches) toast Moved/Copied.
+
+
+## Recent Changes (2026-07-07 — optionsResolver: ancestor-scoped dropdowns fixed (2 latent bugs))
+Root cause of "No occurrences available" in the Account (and every other ancestor-scoped)
+occurrence dropdown — found while verifying the ImagePickerMenu e2e:
+- **`operationActions.js` (`resolveRecordPath`)** — now also strips a `$record.` prefix (alongside
+  the existing `$item.` strip). Seeded optionsSource find predicates carry lefts like
+  `$record._ancestors`; unstripped, the path walked `record["$record"]` → null → rule failed.
+- **`optionsResolver.js` (`buildCollection`)** — records are now enriched with
+  `_ancestors` (via `buildParentMap` from dragHitTesting + parentId fallback, cycle-guarded),
+  mirroring the executor's $allItems enrichment. Previously `HAS_ANCESTOR` predicates evaluated
+  against `undefined` → every ancestor-scoped optionsSource silently resolved to zero options.
+- 3 regression tests in `__tests__/optionsResolver.test.js` (ancestor via parentId AND via parent
+  `occurrences[]`, exclusion, bare-path equivalence). 31/31 in suite; 1162/1162 client-wide.
+
+
+## Recent Changes (2026-07-07 — renderProbe: render-cause attribution (gated))
+- **`renderProbe.js`** — `useRenderAttribution(kind, inputs, tag)` + `snapshotAttrs`/`diffAttrs`,
+  active only under `window.__RENDER_ATTR === true`: per render, diffs the captured props/selector
+  outputs against the previous render and buckets by changed-key set (unchanged → `(none) @tag
+  #250ms-bin`). This is what attributed the drop frame-1 flush (see client/src/CLAUDE.md docket).
+- **`DragProvider.jsx`** — the `_diag` rAF#2 block additionally logs `[drop-attr]` rows (top
+  buckets per kind) when `__RENDER_ATTR` is set; snapshots taken next to `_renders0`.
 
 ## Recent Changes (2026-07-06 LATE — dragSystem: getDocTouchDropZone (nested doc-container delegation))
 - **`dragSystem.js`** — `getDocTouchDropZone(el) → { el, fn } | null` extracted from

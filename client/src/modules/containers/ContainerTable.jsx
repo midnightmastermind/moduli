@@ -19,7 +19,7 @@ import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn
 import { assignLinkedGroup } from "../../helpers/LayoutHelpers";
 import { COMPARATOR_OPTIONS, UNARY_COMPARATORS } from "../../helpers/comparators";
 import { GridActionsContext, useGridActions } from "../../GridActionsContext";
-import { getEffectiveFieldVisibilityForOccurrence } from "../../state/selectors";
+import { getEffectiveFieldVisibilityForOccurrence, compareFieldValues } from "../../state/selectors";
 import {
   autoAppendFieldsToAncestorsShowMode,
   autoAppendFieldsToTableColumnShowMode,
@@ -1121,6 +1121,37 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
   const filteredSortedRows = tableInstance.getRowModel().rows;
 
+  // ── Children as rows (2026-07-07) ─────────────────────────────────────────
+  // Occurrences PARENTED under the table render as generated rows after the
+  // persisted cell rows — one row per child, each column applying its own
+  // projection (fieldVisibility / hideLabel / displayFieldId) to the SAME
+  // occurrence via StaticCellEmbed. This is what makes a table a feed target
+  // (occurrence.feed materializes copy-linked children — the old Table: Build
+  // op wrote per-cell embed docs instead) and, generically, what makes any
+  // drop-into-a-table read as "new row".
+  const childRowOccs = useMemo(() => {
+    const ids = occurrence?.occurrences || [];
+    const occs = ids.map(id => occurrencesById?.[id]).filter(Boolean);
+    // Child rows follow the table-level sort: order by the sort column's
+    // PROJECTED field (its fieldVisibility show-list's first field), falling
+    // back to the occurrence label. Same type-aware compare feeds use, so
+    // time-slot labels order chronologically.
+    if (table.sort?.colId) {
+      const col = columns.find(c => c.id === table.sort.colId);
+      const fid = col?.fieldVisibility?.mode === "show" ? col.fieldVisibility.fieldIds?.[0] : null;
+      const dir = table.sort.dir === "desc" ? -1 : 1;
+      const val = (o) => {
+        if (fid) {
+          const v = o.fields?.[fid];
+          return v && typeof v === "object" && "value" in v ? v.value : v;
+        }
+        return o.label || modulesById?.[o.moduleId]?.label || null;
+      };
+      occs.sort((a, b) => compareFieldValues(val(a), val(b)) * dir);
+    }
+    return occs;
+  }, [occurrence?.occurrences, occurrencesById, table.sort, columns, modulesById]);
+
   // Normal document flow — NO row/column virtualization. This table holds a
   // handful of rows whose cells are heavy occurrence embeds. The virtualizer's
   // absolute positioning + async height measurement was the source of the
@@ -1598,6 +1629,65 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
             </div>
           );
         })}
+
+        {/* Children rows — see childRowOccs above. Feed copies
+            (meta.feedSourceId) hide the remove button: the feed engine owns
+            their lifecycle (a manual delete would just re-mint next sync). */}
+        {childRowOccs.map((childOcc) => (
+          <div
+            key={`child-row-${childOcc.id}`}
+            className="table-row table-child-row"
+            style={{
+              width: totalColsWidth,
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "stretch",
+            }}
+          >
+            {columns.map((col, c) => (
+              <div
+                key={`${childOcc.id}:${c}`}
+                className="table-td"
+                style={{
+                  flex: `0 0 ${effectiveWidths[c]}px`,
+                  boxSizing: "border-box",
+                }}
+              >
+                <StaticCellEmbed
+                  occId={childOcc.id}
+                  occurrencesById={occurrencesById}
+                  modulesById={modulesById}
+                  dispatch={dispatch}
+                  socket={socket}
+                  displayFieldId={col.displayFieldId ?? null}
+                  fieldVisibility={col.fieldVisibility ?? tableFieldVisibility}
+                  hideLabel={col.hideLabel === true}
+                  showMedia={col.showMedia === true}
+                />
+              </div>
+            ))}
+            <div
+              className="table-td table-row-action-cell"
+              style={{ flex: `0 0 ${ROW_ACTION_COL_W}px`, boxSizing: "border-box" }}
+            >
+              {!childOcc.meta?.feedSourceId && (
+                <button
+                  className="table-remove-row-btn"
+                  title="Remove this item"
+                  onClick={() => CommitHelpers.removeOccurrence({
+                    dispatch, socket,
+                    occurrenceId: childOcc.id,
+                    occurrence: childOcc,
+                    parentOccurrence: occurrence,
+                    emit: true,
+                  })}
+                >
+                  –
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
 
       {/* +Row strip — mirrors the +Column strip at the right edge of the
           header but spans the full body width along the bottom. Vertically

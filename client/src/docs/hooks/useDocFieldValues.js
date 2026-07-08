@@ -4,9 +4,9 @@
 // Extracts field IDs from Tiptap content and computes values
 // ============================================================
 
-import { useMemo, useContext } from "react";
+import { useMemo } from "react";
 import { GridActionsContext, useGridActions } from "../../GridActionsContext";
-import { GridLiveContext } from "../../GridLiveContext";
+import { useComputedValuesMap } from "../../state/computedValuesStore";
 import * as CalculationHelpers from "../../helpers/CalculationHelpers";
 
 /**
@@ -46,7 +46,7 @@ export function useDocFieldValues(docContent) {
     occurrencesById = {},
     state = {},
   } = context;
-  const { computedValues = {} } = useContext(GridLiveContext) || {};
+  const computedValues = useComputedValuesMap();
 
   // Extract all field IDs from the document
   const fieldIds = useMemo(() => {
@@ -170,7 +170,7 @@ export function useFieldValue(fieldId) {
     occurrencesById = {},
     state = {},
   } = context;
-  const { computedValues = {} } = useContext(GridLiveContext) || {};
+  const computedValues = useComputedValuesMap();
 
   return useMemo(() => {
     const field = fieldsById[fieldId];

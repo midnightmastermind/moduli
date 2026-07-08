@@ -1,6 +1,69 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-07-06. Check this file before re-reading source._
+_Updated: 2026-07-07. Check this file before re-reading source._
+
+## Recent Changes (2026-07-08 — Occurrence.feed schema + feed replaces Table:/Canvas: Build)
+- **`models/Occurrence.js`** — new `feed` key (Mixed, default null): the materialized pull-query
+  config (client engine: helpers/feedSync.js). Declared so strict mode doesn't strip it on
+  update_occurrence's spread merge.
+- **`scripts/createLiveData.js`** — `Table: Build` + `Canvas: Build` ops DELETED (68 ops).
+  Schedule Table + Schedule Canvas page occs carry seeded feeds (scope = Schedule page, sort by
+  Time Slot) and now INHERIT the date cascade (filterOverride null, was {}). Table's Goal column
+  removed (it embedded a per-row goal copy only the op could mint). All `$item._ancestors
+  HAS_ANCESTOR`-scoped trackers gained `meta.feedSourceId IS_EMPTY` (feed copies never aggregate).
+- **`utils/liveSystemBuilders.js`** — same feed-copy exclusion rule in makeTrackerOp's loop rules.
+
+## Recent Changes (2026-07-07 — image search/upload routes + reseed stale-grid sweep)
+- **`server.js`** — two new app-internal routes for the client's ImagePickerMenu (same auth class
+  as `/api/artifacts/upload`):
+  - `GET /api/images/search?q=` — keyless web image search proxy. Primary: DuckDuckGo images
+    (two-step vqd-token flow, browser UA headers); fallback: Wikipedia pageimages. Returns
+    `{ results: [{ image, thumbnail, title, width, height, source }], source }`. Picked URLs are
+    stored directly in field values / `module.fileRef` (external URLs pass through
+    `resolveFileRef` verbatim; `scripts/mirrorRemoteImages.js` can localize later).
+  - `POST /api/images/upload` — bare image upload: stores under `uploads/user/YYYY-MM/` and
+    returns `{ fileRef, url }`; mints NO module/occurrence (for images that become FIELD values —
+    person photo, movie poster — vs standalone artifacts). Rejects non-image mimetypes.
+- **`scripts/createLiveData.js`** — new exported `sweepStaleGrids(userId)`, called on every
+  DEFAULT (non `--clear`) reseed after `dropExistingLiveGrid`. Deletes grids with ZERO panel
+  occurrences that are NOT 1×1, plus their scoped docs. Partial/interrupted reseeds leave
+  unnamed 2×3 skeletons that accumulate (user hit this 2026-07-04 AND again 2026-07-07:
+  "there shouldnt be 3 grids, only two"). Deliberately preserved: the user's empty 1×1 scratch
+  grid (0 panels but 1×1), the Live Grid, any grid with panels. One stale skeleton
+  (`6a46fabd…`, 2 orphan occs + 1 manifest + 1 folder) was swept from prod Atlas directly the
+  same day; seed re-exported (grids.json now carries exactly 2 grids).
+
+
+## Recent Changes (2026-07-07 — full operations audit + People: Show Profile fix)
+- **All 70 ops audited** (report: `docs/op-audit-2026-07-07.md`). Methods: static pipeline
+  validation vs seed, headless load sweep (58 ops, 0 errors), REAL value-change UI tests
+  (completed toggle → Tasks Completed 0/10→2/10; water 5 + complete → Daily Water 0→5oz;
+  due-date edit → Days Until Due recompute; protein edit fanned to all 3 linked copies), and
+  API dry-runs of every op via `/api/v1/operations/:id/run` (66/70 ok; 4 expected-fails:
+  2 GET_USER_INPUT suspensions + 2 drop-trigger ops refusing manual context).
+- **`scripts/createLiveData.js` ("People: Show Profile") FIXED** — its APPLY_TEMPLATE used
+  `templateId`/`targetId`, keys the executor never reads (`templateRef`/`targetOccurrenceVar`),
+  so the action silently no-op'd since it was seeded. Reseeded + verified (dry-run stages the
+  template clone now).
+- Findings (unfixed, see report): Wellness Score occurrence is written by NO op (shows -/0
+  forever); bootstrap-token mints an "assistant (auto)" ApiToken per page load when the running
+  server's env token is stale vs the DB (120+ rows piled up — restart server after minting, or
+  prune); client `save_op_run_log` emits to a server handler that no longer exists.
+
+## Recent Changes (2026-07-06 LATE — perf audit: WS deflate + HTTP compression + cache headers)
+- **`server.js` (io options)** — `perMessageDeflate: { threshold: 1024 }`. Socket.io v4 ships WS
+  compression DISABLED; full_state is ~1.9MB of JSON (854 occs live grid, textmaps decompressed)
+  and Cloudflare does NOT compress WS frames — deflate cuts it ~85% on the wire. Threshold skips
+  tiny per-field events. Verified: handshake echoes `Sec-WebSocket-Extensions: permessage-deflate`
+  and an authenticated full_state round-trips clean (854 occs / 785 mods / 70 ops).
+- **`server.js` (express)** — `app.use(compression())` right after cors (new `compression` dep).
+  Gzips API JSON + static when Cloudflare isn't in front (LAN/tablet direct-IP access). Measured:
+  App chunk 284KB → 82KB over the wire.
+- **`server.js` (static cache headers)** — client dist: `assets/*` (content-hashed) →
+  `public, max-age=31536000, immutable`; `index.html` + other root files → `no-cache` (deploys
+  take effect immediately). `/uploads`: `md/` + `thumbnails/` are REWRITTEN under the same name →
+  `no-cache`; everything else has timestamp-random names → 30d immutable.
+- No reseed; **server restart** (and `npm i` in server/ for the compression dep) to apply.
 
 ## Recent Changes (2026-07-06 — Importer: stop emitting dead `wrap`/`anchor` wrapGroup attrs)
 - **`services/markdownImporter.js` (lines 225-230, 251-253, 239, 256)** — removed `anchor: "top"` and `wrap: false` from both wrapGroup `attrs` emissions (lead aside and section image pairs). The client's `WrapGroupNode` always wraps when neighbors exist and never reads these attrs — they were dead knobs. New attrs: `{ side: "right", anchorIndex: 0, neighborWidth: 320|260 }`. Replaced the stale comments explaining wrap/anchor behavior with clarity on neighbor-first ordering and the draggable seam owning resize.
