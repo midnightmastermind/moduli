@@ -22,6 +22,13 @@ if on_server; then
   cd "$SERVER_PATH"
   as_deploy git fetch origin
   as_deploy env GIT_PAGER=cat git pull --ff-only origin master
+  # Install deps for all three package roots BEFORE build/restart — a deploy
+  # that adds a dependency (e.g. compression 2026-07-06, use-sync-external-store
+  # 2026-07-07) otherwise crash-loops the server with ERR_MODULE_NOT_FOUND
+  # (bit us 2026-07-08: prod 502 until server/ npm install ran by hand).
+  as_deploy npm install --no-audit --no-fund
+  as_deploy npm --prefix ./server install --no-audit --no-fund
+  as_deploy npm --prefix ./client install --no-audit --no-fund
   # Build BEFORE restart: server only registers the SPA routes when
   # client/dist/index.html exists at boot.
   as_deploy npm --prefix ./client run build
