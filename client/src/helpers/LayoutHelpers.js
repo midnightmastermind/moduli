@@ -802,6 +802,8 @@ export function copylinkInstanceToContainer({
   iterationValue = null,
   sourceOccurrence = null,
   initialMeta = null,
+  dragMode = null,
+  fireTrigger = true,
 }) {
   if (!gridId || !sourceInstanceId || !toContainer || !userId) return null;
 
@@ -845,9 +847,10 @@ export function copylinkInstanceToContainer({
     linkedGroupId,
     parentId: toContainer._occurrence?.id || null,
     ...(initialMeta ? { meta: initialMeta } : {}),
+    ...(dragMode ? { dragMode } : {}),
   };
 
-  CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit });
+  CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit, fireTrigger });
 
   // Add occurrence to container occurrence (ordering lives on the container occurrence)
   const toContainerOcc = toContainer._occurrence || null;

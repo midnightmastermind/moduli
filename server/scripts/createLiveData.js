@@ -5568,7 +5568,7 @@ export async function createLiveData(userId, options = {}) {
   // filterOverride:{} so the table is always visible regardless of date nav
   // (its rows already represent a specific built day).
   const STBL_COLS = {
-    task: "tcol_task", date: "tcol_date", time: "tcol_time", goal: "tcol_goal",
+    task: "tcol_task", date: "tcol_date", time: "tcol_time",
   };
   const schedTablePageModId = uid(); const schedTablePageOccId = uid();
   await new Module({ id: schedTablePageModId, userId, gridId, role: "page", kind: "table", label: "Schedule Table" }).save();
@@ -5577,7 +5577,20 @@ export async function createLiveData(userId, options = {}) {
     parentId: interfacesFolderId, sortOrder: 2,
     occurrences: [],
     iteration: { mode: "persistent" }, fields: {},
-    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+    // Inherits the date cascade (was filterOverride:{} when the Table: Build
+    // OP owned date scoping) — the FEED below materializes exactly the
+    // active period's tasks and re-syncs on date navigation.
+    filterOverride: null, filterNavConfig: { filter_daily: { visible: false } },
+    // FEED (2026-07-07, replaces Table: Build): every instance under the
+    // Schedule page → copy-linked child row. helpers/feedSync.js mints/sweeps.
+    feed: {
+      enabled: true,
+      conditions: [],
+      roles: ["instance"],
+      scope: schedPageOccId,
+      sort: { fieldId: timeslotFieldId, dir: "asc" },
+      limit: 100,
+    },
     meta: {
       table: {
         columns: [
@@ -5597,11 +5610,9 @@ export async function createLiveData(userId, options = {}) {
             fieldVisibility: { mode: "show", fieldIds: [dateFieldId]    }, hideLabel: true },
           { id: STBL_COLS.time, title: "Time", width: 200, displayFieldId: null, sort: null, filter: null,
             fieldVisibility: { mode: "show", fieldIds: [timeslotFieldId] }, hideLabel: true },
-          // Goal: full embed (Physical Wellness has 3 field pills). Trimmed so
-          // the Date/Time projection columns get more of the row width — the
-          // responsive scaler preserves these ratios when filling the panel.
-          { id: STBL_COLS.goal, title: "Goal", width: 230, displayFieldId: null, sort: null, filter: null,
-            fieldVisibility: null, hideLabel: false },
+          // (The old "Goal" column embedded a DIFFERENT occurrence per row —
+          // the goal copy the Table: Build op minted. Feed rows render ONE
+          // occurrence across all columns, so that column is gone.)
         ],
         rowCount: 0,
         cells: {},
@@ -5627,9 +5638,20 @@ export async function createLiveData(userId, options = {}) {
   await mkOcc({
     id: schedCanvasPageOccId, moduleId: schedCanvasPageModId,
     parentId: interfacesFolderId, sortOrder: 3,
-    occurrences: [], // Schedule Canvas: Build populates at runtime
+    occurrences: [], // the FEED below populates at runtime (feedSync engine)
     iteration: { mode: "persistent" }, fields: {},
-    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+    // Inherits the date cascade (see Schedule Table above).
+    filterOverride: null, filterNavConfig: { filter_daily: { visible: false } },
+    // FEED (2026-07-07, replaces Canvas: Build): active-period Schedule tasks
+    // as copy-linked canvas cards; drag positions live on the copies' meta.x/y.
+    feed: {
+      enabled: true,
+      conditions: [],
+      roles: ["instance"],
+      scope: schedPageOccId,
+      sort: { fieldId: timeslotFieldId, dir: "asc" },
+      limit: 100,
+    },
   });
 
   // ── Folder-page defaults (card-grid landing tabs) ──────────────────────────
@@ -6016,6 +6038,7 @@ export async function createLiveData(userId, options = {}) {
                     { id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS", right: true },
                     { id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                     { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                    { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                   ] },
                   then: [
                     { id: uid(), type: "action", config: { type: "DECREMENT_VAR", name: "$countdown", by: 1 } },
@@ -7503,6 +7526,7 @@ export async function createLiveData(userId, options = {}) {
                 { id: uid(), type: "if",
                   condition: { operator: "AND", rules: [
                     { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: accountsPageOccId },
+                    { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                     { id: uid(), left: "$item.label", comparator: "IS", right: "Checking Account" },
                     { id: uid(), left: `$item.fields.${fields.checkingBalance.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                   ] },
@@ -7517,6 +7541,7 @@ export async function createLiveData(userId, options = {}) {
                 { id: uid(), type: "if",
                   condition: { operator: "AND", rules: [
                     { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: accountsPageOccId },
+                    { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                     { id: uid(), left: "$item.label", comparator: "IS", right: "Savings Account" },
                     { id: uid(), left: `$item.fields.${fields.savingsBalance.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                   ] },
@@ -7531,6 +7556,7 @@ export async function createLiveData(userId, options = {}) {
                 { id: uid(), type: "if",
                   condition: { operator: "AND", rules: [
                     { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: accountsPageOccId },
+                    { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                     { id: uid(), left: "$item.label", comparator: "IS", right: "Mom's Account" },
                     { id: uid(), left: `$item.fields.${fields.momsAccountBalance.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                   ] },
@@ -7592,6 +7618,7 @@ export async function createLiveData(userId, options = {}) {
                 { id: uid(), type: "if",
                   condition: { operator: "AND", rules: [
                     { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: billSubscriptionsContOccId },
+                    { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                     { id: uid(), left: `$item.fields.${fields.amount.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                   ] },
                   then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.amount.id}.value` } }],
@@ -7654,6 +7681,7 @@ export async function createLiveData(userId, options = {}) {
                 { id: uid(), type: "if",
                   condition: { operator: "AND", rules: [
                     { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: billsPageOccId },
+                    { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                     { id: uid(), left: `$item.fields.${billCadenceFieldId}.value`, comparator: "IS", right: "monthly" },
                     { id: uid(), left: `$item.fields.${fields.amount.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                   ] },
@@ -8840,739 +8868,15 @@ export async function createLiveData(userId, options = {}) {
     },
   }).save();
 
-  // ── Schedule Table: Build ───────────────────────────────────────────────────
-  // Mirrors the Schedule into the kind:"table" "Schedule Table" page. For every
-  // schedule task on the active day it COPY_LINKs the task occurrence into 3
-  // cells (col0 full embed w/ date+timeslot hidden via the column's
-  // fieldVisibility, col1 date projection, col2 timeslot projection) plus a
-  // COPY_LINK of the "Physical Wellness" goal it rolls up to (col3). The
-  // copies share linkedGroupId with the source so editing either side fans
-  // out (server update_occurrence linked-group propagation).
-  //
-  // FINDs its OWN target by label "Schedule Table" and reads source data from
-  // "Schedule" — the Schedule trackers/Build-Day FIND `label IS "Schedule"`
-  // (exact), so they never cross-fire on this page.
-  //
-  // Idempotent the SAME way Schedule: Build Day is — module-based COPY_LINK
-  // (copies reuse the Schedule task's moduleId, like every copy in this
-  // system) parented under the Schedule Table page, with row-level
-  // existence dedup using Build Day's exact predicate scoped to the table:
-  // `templateId IS <task> AND _ancestors HAS_ANCESTOR <tbl> AND
-  // fields.<date> SAME_DAY <schedDate>`. Row already present → skip (its
-  // cells persist); absent → create THREE copy-linked task occurrences
-  // (col0 main, col1 date-only, col2 timeslot-only — the column
-  // displayFieldId/fieldVisibility projections render the three views) plus
-  // the shared goal copy for col3. $r is append-only from the table's
-  // current rowCount, so re-running adds nothing and a new day appends —
-  // exactly how Build Day leaves prior Due copies untouched. No flags, no
-  // stamped markers. Priority 8 so it runs AFTER Schedule: Build Day (p1)
-  // within an onLoad batch and sees its created tasks via the in-batch
-  // liveOccs overlay (same path the trackers rely on).
-  const stCellDoc = (occVar) => ({ type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: occVar } }] });
-  await new Operation({
-    id: uid(), userId, gridId, priority: 8,
-    name: "Table: Build",
-    description: "Mirror the Schedule into the Schedule Table page. Per task in the active PERIOD (DATE_IN_PERIOD $schedPeriod — day/week/month/year/multi, resolved from the Schedule page's effective filter): one copy-linked occurrence parented under the table, projected per column via fieldVisibility (col0 main w/ date+timeslot hidden, col1 date-only, col2 timeslot-only) + a shared copy-linked Completed per-metric occurrence (col3, all fields). Diff mode: orphan-sweep rows whose source task left the period, COPY_LINK rows for newly-in-period tasks, rebuild cells only when $changed>0. Idempotent + period-aware + self-healing, no flags, no stamped markers. (Migrated from single-date SAME_DAY to DATE_IN_PERIOD 2026-06-03 — SAME_DAY against the picker's period object matched nothing, so the table produced zero rows.)",
-    triggerTypes: ["onAdd", "onDelete", "onChange", "onFilterChange", "onLoad"],
-    triggerObjects: [
-      // Container/instance add/delete — narrowed to ancestorLabel:"Schedule"
-      // so the executor's matchAncestorScope drops the op from the match list
-      // entirely when a CRUD event happened outside the Schedule subtree.
-      // This replaces the inclusive scope guard the pipeline used to need at
-      // its top (still kept in the pipeline as a belt-and-suspenders no-op
-      // for cross-trigger paths).
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 8 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 8 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 8 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 8 },
-      // Date field change — Schedule: Stamp Date & Time Slot writes
-      // dateFieldId immediately after the drop, so subscribing to that field
-      // catches both new drops AND date-edits on existing tasks.
-      { eventType: "onChange",       subjectType: "field",     targetId: dateFieldId,    priority: 8 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule", priority: 8 },
-      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 8 },
-    ],
-    enabled: true,
-    pipeline: {
-      sources: [],
-      steps: [
-        // 1. Find the Schedule Table page (our write target).
-        { id: uid(), type: "action", config: {
-            type: "FIND",
-            over: "$allPages",
-            predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule Table" }] },
-            itemVar: "$tbl", itemIdVar: "$tblId",
-        }},
-        // 2. Proceed only when the table page exists (FIND bound $tbl).
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [
-            { id: uid(), left: "$tblId", comparator: "IS_NOT_EMPTY", right: "" },
-          ] },
-          then: [
-            // 3. Find the Schedule page (source data + HAS_ANCESTOR scope).
-            { id: uid(), type: "action", config: {
-                type: "INIT_VAR", name: "$schedPage", expr: `$allItemsById.${schedPageOccId}`,
-            }},
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
-            // 4. Resolve the active schedule PERIOD (full filter object —
-            //    {value,unit} or {kind:"multi",dates:[]} — NOT a flattened
-            //    single date). Page effective filter is PRIMARY so week/month/
-            //    multi views mirror their whole window; $trigger.date / $today
-            //    are bare-string fallbacks (DATE_IN_PERIOD treats a bare
-            //    YYYY-MM-DD as day-unit). Mirrors the trackers' $goalPeriod
-            //    chain — the same migration that fixed the multi-day Schedule.
-            //    The pre-multiday code resolved a single $schedDate and matched
-            //    tasks with SAME_DAY; once the picker started writing period
-            //    OBJECTS into the effective filter, SAME_DAY compared a date
-            //    string against an object and silently matched nothing — which
-            //    is why the table produced zero rows after the refactor.
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPeriod", expr: `$schedPage._effectiveFilter.${dateFieldId}` } },
-            { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPeriod", comparator: "IS_EMPTY", right: "" }] },
-              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPeriod", expr: "$trigger.date" } }],
-              else: [],
-            },
-            { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPeriod", comparator: "IS_EMPTY", right: "" }] },
-              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPeriod", expr: "$today" } }],
-              else: [],
-            },
-            // 5. Find the goal these tasks roll up to (col3 source). Every
-            //    completed schedule task increments the Completed per-metric
-            //    occurrence via Tracker: Completed, so it's the canonical
-            //    per-row goal display.
-            { id: uid(), type: "action", config: {
-                type: "INIT_VAR", name: "$goalItem", expr: `$allItemsById.${goalOccIds.physicalCompleted}`,
-            }},
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalOccId", expr: "$goalItem.id" } },
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalTpl", expr: "$goalItem.templateId" } },
-            // 6. Goal copy — ONE copy-link of the goal, parented under the
-            //    Schedule Table page (its occurrences[]), reused by every
-            //    row's col3 (all fields shown). Same existence dedup
-            //    Schedule: Build Day uses for its swept Due copy:
-            //    `templateId IS … AND _ancestors HAS_ANCESTOR <container>`.
-            //    The Schedule-side source goal lives under Daily Goals (not
-            //    $tbl) so it never matches — only the table's own copy does.
-            { id: uid(), type: "action", config: {
-                type: "FIND",
-                over: "$allInstances",
-                predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "templateId", comparator: "IS", right: "$goalTpl" },
-                  { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$tblId" },
-                ] },
-                itemIdVar: "$cg",
-            }},
-            { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$cg", comparator: "IS_EMPTY", right: "" }] },
-              then: [{ id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$goalOccId", parent: "$tblId", itemIdVar: "$cg" } }],
-              else: [],
-            },
-            // 7. CHEAP IDEMPOTENCY GUARD. The full clean+rebuild emits ~50
-            //    effects per fire (18 CREATE_ITEM + 6 linkedGroup UPDATEs +
-            //    25 cell UPDATEs + 1 final rowCount). Each effect is a Redux
-            //    dispatch + socket emit that triggers a React re-render of
-            //    the table — with 24 TipTap editors mounted in cells, this
-            //    pegs the browser every time the op fires (which is on
-            //    onLoad, onFilterChange, onAdd container, onDelete container).
-            //    Skip the whole rebuild ONLY when the table already has rows
-            //    AND there's NO explicit trigger (i.e. the bulk onLoad case
-            //    that fires once per `full_state`). Any explicit trigger event
-            //    — NavigationOp (filter change), OccurrenceCreateOp (drag a
-            //    task into Schedule), OccurrenceDeleteOp (remove a task),
-            //    MeasureOp (field write) — always rebuilds so the table mirror
-            //    catches the new/removed task.
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerOccId", expr: "$trigger.occurrenceId" } },
-            // SCOPE GUARD (2026-05-25 part 2 — replaces the self-trigger
-            // guard). The previous guard skipped only Table:Build's OWN
-            // row deletes, but Canvas:Build's and People Table:Build's
-            // own row/card add/deletes also fire OccurrenceCreateOp/
-            // OccurrenceDeleteOp at every entity, each one matching our
-            // unscoped onAdd/onDelete instance trigger. Without scoping
-            // we'd rebuild on every other rebuild op's CRUD too — the
-            // cross-rebuild cascade visible in
-            // console-export-2026-5-25_18-16-8 (Table:Build fires →
-            // Canvas:Build at depth=2 fires per Table delete →
-            // Canvas:Build's creates re-fire Table:Build at depth=1,
-            // and round and round through trackers).
-            //
-            // The op should rebuild only when the trigger is one we
-            // actually care about: either a bulk fire (onLoad /
-            // onFilterChange / no occurrence on the trigger) OR a real
-            // change to a Schedule task (the trigger occurrence has
-            // Schedule as an ancestor). Triggers from canvas cards,
-            // people-table rows, or our own row copies all fall through
-            // to the THEN no-op.
-            { id: uid(), type: "if",
-              condition: { operator: "OR", rules: [
-                { id: uid(), left: "$triggerOccId",                   comparator: "IS_EMPTY",     right: ""             },
-                { id: uid(), left: "$trigger.occurrence._ancestors",  comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-              ] },
-              then: [
-                // DIFF MODE (2026-05-25) — replaces clean-and-rebuild.
-                //
-                // Pre-refactor: every fire wiped 50+ row copies and re-COPY_LINK'd
-                // them all (3 copies per task), emitting ~54 create_occurrence
-                // events per drop AND per filter change. That pegged the browser
-                // even though the synchronous self-trigger guard prevented true
-                // recursion — the depth cap couldn't help because each fire's
-                // work was individually huge, not infinite.
-                //
-                // Mirrors Canvas:Build's diff pattern + People Table:Build's
-                // one-copy-per-row collapse. The previous 3-copies-per-row layout
-                // was redundant: all 3 shared moduleId + linkedGroupId and the
-                // column projections via fieldVisibility apply to whatever embed
-                // doc lives in the cell regardless of how many occurrences exist.
-                // One COPY_LINK per task is enough; each cell embed-doc points to
-                // the same row copy and the column's fieldVisibility projects
-                // different fields per column.
-                //
-                // Phase 1 — orphan sweep: DELETE copies whose source task is gone
-                // from Schedule for $schedDate. Bumps $changed.
-                // Phase 2 — per-task existence check: COPY_LINK ONLY when no
-                // copy yet exists (linkedGroupId match). Bumps $changed.
-                // Phase 3 — cells rebuild: gated on $changed > 0. Wipes cells
-                // and rewrites in $r=0..N order so rows are densely packed even
-                // after orphan deletions. SKIPPED in steady state — fire emits
-                // zero effects when nothing changed.
-                //
-                // Steady state: 0 emits. Single task add: 1 create + ~74 update
-                // emits. Single task remove: 1 delete + ~69 update emits.
-                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$changed", expr: "literal:0" } },
-
-                // Phase 1 — orphan sweep.
-                {
-                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$existing",
-                  body: [
-                    { id: uid(), type: "if",
-                      condition: { operator: "AND", rules: [
-                        { id: uid(), left: "$existing._ancestors",     comparator: "HAS_ANCESTOR", right: "$tblId" },
-                        { id: uid(), left: "$existing.id",             comparator: "IS_NOT",       right: "$cg"    },
-                        { id: uid(), left: "$existing.linkedGroupId",  comparator: "IS_NOT_EMPTY", right: ""       },
-                      ] },
-                      then: [
-                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$srcFound", expr: "literal:0" } },
-                        {
-                          id: uid(), type: "loop", overExpr: "$allInstances", as: "$srcProbe",
-                          body: [
-                            { id: uid(), type: "if",
-                              condition: { operator: "AND", rules: [
-                                { id: uid(), left: "$srcProbe._ancestors",                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                                { id: uid(), left: "$srcProbe.linkedGroupId",                    comparator: "IS",           right: "$existing.linkedGroupId" },
-                                { id: uid(), left: `$srcProbe.fields.${dateFieldId}.value`,      comparator: "DATE_IN_PERIOD", right: "$schedPeriod" },
-                                { id: uid(), left: "$srcProbe.label",                            comparator: "IS_NOT_EMPTY", right: "" },
-                              ] },
-                              then: [{ id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$srcFound" } }],
-                              else: [],
-                            },
-                          ],
-                        },
-                        { id: uid(), type: "if",
-                          condition: { operator: "AND", rules: [{ id: uid(), left: "$srcFound", comparator: "IS", right: 0 }] },
-                          then: [
-                            { id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$existing.id" } },
-                            { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$changed" } },
-                          ],
-                          else: [],
-                        },
-                      ],
-                      else: [],
-                    },
-                  ],
-                },
-
-                // Phase 2 — per-task existence check + mint when missing.
-                {
-                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$task",
-                  body: [
-                    { id: uid(), type: "if",
-                      condition: { operator: "AND", rules: [
-                        { id: uid(), left: "$task._ancestors",                    comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                        { id: uid(), left: `$task.fields.${dateFieldId}.value`,   comparator: "DATE_IN_PERIOD", right: "$schedPeriod" },
-                        { id: uid(), left: "$task.label",                          comparator: "IS_NOT_EMPTY", right: ""             },
-                      ] },
-                      then: [
-                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$copyExists", expr: "literal:0" } },
-                        { id: uid(), type: "if",
-                          condition: { operator: "AND", rules: [
-                            { id: uid(), left: "$task.linkedGroupId", comparator: "IS_NOT_EMPTY", right: "" },
-                          ] },
-                          then: [
-                            {
-                              id: uid(), type: "loop", overExpr: "$allInstances", as: "$copyProbe",
-                              body: [
-                                { id: uid(), type: "if",
-                                  condition: { operator: "AND", rules: [
-                                    { id: uid(), left: "$copyProbe._ancestors",     comparator: "HAS_ANCESTOR", right: "$tblId" },
-                                    { id: uid(), left: "$copyProbe.linkedGroupId",  comparator: "IS",           right: "$task.linkedGroupId" },
-                                    { id: uid(), left: "$copyProbe.id",             comparator: "IS_NOT",       right: "$cg" },
-                                  ] },
-                                  then: [{ id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$copyExists" } }],
-                                  else: [],
-                                },
-                              ],
-                            },
-                          ],
-                          else: [],
-                        },
-                        { id: uid(), type: "if",
-                          condition: { operator: "AND", rules: [{ id: uid(), left: "$copyExists", comparator: "IS", right: 0 }] },
-                          then: [
-                            { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$tblId" } },
-                            { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$changed" } },
-                          ],
-                          else: [],
-                        },
-                      ],
-                      else: [],
-                    },
-                  ],
-                },
-
-                // Count the row copies actually under the table. This reads
-                // $allInstances (built at pipeline start), so it LAGS Phase 2's
-                // same-run COPY_LINK mints by one fire — which is exactly the
-                // fire on which the cells can finally be built from those rows.
-                // Used to force a Phase 3 rebuild when the stored rowCount is
-                // stale: the mint run can't see its own new rows, so its cells
-                // loop counts 0 and writes rowCount 0; the next fire heals here.
-                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$actualRows", expr: "literal:0" } },
-                {
-                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$rowProbe",
-                  body: [
-                    { id: uid(), type: "if",
-                      condition: { operator: "AND", rules: [
-                        { id: uid(), left: "$rowProbe._ancestors",    comparator: "HAS_ANCESTOR", right: "$tblId" },
-                        { id: uid(), left: "$rowProbe.id",            comparator: "IS_NOT",       right: "$cg"    },
-                        { id: uid(), left: "$rowProbe.linkedGroupId", comparator: "IS_NOT_EMPTY", right: ""       },
-                      ] },
-                      then: [{ id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$actualRows" } }],
-                      else: [],
-                    },
-                  ],
-                },
-                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$storedRowCount", expr: "$tbl.meta.table.rowCount" } },
-
-                // Phase 3 — cells rebuild. Runs when something changed OR when
-                // the stored rowCount doesn't match the rows actually present
-                // (self-heal for the mint-run lag above). Steady state: no-op.
-                { id: uid(), type: "if",
-                  condition: { operator: "OR", rules: [
-                    { id: uid(), left: "$changed",    comparator: "GREATER", right: 0 },
-                    { id: uid(), left: "$actualRows", comparator: "IS_NOT",  right: "$storedRowCount" },
-                  ] },
-                  then: [
-                    { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells",    value: {} } },
-                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$r", expr: "literal:0" } },
-                    {
-                      id: uid(), type: "loop", overExpr: "$allInstances", as: "$task2",
-                      body: [
-                        { id: uid(), type: "if",
-                          condition: { operator: "AND", rules: [
-                            { id: uid(), left: "$task2._ancestors",                    comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                            { id: uid(), left: `$task2.fields.${dateFieldId}.value`,   comparator: "DATE_IN_PERIOD", right: "$schedPeriod" },
-                            { id: uid(), left: "$task2.label",                          comparator: "IS_NOT_EMPTY", right: ""             },
-                          ] },
-                          then: [
-                            // Find the row copy under $tbl for this task. First
-                            // match wins (collapsed-to-one-copy contract); any
-                            // legacy extra copies from the pre-2026-05-25
-                            // 3-copies-per-row era are ignored by cells but stay
-                            // in the store as harmless ghosts.
-                            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$rowOccId", expr: "literal:" } },
-                            {
-                              id: uid(), type: "loop", overExpr: "$allInstances", as: "$copy",
-                              body: [
-                                { id: uid(), type: "if",
-                                  condition: { operator: "AND", rules: [
-                                    { id: uid(), left: "$copy._ancestors",     comparator: "HAS_ANCESTOR", right: "$tblId" },
-                                    { id: uid(), left: "$copy.linkedGroupId",  comparator: "IS",           right: "$task2.linkedGroupId" },
-                                    { id: uid(), left: "$copy.id",             comparator: "IS_NOT",       right: "$cg" },
-                                    { id: uid(), left: "$rowOccId",            comparator: "IS_EMPTY",     right: "" },
-                                  ] },
-                                  then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$rowOccId", expr: "$copy.id" } }],
-                                  else: [],
-                                },
-                              ],
-                            },
-                            { id: uid(), type: "if",
-                              condition: { operator: "AND", rules: [{ id: uid(), left: "$rowOccId", comparator: "IS_NOT_EMPTY", right: "" }] },
-                              then: [
-                                // All four cell embeds reference the same row
-                                // occurrence; column-level fieldVisibility (set
-                                // on the table meta.table.columns config) does
-                                // the per-column projection.
-                                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:0", value: stCellDoc("$rowOccId") } },
-                                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:1", value: stCellDoc("$rowOccId") } },
-                                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:2", value: stCellDoc("$rowOccId") } },
-                                { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.cells.${$r}:3", value: stCellDoc("$cg") } },
-                                { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$r" } },
-                              ],
-                              else: [],
-                            },
-                          ],
-                          else: [],
-                        },
-                      ],
-                    },
-                    { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.rowCount", value: "$r" } },
-                  ],
-                  else: [],
-                },
-              ],
-            },
-          ],
-          else: [],
-        },
-      ],
-    },
-  }).save();
-
-  // ── Schedule Canvas: Build ─────────────────────────────────────────────────
-  // Mirror of the Schedule into the kind:"canvas" "Schedule Canvas" page. Per
-  // schedule task on the active day, COPY_LINKs the task occurrence ONCE,
-  // parents it under the canvas page, and stamps meta.x/y so cards land in
-  // a tidy vertical column ordered by walk position.
-  // Idempotency model (2026-05-21 commit 2d843258 — diff mode, NOT
-  // clean+rebuild): on any explicit trigger, walks existing canvas children
-  // and (a) orphan-sweeps copies whose source task is gone for $schedDate
-  // and (b) per-task existence-checks via linkedGroupId before COPY_LINK +
-  // stamping meta.x/y. Manually-dragged cards retain their positions across
-  // op fires; add/remove from Schedule still propagates. Bulk onLoad with a
-  // populated canvas + all cards positioned is a no-op.
-  await new Operation({
-    id: uid(), userId, gridId, priority: 8,
-    name: "Canvas: Build",
-    description: "Mirror Schedule tasks in the active PERIOD (DATE_IN_PERIOD $schedPeriod — day/week/month/year/multi, resolved from the Schedule page's effective filter) onto the Schedule Canvas page. Each task → one copy-linked occurrence stamped with meta.x/y + meta.viewMode:'representation' (compact preview node). Cards are threaded into a mindmap chain via auto-generated edges on the canvas page's meta.edges (deterministic 'auto-' ids; hand-drawn connect-tool edges are preserved across rebuilds). Diff mode preserves drag positions across re-fires. Idempotent + period-aware + self-healing. (Migrated from single-date SAME_DAY to DATE_IN_PERIOD + mindmap layer 2026-06-03 — SAME_DAY against the picker's period object matched nothing, so the canvas produced zero cards.)",
-    triggerTypes: ["onAdd", "onDelete", "onChange", "onFilterChange", "onLoad"],
-    triggerObjects: [
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 8 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 8 },
-      { eventType: "onChange",       subjectType: "field",     targetId: dateFieldId,    priority: 8 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule", priority: 8 },
-      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 8 },
-    ],
-    enabled: true,
-    pipeline: {
-      sources: [],
-      steps: [
-        // 1. Find the Schedule Canvas page (write target).
-        { id: uid(), type: "action", config: {
-            type: "FIND",
-            over: "$allPages",
-            predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Schedule Canvas" }] },
-            itemVar: "$canvas", itemIdVar: "$canvasId",
-        }},
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [
-            { id: uid(), left: "$canvasId", comparator: "IS_NOT_EMPTY", right: "" },
-          ] },
-          then: [
-            // 2. Find the Schedule page (source data + HAS_ANCESTOR scope).
-            { id: uid(), type: "action", config: {
-                type: "INIT_VAR", name: "$schedPage", expr: `$allItemsById.${schedPageOccId}`,
-            }},
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
-            // 3. Resolve the active schedule PERIOD (same period model as
-            //    Table: Build — page effective filter is PRIMARY so week/month/
-            //    multi views mirror their whole window). The full filter object
-            //    ({value,unit} / {kind:"multi",dates}) is kept, NOT flattened to
-            //    a single day — SAME_DAY against the picker's period object
-            //    matched nothing, which is why the canvas produced zero cards
-            //    after the multi-day refactor. DATE_IN_PERIOD reads day/week/
-            //    month/year/multi and treats a bare YYYY-MM-DD as day-unit.
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPeriod", expr: `$schedPage._effectiveFilter.${dateFieldId}` } },
-            { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPeriod", comparator: "IS_EMPTY", right: "" }] },
-              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPeriod", expr: "$trigger.date" } }],
-              else: [],
-            },
-            { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPeriod", comparator: "IS_EMPTY", right: "" }] },
-              then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPeriod", expr: "$today" } }],
-              else: [],
-            },
-            // 4. SCOPE GUARD (2026-05-25 part 3 — INCLUSIVE, replaces the
-            // exclusive self-trigger guard). The old guard tried to skip the
-            // rebuild only when it could PROVE the trigger was one of THIS
-            // canvas's own cards (`$trigger.occurrence._ancestors
-            // HAS_ANCESTOR $canvasId`). That proof is impossible for a
-            // DELETE: the card is already gone from the store, so its
-            // `_ancestors` resolve empty and HAS_ANCESTOR is false → the
-            // rebuild ran on the op's OWN orphan-sweep deletes → each delete
-            // fired OccurrenceDeleteOp → re-ran this op → deleted/created
-            // more → the flat depth-2 cascade in
-            // console-export-2026-5-25_18-16-8 (Canvas: Build fired 57x while
-            // the already-scope-guarded Schedule Table: Build fired only 6x —
-            // same trigger surface, opposite outcome: the proof).
-            //
-            // Flip to INCLUSIVE: rebuild ONLY when the trigger is positively a
-            // Schedule change — a bulk fire (no trigger occurrence: onLoad /
-            // onFilterChange) OR a trigger occurrence that lives under the
-            // Schedule page. A deleted/created canvas card can't prove it's a
-            // Schedule task, so the op no-ops and the cascade dies at the
-            // source. Mirrors Schedule Table: Build's guard (this file, the
-            // `$triggerOccId`/`$schedPageId` IF). The old missing-position
-            // self-heal probe is dropped — a bulk onLoad now always reaches
-            // the diff body, which positions any unpositioned new cards
-            // anyway (and diff mode intentionally preserves existing
-            // drag positions, so a forced rebuild never repositioned them).
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerOccId",   expr: "$trigger.occurrenceId" } },
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$isSourceChange", expr: "literal:0" } },
-            { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$triggerOccId", comparator: "IS_EMPTY", right: "" }] },
-              then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
-              else: [],
-            },
-            { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$trigger.occurrence._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" }] },
-              then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
-              else: [],
-            },
-            { id: uid(), type: "if",
-              condition: { operator: "OR", rules: [
-                // Not a Schedule source change → leave the canvas alone. This
-                // is the no-op branch; the diff body lives in `else`.
-                { id: uid(), left: "$isSourceChange", comparator: "IS", right: 0 },
-              ] },
-              then: [
-                // No-op: either no genuine trigger, or an explicit trigger
-                // whose occurrence isn't a Schedule task (our own card
-                // add/delete, or another mirror op's CRUD).
-              ],
-              else: [
-                // DIFF MODE (2026-05-21) — replaces clean-then-rebuild.
-                // Preserves user-drag positions: cards already on the
-                // canvas keep their meta.x/y across op fires; only
-                // missing cards get added, only orphaned cards get
-                // removed.
-                //
-                // 5a. Orphan sweep — delete only canvas copies whose
-                //     source task is gone (deleted from Schedule OR
-                //     dated outside $schedDate). Manually-dragged cards
-                //     whose source task IS still present on $schedDate
-                //     survive untouched.
-                {
-                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$existing",
-                  body: [
-                    { id: uid(), type: "if",
-                      condition: { operator: "AND", rules: [
-                        { id: uid(), left: "$existing._ancestors", comparator: "HAS_ANCESTOR", right: "$canvasId" },
-                        { id: uid(), left: "$existing.linkedGroupId", comparator: "IS_NOT_EMPTY", right: "" },
-                      ] },
-                      then: [
-                        // Walk $allInstances for a task on Schedule whose
-                        // linkedGroupId matches this canvas copy's. If
-                        // none found, the source is gone → orphan.
-                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$srcFound", expr: "literal:0" } },
-                        {
-                          id: uid(), type: "loop", overExpr: "$allInstances", as: "$srcProbe",
-                          body: [
-                            { id: uid(), type: "if",
-                              condition: { operator: "AND", rules: [
-                                { id: uid(), left: "$srcProbe._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                                { id: uid(), left: "$srcProbe.linkedGroupId", comparator: "IS", right: "$existing.linkedGroupId" },
-                                { id: uid(), left: `$srcProbe.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$schedPeriod" },
-                              ] },
-                              then: [
-                                { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$srcFound" } },
-                              ],
-                              else: [],
-                            },
-                          ],
-                        },
-                        { id: uid(), type: "if",
-                          condition: { operator: "AND", rules: [
-                            { id: uid(), left: "$srcFound", comparator: "IS", right: 0 },
-                          ] },
-                          then: [
-                            { id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$existing.id" } },
-                          ],
-                          else: [],
-                        },
-                      ],
-                      else: [],
-                    },
-                  ],
-                },
-                // 5b. Reset counters + seed the edge list for the mindmap chain.
-                //     $col/$row drive a FANNED-OUT grid of seed positions for
-                //     newly-minted cards (existing cards keep their drag
-                //     positions). The grid is centered near the canvas WORLD
-                //     center (~2000,2000) so the cards land IN the viewport — the
-                //     old layout stamped every card at x=60 (the world's top-left
-                //     corner), which the centered-on-load canvas showed off-screen,
-                //     so the canvas looked empty / "nothing fanned out". 3 cards
-                //     per row, wrapping to the next row. $prevCardId threads the
-                //     chain task→task. $edges starts from the canvas's CURRENT
-                //     edges minus the op's own "auto-" chain (regenerated every
-                //     rebuild) — so connect-tool edges the user drew BY HAND
-                //     (ids like "e-…", which never contain "auto-") survive,
-                //     while the schedule chain stays in sync with the task set.
-                //     Looping a possibly-undefined meta.edges is safe — the loop
-                //     coerces a non-array overExpr to [] (operationExecutor:663).
-                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$col", expr: "literal:0" } },
-                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$row", expr: "literal:0" } },
-                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$prevCardId", expr: "literal:" } },
-                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$edges", expr: "json:[]" } },
-                {
-                  id: uid(), type: "loop", overExpr: "$canvas.meta.edges", as: "$ee",
-                  body: [
-                    { id: uid(), type: "if",
-                      condition: { operator: "AND", rules: [
-                        { id: uid(), left: "$ee.id", comparator: "CONTAINS", right: "auto-" },
-                      ] },
-                      then: [],
-                      else: [
-                        { id: uid(), type: "action", config: { type: "PUSH_TO_ARRAY", name: "$edges", value: { id: "$ee.id", from: "$ee.from", to: "$ee.to" } } },
-                      ],
-                    },
-                  ],
-                },
-                // 6. One copy per schedule task on $schedDate under the
-                //    Schedule page — IFF a canvas copy doesn't already
-                //    exist (existence checked via linkedGroupId match).
-                //    Stamps meta.x/y at the seed column ONLY when
-                //    minting a brand-new card; existing cards' drag
-                //    positions are left alone.
-                {
-                  id: uid(), type: "loop", overExpr: "$allInstances", as: "$task",
-                  body: [
-                    {
-                      id: uid(), type: "if",
-                      condition: { operator: "AND", rules: [
-                        { id: uid(), left: "$task._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                        { id: uid(), left: `$task.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$schedPeriod" },
-                        { id: uid(), left: "$task.label", comparator: "IS_NOT_EMPTY", right: "" },
-                      ] },
-                      then: [
-                        // Resolve this task's canvas card id. Scan canvas
-                        // children for the first copy whose linkedGroupId
-                        // matches; empty $curCardId means none exists yet.
-                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$curCardId", expr: "literal:" } },
-                        { id: uid(), type: "if",
-                          condition: { operator: "AND", rules: [
-                            { id: uid(), left: "$task.linkedGroupId", comparator: "IS_NOT_EMPTY", right: "" },
-                          ] },
-                          then: [
-                            {
-                              id: uid(), type: "loop", overExpr: "$allInstances", as: "$copyProbe",
-                              body: [
-                                { id: uid(), type: "if",
-                                  condition: { operator: "AND", rules: [
-                                    { id: uid(), left: "$copyProbe._ancestors", comparator: "HAS_ANCESTOR", right: "$canvasId" },
-                                    { id: uid(), left: "$copyProbe.linkedGroupId", comparator: "IS", right: "$task.linkedGroupId" },
-                                    { id: uid(), left: "$curCardId", comparator: "IS_EMPTY", right: "" },
-                                  ] },
-                                  then: [
-                                    { id: uid(), type: "action", config: { type: "SET_VAR", name: "$curCardId", expr: "$copyProbe.id" } },
-                                  ],
-                                  else: [],
-                                },
-                              ],
-                            },
-                          ],
-                          else: [],
-                        },
-                        // FANNED-OUT grid slot for THIS task — computed for EVERY
-                        // task (not just mints) so the cursor advances over
-                        // already-placed cards too. ROOT CAUSE of "all cards piled
-                        // at one spot / nothing fanned out or connected" (DB showed
-                        // 6 cards all at (1760,1850) with a full 5-edge chain): in
-                        // diff mode the schedule builds incrementally, so each fire
-                        // reset $col/$row to 0 (step 5b) and only the ONE new task
-                        // got minted — at the reset col=0 — while existing cards
-                        // didn't advance the cursor. Every new card therefore landed
-                        // at slot (0,0). Now the slot is derived from each task's
-                        // position in the loop and the cursor advances for every
-                        // task that has a card (existing OR minted), so a new card
-                        // always takes the next free slot.
-                        //   x = 1760 + $col*240   (3 columns centered on ~2000)
-                        //   y = 1850 + $row*150
-                        // Centered near the canvas WORLD center (~2000,2000) so the
-                        // cards land in the centered-on-load viewport.
-                        { id: uid(), type: "action", config: { type: "INIT_VAR",     name: "$x", expr: "$col" } },
-                        { id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$x", by: 240 } },
-                        { id: uid(), type: "action", config: { type: "ADD_TO_VAR",   name: "$x", expr: "literal:1760" } },
-                        { id: uid(), type: "action", config: { type: "INIT_VAR",     name: "$y", expr: "$row" } },
-                        { id: uid(), type: "action", config: { type: "MULTIPLY_VAR", name: "$y", by: 150 } },
-                        { id: uid(), type: "action", config: { type: "ADD_TO_VAR",   name: "$y", expr: "literal:1850" } },
-                        // Mint when missing — COPY_LINK stamps meta.x/y +
-                        // viewMode:"representation" atomically at create time (a
-                        // follow-up UPDATE raced the not-yet-persisted occurrence
-                        // and dropped the position). meta is canvas-local (excluded
-                        // from the linkedGroupId fan-out), so the Schedule source
-                        // keeps its own view mode + carries no x/y. Existing cards
-                        // keep their stored (possibly drag-adjusted) positions —
-                        // only freshly-minted cards get the seed slot.
-                        { id: uid(), type: "if",
-                          condition: { operator: "AND", rules: [
-                            { id: uid(), left: "$curCardId", comparator: "IS_EMPTY", right: "" },
-                          ] },
-                          then: [
-                            { id: uid(), type: "action", config: { type: "COPY_LINK", sourceId: "$task.id", parent: "$canvasId", itemVar: "$copy", itemIdVar: "$copyId", meta: { x: "$x", y: "$y", viewMode: "representation" } } },
-                            { id: uid(), type: "action", config: { type: "SET_VAR", name: "$curCardId", expr: "$copyId" } },
-                          ],
-                          else: [],
-                        },
-                        // Advance the grid cursor for EVERY task that resolved a card
-                        // (existing or just minted): next column, wrap to the next row
-                        // after 3. This is what stops new cards from colliding with
-                        // cards placed in an earlier fire.
-                        { id: uid(), type: "if",
-                          condition: { operator: "AND", rules: [
-                            { id: uid(), left: "$curCardId", comparator: "IS_NOT_EMPTY", right: "" },
-                          ] },
-                          then: [
-                            { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$col" } },
-                            { id: uid(), type: "if",
-                              condition: { operator: "AND", rules: [{ id: uid(), left: "$col", comparator: "GREATER_OR_EQUAL", right: 3 }] },
-                              then: [
-                                { id: uid(), type: "action", config: { type: "SET_VAR", name: "$col", expr: "literal:0" } },
-                                { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$row" } },
-                              ],
-                              else: [],
-                            },
-                          ],
-                          else: [],
-                        },
-                        // Thread the mindmap chain: edge from the previous task's
-                        // card to this one. Deterministic "auto-" id so the
-                        // preserve-pass above recognizes + regenerates it without
-                        // ever colliding with a hand-drawn edge. The client renders
-                        // it as a bezier connector and lazily prunes it if either
-                        // endpoint card is later deleted.
-                        { id: uid(), type: "if",
-                          condition: { operator: "AND", rules: [
-                            { id: uid(), left: "$prevCardId", comparator: "IS_NOT_EMPTY", right: "" },
-                            { id: uid(), left: "$curCardId",  comparator: "IS_NOT_EMPTY", right: "" },
-                          ] },
-                          then: [
-                            { id: uid(), type: "action", config: { type: "PUSH_TO_ARRAY", name: "$edges", value: { id: "auto-${$prevCardId}-${$curCardId}", from: "$prevCardId", to: "$curCardId" } } },
-                          ],
-                          else: [],
-                        },
-                        { id: uid(), type: "action", config: { type: "SET_VAR", name: "$prevCardId", expr: "$curCardId" } },
-                      ],
-                      else: [],
-                    },
-                  ],
-                },
-                // 7. Persist the rebuilt edge set (preserved manual edges + the
-                //    regenerated schedule chain) onto the canvas page occurrence.
-                //    One UPDATE per rebuild; the client renders bezier connectors
-                //    between the cards' meta.x/y anchors.
-                { id: uid(), type: "action", config: { type: "UPDATE", path: "$canvas.meta.edges", value: "$edges" } },
-              ],
-            },
-          ],
-          else: [],
-        },
-      ],
-    },
-  }).save();
-
+  // ── Schedule Table / Schedule Canvas mirrors (2026-07-07) ──────────────────
+  // The `Table: Build` + `Canvas: Build` mirror OPS are gone — both pages now
+  // carry an occurrence FEED (`occurrence.feed`, synced by the client's
+  // generic helpers/feedSync.js engine): every instance under the Schedule
+  // page passing the page's effective date filter is materialized as a
+  // copy-linked child (meta.feedSourceId, drag-locked to copy). Same diff
+  // semantics the ops had (mint missing / sweep stale / never touch
+  // survivors), zero per-page pipeline code. See the page occ definitions
+  // for the feed configs.
 
   // ── Schedule: Mark Passed Slots (time-based, 2026-06-03) ──────────────────
   // Tints schedule slots whose time is in the past. TIME-BASED op (uses the

@@ -40,6 +40,17 @@ const OccurrenceSchema = new mongoose.Schema(
     // visibility. Consumed by ModuleInstance via getEffectiveFieldVisibility.
     fieldVisibility: { type: mongoose.Schema.Types.Mixed, default: null },
 
+    // Feed (2026-07-07): pull-query rendering. When set + enabled, renderers
+    // display occurrences matching `conditions` (filter-menu condition rows)
+    // ALONGSIDE the occurrence's own children. Pure VIEW — pulled items are
+    // never re-parented (ancestry is load-bearing for the filter cascade +
+    // tracker HAS_ANCESTOR scopes); feed rows drag in copy mode only.
+    // Shape: { enabled, conditions:[{id,fieldId,comparator,value}],
+    //          roles:["instance"], scope:<occId>|null, sort:{fieldId,dir}|null,
+    //          limit:50, layout:{ [occId]: {x,y} } } — layout is the canvas
+    //          view's own positions for pulled cards (canvas-local by design).
+    feed: { type: mongoose.Schema.Types.Mixed, default: null },
+
     // Template merge identity. When set on a template-side occurrence, APPLY_TEMPLATE
     // in mode:"merge" treats any sibling under the apply target with the same
     // identitySignature as "the same node" — skips cloning, recurses into its

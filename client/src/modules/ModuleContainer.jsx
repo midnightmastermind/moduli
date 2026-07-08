@@ -35,6 +35,7 @@ import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getLocalFilterCon
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import FeedSection from "../ui/FeedSection";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
@@ -1587,6 +1588,7 @@ function Container({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={containerOccurrence} />
+          <FeedSection occurrence={containerOccurrence} />
           <SortSection occurrence={containerOccurrence} />
           <FieldVisibilitySection occurrence={containerOccurrence} />
           <ViewModeSection occurrence={containerOccurrence} />

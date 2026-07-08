@@ -15,6 +15,7 @@ import HeaderChevron from "../ui/HeaderChevron";
 import { bumpRender } from "../helpers/renderProbe";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import FeedSection from "../ui/FeedSection";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import ViewModeSection from "../ui/ViewModeSection";
@@ -693,6 +694,7 @@ function Page({
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={occurrence} />
+          <FeedSection occurrence={occurrence} />
           <SortSection occurrence={occurrence} />
           <FieldVisibilitySection occurrence={occurrence} />
           <ViewModeSection occurrence={occurrence} />

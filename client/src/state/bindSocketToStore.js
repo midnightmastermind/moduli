@@ -10,6 +10,7 @@ import { runMatchingOperations, executeOperation, executePipeline, setOpApplying
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, updateOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast, pushTxNotification } from "./notificationStore";
 import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
+import { syncAllFeeds } from "../helpers/feedSync";
 import {
   setOccurrenceFieldValue,
   moveOccurrence,
@@ -30,7 +31,7 @@ import { analyzeAllOperations } from "../helpers/operationIntrospection";
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null };
+export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null, markDerivedOcc: null };
 
 export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) {
   // Wrap dispatch to tag all socket-originated actions
@@ -65,6 +66,31 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // (offline). It does NOT expire mid-storm, so it closes the async leak
   // regardless of how long the cascade runs.
   const opEmittedOccIds = new Set();
+  // ── FEED SYNC SCHEDULER (2026-07-07) ──────────────────────────────────────
+  // Debounced full-grid feed reconciliation (helpers/feedSync.js). Runs after
+  // full_state settles, after filter changes, and after occurrence CRUD
+  // bursts — the trigger surface the old Table:/Canvas: Build ops declared,
+  // covered once here. Idempotent + zero-write when nothing changed, so an
+  // eager schedule is cheap and the mint→echo→schedule chain self-quiets.
+  let _feedSyncTimer = null;
+  const scheduleFeedSync = (delay = 300) => {
+    if (_feedSyncTimer) clearTimeout(_feedSyncTimer);
+    _feedSyncTimer = setTimeout(() => {
+      _feedSyncTimer = null;
+      try {
+        const state = stateRef.current || {};
+        const occs = {};
+        for (const o of state.occurrences || []) if (o?.id) occs[o.id] = o;
+        Object.assign(occs, localOccsById);
+        const mods = {};
+        for (const m of state.modules || []) if (m?.id) mods[m.id] = m;
+        syncAllFeeds({ state, occurrencesById: occs, modulesById: mods, dispatch, socket });
+      } catch (e) {
+        console.warn("[feedSync] pass failed:", e);
+      }
+    }, delay);
+  };
+
   const _markOpEmitted = (id) => {
     if (!id) return;
     opEmittedOccIds.add(id);
@@ -208,6 +234,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       console.log(`[full_state-client] applied effects in ${Math.round(performance.now() - tOps1)}ms`);
       // Flush any mutations queued while offline — replayed on top of fresh server state
       flushOfflineQueue(socket);
+      // Materialize feeds once the load sweep's creates have settled.
+      scheduleFeedSync(400);
     }));
   }
 
@@ -296,6 +324,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   function _inCreateBurst() { return _createBurstCount > CREATE_BURST_THRESHOLD; }
 
   function onOccurrenceCreated({ occurrence } = {}) {
+    scheduleFeedSync();
     if (!occurrence?.id) return;
 
     // Keep local cache current before React re-renders stateRef
@@ -344,6 +373,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   }
 
   function onOccurrenceUpdated({ occurrence } = {}) {
+    scheduleFeedSync();
     if (!occurrence?.id) return;
 
     const prevOcc = localOccsById[occurrence.id];
@@ -384,6 +414,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   }
 
   function onOccurrenceDeleted(payload = {}) {
+    scheduleFeedSync();
     const occurrenceId = payload.occurrenceId || payload.id;
     if (!occurrenceId) return;
 
@@ -565,6 +596,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         return !isNaN(d);
       });
       fireOperations("NavigationOp", { type: "NavigationOp", activeFilterValues: patch.activeFilterValues, date: filterDate || null });
+      scheduleFeedSync();
     }
   }
 
@@ -1466,6 +1498,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     } finally {
       _navCascadeFiredOps = prev;
     }
+    // Local filter changes (date switches) re-scope every feed — reconcile.
+    scheduleFeedSync();
   }
 
   // Drop-batch: collect all top-level op fires during a drop, then flush
@@ -1519,6 +1553,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   operationsBridge.fireOperations = fireOperationsOptimistic;
   operationsBridge.fireOperationsBatch = fireOperationsBatch;
   operationsBridge.updateLocalOcc = (occ) => { if (occ?.id) localOccsById[occ.id] = occ; };
+  operationsBridge.markDerivedOcc = _markOpEmitted;
   operationsBridge.removeLocalOcc = (occurrenceId) => { delete localOccsById[occurrenceId]; };
   operationsBridge.getLocalOcc = (occurrenceId) => localOccsById[occurrenceId] || null;
   // Read-only access to the current modules map. Used by
@@ -1961,6 +1996,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     operationsBridge.fireOperations = null;
     operationsBridge.fireOperationsBatch = null;
     operationsBridge.updateLocalOcc = null;
+    operationsBridge.markDerivedOcc = null;
+    if (_feedSyncTimer) { clearTimeout(_feedSyncTimer); _feedSyncTimer = null; }
     operationsBridge.removeLocalOcc = null;
     operationsBridge.getLocalOcc = null;
     operationsBridge.getLocalMod = null;

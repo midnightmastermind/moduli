@@ -2004,6 +2004,12 @@ export function makeTrackerOp({
     } else {
       rules.push({ id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$scopePageId" });
     }
+    // Feed copies never aggregate — a feed (occurrence.feed) mints copy-linked
+    // mirrors marked meta.feedSourceId; counting them would double-count the
+    // source when a feed sits inside an aggregation scope.
+    {
+      rules.push({ id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" });
+    }
     // Flow direction filter (in/out aggregations like income vs expense).
     if (flowField && flow === "in") {
       rules.push({ id: uid(), left: `$item.fields.${flowField}.flow`, comparator: "IS", right: "in" });
