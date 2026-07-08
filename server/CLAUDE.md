@@ -2,6 +2,17 @@
 
 _Updated: 2026-07-07. Check this file before re-reading source._
 
+## Recent Changes (2026-07-08 — Occurrence.feed schema + feed replaces Table:/Canvas: Build)
+- **`models/Occurrence.js`** — new `feed` key (Mixed, default null): the materialized pull-query
+  config (client engine: helpers/feedSync.js). Declared so strict mode doesn't strip it on
+  update_occurrence's spread merge.
+- **`scripts/createLiveData.js`** — `Table: Build` + `Canvas: Build` ops DELETED (68 ops).
+  Schedule Table + Schedule Canvas page occs carry seeded feeds (scope = Schedule page, sort by
+  Time Slot) and now INHERIT the date cascade (filterOverride null, was {}). Table's Goal column
+  removed (it embedded a per-row goal copy only the op could mint). All `$item._ancestors
+  HAS_ANCESTOR`-scoped trackers gained `meta.feedSourceId IS_EMPTY` (feed copies never aggregate).
+- **`utils/liveSystemBuilders.js`** — same feed-copy exclusion rule in makeTrackerOp's loop rules.
+
 ## Recent Changes (2026-07-07 — image search/upload routes + reseed stale-grid sweep)
 - **`server.js`** — two new app-internal routes for the client's ImagePickerMenu (same auth class
   as `/api/artifacts/upload`):

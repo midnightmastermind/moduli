@@ -2,6 +2,18 @@
 
 _Updated: 2026-07-04. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-07-08 — feeds: table child rows, canvas fallback positions, feed badge)
+- **`containers/ContainerTable.jsx`** — child OCCURRENCES render as generated rows after the
+  persisted cell rows (one per child; each column projects the same occurrence via StaticCellEmbed
+  + its fieldVisibility). Ordered by table.sort via the sort column's projected field
+  (`compareFieldValues` — time-aware). Feed copies hide the row remove button (engine owns their
+  lifecycle). This is how the Schedule Table renders its feed (Table: Build op is gone).
+- **`pages/PageCanvas.jsx`** — position-less children (feed copies) stack near the world CENTER
+  (~1760/1850 — corner coords render off-screen in the 4000px world), wrapping into columns
+  (8/column). First drag persists real meta.x/y.
+- **`ModuleContainer.jsx` + `ModulePage.jsx`** — Rss feed badge next to the HeaderChevron when
+  `occurrence.feed.enabled`; `<FeedSection>` mounted in both HeaderDropdowns.
+
 ## Recent Changes (2026-07-07 — PreviewNode: inline preview decoupled from the write commit)
 - **`PreviewNode.jsx` InlinePreview** — `window.__moduli_state__` is now held in state and
   refreshed by a 500ms poll (same-ref setState no-ops), NOT re-read per render. The synchronous

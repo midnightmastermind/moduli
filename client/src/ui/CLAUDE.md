@@ -2,6 +2,16 @@
 
 _Updated: 2026-07-07. Check this file before re-reading source._
 
+## Recent Changes (2026-07-08 — FeedSection.jsx NEW)
+- **`FeedSection.jsx` (NEW)** — HeaderDropdown section configuring `occurrence.feed` (materialized
+  pull-query, see helpers/feedSync.js): enable toggle, condition rows (field/comparator/value,
+  shared COMPARATOR_OPTIONS), role chips, page scope select, sort field+dir, limit, live
+  "N matches now" count via resolveFeedItems. Writes the whole feed object through
+  CommitHelpers.updateOccurrence. Mounted in ModuleContainer + ModulePage HeaderDropdowns.
+- **`DrilldownTimePicker.jsx`** — day-grid today-hint is now much LIGHTER than the selected state
+  (0.18 ring / half-opacity tint vs 0.5 ring) so selected-today reads at a glance (2026-07-07).
+
+
 ## Recent Changes (2026-07-07 — ImagePickerMenu (Calibre-style image lookup) + Field.jsx wiring)
 - **`ImagePickerMenu.jsx` (NEW)** — reusable image picker modal, three tabs: **Search** (keyless
   web image search via server proxy `/api/images/search` — DuckDuckGo primary, Wikipedia fallback;
