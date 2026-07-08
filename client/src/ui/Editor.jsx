@@ -1524,19 +1524,39 @@ const Editor = forwardRef(function Editor({
         // (detectSideHost + isTextmappedHost + blockIndexAtY + offsetFor are now
         // hoisted to component scope — see above the dropTargetForElements effect.)
         const wrapHostWithNeighbor = (neighborOccId, sideHost) => {
-          if (!editor || !sideHost || !neighborOccId) return false;
+          const WLOG = (...a) => { if (typeof window !== "undefined" && window.__dragDiag === true) console.log("[wrapHost]", ...a); };
+          if (!editor || !sideHost || !neighborOccId) return WLOG("bail: missing editor/sideHost/neighbor") ?? false;
           const groupType = editor.schema.nodes.wrapGroup;
           const embedType = editor.schema.nodes.moduleEmbed;
-          if (!groupType || !embedType) return false;
-          const host = editor.state.doc.nodeAt(sideHost.hostPos);
-          if (!host || host.type.name !== "moduleEmbed") return false;
-          if (host.attrs?.occurrenceId === neighborOccId) return false; // never wrap self
+          if (!groupType || !embedType) return WLOG("bail: schema types missing") ?? false;
+          // hostPos is a TOP-LEVEL position from detectSideHost. Resolve via
+          // childAfter (top level only) — nodeAt() descends into a wrapGroup's
+          // children at its boundary, which mis-targeted the group's first
+          // neighbor and nested a group inside a group.
+          const { node: host, offset: hostOffset } = editor.state.doc.childAfter(sideHost.hostPos);
+          if (!host || hostOffset !== sideHost.hostPos) return WLOG("bail: hostPos not a top-level node start", { hostPos: sideHost.hostPos }) ?? false;
+          // Host already wrapped (e.g. the seeded logo⇄description group) → ADD
+          // the dropped occurrence as another stacked neighbor (schema allows
+          // moduleEmbed{2,}; WrapGroupNode stacks children 0..N-2 down the side).
+          if (host.type.name === "wrapGroup") {
+            let already = false;
+            host.forEach((c) => { if (c.attrs?.occurrenceId === neighborOccId) already = true; });
+            if (already) return WLOG("bail: occurrence already a group member") ?? false;
+            const neighbor = embedType.create({ occurrenceId: neighborOccId });
+            const ran = editor.chain().focus().command(({ tr }) => { tr.insert(sideHost.hostPos + 1, neighbor); return true; }).run();
+            WLOG("group-add neighbor ran →", ran, { groupPos: sideHost.hostPos });
+            return ran;
+          }
+          if (host.type.name !== "moduleEmbed") return WLOG("bail: host at pos not moduleEmbed", { hostPos: sideHost.hostPos, type: host?.type?.name }) ?? false;
+          if (host.attrs?.occurrenceId === neighborOccId) return WLOG("bail: self-wrap") ?? false;
           const neighbor = embedType.create({ occurrenceId: neighborOccId });
           // Neighbor FIRST so it floats and the host's prose wraps around it (L).
           const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: true }, [neighbor, host]);
           const from = sideHost.hostPos;
           const to = sideHost.hostPos + host.nodeSize;
-          return editor.chain().focus().command(({ tr }) => { tr.replaceWith(from, to, group); return true; }).run();
+          const ran = editor.chain().focus().command(({ tr }) => { tr.replaceWith(from, to, group); return true; }).run();
+          WLOG("replaceWith ran →", ran, { from, to });
+          return ran;
         };
         // Top-level (depth-1) embed lookup by occurrenceId — used to relocate a
         // moved node. Restricted to top level so we never reach inside an
@@ -1563,13 +1583,24 @@ const Editor = forwardRef(function Editor({
           return editor.chain().focus().command(({ tr }) => {
             tr.delete(src.pos, src.pos + src.size);
             const host = findTopEmbedPos(tr.doc, sideHost.hostOccId, ["moduleEmbed"]);
-            if (!host) return false;
-            const hostNode = tr.doc.nodeAt(host.pos);
-            if (!hostNode || hostNode.type.name !== "moduleEmbed") return false;
-            const neighbor = embedType.create({ occurrenceId });
-            // Neighbor FIRST so it floats and the host's prose wraps around it (L).
-            const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: true }, [neighbor, hostNode]);
-            tr.replaceWith(host.pos, host.pos + hostNode.nodeSize, group);
+            if (host) {
+              const hostNode = tr.doc.nodeAt(host.pos);
+              if (!hostNode || hostNode.type.name !== "moduleEmbed") return false;
+              const neighbor = embedType.create({ occurrenceId });
+              // Neighbor FIRST so it floats and the host's prose wraps around it (L).
+              const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: true }, [neighbor, hostNode]);
+              tr.replaceWith(host.pos, host.pos + hostNode.nodeSize, group);
+              return true;
+            }
+            // Host not a bare top-level embed — it may be the HOST (last child)
+            // of an existing wrapGroup: add the moved embed as another neighbor.
+            let groupPos = null;
+            tr.doc.forEach((n, offset) => {
+              if (groupPos != null) return;
+              if (n.type.name === "wrapGroup" && n.lastChild?.attrs?.occurrenceId === sideHost.hostOccId) groupPos = offset;
+            });
+            if (groupPos == null) return false;
+            tr.insert(groupPos + 1, embedType.create({ occurrenceId }));
             return true;
           }).run();
         };
@@ -1683,8 +1714,18 @@ const Editor = forwardRef(function Editor({
           // Cross-doc / from a container: insert FIRST (so a silent failure
           // can't orphan the source), then detach the source from wherever it
           // lived — a sibling doc-embed node, or a page/panel/container's list.
-          const insertedCross = insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
-          DLOG("MOVE cross-doc insert →", insertedCross, { sourceType: context?.sourceType, pageOccurrenceId: context?.pageOccurrenceId, panelId: context?.panelId });
+          // A detected side host still means "fold into a wrapGroup" — the
+          // same-doc wrapMoveBeside above returned false only because the
+          // source isn't a node in THIS doc; wrapHostWithNeighbor embeds any
+          // occurrence id as the floated neighbor (same call the copy path uses).
+          // Capture the doc-embed source's registry deleter BEFORE inserting:
+          // the wrap/insert mounts a NEW embed NodeView for the SAME occurrence
+          // id, which overwrites the registry entry — a post-insert lookup would
+          // delete the freshly inserted node instead of the old source.
+          const sourceEmbedDelete = context?.sourceType === "doc-embed" ? embedDeleteRegistry.get(occurrenceId) : null;
+          const wrappedCross = sideHost ? wrapHostWithNeighbor(occurrenceId, sideHost) : false;
+          const insertedCross = wrappedCross || insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId } });
+          DLOG("MOVE cross-doc insert →", insertedCross, { wrappedBeside: !!wrappedCross, sourceType: context?.sourceType, pageOccurrenceId: context?.pageOccurrenceId, panelId: context?.panelId });
           if (!insertedCross) return;
           // Detach the source from wherever it ACTUALLY lives. A doc-embed source
           // is a TipTap node (registry delete). Otherwise the source occurrence is
@@ -1693,8 +1734,8 @@ const Editor = forwardRef(function Editor({
           // lives in its CONTAINER, not the panel, so the panelId guess removed
           // nothing → the source stayed → it looked copied instead of moved).
           if (context?.sourceType === "doc-embed") {
-            DLOG("DETACH via embedDeleteRegistry", { hasEntry: !!embedDeleteRegistry.get(occurrenceId) });
-            embedDeleteRegistry.get(occurrenceId)?.();
+            DLOG("DETACH via embedDeleteRegistry (pre-insert capture)", { hasEntry: !!sourceEmbedDelete });
+            sourceEmbedDelete?.();
           } else {
             const parentOcc = Object.values(occsById).find((o) => Array.isArray(o.occurrences) && o.occurrences.includes(occurrenceId));
             if (!parentOcc) DLOG("DETACH FAILED — no parent lists this occurrence");

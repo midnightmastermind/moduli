@@ -2,6 +2,30 @@
 
 _Updated: 2026-07-07. Check this file before re-reading source._
 
+## Recent Changes (2026-07-08 — wrap-beside works for CROSS-DOC moves + hosts already in a wrapGroup)
+- **`Editor.jsx` (`handleDocDrop` MOVE branch + wrap helpers)** — three fixes, found via
+  `_wrap1diag.mjs`/`_wrap6probe.mjs` (headless CDP touch, all 6 L/R × top/middle/bottom positions
+  against the seeded Viafluere description; screenshots `wrap6-*.png`):
+  1. **Cross-doc MOVE never wrapped.** `wrapMoveBeside` is same-doc only (source must be a node in
+     this doc), so dragging an item from a PANEL onto a textblock's side fell through to the plain
+     cross-doc insert (item landed at the top of the page, no wrap — the account3 probe's
+     "drops landed but no wrap formed"). The cross-doc path now calls `wrapHostWithNeighbor`
+     (same call the copy path uses) when a sideHost was detected, before the plain insert.
+  2. **Already-wrapped hosts bailed.** The seeded description is ALREADY in a wrapGroup (logo).
+     Both wrap helpers only handled a bare `moduleEmbed` host → every drop onto a wrapped
+     textblock bailed. Both now ADD the dropped occurrence as another stacked neighbor
+     (`tr.insert(groupPos+1, embed)`; schema is `moduleEmbed{2,}`, WrapGroupNode stacks N).
+  3. **`nodeAt` descent corruption.** `wrapHostWithNeighbor` resolved the host via
+     `doc.nodeAt(hostPos)`, which at a wrapGroup boundary can descend to the group's FIRST CHILD —
+     it once replaced the logo embed with a nested group. Now resolves via `doc.childAfter`
+     (top level only) + requires `offset === hostPos`.
+  - Also: cross-doc MOVE detach captures the doc-embed source's `embedDeleteRegistry` deleter
+    BEFORE the insert (the new embed NodeView for the same occId overwrites the registry entry —
+    a post-insert lookup deleted the freshly inserted node).
+  - `[wrapHost]` guard logs added (gated `__dragDiag`). Verified headless: all 6 positions form/
+    re-morph wraps (first drop = group-add beside the logo; later drags = grouped re-morph),
+    persist across reload. 1227/1227 client tests.
+
 ## Recent Changes (2026-07-08 — FeedSection.jsx NEW)
 - **`FeedSection.jsx` (NEW)** — HeaderDropdown section configuring `occurrence.feed` (materialized
   pull-query, see helpers/feedSync.js): enable toggle, condition rows (field/comparator/value,
