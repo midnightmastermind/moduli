@@ -2,6 +2,18 @@
 
 _Updated: 2026-07-07. Check this file before re-reading source._
 
+## Recent Changes (2026-07-07 LATE-2 — feedSync.js NEW: the occurrence-feed engine)
+- **`feedSync.js` (NEW)** — materializes `occurrence.feed` pull-queries as copy-linked children
+  (replaces Table: Build / Canvas: Build ops). Scan-based self-healing diff on
+  `meta.feedSourceId`+parentId; mints via `copylinkInstanceToContainer` (new `dragMode` +
+  `fireTrigger` params); sweeps/re-links; ACCUMULATES the parent ref across writes (stale per-mint
+  reads = child-list clobber, caught headless). Scheduled debounced from bindSocketToStore.
+- **`CommitHelpers.js`** — `createOccurrence` + `removeOccurrence` gained `fireTrigger=true`
+  (false = derived data: no op fire, `operationsBridge.markDerivedOcc` suppresses the echo).
+- **`LayoutHelpers.js`** — `copylinkInstanceToContainer` passes through `dragMode` (stamped on the
+  minted occurrence) + `fireTrigger`.
+
+
 ## Recent Changes (2026-07-07 LATE — delete recount fix + opResultSummary + drag toast page context)
 - **`operationExecutor.js`** — `$trigger.occurrence` enrichment now falls back to
   `transaction._occurrenceSnapshot` when the occurrence is gone from state (deletes); `_ancestors`

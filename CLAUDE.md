@@ -6,6 +6,25 @@
 
 ---
 
+## Handoff — 2026-07-07 LATE-3 (occurrence FEEDS shipped — Table:/Canvas: Build ops replaced)
+
+**Feeds are live.** `occurrence.feed = { enabled, conditions, roles, scope, sort, limit }` on any
+container or page = a declarative materialized FIND: matching sources (filter-menu conditions +
+the owner's effective date cascade) are minted as COPY-LINKED children (`meta.feedSourceId`,
+drag-locked to copy), alongside the owner's own children. Engine: `helpers/feedSync.js`
+(scan-based self-healing diff, mint/sweep/re-link, accumulated parent ref, fireTrigger:false +
+markDerivedOcc echo suppression), scheduled debounced from bindSocketToStore. Trackers exclude
+feed copies (`meta.feedSourceId IS_EMPTY` in makeTrackerOp + inline trackers) so feeds can't
+double-count. UI: `ui/FeedSection.jsx` in container/page header menus. `Table: Build` +
+`Canvas: Build` seed ops DELETED (68 ops now) — Schedule Table (child-occurrence ROWS, new generic
+ContainerTable rendering; Goal column dropped) + Schedule Canvas (center-stacked fallback
+positions) carry seeded feeds and now INHERIT the date cascade. Verified headless: both pages
+materialize today's 6 tasks; reload = zero-write no-op; orphan/dupe self-heals. 12 engine tests;
+1212/1212 client + 227/227 server; reseeded. Spec + as-built record:
+`docs/superpowers/specs/2026-07-07-occurrence-feed-plan.md` (v1 limits listed there).
+
+---
+
 ## Handoff — 2026-07-07 LATE-2 (trackers fixed both orders + notifications overhaul + behavioral test suite + delete-recount fix)
 
 Continuation of the `.claude`-account session (hit its limit mid-edit of createLiveData). All on

@@ -1,9 +1,41 @@
-# Occurrence "Feed" option — plan (2026-07-07, NOT implemented)
+# Occurrence "Feed" option — plan + AS-BUILT record (2026-07-07, SHIPPED)
 
 > User ask: "a feed option in the occurrence menu for the respected occurrences. so I can pull,
 > using the filter menu as the conditions, from all the occurrences, and display them. filters can
 > still be applied after the fact but these are pulled in. make it a plan first." + "review if this
 > is a sound addition."
+
+## AS BUILT (same day — user pivoted the design during review)
+
+The pure-view model below was superseded by user direction: **feeds MATERIALIZE
+copy-links** ("it should be a copy of the occurrence added to the parent…
+copylinks"), copies render **alongside** the owner's own children ("don't hide
+the container's old children"), are **drag-locked to copy mode** ("lock the
+feeded occurrences in copy mode"), feeds work on **pages too**, and the feature
+**replaces the Table: Build / Canvas: Build ops**.
+
+Shipped shape (commit `feat(feed)` 2026-07-07):
+- `occurrence.feed = { enabled, conditions[], roles[], scope, sort, limit }` (Occurrence schema key).
+- `state/selectors.js resolveFeedItems` — the query (skips feed copies, the owner, its ancestors + descendants).
+- `helpers/feedSync.js` — the engine: scan-based diff (`meta.feedSourceId` + parentId), mint missing
+  via `copylinkInstanceToContainer` (dragMode:"copy", fireTrigger:false), sweep stale/duplicates
+  (fireTrigger:false), re-link unreferenced survivors, accumulate the parent ref across writes.
+  Debounced scheduler in bindSocketToStore (full_state / filter changes / occurrence CRUD).
+- Derived-data hygiene: `createOccurrence`/`removeOccurrence` gained `fireTrigger`;
+  `operationsBridge.markDerivedOcc` suppresses server echoes. Trackers exclude
+  `meta.feedSourceId` items (makeTrackerOp + inline ancestor-scoped trackers).
+- Renderers: ContainerTable renders child occurrences as generated rows (per-column
+  fieldVisibility projection); PageCanvas stacks position-less cards near the world center.
+- `ui/FeedSection.jsx` in container + page header menus (toggle, conditions, roles, scope, sort,
+  limit, live match count).
+- Seed: `Table: Build` + `Canvas: Build` deleted; Schedule Table/Canvas pages carry seeded feeds +
+  inherit the date cascade; table's Goal column removed.
+
+Known v1 limits: feed sort is lexical on the field value (timeslot labels don't sort numerically);
+canvas fallback stack overlaps tall cards until dragged; the table's child rows ignore
+table-level sort/filter (they follow feed order after persisted rows).
+
+The original pure-view plan (historical) follows.
 
 ## Soundness review (honest)
 
