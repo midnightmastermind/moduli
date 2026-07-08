@@ -2237,3 +2237,16 @@ FEEDS SHIPPED as materialized copy-links (helpers/feedSync.js engine); Table: Bu
 > "wait why cant they be used in operations … like if i drag from there to a schedule, will it still count"
 
 Answered + regression-tested: feed copies participate in ops fully (onChange fires; only their mint/sweep lifecycle is silent, and stock trackers skip them to avoid double-counting their linked source). Dragging OUT of a feed mints a clean copy (no feedSourceId) that counts like any toolkit drop.
+
+## 2026-07-08 — wrap DnD 6-position + responsive + tablet verification (account2 continuation)
+
+> "after make sure the drag and drop for wrapped docs, works with anything next to a textblock in the 6 positions (left right * top middle bottom) abd make sure its properly responsive, as well as the entire app on tablet and switching between mobile portrait view and the landscape desktop view"
+
+(Directive given to account3 at the end of its session; account3 hit its limit mid-probe. Picked up
+and completed by account2.) Found + fixed (commit `15883a67`): cross-doc MOVE drops never wrapped
+(`wrapMoveBeside` is same-doc-only; the cross-doc path now calls `wrapHostWithNeighbor`), and hosts
+ALREADY in a wrapGroup (the seeded logo⇄description) bailed every wrap — both helpers now add the
+dropped occurrence as another stacked neighbor. Verified headless: 6/6 positions form/re-morph
+wraps + persist across reload; wrap degrades cleanly at 1600/1180/900/768 widths (desktop + mobile
+layouts, no clipping); tablet rotation landscape(desktop)↔portrait(mobile) round-trips without
+mosaic corruption, rail cell-nav works. Deployed to prod.

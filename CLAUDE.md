@@ -59,6 +59,20 @@ filter-menu conditions) written + soundness-reviewed, NOT implemented — awaiti
 
 ---
 
+## Handoff — 2026-07-08 (feeds deployed; wrap-beside DnD fixed for cross-doc + wrapped hosts)
+
+Account3's session shipped FEEDS (materialized copy-links, `helpers/feedSync.js`) + behavioral op
+tests + notifications, merged to master and deployed. Its last in-flight task (wrap DnD
+verification, user directive in CLAUDE_CHAT 2026-07-08) was completed by account2:
+**`15883a67 fix(wrap)`** — dropping anything beside a textblock now wraps in ALL cases: cross-doc
+MOVEs (was plain-insert-at-top-of-page) and hosts already inside a wrapGroup (new neighbors stack;
+schema was already `moduleEmbed{2,}`). Verified headless: 6/6 L/R × top/middle/bottom positions,
+persistence across reload, responsive at 4 widths, tablet rotation + rail cell-nav. 1227/1227
+client tests. **Deployed to prod + live grid reseeded.** Probe scripts `_wrap6probe.mjs` /
+`_wrap1diag.mjs` / `_wrapresp.mjs` / `_tabletrot.mjs` at repo root (token creds expire ~Jul 14).
+
+---
+
 ## Handoff — 2026-07-07 LATE (image picker shipped + options-resolver fix + grid sweep)
 
 Continuation of account2's session (hit spend limit mid-verify). **ImagePickerMenu** (Calibre-style
