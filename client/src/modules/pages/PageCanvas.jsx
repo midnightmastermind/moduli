@@ -81,8 +81,10 @@ export default function PageCanvas({ pageModule, occurrence, panelId, dispatch, 
       // old Canvas: Build op stamped ~1760/1850 for the same reason).
       // First drag persists a real meta.x/y and takes over.
       const childIdx = Math.max(0, (occurrence?.occurrences || []).indexOf(occ.id));
-      const fallbackX = 1760;
-      const fallbackY = 1850 + childIdx * 80;
+      // Wrap into columns (8 per column, 260px apart, 110px row step) so tall
+      // cards don't bury each other in one overlapping stack.
+      const fallbackX = 1760 + Math.floor(childIdx / 8) * 260;
+      const fallbackY = 1850 + (childIdx % 8) * 110;
       return (
         <CanvasSlot key={occ.id} x={occ?.meta?.x ?? fallbackX} y={occ?.meta?.y ?? fallbackY}>
           {mod.role === "container" ? (

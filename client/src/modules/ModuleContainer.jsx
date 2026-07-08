@@ -109,8 +109,7 @@ import {
   ClipboardPaste,
   Plus,
   FileText,
-  Type,
-} from "lucide-react";
+  Type, Rss } from "lucide-react";
 
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import { DocEditorShell } from "./DocContent.jsx";
@@ -1195,6 +1194,9 @@ function Container({
 
             {/* Filter (HeaderChevron) BEFORE the add (QuickAddMenu), both right-aligned. */}
             <div className="ml-auto mr-1" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4 }} onPointerDown={(e) => e.stopPropagation()}>
+              {containerOccurrence?.feed?.enabled && (
+                <Rss size={10} style={{ color: "rgba(96,165,250,0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
+              )}
               <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={containerOccurrence} />
               <QuickAddMenu
                 targetRole="instance"

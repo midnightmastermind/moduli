@@ -359,6 +359,41 @@ describe("nutrition inputs", () => {
   });
 });
 
+describe("feed copies vs trackers (2026-07-08)", () => {
+  it("a feed COPY sitting in a mirror page never counts (its source is already counted)", () => {
+    // Simulate what feedSync mints: a copy-linked mirror of a completed task,
+    // parented OUTSIDE Schedule (the mirror page), marked meta.feedSourceId.
+    const src = addToSlot("Stretching", "8:30am", { Completed: true });
+    const after = goalValue("Completed", "Tasks Completed");
+    const copyId = uid();
+    const srcOcc = occurrencesById[src];
+    occurrencesById[copyId] = {
+      id: copyId, moduleId: srcOcc.moduleId, parentId: null,
+      fields: JSON.parse(JSON.stringify(srcOcc.fields)),
+      meta: { feedSourceId: src }, occurrences: [],
+      role: "instance", label: "Stretching",
+    };
+    const anc = ancestorChain(copyId);
+    fire("MeasureOp", {
+      type: "MeasureOp", occurrenceId: copyId, instanceId: srcOcc.moduleId,
+      fields: { [fieldIdByName["Completed"]]: true },
+      _ancestorIds: anc.ids, _ancestorLabels: anc.labels,
+    });
+    expect(goalValue("Completed", "Tasks Completed")).toBe(after); // unchanged
+  });
+
+  it("dragging OUT of a feed into the Schedule mints a CLEAN copy that counts", () => {
+    // The drag-copy path (copyInstanceToContainer) copies FIELDS, not meta —
+    // the new occurrence carries no feedSourceId, so trackers treat it like
+    // any toolkit drop (user question 2026-07-08: "if I drag from there to a
+    // schedule, will it still count" — yes).
+    const before = goalValue("Completed", "Tasks Completed");
+    const id = addToSlot("Take Vitamins", "9:00am", { Completed: true });
+    expect(occurrencesById[id].meta?.feedSourceId).toBeUndefined();
+    expect(goalValue("Completed", "Tasks Completed")).toBe(before + 1);
+  });
+});
+
 describe("date-picker selections rebuild the Schedule (multi-day)", () => {
   it("a 3-day multi selection mints a day-column per selected date", () => {
     const buildOp = operations.find(o => o.name === "Schedule: Build Schedule");

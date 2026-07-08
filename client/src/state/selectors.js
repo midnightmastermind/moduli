@@ -520,15 +520,43 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
       const v = o.occurrence.fields?.[feed.sort.fieldId];
       return v && typeof v === "object" && "value" in v ? v.value : v;
     };
-    out.sort((a, b) => {
-      const va = val(a), vb = val(b);
-      if (va == null && vb == null) return 0;
-      if (va == null) return 1;
-      if (vb == null) return -1;
-      return (va < vb ? -1 : va > vb ? 1 : 0) * dir;
-    });
+    out.sort((a, b) => compareFieldValues(val(a), val(b)) * dir);
   }
   return out.slice(0, limit);
+}
+
+// Type-aware compare for feed/table ordering. Lexical compare mis-sorts the
+// two shapes this system is full of: time-slot labels ("10:00am" < "2:00am")
+// and numeric strings. Order of coercion: 12h/24h time label → minutes since
+// midnight, then Number, then Date-parseable string, else localeCompare.
+// Nullish sorts last regardless of direction.
+const _TIME_LABEL_RE = /^\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*$/i;
+function _timeLabelToMinutes(v) {
+  if (typeof v !== "string") return null;
+  const m = v.match(_TIME_LABEL_RE);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2] || 0);
+  const ap = m[3]?.toLowerCase();
+  if (!ap && !m[2]) return null; // bare number — treat as numeric, not time
+  if (h > 23 || min > 59) return null;
+  if (ap === "pm" && h !== 12) h += 12;
+  if (ap === "am" && h === 12) h = 0;
+  return h * 60 + min;
+}
+export function compareFieldValues(va, vb) {
+  if (va == null && vb == null) return 0;
+  if (va == null) return 1;
+  if (vb == null) return -1;
+  const ta = _timeLabelToMinutes(va), tb = _timeLabelToMinutes(vb);
+  if (ta != null && tb != null) return ta - tb;
+  const na = typeof va === "number" ? va : (va !== "" && !isNaN(Number(va)) ? Number(va) : null);
+  const nb = typeof vb === "number" ? vb : (vb !== "" && !isNaN(Number(vb)) ? Number(vb) : null);
+  if (na != null && nb != null) return na - nb;
+  const da = typeof va === "string" ? Date.parse(va) : NaN;
+  const db = typeof vb === "string" ? Date.parse(vb) : NaN;
+  if (!isNaN(da) && !isNaN(db)) return da - db;
+  return String(va).localeCompare(String(vb));
 }
 
 export function getLocalFilterConditions(occ) {

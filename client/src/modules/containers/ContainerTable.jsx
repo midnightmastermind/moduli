@@ -19,7 +19,7 @@ import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn
 import { assignLinkedGroup } from "../../helpers/LayoutHelpers";
 import { COMPARATOR_OPTIONS, UNARY_COMPARATORS } from "../../helpers/comparators";
 import { GridActionsContext, useGridActions } from "../../GridActionsContext";
-import { getEffectiveFieldVisibilityForOccurrence } from "../../state/selectors";
+import { getEffectiveFieldVisibilityForOccurrence, compareFieldValues } from "../../state/selectors";
 import {
   autoAppendFieldsToAncestorsShowMode,
   autoAppendFieldsToTableColumnShowMode,
@@ -1131,8 +1131,26 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   // drop-into-a-table read as "new row".
   const childRowOccs = useMemo(() => {
     const ids = occurrence?.occurrences || [];
-    return ids.map(id => occurrencesById?.[id]).filter(Boolean);
-  }, [occurrence?.occurrences, occurrencesById]);
+    const occs = ids.map(id => occurrencesById?.[id]).filter(Boolean);
+    // Child rows follow the table-level sort: order by the sort column's
+    // PROJECTED field (its fieldVisibility show-list's first field), falling
+    // back to the occurrence label. Same type-aware compare feeds use, so
+    // time-slot labels order chronologically.
+    if (table.sort?.colId) {
+      const col = columns.find(c => c.id === table.sort.colId);
+      const fid = col?.fieldVisibility?.mode === "show" ? col.fieldVisibility.fieldIds?.[0] : null;
+      const dir = table.sort.dir === "desc" ? -1 : 1;
+      const val = (o) => {
+        if (fid) {
+          const v = o.fields?.[fid];
+          return v && typeof v === "object" && "value" in v ? v.value : v;
+        }
+        return o.label || modulesById?.[o.moduleId]?.label || null;
+      };
+      occs.sort((a, b) => compareFieldValues(val(a), val(b)) * dir);
+    }
+    return occs;
+  }, [occurrence?.occurrences, occurrencesById, table.sort, columns, modulesById]);
 
   // Normal document flow — NO row/column virtualization. This table holds a
   // handful of rows whose cells are heavy occurrence embeds. The virtualizer's
