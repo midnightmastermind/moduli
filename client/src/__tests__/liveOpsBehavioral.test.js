@@ -358,3 +358,52 @@ describe("nutrition inputs", () => {
     expect(trackerValue("Protein")).toBe(21);
   });
 });
+
+describe("date-picker selections rebuild the Schedule (multi-day)", () => {
+  it("a 3-day multi selection mints a day-column per selected date", () => {
+    const buildOp = operations.find(o => o.name === "Schedule: Build Schedule");
+    expect(buildOp).toBeTruthy();
+    const schedPageId = buildOp.targetOccurrenceId;
+    expect(occurrencesById[schedPageId]).toBeTruthy();
+
+    const dayCols = () => Object.values(occurrencesById).filter(o => {
+      const m = modulesById[o.moduleId];
+      const label = o.label || m?.label || "";
+      return label.startsWith("Schedule - ") && ancestorChain(o.id).ids.includes(schedPageId);
+    });
+    const before = dayCols().length;
+    expect(before).toBeGreaterThanOrEqual(1); // today's column from the sweep
+
+    // Pick today + 2 non-consecutive future days — the picker's kind:"multi"
+    // shape (classifySelection output) written as the page's filterOverride,
+    // exactly what NavPickerPopover commits through
+    // CommitHelpers.updateOccurrenceFilterOverride.
+    const mk = (offset) => {
+      const dt = new Date(); dt.setDate(dt.getDate() + offset);
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    };
+    const dates = [mk(0), mk(2), mk(5)];
+    const dateFid = fieldIdByName["Date"];
+    const selection = { kind: "multi", unit: "day", value: dates[0], dates };
+    const page = occurrencesById[schedPageId];
+    occurrencesById[schedPageId] = { ...page, filterOverride: { [dateFid]: selection } };
+
+    const anc = ancestorChain(schedPageId);
+    fire("NavigationOp", {
+      type: "NavigationOp",
+      sourceOccurrenceId: schedPageId,
+      occurrenceId: schedPageId,
+      fieldId: dateFid,
+      date: dates[0],
+      activeFilterValues: { [dateFid]: selection },
+      _ancestorIds: anc.ids, _ancestorLabels: anc.labels,
+    });
+
+    const cols = dayCols();
+    expect(cols.length).toBe(3);
+    // ≤7 days → timeslot format: every day-column carries slot children.
+    for (const col of cols) {
+      expect((col.occurrences || []).length).toBeGreaterThan(0);
+    }
+  });
+});
