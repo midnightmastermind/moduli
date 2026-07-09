@@ -145,7 +145,12 @@ export default function WrapGroupNode({ node, updateAttributes }) {
       // wrapAnchor.hasMidAnchor) cut the band the neighbor actually floats in.
       const anchorAttrs = { anchorIndex: node.attrs.anchorIndex, anchorOffset: node.attrs.anchorOffset };
       const notchY = hasMidAnchor(anchorAttrs) ? Math.max(0, Math.round(top - c.top)) : 0;
-      const notchH = Math.round(bottom - top);
+      // Include the float's BOTTOM margin band in the notch — the gap right
+      // under the neighbor must show the PAGE background too (it used to show
+      // the host textblock's tint, which read as the image sitting inside the
+      // textblock). Prose reclaims full width only below bottom+BOTTOM_GAP, so
+      // the extension never clips text; the seam already spans the same band.
+      const notchH = Math.round(bottom - top) + BOTTOM_GAP;
       wrapEl.style.setProperty("--notch-w", `${Math.max(0, notchW)}px`);
       wrapEl.style.setProperty("--notch-y", `${Math.max(0, notchY)}px`);
       wrapEl.style.setProperty("--notch-h", `${Math.max(0, notchH)}px`);

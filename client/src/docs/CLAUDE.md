@@ -2,6 +2,14 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-09 — notch includes the float's bottom-margin band)
+- **`WrapGroupNode.jsx` `measure`** — `notchH` now adds `BOTTOM_GAP` (14px): the gap band directly
+  UNDER the floated neighbor is carved out of the host background too, so it shows the PAGE bg
+  (it used to show the host textblock's tint — per user, "looks off / image looks inside the
+  textblock"). Prose reclaims full width only below bottom+BOTTOM_GAP, so nothing clips; the seam
+  element already spanned the same band. Paired index.css polish in client/src/CLAUDE.md
+  (host prose padding + quieter image-neighbor card).
+
 ## Recent Changes (2026-07-06 — doc pills read computedValues via useComputedValuesMap)
 - **`hooks/useDocFieldValues.js` + `pills/ExprPillNode.jsx`** — computedValues now come from
   `state/computedValuesStore.useComputedValuesMap()` (whole-map subscription — these consumers

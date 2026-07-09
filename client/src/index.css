@@ -2737,6 +2737,15 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .wrap-group--on .wrap-group-content > * > :last-child .instance-content > [data-dnd-handle] {
   position: absolute; left: 0; top: 2px; z-index: 4;
 }
+/* Breathing room between the host card's edge and the prose — the width:100%
+   flattening above leaves the ProseMirror with no inset, so full-width lines
+   (the ones reclaiming the column under the float) had their letters touching
+   the card border (per user). Padding on the prose keeps the clip/border math
+   untouched (both live on .instance-row); lines BESIDE the float still start
+   at the float's margin edge, so only the card-edge sides gain the inset. */
+.wrap-group--on .wrap-group-content > * > :last-child .ProseMirror {
+  padding: 5px 9px 7px !important;
+}
 /* Link chips wrap WITH the prose beside the float. An inline-block computes its
    shrink-to-fit width against the CONTAINING BLOCK (the full card width), NOT the
    reduced line-box beside the float — so a chip wider than the narrow column can't
@@ -2878,17 +2887,27 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   top: 3px;
   left: 3px;
 }
-/* Image neighbor = its own framed card: a visible BORDER + a background distinctly
-   BRIGHTER than the host column (host is rgba(12,53,70,0.55); this is a brighter teal)
-   so it reads as a separate occurrence, NOT part of the parent. The inner artifact-card
-   is transparent/borderless so the .instance-row IS the single visual box. */
+/* Image neighbor = its own quiet framed card. Restyled 2026-07-09 (per user —
+   the loud teal wash + bright border read as clunky): near-page-dark backdrop,
+   the SAME hairline border every other card uses, slightly larger radius, and a
+   soft drop shadow so the image reads as a clean floating figure rather than a
+   tinted box. The inner artifact-card is transparent/borderless so the
+   .instance-row IS the single visual box. */
 .wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-row {
   position: relative;
   padding: 0 !important;
-  background: rgba(38, 102, 132, 0.72) !important;
-  border: 1px solid rgba(140, 205, 230, 0.5) !important;
-  border-radius: 6px !important;
+  background: rgba(8, 20, 28, 0.5) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 8px !important;
   overflow: hidden;          /* clip the image to the rounded border */
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+}
+/* The image fills its card edge-to-edge (radius does the framing). */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .artifact-thumb img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0;
 }
 /* Align the image neighbor's TOP with the host text — the base `.instance-wrap`
    top margin (2px) pushed the image lower than the surrounding textblocks. */

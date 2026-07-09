@@ -2,6 +2,20 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-09 — wrap visual polish per user screenshot review)
+- **`index.css` wrap host prose padding** — `.wrap-group--on … :last-child .ProseMirror
+  { padding: 5px 9px 7px !important }`: the width-100% flattening left the host prose with zero
+  inset, so full-width lines under the float touched the card border. Clip/border math untouched
+  (both live on .instance-row); beside-float lines still start at the float's margin edge.
+- **`index.css` image-neighbor card restyle** — the loud teal wash (rgba(38,102,132,.72)) + bright
+  border replaced with a near-page-dark backdrop (rgba(8,20,28,.5)), the standard hsl(--border)
+  hairline, 8px radius + soft shadow; img fills the card edge-to-edge (display:block width:100%).
+- **`WrapGroupNode.jsx`** — notch extends BOTTOM_GAP below the neighbor (see docs/CLAUDE.md).
+- **Seed logo swapped** (`server/scripts/createLiveData.js`) — the Viafluere about-page lead image
+  is now `/viafluere_new_logo_sideways.png` (self-contained studio-lit lockup; the old
+  `/viafluere_sideways.png` was navy-on-transparent and died on dark cards) with an EMPTY alt so
+  no caption block renders under the logo. Reseed required (already run on Atlas).
+
 ## DOCKET — editor static-until-focus (filed 2026-07-06 perf audit, needs its own session)
 Every doc container / textblock mounts a LIVE TipTap editor eagerly (`TextblockCard.jsx` wraps
 `<Editor>` unconditionally; doc containers same) — an imported Wikipedia page mounts 100+

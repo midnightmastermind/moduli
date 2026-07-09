@@ -5761,7 +5761,7 @@ export async function createLiveData(userId, options = {}) {
   const viafluereMd = [
     "# viafluere",
     "",
-    "![viafluere](/viafluere_sideways.png)",
+    "![](/viafluere_new_logo_sideways.png)",
     "",
     "**Viafluere** is a modular, event-driven workspace where everything you do can be measured — a drag-and-drop daily command center that combines a calendar, to-do list, habit tracker, and budget / nutrition / workout tracker into one interface.",
     "",
