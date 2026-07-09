@@ -2250,3 +2250,14 @@ dropped occurrence as another stacked neighbor. Verified headless: 6/6 positions
 wraps + persist across reload; wrap degrades cleanly at 1600/1180/900/768 widths (desktop + mobile
 layouts, no clipping); tablet rotation landscape(desktop)↔portrait(mobile) round-trips without
 mosaic corruption, rail cell-nav works. Deployed to prod.
+
+> "make sure it all works with touch and mouse clicks"
+
+Touch was already verified (6/6, custom touch drag system). MOUSE was broken app-wide and had been
+for a long time: `.doc-editor-content.ProseMirror * { -webkit-user-drag: none }` (the
+text-not-draggable rule) overrides `draggable=true` in Chromium, so NO occurrence embedded in a doc
+could be mouse-dragged at all (move, wrap, re-morph — the browser silently started a page-shell
+drag instead). Fixed (`09d2fe08`): `-webkit-user-drag: element` restored on the registered drag
+sources inside doc editors (inner prose keeps `none`) + the Editor dragstart guard lets
+`target.draggable === true` through. Verified headless: mouse 6/6 + touch 6/6 wrap positions,
+text-selection drag still blocked, caret/radial-menu clicks intact. 1214/1214 tests; deployed.
