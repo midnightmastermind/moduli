@@ -701,6 +701,13 @@ const Editor = forwardRef(function Editor({
           // Only allow dragstart from drag handle elements — prevents native
           // text-selection drag from interfering with cursor placement.
           const target = event.target;
+          // A Pragmatic-registered embed drag fires dragstart with the
+          // DRAGGABLE element itself as target (instance-wrap / container
+          // shell), not the handle the gesture started on — let it through
+          // (Pragmatic's own dragHandle check still gates non-handle starts).
+          // Text-selection drags target non-draggable prose, so they still
+          // hit the preventDefault below.
+          if (target?.draggable === true) return false;
           if (!target?.closest?.('[data-dnd-handle]') && !target?.closest?.('.module-drag-handle')) {
             event.preventDefault();
             return true;

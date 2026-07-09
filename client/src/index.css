@@ -1058,6 +1058,22 @@ body[data-drag-kind="panel"] .container-shell {
   -webkit-user-drag: none;
   user-drag: none;
 }
+/* …but embedded OCCURRENCES inside a doc are real drag sources (Pragmatic
+   registers draggable=true on these). In Chromium `-webkit-user-drag: none`
+   overrides the draggable attribute, so the blanket rule above made every
+   doc embed un-draggable BY MOUSE (the browser skipped them and started a
+   page-shell drag instead — silent no-op). Restore `auto` on the registered
+   drag-source elements only; their inner text still matches the * rule, so
+   text inside embeds remains selectable-not-draggable.
+   NOTE: must be `element`, not `auto` — the draggable="true" attribute maps to
+   `-webkit-user-drag: element` only as a PRESENTATIONAL HINT, which any author
+   rule (including `auto`) overrides. */
+.doc-editor-content.ProseMirror .instance-wrap,
+.doc-editor-content.ProseMirror .container-shell,
+.doc-editor-content.ProseMirror .instance-textblock-inline {
+  -webkit-user-drag: element;
+  user-drag: element;
+}
 
 /* Anchor highlight animation (double-flash when scrolling to anchor) */
 @keyframes anchor-flash {

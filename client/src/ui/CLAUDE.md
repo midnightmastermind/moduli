@@ -2,6 +2,26 @@
 
 _Updated: 2026-07-07. Check this file before re-reading source._
 
+## Recent Changes (2026-07-08 LATE — MOUSE drags of doc embeds were dead app-wide (user-drag:none); fixed)
+- **Root cause (index.css, not Editor):** `.doc-editor-content.ProseMirror * { -webkit-user-drag:
+  none }` (the "text selectable but not draggable" rule) OVERRIDES `draggable="true"` in Chromium —
+  the attribute only maps to `-webkit-user-drag: element` as a presentational hint, which ANY
+  author rule (even `auto`) beats. So the browser skipped every embedded occurrence when resolving
+  a native drag source and started a `page-shell` drag instead (guarded elsewhere → silent no-op).
+  NO doc embed could be moved/wrapped/re-morphed BY MOUSE; touch worked (custom touch system, no
+  native HTML5 drag). Fix: restore `-webkit-user-drag: element` (must be `element`, NOT `auto`) on
+  `.instance-wrap` / `.container-shell` / `.instance-textblock-inline` inside doc editors; inner
+  text keeps `none` (deeper match on the * rule) so prose stays selectable-not-draggable.
+- **`Editor.jsx` (`handleDOMEvents.dragstart` guard)** — second blocker: the guard preventDefaulted
+  any dragstart whose target isn't inside a handle, but a native embed drag's dragstart target is
+  the DRAGGABLE element (instance-wrap), not the handle. Now allows `target.draggable === true`
+  through (Pragmatic's own dragHandle check still gates non-handle starts; text-selection drags
+  target non-draggable prose → still prevented).
+- **Verified headless (Playwright mouse → real native drag interception):** mouse 6/6 wrap
+  positions (panel group-add + in-wrap re-morphs, side flips L/R), touch 6/6 re-run unchanged,
+  click sanity (caret placement, double-click selection does NOT drag — zero dragstarts, radial
+  menu opens on handle click). 1214/1214 client tests.
+
 ## Recent Changes (2026-07-08 — wrap-beside works for CROSS-DOC moves + hosts already in a wrapGroup)
 - **`Editor.jsx` (`handleDocDrop` MOVE branch + wrap helpers)** — three fixes, found via
   `_wrap1diag.mjs`/`_wrap6probe.mjs` (headless CDP touch, all 6 L/R × top/middle/bottom positions
