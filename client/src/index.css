@@ -2678,12 +2678,14 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   position: relative;
   z-index: 20;
 }
-/* margin toward the prose (14px); NO outer margin — the neighbor's outer border
-   must sit flush on the host's outer edge, aligned with the full-width bottom
-   bar below it (an outer margin left the bottom bar poking 6px past the
-   neighbor's border — "overextending past the borders"). */
-.wrap-group--on.wrap-group--right .wrap-group-content > * > :not(:last-child) { float: right; margin-left: 14px; margin-right: 0; }
-.wrap-group--on.wrap-group--left  .wrap-group-content > * > :not(:last-child) { float: left;  margin-right: 14px; margin-left: 0; }
+/* margin toward the prose (18px = WrapGroupNode FLOAT_GAP: 8px PROSE_PAD of
+   host bg inside the seam line + 10px page-bg CHANNEL); NO outer margin — the
+   neighbor's outer border must sit flush on the host's outer edge, aligned
+   with the full-width bottom bar below it (an outer margin left the bottom
+   bar poking 6px past the neighbor's border — "overextending past the
+   borders"). */
+.wrap-group--on.wrap-group--right .wrap-group-content > * > :not(:last-child) { float: right; margin-left: 18px; margin-right: 0; }
+.wrap-group--on.wrap-group--left  .wrap-group-content > * > :not(:last-child) { float: left;  margin-right: 18px; margin-left: 0; }
 /* Host: a plain full-width block whose prose line-boxes wrap around the float. */
 .wrap-group--on .wrap-group-content > * > :last-child {
   display: block !important;

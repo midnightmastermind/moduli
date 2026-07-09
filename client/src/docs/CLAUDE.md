@@ -2,6 +2,13 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-09 LATE — prose keeps PROSE_PAD inside the seam line)
+- **`WrapGroupNode.jsx`** — `SEAM_GAP` (14, wall AT the prose edge) split into `FLOAT_GAP = 18`
+  (the float's CSS margin toward the prose — index.css updated to match) = `PROSE_PAD = 8`
+  (host-bg inset between the text and the seam line) + `CHANNEL = 10` (page-bg between the seam
+  line and the neighbor). Per user: prose/link chips were extending INTO the seam / col-resize
+  line. The clip wall + seam now sit CHANNEL from the neighbor instead of at the prose edge.
+
 ## Recent Changes (2026-07-09 — notch includes the float's bottom-margin band)
 - **`WrapGroupNode.jsx` `measure`** — `notchH` now adds `BOTTOM_GAP` (14px): the gap band directly
   UNDER the floated neighbor is carved out of the host background too, so it shows the PAGE bg

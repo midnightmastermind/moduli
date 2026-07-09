@@ -16,7 +16,14 @@ import { hasMidAnchor, classifyWrapShape } from "./wrapAnchor";
 
 const DEFAULT_NW = 300;   // px — default neighbor column width when unset
 const MIN_NW = 120;       // px — splitter clamp floor
-const SEAM_GAP = 14;      // px — channel between host edge and neighbor (matches CSS margin)
+const FLOAT_GAP = 18;     // px — total gap between the prose and the neighbor
+                          // (MUST match the float's CSS margin toward the prose in
+                          // index.css). Split as: PROSE_PAD of host-bg inset between
+                          // the text and the seam line + CHANNEL of page bg between
+                          // the seam line and the neighbor.
+const CHANNEL = 10;       // px — page-bg channel width (seam wall → neighbor edge)
+const PROSE_PAD = FLOAT_GAP - CHANNEL; // px — host-bg inset so letters never touch
+                          // the seam / resize-handle line (per user 2026-07-09)
 const BOTTOM_GAP = 14;    // px — gap below the neighbor before the full-width bottom bar
                           // (matches the float's CSS margin-bottom); the seam (vertical inner
                           // line + its ::after notch-bottom line) extends this far past the
@@ -131,15 +138,15 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     const hostBox = els[els.length - 1].querySelector(".instance-row, .container-shell");
     if (hostBox) {
       const c = hostBox.getBoundingClientRect();
-      // Extend the notch by the FULL float-margin gap (SEAM_GAP) — the clip wall
-      // lands at the prose column's edge, so the ENTIRE channel between the text
-      // and the neighbor shows the PAGE background (per user: the color between
-      // the wrapped occurrences must be the page bg, not the host textblock's
-      // tint). The seam element (and its column-rule line) moves with it (below),
-      // so the visible line still sits exactly on the host bg's clipped edge.
+      // Extend the notch by CHANNEL past the neighbor — the clip wall lands
+      // PROSE_PAD short of the prose column's edge, so the text keeps a strip
+      // of its own host bg before the seam line (letters no longer touch the
+      // resize handle), while the CHANNEL between the wall and the neighbor
+      // still shows clean PAGE background. The seam element (and its
+      // column-rule line) moves with the wall (below).
       const notchW = side === "right"
-        ? Math.round(c.right - left + SEAM_GAP)
-        : Math.round(right - c.left + SEAM_GAP);
+        ? Math.round(c.right - left + CHANNEL)
+        : Math.round(right - c.left + CHANNEL);
       // Top-anchored wraps cut from the very top (no bg strip above the neighbor);
       // mid-anchored ones (line-level anchorOffset OR legacy anchorIndex — see
       // wrapAnchor.hasMidAnchor) cut the band the neighbor actually floats in.
@@ -157,12 +164,13 @@ export default function WrapGroupNode({ node, updateAttributes }) {
       setMeasuredShape(classifyWrapShape({ ...anchorAttrs, neighborBottom: bottom, hostBottom: c.bottom }));
     }
 
-    // Seam sits at the PROSE edge of the gap (= the clip wall above) so its
-    // column-rule line borders the host bg exactly where the clip cuts it; the
-    // whole 14px channel to the neighbor stays clean page background.
+    // Seam sits ON the clip wall (CHANNEL short of the neighbor) so its
+    // column-rule line borders the host bg exactly where the clip cuts it;
+    // prose keeps PROSE_PAD of its own bg inside the line, and the CHANNEL
+    // to the neighbor stays clean page background.
     const seamLeft = side === "right"
-      ? Math.round(left - wrapRect.left - SEAM_GAP)
-      : Math.round(right - wrapRect.left + SEAM_GAP);
+      ? Math.round(left - wrapRect.left - CHANNEL)
+      : Math.round(right - wrapRect.left + CHANNEL);
     // Seam height = the neighbor's height PLUS the bottom gap, so the seam's ::after
     // (the notch-bottom line = the full-width bottom bar's TOP border) sits BELOW the
     // image with a margin above it, not flush against the image bottom.
