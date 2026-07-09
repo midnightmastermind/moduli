@@ -6146,6 +6146,7 @@ export async function createLiveData(userId, options = {}) {
                   { left: `$inst.fields.${fields.mood.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                   { left: `$inst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                   { left: "$inst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  { left: "$inst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                 ],
               },
               then: [
@@ -6239,6 +6240,7 @@ export async function createLiveData(userId, options = {}) {
                   { left: "$call.label",                              comparator: "IS",             right: "Call a Friend" },
                   { left: `$call.fields.${dateFieldId}.value`,        comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                   { left: "$call._ancestors",                         comparator: "HAS_ANCESTOR",   right: "$schedPageId" },
+                  { left: "$call.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                   { left: `$call.fields.${completedFieldId}.value`,   comparator: "IS",             right: true },
                   { left: `$call.fields.${peopleAssignedFieldId}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                 ],
@@ -6535,6 +6537,12 @@ export async function createLiveData(userId, options = {}) {
                     condition: { operator: "AND", rules: [
                       { id: uid(), left: `$item.fields.${fields.muscleGroup.id}.value`, comparator: "IS", right: key },
                       { id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+                      // Scope + feed guard (2026-07-09) — match the stock Total Reps tracker:
+                      // only SCHEDULE items count, and feed copies (Schedule Table / Canvas
+                      // mirrors, meta.feedSourceId) never aggregate — they triple-counted
+                      // every scheduled workout (user saw 90 for one 30-rep workout).
+                      { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: schedPageOccId },
+                      { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                     ] },
                     then: [
                       { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.set1Reps.id}.value` } },
@@ -6602,6 +6610,9 @@ export async function createLiveData(userId, options = {}) {
                     condition: { operator: "AND", rules: [
                       { id: uid(), left: `$item.fields.${fields.mealCategory.id}.value`, comparator: "IS", right: key },
                       { id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+                      // Scope + feed guard (2026-07-09) — see the muscle-volume note above.
+                      { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: schedPageOccId },
+                      { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                     ] },
                     then: [
                       { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.protein.id}.value` } },
@@ -6815,6 +6826,7 @@ export async function createLiveData(userId, options = {}) {
                     rules: [
                       { left: `$watchInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$watchInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                      { left: "$watchInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                       { left: "$watchInst.label", comparator: "IS", right: "Watch Movie" },
                     ],
                   },
@@ -6952,6 +6964,7 @@ export async function createLiveData(userId, options = {}) {
                     rules: [
                       { left: `$readInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$readInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                      { left: "$readInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                       { left: "$readInst.label", comparator: "IS", right: "Reading" },
                     ],
                   },
@@ -7093,6 +7106,7 @@ export async function createLiveData(userId, options = {}) {
                     rules: [
                       { left: `$podcastInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$podcastInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                      { left: "$podcastInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                       { left: "$podcastInst.label", comparator: "IS", right: "Listen to Podcast" },
                     ],
                   },
@@ -7230,6 +7244,7 @@ export async function createLiveData(userId, options = {}) {
                     rules: [
                       { left: `$courseInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$courseInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                      { left: "$courseInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                       { left: "$courseInst.label", comparator: "IS", right: "Online Course" },
                     ],
                   },
@@ -7923,6 +7938,7 @@ export async function createLiveData(userId, options = {}) {
                   condition: { operator: "AND", rules: [
                     { id: uid(), left: "$bill._ancestors", comparator: "HAS_ANCESTOR", right: billsPageOccId },
                     { id: uid(), left: `$bill.fields.${billNextDueFieldId}.value`, comparator: "SAME_DAY", right: "$schedDate" },
+                    { id: uid(), left: "$bill.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                   ] },
                   then: [
                     // Dedup: existing copy with templateId IS $payBillTpl AND
@@ -8274,6 +8290,7 @@ export async function createLiveData(userId, options = {}) {
               condition: { operator: "AND", rules: [
                 { id: uid(), left: "label",                                    comparator: "IS",           right: "Pomodoro" },
                 { id: uid(), left: "$inst._ancestors",                         comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: "$inst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                 { id: uid(), left: `$inst.fields.${completedFieldId}.value`,   comparator: "IS",           right: true },
                 { id: uid(), left: `$inst.fields.${dateFieldId}.value`,        comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
               ] },
@@ -8352,6 +8369,7 @@ export async function createLiveData(userId, options = {}) {
             { id: uid(), type: "if",
               condition: { operator: "AND", rules: [
                 { id: uid(), left: "$inst._ancestors",                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: "$inst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                 { id: uid(), left: `$inst.fields.${completedFieldId}.value`, comparator: "IS",            right: true },
                 { id: uid(), left: `$inst.fields.${dateFieldId}.value`,      comparator: "IS_NOT_EMPTY",  right: "" },
               ] },
@@ -8430,6 +8448,7 @@ export async function createLiveData(userId, options = {}) {
             { id: uid(), type: "if",
               condition: { operator: "AND", rules: [
                 { id: uid(), left: "$inst._ancestors",                         comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: "$inst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                 { id: uid(), left: `$inst.fields.${fields.workoutType.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                 { id: uid(), left: `$inst.fields.${dateFieldId}.value`,        comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
               ] },
@@ -8489,6 +8508,7 @@ export async function createLiveData(userId, options = {}) {
             { id: uid(), type: "if",
               condition: { operator: "AND", rules: [
                 { id: uid(), left: "$inst._ancestors",                                 comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: "$inst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                 { id: uid(), left: `$inst.fields.${fields.mealCategory.id}.value`,     comparator: "IS_NOT_EMPTY", right: "" },
                 { id: uid(), left: `$inst.fields.${dateFieldId}.value`,                comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
               ] },
@@ -8548,6 +8568,7 @@ export async function createLiveData(userId, options = {}) {
             { id: uid(), type: "if",
               condition: { operator: "AND", rules: [
                 { id: uid(), left: "$inst._ancestors",                       comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: "$inst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                 { id: uid(), left: `$inst.fields.${fields.amount.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                 { id: uid(), left: `$inst.fields.${dateFieldId}.value`,      comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
               ] },
@@ -9177,6 +9198,7 @@ export async function createLiveData(userId, options = {}) {
             { id: uid(), type: "if",
               condition: { operator: "AND", rules: [
                 { id: uid(), left: `$person.fields.${libraryFieldId}.value`, comparator: "IS", right: "person" },
+                { id: uid(), left: "$person.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
               ]},
               then: [
                 // Dedup — already a copy of this person on the People table?

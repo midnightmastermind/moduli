@@ -442,3 +442,58 @@ describe("date-picker selections rebuild the Schedule (multi-day)", () => {
     }
   });
 });
+
+describe("feed copies never double-count (2026-07-09 audit — 'Total Reps 90' bug)", () => {
+  // A feed (Schedule Table / Schedule Canvas) materializes copy-linked mirrors
+  // of schedule items, marked meta.feedSourceId. The per-muscle Volume + per-meal
+  // Nutrition custom pipelines lacked the feedSourceId guard (and any page scope),
+  // so one 30-rep workout counted 3x (source + table copy + canvas copy) = 90.
+  function addFeedCopyOf(srcId, parentLabel) {
+    const src = occurrencesById[srcId];
+    const parent = Object.values(occurrencesById).find(o => {
+      const m = modulesById[o.moduleId];
+      return m?.role === "page" && m?.label === parentLabel;
+    });
+    expect(parent, `page "${parentLabel}"`).toBeTruthy();
+    const id = uid();
+    occurrencesById[id] = {
+      id, moduleId: src.moduleId, parentId: parent.id,
+      fields: JSON.parse(JSON.stringify(src.fields || {})),
+      occurrences: [], role: "instance", label: src.label,
+      meta: { feedSourceId: srcId }, linkedGroupId: srcId,
+    };
+    const anc = ancestorChain(id);
+    fire("OccurrenceCreateOp", {
+      type: "OccurrenceCreateOp",
+      occurrenceId: id, instanceId: src.moduleId,
+      fields: Object.fromEntries(Object.entries(src.fields || {}).map(([k, v]) => [k, v?.value])),
+      _ancestorIds: anc.ids, _ancestorLabels: anc.labels,
+    });
+    return id;
+  }
+
+  it("a scheduled chest workout counts ONCE in Chest Volume; its feed copies add nothing", () => {
+    const before = trackerValue("Chest Volume") || 0;
+    const totalBefore = trackerValue("Total Reps") || 0;
+    const id = addToSlot("Bench Press", "5:00am", {
+      "Set 1": 12, "Set 2": 10, "Set 3": 8, "Muscle Group": "chest",
+    });
+    expect(trackerValue("Chest Volume")).toBe(before + 30);
+    expect(trackerValue("Total Reps")).toBe(totalBefore + 30);
+    // Feed mirrors on the Table + Canvas pages — the exact 3x-count shape.
+    addFeedCopyOf(id, "Schedule Table");
+    addFeedCopyOf(id, "Schedule Canvas");
+    expect(trackerValue("Chest Volume")).toBe(before + 30);
+    expect(trackerValue("Total Reps")).toBe(totalBefore + 30);
+  });
+
+  it("a scheduled meal counts ONCE in its per-meal Nutrition tracker", () => {
+    const before = trackerValue("Breakfast Nutrition") || 0;
+    const id = addToSlot("Scrambled Eggs + Veg", "5:30am", {
+      "Protein": 24, "Meal Type": "Breakfast",
+    });
+    expect(trackerValue("Breakfast Nutrition")).toBe(before + 24);
+    addFeedCopyOf(id, "Schedule Table");
+    expect(trackerValue("Breakfast Nutrition")).toBe(before + 24);
+  });
+});
