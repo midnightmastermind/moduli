@@ -2261,3 +2261,13 @@ drag instead). Fixed (`09d2fe08`): `-webkit-user-drag: element` restored on the 
 sources inside doc editors (inner prose keeps `none`) + the Editor dragstart guard lets
 `target.draggable === true` through. Verified headless: mouse 6/6 + touch 6/6 wrap positions,
 text-selection drag still blocked, caret/radial-menu clicks intact. 1214/1214 tests; deployed.
+
+> "look at the latest screenshot. there needs to be padding on the left of the textblock, the letters are touching the edge. and the space right underneath the image should be opaque so it is the background color. right now its the background of the textblock which looks off. also make the artifact image occurance look cleaner. also the logo looks bad"
+
+All four fixed (commit on master, deployed + reseeded): wrap host prose gets 5/9/7px padding (the
+width-100% flattening had left zero inset); the notch now extends BOTTOM_GAP below the neighbor so
+the band under the image shows the PAGE background; the image-neighbor card dropped the teal wash +
+bright border for a near-page dark backdrop / hairline border / 8px radius / soft shadow with the
+img edge-to-edge; the seeded logo swapped to /viafluere_new_logo_sideways.png (self-contained
+light studio lockup — the old navy-on-transparent asset was unreadable on dark cards) with an empty
+alt so no caption bar renders under it.
