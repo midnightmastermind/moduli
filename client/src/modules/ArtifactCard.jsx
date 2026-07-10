@@ -11,6 +11,22 @@ import { getUploadController } from "../helpers/uploadWithProgress";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 
+// Render a plain string with bare URLs turned into clickable links (quote artifacts
+// store their text as a plain string, so http(s):// links weren't resolving — 2026-07-10).
+function linkifyText(text) {
+  if (!text || typeof text !== "string") return text;
+  // Capturing split keeps the URLs as their own array entries; a start-anchored
+  // (non-global) test avoids the stateful-lastIndex bug of a /g regex + .test().
+  const parts = text.split(/(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer"
+           onClick={(e) => e.stopPropagation()} className="artifact-quote-link">{part}</a>
+      : part
+  );
+}
+
 export default function ArtifactCard({ module, label, occurrence }) {
   const [expanded, setExpanded] = useState(false);
   // Per-slice selectors — a full useGridActions() re-rendered every artifact
@@ -140,7 +156,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
     return (
       <div className="artifact-card artifact-card--quote" data-kind="quote">
         <span className="artifact-quote-mark" aria-hidden="true">&ldquo;</span>
-        <blockquote className="artifact-quote-text">{quote}</blockquote>
+        <blockquote className="artifact-quote-text">{linkifyText(quote)}</blockquote>
         {attribution && <cite className="artifact-quote-attr">&mdash; {attribution}</cite>}
       </div>
     );
