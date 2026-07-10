@@ -35,6 +35,11 @@ import { embedDeleteRegistry } from "../helpers/embedRegistry";
 import { findGroupMember, unwrapGroupAt, isNeighborMember } from "../helpers/wrapGroupOps";
 import { sideFromFrac, anchorOffsetForDrop } from "../docs/wrapAnchor";
 
+// px — a drop this far BELOW a wrap host's rendered text bottom is treated as an
+// insert-after (not a wrap-beside), so dropping under a short host beside a tall
+// neighbor no longer adds the block as a top-anchored neighbor. See detectSideHost.
+const BELOW_HOST_TOL = 8;
+
 import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table";
 import { FieldPill } from "../docs/FieldPillExtension";
 import { InstancePill } from "../docs/InstancePillExtension";
@@ -1343,6 +1348,16 @@ const Editor = forwardRef(function Editor({
       const hostEl = holder?.lastElementChild || groupDom;
       const rect = groupDom?.getBoundingClientRect?.();
       if (!rect || rect.width <= 0) return null;
+      // A drop BELOW the host's actual content is an INSERT-AFTER gesture, not a
+      // wrap-beside. When the neighbor (e.g. a tall infobox) is taller than a short
+      // host, the isolating wrapGroup's bounding box — and thus posAtCoords — keeps
+      // extending down PAST the host's text; without this check a drop underneath the
+      // short host was added as a top-anchored neighbor ("jumped to the top above the
+      // infobox"). Return null so it falls through to a normal insert below the wrap.
+      const hostProseEl = hostEl?.querySelector?.(".ProseMirror") || hostEl;
+      const hostContentRect = hostProseEl?.getBoundingClientRect?.();
+      if (hostContentRect && input.clientY > hostContentRect.bottom + BELOW_HOST_TOL)
+        return bail("below host content → plain insert", { y: input.clientY, hostBottom: Math.round(hostContentRect.bottom) });
       const frac = (input.clientX - rect.left) / rect.width;
       const side = sideFromFrac(frac); // any in-group drop picks a side (no dead middle)
       const anchorOffset = offsetFor(hostEl, input.clientY);

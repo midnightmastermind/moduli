@@ -2,6 +2,17 @@
 
 _Updated: 2026-07-07. Check this file before re-reading source._
 
+## Recent Changes (2026-07-10 — wrap: drop BELOW a short host no longer jumps to the top)
+- **`Editor.jsx` `detectSideHost` (wrapGroup branch)** — the branch treated ANY drop whose
+  `posAtCoords` resolved inside the wrapGroup as a wrap re-morph. When the neighbor (a tall infobox)
+  is taller than a short host, the isolating wrapGroup's bounding box keeps `posAtCoords` extending
+  down PAST the host's text, so a drop UNDERNEATH the short host was added as a top-anchored neighbor
+  (user: "dragged a textblock underneath and it moved it to the top right above the infobox"). Fix:
+  measure the host prose bottom; if the drop is `> BELOW_HOST_TOL` (8px, new module const) below it,
+  return null → the drop falls through to a normal insert below the wrap. Provable no-op for in-host
+  drops (all 6 wrap positions target `clientY ≤ host bottom`); only fires below the host content.
+  wrapAnchor 10/10, build clean. Pairs with the WrapGroupNode empty-band guard (docs/CLAUDE.md).
+
 ## Recent Changes (2026-07-08 LATE — MOUSE drags of doc embeds were dead app-wide (user-drag:none); fixed)
 - **Root cause (index.css, not Editor):** `.doc-editor-content.ProseMirror * { -webkit-user-drag:
   none }` (the "text selectable but not draggable" rule) OVERRIDES `draggable="true"` in Chromium —
