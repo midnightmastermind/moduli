@@ -6387,7 +6387,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Spent",
     goalLabel: "Spent", goalOccurrenceId: goalOccIds.financialSpent, goalFieldId: fields.totalSpent.id,
-    sourceFieldId: fields.amount.id, agg: "sum", flow: "out", timeFilter: "daily",
+    sourceFieldId: fields.amount.id, agg: "sum", flow: "out", timeFilter: "all", // finances = cumulative, no filter
     // Money OUT — "negative connotation" per user spec: any positive
     // amount spent reads red regardless of sign. 0/null is blue.
     displayRules: {
@@ -6401,7 +6401,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Earned",
     goalLabel: "Income", goalOccurrenceId: goalOccIds.financialIncome, goalFieldId: fields.totalIncome.id,
-    sourceFieldId: fields.income.id, agg: "sum", flow: "in", timeFilter: "daily",
+    sourceFieldId: fields.income.id, agg: "sum", flow: "in", timeFilter: "all", // finances = cumulative, no filter
     // Money IN — positive complement to Spent. null/zero blue (no
     // income, no signal), positive green with ArrowUp ("money flowing
     // in is good"). Mirrors Spent's structure (red + ArrowDown) so the two
@@ -6648,7 +6648,12 @@ export async function createLiveData(userId, options = {}) {
     ...trackerArgs, name: "Checking Balance",
     goalLabel: "Checking Account", goalOccurrenceId: accountOccIds.bankAccount, goalFieldId: fields.checkingBalance.id,
     incomeFieldId: fields.income.id, spentFieldId: fields.amount.id,
-    agg: "net", timeFilter: "daily",
+    // FINANCE = cumulative, NEVER date-filtered (user 2026-07-10: "make finances in
+    // general not have a filter set"). An account balance is a running total of ALL
+    // transactions; date-gating it to the selected day showed only that day's net and
+    // the balance stopped tracking dragged expenses. timeFilter:"all" → no $goalPeriod
+    // gate → the period-all policy also skips it.
+    agg: "net", timeFilter: "all",
     // Scope by accountRef instead of page — Todo List / Bills tasks
     // pointing at Checking should affect this balance.
     accountRefFieldId: accountRefFieldId, accountOccurrenceId: accountOccIds.bankAccount,
@@ -6668,7 +6673,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Mom's Account Balance",
     goalLabel: "Mom's Account", goalOccurrenceId: accountOccIds.momsAccount, goalFieldId: fields.momsAccountBalance.id,
-    sourceFieldId: fields.amount.id, agg: "sum", timeFilter: "daily",
+    sourceFieldId: fields.amount.id, agg: "sum", timeFilter: "all", // finances = cumulative, no filter
     // Scope by accountRef — Todo List / Bills tasks tagged Mom's
     // contribute regardless of which page they live on.
     accountRefFieldId: accountRefFieldId, accountOccurrenceId: accountOccIds.momsAccount,
