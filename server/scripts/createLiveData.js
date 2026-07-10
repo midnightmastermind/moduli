@@ -55,6 +55,7 @@ import {
   makeClearDateOnMoveOutOp,
   makeTrackerOp,
 } from "../utils/liveSystemBuilders.js";
+import { gateScheduleTrackers, GATE_TRACKER_NAMES } from "../utils/completionGate.js";
 import fs from "fs";
 import { parseSectionsWithInstances } from "../utils/mdParsers.js";
 import { makeDocContent, buildMergedDocTextmap, inlineToTipTap } from "../utils/docBuilders.js";
@@ -9371,6 +9372,17 @@ export async function createLiveData(userId, options = {}) {
     { userId, gridId, name: /Movie|Book|Podcast|Course/i, folderId: { $in: [null, undefined] } },
     { $set: { folderId: opCategoryIds.library } },
   );
+
+  // Completion policy on the curated schedule row-builder / count trackers (Volume/
+  // Reps/Nutrition carry the gate inline; this covers Moods, media, and the History
+  // logs). Idempotent — skips ops already gated — so a reseed is self-contained (no
+  // post-reseed patch script needed). See utils/completionGate.js.
+  {
+    const gatable = await Operation.find({ userId, gridId, name: { $in: [...GATE_TRACKER_NAMES] } }).lean();
+    const changed = gateScheduleTrackers(gatable, { completedFieldId, scheduleOccId: schedPageOccId });
+    for (const op of changed) await Operation.updateOne({ _id: op._id }, { $set: { pipeline: op.pipeline } });
+    if (changed.length) console.log(`   Completion gates: ${changed.length} schedule trackers`);
+  }
 
   return {
     gridId,

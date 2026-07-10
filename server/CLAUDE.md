@@ -2,6 +2,18 @@
 
 _Updated: 2026-07-07. Check this file before re-reading source._
 
+## Recent Changes (2026-07-10 — completion policy is now SEED-DURABLE)
+- **`utils/completionGate.js` (NEW)** — `gateScheduleTrackers(ops, {completedFieldId, scheduleOccId})`
+  adds a `(Completed IS true) OR (Completed IS_EMPTY)` gate to the schedule-scope IF of the curated
+  "things you did" trackers (`GATE_TRACKER_NAMES`: Moods, Movies/Books/Podcasts/Courses,
+  Workout/Meal/Purchase History). Mirrors each scope rule's loop var; idempotent (skips ops already
+  referencing Completed).
+- **`scripts/createLiveData.js`** — runs the pass once after all ops are saved (before `return`), so
+  a reseed self-gates these 8. Volume/Reps/Nutrition keep their INLINE gates; the pomodoro fix is
+  inline too — so a fresh seed reproduces the whole policy with NO post-reseed script.
+- **`scripts/patchCompletionGates.js`** — refactored to import the shared util (the live-DB apply for
+  an already-seeded grid; only needed when you don't want a destructive reseed).
+
 ## Recent Changes (2026-07-10 — pomodoro trackers: bare `label IS "Pomodoro"` never matched sessions)
 - **Root cause (verified on the executor):** a pomodoro session is COPY_LINK'd with no
   per-occurrence label, and a bare `label` rule doesn't resolve to the module label in these
