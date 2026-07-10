@@ -37,6 +37,12 @@ const MIN_PROSE_W = 60;   // px — floor: a beside column thinner than this is 
 // (textArea / besideW) against the neighbor height, with hysteresis to avoid flicker at the edge.
 const FILL_WRAP = 1.0;    // stacked → re-wrap only when predicted prose height ≥ neighborH × this.
 const FILL_KEEP = 0.9;    // wrapped → unwrap once predicted prose height drops below neighborH × this.
+// Direct empty-band guard: while WRAPPED, if the host prose actually ends this many px ABOVE the
+// neighbor's bottom, there's a visible empty band beside the lower neighbor (the "half text / empty
+// text" the prediction misses when the neighbor — e.g. a Wikipedia infobox — lays out TALLER than a
+// stale measure predicted). Stack instead. Measures the rendered symptom, so it can only ADD a
+// stack; a genuinely-filling wrap has the prose reaching PAST the neighbor (negative band) → no fire.
+const EMPTY_BAND_TOL = 24; // px (~one text line)
 
 // Layout-invariant text quantity: the summed area of the host's rendered text line-boxes. Each
 // client rect is a tight glyph run, so the total is the same whether the prose is wrapping beside
@@ -143,7 +149,16 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     const prevUnwrap = autoUnwrapRef.current;
     const fills = besideW >= MIN_PROSE_W &&
       predictedProseH >= neighborH * (prevUnwrap ? FILL_WRAP : FILL_KEEP);
-    const nextUnwrap = textArea === 0 || !fills;
+    let nextUnwrap = textArea === 0 || !fills;
+    // Direct empty-band guard (only meaningful while already WRAPPED): the prediction can say
+    // "fills" yet the rendered prose ends above the neighbor bottom when the neighbor grew after a
+    // stale measure. Read the ACTUAL host prose bottom vs the neighbor union bottom; a real empty
+    // band below the prose forces a stack. Skipped when stacking already (prevUnwrap) so the
+    // stacked→wrap direction stays prediction-driven (no chicken-and-egg / flicker).
+    if (!nextUnwrap && !prevUnwrap && hostProse) {
+      const hostRect = hostProse.getBoundingClientRect();
+      if (hostRect.height > 0 && bottom - hostRect.bottom > EMPTY_BAND_TOL) nextUnwrap = true;
+    }
     if (nextUnwrap !== prevUnwrap) { autoUnwrapRef.current = nextUnwrap; setAutoUnwrap(nextUnwrap); }
     // Stacked layout needs no seam / notch measurement — bail early.
     if (nextUnwrap) { setSeam(null); return; }

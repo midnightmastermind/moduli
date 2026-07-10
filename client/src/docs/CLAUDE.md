@@ -2,6 +2,23 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-10 — wrap: direct empty-band guard (fixes "narrow → half/empty text" not stacking))
+- **`WrapGroupNode.jsx` `measure`** — the fill PREDICTION (`textArea/besideW ≥ neighborH`) is
+  layout-invariant and correct for a static neighbor, but a Wikipedia INFOBOX (image + multi-row
+  table) lays out TALLER than an earlier measure predicted, so `fills` stayed true and the wrap kept
+  an empty band beside the lower neighbor (user: short textblock beside a taller infobox → "half
+  text then empty text; it should just stack"). New **direct empty-band guard**: while already
+  WRAPPED (`!prevUnwrap`), read the ACTUAL host prose bottom vs the neighbor union bottom; if the
+  prose ends `> EMPTY_BAND_TOL` (24px) ABOVE the neighbor bottom, force `nextUnwrap` (stack). It
+  measures the rendered symptom, so it can only ADD a stack — a genuinely-filling wrap has the prose
+  reaching PAST the neighbor (negative band) → never fires. Skipped while stacked so the stacked→wrap
+  direction stays prediction-driven (no flicker). Verified headless (local server on Atlas): the
+  seeded long-host wrap is byte-identical across a width sweep (stacks wide, wraps at besideW=84,
+  band −138 → guard silent); forcing the neighbor tall (min-height 900) flips a wrapped group to
+  `auto-stacked` and settles (no oscillation). NOTE: the separate "drop a block BELOW a short host →
+  it lands at the TOP above the neighbor" is a `detectSideHost` drop-classification issue, NOT this
+  guard — still open.
+
 ## Recent Changes (2026-07-10 — wrap is ALL-OR-NOTHING (fill-based, replaces the width heuristic))
 - **`WrapGroupNode.jsx`** — the auto-unwrap decision is now FILL-based, not width-based (user:
   "all or nothing like nerf" — resizing the Eminem file showed full / mini-filled / empty phases;
