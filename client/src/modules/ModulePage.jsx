@@ -167,7 +167,11 @@ function Page({
   const { ref: dragRef, isDragging } = useDragDrop({
     type: DragType.PAGE,
     id: pageModule?.id,
-    data: { module: pageModule, occurrence },
+    // role:"page" so routeDrop's page→panel branch runs (the resolver reads
+    // payload.data.role). Without it the page-shell drag from another panel
+    // resolved role=undefined and fell into the leaf path — it highlighted the
+    // target panel but never pinned. Mirrors the tree-page drag's role tag.
+    data: { module: pageModule, occurrence, role: "page" },
     context: { panelId, pageId: pageModule?.id, pageOccurrenceId: occurrence?.id || null },
     disabled: !pageModule,
     dragHandleRef: handleRef,

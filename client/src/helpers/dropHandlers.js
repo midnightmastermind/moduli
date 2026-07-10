@@ -1997,7 +1997,11 @@ export function handleModuleDrop(dropContext, ctx) {
   // now uses type "page", which CONTAINER_LIST doesn't accept.
   if (role === "page" && panelId && gridId) {
     const panelOccurrenceId = dropTarget.context?.panelOccurrenceId;
-    const pageOccurrenceId = payload.occurrenceId || payload?.data?.id;
+    // Two page-drag sources with different payload shapes: the tree-page drag
+    // (ManifestTree) sets a top-level `occurrenceId`; the page-shell drag
+    // (ModulePage, moving a page tab between panels) carries the occurrence at
+    // `data.occurrence.id`. Resolve both so pinning works from either source.
+    const pageOccurrenceId = payload.occurrenceId || payload?.data?.id || payload?.data?.occurrence?.id;
     if (panelOccurrenceId && pageOccurrenceId) {
       CommitHelpers.pinPageToPanel({
         dispatch, socket,

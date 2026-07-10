@@ -2,6 +2,15 @@
 
 _Updated: 2026-07-04. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-07-10 — FIX: dragging a page from one panel to another never pinned)
+- **`ModulePage.jsx`** — the page-shell drag (`useDragDrop` at ~167) built its payload via
+  `createPayload`, which only surfaces `{type,id,data,context}`. `routeDrop`'s page→panel branch
+  reads `role` from `payload.data.role` — which was unset — so the drag resolved role=undefined and
+  fell into the LEAF path: the target panel highlighted (highlight keys off `type===PAGE`) but the
+  page was never pinned. Fix: `data` now carries `role:"page"` (mirrors the tree-page drag's role
+  tag). Paired with `dropHandlers.js` resolving the page occ id from `data.occurrence.id`. Tree-page
+  drag (which already sets top-level role+occurrenceId) unaffected.
+
 ## Recent Changes (2026-07-08 — feeds: table child rows, canvas fallback positions, feed badge)
 - **`containers/ContainerTable.jsx`** — child OCCURRENCES render as generated rows after the
   persisted cell rows (one per child; each column projects the same occurrence via StaticCellEmbed
