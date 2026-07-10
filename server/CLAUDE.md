@@ -2,6 +2,31 @@
 
 _Updated: 2026-07-07. Check this file before re-reading source._
 
+## Recent Changes (2026-07-10 — PERIOD-ALL policy: trackers filter by selected day, else aggregate ALL)
+- **User direction:** "all of them should be active on filter. if the filter isnt set or the day
+  isnt selected for that page of goals and trackers, it should do all."
+- **`utils/periodAllPolicy.js` (NEW)** — `applyPeriodAllPolicy(ops)` transforms every tracker
+  pipeline (any op whose pipeline JSON mentions `$goalPeriod`): (1) removes the
+  `IF ($goalPeriod IS_EMPTY) THEN $goalPeriod = $trigger.date|$today` fallback IF-steps (and the
+  `fallback`/`fallback2` props inline trackers use) so `$goalPeriod` stays EMPTY when the page
+  filter is cleared instead of silently defaulting to today; (2) wraps every
+  `DATE_IN_PERIOD $goalPeriod` rule in `(that) OR ($goalPeriod IS_EMPTY)` so an empty period matches
+  ALL items. Idempotent (skips OR groups already carrying the IS_EMPTY sibling). Mutates in place;
+  returns changed ops.
+- **`scripts/createLiveData.js`** — (a) the 5 formerly-`timeFilter:"all"` trackers (Checking /
+  Mom's balances, Total Workouts, Total Reading Time, Completion Rate) → `timeFilter:"daily"` so they
+  gain a date gate and become filterable (all-when-no-day-selected still holds via the OR); (b) runs
+  `applyPeriodAllPolicy` on all grid ops once after they're saved (before `return`), so a reseed is
+  self-durable — no post-reseed script.
+- **`scripts/patchPeriodAll.js` (NEW)** — shares the same util to apply the transform to an
+  already-seeded live grid without a destructive reseed (`--apply`; dry-run by default). NOTE: it can
+  only cover already-date-gated trackers; the 5 formerly-`"all"` trackers need a reseed to gain their
+  gate (their all-time default is already the correct no-filter behavior).
+- **`__tests__/periodAllPolicy.test.js` (NEW, 5 tests)** — runs the transform against real
+  `makeTrackerOp` output: asserts the fallbacks drop, every `DATE_IN_PERIOD $goalPeriod` ends up
+  inside a period-all OR, idempotency, and that a lifetime (`timeFilter:"all"`) tracker is untouched.
+  232/232 server tests green.
+
 ## Recent Changes (2026-07-10 — completion policy is now SEED-DURABLE)
 - **`utils/completionGate.js` (NEW)** — `gateScheduleTrackers(ops, {completedFieldId, scheduleOccId})`
   adds a `(Completed IS true) OR (Completed IS_EMPTY)` gate to the schedule-scope IF of the curated

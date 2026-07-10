@@ -56,6 +56,7 @@ import {
   makeTrackerOp,
 } from "../utils/liveSystemBuilders.js";
 import { gateScheduleTrackers, GATE_TRACKER_NAMES } from "../utils/completionGate.js";
+import { applyPeriodAllPolicy } from "../utils/periodAllPolicy.js";
 import fs from "fs";
 import { parseSectionsWithInstances } from "../utils/mdParsers.js";
 import { makeDocContent, buildMergedDocTextmap, inlineToTipTap } from "../utils/docBuilders.js";
@@ -6647,7 +6648,7 @@ export async function createLiveData(userId, options = {}) {
     ...trackerArgs, name: "Checking Balance",
     goalLabel: "Checking Account", goalOccurrenceId: accountOccIds.bankAccount, goalFieldId: fields.checkingBalance.id,
     incomeFieldId: fields.income.id, spentFieldId: fields.amount.id,
-    agg: "net", timeFilter: "all",
+    agg: "net", timeFilter: "daily",
     // Scope by accountRef instead of page — Todo List / Bills tasks
     // pointing at Checking should affect this balance.
     accountRefFieldId: accountRefFieldId, accountOccurrenceId: accountOccIds.bankAccount,
@@ -6667,7 +6668,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Mom's Account Balance",
     goalLabel: "Mom's Account", goalOccurrenceId: accountOccIds.momsAccount, goalFieldId: fields.momsAccountBalance.id,
-    sourceFieldId: fields.amount.id, agg: "sum", timeFilter: "all",
+    sourceFieldId: fields.amount.id, agg: "sum", timeFilter: "daily",
     // Scope by accountRef — Todo List / Bills tasks tagged Mom's
     // contribute regardless of which page they live on.
     accountRefFieldId: accountRefFieldId, accountOccurrenceId: accountOccIds.momsAccount,
@@ -6684,7 +6685,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Total Workouts",
     goalLabel: "Fitness Stats", goalOccurrenceId: accountOccIds.fitnessAccount, goalFieldId: fields.totalWorkouts.id,
-    agg: "countTrue", timeFilter: "all",
+    agg: "countTrue", timeFilter: "daily",
     // Only items that carry a muscleGroup value are workouts — without this
     // gate every completed Schedule item (water logs, mood checks) counted
     // as a workout (caught by the 2026-07-07 behavioral probe).
@@ -6702,7 +6703,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Total Reading Time",
     goalLabel: "Reading Stats", goalOccurrenceId: accountOccIds.readingAccount, goalFieldId: fields.totalReadingTime.id,
-    sourceFieldId: fields.duration.id, agg: "sum", timeFilter: "all",
+    sourceFieldId: fields.duration.id, agg: "sum", timeFilter: "daily",
     // All-time accumulator, Pages pattern — neutral counter (more is
     // good but absence isn't bad).
     displayRules: {
@@ -6716,7 +6717,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Completion Rate",
     goalLabel: "Productivity", goalOccurrenceId: accountOccIds.productivityAccount, goalFieldId: fields.completionRate.id,
-    agg: "completionRate", timeFilter: "all",
+    agg: "completionRate", timeFilter: "daily",
     // Percentage without a configured target — single catch-all per the
     // docket's "percentages without targets" entry. Blue throughout
     // (no signal direction means avoid implying green/red).
@@ -9382,6 +9383,17 @@ export async function createLiveData(userId, options = {}) {
     const changed = gateScheduleTrackers(gatable, { completedFieldId, scheduleOccId: schedPageOccId });
     for (const op of changed) await Operation.updateOne({ _id: op._id }, { $set: { pipeline: op.pipeline } });
     if (changed.length) console.log(`   Completion gates: ${changed.length} schedule trackers`);
+  }
+
+  // Period-all policy: every tracker filters by the active period when the
+  // goals/trackers page has a day selected, and aggregates ALL when it doesn't
+  // (drops the $trigger.date/$today fallbacks, ORs each DATE_IN_PERIOD with
+  // $goalPeriod IS_EMPTY). Idempotent. See utils/periodAllPolicy.js.
+  {
+    const trackers = await Operation.find({ userId, gridId }).lean();
+    const changed = applyPeriodAllPolicy(trackers);
+    for (const op of changed) await Operation.updateOne({ _id: op._id }, { $set: { pipeline: op.pipeline } });
+    if (changed.length) console.log(`   Period-all policy: ${changed.length} trackers`);
   }
 
   return {
