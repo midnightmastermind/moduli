@@ -2,6 +2,40 @@
 
 _Updated: 2026-07-07. Check this file before re-reading source._
 
+## Recent Changes (2026-07-10 — pomodoro trackers: bare `label IS "Pomodoro"` never matched sessions)
+- **Root cause (verified on the executor):** a pomodoro session is COPY_LINK'd with no
+  per-occurrence label, and a bare `label` rule doesn't resolve to the module label in these
+  contexts — so every `label IS "Pomodoro"` rule failed. Effects: (1) **Pomodoro History** never
+  filled (bare `label` in a loop `as $inst` — the other rules use `$inst.`; History `[]` while
+  Pomodoros Today `1` on the same session); (2) **Pomodoro: Complete / Stop** couldn't FIND the
+  open session to stamp `Completed:true`, so completion-gated trackers zeroed on reload (user:
+  "only updates with Schedule in view … zeroing out on reload").
+- **`scripts/createLiveData.js`** — all 3 bare `label IS "Pomodoro"` rules → the
+  `pomodoroNumber IS_NOT_EMPTY` presence discriminator (what Pomodoros Today already uses; the
+  session always carries it). History loop uses `$inst.fields.<pomoNum>.value`; the FINDs use the
+  bare `fields.<pomoNum>.value`. Verified: swapping the rule makes History fill
+  (`[{minutes:25,…}]`). Applied to the live DB via idempotent `scripts/patchPomodoroLabels.js`
+  (media trackers use `$watchInst.label` etc. — prefixed, NOT affected).
+
+## Recent Changes (2026-07-09 — tracker calc audit: completion gate on Volume/Reps/Nutrition)
+- **Audit** of all 44 goal/tracker ops (completion gate / date-period / feed / scope). Findings:
+  the 6 per-muscle **Volume** trackers, **Total Reps**, and the 4 per-meal **Nutrition** trackers
+  aggregated regardless of the workout/meal being COMPLETED — every other numeric tracker
+  (Steps/Water/Protein/Carbs/Fats via makeTrackerOp) gates on `Completed IS true`. User hit it:
+  "it added the total weight volume even though i didnt complete the workout." (The earlier "180"
+  bench was a STALE feed-triple-count value; the feed guard already fixes it on recompute — verified
+  by booting the executor on a live snapshot: fresh onLoad excludes feed copies.)
+- **`scripts/createLiveData.js`** — added `{$item.fields.<completed>.value IS true}` to the inline
+  per-muscle Volume loop guard (MUSCLE_GROUPS) and the per-meal Nutrition loop guard (mealCategory).
+  Total Reps passes the new `requireCompleted: true`.
+- **`utils/liveSystemBuilders.js` (`makeTrackerOp`)** — new `requireCompleted` param overrides the
+  per-agg completion default; the `multiSum` branch honors it (`includeCompletion: requireCompleted
+  === true`). Other multiSum callers unaffected (there are none). Verified on the real executor: an
+  UNCOMPLETED bench no longer bumps Chest Volume (stays 90, was wrongly 120); Total Reps guard emits
+  the gate. **Reseed (or in-place op patch + server restart) required to apply to the live grid.**
+- OPEN (flagged, NOT changed — may be intentional): **Total Workouts** + **Total Reading Time** use
+  `timeFilter:"all"` (all-time counters, "Pages pattern") so they ignore the active date filter.
+
 ## Recent Changes (2026-07-08 — Occurrence.feed schema + feed replaces Table:/Canvas: Build)
 - **`models/Occurrence.js`** — new `feed` key (Mixed, default null): the materialized pull-query
   config (client engine: helpers/feedSync.js). Declared so strict mode doesn't strip it on

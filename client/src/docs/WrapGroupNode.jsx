@@ -29,6 +29,33 @@ const BOTTOM_GAP = 14;    // px — gap below the neighbor before the full-width
                           // line + its ::after notch-bottom line) extends this far past the
                           // neighbor so the bottom-bar's TOP border sits BELOW the image with
                           // margin above it, instead of flush against the image.
+const MIN_PROSE_W = 60;   // px — floor: a beside column thinner than this is unreadable, so we
+                          // always stack regardless of fill (a 20px-wide text column is useless).
+// ALL-OR-NOTHING wrap (user 2026-07-09 — "all or nothing like nerf"): stay wrapped ONLY when the
+// prose is tall enough to fill the FULL height beside the neighbor; a partially-filled or empty
+// beside band stacks instead. Fill is judged by predicting the prose's height at the beside width
+// (textArea / besideW) against the neighbor height, with hysteresis to avoid flicker at the edge.
+const FILL_WRAP = 1.0;    // stacked → re-wrap only when predicted prose height ≥ neighborH × this.
+const FILL_KEEP = 0.9;    // wrapped → unwrap once predicted prose height drops below neighborH × this.
+
+// Layout-invariant text quantity: the summed area of the host's rendered text line-boxes. Each
+// client rect is a tight glyph run, so the total is the same whether the prose is wrapping beside
+// the float or laid out full-width when stacked — which is what lets the fill prediction work in
+// BOTH layouts (no measure-vs-display chicken-and-egg).
+function proseTextArea(prose) {
+  if (!prose) return 0;
+  let area = 0;
+  const range = document.createRange();
+  const walk = document.createTreeWalker(prose, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walk.nextNode())) {
+    if (!node.nodeValue || !node.nodeValue.trim()) continue;
+    range.selectNodeContents(node);
+    const rects = range.getClientRects();
+    for (let i = 0; i < rects.length; i++) area += rects[i].width * rects[i].height;
+  }
+  return area;
+}
 
 // @tiptap/react nests the child embeds inside a [data-node-view-content-react]
 // holder, so the real embeds (neighbors + host) are GRANDCHILDREN of
@@ -66,6 +93,11 @@ export default function WrapGroupNode({ node, updateAttributes }) {
   const [seam, setSeam] = useState(null); // {top,height,left} for the splitter, or null
   const dragRef = useRef(null);
   const rafRef = useRef(0);
+  // Auto-unwrap: true when the beside column is too narrow to hold prose at this
+  // width (or the host has no text). Kept in a ref too so measure() reads the
+  // current value without being re-created (it isn't a measure dep).
+  const [autoUnwrap, setAutoUnwrap] = useState(false);
+  const autoUnwrapRef = useRef(false);
 
   // Measure the floated neighbor stack ONLY to place the draggable resize seam. The
   // wrap itself is pure CSS now: the neighbor floats, and the host (a normal in-flow
@@ -85,7 +117,9 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     const neighbors = els.slice(0, els.length - 1);
 
     const wrapRect = wrapEl.getBoundingClientRect();
-    // Union bounding box of the neighbor column (all stacked neighbors).
+    // Union bounding box of the neighbor column (all stacked neighbors). Measured in
+    // BOTH layouts (the neighbor renders at --wrap-nw wrapped OR stacked), so the
+    // fill decision below reads a consistent neighbor height either way.
     let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
     neighbors.forEach((el) => {
       const r = el.getBoundingClientRect();
@@ -95,6 +129,24 @@ export default function WrapGroupNode({ node, updateAttributes }) {
       if (r.bottom > bottom) bottom = r.bottom;
     });
     if (!isFinite(left) || right <= left) { setSeam(null); return; }
+
+    // ALL-OR-NOTHING auto-unwrap: wrap only when the prose FILLS the neighbor's full
+    // height beside it. predictedProseH = textArea / besideW is the prose's height if
+    // laid out in the beside column; it "fills" when that ≥ the neighbor height. Both
+    // inputs are layout-invariant, so widening the panel re-wraps (no self-lock).
+    const neighborW = right - left;
+    const neighborH = bottom - top;
+    const hostProse = els[els.length - 1].querySelector(".ProseMirror");
+    const textArea = proseTextArea(hostProse);
+    const besideW = wrapEl.clientWidth - neighborW - FLOAT_GAP;
+    const predictedProseH = besideW > 0 ? textArea / besideW : 0;
+    const prevUnwrap = autoUnwrapRef.current;
+    const fills = besideW >= MIN_PROSE_W &&
+      predictedProseH >= neighborH * (prevUnwrap ? FILL_WRAP : FILL_KEEP);
+    const nextUnwrap = textArea === 0 || !fills;
+    if (nextUnwrap !== prevUnwrap) { autoUnwrapRef.current = nextUnwrap; setAutoUnwrap(nextUnwrap); }
+    // Stacked layout needs no seam / notch measurement — bail early.
+    if (nextUnwrap) { setSeam(null); return; }
 
     // The WRAP needs no measurement for the WIDTH — the neighbor floats (--wrap-nw)
     // and the host's prose wraps around it natively (see index.css .wrap-group--on).
@@ -175,7 +227,7 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     // (the notch-bottom line = the full-width bottom bar's TOP border) sits BELOW the
     // image with a margin above it, not flush against the image bottom.
     setSeam({ top: Math.round(top - wrapRect.top), height: Math.round(bottom - top) + BOTTOM_GAP, left: seamLeft });
-  }, [side, node.attrs.anchorIndex, node.attrs.anchorOffset]);
+  }, [side, neighborWidth, node.attrs.anchorIndex, node.attrs.anchorOffset]);
 
   useEffect(() => {
     const wrapEl = wrapRef.current;
@@ -231,19 +283,23 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     window.addEventListener("pointerup", onUp);
   }, [neighborWidth, side, measure, updateAttributes]);
 
+  // Wrapped = there's a neighbor AND the beside column can hold prose. When the
+  // column is too narrow (autoUnwrap), fall to a stacked layout instead of the L.
+  const wrapped = wrap && !autoUnwrap;
+  const modeClass = !wrap ? "wrap-group--off" : autoUnwrap ? "wrap-group--auto-stacked" : "wrap-group--on";
   return (
     <NodeViewWrapper
       ref={wrapRef}
-      className={`wrap-group wrap-group--${side} wrap-group--shape-${shape} ${wrap ? "wrap-group--on" : "wrap-group--off"}`}
+      className={`wrap-group wrap-group--${side} wrap-group--shape-${shape} ${modeClass}`}
       data-side={side}
       data-shape={shape}
-      data-wrap={wrap ? "on" : "off"}
+      data-wrap={wrapped ? "on" : wrap ? "stacked" : "off"}
       contentEditable={false}
     >
       {/* The two real, separate occurrence embeds (neighbor + host) render here —
           each is its own draggable occurrence with its own handle/menu. */}
       <NodeViewContent className="wrap-group-content" />
-      {seam && neighborCount > 0 && (
+      {seam && wrapped && neighborCount > 0 && (
         <div
           className="wrap-seam"
           style={{ top: seam.top, height: seam.height, left: seam.left }}

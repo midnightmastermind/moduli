@@ -6468,6 +6468,7 @@ export async function createLiveData(userId, options = {}) {
     goalLabel: "Reps", goalOccurrenceId: goalOccIds.workoutReps, goalFieldId: fields.totalRepsToday.id,
     sourceFieldIds: [fields.set1Reps.id, fields.set2Reps.id, fields.set3Reps.id],
     agg: "multiSum", timeFilter: "daily",
+    requireCompleted: true, // reps only count once the workout is completed (2026-07-09)
     // Steps-style: target rules + value-fallback. The per-muscle Volume
     // trackers below run their own custom pipelines so this only
     // decorates writes to the top-level Workout goal.
@@ -6543,6 +6544,11 @@ export async function createLiveData(userId, options = {}) {
                       // every scheduled workout (user saw 90 for one 30-rep workout).
                       { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: schedPageOccId },
                       { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
+                      // Completion gate (2026-07-09) — volume only counts a workout the
+                      // user actually COMPLETED (an uncompleted set is intent, not fact —
+                      // same rule as Steps/Water/Protein). User: "it added the total weight
+                      // volume even though i didnt complete the workout."
+                      { id: uid(), left: `$item.fields.${fields.completed.id}.value`, comparator: "IS", right: true },
                     ] },
                     then: [
                       { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.set1Reps.id}.value` } },
@@ -6613,6 +6619,9 @@ export async function createLiveData(userId, options = {}) {
                       // Scope + feed guard (2026-07-09) — see the muscle-volume note above.
                       { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: schedPageOccId },
                       { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
+                      // Completion gate (2026-07-09) — a meal's macros only count once the
+                      // meal task is completed (matches Protein/Carbs/Fats totals).
+                      { id: uid(), left: `$item.fields.${fields.completed.id}.value`, comparator: "IS", right: true },
                     ] },
                     then: [
                       { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.protein.id}.value` } },
@@ -8183,7 +8192,12 @@ export async function createLiveData(userId, options = {}) {
           type: "FIND",
           over: "$allInstances",
           predicate: { operator: "AND", rules: [
-            { id: uid(), left: "label",                                          comparator: "IS",           right: "Pomodoro" },
+            // Presence discriminator, NOT label (2026-07-10) — a COPY_LINK'd session
+            // has no per-occurrence label, and a bare `label` rule doesn't resolve to
+            // the module label here, so the open-session FIND never matched → the op
+            // never stamped Completed → the trackers zeroed on reload. pomodoroNumber
+            // is present on every session (same gate Pomodoros Today uses).
+            { id: uid(), left: `fields.${fields.pomodoroNumber.id}.value`,       comparator: "IS_NOT_EMPTY", right: "" },
             { id: uid(), left: "_ancestors",                                     comparator: "HAS_ANCESTOR", right: "$schedPageId" },
             { id: uid(), left: `fields.${dateFieldId}.value`,                    comparator: "SAME_DAY",     right: "$today" },
             { id: uid(), left: `fields.${completedFieldId}.value`,               comparator: "IS_NOT",       right: true },
@@ -8224,7 +8238,12 @@ export async function createLiveData(userId, options = {}) {
           type: "FIND",
           over: "$allInstances",
           predicate: { operator: "AND", rules: [
-            { id: uid(), left: "label",                                          comparator: "IS",           right: "Pomodoro" },
+            // Presence discriminator, NOT label (2026-07-10) — a COPY_LINK'd session
+            // has no per-occurrence label, and a bare `label` rule doesn't resolve to
+            // the module label here, so the open-session FIND never matched → the op
+            // never stamped Completed → the trackers zeroed on reload. pomodoroNumber
+            // is present on every session (same gate Pomodoros Today uses).
+            { id: uid(), left: `fields.${fields.pomodoroNumber.id}.value`,       comparator: "IS_NOT_EMPTY", right: "" },
             { id: uid(), left: "_ancestors",                                     comparator: "HAS_ANCESTOR", right: "$schedPageId" },
             { id: uid(), left: `fields.${dateFieldId}.value`,                    comparator: "SAME_DAY",     right: "$today" },
             { id: uid(), left: `fields.${completedFieldId}.value`,               comparator: "IS_NOT",       right: true },
@@ -8288,7 +8307,11 @@ export async function createLiveData(userId, options = {}) {
           body: [
             { id: uid(), type: "if",
               condition: { operator: "AND", rules: [
-                { id: uid(), left: "label",                                    comparator: "IS",           right: "Pomodoro" },
+                // Presence discriminator, NOT a bare `label` rule (2026-07-10) — in a
+                // loop `as $inst`, bare `label` doesn't resolve to the item, and the
+                // session has no per-occ label, so History never filled. Match the
+                // pomodoroNumber field the session always carries (like Pomodoros Today).
+                { id: uid(), left: `$inst.fields.${fields.pomodoroNumber.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                 { id: uid(), left: "$inst._ancestors",                         comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                 { id: uid(), left: "$inst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
                 { id: uid(), left: `$inst.fields.${completedFieldId}.value`,   comparator: "IS",           right: true },

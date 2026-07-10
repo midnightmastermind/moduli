@@ -2,6 +2,21 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-10 — wrap is ALL-OR-NOTHING (fill-based, replaces the width heuristic))
+- **`WrapGroupNode.jsx`** — the auto-unwrap decision is now FILL-based, not width-based (user:
+  "all or nothing like nerf" — resizing the Eminem file showed full / mini-filled / empty phases;
+  only the full one should wrap). New pure `proseTextArea(prose)` = summed area of the host's text
+  line-box client rects (layout-invariant: same total whether the prose wraps beside the float OR
+  is full-width when stacked). `measure` computes `predictedProseH = textArea / besideW` (the prose
+  height if laid out in the beside column) and STAYS WRAPPED only when it reaches the neighbor's
+  full height: `predictedProseH ≥ neighborH × (stacked ? FILL_WRAP 1.0 : FILL_KEEP 0.9)` (hysteresis
+  band). `MIN_PROSE_W` is now a 60px floor (a thinner beside column always stacks). Removed the old
+  `REWRAP_HYST`. The neighbor union box is measured FIRST (needed for `neighborH`), then the fill
+  decision, then the seam/notch. Both inputs are layout-invariant so widening re-wraps (no
+  self-lock). Verified in-browser (live grid, 9 wraps): every WRAPPED state has the prose reaching
+  past the neighbor bottom (no empty band); short-prose / narrow cases are `stacked`. Class
+  `wrap-group--auto-stacked` + `data-wrap: on|stacked|off` (CSS in client/src/CLAUDE.md) unchanged.
+
 ## Recent Changes (2026-07-09 LATE — prose keeps PROSE_PAD inside the seam line)
 - **`WrapGroupNode.jsx`** — `SEAM_GAP` (14, wall AT the prose edge) split into `FLOAT_GAP = 18`
   (the float's CSS margin toward the prose — index.css updated to match) = `PROSE_PAD = 8`

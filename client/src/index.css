@@ -1411,8 +1411,14 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    can insert a new item at that exact spot (mirrors a drop-spot highlight). */
 .insert-gap {
   position: relative;
-  height: 4px;
-  margin: 0;
+  /* CONSTANT-height hit zone (2026-07-10): a 14px hover/click target whose negative
+     margins pull it back to a net 4px of flow spacing between items — so the visual
+     gap is unchanged but hovering NEVER changes layout height. The old
+     `:hover { height: 18px }` grew the element, reflowing every sibling below → the
+     items shifted out from under the pointer, toggling the hover and making adjacent
+     gaps sputter between each other (user: "glitch based on pointer position"). */
+  height: 14px;
+  margin: -5px 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1438,7 +1444,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   position: relative; z-index: 1; opacity: 0; transition: opacity 0.12s ease;
   width: 100%; display: flex; align-items: center; justify-content: center;
 }
-.insert-gap:hover, .insert-gap--open { height: 18px; }
+/* Reveal is opacity-only — NO height change, so hovering never reflows siblings. */
 .insert-gap:hover .insert-gap-line, .insert-gap--open .insert-gap-line { opacity: 1; }
 .insert-gap:hover .insert-gap-btn, .insert-gap--open .insert-gap-btn { opacity: 1; }
 /* The QuickAddMenu trigger inside a gap fills the strip (override its inline 20px
@@ -3178,6 +3184,19 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .wrap-group--off.wrap-group--right .wrap-group-content > * { flex-direction: row-reverse; }
 .wrap-group--off .wrap-group-content > * > :last-child { flex: 1 1 auto; min-width: 0; }
 .wrap-group--off .wrap-group-content > * > :not(:last-child) { flex: 0 0 auto; width: var(--wrap-nw, 280px); }
+
+/* WRAP AUTO-STACKED — the beside column is too narrow to hold prose at this width
+   (WrapGroupNode.measure), so drop the float and STACK: neighbor(s) keep their
+   column width, the host prose takes full width below (no tall empty band next to
+   the neighbor). Re-wraps automatically once the panel is wide enough again. */
+.wrap-group--auto-stacked .wrap-group-content > * { display: block; }
+.wrap-group--auto-stacked .wrap-group-content > * > :not(:last-child) {
+  float: none !important;
+  width: var(--wrap-nw, 280px);
+  max-width: 100%;
+  margin: 0 0 12px 0 !important;
+}
+.wrap-group--auto-stacked .wrap-group-content > * > :last-child { width: 100%; }
 .textblock-card .doc-editor-wrapper {
   min-height: 0;
   padding: 0 !important;

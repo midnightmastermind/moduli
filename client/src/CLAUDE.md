@@ -2,6 +2,23 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-07-10 — InsertGap: constant-height hit zone (kills the hover sputter))
+- **`index.css` `.insert-gap`** — the between-instances insert affordance grew from `height:4px`
+  to `18px` on `:hover`, which REFLOWED every sibling below → the items shifted out from under the
+  pointer, toggling the hover, and adjacent gaps oscillated (user: "sputter between the middle one
+  and the one above … glitch based on pointer position"). Now a CONSTANT `height:14px` with
+  `margin:-5px 0` (net 4px of flow spacing, unchanged) — the hover reveal is opacity-only (removed
+  the `:hover{height:18px}` rule), so hovering never changes layout. Verified in-browser: on hover
+  the gap height stays 14px and the sibling item does not move (was the reflow source); highlight
+  still shows. Only `.insert-gap` (board/list, between instances) — the doc `.doc-insert-gap` is
+  already an absolutely-positioned float (no reflow).
+
+## Recent Changes (2026-07-09 LATE-2 — wrap auto-unwrap: stacked fallback when the beside column is too narrow)
+- **`index.css` `.wrap-group--auto-stacked`** — new mode block after `.wrap-group--off`: drops the
+  float and stacks (neighbor keeps `--wrap-nw` width, host prose goes full width below), so a narrow
+  panel doesn't render a tall empty band beside the neighbor. Driven by `WrapGroupNode.measure`'s
+  width check (see docs/CLAUDE.md); re-wraps automatically when the panel widens.
+
 ## Recent Changes (2026-07-09 — wrap visual polish per user screenshot review)
 - **`index.css` wrap host prose padding** — `.wrap-group--on … :last-child .ProseMirror
   { padding: 5px 9px 7px !important }`: the width-100% flattening left the host prose with zero

@@ -1956,6 +1956,12 @@ export function makeTrackerOp({
   // field's name on the occurrence (case-insensitive). See the
   // helpers/displayRules.js header for the full predicate language.
   displayRules,
+  // Optional override for the loop's completion gate. Each agg has a
+  // sensible default (sum/countTrue gate on Completed; multiSum/count don't),
+  // but a caller can force it. Total Reps sets `true` so a workout's reps only
+  // roll up once the user completes it (2026-07-09 — matches the per-muscle
+  // Volume trackers + Steps/Water/Protein; an uncompleted set is intent).
+  requireCompleted,
 }) {
   // ── Fail-fast argument guards ──
   // Task 13 calls this ~20× with varying agg types; silent-zero goals are hard
@@ -2067,9 +2073,10 @@ export function makeTrackerOp({
         accumulator: [{ type: "ADD_TO_VAR", name: accVar, expr: `$item.fields.${sourceFieldId}.value` }],
       }));
     } else if (agg === "multiSum") {
-      // One ADD_TO_VAR per source field; no completion gate (raw roll-up).
+      // One ADD_TO_VAR per source field. Raw roll-up by default; callers that
+      // represent completion-based facts (Total Reps) pass requireCompleted.
       steps.push(buildLoopFor("multiSum", {
-        includeCompletion: false,
+        includeCompletion: requireCompleted === true,
         includePresence: false,
         accumulator: (sourceFieldIds || []).map((fid) => ({
           type: "ADD_TO_VAR", name: accVar, expr: `$item.fields.${fid}.value`,
