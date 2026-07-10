@@ -335,12 +335,17 @@ describe("amount + flow input (money)", () => {
 });
 
 describe("workout inputs (reps + muscle group + presence-gated Workouts)", () => {
-  it("Set reps with Muscle Group=chest land in Chest Volume + Total Reps", () => {
-    const id = addToSlot("Bench Press", "6:30am", { "Muscle Group": "chest" });
+  it("Set reps on a COMPLETED chest workout land in Chest Volume + Total Reps", () => {
+    // Volume/Reps gate on Completed (2026-07-10) — an uncompleted set is intent,
+    // not fact. Completed items count under BOTH the current and gated ops, so
+    // this stays green across a reseed (delta-based for the shared store).
+    const beforeReps = goalValue("Reps", "Total Reps") || 0;
+    const beforeVol = goalValue("Chest Volume", "Total Reps") || 0;
+    const id = addToSlot("Bench Press", "6:30am", { "Muscle Group": "chest", Completed: true });
     inputField(id, "Set 1", 10);
     inputField(id, "Set 2", 8);
-    expect(goalValue("Reps", "Total Reps")).toBe(18);
-    expect(goalValue("Chest Volume", "Total Reps")).toBe(18);
+    expect(goalValue("Reps", "Total Reps")).toBe(beforeReps + 18);
+    expect(goalValue("Chest Volume", "Total Reps")).toBe(beforeVol + 18);
   });
   it("completing the workout (muscleGroup present) NOW counts in Total Workouts", () => {
     const workoutOcc = Object.values(occurrencesById).find(o =>
@@ -476,7 +481,7 @@ describe("feed copies never double-count (2026-07-09 audit — 'Total Reps 90' b
     const before = trackerValue("Chest Volume") || 0;
     const totalBefore = trackerValue("Total Reps") || 0;
     const id = addToSlot("Bench Press", "5:00am", {
-      "Set 1": 12, "Set 2": 10, "Set 3": 8, "Muscle Group": "chest",
+      "Set 1": 12, "Set 2": 10, "Set 3": 8, "Muscle Group": "chest", Completed: true,
     });
     expect(trackerValue("Chest Volume")).toBe(before + 30);
     expect(trackerValue("Total Reps")).toBe(totalBefore + 30);
@@ -490,7 +495,7 @@ describe("feed copies never double-count (2026-07-09 audit — 'Total Reps 90' b
   it("a scheduled meal counts ONCE in its per-meal Nutrition tracker", () => {
     const before = trackerValue("Breakfast Nutrition") || 0;
     const id = addToSlot("Scrambled Eggs + Veg", "5:30am", {
-      "Protein": 24, "Meal Type": "Breakfast",
+      "Protein": 24, "Meal Type": "Breakfast", Completed: true,
     });
     expect(trackerValue("Breakfast Nutrition")).toBe(before + 24);
     addFeedCopyOf(id, "Schedule Table");
