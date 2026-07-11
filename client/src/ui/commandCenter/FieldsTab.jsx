@@ -306,6 +306,27 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
               />
               Auto-stamp from filter
             </label>
+            {/* Flow side-button opt-in (2026-07-11). Compact pills for this
+                field render the green/blue/red in/replace/out toggle beside
+                the value input — the stored {value, flow} flow decides whether
+                trackers add, subtract, or reset with it. Full-size inputs
+                always show the toggle; this surfaces it in dense pill mode. */}
+            {(local.type === "number" || local.type === "duration") && (
+              <label
+                title="Show the in/replace/out flow button beside this field's compact pill (green = adds, blue = replaces, red = subtracts)."
+                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)", cursor: "pointer" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={local.meta?.flowToggle === true}
+                  onChange={(e) => setLocal((p) => ({
+                    ...p,
+                    meta: { ...(p.meta || {}), flowToggle: e.target.checked },
+                  }))}
+                />
+                Flow toggle button
+              </label>
+            )}
           </div>
         </div>
       </div>

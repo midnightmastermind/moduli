@@ -920,6 +920,19 @@ function Field({
     const useClickToEdit = compact && (type === "number" || type === "text" || type === "duration");
 
     if (useClickToEdit) {
+      // Flow side-button (2026-07-11): value-bearing fields that opt in via
+      // field.meta.flowToggle get the green/blue/red in/replace/out FlowToggle
+      // beside the compact pill (full inputs always render it). Opt-in because
+      // most compact pills (water, steps, reps) have no meaningful flow.
+      // Rendered OUTSIDE the rest↔editing swap at a stable tree position so
+      // its popover survives the input's blur-commit.
+      const showFlowToggle = field?.meta?.flowToggle === true && type !== "text";
+      const withFlowToggle = (inner) => !showFlowToggle ? inner : (
+        <span className="inline-flex items-center gap-1">
+          <FlowToggle flow={flow || "in"} onChange={onFlowChange} compact disabled={disabled} />
+          {inner}
+        </span>
+      );
       // Empty-input display: number/duration → 0, text/notes → "—".
       const displayNum = localValue ?? ((type === "number" || type === "duration") ? 0 : "—");
       const formattedDisplay = `${prefix}${displayNum}${postfix}`;
@@ -936,7 +949,7 @@ function Field({
           })();
 
       if (isClickEditing) {
-        return (
+        return withFlowToggle(
           <div className="field-input editing inline-flex items-center gap-0.5">
             {prefix && <span className="text-[10px] text-muted-foreground">{prefix}</span>}
             <Input ref={inputRef} type={type === "number" ? "number" : "text"}
@@ -950,7 +963,7 @@ function Field({
         );
       }
 
-      return (
+      return withFlowToggle(
         <button type="button" disabled={disabled}
           onClick={() => !disabled && setIsClickEditing(true)}
           className={`field-input inline-flex items-center gap-1

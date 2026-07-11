@@ -881,7 +881,10 @@ export async function createLiveData(userId, options = {}) {
       type: "number",
       inputEnabled: true,
       displayEnabled: false,
-      meta: { prefix: "$", postfix: "", increment: 5, flow: "out" },
+      // flowToggle: the compact pill renders the green/blue/red in/replace/out
+      // side-button (2026-07-11) — the amount's flow decides whether it adds,
+      // subtracts, or RESETS a balance (Set Account Balance + supportsReplace).
+      meta: { prefix: "$", postfix: "", increment: 5, flow: "out", flowToggle: true },
     },
     income: {
       id: uid(),
