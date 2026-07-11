@@ -4,6 +4,7 @@
 import Grid from "../models/Grid.js";
 import { getOccurrencesForGrid } from "../utils/occurrenceHelpers.js";
 import { ensureTemplatesManifest } from "../utils/templatesManifest.js";
+import { ensureUserManifest } from "../utils/userManifest.js";
 
 export function registerStateHandlers(socket, {
   cacheByUser, gridCacheKey, ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -62,7 +63,10 @@ export function registerStateHandlers(socket, {
 
       // Ensure every grid has a templates manifest (idempotent, deterministic IDs)
       await ensureTemplatesManifest({ gridId, userId, uc });
-      mark("templates manifest ensured");
+      // …and a user manifest + root folder (grids minted outside the seed had
+      // none, which killed the manifest tree + folder pages + panel defaults).
+      await ensureUserManifest({ gridId, userId, uc, gridDoc });
+      mark("manifests ensured");
 
       const grids = await getAllGridsForUser(userId);
       const allGridOccs = getOccurrencesForGrid(gridId, uc);

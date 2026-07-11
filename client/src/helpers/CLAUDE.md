@@ -2,6 +2,14 @@
 
 _Updated: 2026-07-11. Check this file before re-reading source._
 
+## Recent Changes (2026-07-11 — ensureRootFolderPageOcc: shared "open panel on root folder page")
+- **`importsFolder.js`** — new `ensureRootFolderPageOcc({ grid, manifestsById, occurrencesById,
+  modulesById, dispatch, socket, userId })`: resolve-or-mint the grid's ROOT folder-page
+  occurrence. Extracted from Grid.jsx `handleEmptyCellClick` (which now calls it) and ALSO used by
+  App.jsx `addNewPanel` (the Toolbar + button) — a fresh panel now opens on the root folder page
+  (view + occurrences wired) instead of a dead "No content" shell. Depends on the server ensuring
+  a user manifest per grid (server/utils/userManifest.js, same session).
+
 ## Recent Changes (2026-07-11 — addImageArtifactFromUrl: URL-picked images without an upload)
 - **`CommitHelpers.js`** — new `addImageArtifactFromUrl({ dispatch, socket, gridId, userId,
   containerOccurrence, url, label?, index? })`: synchronously mints a `role:"artifact" kind:"image"`

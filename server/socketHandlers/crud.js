@@ -50,7 +50,13 @@ export function registerCrudHandlers(socket, {
       const { grid: gridPatchFromNested, ...rest } = payload || {};
       const { gridId: _ignored, ...restWithoutId } = rest || {};
       const updatePatch = gridPatchFromNested || restWithoutId || {};
-      await Grid.findOneAndUpdate({ _id: gridId, userId }, updatePatch, { upsert: true });
+      // NO upsert: a patch for a grid that no longer exists (deleted, or
+      // dropped by a reseed while a stale tab was still connected) must not
+      // resurrect it as a zombie doc — that's how duplicate "Live Grid"s were
+      // born (2026-07-11: a reconnected tab's layoutTree write re-created the
+      // grid the reseed had just deleted).
+      const updated = await Grid.findOneAndUpdate({ _id: gridId, userId }, updatePatch);
+      if (!updated) return;
       socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: updatePatch });
     } catch (err) {
       console.error("update_grid error:", err);

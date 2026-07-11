@@ -42,6 +42,7 @@ import { installMobileInputAutoScroll } from "./hooks/useMobileKeyboard";
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import * as LayoutHelpers from "./helpers/LayoutHelpers";
 import { requestLabelEdit } from "./helpers/pendingLabelEdit.js";
+import { ensureRootFolderPageOcc } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
 import { computeRoleByModuleId } from "./state/selectors";
 
@@ -560,7 +561,7 @@ export default function App() {
     };
 
     // Use occurrence-based helper: creates module + occurrence + adds to grid
-    LayoutHelpers.createPanelInGrid({
+    const result = LayoutHelpers.createPanelInGrid({
       dispatch,
       socket,
       grid: state.grid,
@@ -569,7 +570,28 @@ export default function App() {
       userId: state.userId,
       emit: true,
     });
-  }, [dispatch, state.gridId, state.grid, state.panels, state.userId]);
+
+    // Open the new panel on the ROOT FOLDER page (the card grid of everything
+    // on the grid) — same default as the empty-cell tap-to-add, so a fresh
+    // panel is never a dead "No content" shell (user directive 2026-07-11).
+    const folderPageOccId = ensureRootFolderPageOcc({
+      grid: state.grid, manifestsById, occurrencesById, modulesById,
+      dispatch, socket, userId: state.userId,
+    });
+    if (result?.occurrence?.id && folderPageOccId) {
+      const viewId = crypto.randomUUID();
+      CommitHelpers.createView({
+        dispatch, socket,
+        view: { id: viewId, userId: state.userId, gridId: state.gridId, viewType: "board", activeOccurrenceId: folderPageOccId },
+        emit: true,
+      });
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: result.occurrence.id, viewId, occurrences: [folderPageOccId] },
+        emit: true,
+      });
+    }
+  }, [dispatch, state.gridId, state.grid, state.panels, state.userId, manifestsById, occurrencesById, modulesById, socket]);
 
   const addContainerToPanel = useCallback(
     (panelId, kind = "board") => {

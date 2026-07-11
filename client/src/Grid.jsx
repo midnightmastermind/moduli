@@ -28,7 +28,7 @@ import { useDragContext, useDragStateContext, useDragHotContext, useDroppable, D
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import { getGridPanels } from "./state/selectors";
 import { applyLocalSort, createPanelInGrid } from "./helpers/LayoutHelpers";
-import { ensureFolderPageOcc } from "./helpers/importsFolder";
+import { ensureRootFolderPageOcc } from "./helpers/importsFolder";
 import { snapPanelInDirection } from "./helpers/gridSnap";
 import MobileGridNav from "./mobile/MobileGridNav";
 import { Layers } from "lucide-react";
@@ -704,20 +704,8 @@ function GridInner() {
   // empty cell is one tap away from useful content (2026-07-03, per user).
   const handleEmptyCellClick = useCallback((r, c) => {
     if (!grid || !state?.userId) return;
-    const manifest = manifestsById?.[grid.manifestId];
-    const rootFolderId = manifest?.rootFolderId;
-    if (!rootFolderId) return;
-    // Find the root folder-page occurrence (ManifestTree/PageFolder mint these
-    // with kind:"folder" role:"page" parented under the folder), or create it.
-    const existing = Object.values(occurrencesById || {}).find((o) => {
-      if (!o || o.parentId !== rootFolderId) return false;
-      if (o.meta?.folderPage === true) return true;
-      const mod = modulesById?.[o.moduleId];
-      return mod?.role === "page" && mod?.kind === "folder";
-    });
-    const folderPageOccId = existing?.id || ensureFolderPageOcc({
-      folderId: rootFolderId, label: manifest?.name || "Root", gridId,
-      occurrencesById, dispatch, socket, userId: state.userId,
+    const folderPageOccId = ensureRootFolderPageOcc({
+      grid, manifestsById, occurrencesById, modulesById, dispatch, socket, userId: state.userId,
     });
     if (!folderPageOccId) return;
     const viewId = crypto.randomUUID();

@@ -2,6 +2,20 @@
 
 _Updated: 2026-07-11. Check this file before re-reading source._
 
+## Recent Changes (2026-07-11 LATE-2 — user manifest on every grid + update_grid zombie fix)
+- **`utils/userManifest.js` (NEW)** — `ensureUserManifest({ gridId, userId, uc, gridDoc })`:
+  every grid gets a manifestType:"user" manifest + root folder (deterministic ids
+  `usr-mfst-/usr-root-<gridId>`) and `grid.manifestId` is stamped when unset. Called from
+  `state.js request_full_state` next to ensureTemplatesManifest. WHY: grids minted outside the
+  seed (Toolbar create_grid, the fresh-user 1×1 fallback) had NO manifest — the manifest tree,
+  folder pages, and the empty-cell add-panel flow (which needs `manifest.rootFolderId`) were all
+  silently dead on them: "adding panels didn't work on a new grid… no way to add a page".
+- **`socketHandlers/crud.js` (`update_grid`)** — upsert REMOVED. A patch for a nonexistent grid
+  (deleted, or dropped by a reseed while a stale tab was connected) used to re-CREATE it: that's
+  how the duplicate/zombie "Live Grid" with the 4-column layoutTree was born on 2026-07-11 (a
+  reconnected tab's layoutTree write resurrected the grid the reseed had just deleted, with its
+  panel occurrences already gone). Now no-match → no write, no broadcast.
+
 ## Recent Changes (2026-07-11 LATE — Field.displayConfig → Mixed; the schema was eating targetOp)
 - **`models/Field.js`** — `displayConfig` was a STRUCTURED sub-schema enumerating only
   showArrows/arrowColor/targetValue/targetPeriod; Mongoose strict mode silently stripped every

@@ -60,6 +60,28 @@ export function shouldWrapImportOutput(output) {
   return !!output && !output.dryRun && !!output.rootOccurrenceId;
 }
 
+// Resolve (or mint) the ROOT folder-page occurrence for a grid — the card grid
+// of everything on the grid. The default page for freshly-minted panels
+// (empty-cell tap-to-add, the Toolbar + button) so a new panel never opens on
+// "No content". Returns null only when the grid has no user manifest yet (the
+// server ensures one on every full_state, so that means state hasn't loaded).
+export function ensureRootFolderPageOcc({ grid, manifestsById, occurrencesById, modulesById, dispatch, socket, userId }) {
+  const gridId = grid?._id || grid?.id || null;
+  const manifest = manifestsById?.[grid?.manifestId];
+  const rootFolderId = manifest?.rootFolderId;
+  if (!rootFolderId) return null;
+  const existing = Object.values(occurrencesById || {}).find((o) => {
+    if (!o || o.parentId !== rootFolderId) return false;
+    if (o.meta?.folderPage === true) return true;
+    const mod = modulesById?.[o.moduleId];
+    return mod?.role === "page" && mod?.kind === "folder";
+  });
+  return existing?.id || ensureFolderPageOcc({
+    folderId: rootFolderId, label: manifest?.name || "Root", gridId,
+    occurrencesById, dispatch, socket, userId,
+  });
+}
+
 // Find-or-create the folder-page occurrence (`role:"page" kind:"folder"`) for a
 // folder so it renders as a card in the parent folder page. Idempotent via a
 // `meta.folderPage` self-identifying tag (the only occurrence we mint with it).
