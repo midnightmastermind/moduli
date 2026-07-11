@@ -123,6 +123,7 @@ export default function PageBoard({
   return (
     <div
       ref={dropRef}
+      className={mode === "flex-row" ? "page-board-hscroll" : undefined}
       style={{
         flex: 1, minHeight: 0,
         overflowY: "auto",

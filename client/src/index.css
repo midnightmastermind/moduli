@@ -3467,6 +3467,24 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   gap: 4px;
   flex-wrap: wrap;
 }
+/* Multi-day board (PageBoard flex-row mode, e.g. the 3-day Schedule): the
+   horizontal scrollbar must be VISIBLE and grabbable at the bottom of the
+   board's viewport — the default overlay bar was invisible until you happened
+   to scroll sideways, so the extra day columns read as unreachable (user
+   2026-07-11). Shift+wheel / trackpad deltaX anywhere over the board also
+   h-scrolls natively (verified). Note: no `scrollbar-width`/`scrollbar-color`
+   here — modern Chromium ignores ::-webkit-scrollbar styling once the
+   standard props are set. */
+.page-board-hscroll::-webkit-scrollbar { width: 9px; height: 11px; }
+.page-board-hscroll::-webkit-scrollbar-thumb {
+  background: rgba(140, 205, 230, 0.32);
+  border-radius: 6px;
+  border: 2px solid rgba(8, 20, 28, 0.6);
+}
+.page-board-hscroll::-webkit-scrollbar-thumb:hover { background: rgba(140, 205, 230, 0.55); }
+.page-board-hscroll::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.28); border-radius: 6px; }
+.page-board-hscroll::-webkit-scrollbar-corner { background: transparent; }
+
 /* Slim scrollbars on the canvas surface — the scrollbar is necessary
    for pan but should be unobtrusive. */
 .canvas-surface { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent; }
