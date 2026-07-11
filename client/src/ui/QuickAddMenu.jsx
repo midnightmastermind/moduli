@@ -16,6 +16,7 @@ import { useGridActionsSelector } from "../GridActionsContext";
 import { templatesByKind } from "../helpers/templateHelpers";
 import { commitApplyTemplate } from "../helpers/CommitHelpers";
 import { getModuleTypeBadge } from "../helpers/moduleIcons";
+import { openImagePicker } from "./ImagePickerMenu";
 
 // Anchor-relative menu placement. Opens below the anchor; flips above when the
 // menu would overflow the viewport bottom (phone + on-screen keyboard). Pure —
@@ -38,6 +39,7 @@ const KIND_TILE = {
   folder:    { label: "Folder",    desc: "Card grid of child pages" },
   textblock: { label: "Textblock", desc: "Inline rich-text snippet" },
   artifact:  { label: "Artifact",  desc: "File-backed content" },
+  image:     { label: "Image",     desc: "Search the web / upload / URL" },
 };
 
 // Which kinds are placeable in each role's add-menu — used to filter the
@@ -58,7 +60,9 @@ export function tileKindsForRole(targetRole) {
   // A container's "+" (targetRole "instance") can now create the full palette of
   // children: a leaf Item, a Textblock, nested containers (Board/Doc/Table/Canvas),
   // or an Artifact (file upload). The host routes each via createChildInContainer.
-  if (targetRole === "instance") return ["instance", "textblock", "board", "doc", "table", "canvas", "artifact"];
+  // "image" is the Calibre-style pick: ImagePicker (web search / upload / URL)
+  // instead of the artifact tile's bare OS file dialog.
+  if (targetRole === "instance") return ["instance", "textblock", "board", "doc", "table", "canvas", "artifact", "image"];
   if (targetRole === "container") return ["board", "doc", "canvas", "table"];
   if (targetRole === "page") return ["board", "doc", "canvas", "table", "folder"];
   return ["board"]; // panel
@@ -148,6 +152,18 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   const createOfKind = useCallback((kind) => {
     // Artifact: open the OS file picker; the upload fires on file-select (onFilePicked).
     if (kind === "artifact") { fileInputRef.current?.click(); return; }
+    // Image: the global ImagePicker (Search / Upload / URL). The pick hands a
+    // URL to the host, which mints a remote-ref image artifact — no OS dialog.
+    if (kind === "image") {
+      const create = onCreateNew;
+      openImagePicker({
+        query: "",
+        title: "Add image",
+        onPick: (url) => { if (url) create?.({ fieldIds: [], kind: "artifact", url }); },
+      });
+      closeMenu();
+      return;
+    }
     if (kind === "textblock") {
       if (onAddTextblock) onAddTextblock();
       else onCreateNew?.({ fieldIds: [], kind: "textblock" });
@@ -371,7 +387,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                 {tileKinds.map(kind => {
                   const tileRole = kind === "instance" ? "instance"
                     : kind === "textblock" ? "textblock"
-                    : kind === "artifact" ? "artifact"
+                    : (kind === "artifact" || kind === "image") ? "artifact"
                     : "container";
                   const { Icon, color } = getModuleTypeBadge({ role: tileRole, kind: ["instance", "textblock", "artifact"].includes(kind) ? undefined : kind });
                   const meta = KIND_TILE[kind] || { label: kind, desc: "" };

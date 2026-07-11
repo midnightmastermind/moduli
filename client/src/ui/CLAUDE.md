@@ -1,6 +1,26 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-07-07. Check this file before re-reading source._
+_Updated: 2026-07-11. Check this file before re-reading source._
+
+## Recent Changes (2026-07-11 — image search everywhere + flow side-button on compact pills)
+- **`Field.jsx` (flow side-button, `f3755fde`)** — compact click-to-edit number/duration pills render
+  the green/blue/red in/replace/out `FlowToggle` beside the pill when `field.meta.flowToggle === true`
+  (opt-in; full-size inputs always had it). Rendered OUTSIDE the rest↔editing swap so the popover
+  survives blur-commit. `FieldsTab.jsx` has the opt-in checkbox (number/duration only); Amount is
+  seeded with the flag. E2E-verified: picking a flow persists the stored `{value, flow}`.
+  Tests: `__tests__/Field.flowToggle.test.jsx` (4).
+- **`Field.jsx` (media picker, non-compact)** — a `binding.role === "media"` TEXT field's FULL-SIZE
+  input is now the same thumbnail + "Set/Change image…" button the compact pill got 2026-07-07
+  (opens `openImagePicker`; pick commits through the normal field path). Previously fell through to
+  a raw URL text box — profile pics / image fields edited in forms had no search.
+  Tests: `__tests__/Field.mediaPicker.test.jsx` (4, covers both densities).
+- **`QuickAddMenu.jsx` — new "Image" tile** (instance-role menus only, after Artifact): opens the
+  global ImagePicker (Search / Upload / URL) instead of the artifact tile's bare OS file dialog;
+  the pick routes `{ kind:"artifact", url }` through `onCreateNew` → `createChildInContainer` →
+  new `CommitHelpers.addImageArtifactFromUrl` (remote-ref image artifact, no upload round-trip).
+  `InsertGap.jsx` threads `url` through the same router so gap-inserts get the tile too.
+  E2E-verified headless (`_imagetile.mjs`): tile → picker → URL commit → image artifact card in
+  "Work Projects", persists across reload. Live grid reseeded after probing.
 
 ## Recent Changes (2026-07-10 — wrap: drop BELOW a short host no longer jumps to the top)
 - **`Editor.jsx` `detectSideHost` (wrapGroup branch)** — the branch treated ANY drop whose

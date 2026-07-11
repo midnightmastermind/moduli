@@ -14,8 +14,8 @@ describe("tileKindsForRole — create tiles per role", () => {
     expect(tileKindsForRole("panel")).toEqual(["board"]);
   });
 
-  it("instance → full child palette: Item, Textblock, nested containers, Artifact upload", () => {
-    expect(tileKindsForRole("instance")).toEqual(["instance", "textblock", "board", "doc", "table", "canvas", "artifact"]);
+  it("instance → full child palette: Item, Textblock, nested containers, Artifact upload, Image search", () => {
+    expect(tileKindsForRole("instance")).toEqual(["instance", "textblock", "board", "doc", "table", "canvas", "artifact", "image"]);
   });
 });
 

@@ -31,7 +31,7 @@ export default function InsertGap({
 
   if (!parentOccurrence || !resolvedGridId || !resolvedUserId) return null;
 
-  const insertNew = ({ fieldIds = [], kind, file } = {}) => {
+  const insertNew = ({ fieldIds = [], kind, file, url } = {}) => {
     // Route by kind (Item / Textblock / Board / Doc / Table / Canvas / Artifact)
     // and splice at THIS gap's index. Artifact returns a Promise (async upload).
     const res = createChildInContainer({
@@ -40,7 +40,7 @@ export default function InsertGap({
       containerModule: modulesById?.[parentOccurrence?.moduleId] || null,
       kind: kind || (targetRole === "instance" ? "instance" : targetRole),
       fieldIds: Array.isArray(fieldIds) ? fieldIds : [],
-      file, index,
+      file, url, index,
     });
     // Open the new item's label editor focused (see helpers/pendingLabelEdit) —
     // sync creates only (artifact resolves to a Promise).

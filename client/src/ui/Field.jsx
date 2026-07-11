@@ -1197,6 +1197,39 @@ function Field({
     }
 
     if (type === "text") {
+      // Media-role binding, full-size input: same ImagePicker affordance the
+      // compact pill has (2026-07-07) — the value is an image URL the picker
+      // owns, so a raw text box is the wrong control (profile pics / image
+      // fields edited in forms had no search until 2026-07-11).
+      if (binding?.role === "media") {
+        const src = typeof localValue === "string" && localValue ? resolveFileRef(localValue) : null;
+        const hostLabel = modulesById?.[hostOccurrence?.moduleId || hostOccurrence?.targetId]?.label
+          || hostOccurrence?.label || "";
+        return (
+          <div className="field-input field-input-media" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {showLabel && <span style={inputLabelStyle}>{name}</span>}
+            <button type="button" disabled={disabled}
+              onClick={() => {
+                if (disabled) return;
+                openImagePicker({
+                  query: hostLabel,
+                  title: `Set image — ${hostLabel || name}`,
+                  onPick: (url) => { handleChange(url); onCommit?.(url); },
+                });
+              }}
+              className={`inline-flex items-center gap-2 px-2 py-1 text-xs rounded border transition-all self-start
+                ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
+              style={{ background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(180,225,245)" }}
+              title={`${name}: ${localValue || "no image"} — click to set`}
+            >
+              {src
+                ? <img src={src} alt="" style={{ width: 24, height: 32, objectFit: "cover", borderRadius: 3 }} />
+                : <ImagePlus style={{ width: 14, height: 14, opacity: 0.7 }} />}
+              <span>{src ? "Change image…" : "Set image…"}</span>
+            </button>
+          </div>
+        );
+      }
       return (
         <div className="field-input field-input-text" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {showLabel && <span style={inputLabelStyle}>{name}</span>}

@@ -915,18 +915,60 @@ export async function addArtifactToContainer({
   }
 }
 
+// Image picked by URL (ImagePicker search / URL tab, or its upload tab which
+// already returns a served URL) — no /api/artifacts/upload round-trip. Mints a
+// remote-ref artifact module (same shape the importer uses for Wikipedia
+// images: resolveFileRef passes absolute URLs through verbatim) + an
+// occurrence spliced into the container. Synchronous — ids known up-front.
+export function addImageArtifactFromUrl({
+  dispatch, socket, gridId, userId, containerOccurrence, url, label = "", index = null,
+}) {
+  if (!gridId || !userId || !containerOccurrence || !url) return null;
+  const moduleId = crypto?.randomUUID?.() || `im-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const occurrenceId = crypto?.randomUUID?.() || `io-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const module = {
+    id: moduleId, userId, gridId,
+    role: "artifact", kind: "image",
+    label: label || "",
+    fileRef: url,
+    meta: { external: true },
+  };
+  const occurrence = {
+    id: occurrenceId, userId, gridId, moduleId,
+    parentId: containerOccurrence.id,
+  };
+
+  dispatch?.(createModuleAction(module));
+  dispatch?.(createOccurrenceAction(occurrence));
+  safeEmit(socket, "create_module", { module });
+  safeEmit(socket, "create_occurrence", { occurrence });
+
+  const existing = Array.isArray(containerOccurrence.occurrences) ? [...containerOccurrence.occurrences] : [];
+  const at = (index == null || index < 0 || index > existing.length) ? existing.length : index;
+  existing.splice(at, 0, occurrenceId);
+  updateOccurrence({
+    dispatch, socket,
+    occurrence: { id: containerOccurrence.id, occurrences: existing },
+    emit: true,
+  });
+
+  return { moduleId, occurrenceId };
+}
+
 // One router the container header + the InsertGap both call. Routes a QuickAddMenu
 // "create" by kind/role to the right child-create path. Artifact needs a File
 // (the menu opens an OS picker and passes it through).
 export function createChildInContainer({
   dispatch, socket, gridId, userId, containerOccurrence, containerModule = null,
-  kind = "instance", role = null, fieldIds = [], index = null, file = null,
+  kind = "instance", role = null, fieldIds = [], index = null, file = null, url = null,
 }) {
   const args = { dispatch, socket, gridId, userId, containerOccurrence, index };
   if (kind === "textblock" || role === "textblock") {
     return createTextblockInContainer({ ...args, kind: "doc" });
   }
   if (kind === "artifact" || role === "artifact") {
+    if (url) return addImageArtifactFromUrl({ ...args, url });
     if (!file) return null;
     return addArtifactToContainer({ ...args, file });
   }

@@ -2,6 +2,15 @@
 
 _Updated: 2026-07-11. Check this file before re-reading source._
 
+## Recent Changes (2026-07-11 — addImageArtifactFromUrl: URL-picked images without an upload)
+- **`CommitHelpers.js`** — new `addImageArtifactFromUrl({ dispatch, socket, gridId, userId,
+  containerOccurrence, url, label?, index? })`: synchronously mints a `role:"artifact" kind:"image"`
+  module with `fileRef: url` + `meta.external: true` (the importer's remote-image shape —
+  `resolveFileRef` passes absolute URLs through) and an occurrence spliced into the container.
+  `createChildInContainer`'s artifact branch routes `url` here BEFORE the file-upload path (its
+  signature gained `url = null`). Consumed by QuickAddMenu's new "Image" tile + InsertGap.
+  Tests in `__tests__/CommitHelpers.test.js` (2).
+
 ## Recent Changes (2026-07-11 — _boundFieldIds enrichment + ARRAY_NOT_INCLUDES + loop run-log cap)
 - **`operationExecutor.js`** — every `$allItems` entry now carries `_boundFieldIds` (the template's
   `fieldBindings[].fieldId` list) so rules can introspect "does this item even HAVE field X" vs

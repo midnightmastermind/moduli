@@ -379,3 +379,32 @@ describe("createLeafInstanceAtIndex", () => {
     expect(createLeafInstanceAtIndex({ dispatch, socket, gridId: "g1", userId: "u1" })).toBeNull();
   });
 });
+
+// ─── addImageArtifactFromUrl (image search / URL pick → no upload round-trip) ─
+import { addImageArtifactFromUrl } from "../helpers/CommitHelpers";
+describe("addImageArtifactFromUrl", () => {
+  const base = () => ({ gridId: "g1", userId: "u1", containerOccurrence: { id: "c1", occurrences: ["a", "b"] } });
+  const emitted = (socket, event) => socket.emit.mock.calls.find(c => c[0] === event)?.[1];
+
+  test("mints a kind:image artifact module with the remote fileRef + occurrence in the container", () => {
+    const { dispatch, socket } = makeMocks();
+    const out = addImageArtifactFromUrl({ dispatch, socket, ...base(), url: "https://img.example/x.jpg", label: "Poster" });
+    const mod = emitted(socket, "create_module").module;
+    expect(mod.role).toBe("artifact");
+    expect(mod.kind).toBe("image");
+    expect(mod.fileRef).toBe("https://img.example/x.jpg");
+    expect(mod.label).toBe("Poster");
+    expect(mod.meta.external).toBe(true);
+    const occ = emitted(socket, "create_occurrence").occurrence;
+    expect(occ.moduleId).toBe(out.moduleId);
+    expect(occ.parentId).toBe("c1");
+    expect(emitted(socket, "update_occurrence").occurrence.occurrences).toEqual(["a", "b", out.occurrenceId]);
+  });
+
+  test("splices at index; returns null without a url", () => {
+    const { dispatch, socket } = makeMocks();
+    const out = addImageArtifactFromUrl({ dispatch, socket, ...base(), url: "https://i/y.png", index: 0 });
+    expect(emitted(socket, "update_occurrence").occurrence.occurrences).toEqual([out.occurrenceId, "a", "b"]);
+    expect(addImageArtifactFromUrl({ dispatch, socket, ...base() })).toBeNull();
+  });
+});
