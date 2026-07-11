@@ -228,8 +228,29 @@ function recordRunLog(opId, log) {
 }
 
 function makeLogger() {
-  return { entries: [], add(kind, data) { this.entries.push({ kind, t: Date.now(), ...data }); } };
+  return {
+    entries: [],
+    // Muted while a big loop is past its per-iteration log cap (see the loop
+    // branch in executeSteps). Guarding add() too so nested helpers that log
+    // via $vars._log directly can't bypass the cap.
+    _mute: 0,
+    add(kind, data) {
+      if (this._mute > 0) return;
+      this.entries.push({ kind, t: Date.now(), ...data });
+    },
+  };
 }
+
+// Per-loop cap on fully-logged iterations. Beyond this, a single
+// `loop_truncated` marker is written and per-iteration logging (loop_iter +
+// every if/action entry inside the body) is muted for the rest of the loop.
+// WHY: a tracker loop over $allItems (~2500 items) logged a loop_iter entry
+// PLUS a fully-resolved `if` condition snapshot per item, per loop, per op,
+// per fire — with runHistory retaining 25 runs/op that compounded to
+// GIGABYTES (OOM'd the behavioral suite) and dominated per-fire CPU. The
+// first N iterations keep full diagnostics; FIND candidate breakdowns (the
+// main "why didn't it match" tool) are unaffected.
+const LOOP_LOG_ITER_CAP = 50;
 
 // Snapshot user-facing $vars (skip _internal keys + huge built-ins).
 // Returned object is a shallow clone — values may still be live references.
@@ -1878,7 +1899,12 @@ export function resumeContinuation(continuation, resultVar, value, { onPipelineD
  * $vars is shared by reference — INIT_VAR/ADD_TO_VAR mutate it in-place.
  */
 function executeSteps(steps, $vars, context, transaction) {
-  const log = $vars._log;
+  // Re-read the mute state at every entry — loop bodies re-enter here per
+  // iteration, so once the owning loop mutes past LOOP_LOG_ITER_CAP, body
+  // frames skip ALL log computation (snapshotVars/resolveGroupForLog/etc.),
+  // not just the add() calls.
+  const rawLog = $vars._log;
+  const log = rawLog && !(rawLog._mute > 0) ? rawLog : null;
   const updates = [];
   const stepsArr = steps || [];
   for (let stepIdx = 0; stepIdx < stepsArr.length; stepIdx++) {
@@ -2016,12 +2042,22 @@ function executeSteps(steps, $vars, context, transaction) {
       }
       log?.add("loop", { over: step.overExpr || step.over, as: varName, itemCount: items.length });
       let i = 0;
+      let mutedHere = false;
       for (const item of items) {
         $vars[varName] = item;
-        log?.add("loop_iter", { as: varName, index: i, total: items.length, item });
+        if (log) {
+          if (i < LOOP_LOG_ITER_CAP) {
+            log.add("loop_iter", { as: varName, index: i, total: items.length, item });
+          } else if (i === LOOP_LOG_ITER_CAP) {
+            log.add("loop_truncated", { as: varName, omitted: items.length - LOOP_LOG_ITER_CAP, total: items.length });
+            log._mute += 1;
+            mutedHere = true;
+          }
+        }
         updates.push(...executeSteps(step.body || [], $vars, context, transaction));
         i += 1;
       }
+      if (mutedHere) log._mute -= 1;
       delete $vars[varName];
     }
   }

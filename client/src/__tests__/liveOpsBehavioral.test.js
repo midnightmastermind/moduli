@@ -9,7 +9,11 @@
 //
 // Tests in each describe block are SEQUENTIAL — they share the mutated
 // occurrence store the way a real session does (each fire sees prior writes).
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
+
+// Integration-scale tests: each fire runs the FULL op suite over the real
+// seed (~2500 occurrences), so multi-fire tests legitimately take seconds.
+vi.setConfig({ testTimeout: 20000 });
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -331,6 +335,19 @@ describe("amount + flow input (money)", () => {
     const id = addToSlot("Check Investments", "5:30am", { Completed: true, Account: checking.id });
     inputField(id, "Income", 120);
     expect(trackerValue("Earned")).toBe(120);
+  });
+  it("Set Account Balance (flow=replace) RESETS Checking; same-day transactions stack on top", () => {
+    // 2026-07-11 supportsReplace: the latest completed in-Schedule item whose
+    // amount carries flow:"replace" becomes the balance BASE; only non-replace
+    // transactions dated on/after it add on top. Everything this block added
+    // earlier is same-day, so post-reset balance = base + prior net.
+    const checking = goalOcc("Checking Account", "Checking Balance");
+    const before = trackerValue("Checking Balance") || 0;
+    const id = addToSlot("Set Account Balance", "6:00am", { Completed: true, Account: checking.id });
+    inputField(id, "Amount", 500, "replace");
+    expect(trackerValue("Checking Balance")).toBe(500 + before);
+    // The replace entry itself never lands in the flow=out Spent tracker.
+    expect(trackerValue("Spent")).toBe(45);
   });
 });
 
