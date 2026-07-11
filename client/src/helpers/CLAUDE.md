@@ -1,6 +1,23 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-07-07. Check this file before re-reading source._
+_Updated: 2026-07-11. Check this file before re-reading source._
+
+## Recent Changes (2026-07-11 — _boundFieldIds enrichment + ARRAY_NOT_INCLUDES + loop run-log cap)
+- **`operationExecutor.js`** — every `$allItems` entry now carries `_boundFieldIds` (the template's
+  `fieldBindings[].fieldId` list) so rules can introspect "does this item even HAVE field X" vs
+  "the value is empty". Consumed by the 2026-07-11 completion-gate policy (server builders): an
+  item that never bound Completed counts on scope membership alone; bound-but-unchecked does NOT.
+- **`operationActions.js`** — `ARRAY_NOT_INCLUDES` comparator (exact-match array negation, shares
+  the `NOT_HAS_ANCESTOR` case).
+- **`operationExecutor.js` (PERF/OOM root cause)** — loops now cap per-iteration run-log entries at
+  `LOOP_LOG_ITER_CAP = 50`: past the cap, one `loop_truncated` marker is written and the logger is
+  MUTED for the rest of the loop (executeSteps re-reads mute per body entry, so the
+  snapshotVars/resolveGroupForLog computation is skipped too, not just the pushes; makeLogger.add
+  also guards). WHY: loop_iter + a fully-resolved if-snapshot per item × ~2500 items × loops × ops
+  × 25 retained runs/op = gigabytes (behavioral suite OOM'd 8GB) and ~2-3s per fire. Measured:
+  onLoad sweep 6.5s→1.2s, add-fire ~2.8s→0.8s, heap after 16 fires 5GB→1.2GB. FIND candidate
+  breakdowns remain uncapped (2026-05-06 decision). This was the biggest "op drain" docket lever
+  found so far.
 
 ## Recent Changes (2026-07-07 LATE-2 — feedSync.js NEW: the occurrence-feed engine)
 - **`feedSync.js` (NEW)** — materializes `occurrence.feed` pull-queries as copy-linked children

@@ -6,6 +6,33 @@
 
 ---
 
+## Handoff — 2026-07-11 (tracker gating + Set Account Balance shipped; executor log-cap OOM/perf fix)
+
+Finished account2's in-flight work on the 2026-07-11 directives (`e9778bc9` + `9c3e19b5`, master).
+**Gating policy shipped:** an item moves trackers/goals only when IN THE SCHEDULE **and** COMPLETE;
+an item whose module never binds Completed counts on schedule membership alone. The discriminator is
+the module BINDING (new executor `$item._boundFieldIds` enrichment + `ARRAY_NOT_INCLUDES`
+comparator), never the stored value — account2's `IS_EMPTY` OR-form counted bound-but-unchecked
+items (caught by the behavioral suite). accountRef trackers ALSO scope to Schedule now (toolkit
+money items no longer move balances). countTrue/completionRate-done stay strict `IS true`;
+`utils/completionGate.js` migrated to the same binding form. **Set Account Balance:** new Financial
+Tasks task; its amount is `flow:"replace"` — `makeTrackerOp supportsReplace` (Checking + Mom's)
+treats the latest completed in-Schedule replace entry as the balance BASE, with only
+same-day-or-later non-replace transactions stacking on top. Verified end-to-end in
+`liveOpsBehavioral` (23 tests): reset 500 + same-day ±in/out = 575; replace entries never hit
+Spent/Earned. **Executor perf/OOM root-caused:** per-iteration run-log entries (loop_iter +
+resolved if-snapshot × ~2500 items × loops × ops × 25 retained runs) OOM'd an 8GB heap and cost
+~2-3s/fire — PRE-existing on master (A/B-probed via stash). Loops now log 50 iterations then a
+`loop_truncated` marker + mute (FIND candidates stay uncapped per the 2026-05-06 decision).
+Measured: onLoad sweep 6.5→1.2s, add-fire ~2.8→0.8s, heap 5GB→1.2GB. 1217/1217 client + 237/237
+server, build clean, **live grid reseeded** (seed exports current). **Queued (user, this session):
+(a)** image SEARCH in every image-upload spot (image fields / profile pics / dropdown-picker
+thumbnails) — Calibre-style one-click; audit which spots miss the existing ImagePickerMenu;
+**(b)** the flow side-button on value inputs — green/blue/red = in/replace/out — so ops read the
+stored flow (Set Account's UI).
+
+---
+
 ## Handoff — 2026-07-07 LATE-3 (occurrence FEEDS shipped — Table:/Canvas: Build ops replaced)
 
 **Feeds are live.** `occurrence.feed = { enabled, conditions, roles, scope, sort, limit }` on any

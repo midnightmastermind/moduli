@@ -2284,3 +2284,28 @@ is replaced, delete the old path outright. (2) The seeded viafluere doc's first 
 alone. Money accounts currently update straight from the toolkit — wrong. (4) New "Set Account"
 occurrence in Financial Tasks that REPLACES an account's value (flow=replace, the old
 plus/minus/replace flow attribute) instead of adding/subtracting.
+
+Directives (3)+(4) SHIPPED 2026-07-11 (`e9778bc9`+`9c3e19b5`): gating is complete-AND-in-Schedule
+everywhere (accountRef trackers included — toolkit money items no longer move balances); "no
+completion field" is detected from the module BINDING (new `$item._boundFieldIds`), so an unchecked
+Completed never counts. "Set Account Balance" task seeded in Financial Tasks — its amount is
+flow:"replace" and the balance trackers treat the latest completed in-Schedule set as the base,
+stacking only later transactions on top (verified live in the behavioral suite). Along the way the
+executor's per-iteration run-log was root-caused as an OOM + ~2-3s/fire cost (pre-existing) and
+capped at 50 iterations/loop. (1) legacy-removal is standing policy; (2) the wrap regression was
+already fixed by account2 (`b7692d11`).
+
+> "also add in to the task list, we want a search option in the same spot we upload images, for
+> things like image fields, profile pics, the little image in the dropdown picker (like movies). it
+> will do a google image search and will allow me to one click any image, in a search window, and
+> add it in the appropriate spot. calibre does this for book covers. also for the set account, we
+> should have that side button again on the input for the value, that changes it to green, blue, or
+> red. positive neutral or negative flow. neutral would be replace. then have the operations read
+> that. it was like a side button to the integer input we used to have."
+
+Two queued items: (a) image SEARCH everywhere images are uploaded (image fields / profile pics /
+dropdown-picker thumbnails) — one-click from a search window, Calibre-style; ImagePickerMenu
+(Search/Upload/URL, shipped 2026-07-07) already covers option rows + media pills + artifact viewer,
+so audit which spots miss it and whether the search/one-click UX matches the ask. (b) restore the
+flow side-button on numeric/amount inputs — green=in(+), blue=replace(neutral), red=out(−) — the
+UI half of Set Account Balance; trackers already read the stored flow (supportsReplace).

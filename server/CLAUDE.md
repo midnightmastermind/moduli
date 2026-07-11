@@ -1,6 +1,32 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-07-07. Check this file before re-reading source._
+_Updated: 2026-07-11. Check this file before re-reading source._
+
+## Recent Changes (2026-07-11 — gating: complete AND in-Schedule; Set Account Balance flow:replace)
+- **`utils/liveSystemBuilders.js` (`makeTrackerOp`)** — user policy 2026-07-11:
+  - The schedule `HAS_ANCESTOR $scopePageId` rule ALWAYS applies; `accountRefFieldId`+
+    `accountOccurrenceId`, when set, are an ADDITIONAL narrowing rule (was either/or — toolkit
+    money items moved balances before being dragged into the Schedule).
+  - Completion gate is `completionGate: false | "strict" | "policy"` (was boolean
+    `includeCompletion`). **"policy"** = `(completed IS true) OR ($item._boundFieldIds
+    ARRAY_NOT_INCLUDES <completedFieldId>)` — the discriminator is the module BINDING (executor
+    enriches `_boundFieldIds` from template fieldBindings), NEVER the stored value: a
+    bound-but-unchecked Completed reads as empty and must not count. **"strict"** = `IS true`
+    only, used where completion IS the measured fact (countTrue, completionRate's done-count).
+    sum/multiSum(requireCompleted)/net use "policy"; net loops now gate (transactions move
+    balances only once completed).
+  - **`supportsReplace`** (agg sum/net): emits a base-scan pass — the LATEST completed in-scope
+    item whose value field carries `flow:"replace"` seeds the accumulator + `$baseDate`; every
+    value loop then skips replace entries and only counts transactions `SAME_DAY`-or-`DATE_AFTER`
+    the base (start-of-day semantics: "as of this date the balance IS X").
+- **`utils/completionGate.js`** — same binding-based OR-form (was `IS true OR IS_EMPTY`, which
+  counted bound-but-unchecked items).
+- **`scripts/createLiveData.js`** — new **"Set Account Balance"** task in Financial Tasks
+  (Completed + accountRef + Amount; amount seeded `fv(null, "replace")`); Checking + Mom's balance
+  trackers pass `supportsReplace: true`.
+- Client half: `$item._boundFieldIds` enrichment + `ARRAY_NOT_INCLUDES` comparator + the loop
+  run-log cap (see client/src/helpers/CLAUDE.md). Tests: liveSystemBuilders 37, behavioral 23
+  (incl. a live replace-reset assertion). **Reseeded.**
 
 ## Recent Changes (2026-07-10 — PERIOD-ALL policy: trackers filter by selected day, else aggregate ALL)
 - **User direction:** "all of them should be active on filter. if the filter isnt set or the day
