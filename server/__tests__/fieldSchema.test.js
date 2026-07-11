@@ -76,9 +76,17 @@ describe("Field schema validation", () => {
     expect(f.displayEnabled).toBe(false);
   });
 
-  it("displayConfig.showArrows defaults to false", () => {
+  it("displayConfig is Mixed — preserves arbitrary keys (targetOp/startValue/columns)", () => {
+    // The old structured sub-schema silently STRIPPED unknown keys (targetOp,
+    // startValue, columns) — "Tasks Left" rendered green at 10/0 because its
+    // "<=" op was dropped. Mixed must round-trip whatever the client stores.
     const f = makeValid();
-    expect(f.displayConfig.showArrows).toBe(false);
+    f.displayConfig = { targetValue: 0, targetOp: "<=", startValue: 10, columns: [{ path: "a" }] };
+    const err = f.validateSync();
+    expect(err).toBeUndefined();
+    expect(f.displayConfig.targetOp).toBe("<=");
+    expect(f.displayConfig.startValue).toBe(10);
+    expect(f.displayConfig.columns).toEqual([{ path: "a" }]);
   });
 
   it("folderId defaults to null", () => {
