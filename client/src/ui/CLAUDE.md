@@ -2,6 +2,34 @@
 
 _Updated: 2026-07-11. Check this file before re-reading source._
 
+## Recent Changes (2026-07-11 LATE — doc DnD: ONE honest hover line + wrap affordance over nested sections)
+User: "3 separate hover lines … two white ones not working but the blue one does … can't drag to
+the right of anything". Diagnosed live (`_dnddiag.mjs`, still at repo root): during a doc drag FOUR
+indicators rendered — 2 near-white `prosemirror-dropcursor-block` lines (StarterKit's Dropcursor,
+one per PM editor instance; dead because handleDocDrop owns all drops), the working blue
+`.doc-insert-gap--drag`, and DragProvider's `.drop-indicator-inst-*` on embedded instance rows
+(also dead — DragProvider bails on `.doc-editor` drops). And `detectSideHost` (the wrap-beside
+affordance) ran only on the PAGE editor, whose `posAtCoords` returns pos 0 over content inside a
+NESTED section doc-container → no `.wrap-drop-line` ever showed there (drops still wrapped via
+delegation, invisibly). Fixes, all in `Editor.jsx` unless noted:
+- **StarterKit `dropcursor: false`** — kills both white lines in every editor.
+- **`index.css` `.doc-editor .drop-indicator { display:none }`** — kills the dead Pragmatic edge
+  lines inside docs.
+- **Delegate-only (nested doc-container) editors now attach `dragover`/`dragleave` too** — for
+  INDICATORS ONLY (still no Pragmatic target): they paint their own gap/wrap lines computed
+  against THEIR doc, where the wrapGroup actually lives.
+- **The page editor yields via the same `getDocTouchDropZone` lookup drops use** — pointer inside
+  a nested registered zone → it clears its own lines (closes the 2026-07-06 follow-up).
+- **wrap line and gap line are now mutually exclusive** — a detected side-drop wraps (drop path
+  prefers sideHost), so the boundary gap line hides while `.wrap-drop-line` shows, and vice versa.
+  Document-level dragend/drop listeners clear indicators on cancelled drags.
+Verified headless: exactly ONE line at mid-block/boundary/right-edge/left-edge, side flips L/R,
+6/6 wrap positions still form groups (`_wrap6mouse.mjs`). 1227/1227 tests.
+**NOT reproduced:** "copies when it should move" — handle-drags MOVE with correct detach in-doc,
+panel→doc (via delegation), and wrap→doc (`_copymove.mjs`). **Found instead:** doc-embed →
+panel-container drag-OUT silently no-ops (item stays in doc; ENTER/LEAVE fire on panel instances
+but no move executes) — root cause not yet traced, next session's first doc-DnD item.
+
 ## Recent Changes (2026-07-11 — image search everywhere + flow side-button on compact pills)
 - **`Field.jsx` (flow side-button, `f3755fde`)** — compact click-to-edit number/duration pills render
   the green/blue/red in/replace/out `FlowToggle` beside the pill when `field.meta.flowToggle === true`

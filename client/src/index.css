@@ -1562,6 +1562,12 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   pointer-events: none;
 }
 
+/* Inside a doc editor these edge indicators are DEAD — DragProvider bails on
+   any drop over .doc-editor (the editor's own handleDocDrop owns it), so an
+   embedded instance's Pragmatic edge line was a second, misleading hover line
+   next to the editor's real .doc-insert-gap--drag. One honest line only. */
+.doc-editor .drop-indicator { display: none; }
+
 .drop-indicator-top {
   top: -2px;
   left: 0;

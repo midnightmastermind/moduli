@@ -361,7 +361,11 @@ const Editor = forwardRef(function Editor({
   // ── TipTap editor ─────────────────────────────────────────────
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      // dropcursor OFF: PM's native drop cursor (a currentColor line per editor
+      // instance) drew 1-2 extra "dead" white lines during every doc drag — the
+      // custom handleDocDrop owns all drops, so the only honest indicators are
+      // our own .doc-insert-gap--drag / .wrap-drop-line (2026-07-11).
+      StarterKit.configure({ heading: { levels: [1, 2, 3] }, dropcursor: false }),
       Placeholder.configure({ placeholder }),
       Image.configure({ inline: false, allowBase64: true }),
       TaskList,
@@ -1431,15 +1435,28 @@ const Editor = forwardRef(function Editor({
       dragOverRaf = requestAnimationFrame(() => {
         dragOverRaf = 0;
         lastGapX = x; lastGapY = y;
-        const b = nearestDocBoundary(editor.view, editor.state.doc, el, y);
-        setDragGap((prev) => (b && prev && prev.pos === b.pos ? prev : b));
+        // Indicator delegation — same zone lookup handleDocDrop uses for the
+        // DROP: when the pointer is inside a nested doc-container's registered
+        // zone, THAT editor paints its own gap/wrap lines (it also listens to
+        // dragover now); this editor must not draw a second, misleading line
+        // at its own top-level boundary (the drop won't land there).
+        const innerEl = document.elementFromPoint(x, y)?.closest?.(".doc-editor");
+        if (innerEl && innerEl !== el && el.contains(innerEl)) {
+          const zone = getDocTouchDropZone(innerEl);
+          if (zone && zone.el !== el) { setDragGap(null); setWrapDrop(null); return; }
+        }
         const sh = detectSideHost({ clientX: x, clientY: y });
         if (sh && sh.anchorOffset != null) {
           const pm = el.querySelector(".ProseMirror");
           const proseTop = pm ? pm.getBoundingClientRect().top - el.getBoundingClientRect().top : 0;
           setWrapDrop({ top: Math.round(proseTop + sh.anchorOffset), side: sh.side });
+          // A side-drop WRAPS (handleDocDrop prefers sideHost over the boundary
+          // insert) — the boundary gap line would be a second, lying indicator.
+          setDragGap(null);
         } else {
           setWrapDrop(null);
+          const b = nearestDocBoundary(editor.view, editor.state.doc, el, y);
+          setDragGap((prev) => (b && prev && prev.pos === b.pos ? prev : b));
         }
       });
     };
@@ -1451,10 +1468,20 @@ const Editor = forwardRef(function Editor({
         setWrapDrop(null);
       }
     };
-    if (!delegateOnly) {
-      el.addEventListener("dragover", onDragOver);
-      el.addEventListener("dragleave", onDragLeaveNative);
-    }
+    // Delegate-only (nested doc-container) editors listen to dragover TOO — for
+    // INDICATORS only (they still register no Pragmatic target; the page editor
+    // hands them the actual drop). Without this, a drag over a nested section
+    // showed either the page editor's wrong top-level line or nothing at all —
+    // and the wrap-beside affordance (detectSideHost runs against THIS editor's
+    // doc, where the host actually lives) never appeared.
+    el.addEventListener("dragover", onDragOver);
+    el.addEventListener("dragleave", onDragLeaveNative);
+    // A drop clears indicators via handleDocDrop on the OWNING editor; the
+    // delegate-only editor's own lines are cleared by its zone fn running the
+    // same handler, plus the document-level dragend below (covers cancelled drags).
+    const onDragEndDoc = () => { setDragGap(null); setWrapDrop(null); };
+    document.addEventListener("dragend", onDragEndDoc);
+    document.addEventListener("drop", onDragEndDoc, true);
 
     // Named so BOTH the Pragmatic registration (desktop) and the touch drop
     // zone (registerDocTouchDrop below) share the exact same drop logic.
@@ -1812,6 +1839,8 @@ const Editor = forwardRef(function Editor({
       if (dragOverRaf) cancelAnimationFrame(dragOverRaf);
       el.removeEventListener("dragover", onDragOver);
       el.removeEventListener("dragleave", onDragLeaveNative);
+      document.removeEventListener("dragend", onDragEndDoc);
+      document.removeEventListener("drop", onDragEndDoc, true);
       cleanup?.();
       touchDropCleanup();
     };
