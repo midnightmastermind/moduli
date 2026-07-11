@@ -1,7 +1,11 @@
 // server/utils/completionGate.js
 // Enforces the policy: a SCHEDULE-BASED aggregation only counts an item when its
-// Completed field is true — and if an item has no Completed field, it always
-// counts. Implemented as a nested `(Completed IS true) OR (Completed IS_EMPTY)`
+// Completed field is true — and an item whose module never BINDS a Completed
+// field counts on scope membership alone. The discriminator is the BINDING
+// (`_boundFieldIds`, executor-enriched), not the stored value: a
+// bound-but-unchecked Completed reads as empty, and empty must mean NOT done
+// (2026-07-11). Implemented as a nested
+// `(Completed IS true) OR (_boundFieldIds ARRAY_NOT_INCLUDES completedFieldId)`
 // gate added to the schedule-scope IF of the curated "things you did" trackers
 // that don't already reference the Completed field.
 //
@@ -44,7 +48,7 @@ export function gateScheduleTrackers(ops, { completedFieldId, scheduleOccId }) {
           const loopVar = String(anc.left).split("._ancestors")[0] || "$item";
           rules.push({ id: uid(), operator: "OR", rules: [
             { id: uid(), left: `${loopVar}.fields.${completedFieldId}.value`, comparator: "IS", right: true },
-            { id: uid(), left: `${loopVar}.fields.${completedFieldId}.value`, comparator: "IS_EMPTY", right: "" },
+            { id: uid(), left: `${loopVar}._boundFieldIds`, comparator: "ARRAY_NOT_INCLUDES", right: completedFieldId },
           ] });
           s.condition.rules = rules;
           added++;

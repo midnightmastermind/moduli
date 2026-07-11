@@ -2583,6 +2583,21 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.amount.id, role: "input", order: 2 },
       ],
     },
+    setAccountBalance: {
+      // REPLACES the picked account's balance instead of adding/subtracting:
+      // its amount field is seeded with flow:"replace" (the occurrence-level
+      // default below), which the balance trackers honor as a reset — the
+      // latest completed in-Schedule "set" becomes the base, and only later
+      // transactions add on top (makeTrackerOp supportsReplace, 2026-07-11).
+      id: uid(), label: "Set Account Balance", kind: "board",
+      defaultDragMode: "copy",
+      styleMode: "own", ownStyle: { bg: "rgba(29,138,48,0.15)", textColor: "#4cba64" },
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        { fieldId: fields.accountRef.id, role: "input", order: 1 },
+        { fieldId: fields.amount.id, role: "input", order: 2 },
+      ],
+    },
 
     // === ENVIRONMENTAL ===
     cleanDesk: {
@@ -3863,7 +3878,7 @@ export async function createLiveData(userId, options = {}) {
     // (moved here from Todo List per user spec; Pay Bill drags into Schedule
     // via the upcoming Schedule Due: Seed op, Cancel Subscription targets
     // the Bills page's Subscriptions container via subscriptionRef).
-    financial:     { contOccId: financialContOccId,    contModKey: "financial",     instKeys: ["budgetReview", "trackExpense", "purchase", "logIncome", "investmentCheck", "savingsGoal", "payBills", "cancelSub"] },
+    financial:     { contOccId: financialContOccId,    contModKey: "financial",     instKeys: ["budgetReview", "trackExpense", "purchase", "logIncome", "investmentCheck", "savingsGoal", "setAccountBalance", "payBills", "cancelSub"] },
     environmental: { contOccId: environmentalContOccId,contModKey: "environmental", instKeys: ["cleanDesk", "declutter", "plantCare", "recycling", "ecoAction"] },
     creative:      { contOccId: creativeContOccId,     contModKey: "creative",      instKeys: ["sketch", "writeCreative", "playMusic", "photograph", "craftMake"] },
   };
@@ -3935,6 +3950,13 @@ export async function createLiveData(userId, options = {}) {
       };
       if (toolkitDefaultAmounts[instKey] !== undefined) {
         defaultFields[fields.amount.id] = fv(toolkitDefaultAmounts[instKey], "out");
+      }
+      // Set Account Balance: the amount is a REPLACE (balance reset), not an
+      // in/out delta. Seeded null so the toolkit source is inert until the
+      // user types a value; copies inherit the flow, and the UI's commit path
+      // preserves the stored flow on edits (FieldRenderer.handleCommit).
+      if (instKey === "setAccountBalance") {
+        defaultFields[fields.amount.id] = fv(null, "replace");
       }
       const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: defaultFields });
       childOccIds.push(childId);
@@ -6666,9 +6688,12 @@ export async function createLiveData(userId, options = {}) {
     // the balance CUMULATIVE (running total of ALL transactions). Activating the
     // date filter on the container narrows it to the picked day / span.
     agg: "net", timeFilter: "daily",
-    // Scope by accountRef instead of page — Todo List / Bills tasks
-    // pointing at Checking should affect this balance.
+    // accountRef narrows to items pointing at Checking; the Schedule scope
+    // ALSO applies (2026-07-11) — a transaction counts only once it's in
+    // the Schedule and completed. supportsReplace honors the "Set Account
+    // Balance" task's flow:"replace" amount as a balance reset.
     accountRefFieldId: accountRefFieldId, accountOccurrenceId: accountOccIds.bankAccount,
+    supportsReplace: true,
     // Account balance can swing positive OR negative — mirrors Net Worth
     // (in the goals docket). Negative reads red w/ ArrowDown ("in the
     // hole"), positive reads green w/ ArrowUp, zero/null blue (no
@@ -6686,9 +6711,11 @@ export async function createLiveData(userId, options = {}) {
     ...trackerArgs, name: "Mom's Account Balance",
     goalLabel: "Mom's Account", goalOccurrenceId: accountOccIds.momsAccount, goalFieldId: fields.momsAccountBalance.id,
     sourceFieldId: fields.amount.id, agg: "sum", timeFilter: "daily", // finance gate OFF by default (container opts out) → cumulative until activated
-    // Scope by accountRef — Todo List / Bills tasks tagged Mom's
-    // contribute regardless of which page they live on.
+    // accountRef narrows to items tagged Mom's; the Schedule scope ALSO
+    // applies (2026-07-11) — in-schedule + completed to count. supportsReplace
+    // honors "Set Account Balance" resets pointed at this account.
     accountRefFieldId: accountRefFieldId, accountOccurrenceId: accountOccIds.momsAccount,
+    supportsReplace: true,
     // Same negative/zero/positive pattern as the main Checking Account.
     displayRules: {
       "Mom's Account": [

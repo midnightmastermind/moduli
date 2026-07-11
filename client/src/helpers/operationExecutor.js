@@ -1239,6 +1239,11 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       meta: { ...(tpl?.meta || {}), ...(occ.meta || {}) },
       templateId: occ.moduleId ?? null,
       _ancestors: ancestorsFor(occ.id),
+      // Field ids the item's template binds — lets rules introspect "does this
+      // item even HAVE field X" (vs. "the value is empty"). The completion-gate
+      // policy reads it: an item that never bound Completed counts on scope
+      // membership alone, while a bound-but-unchecked one is excluded.
+      _boundFieldIds: (tpl?.fieldBindings || []).map(b => b?.fieldId).filter(Boolean),
       _effectiveFilter: effFilter,
     };
   });

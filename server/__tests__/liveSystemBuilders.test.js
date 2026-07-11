@@ -356,6 +356,92 @@ describe("makeTrackerOp", () => {
     expect(() => makeTrackerOp({ ...base, name: "X", goalLabel: "G", goalFieldId: "GF", agg: "net", timeFilter: "all" })).toThrow(/requires incomeFieldId/);
   });
 
+  // ── 2026-07-11 policy: complete AND in the schedule ──
+  function flat(stepsArr) {
+    const out = [];
+    for (const step of stepsArr || []) {
+      out.push(step);
+      if (step.body) out.push(...flat(step.body));
+      if (step.then) out.push(...flat(step.then));
+      if (step.else) out.push(...flat(step.else));
+    }
+    return out;
+  }
+  function loopRules(op) {
+    // every AND-condition rule list of an if directly inside a $allItems loop
+    return flat(op.pipeline.steps)
+      .filter(s => s.type === "loop" && s.overExpr === "$allItems")
+      .flatMap(l => (l.body || []).filter(b => b.type === "if").map(b => b.condition.rules));
+  }
+
+  it("accountRef trackers ALSO scope to the schedule page (toolkit items never count)", () => {
+    const op = makeTrackerOp({
+      ...base, name: "Tracker: Balance", goalLabel: "Bank", goalFieldId: "B",
+      incomeFieldId: "INC", spentFieldId: "SPN", agg: "net", timeFilter: "daily",
+      accountRefFieldId: "AR", accountOccurrenceId: "acct-1",
+    });
+    for (const rules of loopRules(op)) {
+      const s = JSON.stringify(rules);
+      expect(s).toContain("acct-1");                     // accountRef narrows…
+      expect(s).toContain("HAS_ANCESTOR");               // …AND schedule scope applies
+      expect(s).toContain("$scopePageId");
+    }
+  });
+
+  it("completion gate is the OR-form: completed IS true OR the module never BINDS Completed", () => {
+    const op = makeTrackerOp({ ...base, name: "Tracker: Water", goalLabel: "P", goalFieldId: "TW", sourceFieldId: "WF", agg: "sum", timeFilter: "daily" });
+    const gates = loopRules(op).flatMap(rules =>
+      rules.filter(r => r.operator === "OR" && JSON.stringify(r).includes("fields.CF.value")));
+    expect(gates.length).toBeGreaterThanOrEqual(1);
+    const s = JSON.stringify(gates[0]);
+    expect(s).toContain("\"comparator\":\"IS\"");
+    // Binding-based discriminator: a bound-but-unchecked Completed reads as
+    // empty and must NOT count, so the fallback checks _boundFieldIds, never
+    // the stored value.
+    expect(s).toContain("_boundFieldIds");
+    expect(s).toContain("\"comparator\":\"ARRAY_NOT_INCLUDES\"");
+    expect(s).not.toContain("IS_EMPTY");
+  });
+
+  it("countTrue stays STRICT: completed IS true only (no unbound fallback)", () => {
+    const op = makeTrackerOp({ ...base, name: "Tracker: Tasks", goalLabel: "P", goalFieldId: "TC", agg: "countTrue", timeFilter: "daily" });
+    for (const rules of loopRules(op)) {
+      const s = JSON.stringify(rules);
+      expect(s).toContain("fields.CF.value");
+      expect(s).not.toContain("_boundFieldIds");
+    }
+  });
+
+  it("net loops gate on completion (a transaction moves the balance only once completed)", () => {
+    const op = makeTrackerOp({
+      ...base, name: "Tracker: Net", goalLabel: "Bank", goalFieldId: "NB",
+      incomeFieldId: "INC", spentFieldId: "SPN", agg: "net", timeFilter: "daily",
+    });
+    for (const rules of loopRules(op)) {
+      expect(JSON.stringify(rules)).toContain("fields.CF.value");
+    }
+  });
+
+  it("supportsReplace: base scan reads flow:replace entries; value loops skip them + only count on/after the base date", () => {
+    const op = makeTrackerOp({
+      ...base, name: "Tracker: Balance", goalLabel: "Bank", goalFieldId: "B",
+      incomeFieldId: "INC", spentFieldId: "SPN", agg: "net", timeFilter: "daily",
+      accountRefFieldId: "AR", accountOccurrenceId: "acct-1", supportsReplace: true,
+    });
+    const s = JSON.stringify(op.pipeline);
+    expect(s).toContain("$baseDate");
+    expect(s).toContain("\"right\":\"replace\"");        // base scan: flow IS replace
+    expect(s).toContain("\"comparator\":\"IS_NOT\"");    // value loops: flow IS_NOT replace
+    expect(s).toContain("DATE_AFTER");
+    expect(s).toContain("SAME_DAY");                     // start-of-day semantic
+    // without the flag, none of the replace machinery is emitted
+    const plain = makeTrackerOp({
+      ...base, name: "Tracker: Balance", goalLabel: "Bank", goalFieldId: "B",
+      incomeFieldId: "INC", spentFieldId: "SPN", agg: "net", timeFilter: "daily",
+    });
+    expect(JSON.stringify(plain.pipeline)).not.toContain("$baseDate");
+  });
+
   it("completionRate: MULTIPLY_VAR uses expr:100 (not by:100), DIV_VAR uses by:\"$tot\"", () => {
     const op = makeTrackerOp({
       ...base,

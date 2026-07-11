@@ -352,7 +352,8 @@ export function evalRule(rule, $vars) {
       const arr = Array.isArray(leftVal) ? leftVal : [];
       return arr.some(a => String(a) === String(rightVal));
     }
-    case "NOT_HAS_ANCESTOR": {
+    case "NOT_HAS_ANCESTOR":
+    case "ARRAY_NOT_INCLUDES": {
       const arr = Array.isArray(leftVal) ? leftVal : [];
       return !arr.some(a => String(a) === String(rightVal));
     }

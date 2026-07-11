@@ -1928,12 +1928,12 @@ export function makeTrackerOp({
   goalOccurrenceId,
   sourceFieldId, sourceFieldIds, incomeFieldId, spentFieldId,
   agg, flow = "any", timeFilter = "daily", scopeLabel = "Schedule",
-  // When both are set, the loop predicate filters by
+  // When both are set, the loop predicate ALSO filters by
   // `$item.fields.<accountRefFieldId>.value IS <accountOccurrenceId>`
-  // INSTEAD of the page-scope HAS_ANCESTOR rule. Used by per-account
-  // balance trackers (Checking, Mom's, etc.) so a task carrying the
-  // accountRef counts regardless of which page it lives on (Schedule
-  // / Todo List / Bills are all valid sources).
+  // on top of the page-scope HAS_ANCESTOR rule. Used by per-account
+  // balance trackers (Checking, Mom's, etc.) — a task must carry the
+  // accountRef AND live under the scope page (2026-07-11: toolkit items
+  // must not move balances until dragged into the Schedule).
   accountRefFieldId,
   accountOccurrenceId,
   description,
@@ -1962,6 +1962,14 @@ export function makeTrackerOp({
   // roll up once the user completes it (2026-07-09 — matches the per-muscle
   // Volume trackers + Steps/Water/Protein; an uncompleted set is intent).
   requireCompleted,
+  // Honor `flow:"replace"` entries as balance RESETS (2026-07-11, agg "sum" /
+  // "net" only): the latest completed in-scope item whose value field carries
+  // flow:"replace" becomes the base — the accumulator starts from its value,
+  // and only non-replace transactions dated the SAME DAY OR LATER add on top
+  // (start-of-day semantic: "as of this date the balance IS X"). This is the
+  // old {value, flow:"in"|"out"|"replace"} attribute made real for balances —
+  // used by the seeded "Set Account Balance" task.
+  supportsReplace,
 }) {
   // ── Fail-fast argument guards ──
   // Task 13 calls this ~20× with varying agg types; silent-zero goals are hard
@@ -1978,7 +1986,7 @@ export function makeTrackerOp({
   // present AND completed IS true AND date SAME_DAY $goalDate AND HAS_ANCESTOR
   // scope page; Tasks counts where completed IS true AND date SAME_DAY
   // $goalDate AND HAS_ANCESTOR scope page.
-  function buildLoopRules({ srcField, includeCompletion, includePresence, flowField }) {
+  function buildLoopRules({ srcField, completionGate, includePresence, flowField, extraRules }) {
     const rules = [];
     // Presence: only meaningful for value-bearing aggregations on a real
     // source field (Water guards `IS_NOT_EMPTY` on the water field so empty
@@ -1986,8 +1994,20 @@ export function makeTrackerOp({
     if (includePresence && srcField) {
       rules.push({ id: uid(), left: `$item.fields.${srcField}.value`, comparator: "IS_NOT_EMPTY", right: "" });
     }
-    // Completion gate — Water + Tasks both require completed IS true.
-    if (includeCompletion && completedFieldId) {
+    // Completion gate (user policy 2026-07-11): an item counts when it's
+    // COMPLETE — and an item whose module never BINDS a Completed field counts
+    // on scope membership alone. The discriminator is the BINDING
+    // ($item._boundFieldIds), not the stored value: a bound-but-unchecked
+    // Completed reads as empty, and empty must mean NOT done, never "counts".
+    //   "policy" — the OR-form above (gates a different source field).
+    //   "strict" — completed IS true only (completion IS the measured fact:
+    //              countTrue / completionRate's done-count).
+    if (completionGate === "policy" && completedFieldId) {
+      rules.push({ id: uid(), operator: "OR", rules: [
+        { id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS", right: true },
+        { id: uid(), left: "$item._boundFieldIds", comparator: "ARRAY_NOT_INCLUDES", right: completedFieldId },
+      ] });
+    } else if (completionGate === "strict" && completedFieldId) {
       rules.push({ id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS", right: true });
     }
     // Date gate — DATE_IN_PERIOD lets a single rule cover day/week/month/year
@@ -2000,16 +2020,16 @@ export function makeTrackerOp({
     if (timeFilter !== "all") {
       rules.push({ id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" });
     }
-    // Scope — items must either be under the named scope page (default
-    // "Schedule") OR carry an explicit accountRef pointing at this
-    // tracker's account occurrence. accountRef wins when set: it lets
-    // tasks live anywhere (Todo List, Bills, Schedule) and still
-    // contribute to the right account balance.
+    // Scope — items must be under the named scope page (default "Schedule").
+    // ALWAYS applies (user policy 2026-07-11: "it needs to be complete and in
+    // the schedule for the trackers and goals to update from it" — a toolkit
+    // item must not move an account balance until it's dragged into the
+    // Schedule). accountRef, when set, is an ADDITIONAL condition narrowing
+    // to items that point at this tracker's account occurrence.
     if (accountRefFieldId && accountOccurrenceId) {
       rules.push({ id: uid(), left: `$item.fields.${accountRefFieldId}.value`, comparator: "IS", right: accountOccurrenceId });
-    } else {
-      rules.push({ id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$scopePageId" });
     }
+    rules.push({ id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: "$scopePageId" });
     // Feed copies never aggregate — a feed (occurrence.feed) mints copy-linked
     // mirrors marked meta.feedSourceId; counting them would double-count the
     // source when a feed sits inside an aggregation scope.
@@ -2027,13 +2047,64 @@ export function makeTrackerOp({
     if (presenceFieldId) {
       rules.push({ id: uid(), left: `$item.fields.${presenceFieldId}.value`, comparator: "IS_NOT_EMPTY", right: "" });
     }
+    if (extraRules && extraRules.length) rules.push(...extraRules);
     return rules;
   }
 
+  // ── flow:"replace" support (see supportsReplace param doc) ──
+  // Rules appended to every VALUE loop: skip replace entries themselves, and
+  // only count transactions dated on/after the base reset (no base → all).
+  function replaceGuardRules(valueField) {
+    if (!supportsReplace) return [];
+    return [
+      { id: uid(), left: `$item.fields.${valueField}.flow`, comparator: "IS_NOT", right: "replace" },
+      { id: uid(), operator: "OR", rules: [
+        { id: uid(), left: "$baseDate", comparator: "IS_EMPTY", right: "" },
+        { id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_AFTER", right: "$baseDate" },
+        { id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$baseDate" },
+      ] },
+    ];
+  }
+
+  // Base-scan steps: find the LATEST completed in-scope replace entry on
+  // `replField` → $baseDate + seed the accumulator with its value. Emitted
+  // BEFORE the value loops so their date guard reads a settled $baseDate.
+  function buildReplaceBaseSteps(replField) {
+    return [
+      { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$baseDate", value: "" } },
+      {
+        id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
+        body: [{
+          id: uid(), type: "if",
+          condition: {
+            operator: "AND",
+            rules: [
+              ...buildLoopRules({ srcField: replField, completionGate: "policy", includePresence: true }),
+              { id: uid(), left: `$item.fields.${replField}.flow`, comparator: "IS", right: "replace" },
+            ],
+          },
+          then: [{
+            id: uid(), type: "if",
+            condition: { operator: "OR", rules: [
+              { id: uid(), left: "$baseDate", comparator: "IS_EMPTY", right: "" },
+              { id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_AFTER", right: "$baseDate" },
+            ] },
+            then: [
+              { id: uid(), type: "action", config: { type: "SET_VAR", name: "$baseDate", expr: `$item.fields.${dateFieldId}.value` } },
+              { id: uid(), type: "action", config: { type: "SET_VAR", name: accVar, expr: `$item.fields.${replField}.value` } },
+            ],
+            else: [],
+          }],
+          else: [],
+        }],
+      },
+    ];
+  }
+
   // ── Accumulator body for a single loop, given the agg ──
-  // sum/count/countTrue include the completion gate (matches Water + Tasks).
-  // last/multiSum do not gate on completion (semantically a raw read / a
-  // multi-field roll-up).
+  // Value aggs (sum/multiSum/net) use completionGate:"policy"; count-of-completed
+  // aggs (countTrue / completionRate's done-count) use "strict"; raw reads
+  // (last / plain count / the total denominator) don't gate at all.
   // NOTE: The first param (e.g. "sum", "netIncome") is a human-readable label
   // for call-site self-documentation only. It is intentionally not consumed
   // inside the function body — do not wire it into step ids.
@@ -2041,9 +2112,10 @@ export function makeTrackerOp({
     const {
       srcField,
       accumulator,            // array of action configs run in the inner `if` then
-      includeCompletion,
+      completionGate,
       includePresence,
       flowField,
+      extraRules,
     } = opts;
     return {
       id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
@@ -2051,7 +2123,7 @@ export function makeTrackerOp({
         id: uid(), type: "if",
         condition: {
           operator: "AND",
-          rules: buildLoopRules({ srcField, includeCompletion, includePresence, flowField }),
+          rules: buildLoopRules({ srcField, completionGate, includePresence, flowField, extraRules }),
         },
         then: accumulator.map((cfg) => ({ id: uid(), type: "action", config: cfg })),
         else: [],
@@ -2065,18 +2137,20 @@ export function makeTrackerOp({
   function buildAggregationBody() {
     const steps = [];
     if (agg === "sum") {
+      if (supportsReplace) steps.push(...buildReplaceBaseSteps(sourceFieldId));
       steps.push(buildLoopFor("sum", {
         srcField: sourceFieldId,
-        includeCompletion: true,   // Water: sum where completed IS true
+        completionGate: "policy",  // Water: sum where completed (or no Completed binding)
         includePresence: true,
         flowField: sourceFieldId,
+        extraRules: replaceGuardRules(sourceFieldId),
         accumulator: [{ type: "ADD_TO_VAR", name: accVar, expr: `$item.fields.${sourceFieldId}.value` }],
       }));
     } else if (agg === "multiSum") {
       // One ADD_TO_VAR per source field. Raw roll-up by default; callers that
       // represent completion-based facts (Total Reps) pass requireCompleted.
       steps.push(buildLoopFor("multiSum", {
-        includeCompletion: requireCompleted === true,
+        completionGate: requireCompleted === true ? "policy" : false,
         includePresence: false,
         accumulator: (sourceFieldIds || []).map((fid) => ({
           type: "ADD_TO_VAR", name: accVar, expr: `$item.fields.${fid}.value`,
@@ -2085,14 +2159,15 @@ export function makeTrackerOp({
     } else if (agg === "count") {
       // Plain count — no completion gate (count of items in scope/date).
       steps.push(buildLoopFor("count", {
-        includeCompletion: false,
+        completionGate: false,
         includePresence: false,
         accumulator: [{ type: "INCREMENT_VAR", name: accVar, by: 1 }],
       }));
     } else if (agg === "countTrue") {
-      // Tasks: count(+1) where completed IS true.
+      // Tasks: count(+1) where completed IS true — STRICT: completion is the
+      // measured fact here, so an item without a Completed binding never counts.
       steps.push(buildLoopFor("countTrue", {
-        includeCompletion: true,
+        completionGate: "strict",
         includePresence: false,
         accumulator: [{ type: "INCREMENT_VAR", name: accVar, by: 1 }],
       }));
@@ -2100,7 +2175,7 @@ export function makeTrackerOp({
       // Raw read of the most-recent matching item's value (loop overwrites).
       steps.push(buildLoopFor("last", {
         srcField: sourceFieldId,
-        includeCompletion: false,
+        completionGate: false,
         includePresence: true,
         accumulator: [{ type: "SET_VAR", name: accVar, expr: `$item.fields.${sourceFieldId}.value` }],
       }));
@@ -2113,16 +2188,24 @@ export function makeTrackerOp({
       // Number("-$item…") = NaN → || 0, so the subtraction never happens.
       const spentAccVar = "$spentAcc";
       steps.push({ id: uid(), type: "action", config: { type: "INIT_VAR", name: spentAccVar, value: 0 } });
+      // The balance reset lives on the SPENT field (the seeded "Set Account
+      // Balance" task binds accountRef + amount) — base scan reads it, and
+      // both value loops guard against replace entries / pre-base dates.
+      if (supportsReplace) steps.push(...buildReplaceBaseSteps(spentFieldId));
+      // Both net loops gate on completion (2026-07-11): a transaction moves
+      // the balance only once it's completed (or carries no Completed field).
       steps.push(buildLoopFor("netIncome", {
         srcField: incomeFieldId,
-        includeCompletion: false,
+        completionGate: "policy",
         includePresence: true,
+        extraRules: replaceGuardRules(incomeFieldId),
         accumulator: [{ type: "ADD_TO_VAR", name: accVar, expr: `$item.fields.${incomeFieldId}.value` }],
       }));
       steps.push(buildLoopFor("netSpent", {
         srcField: spentFieldId,
-        includeCompletion: false,
+        completionGate: "policy",
         includePresence: true,
+        extraRules: replaceGuardRules(spentFieldId),
         accumulator: [{ type: "ADD_TO_VAR", name: spentAccVar, expr: `$item.fields.${spentFieldId}.value` }],
       }));
       // Negate spent accumulator then add to income accumulator.
@@ -2133,12 +2216,12 @@ export function makeTrackerOp({
       steps.push({ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$done", value: 0 } });
       steps.push({ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tot", value: 0 } });
       steps.push(buildLoopFor("crDone", {
-        includeCompletion: true,
+        completionGate: "strict", // done-count: completion IS the measured fact
         includePresence: false,
         accumulator: [{ type: "INCREMENT_VAR", name: "$done", by: 1 }],
       }));
       steps.push(buildLoopFor("crTot", {
-        includeCompletion: false,
+        completionGate: false,
         includePresence: false,
         accumulator: [{ type: "INCREMENT_VAR", name: "$tot", by: 1 }],
       }));
