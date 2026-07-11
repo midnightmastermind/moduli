@@ -9,7 +9,9 @@
 ## Handoff — 2026-07-11 LATE (queued tasks shipped: flow button, image search, doc-DnD lines, Tasks Left red)
 
 Reconstructed the cleared task queue from the other accounts' session logs and shipped 4 of 5
-items, all on master (NOT deployed; master is now ~7 commits ahead of origin):
+items, all on master (**DEPLOYED to prod 2026-07-11** by account3 at `6cfa64de` — origin current,
+viafluere.com serving the new build; prod's local seed-export churn stashed as
+`prod-local seed export churn (pre 6cfa64de deploy)`):
 - **`f3755fde` flow side-button** — finished account3's in-flight work: compact number/duration
   pills opt in via `field.meta.flowToggle` (FieldsTab checkbox; Amount seeded). E2E-verified: the
   popover click that ended the last session works; picking a flow persists `{value, flow}`.
@@ -46,7 +48,8 @@ shrinking). Long text × tall infobox now keeps wrapping at LARGE widths (the ol
 was width-inverted). The rendered guard measures TEXT RECTS in the neighbor band (the old
 prose-BOX check missed the fully blank column in the 2026-07-09 screenshots). Thresholds =
 `WRAP_SLIVER_*`/`WRAP_MIN_PROSE_W` constants — tune to taste. Queue is EMPTY; all 5 tasks shipped.
-Master ~10 commits ahead of origin, NOT deployed.
+**Deployed to prod 2026-07-11** (`6cfa64de`); probe scripts + screenshots are now gitignored
+(`/_*.mjs`, `screenshots/`) so `deploy.sh`'s `git add -A` can't sweep them.
 
 ---
 
