@@ -6,6 +6,38 @@
 
 ---
 
+## Handoff — 2026-07-11 EVE (deployed to prod; new-grid manifest + zombie-grid fixes; 3 tasks queued)
+
+Account3 session. **Everything through the queue is DEPLOYED** (`6cfa64de` code + docs, then
+`e20b92f3`): viafluere.com serves the new build, prod data reseeded TWICE (second time after the
+grid fixes), origin current. Probe scripts + screenshots are now gitignored (`/_*.mjs`,
+`screenshots/`) so `deploy.sh`'s `git add -A` can't sweep them.
+
+**User's "4 columns to start" + "adding panels didn't work on a new grid / No content" — both
+root-caused and shipped (`e20b92f3`):**
+- The 4-column grid was a **ZOMBIE duplicate Live Grid**: `update_grid` upserted, so a stale
+  connected tab's layoutTree write RESURRECTED the grid doc a reseed had just deleted (panel occs
+  already gone → 4-child tree over missing panels + the user's "Board 6" test panel). Upsert
+  removed; zombie + a dead skeleton swept from Atlas; fresh default grid verified pristine
+  (5 panels, 3-col mosaic [0.8,1,0.8], single copy).
+- New grids had **no user manifest** → the manifest tree, folder pages, and empty-cell panel-add
+  were silently dead. New `server/utils/userManifest.js` (ensureUserManifest, called in
+  request_full_state) + shared client `ensureRootFolderPageOcc` (importsFolder.js): the Toolbar
+  + button AND empty-cell tap now open new panels on the ROOT folder page. E2E-verified headless
+  (fresh grid → manifest present → both add paths → zero "No content" panels).
+- Missed-task audit of all account session logs: everything shipped except one open repro ask —
+  **"copies when it should move"** still needs a concrete repro from the user. The stale-chunk CC
+  crash is a non-issue on prod (index.html no-cache + immutable assets verified live).
+
+**Queued (user, this session — NOT started):** (a) **flow side-button restyle** — attach to the
+input like the randomizer 🎲 and tint the WHOLE input by flow (green=in/blue=replace/red=out);
+(b) **Alarms\Reminders tab in the Command Center** — Android-style alarm list; each alarm mints +
+stays bound to a time-based operation (op not editable outside that alarm's menu); seed a 5pm
+alarm that rings + notifies; (c) **Cash account** seeded + tracked in Accounts (balance tracker,
+gated, supportsReplace). 1235/1235 client + 237/237 server at handoff.
+
+---
+
 ## Handoff — 2026-07-11 LATE (queued tasks shipped: flow button, image search, doc-DnD lines, Tasks Left red)
 
 Reconstructed the cleared task queue from the other accounts' session logs and shipped 4 of 5
