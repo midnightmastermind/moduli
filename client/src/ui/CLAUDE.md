@@ -26,9 +26,9 @@ delegation, invisibly). Fixes, all in `Editor.jsx` unless noted:
 Verified headless: exactly ONE line at mid-block/boundary/right-edge/left-edge, side flips L/R,
 6/6 wrap positions still form groups (`_wrap6mouse.mjs`). 1227/1227 tests.
 **NOT reproduced:** "copies when it should move" — handle-drags MOVE with correct detach in-doc,
-panel→doc (via delegation), and wrap→doc (`_copymove.mjs`). **Found instead:** doc-embed →
-panel-container drag-OUT silently no-ops (item stays in doc; ENTER/LEAVE fire on panel instances
-but no move executes) — root cause not yet traced, next session's first doc-DnD item.
+panel→doc (via delegation), wrap→doc, AND doc→panel drag-OUT (page-level + nested embeds, both
+verified post-7904de41; the suspected drag-out no-op was a probe artifact — stale drop coords
+from an unscrolled target).
 
 ## Recent Changes (2026-07-11 — image search everywhere + flow side-button on compact pills)
 - **`Field.jsx` (flow side-button, `f3755fde`)** — compact click-to-edit number/duration pills render

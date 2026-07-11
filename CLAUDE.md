@@ -28,10 +28,9 @@ items, all on master (NOT deployed; master is now ~7 commits ahead of origin):
   lookup; wrap line and gap line are mutually exclusive. Verified: exactly ONE honest line at every
   position, L/R side flips, 6/6 wrap drops still form.
   **NOT reproduced:** "copies when it should move" — handle drags MOVE+detach correctly in-doc,
-  panel→doc, and wrap→doc (probes `_copymove.mjs`/`_bodydrag.mjs`). Need a concrete repro from the
-  user. **Found instead:** doc-embed → panel-container drag-OUT silently no-ops (item stays in the
-  doc; Pragmatic ENTER/LEAVE fire on panel instances but no move executes) — UNTRACED, first
-  doc-DnD item next session.
+  panel→doc, wrap→doc, AND doc→panel (both page-level and nested-container embeds; probes
+  `_copymove.mjs`/`_bodydrag.mjs`). The briefly-suspected drag-OUT no-op was a probe artifact
+  (stale drop coords). Need a concrete repro from the user if copies persist.
 - **`a5e2436a`+`7caec5a8` Tasks Left red until 0** (user directive this session) — root cause was
   SERVER-side: `Field.displayConfig` was a structured sub-schema that silently STRIPPED
   `targetOp`/`startValue`/`columns` on save, so the seeded `"<="` countdown op defaulted to ">="
@@ -39,12 +38,15 @@ items, all on master (NOT deployed; master is now ~7 commits ahead of origin):
 - 1231/1231 client + 237/237 server, build clean, **live grid reseeded** (probe writes swept, seed
   exports current). Probe scripts still at repo root (`_dnddiag/_copymove/_imagetile/_flowprobe…`).
 
-**REMAINING QUEUE: (1) wrap width thresholds** (user: wrap only works between two width points —
-stacks too late when shrinking AND wrongly stacks at bigger widths; should always wrap when bigger,
-stack only when the top band is blank or the split leaves a sliver; relates to the auto-stacked
-mode + all-or-nothing fill rule + empty-band guard, see 2026-07-09/10 wrap commits; the wrap6mouse
-probe shows 2 of 6 positions landing `wrap-group--on=false` = reproducible entry point).
-**(2)** the doc-embed drag-OUT no-op above.
+**Wrap width thresholds SHIPPED same session (`2ed6f734`)** — sliver policy replaces the
+all-or-nothing fill rule: new pure `decideWrapStack` in docs/wrapAnchor.js (8 tests). Stack only
+when the beside band is blank / under ~2 lines / under 35% of the neighbor height (45% to
+re-enter), or the prose column is under a readable 160px (was 60 — stacks much sooner when
+shrinking). Long text × tall infobox now keeps wrapping at LARGE widths (the old 100%-fill rule
+was width-inverted). The rendered guard measures TEXT RECTS in the neighbor band (the old
+prose-BOX check missed the fully blank column in the 2026-07-09 screenshots). Thresholds =
+`WRAP_SLIVER_*`/`WRAP_MIN_PROSE_W` constants — tune to taste. Queue is EMPTY; all 5 tasks shipped.
+Master ~10 commits ahead of origin, NOT deployed.
 
 ---
 
