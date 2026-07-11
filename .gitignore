@@ -9,3 +9,7 @@ notes_codex_annotated/
 
 # build output (built on deploy, not tracked)
 client/dist/
+
+# local headless probe scripts + user screenshots (kept local, never deployed)
+/_*.mjs
+screenshots/
