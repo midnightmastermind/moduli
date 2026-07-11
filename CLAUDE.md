@@ -6,6 +6,48 @@
 
 ---
 
+## Handoff — 2026-07-11 LATE (queued tasks shipped: flow button, image search, doc-DnD lines, Tasks Left red)
+
+Reconstructed the cleared task queue from the other accounts' session logs and shipped 4 of 5
+items, all on master (NOT deployed; master is now ~7 commits ahead of origin):
+- **`f3755fde` flow side-button** — finished account3's in-flight work: compact number/duration
+  pills opt in via `field.meta.flowToggle` (FieldsTab checkbox; Amount seeded). E2E-verified: the
+  popover click that ended the last session works; picking a flow persists `{value, flow}`.
+- **`bf616b90` image search everywhere** — audit found 2 gaps: NON-compact media-role fields were
+  a raw URL text box (now the same thumbnail + Set-image → ImagePicker as the compact pill), and
+  QuickAddMenu had no image path (new "Image" tile → ImagePicker search/upload/URL → new
+  `CommitHelpers.addImageArtifactFromUrl` mints a remote-ref `kind:"image"` artifact, no upload
+  round-trip; InsertGap threads `url` too). E2E-verified incl. reload persistence.
+- **`7904de41` doc-DnD hover lines** — user: "3 hover lines, 2 white dead + 1 blue works; can't
+  drag to the right of anything". Root causes: StarterKit's PM Dropcursor per editor instance
+  (white, dead — custom handler owns drops) → disabled; DragProvider's inst edge indicators inside
+  docs (dead — it bails on `.doc-editor`) → hidden via CSS; and detectSideHost only ran on the
+  PAGE editor, whose posAtCoords returns pos 0 over NESTED section-container content → the
+  wrap-beside affordance never showed there (drops wrapped via delegation, invisibly). Delegate-only
+  nested editors now paint their own indicator lines; the page editor yields via the same zone
+  lookup; wrap line and gap line are mutually exclusive. Verified: exactly ONE honest line at every
+  position, L/R side flips, 6/6 wrap drops still form.
+  **NOT reproduced:** "copies when it should move" — handle drags MOVE+detach correctly in-doc,
+  panel→doc, and wrap→doc (probes `_copymove.mjs`/`_bodydrag.mjs`). Need a concrete repro from the
+  user. **Found instead:** doc-embed → panel-container drag-OUT silently no-ops (item stays in the
+  doc; Pragmatic ENTER/LEAVE fire on panel instances but no move executes) — UNTRACED, first
+  doc-DnD item next session.
+- **`a5e2436a`+`7caec5a8` Tasks Left red until 0** (user directive this session) — root cause was
+  SERVER-side: `Field.displayConfig` was a structured sub-schema that silently STRIPPED
+  `targetOp`/`startValue`/`columns` on save, so the seeded `"<="` countdown op defaulted to ">="
+  and 10/0 read as met (green). displayConfig is now Mixed. Verified live: red at 10/0.
+- 1231/1231 client + 237/237 server, build clean, **live grid reseeded** (probe writes swept, seed
+  exports current). Probe scripts still at repo root (`_dnddiag/_copymove/_imagetile/_flowprobe…`).
+
+**REMAINING QUEUE: (1) wrap width thresholds** (user: wrap only works between two width points —
+stacks too late when shrinking AND wrongly stacks at bigger widths; should always wrap when bigger,
+stack only when the top band is blank or the split leaves a sliver; relates to the auto-stacked
+mode + all-or-nothing fill rule + empty-band guard, see 2026-07-09/10 wrap commits; the wrap6mouse
+probe shows 2 of 6 positions landing `wrap-group--on=false` = reproducible entry point).
+**(2)** the doc-embed drag-OUT no-op above.
+
+---
+
 ## Handoff — 2026-07-11 (tracker gating + Set Account Balance shipped; executor log-cap OOM/perf fix)
 
 Finished account2's in-flight work on the 2026-07-11 directives (`e9778bc9` + `9c3e19b5`, master).

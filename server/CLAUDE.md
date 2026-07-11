@@ -2,6 +2,16 @@
 
 _Updated: 2026-07-11. Check this file before re-reading source._
 
+## Recent Changes (2026-07-11 LATE — Field.displayConfig → Mixed; the schema was eating targetOp)
+- **`models/Field.js`** — `displayConfig` was a STRUCTURED sub-schema enumerating only
+  showArrows/arrowColor/targetValue/targetPeriod; Mongoose strict mode silently stripped every
+  other key on save: `targetOp` ("<=" countdown met-semantics), `startValue` (0% progress anchor),
+  and `columns` (array-display tables). User-visible bug: **"Tasks Left" rendered GREEN at 10/0**
+  — the seeded `targetOp:"<="` was dropped, the client defaulted to ">=", 10>=0 read as met.
+  Now `Mixed` (like `meta`); the client owns the shape (ui/Field.jsx displayConfigTarget).
+  Verified live post-reseed: red at 10/0, green at 0. Reseed applied; schema test updated to
+  assert the round-trip. (`a5e2436a` + `7caec5a8`)
+
 ## Recent Changes (2026-07-11 — gating: complete AND in-Schedule; Set Account Balance flow:replace)
 - **`utils/liveSystemBuilders.js` (`makeTrackerOp`)** — user policy 2026-07-11:
   - The schedule `HAS_ANCESTOR $scopePageId` rule ALWAYS applies; `accountRefFieldId`+
