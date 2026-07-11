@@ -36,3 +36,33 @@ export function classifyWrapShape({ anchorIndex, anchorOffset, neighborBottom, h
   if (!hasMidAnchor({ anchorIndex, anchorOffset })) return "top";
   return hostBottom - neighborBottom < threshold ? "bottom" : "middle";
 }
+
+// ── Wrap-vs-stack decision (user policy 2026-07-11) ──────────────────────────
+// "Stack ONLY when the beside band is blank or holds just a small amount of
+// text; bigger widths must keep wrapping." Replaces the 2026-07-10
+// all-or-nothing fill rule (predicted prose height >= 100% of the neighbor),
+// which made WIDER panels stack (widening shrinks predicted height, so the
+// same text that wrapped at medium width flipped to stacked at large width)
+// and let SHRINKING panels stay wrapped down to an unreadable 60px column.
+export const WRAP_MIN_PROSE_W = 160;    // px — a prose column thinner than this is shredded words → stack
+export const WRAP_SLIVER_WRAP = 0.45;   // stacked → wrap when predicted beside-prose ≥ neighborH × this
+export const WRAP_SLIVER_KEEP = 0.35;   // wrapped → stack once it drops below neighborH × this
+export const WRAP_MIN_BESIDE_H = 44;    // px — under ~2 text lines beside the neighbor always reads broken
+export const WRAP_SHORT_NEIGHBOR_H = 280; // px — a neighbor shorter than ~a paragraph can never leave the
+                                          // tall empty band the sliver rule exists for → always wrap
+                                          // (only the narrow-column floor still stacks it)
+
+// Pure decision: should the group STACK (true) instead of wrapping?
+//   textArea  — summed area of the host's text line boxes (layout-invariant)
+//   besideW   — prose column width beside the floated neighbor
+//   neighborH — the neighbor union box height
+//   prevStacked — current mode, for hysteresis (entry threshold > exit threshold)
+export function decideWrapStack({ textArea, besideW, neighborH, prevStacked = false }) {
+  if (!textArea) return true;                      // blank host — nothing to wrap
+  if (besideW < WRAP_MIN_PROSE_W) return true;     // no readable prose column at this width
+  if (neighborH <= WRAP_SHORT_NEIGHBOR_H) return false; // short neighbor: magazine float, always fine
+  const predicted = textArea / besideW;            // prose height if laid out in the beside column
+  if (predicted < WRAP_MIN_BESIDE_H) return true;  // under ~2 lines beside the neighbor
+  const frac = prevStacked ? WRAP_SLIVER_WRAP : WRAP_SLIVER_KEEP;
+  return predicted < neighborH * frac;             // only a sliver of the band would hold text
+}

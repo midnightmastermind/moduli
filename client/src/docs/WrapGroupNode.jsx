@@ -12,7 +12,7 @@
 // wraps content AFTER it, so the neighbor must precede the host in source order.
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import { useRef, useEffect, useCallback, useState } from "react";
-import { hasMidAnchor, classifyWrapShape } from "./wrapAnchor";
+import { hasMidAnchor, classifyWrapShape, decideWrapStack, WRAP_SLIVER_KEEP, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H } from "./wrapAnchor";
 
 const DEFAULT_NW = 300;   // px — default neighbor column width when unset
 const MIN_NW = 120;       // px — splitter clamp floor
@@ -29,26 +29,14 @@ const BOTTOM_GAP = 14;    // px — gap below the neighbor before the full-width
                           // line + its ::after notch-bottom line) extends this far past the
                           // neighbor so the bottom-bar's TOP border sits BELOW the image with
                           // margin above it, instead of flush against the image.
-const MIN_PROSE_W = 60;   // px — floor: a beside column thinner than this is unreadable, so we
-                          // always stack regardless of fill (a 20px-wide text column is useless).
-// ALL-OR-NOTHING wrap (user 2026-07-09 — "all or nothing like nerf"): stay wrapped ONLY when the
-// prose is tall enough to fill the FULL height beside the neighbor; a partially-filled or empty
-// beside band stacks instead. Fill is judged by predicting the prose's height at the beside width
-// (textArea / besideW) against the neighbor height, with hysteresis to avoid flicker at the edge.
-const FILL_WRAP = 1.0;    // stacked → re-wrap only when predicted prose height ≥ neighborH × this.
-const FILL_KEEP = 0.9;    // wrapped → unwrap once predicted prose height drops below neighborH × this.
-// SHORT-NEIGHBOR EXEMPTION (user 2026-07-11 — the seeded logo⇄description wrap must wrap at ANY
-// panel width): a neighbor shorter than ~a paragraph can never produce the "half text / empty
-// text" band the all-or-nothing rule exists for — the band is at most the neighbor's own height,
-// which reads as a normal magazine float. Short neighbors skip the fill prediction AND the
-// empty-band guard; only MIN_PROSE_W (no room for a prose column at all) still stacks them.
-const SHORT_NEIGHBOR_H = 280; // px
-// Direct empty-band guard: while WRAPPED, if the host prose actually ends this many px ABOVE the
-// neighbor's bottom, there's a visible empty band beside the lower neighbor (the "half text / empty
-// text" the prediction misses when the neighbor — e.g. a Wikipedia infobox — lays out TALLER than a
-// stale measure predicted). Stack instead. Measures the rendered symptom, so it can only ADD a
-// stack; a genuinely-filling wrap has the prose reaching PAST the neighbor (negative band) → no fire.
-const EMPTY_BAND_TOL = 24; // px (~one text line)
+// Wrap-vs-stack policy (user 2026-07-11): "stack ONLY when the beside band is blank or holds just
+// a small amount of text; bigger widths must keep wrapping." The decision lives in the PURE
+// `decideWrapStack` (docs/wrapAnchor.js — unit-tested): stack when the prose column is under
+// WRAP_MIN_PROSE_W (160px, readable floor — stacks much sooner when shrinking than the old 60px),
+// when the host is blank, or when the predicted beside-prose is a SLIVER of the neighbor height
+// (< 35% while wrapped / 45% to re-wrap — replaces the 2026-07-10 all-or-nothing 100% fill, which
+// made WIDER panels stack because widening shrinks the predicted height). Short neighbors
+// (≤ WRAP_SHORT_NEIGHBOR_H) always wrap — a magazine float can't leave a tall empty band.
 
 // Layout-invariant text quantity: the summed area of the host's rendered text line-boxes. Each
 // client rect is a tight glyph run, so the total is the same whether the prose is wrapping beside
@@ -142,30 +130,42 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     });
     if (!isFinite(left) || right <= left) { setSeam(null); return; }
 
-    // ALL-OR-NOTHING auto-unwrap: wrap only when the prose FILLS the neighbor's full
-    // height beside it. predictedProseH = textArea / besideW is the prose's height if
-    // laid out in the beside column; it "fills" when that ≥ the neighbor height. Both
-    // inputs are layout-invariant, so widening the panel re-wraps (no self-lock).
+    // Sliver-based auto-unwrap (see policy comment at the constants above): the PURE
+    // decideWrapStack judges the prediction textArea / besideW — layout-invariant, so
+    // widening the panel keeps wrapping (no self-lock, no wide-stacks-more paradox).
     const neighborW = right - left;
     const neighborH = bottom - top;
     const hostProse = els[els.length - 1].querySelector(".ProseMirror");
     const textArea = proseTextArea(hostProse);
     const besideW = wrapEl.clientWidth - neighborW - FLOAT_GAP;
-    const predictedProseH = besideW > 0 ? textArea / besideW : 0;
     const prevUnwrap = autoUnwrapRef.current;
-    const shortNeighbor = neighborH <= SHORT_NEIGHBOR_H;
-    const fills = besideW >= MIN_PROSE_W &&
-      (shortNeighbor || predictedProseH >= neighborH * (prevUnwrap ? FILL_WRAP : FILL_KEEP));
-    let nextUnwrap = textArea === 0 || !fills;
-    // Direct empty-band guard (only meaningful while already WRAPPED): the prediction can say
-    // "fills" yet the rendered prose ends above the neighbor bottom when the neighbor grew after a
-    // stale measure. Read the ACTUAL host prose bottom vs the neighbor union bottom; a real empty
-    // band below the prose forces a stack. Skipped when stacking already (prevUnwrap) so the
-    // stacked→wrap direction stays prediction-driven (no chicken-and-egg / flicker), and for
-    // short neighbors (their band is bounded by their own height — see SHORT_NEIGHBOR_H).
+    const shortNeighbor = neighborH <= WRAP_SHORT_NEIGHBOR_H;
+    let nextUnwrap = decideWrapStack({ textArea, besideW, neighborH, prevStacked: prevUnwrap });
+    // Rendered blank-band guard (only while already WRAPPED): the prediction can pass while the
+    // RENDERED beside band is blank or a sliver — e.g. the beside column is too narrow for the
+    // prose's long words, so every line drops BELOW the float and an empty column renders beside
+    // the neighbor (the 2026-07-09 screenshots). Measure the TEXT actually inside the band
+    // [top..bottom]: how far down the band the host's line boxes reach. NOT the prose box bottom —
+    // when wrapped, the prose element always extends past the neighbor, which is why the old
+    // prose-box check missed the blank column. Skipped while stacked (stacked→wrap stays
+    // prediction-driven, no flicker) and for short neighbors.
     if (!nextUnwrap && !prevUnwrap && !shortNeighbor && hostProse) {
-      const hostRect = hostProse.getBoundingClientRect();
-      if (hostRect.height > 0 && bottom - hostRect.bottom > EMPTY_BAND_TOL) nextUnwrap = true;
+      let bandBottomReach = top; // furthest text bottom inside the band
+      const range = document.createRange();
+      const walk = document.createTreeWalker(hostProse, NodeFilter.SHOW_TEXT);
+      let tn;
+      while ((tn = walk.nextNode())) {
+        if (!tn.nodeValue || !tn.nodeValue.trim()) continue;
+        range.selectNodeContents(tn);
+        const rects = range.getClientRects();
+        for (let i = 0; i < rects.length; i++) {
+          if (rects[i].top < bottom && rects[i].bottom > bandBottomReach) {
+            bandBottomReach = Math.min(rects[i].bottom, bottom);
+          }
+        }
+      }
+      const filledBandH = Math.max(0, bandBottomReach - top);
+      if (filledBandH < Math.max(WRAP_MIN_BESIDE_H, neighborH * WRAP_SLIVER_KEEP)) nextUnwrap = true;
     }
     if (nextUnwrap !== prevUnwrap) { autoUnwrapRef.current = nextUnwrap; setAutoUnwrap(nextUnwrap); }
     // Stacked layout needs no seam / notch measurement — bail early.

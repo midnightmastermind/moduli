@@ -2,6 +2,33 @@
 
 _Updated: 2026-07-11. Check this file before re-reading source._
 
+## Recent Changes (2026-07-11 LATE — wrap: SLIVER policy replaces all-or-nothing fill (pure decideWrapStack))
+User: "wrap only works between two width points — stacks too late when shrinking AND wrongly
+stacks at bigger widths; stack ONLY when the top band is blank or holds just a small amount of
+text; bigger should always wrap." Measured root cause: the 2026-07-10 fill rule
+(`textArea/besideW ≥ neighborH × 1.0`) is width-inverted — widening the panel SHRINKS the
+predicted beside-prose height, so the same text that wrapped at medium width flipped to stacked
+at large width; and the 60px `MIN_PROSE_W` floor kept shredded ~84px columns wrapped when
+shrinking (the 2026-07-09 21:56 screenshots show both: a hyphen-shredded narrow column, and a
+completely BLANK beside band the old prose-box guard missed because the prose element extends
+below the neighbor).
+- **`wrapAnchor.js`** — new PURE `decideWrapStack({textArea, besideW, neighborH, prevStacked})`
+  (8 unit tests): stack when blank, when `besideW < WRAP_MIN_PROSE_W` (160 — was 60, stacks much
+  sooner when shrinking), when under `WRAP_MIN_BESIDE_H` (44px ≈ 2 lines) beside the neighbor, or
+  when the predicted beside-prose is a SLIVER of the neighbor height (< 35% wrapped / 45% to
+  re-enter — hysteresis). Short neighbors (≤280) still always wrap. Long text × tall infobox now
+  KEEPS wrapping at large widths (65% fill wraps; the old rule demanded 100%).
+- **`WrapGroupNode.jsx`** — `measure` consumes `decideWrapStack`; the empty-band guard is
+  rewritten to measure TEXT RECTS inside the [neighbor top..bottom] band (not the prose BOX
+  bottom) so the rendered blank-column case actually stacks; fires only while wrapped, skipped
+  for short neighbors. Old FILL_WRAP/FILL_KEEP/EMPTY_BAND_TOL/MIN_PROSE_W/SHORT_NEIGHBOR_H
+  constants moved/renamed into wrapAnchor (WRAP_*).
+- Verified: width sweep (`_wrapsweep.mjs`, now 2-phase incl. a forced-620px tall neighbor) —
+  seeded logo wrap ON at besideW 322/226, stacks at 149/84 (was wrapped down to 84); tall+small-
+  text stacked everywhere (correct sliver). `_wrap6mouse` 6/6 drops still form/re-morph groups.
+  1235/1235 client tests. Thresholds are single constants (WRAP_SLIVER_* / WRAP_MIN_PROSE_W) —
+  tune there if the user wants different feel.
+
 ## Recent Changes (2026-07-11 — wrap: SHORT-NEIGHBOR exemption (restores the seeded logo⇄description wrap))
 - **`WrapGroupNode.jsx`** — the all-or-nothing fill rule had the seeded Viafluere logo⇄description
   group stacked at every normal panel width (measured: fill 0.63 at wrapW 562 — the description
