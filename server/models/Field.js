@@ -36,16 +36,14 @@ const FieldSchema = new mongoose.Schema(
     // Display config: visual settings for display fields. The progress bar +
     // value/target string in Field.jsx fall back to these when an op doesn't
     // publish a target via UPDATE_DISPLAY_VALUE.
-    displayConfig: {
-      // Show up/down arrows when value changes (green = up, red = down)
-      showArrows: { type: Boolean, default: false },
-      // Hardcoded arrow color instead of auto (optional)
-      arrowColor: { type: String, enum: ["green", "red", "auto", null], default: null },
-      // Numeric goal value rendered as the progress bar's max
-      targetValue: { type: Number, default: null },
-      // Period the target applies to — used to scale e.g. weekly→daily views
-      targetPeriod: { type: String, enum: ["daily", "weekly", "monthly", "yearly", null], default: "daily" },
-    },
+    // Display configuration — Mixed on purpose. The old structured sub-schema
+    // silently STRIPPED every key it didn't enumerate: `targetOp` ("<=" flips
+    // countdown fields' met-semantics — Tasks Left rendered green at 10/0
+    // because the op was dropped and defaulted to ">="), `startValue` (the 0%%
+    // progress anchor for countdowns), and `columns` (array-display tables).
+    // Known keys: showArrows, arrowColor, targetValue, targetPeriod, targetOp,
+    // startValue, columns[]. The client owns the shape (ui/Field.jsx).
+    displayConfig: { type: mongoose.Schema.Types.Mixed, default: {} },
 
     // Category folder — references a Folder with folderType "category"
     folderId: { type: String, default: null },
