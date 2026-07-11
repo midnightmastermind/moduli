@@ -4020,6 +4020,16 @@ export async function createLiveData(userId, options = {}) {
   // ── Goal containers ────────────────────────────────────────────────────────
   // Goal containers do NOT get filterOverride: {} — date cascade from the
   // Goals page is intentional (matches createTestGrid physGoalContOccId convention).
+  //
+  // EXCEPTION — FINANCE (user 2026-07-10): the finance trackers KEEP their date
+  // gate (timeFilter:"daily" + period-all's "empty period → do-all"), but their
+  // containers opt OUT of the date cascade by DEFAULT (filterOverride:{}), so
+  // $goalPeriod resolves EMPTY → the balances/finance totals are CUMULATIVE by
+  // default. The gate still exists: activating the date filter on the container
+  // (HeaderChevron → FiltersSection) narrows it to the picked day / span. This is
+  // the "gate present but disabled by default" the user asked for — NOT the blunt
+  // timeFilter:"all" (which removed the gate entirely).
+  const DATE_FILTER_OFF_BY_DEFAULT = new Set(["financialGoal", "financeAccount"]);
   const goalMappings = {
     physicalGoal:      { contOccId: physicalGoalContOccId,      contModKey: "physicalGoal",      instKeys: ["physicalCompleted", "physicalWater", "physicalSteps", "physicalStreak", "physicalNow"] },
     intellectualGoal:  { contOccId: intellectualGoalContOccId,  contModKey: "intellectualGoal",  instKeys: ["intellectualPagesRead", "intellectualReadingTime", "intellectualPomodoros", "intellectualCourses"] },
@@ -4057,7 +4067,8 @@ export async function createLiveData(userId, options = {}) {
       const childId = await mkOcc({ id: goalOccIds[instKey], moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: {} });
       childOccIds.push(childId);
     }
-    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds });
+    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds,
+      ...(DATE_FILTER_OFF_BY_DEFAULT.has(contModKey) ? { filterOverride: {} } : {}) });
     goalContOccIds[contModKey] = contOccId;
   }
 
@@ -4081,7 +4092,8 @@ export async function createLiveData(userId, options = {}) {
       const childId = await mkOcc({ id: accountOccIds[instKey], moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: {} });
       childOccIds.push(childId);
     }
-    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds });
+    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds,
+      ...(DATE_FILTER_OFF_BY_DEFAULT.has(contModKey) ? { filterOverride: {} } : {}) });
     accountContOccIds[contModKey] = contOccId;
   }
 
@@ -6387,7 +6399,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Spent",
     goalLabel: "Spent", goalOccurrenceId: goalOccIds.financialSpent, goalFieldId: fields.totalSpent.id,
-    sourceFieldId: fields.amount.id, agg: "sum", flow: "out", timeFilter: "all", // finances = cumulative, no filter
+    sourceFieldId: fields.amount.id, agg: "sum", flow: "out", timeFilter: "daily", // finance gate OFF by default (container opts out)
     // Money OUT — "negative connotation" per user spec: any positive
     // amount spent reads red regardless of sign. 0/null is blue.
     displayRules: {
@@ -6401,7 +6413,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Earned",
     goalLabel: "Income", goalOccurrenceId: goalOccIds.financialIncome, goalFieldId: fields.totalIncome.id,
-    sourceFieldId: fields.income.id, agg: "sum", flow: "in", timeFilter: "all", // finances = cumulative, no filter
+    sourceFieldId: fields.income.id, agg: "sum", flow: "in", timeFilter: "daily", // finance gate OFF by default (container opts out)
     // Money IN — positive complement to Spent. null/zero blue (no
     // income, no signal), positive green with ArrowUp ("money flowing
     // in is good"). Mirrors Spent's structure (red + ArrowDown) so the two
@@ -6648,12 +6660,12 @@ export async function createLiveData(userId, options = {}) {
     ...trackerArgs, name: "Checking Balance",
     goalLabel: "Checking Account", goalOccurrenceId: accountOccIds.bankAccount, goalFieldId: fields.checkingBalance.id,
     incomeFieldId: fields.income.id, spentFieldId: fields.amount.id,
-    // FINANCE = cumulative, NEVER date-filtered (user 2026-07-10: "make finances in
-    // general not have a filter set"). An account balance is a running total of ALL
-    // transactions; date-gating it to the selected day showed only that day's net and
-    // the balance stopped tracking dragged expenses. timeFilter:"all" → no $goalPeriod
-    // gate → the period-all policy also skips it.
-    agg: "net", timeFilter: "all",
+    // FINANCE keeps the date gate but it's OFF by default: the financeAccount
+    // container opts out of the date cascade (DATE_FILTER_OFF_BY_DEFAULT), so
+    // $goalPeriod resolves empty → the period-all policy's "empty → do-all" makes
+    // the balance CUMULATIVE (running total of ALL transactions). Activating the
+    // date filter on the container narrows it to the picked day / span.
+    agg: "net", timeFilter: "daily",
     // Scope by accountRef instead of page — Todo List / Bills tasks
     // pointing at Checking should affect this balance.
     accountRefFieldId: accountRefFieldId, accountOccurrenceId: accountOccIds.bankAccount,
@@ -6673,7 +6685,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Mom's Account Balance",
     goalLabel: "Mom's Account", goalOccurrenceId: accountOccIds.momsAccount, goalFieldId: fields.momsAccountBalance.id,
-    sourceFieldId: fields.amount.id, agg: "sum", timeFilter: "all", // finances = cumulative, no filter
+    sourceFieldId: fields.amount.id, agg: "sum", timeFilter: "daily", // finance gate OFF by default (container opts out) → cumulative until activated
     // Scope by accountRef — Todo List / Bills tasks tagged Mom's
     // contribute regardless of which page they live on.
     accountRefFieldId: accountRefFieldId, accountOccurrenceId: accountOccIds.momsAccount,
