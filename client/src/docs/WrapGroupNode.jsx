@@ -37,6 +37,12 @@ const MIN_PROSE_W = 60;   // px — floor: a beside column thinner than this is 
 // (textArea / besideW) against the neighbor height, with hysteresis to avoid flicker at the edge.
 const FILL_WRAP = 1.0;    // stacked → re-wrap only when predicted prose height ≥ neighborH × this.
 const FILL_KEEP = 0.9;    // wrapped → unwrap once predicted prose height drops below neighborH × this.
+// SHORT-NEIGHBOR EXEMPTION (user 2026-07-11 — the seeded logo⇄description wrap must wrap at ANY
+// panel width): a neighbor shorter than ~a paragraph can never produce the "half text / empty
+// text" band the all-or-nothing rule exists for — the band is at most the neighbor's own height,
+// which reads as a normal magazine float. Short neighbors skip the fill prediction AND the
+// empty-band guard; only MIN_PROSE_W (no room for a prose column at all) still stacks them.
+const SHORT_NEIGHBOR_H = 280; // px
 // Direct empty-band guard: while WRAPPED, if the host prose actually ends this many px ABOVE the
 // neighbor's bottom, there's a visible empty band beside the lower neighbor (the "half text / empty
 // text" the prediction misses when the neighbor — e.g. a Wikipedia infobox — lays out TALLER than a
@@ -147,15 +153,17 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     const besideW = wrapEl.clientWidth - neighborW - FLOAT_GAP;
     const predictedProseH = besideW > 0 ? textArea / besideW : 0;
     const prevUnwrap = autoUnwrapRef.current;
+    const shortNeighbor = neighborH <= SHORT_NEIGHBOR_H;
     const fills = besideW >= MIN_PROSE_W &&
-      predictedProseH >= neighborH * (prevUnwrap ? FILL_WRAP : FILL_KEEP);
+      (shortNeighbor || predictedProseH >= neighborH * (prevUnwrap ? FILL_WRAP : FILL_KEEP));
     let nextUnwrap = textArea === 0 || !fills;
     // Direct empty-band guard (only meaningful while already WRAPPED): the prediction can say
     // "fills" yet the rendered prose ends above the neighbor bottom when the neighbor grew after a
     // stale measure. Read the ACTUAL host prose bottom vs the neighbor union bottom; a real empty
     // band below the prose forces a stack. Skipped when stacking already (prevUnwrap) so the
-    // stacked→wrap direction stays prediction-driven (no chicken-and-egg / flicker).
-    if (!nextUnwrap && !prevUnwrap && hostProse) {
+    // stacked→wrap direction stays prediction-driven (no chicken-and-egg / flicker), and for
+    // short neighbors (their band is bounded by their own height — see SHORT_NEIGHBOR_H).
+    if (!nextUnwrap && !prevUnwrap && !shortNeighbor && hostProse) {
       const hostRect = hostProse.getBoundingClientRect();
       if (hostRect.height > 0 && bottom - hostRect.bottom > EMPTY_BAND_TOL) nextUnwrap = true;
     }

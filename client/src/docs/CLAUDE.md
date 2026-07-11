@@ -1,6 +1,20 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-07-06. Check this file before re-reading source._
+_Updated: 2026-07-11. Check this file before re-reading source._
+
+## Recent Changes (2026-07-11 — wrap: SHORT-NEIGHBOR exemption (restores the seeded logo⇄description wrap))
+- **`WrapGroupNode.jsx`** — the all-or-nothing fill rule had the seeded Viafluere logo⇄description
+  group stacked at every normal panel width (measured: fill 0.63 at wrapW 562 — the description
+  prose can never fill the 155px logo's height in a wide beside column; it only wrapped in the
+  narrow window fill≥1.0 && besideW≥60). User 2026-07-11: "the first occurances in the viafluere
+  doc is not wrapped like it was before … i would like the wrap back." New `SHORT_NEIGHBOR_H = 280`:
+  a neighbor whose union height ≤ 280px (~a paragraph) skips BOTH the fill prediction and the
+  empty-band guard — the band it could leave is bounded by its own height, which reads as a normal
+  magazine float, not the "half text / empty text" tall-infobox problem the rule exists for. Tall
+  neighbors (Wikipedia infobox) keep the all-or-nothing behavior unchanged. `MIN_PROSE_W` still
+  stacks short neighbors when there's no room for a prose column at all. Verified headless
+  (probe `_wrapregress.mjs`): logo wraps at viewport 1600 (fill 0.68, previously force-stacked)
+  and 1280; stacks only at 331/262px wrap widths where the 260px logo leaves besideW < 60.
 
 ## Recent Changes (2026-07-10 — wrap: direct empty-band guard (fixes "narrow → half/empty text" not stacking))
 - **`WrapGroupNode.jsx` `measure`** — the fill PREDICTION (`textArea/besideW ≥ neighborH`) is

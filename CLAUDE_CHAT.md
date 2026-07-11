@@ -2271,3 +2271,16 @@ bright border for a near-page dark backdrop / hairline border / 8px radius / sof
 img edge-to-edge; the seeded logo swapped to /viafluere_new_logo_sideways.png (self-contained
 light studio lockup — the old navy-on-transparent asset was unreadable on dark cards) with an empty
 alt so no caption bar renders under it.
+
+## 2026-07-11 — legacy removal, wrap regression, tracker gating, Set Account
+
+> "i dont like legacy at all since the data we have is recreated alot. so remove legacy stuff if we replace it. also the first occurances in the viafluere doc is not wrapped like it was before. just stacked on any panel width. i would like the wrap back. the money accounts are updating before i even drag it to the schedule. these should be gated like the other ones and not just if its completed or not. most of the trackers and goals should be like that. it needs to be complete and in the schedule for the trackers and goals to update from it. if it doesnt have a field for complete, then its just based on if its in the schedule. also add a set account occurance in the Financial tasks section that lets me set the value of the accounts. (so doesnt add or subtract but replaces), we used to have functionality with that with the flow attribute but idk if we have that feature anymore (it was like plus minus replace)"
+
+Four directives: (1) NO legacy/back-compat paths — data is reseeded constantly, so when something
+is replaced, delete the old path outright. (2) The seeded viafluere doc's first occurrences
+(logo⇄description wrap) regressed to plain stacking at every panel width — restore the wrap.
+(3) Tracker/goal gating policy: an item counts only when it is IN THE SCHEDULE **and** complete
+(when it has a completion field); items without a completion field count on schedule membership
+alone. Money accounts currently update straight from the toolkit — wrong. (4) New "Set Account"
+occurrence in Financial Tasks that REPLACES an account's value (flow=replace, the old
+plus/minus/replace flow attribute) instead of adding/subtracting.
