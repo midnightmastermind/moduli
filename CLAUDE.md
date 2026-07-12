@@ -6,6 +6,28 @@
 
 ---
 
+## Handoff — 2026-07-11 NIGHT (deploy pipeline fixed after a MASKED stale deploy; edge bar; field hiding)
+
+**A deploy silently failed and shipped stale code** (user: "flow buttons the same / still no cash
+account"): prod reseeds regenerated `server/seed/*.json` IN THE PROD WORKTREE, the next `git pull`
+aborted on the churn, and piping the pull through `tail` masked the non-zero exit (`set -e` only
+sees the pipe's last command) — so the old build was rebuilt and the OLD seed script reseeded.
+Fixed at the root (`09b17a3a`): `deploydata.sh` reseeds with `--no-export` (exports are the
+DEV-side fixture) and `deploy.sh` syncs prod via `git fetch + reset --hard origin/master`.
+**Lesson: after every deploy, verify prod HEAD (`ssh … git log --oneline -1`), not script output.**
+
+Also shipped (`06a7a9c7`, deployed + reseeded): **doc side-drop edge bar** — the wrap-beside
+affordance was an invisible 2px horizontal sliver; detectSideHost now returns the host rect and a
+full-height 3px vertical `.wrap-drop-edge` bar paints on the targeted side ("dropping to the
+LEFT/RIGHT of this block"). **Schedule field hiding** — the Schedule page occ seeds
+`fieldVisibility {mode:"hide", [date, timeslot, lastSeen]}`; rows show Completed only.
+**Open:** (a) side-drop beside NON-text occurrences (nonwrapped column) — designed, task filed:
+needs a wrapGroup variant that doesn't auto-stack for non-prose hosts; (b) "can't click into a
+mini textblock" — NOT reproduced on current build (doc card / section block / inline chip all
+take the caret headless); likely the stale build — awaiting user retest after hard reload.
+
+---
+
 ## Handoff — 2026-07-11 EVE (deployed to prod; new-grid manifest + zombie-grid fixes; 3 tasks queued)
 
 Account3 session. **Everything through the queue is DEPLOYED** (`6cfa64de` code + docs, then
