@@ -29,12 +29,20 @@ root-caused and shipped (`e20b92f3`):**
   **"copies when it should move"** still needs a concrete repro from the user. The stale-chunk CC
   crash is a non-issue on prod (index.html no-cache + immutable assets verified live).
 
-**Queued (user, this session — NOT started):** (a) **flow side-button restyle** — attach to the
-input like the randomizer 🎲 and tint the WHOLE input by flow (green=in/blue=replace/red=out);
-(b) **Alarms\Reminders tab in the Command Center** — Android-style alarm list; each alarm mints +
-stays bound to a time-based operation (op not editable outside that alarm's menu); seed a 5pm
-alarm that rings + notifies; (c) **Cash account** seeded + tracked in Accounts (balance tracker,
-gated, supportsReplace). 1235/1235 client + 237/237 server at handoff.
+**All three queued items SHIPPED same session:** (a) **flow restyle** — FlowToggle is now a
+divided leading segment INSIDE the pill/input (randomizer pattern) and the whole control tints
+green/blue/red by flow (compact pills + full number/duration inputs; FLOW_TINTS in ui/Field.jsx).
+(b) **Alarms tab** — new CC tab (AlarmClock icon): Android-style rows (tap the big time to edit,
+label inline, alarm↔reminder chip, preview sound, enable switch). Each row IS an Operation —
+`op.alarm` config + `schedule:{kind:"atTimes"}` + one NOTIFY step (now supports `sound`/`duration`;
+`helpers/alarmSound.js` rings synthesized WebAudio beeps). `helpers/alarmOps.js` derives
+name/schedule/pipeline from the alarm so they can't drift; the Operations tab renders alarm ops
+READ-ONLY ("Managed by the Alarms tab" banner). Seeded **"Alarm: 5 PM"** (rings + notifies,
+Alarms op category). Along the way the **hourly-chime lastFiredAt race is FIXED** (useScheduler
+now dispatches the stamp locally before the socket emit) — E2E: an alarm fires exactly ONCE in
+its minute. (c) **Cash account** — cashBalance field + Cash instance in Finances + gated
+supportsReplace "Cash Balance" tracker (sum-of-amount like Mom's). 1241/1241 client + 237/237
+server; live grid reseeded.
 
 ---
 

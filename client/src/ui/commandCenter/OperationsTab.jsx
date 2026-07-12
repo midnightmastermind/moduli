@@ -1071,9 +1071,24 @@ export function OperationsTab() {
             Save
           </button>
         </div>
-        {/* Editor + Log panel side-by-side */}
+        {/* Editor + Log panel side-by-side. Alarm-managed ops (op.alarm set)
+            are READ-ONLY here — the Alarms tab is their only editor, so the
+            alarm UI and the operation can never drift apart. */}
         <div style={{ padding: "10px 14px", display: "flex", gap: 12, alignItems: "flex-start" }}>
           <div style={{ flex: "1 1 60%", minWidth: 0 }}>
+            {selectedOp.alarm ? (
+              <div style={{ padding: "18px 16px", borderRadius: 8, border: "1px solid rgba(252,211,77,0.3)", background: "rgba(252,211,77,0.06)", fontFamily: "monospace" }}>
+                <div style={{ fontSize: 12, color: "rgb(252,211,77)", fontWeight: 600, marginBottom: 6 }}>
+                  ⏰ Managed by the Alarms tab
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
+                  This operation is controlled by the alarm
+                  {selectedOp.alarm.label ? ` “${selectedOp.alarm.label}”` : ""} at {selectedOp.alarm.time}.
+                  Edit its time, label, type, or enabled state in the Alarms tab — it can't be
+                  edited here. Deleting the alarm deletes this operation.
+                </div>
+              </div>
+            ) : (
             <OperationEditor
               operation={selectedOp}
               fields={gridFields}
@@ -1083,6 +1098,7 @@ export function OperationsTab() {
               onDelete={() => { CommitHelpers.deleteOperation({ dispatch, socket, operationId: selectedOpId }); setSelectedOpId(null); }}
               onRun={() => { setSelectedOpId(null); handleRun(selectedOp); }}
             />
+            )}
           </div>
           <div style={{ flex: "1 1 40%", minWidth: 280, position: "sticky", top: 50 }}>
             <OperationLogPanel operation={selectedOp} />

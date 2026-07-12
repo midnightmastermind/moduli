@@ -23,7 +23,7 @@
 // ============================================================
 import { useEffect, useRef } from "react";
 import { executePipeline } from "../helpers/operationExecutor";
-import { setComputedValuesAction } from "./actions";
+import { setComputedValuesAction, updateOperationAction } from "./actions";
 import { operationsBridge } from "./bindSocketToStore";
 import { safeEmit } from "../helpers/offlineQueue";
 
@@ -142,10 +142,14 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
             }
           }
 
-          // Stamp lastFiredAt. The socket emit broadcasts to all user
-          // sockets so other devices see the update and skip their next
-          // due check until cadence elapses again.
+          // Stamp lastFiredAt. Dispatched LOCALLY first — operationsById must
+          // reflect the stamp before the next tick, or the op re-fires until
+          // the server echo lands (the "hourly chime fired every second" race:
+          // safeEmit alone leaves local lastFiredAt null; the 2s in-flight
+          // guard expires before a slow echo). The socket emit then broadcasts
+          // so other devices skip their next due check too.
           const nextSchedule = { ...sched, lastFiredAt: now.toISOString() };
+          dispatch(updateOperationAction({ ...op, schedule: nextSchedule }));
           safeEmit(socket, "update_operation", { ...op, schedule: nextSchedule });
           // Clear in-flight on next tick once the echo lands (or fail-safe
           // 2s later in case the server is offline). Timer id tracked so

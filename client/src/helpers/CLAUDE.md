@@ -2,6 +2,22 @@
 
 _Updated: 2026-07-11. Check this file before re-reading source._
 
+## Recent Changes (2026-07-11 — Alarms: alarmOps.js + alarmSound.js + NOTIFY sound/duration)
+- **`alarmOps.js` (NEW)** — pure builders for alarm/reminder Operations (the Alarms tab's data
+  layer): `buildAlarmOperation` (atTimes schedule + one NOTIFY step, alarms ring/reminders
+  silent), `applyAlarmToOperation` (re-derives name/schedule/pipeline from `op.alarm`; resets
+  lastFiredAt only on a TIME change), `listAlarmOperations`, `formatAlarmTime` (17:00→"5:00 PM").
+  `op.alarm = { type:"alarm"|"reminder", label, time }` marks an op as Alarms-tab-managed; the
+  Operations tab renders those READ-ONLY. 6 tests in `__tests__/alarmOps.test.js`.
+- **`alarmSound.js` (NEW)** — `ringAlarm({bursts})`: synthesized WebAudio two-tone digital-alarm
+  beeps (no audio asset); no-ops when AudioContext is unavailable/suspended.
+- **`operationActions.js` (`NOTIFY`)** — cfg gains `sound` (rings via alarmSound) + `duration`
+  (toast lifetime); `message` now resolves `$vars` via resolveExpr.
+- **`state/useScheduler.js`** — the lastFiredAt stamp is now ALSO dispatched locally
+  (updateOperationAction) before the socket emit — the missing half of the "hourly chime fired
+  every second" race (local operationsById kept lastFiredAt null until the echo; the 2s in-flight
+  guard expired first). E2E-verified: an atTimes alarm fires exactly once in its minute.
+
 ## Recent Changes (2026-07-11 — ensureRootFolderPageOcc: shared "open panel on root folder page")
 - **`importsFolder.js`** — new `ensureRootFolderPageOcc({ grid, manifestsById, occurrencesById,
   modulesById, dispatch, socket, userId })`: resolve-or-mint the grid's ROOT folder-page

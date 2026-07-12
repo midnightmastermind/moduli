@@ -2,6 +2,18 @@
 
 _Updated: 2026-07-11. Check this file before re-reading source._
 
+## Recent Changes (2026-07-11 EVE — Alarms tab (Android-style, operation-backed))
+- **`commandCenter/AlarmsTab.jsx` (NEW)** — Alarms & Reminders list in the Command Center
+  (registered in CommandCenter.jsx tabs, AlarmClock icon). Each row IS an Operation: big tappable
+  time (invisible native `<input type="time">` overlay), inline label input, alarm↔reminder type
+  chip (alarms ring + notify, reminders notify only), preview-sound button, delete, enabled
+  Switch. Mutations go through `helpers/alarmOps.js` (buildAlarmOperation / applyAlarmToOperation)
+  so the connected op's name/schedule/pipeline can never drift from the row.
+- **`commandCenter/OperationsTab.jsx`** — an op with `op.alarm` set renders a "⏰ Managed by the
+  Alarms tab" banner instead of OperationEditor (read-only everywhere but the Alarms tab, per
+  user). E2E-verified: seeded 5 PM alarm lists, tab-added alarm fires its NOTIFY exactly once in
+  its minute (notification stack), lock banner shows, delete cleans up.
+
 ## Recent Changes (2026-07-11 LATE — doc DnD: ONE honest hover line + wrap affordance over nested sections)
 User: "3 separate hover lines … two white ones not working but the blue one does … can't drag to
 the right of anything". Diagnosed live (`_dnddiag.mjs`, still at repo root): during a doc drag FOUR

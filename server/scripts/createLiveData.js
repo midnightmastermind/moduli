@@ -267,6 +267,7 @@ export async function createLiveData(userId, options = {}) {
     daypage:  uid(),
     bills:    uid(),
     library:  uid(),
+    alarms:   uid(),
   };
 
   // Library / Movies Watched fields (matches createTestGrid naming exactly)
@@ -4784,6 +4785,7 @@ export async function createLiveData(userId, options = {}) {
     new Folder({ id: opCategoryIds.daypage,  userId, gridId, name: "Day Page Ops",   parentId: rootFolderId, folderType: "category", sortOrder: 202, isExpanded: false }).save(),
     new Folder({ id: opCategoryIds.bills,    userId, gridId, name: "Bill Ops",       parentId: rootFolderId, folderType: "category", sortOrder: 203, isExpanded: false }).save(),
     new Folder({ id: opCategoryIds.library,  userId, gridId, name: "Library Ops",    parentId: rootFolderId, folderType: "category", sortOrder: 204, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.alarms,   userId, gridId, name: "Alarms",         parentId: rootFolderId, folderType: "category", sortOrder: 205, isExpanded: false }).save(),
   ]);
 
   // ── STEP 7b: Templates manifest + Daily Routine + Day Page templates ────────
@@ -8169,6 +8171,30 @@ export async function createLiveData(userId, options = {}) {
     },
     folderId: opCategoryIds.trackers,
     enabled: false,
+  }).save();
+
+  // ── 5 PM alarm (Alarms tab, 2026-07-11) ─────────────────────────────────────
+  // Managed by the Alarms tab: op.alarm marks it, schedule atTimes fires it
+  // daily via useScheduler, and the NOTIFY rings (sound:true) + notifies. The
+  // op shape mirrors client helpers/alarmOps.js buildAlarmOperation — keep the
+  // two in sync if the derived pieces (name/schedule/pipeline) change.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 5,
+    name: "Alarm: 5 PM",
+    description: "Managed by the Alarms tab — edit it there.",
+    alarm: { type: "alarm", label: "5 PM", time: "17:00" },
+    triggerTypes: [],
+    triggerObjects: [],
+    triggerType: "manual",
+    schedule: { kind: "atTimes", times: ["17:00"], suppressNotifications: false, lastFiredAt: null },
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: { type: "NOTIFY", message: "⏰ 5 PM — 5:00 PM", sound: true, duration: 60000 } },
+      ],
+    },
+    folderId: opCategoryIds.alarms,
+    enabled: true,
   }).save();
 
   // ── POMODORO: Start ─────────────────────────────────────────────────────────

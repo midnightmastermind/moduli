@@ -26,6 +26,7 @@ import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { applyUpdate, substituteTextmapTokens } from "./applyUpdate";
 import { resolveOptions } from "./optionsResolver";
 import { toast } from "../state/notificationStore";
+import { ringAlarm } from "./alarmSound";
 
 // ============================================================
 // FILTERED VALUE EXTRACTION
@@ -1928,7 +1929,12 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     }
 
     case "NOTIFY": {
-      if (cfg.message) toast(cfg.message);
+      // cfg: { message, sound?, duration? } — message resolves $vars; sound
+      // rings the synthesized alarm (the Alarms tab's "alarm" type); duration
+      // overrides the default toast lifetime (alarms linger, reminders less).
+      const message = resolveExpr(cfg.message, $vars);
+      if (message) toast(message, "duration" in cfg ? { duration: cfg.duration } : {});
+      if (cfg.sound) ringAlarm();
       break;
     }
 

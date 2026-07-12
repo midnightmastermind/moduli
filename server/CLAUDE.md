@@ -2,6 +2,16 @@
 
 _Updated: 2026-07-11. Check this file before re-reading source._
 
+## Recent Changes (2026-07-11 EVE — Operation.alarm + seeded 5 PM alarm + Cash account)
+- **`models/Operation.js`** — new `alarm: Mixed default null`: `{ type:"alarm"|"reminder", label,
+  time:"HH:MM" }` marks an op as MANAGED by the client Alarms tab (name/schedule/pipeline derived
+  from it via client helpers/alarmOps.js; Operations tab renders it read-only).
+- **`scripts/createLiveData.js`** — (a) new "Alarms" op category folder + seeded **"Alarm: 5 PM"**
+  (atTimes 17:00, NOTIFY message + sound:true + 60s duration, enabled) — mirrors
+  buildAlarmOperation's shape, keep in sync; (b) **Cash account**: `cashBalance` field + "Cash"
+  instance in Finances + "Cash Balance" tracker (sum-of-amount like Mom's, accountRef-narrowed,
+  schedule+completion gated, supportsReplace so Set Account Balance resets it). Reseed applied.
+
 ## Recent Changes (2026-07-11 LATE-2 — user manifest on every grid + update_grid zombie fix)
 - **`utils/userManifest.js` (NEW)** — `ensureUserManifest({ gridId, userId, uc, gridDoc })`:
   every grid gets a manifestType:"user" manifest + root folder (deterministic ids

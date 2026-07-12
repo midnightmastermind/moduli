@@ -53,6 +53,12 @@ const OperationSchema = new mongoose.Schema(
     //   { kind: "atTimes", times: ["09:00", "12:00"], lastFiredAt? }
     schedule: { type: mongoose.Schema.Types.Mixed, default: null },
 
+    // Alarm/Reminder config (Alarms tab, 2026-07-11). When set, this op is
+    // MANAGED by the Alarms tab: its name/schedule/pipeline are derived from
+    // this config (client helpers/alarmOps.js) and the Operations tab renders
+    // it read-only. Shape: { type: "alarm"|"reminder", label, time: "HH:MM" }.
+    alarm: { type: mongoose.Schema.Types.Mixed, default: null },
+
     // Whether this operation is active
     enabled: { type: Boolean, default: true },
 
