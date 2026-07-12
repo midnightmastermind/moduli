@@ -6,6 +6,28 @@
 
 ---
 
+## Handoff — 2026-07-12 (wrap↔columns restored; side drops beside ANYTHING; ops categories; alarms ×2)
+
+All deployed (`8f0b3ccf`) + prod reseeded, tree clean, HEAD verified. Shipped this session:
+- **wrap↔columns restored** (docs/CLAUDE.md 2026-07-12 entry): wrapGroup `wrap` attr is back —
+  textmapped hosts default to the L-morph with a radial Wrap on/off toggle; side drops beside
+  NON-text occurrences (edge thirds) form side-by-side COLUMNS (wrap:false — no morph, no
+  auto-stack, but stacks at low width). Seam renders in both modes + new ⇄ swap-sides button ON
+  the seam. Neighbor column stacks N occurrences; host is one block.
+- **Ops tab categories fixed**: field-only category folders no longer render as ops columns
+  (data-driven: has fields + no ops = field category); the 8 uncategorized seed ops got homes
+  (Moods/Phone Calls→Trackers, Rotator→Day Page Ops, Project ×3→new Projects, People ×2→Library).
+- **Seed**: Viafluere description rewritten (layman + depth, same wrap); 6:30 AM alarm added
+  beside the 5 PM one; Schedule hides Date/Time Slot/Last Seen (fieldVisibility, prior commit).
+- **Caret-at-click investigated**: NOT reproducible on the current build (doc cards, section
+  blocks, inline chips all place the caret at the click point headless — offsets 21/35 verified).
+  The user's repro was on the stale prod build. If it recurs: get WHICH textblock + mouse/touch.
+- **Probe discipline reminder**: two "regressions" this session (caret offset-0, wrap 0/6) were
+  BOTH probe artifacts — stale coords after a second scrollIntoView, and dirty grid state from a
+  prior probe run. Reseed + fresh coords before trusting a failing probe.
+
+---
+
 ## Handoff — 2026-07-11 NIGHT (deploy pipeline fixed after a MASKED stale deploy; edge bar; field hiding)
 
 **A deploy silently failed and shipped stale code** (user: "flow buttons the same / still no cash
