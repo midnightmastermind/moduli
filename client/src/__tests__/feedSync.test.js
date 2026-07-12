@@ -80,6 +80,48 @@ describe("resolveFeedItems", () => {
     const { modulesById, occurrencesById } = world();
     expect(resolveFeedItems(occurrencesById.feedPage, { occurrencesById, modulesById })).toEqual([]);
   });
+
+  // Field-check conditions on a tags-style ARRAY field (2026-07-12): a
+  // collector page pulls textblocks tagged X via CONTAINS (exact member
+  // match on arrays), and IS_NOT_EMPTY doubles as "has this field at all".
+  it("CONTAINS on an array field matches exact tag membership", () => {
+    const { modulesById, occurrencesById } = world();
+    const F_TAGS = "fidTags";
+    occurrencesById.note1.fields[F_TAGS] = { value: ["health", "journal"], flow: "in" };
+    occurrencesById.note2 = { id: "note2", moduleId: "mNote", fields: { [F_TAGS]: { value: ["work"], flow: "in" } } };
+    occurrencesById.note3 = { id: "note3", moduleId: "mNote", fields: {} };
+    const feedOcc = { ...occurrencesById.feedPage, feed: {
+      enabled: true, roles: ["textblock"],
+      conditions: [{ id: "c1", fieldId: F_TAGS, comparator: "CONTAINS", value: "journal" }],
+    } };
+    const ids = resolveFeedItems(feedOcc, { occurrencesById, modulesById }).map(i => i.occurrence.id);
+    expect(ids).toEqual(["note1"]);
+  });
+
+  it("CONTAINS on an array does NOT substring-match across members", () => {
+    const { modulesById, occurrencesById } = world();
+    const F_TAGS = "fidTags";
+    occurrencesById.note1.fields[F_TAGS] = { value: ["smart-goals"], flow: "in" };
+    const feedOcc = { ...occurrencesById.feedPage, feed: {
+      enabled: true, roles: ["textblock"],
+      conditions: [{ id: "c1", fieldId: F_TAGS, comparator: "CONTAINS", value: "art" }],
+    } };
+    expect(resolveFeedItems(feedOcc, { occurrencesById, modulesById })).toEqual([]);
+  });
+
+  it("IS_NOT_EMPTY is the has-field check: empty array and missing field both fail", () => {
+    const { modulesById, occurrencesById } = world();
+    const F_TAGS = "fidTags";
+    occurrencesById.note1.fields[F_TAGS] = { value: ["anything"], flow: "in" };
+    occurrencesById.note2 = { id: "note2", moduleId: "mNote", fields: { [F_TAGS]: { value: [], flow: "in" } } };
+    occurrencesById.note3 = { id: "note3", moduleId: "mNote", fields: {} };
+    const feedOcc = { ...occurrencesById.feedPage, feed: {
+      enabled: true, roles: ["textblock"],
+      conditions: [{ id: "c1", fieldId: F_TAGS, comparator: "IS_NOT_EMPTY" }],
+    } };
+    const ids = resolveFeedItems(feedOcc, { occurrencesById, modulesById }).map(i => i.occurrence.id);
+    expect(ids).toEqual(["note1"]);
+  });
 });
 
 describe("syncFeed (materializer)", () => {

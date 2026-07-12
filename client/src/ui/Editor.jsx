@@ -61,7 +61,7 @@ import ContextMenu from "./ContextMenu";
 import { useGridActionsSelector } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import QuickAddMenu from "./QuickAddMenu.jsx";
-import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type } from "lucide-react";
+import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus } from "lucide-react";
 
 // Atomic same-doc move for a TipTap embed node (instanceTextblock,
 // moduleEmbed). Scans the editor's doc for a node whose attrs match
@@ -253,6 +253,12 @@ const Editor = forwardRef(function Editor({
   // Insert-here doc gap: { top (wrapper-relative px), pos (PM insert position) }
   // or null. Driven by mousemove over the editor wrapper when enableInsertGaps.
   const [docGap, setDocGap] = useState(null);
+  // Bumped by the context menu's "Add occurrence here…" row to imperatively
+  // open the doc gap's QuickAddMenu at the right-clicked block boundary (#13).
+  const [gapAddTrigger, setGapAddTrigger] = useState(0);
+  // QuickAddMenu reports onOpenChange(false) on MOUNT (its effect syncs the
+  // initial closed state) — only clear the gap on a real open→close.
+  const gapMenuWasOpenRef = useRef(false);
   // Live drop indicator while DRAGGING a block over this (page) editor — shows
   // exactly where it will land so reordering isn't a finicky guess. { top, pos }.
   const [dragGap, setDragGap] = useState(null);
@@ -925,6 +931,7 @@ const Editor = forwardRef(function Editor({
     const { $from, from: selFrom, to: selTo } = editor.state.selection;
     const capturedFrom = selFrom;
     const capturedTo = selTo;
+    const capturedY = e.clientY;
     const capturedText = hasSelection ? editor.state.doc.textBetween(selFrom, selTo) : "";
     const inTable = Array.from({ length: $from.depth }, (_, i) => $from.node(i + 1))
       .some(n => n.type.name === "table" || n.type.name === "tableRow" || n.type.name === "tableCell" || n.type.name === "tableHeader");
@@ -953,6 +960,29 @@ const Editor = forwardRef(function Editor({
       hasSelection && { separator: true },
       hasSelection && { label: "Clear formatting", icon: RemoveFormatting, onClick: () => editor.chain().focus().unsetAllMarks().run() },
       { separator: true },
+      // "Add occurrence here…" (#13, 2026-07-12): opens the doc-gap QuickAddMenu
+      // at the block boundary nearest the right-click. Works in every doc-capable
+      // editor (not just the gap-enabled primary page editor) — the gap overlay
+      // renders whenever docGap is set.
+      !isCell && dispatch && socket && occurrence?.userId && {
+        label: "Add occurrence here…",
+        icon: Plus,
+        onClick: () => {
+          const wrapEl = wrapperRef.current;
+          let b = null;
+          try { b = nearestDocBoundary(editor.view, editor.state.doc, wrapEl, capturedY); } catch (_) {}
+          if (!b) b = { top: 0, pos: editor.state.doc.content.size };
+          if (window.__dragDiag) console.log("[addocc] gap", JSON.stringify(b));
+          // `pinned` keeps the hover machinery (gap-move / mouse-leave) from
+          // clearing a menu-driven gap — the pointer is over content when the
+          // context menu closes, and the very next mousemove would wipe it.
+          setDocGap({ ...b, pinned: true });
+          // Next-tick bump so a freshly-mounted gap menu sees the trigger
+          // CHANGE (its first-render value is swallowed by design).
+          setTimeout(() => setGapAddTrigger((n) => n + 1), 50);
+        },
+      },
+      !isCell && dispatch && socket && occurrence?.userId && { separator: true },
       inList && onConvertListToInstances && {
         label: "Convert list to instances", icon: List,
         onClick: () => {
@@ -2096,13 +2126,13 @@ const Editor = forwardRef(function Editor({
     // hidden — otherwise a click-to-edit pops a stray insert line under the
     // block that the keyboard can't dismiss (it's an overlay).
     if (isOverTopBlock(view, editor.state.doc, e.clientY)) {
-      setDocGap((prev) => (prev ? null : prev));
+      setDocGap((prev) => (prev && !prev.pinned ? null : prev));
       return;
     }
     // Nearest block boundary (works in the empty margin between blocks too, so
     // the "+" doesn't vanish exactly where the user hovers to insert).
     const b = nearestDocBoundary(view, editor.state.doc, wrapEl, e.clientY);
-    setDocGap((prev) => (b && prev && prev.pos === b.pos ? prev : b));
+    setDocGap((prev) => (prev?.pinned ? prev : (b && prev && prev.pos === b.pos ? prev : b)));
   }, [gapsOn, editor]);
 
   // Mint a standalone occurrence (NOT into any occurrences[] — doc embeds are
@@ -2172,7 +2202,7 @@ const Editor = forwardRef(function Editor({
         style={{ paddingTop: 5, paddingBottom: 5 }}
         draggable={false}
         onMouseMove={gapsOn ? handleGapMove : undefined}
-        onMouseLeave={gapsOn ? (e) => { if (!e.relatedTarget?.closest?.(".doc-insert-gap")) setDocGap(null); } : undefined}
+        onMouseLeave={gapsOn ? (e) => { if (!e.relatedTarget?.closest?.(".doc-insert-gap")) setDocGap((prev) => (prev?.pinned ? prev : null)); } : undefined}
         onMouseDown={(e) => {
           // Block content sync briefly so ProseMirror's cursor placement on mousedown
           // isn't overwritten by a server echo arriving before the focus event fires.
@@ -2209,11 +2239,15 @@ const Editor = forwardRef(function Editor({
         </CellEmbedContext.Provider>
       </div>
 
-      {gapsOn && docGap && (
+      {/* docGap is set by hover (gap-enabled editors only) OR by the context
+          menu's "Add occurrence here…" row (any doc editor) — render whenever
+          it's set. Hover can only have produced it under gapsOn, so the old
+          gapsOn gate here was redundant for hover and wrong for the menu path. */}
+      {docGap && (
         <div
           className="doc-insert-gap"
           style={{ top: docGap.top }}
-          onMouseLeave={(e) => { if (!e.relatedTarget?.closest?.(".doc-editor-wrapper")) setDocGap(null); }}
+          onMouseLeave={(e) => { if (!e.relatedTarget?.closest?.(".doc-editor-wrapper")) setDocGap((prev) => (prev?.pinned ? prev : null)); }}
         >
           <div className="insert-gap-line" />
           <div className="insert-gap-btn">
@@ -2222,6 +2256,11 @@ const Editor = forwardRef(function Editor({
               hostOccurrence={occurrence}
               onSelect={(m) => insertDocItemAt(docGap.pos, { existingModuleId: m?.id ?? m })}
               onCreateNew={({ fieldIds } = {}) => insertDocItemAt(docGap.pos, { fieldIds })}
+              openTrigger={gapAddTrigger}
+              onOpenChange={(open) => {
+                if (open) { gapMenuWasOpenRef.current = true; return; }
+                if (gapMenuWasOpenRef.current) { gapMenuWasOpenRef.current = false; setDocGap(null); }
+              }}
             />
           </div>
         </div>

@@ -38,7 +38,7 @@ import {
   getScaledTargetValue,
   calculateProgress,
 } from "../helpers/CalculationHelpers";
-import { createLeafInstanceInParent, setOccurrenceFieldValue, updateModule } from "../helpers/CommitHelpers";
+import { createLeafInstanceInParent, setOccurrenceFieldValue, updateModule, updateField } from "../helpers/CommitHelpers";
 import { openImagePicker } from "./ImagePickerMenu";
 import { resolveFileRef } from "../helpers/fileRef";
 import RepresentationView from "./RepresentationView";
@@ -639,7 +639,13 @@ function Field({
   }, [value, liveDisplayValue]);
 
   // ─── Input state ─────────────────────────────────────────────
-  const extractValue = (v) => (v && typeof v === "object" ? ("value" in v ? v.value : undefined) : v);
+  // Unwrap a stored `{value, flow}` wrapper; pass everything else through.
+  // ARRAYS must pass through as-is — FieldRenderer already unwraps the wrapper
+  // and hands the bare array to multi-value fields (select/occurrence
+  // multiSelect); treating an array as "object without a value key" returned
+  // undefined and every stored multi-value rendered EMPTY on load (found
+  // 2026-07-12 via the tags feed E2E).
+  const extractValue = (v) => (v && typeof v === "object" && !Array.isArray(v) ? ("value" in v ? v.value : undefined) : v);
   const defaultValue = field?.meta?.defaultValue ?? (field?.type === "boolean" ? false : undefined);
   const resolveInputVal = (v) => { const raw = extractValue(v); return (raw === null || raw === undefined) ? (defaultValue ?? raw) : raw; };
 
@@ -803,6 +809,31 @@ function Field({
       onCommit?.(newSelected);
     });
   }, [occurrenceAddNewCfg, getOcc, localValue, dispatch, socket, gridId, userId, handleChange, onCommit]);
+
+  // Quick-add for SELECT fields (tags pattern): a select with
+  // `meta.allowNewOptions` lets the user type a new option straight into the
+  // multi-select pill — the option is persisted onto the FIELD (manual
+  // optionsSource values, or legacy meta.options) so it's offered everywhere
+  // the field renders. MultiSelectWithAdd already handles appending the new
+  // value to the occurrence's selection; we only persist the option itself.
+  const handleSelectAddOption = useCallback(({ value: newValue, label: newLabel } = {}) => {
+    if (!field?.id || !newValue) return;
+    const meta = field.meta || {};
+    const opt = { value: newValue, label: newLabel || newValue };
+    let nextMeta;
+    if (meta.optionsSource?.mode === "manual") {
+      const values = Array.isArray(meta.optionsSource.values) ? meta.optionsSource.values : [];
+      if (values.some(v => (v?.value ?? v) === newValue)) return;
+      nextMeta = { ...meta, optionsSource: { ...meta.optionsSource, values: [...values, opt] } };
+    } else {
+      const opts = Array.isArray(meta.options) ? meta.options : [];
+      if (opts.some(v => (v?.value ?? v) === newValue)) return;
+      nextMeta = { ...meta, options: [...opts, opt] };
+    }
+    updateField({ dispatch, socket, field: { id: field.id, meta: nextMeta } });
+  }, [field?.id, field?.meta, dispatch, socket]);
+  const selectQuickAdd = field?.type === "select" && field?.meta?.allowNewOptions
+    ? handleSelectAddOption : null;
 
   const handleCommit = useCallback(() => {
     setIsClickEditing(false);
@@ -1403,7 +1434,7 @@ function Field({
       return (
         <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
           onChange={vals => { handleChange(vals); onCommit?.(vals); }}
-          onAddOption={onAddOption} disabled={disabled} compact={compact}
+          onAddOption={onAddOption || selectQuickAdd} disabled={disabled} compact={compact}
           showLabel={showLabel} randomize={!!meta?.randomize} />
       );
     }

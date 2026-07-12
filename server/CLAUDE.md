@@ -1957,3 +1957,11 @@ npm run dev
 # Reset sample data (WSL)
 wsl -d Ubuntu-24.04 -e bash -c "cd ~/dndtest2/server && ~/.nvm/versions/node/v22.21.1/bin/node scripts/resetData.js"
 ```
+
+## Recent Changes (2026-07-12 — Tags field seeded (feed field-check use case))
+- **`scripts/createLiveData.js`** — new generic **Tags** field (select, multiSelect,
+  `allowNewOptions: true`, 5 starter options journal/idea/todo/health/work). Bind it to any
+  occurrence (textblocks included — ModuleInstance now renders body-card fields) and a feed
+  condition `Tags CONTAINS <tag>` collects tagged occurrences onto another page (evalRule is
+  array-aware as of the same session). Reseeded + E2E-verified (tagged textblock → feed copy
+  materialized under the collector page; probe writes swept).

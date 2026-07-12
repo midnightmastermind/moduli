@@ -94,6 +94,32 @@ describe("evalRule — HAS_ANCESTOR comparator", () => {
   });
 });
 
+describe("evalRule — array-aware CONTAINS + empty checks (tags field-check, 2026-07-12)", () => {
+  it("CONTAINS matches exact members of an array left", () => {
+    expect(evalRule({ left: "$tags", comparator: "CONTAINS", right: "work" },
+      { $tags: ["health", "work"] })).toBe(true);
+    expect(evalRule({ left: "$tags", comparator: "CONTAINS", right: "play" },
+      { $tags: ["health", "work"] })).toBe(false);
+  });
+  it("CONTAINS on an array does not substring-match ('art' ≠ ['smart'])", () => {
+    expect(evalRule({ left: "$tags", comparator: "CONTAINS", right: "art" },
+      { $tags: ["smart"] })).toBe(false);
+  });
+  it("CONTAINS keeps substring semantics for string lefts", () => {
+    expect(evalRule({ left: "$s", comparator: "CONTAINS", right: "ell" }, { $s: "hello" })).toBe(true);
+  });
+  it("NOT_CONTAINS mirrors both shapes", () => {
+    expect(evalRule({ left: "$tags", comparator: "NOT_CONTAINS", right: "work" },
+      { $tags: ["health"] })).toBe(true);
+    expect(evalRule({ left: "$s", comparator: "NOT_CONTAINS", right: "ell" }, { $s: "hello" })).toBe(false);
+  });
+  it("IS_EMPTY / IS_NOT_EMPTY treat an empty array as empty", () => {
+    expect(evalRule({ left: "$tags", comparator: "IS_EMPTY" }, { $tags: [] })).toBe(true);
+    expect(evalRule({ left: "$tags", comparator: "IS_NOT_EMPTY" }, { $tags: [] })).toBe(false);
+    expect(evalRule({ left: "$tags", comparator: "IS_NOT_EMPTY" }, { $tags: ["x"] })).toBe(true);
+  });
+});
+
 describe("evalRule — numeric comparator _THAN aliases", () => {
   // Regression for createLiveData's seed authoring habit of writing
   // "GREATER_THAN" / "LESS_THAN" — without these aliases, the rule silently

@@ -1128,3 +1128,17 @@ The new system links views to occurrences (`occurrence.viewId → View`) instead
 - **Container.jsx**: `<QuickAddMenu targetRole="instance">` in standard container header after label. `handleQuickAddInstance` creates occurrence of existing instance module in container. "New instance" option calls `onAdd`.
 - **QuickAddMenu** (ui/QuickAddMenu.jsx): Dropdown with search, role-colored dots, outside-click close. Filters `modulesById` by `targetRole`. Max 20 results.
 - **index.css**: `.panel-header:hover .quick-add-btn` and `.container-header:hover .quick-add-btn` reveal on header hover.
+
+## Recent Changes (2026-07-12 — "Add occurrence" in every right-click menu + body-rendered fields)
+- **`ModuleInstance.jsx`** — body-rendered occurrences (textblock/artifact cards) now render
+  their bound-field pills as a full-width `.instance-fields--under-body` strip UNDER the body
+  (was: renderBody REPLACED the fields row entirely — a tags field bound to a textblock was
+  invisible). Unbound cards render nothing extra, so default textblocks/wraps are unchanged.
+- **`ModulePage.jsx`** — page right-click menu gains "Add occurrence…" (opens the header
+  QuickAddMenu imperatively via a new `pageQuickAddTrigger` + `openTrigger`; reveals the header
+  first when hidden, bump deferred 50ms so the fresh mount sees the change).
+- **`ModulePanel.jsx`** — panel right-click menu gains "Add page…": a ZERO-SIZE QuickAddMenu
+  (targetRole="page") is mounted next to the ContextMenu and opened imperatively (the header
+  intentionally lost its + in the 2026-07-03 redesign). Picking an existing page pins it via
+  `pinPageToPanel` + activates; create tiles mint a page via `createPage` (ManifestTree shapes).
+  All four surfaces (container/page/panel/doc) E2E-verified headless.

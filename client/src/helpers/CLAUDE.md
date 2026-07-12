@@ -986,3 +986,13 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
 
 ## Recent Changes (Feb 21)
 - LayoutHelpers.js: Added copyPanel, copylinkPanel, splitPanel, unsplitPanel functions
+
+## Recent Changes (2026-07-12 — evalRule: array-aware CONTAINS + empty checks (tags field-check))
+- **`operationActions.js` (`evalRule`)** — feed conditions can now do a FIELD CHECK on tags-style
+  array fields (user directive 2026-07-12): (1) `CONTAINS`/`NOT_CONTAINS` on an ARRAY left match
+  by EXACT member equality (same semantic as ARRAY_INCLUDES) instead of substring-over-stringified
+  ("art" no longer matches ["smart"]); strings keep substring semantics. (2) `IS_EMPTY`/
+  `IS_NOT_EMPTY` treat an empty array as empty, so IS_NOT_EMPTY doubles as "occurrence HAS this
+  field with a value". One change covers feeds, FIND predicates, grid filters, and table column
+  filters (evalRuleAgainstRecord routes through evalRule). Tests: 5 in
+  operationActions.unified.test.js + 3 feed-level in feedSync.test.js.

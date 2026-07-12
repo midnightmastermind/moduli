@@ -704,16 +704,22 @@ function InstanceInner({
           </div>
         )}
 
-        {!renderBody && hasFields && (embedHideLabel || showLabel) && (
+        {/* Fields row. Body-rendered occurrences (textblock/artifact cards) get
+            it too, as a full-width strip UNDER the body — a textblock carrying
+            a tags-style field must surface it or the binding is invisible
+            (feed field-check use case, 2026-07-12). Unbound cards render
+            nothing extra (hasFields false), so default textblocks/wraps are
+            byte-identical. */}
+        {hasFields && (renderBody || embedHideLabel || showLabel) && (
           <div
-            className="instance-fields"
+            className={"instance-fields" + (renderBody ? " instance-fields--under-body" : "")}
             style={{
-              flex: "1 1 160px",
+              flex: renderBody ? "1 1 100%" : "1 1 160px",
               minWidth: 0,
               display: "flex",
               flexWrap: "wrap",
               gap: 4,
-              justifyContent: "flex-end",
+              justifyContent: renderBody ? "flex-start" : "flex-end",
               alignItems: "center",
             }}
           >

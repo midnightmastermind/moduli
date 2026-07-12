@@ -10,7 +10,7 @@ import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { Trash2, Copy, FileText, ArrowLeft, ChevronLeft, ChevronRight, ClipboardPaste, Rss } from "lucide-react";
+import { Trash2, Copy, FileText, ArrowLeft, ChevronLeft, ChevronRight, ClipboardPaste, Rss, Plus } from "lucide-react";
 import HeaderChevron from "../ui/HeaderChevron";
 import { bumpRender } from "../helpers/renderProbe";
 import HeaderDropdown from "../ui/HeaderDropdown";
@@ -129,6 +129,9 @@ function Page({
 
   const [ctxMenu, setCtxMenu] = useState(null);
   const [showHeader, setShowHeader] = useState(true);
+  // Bumped by the "Add occurrence…" context-menu row to imperatively open the
+  // header QuickAddMenu (same pattern as ModuleContainer's "Add item…").
+  const [pageQuickAddTrigger, setPageQuickAddTrigger] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editLabel, setEditLabel] = useState("");
@@ -363,6 +366,18 @@ function Page({
           },
         },
         clip && { separator: true },
+        {
+          label: "Add occurrence…",
+          icon: Plus,
+          onClick: () => {
+            // The QuickAddMenu lives in the page header — reveal it first when
+            // hidden, then bump the imperative-open trigger on the next tick so
+            // the freshly-mounted menu sees the change (its first-render value
+            // is swallowed by design).
+            setShowHeader(true);
+            setTimeout(() => setPageQuickAddTrigger((n) => n + 1), 50);
+          },
+        },
         { label: showHeader ? "Hide header" : "Show header", onClick: () => setShowHeader(v => !v) },
         { label: "Rename", onClick: startEdit },
         { separator: true },
@@ -687,6 +702,7 @@ function Page({
                 }}
                 createLabel="New container"
                 hostOccurrence={occurrence}
+                openTrigger={pageQuickAddTrigger}
               />
             </div>
           </div>

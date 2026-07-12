@@ -1500,3 +1500,23 @@ Note: `EntityTreeTab.jsx` imports `TemplatePill` from `ComponentsTab.jsx`.
 - CommandCenter.jsx: ConnectionsTab LIVE — GET /api/connections lists file_storage+notebook, browse files, import into manifest via /api/connections/:id/import, upload via /api/upload
 - CommandCenter.jsx: FieldDetail updated to inputEnabled/displayEnabled checkboxes (removed legacy mode select)
 - Panel.jsx: Focused instance view now includes DocContainer below fields — instance doc notes stored in occurrence.docContent
+
+## Recent Changes (2026-07-12 — tags quick-add + array-value fix + doc "Add occurrence here…")
+- **`Field.jsx` (`extractValue`) — LATENT BUG FIX:** FieldRenderer unwraps `{value,flow}` and
+  passes the BARE array to Field for multi-value fields; `extractValue` treated any object
+  without a `value` key (arrays included) as `undefined`, so every stored multi-select rendered
+  "—" on load. Arrays now pass through as-is. Regression: `__tests__/Field.arrayValue.test.jsx`.
+  Found via the tags feed E2E.
+- **`Field.jsx` (`selectQuickAdd`)** — a select field with `meta.allowNewOptions` lets the user
+  type a NEW option into the multi-select pill; the option is persisted onto the FIELD (manual
+  optionsSource values, or legacy meta.options) via CommitHelpers.updateField. Wired where the
+  select-multi renders MultiSelectWithAdd (non-compact); the compact pill popover is pick-only.
+- **`Editor.jsx` — context menu "Add occurrence here…" (#13, all doc editors)** — opens the
+  doc-gap QuickAddMenu at the block boundary nearest the right-click (full instance palette:
+  Item/Textblock/Board/Doc/Table/Canvas/Artifact/Image). Menu-driven gaps carry `pinned: true`
+  so the hover machinery (gap-move / mouse-leave) can't clear them — the pointer sits over
+  content when the context menu closes and the next mousemove used to wipe the gap instantly.
+  ALSO: QuickAddMenu fires `onOpenChange(false)` on MOUNT (its effect syncs initial closed
+  state) — the gap's onOpenChange only clears after a real open→close (`gapMenuWasOpenRef`).
+  The gap overlay render gate dropped `gapsOn &&` (hover can only set docGap under gapsOn;
+  the menu path works in every editor). E2E-verified headless (menu → gap persists → palette).

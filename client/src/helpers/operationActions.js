@@ -269,8 +269,14 @@ export function evalRule(rule, $vars) {
   const { left, comparator, right } = rule;
   const leftVal = resolveExpr(left, $vars);
 
-  if (comparator === "IS_EMPTY")     return leftVal === null || leftVal === undefined || leftVal === "";
-  if (comparator === "IS_NOT_EMPTY") return leftVal !== null && leftVal !== undefined && leftVal !== "";
+  // Empty checks are array-aware: an empty array (a tags-style multi-value
+  // field with nothing picked) counts as empty, so IS_NOT_EMPTY doubles as
+  // "this occurrence HAS this field with at least one value" — the field-check
+  // form feed conditions use.
+  const isEmptyVal = leftVal === null || leftVal === undefined || leftVal === ""
+    || (Array.isArray(leftVal) && leftVal.length === 0);
+  if (comparator === "IS_EMPTY")     return isEmptyVal;
+  if (comparator === "IS_NOT_EMPTY") return !isEmptyVal;
 
   const rightVal = resolveExpr(right, $vars) ?? right;
 
@@ -290,8 +296,18 @@ export function evalRule(rule, $vars) {
     case "GREATER_THAN_OR_EQUAL":    return Number(leftVal) >= Number(rightVal);
     case "LESS_OR_EQUAL":
     case "LESS_THAN_OR_EQUAL":       return Number(leftVal) <= Number(rightVal);
-    case "CONTAINS":         return String(leftVal).includes(String(rightVal));
-    case "NOT_CONTAINS":     return !String(leftVal).includes(String(rightVal));
+    // CONTAINS is array-aware: an array left (tags-style multi-value field)
+    // matches by EXACT member equality (same semantic as ARRAY_INCLUDES) — a
+    // stringified-substring test over a joined array gives false positives
+    // ("art" would match ["smart"]). Strings keep substring semantics.
+    case "CONTAINS":
+      return Array.isArray(leftVal)
+        ? leftVal.some(a => String(a) === String(rightVal))
+        : String(leftVal).includes(String(rightVal));
+    case "NOT_CONTAINS":
+      return Array.isArray(leftVal)
+        ? !leftVal.some(a => String(a) === String(rightVal))
+        : !String(leftVal).includes(String(rightVal));
     // Time-of-day comparators — generic, domain-agnostic. Parse BOTH 12h
     // ("9:00am", "9am", "12:30 PM") and 24h ("14:30", "09:00") forms, plus the
     // time portion of an ISO datetime, to minutes-since-midnight, then compare.

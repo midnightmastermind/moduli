@@ -55,7 +55,9 @@ import {
   Layers,
   Maximize2,
   Minimize2,
+  Plus,
 } from "lucide-react";
+import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 
 import Container from "./ModuleContainer.jsx";
 import Page from "./ModulePage.jsx";
@@ -413,6 +415,44 @@ function Panel({
     }
   }, [currentView, currentViewType, module, dispatch, socket]);
 
+  // "Add page…" from the panel right-click menu (2026-07-12): the header lost
+  // its + QuickAddMenu in the 2026-07-03 redesign (page creation lives in the
+  // trees), so a ZERO-SIZE QuickAddMenu is mounted next to the ContextMenu and
+  // opened imperatively via this trigger. Picking an existing page pins it to
+  // this panel + activates it; the create tiles mint a fresh page here.
+  const [panelQuickAddTrigger, setPanelQuickAddTrigger] = useState(0);
+  const handlePanelPickPage = useCallback((pageModule) => {
+    if (!pageModule?.id || !panelOccurrence?.id) return;
+    const pageOcc = Object.values(occurrencesById).find(o => o.moduleId === pageModule.id);
+    if (!pageOcc) return;
+    CommitHelpers.pinPageToPanel({ dispatch, socket, pageOccurrenceId: pageOcc.id, panelOccurrenceId: panelOccurrence.id });
+    if (currentView) {
+      CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: pageOcc.id }, emit: true });
+    }
+  }, [panelOccurrence?.id, occurrencesById, currentView, dispatch, socket]);
+  const handlePanelCreatePage = useCallback(({ kind } = {}) => {
+    if (!panelOccurrence?.id || !state?.userId || !state?.grid?._id) return;
+    const uId = state.userId;
+    const gId = state.grid._id;
+    const manifest = manifestsById?.[state?.grid?.manifestId] || null;
+    const modId = crypto.randomUUID();
+    const occId = crypto.randomUUID();
+    const k = kind || "board";
+    CommitHelpers.createPage({
+      dispatch, socket,
+      module: { id: modId, userId: uId, gridId: gId, role: "page", kind: k, label: `${k.charAt(0).toUpperCase() + k.slice(1)} Page` },
+      occurrence: { id: occId, userId: uId, gridId: gId, moduleId: modId, targetId: modId, parentId: manifest?.rootFolderId ?? null, iteration: { mode: "persistent" }, fields: {} },
+      panelOccurrenceId: panelOccurrence.id,
+      ...(!currentView?.id && {
+        panelViewData: { id: crypto.randomUUID(), userId: uId, gridId: gId, viewType: "board", activeOccurrenceId: occId },
+      }),
+      emit: true,
+    });
+    if (currentView?.id) {
+      CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: occId }, emit: true });
+    }
+  }, [panelOccurrence?.id, state, manifestsById, currentView, dispatch, socket]);
+
   const setLayout = useCallback((nextLayout) => {
     if (!module) return;
     const curr = module.layout || {};
@@ -471,6 +511,11 @@ function Panel({
     setCtxMenu({
       x: e.clientX, y: e.clientY,
       items: [
+        {
+          label: "Add page…",
+          icon: Plus,
+          onClick: () => setPanelQuickAddTrigger((n) => n + 1),
+        },
         { label: showHeader ? "Hide header" : "Show header", onClick: () => setShowHeader(v => !v) },
         { label: "Copy panel", icon: Copy, onClick: handleCopyPanel },
         { label: "Link panel", icon: Link2, onClick: handleCopylinkPanel },
@@ -725,6 +770,20 @@ function Panel({
       }}
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
+
+      {/* Hidden imperative page-adder — opened only by the "Add page…"
+          context-menu row (the header intentionally carries no + button).
+          The zero-size wrapper anchors the popup at the panel's top-left. */}
+      <span style={{ position: "absolute", top: 28, left: 10, width: 0, height: 0, overflow: "hidden" }}>
+        <QuickAddMenu
+          targetRole="page"
+          onSelect={handlePanelPickPage}
+          onCreateNew={handlePanelCreatePage}
+          createLabel="New page"
+          hostOccurrence={panelOccurrence}
+          openTrigger={panelQuickAddTrigger}
+        />
+      </span>
 
       {/* CONTENT */}
       {(() => {

@@ -919,6 +919,28 @@ export async function createLiveData(userId, options = {}) {
       displayEnabled: false,
       meta: { postfix: " oz", increment: 8, flow: "in" },
     },
+    // Tags — generic multi-select label field (2026-07-12). Bind it to ANY
+    // occurrence (textblocks included) and a feed condition "Tags CONTAINS x"
+    // collects the tagged occurrences onto another page. allowNewOptions lets
+    // the pill mint new tag values inline (persisted onto the field).
+    tags: {
+      id: uid(),
+      name: "Tags",
+      type: "select",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: {
+        multiSelect: true,
+        allowNewOptions: true,
+        options: [
+          { value: "journal", label: "journal" },
+          { value: "idea",    label: "idea" },
+          { value: "todo",    label: "todo" },
+          { value: "health",  label: "health" },
+          { value: "work",    label: "work" },
+        ],
+      },
+    },
     mood: {
       id: uid(),
       name: "Mood",

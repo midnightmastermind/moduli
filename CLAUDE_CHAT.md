@@ -2309,3 +2309,51 @@ dropdown-picker thumbnails) — one-click from a search window, Calibre-style; I
 so audit which spots miss it and whether the search/one-click UX matches the ask. (b) restore the
 flow side-button on numeric/amount inputs — green=in(+), blue=replace(neutral), red=out(−) — the
 UI half of Set Account Balance; trackers already read the stored flow (supportsReplace).
+
+## 2026-07-12 — feed field-check conditionals (tags) + Add-occurrence in EVERY right-click menu
+
+> "for the feed thing we added, for the functionality for it, can we have the conditionals use a
+> field check so i can do tags. so we have an array field called tags and i put it on the
+> textblocks on my daypage, and a certain page collects it by putting a feed conditional for
+> certain tags. i think we have all this functionality. the conditionals should have a field check
+> option. so i can check if the occurance has a certain field and grab the values of it. work on
+> the add occurance in the right click menu too (it shouldnt be just for docs but anywhere)."
+
+Two directives: (1) Feed conditions need a FIELD CHECK option — test that an occurrence HAS a
+given field (bound/present) and match against its values, so a tags-style array field on daypage
+textblocks can drive a collector page's feed ("pull everything tagged X"). (2) The queued #13
+"Add occurrence" right-click item is NOT doc-only — it goes in the right-click menu everywhere
+(containers, pages, panels, docs).
+
+> "after the reseed do a full audit then on everything we worked on the past couple days, use the
+> simplify skill to make sure nothing is too over convaluted or spaghetti like and look for any
+> glaring bugs and issues. look at the git history and the chat logs of all 3 accounts."
+
+Queued (this session, after reseed): full audit of the past couple days' work — git history +
+all 3 accounts' session logs — run the simplify skill over the recent code for convolution/
+spaghetti, and sweep for glaring bugs.
+
+> "look at the speed of clicking on page docs too. i go to select a doc and its slow to open. also
+> i cant open image artifacts from the folder or manifest either. theres also double folders. so
+> before you audit the entire system. focus on folders, panels, and manifest trees to make sure
+> those are all working."
+
+BEFORE the full audit: focused pass on folders / panels / manifest trees — (a) doc pages are slow
+to open when selected, (b) image artifacts won't open from the folder page or the manifest tree,
+(c) duplicate folders are showing.
+
+> "it should open an artifact page where we display the artifact occurance. i just realized we
+> need a page for that" / "but only when viewing an artifact full screen from the manifest" / "or
+> folder"
+
+Clarifies the image-artifact fix: clicking an artifact in the MANIFEST TREE or a FOLDER PAGE
+should open an ARTIFACT PAGE — a page that displays that artifact occurrence full screen. Only
+for that flow (tree/folder full-screen open); inline artifact cards elsewhere stay as they are.
+
+> "and finally after all that. fix the loading spinner. the logo should spin from the middle of it
+> (its an infinity symbol), right now, it just makes the infinity symbol circle around on some kind
+> of track (only way to describe it, like a train on a train track, instead of a spinning top, if
+> that makes sense)"
+
+LAST in this session's queue: the loading spinner — the infinity-symbol logo must rotate around
+its OWN center (spinning top), not translate around a circular track (train on a track).
