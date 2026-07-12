@@ -6,6 +6,31 @@
 
 ---
 
+## Handoff — 2026-07-12 LATE (2-col gating + depth fallback + doc-DnD audit; deployed `63fc5dd1`)
+
+All deployed + prod reseeded, HEAD/tree verified. On top of the morning batch:
+- **2-col side gating** (per user): NO left/right side points on an existing wrapGroup for outside
+  drags — EXCEPT directly over the NEIGHBOR COLUMN, which stacks the drop into that column
+  (columns hold N occurrences; host side is one block). Group members always pass (drag = re-morph
+  side/anchor). Dragged occ id: threaded into detectSideHost at drop time; `body.dataset.dragOccId`
+  (DragProvider stamp) covers dragover indicators.
+- **detectSideHost depth<1 fallback**: posAtCoords resolves to the DOC gap at block edges (always,
+  for a single-block nested section) — now falls back to the top-level block whose Y-band contains
+  the pointer. This was silently killing side drops in single-block sections.
+- **Under/above a wrapped image**: exactly ONE honest indicator now (was "2 above, none below").
+- **Doc-DnD audit (mouse, headless)**: columns form beside non-text embeds ✓, swap button flips
+  sides ✓, wrap↔columns toggle ✓, wrap 6/6 form + 6/6 member re-morph ✓, neighbor-column stacking
+  gate ✓, boundary lines honest around wrap groups ✓, 1241/1241 + 237/237. NOT re-run: TOUCH
+  parity for the new columns/gating paths (same handleDocDrop/getDocTouchDropZone code, but
+  unverified on-device this round).
+- **Description v3**: generic-first (the system doesn't know what a "schedule" is — it's a use
+  case; the workspace/blocks story leads). Probe note: `_wrap6mouse.mjs` now anchors on the "Most
+  apps decide in advance" textblock and measures PLAIN-host wraps (group-adds are gated now).
+- **Open**: #9 mini-textblock caret — STILL not reproduced on current build; awaiting user retest
+  with specifics (which textblock, mouse/touch).
+
+---
+
 ## Handoff — 2026-07-12 (wrap↔columns restored; side drops beside ANYTHING; ops categories; alarms ×2)
 
 All deployed (`8f0b3ccf`) + prod reseeded, tree clean, HEAD verified. Shipped this session:
