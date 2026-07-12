@@ -1333,9 +1333,29 @@ const Editor = forwardRef(function Editor({
     const res = editor.view.posAtCoords({ left: input.clientX, top: input.clientY });
     if (!res) return bail("posAtCoords miss", { x: input.clientX, y: input.clientY });
     const $p = editor.state.doc.resolve(res.pos);
-    if ($p.depth < 1) return bail("depth<1", { pos: res.pos });
-    const topPos = $p.before(1);
-    const topNode = editor.state.doc.nodeAt(topPos);
+    let topPos, topNode;
+    if ($p.depth < 1) {
+      // posAtCoords resolves to the DOC-level gap at a block's left/right edge —
+      // reliably so over an atom that is the ONLY child of a nested section
+      // editor ("can't drag to the right of anything" in single-block sections).
+      // Fall back to the top-level block whose vertical band contains the
+      // pointer; a genuine between-blocks hover has no such block and still
+      // bails to the boundary gap line.
+      let found = null;
+      editor.state.doc.forEach((n, offset) => {
+        if (found) return;
+        let dom = null;
+        try { dom = editor.view.nodeDOM(offset); } catch (_) { /* not rendered */ }
+        const r = dom?.getBoundingClientRect?.();
+        if (r && r.height > 0 && input.clientY >= r.top && input.clientY <= r.bottom) found = { pos: offset, node: n };
+      });
+      if (!found) return bail("depth<1, no block under Y", { pos: res.pos });
+      topPos = found.pos;
+      topNode = found.node;
+    } else {
+      topPos = $p.before(1);
+      topNode = editor.state.doc.nodeAt(topPos);
+    }
     if (!topNode) return bail("no topNode", { topPos });
 
     // Dropping INSIDE an existing wrapGroup (isolating → posAtCoords resolves to the
@@ -1344,8 +1364,33 @@ const Editor = forwardRef(function Editor({
     if (topNode.type.name === "wrapGroup") {
       const hostNode = topNode.lastChild; // host is the LAST child (neighbor-first)
       const hostOccId = hostNode?.attrs?.occurrenceId || null;
-      // A columns group (non-textmapped host) can still take more neighbors /
-      // flip sides — it just stays wrap:false (no morph math applies).
+      // A group is ALREADY two columns. Until there's real 3-col support, side
+      // drops from OUTSIDE are disabled here (2026-07-12, per user) — the drop
+      // falls through to a plain insert above/below the group. Only the group's
+      // OWN members keep the side affordance (dragging a member re-morphs its
+      // side/anchor). The dragged occ id comes from the body dataset stamp
+      // (DragProvider.handleDragStart) so no reactive subscription is needed.
+      const draggedOccId = input.draggedOccId
+        || (typeof document !== "undefined" && document.body?.dataset?.dragOccId) || null;
+      let draggedIsMember = false;
+      topNode.forEach((c) => { if (draggedOccId && c.attrs?.occurrenceId === draggedOccId) draggedIsMember = true; });
+      // Outside drags: NO side points on a 2-col group (no 3-col support) —
+      // EXCEPT directly over the NEIGHBOR COLUMN, which stacks the drop into
+      // that column (columns hold multiple occurrences). Members always pass
+      // (dragging one re-morphs its side/anchor).
+      if (!draggedIsMember) {
+        let groupDomEarly = null;
+        try { groupDomEarly = editor.view.nodeDOM(topPos); } catch (_) { return bail("nodeDOM threw (group gate)"); }
+        const holderEarly = groupDomEarly?.querySelector?.(".wrap-group-content > [data-node-view-content-react]")
+          || groupDomEarly?.querySelector?.(".wrap-group-content");
+        const kids = holderEarly ? Array.from(holderEarly.children) : [];
+        const neighborsOnly = kids.slice(0, -1);
+        const overNeighborCol = neighborsOnly.some((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && input.clientX >= r.left && input.clientX <= r.right;
+        });
+        if (!overNeighborCol) return bail("group already 2-col — outside side drops disabled", { draggedOccId });
+      }
       const groupTextmapped = isTextmappedHost(hostOccId);
       let groupDom = null;
       try { groupDom = editor.view.nodeDOM(topPos); } catch (_) { return null; }
@@ -1668,7 +1713,12 @@ const Editor = forwardRef(function Editor({
             return true;
           }).run();
         };
-        let sideHost = isBlockDrop ? detectSideHost(dropInput || lastNativeEvent) : null;
+        // The dragged occ id is threaded INTO detectSideHost at drop time (the
+        // 2-col gate needs it to allow member re-morphs; the body dataset stamp
+        // covers dragover, but the drop knows the id authoritatively).
+        const draggedOccId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
+        const sideInputOf = (ev) => (ev ? { clientX: ev.clientX, clientY: ev.clientY, draggedOccId } : ev);
+        let sideHost = isBlockDrop ? detectSideHost(sideInputOf(dropInput || lastNativeEvent)) : null;
         DLOG("sideHost (wrap-beside detect)", sideHost);
 
         // ── Grouped member: normal-drag reposition / unwrap-on-move-out ──────────
@@ -1677,7 +1727,6 @@ const Editor = forwardRef(function Editor({
         // NEIGHBOR is dropped on the SAME host (move anchorIndex/side — replaces the
         // deleted grip), or (b) un-wraps the group when dropped anywhere else, then
         // falls through to the normal move/insert below (positions recomputed).
-        const draggedOccId = context?.occurrenceId || data?.occurrenceId || sd.occurrenceId;
         const grouped = draggedOccId ? findGroupMember(editor.state.doc, draggedOccId) : null;
         DLOG("grouped-member?", grouped ? { groupPos: grouped.groupPos, hostOccId: grouped.hostOccId, isNeighbor: isNeighborMember(grouped) } : null);
         if (grouped) {
@@ -1706,7 +1755,7 @@ const Editor = forwardRef(function Editor({
             // then recompute the drop target on the now-flattened doc.
             unwrapGroupAt(editor, grouped.groupPos);
             insertPos = resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
-            sideHost = isBlockDrop ? detectSideHost(dropInput || lastNativeEvent) : null;
+            sideHost = isBlockDrop ? detectSideHost(sideInputOf(dropInput || lastNativeEvent)) : null;
             // Don't immediately re-wrap onto the SAME host it was just dragged off.
             if (sideHost && sideHost.hostOccId === grouped.hostOccId) sideHost = null;
           }

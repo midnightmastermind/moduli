@@ -461,6 +461,16 @@ export function DragProvider({
     // these so hot components need no reactive drag-state subscription.
     document.body.dataset.dragType = payload?.type || "";
     document.body.dataset.dragKind = dragKindOf(payload?.type);
+    // The dragged OCCURRENCE id — lets non-subscribed code (Editor's
+    // detectSideHost) tell "re-morphing a group's own member" from "dragging
+    // something new at a group" without a reactive drag-state subscription.
+    // Payloads are { type, id, data, context } (dragSystem.createPayload):
+    // embeds carry the occ id at context.occurrenceId / data.occurrence.id;
+    // some sources put it top-level.
+    document.body.dataset.dragOccId =
+      payload?.occurrenceId || payload?.occurrence?.id ||
+      payload?.context?.occurrenceId || payload?.data?.occurrenceId ||
+      payload?.data?.occurrence?.id || "";
 
     setActivePayload(payload);
     setDragMode(mode); // Also set state for UI updates
@@ -530,6 +540,7 @@ export function DragProvider({
 
     delete document.body.dataset.dragType;
     delete document.body.dataset.dragKind;
+    delete document.body.dataset.dragOccId;
 
     setActivePayload(null);
     setPanelOverCellId(null);
