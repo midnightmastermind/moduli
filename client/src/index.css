@@ -1498,6 +1498,20 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .wrap-drop-line--right { right: 0; }
 .wrap-drop-line--left  { left: 0; }
 
+/* The VERTICAL half of the wrap-beside affordance: a bright bar down the host
+   block's full height at the side the neighbor will land on. The horizontal
+   anchor line above shows WHICH prose line the wrap morphs at; this bar is the
+   unmissable "you are dropping to the LEFT/RIGHT of this block" signal. */
+.wrap-drop-edge {
+  position: absolute;
+  width: 3px;
+  background: rgb(50, 150, 255);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 30;
+  box-shadow: 0 0 8px rgba(50, 150, 255, 0.7);
+}
+
 /* Images */
 .doc-editor-content.ProseMirror img {
   max-width: 100%;

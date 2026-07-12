@@ -1365,7 +1365,7 @@ const Editor = forwardRef(function Editor({
       const frac = (input.clientX - rect.left) / rect.width;
       const side = sideFromFrac(frac); // any in-group drop picks a side (no dead middle)
       const anchorOffset = offsetFor(hostEl, input.clientY);
-      return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null };
+      return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null, hostRect: rect };
     }
 
     if (topNode.type.name !== "moduleEmbed") return bail("top not moduleEmbed/wrapGroup", { type: topNode.type.name });
@@ -1383,7 +1383,7 @@ const Editor = forwardRef(function Editor({
     const frac = (input.clientX - rect.left) / rect.width;
     const side = sideFromFrac(frac); // pick a side ANYWHERE (no dead middle third)
     const anchorOffset = offsetFor(dom, input.clientY);
-    return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null };
+    return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null, hostRect: rect };
   }, [editor, isTextmappedHost, blockIndexAtY, offsetFor]);
 
   useEffect(() => {
@@ -1447,9 +1447,18 @@ const Editor = forwardRef(function Editor({
         }
         const sh = detectSideHost({ clientX: x, clientY: y });
         if (sh && sh.anchorOffset != null) {
+          const wr = el.getBoundingClientRect();
           const pm = el.querySelector(".ProseMirror");
-          const proseTop = pm ? pm.getBoundingClientRect().top - el.getBoundingClientRect().top : 0;
-          setWrapDrop({ top: Math.round(proseTop + sh.anchorOffset), side: sh.side });
+          const proseTop = pm ? pm.getBoundingClientRect().top - wr.top : 0;
+          // Wrapper-relative host box → the VERTICAL edge bar (the affordance the
+          // user actually reads as "dropping to the LEFT/RIGHT of this block"; the
+          // thin horizontal anchor line alone was invisible in practice, 2026-07-11).
+          const hr = sh.hostRect;
+          const host = hr ? {
+            top: Math.round(hr.top - wr.top), height: Math.round(hr.height),
+            left: Math.round(hr.left - wr.left), right: Math.round(hr.right - wr.left),
+          } : null;
+          setWrapDrop({ top: Math.round(proseTop + sh.anchorOffset), side: sh.side, host });
           // A side-drop WRAPS (handleDocDrop prefers sideHost over the boundary
           // insert) — the boundary gap line would be a second, lying indicator.
           setDragGap(null);
@@ -2175,6 +2184,16 @@ const Editor = forwardRef(function Editor({
         <div
           className={`wrap-drop-line wrap-drop-line--${wrapDrop.side}`}
           style={{ top: wrapDrop.top }}
+        />
+      )}
+      {wrapDrop?.host && (
+        <div
+          className="wrap-drop-edge"
+          style={{
+            top: wrapDrop.host.top,
+            height: wrapDrop.host.height,
+            left: wrapDrop.side === "left" ? wrapDrop.host.left - 5 : wrapDrop.host.right + 2,
+          }}
         />
       )}
 

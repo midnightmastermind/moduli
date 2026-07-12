@@ -5373,6 +5373,12 @@ export async function createLiveData(userId, options = {}) {
     iteration: { mode: "persistent" }, fields: {},
     // Date filter + Time Slot filter (a <select> over the 48 slot labels).
     filters: buildScheduleFilters({ schedFilterId, timeslotFilterId, dateFieldId, timeslotFieldId, timeslotLabels }),
+    // Hide the plumbing fields on every Schedule descendant by default
+    // (2026-07-11, per user): Date/Time Slot are stamped by the drop ops and
+    // Last Seen by Stamp Date & Time — noise on the task rows. Uses the
+    // fieldVisibility cascade (first non-null ancestor value wins), so any
+    // descendant can still override with its own fieldVisibility.
+    fieldVisibility: { mode: "hide", fieldIds: [dateFieldId, timeslotFieldId, lastSeenFieldId] },
   });
 
   // (Removed 2026-05-21) Standalone "Canvas" scratchpad page deleted
