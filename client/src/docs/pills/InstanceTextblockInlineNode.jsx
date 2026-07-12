@@ -178,6 +178,22 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
         contentEditable={false}
         title="Drag · menu"
         onMouseDown={(e) => e.stopPropagation()}
+        // Native mouse drags need user-drag:element on the WRAPPER, but leaving
+        // it on permanently suppresses caret placement in the editable middle
+        // (Chromium treats every mousedown in a drag source as maybe-a-drag).
+        // Arm it only while the handle is actually pressed.
+        onPointerDown={() => {
+          const w = wrapperRef.current;
+          if (!w) return;
+          w.style.setProperty("-webkit-user-drag", "element");
+          const disarm = () => {
+            w.style.removeProperty("-webkit-user-drag");
+            window.removeEventListener("pointerup", disarm);
+            window.removeEventListener("dragend", disarm);
+          };
+          window.addEventListener("pointerup", disarm);
+          window.addEventListener("dragend", disarm);
+        }}
       >
         {hovered && editable && (
           <RadialMenu size="sm" forceDirection="down" items={radialItems} />

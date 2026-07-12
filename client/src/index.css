@@ -1069,11 +1069,16 @@ body[data-drag-kind="panel"] .container-shell {
    `-webkit-user-drag: element` only as a PRESENTATIONAL HINT, which any author
    rule (including `auto`) overrides. */
 .doc-editor-content.ProseMirror .instance-wrap,
-.doc-editor-content.ProseMirror .container-shell,
-.doc-editor-content.ProseMirror .instance-textblock-inline {
+.doc-editor-content.ProseMirror .container-shell {
   -webkit-user-drag: element;
   user-drag: element;
 }
+/* Inline mini-textblock chips are NOT in the rule above (2026-07-12): user-drag
+   on the whole chip made Chromium treat every mousedown as potential drag and
+   SUPPRESS caret placement in the editable middle — click-to-edit always landed
+   at offset 0. The chip arms user-drag:element on its wrapper ONLY while the
+   ⠿ handle is pressed (InstanceTextblockInlineNode), so handle drags still work
+   and the middle is a normal editable again. */
 
 /* Anchor highlight animation (double-flash when scrolling to anchor) */
 @keyframes anchor-flash {
