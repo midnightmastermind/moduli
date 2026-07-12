@@ -258,7 +258,6 @@ export async function createLiveData(userId, options = {}) {
     intellectual: uid(),
     bills:        uid(),
     display:      uid(),
-    library:      uid(),
     refs:         uid(),
   };
   const opCategoryIds = {
@@ -4776,7 +4775,6 @@ export async function createLiveData(userId, options = {}) {
     new Folder({ id: fieldCategoryIds.intellectual, userId, gridId, name: "Intellectual",  parentId: rootFolderId, folderType: "category", sortOrder: 105, isExpanded: false }).save(),
     new Folder({ id: fieldCategoryIds.bills,        userId, gridId, name: "Bills",         parentId: rootFolderId, folderType: "category", sortOrder: 106, isExpanded: false }).save(),
     new Folder({ id: fieldCategoryIds.display,      userId, gridId, name: "Display",       parentId: rootFolderId, folderType: "category", sortOrder: 107, isExpanded: false }).save(),
-    new Folder({ id: fieldCategoryIds.library,      userId, gridId, name: "Library",       parentId: rootFolderId, folderType: "category", sortOrder: 108, isExpanded: false }).save(),
     new Folder({ id: fieldCategoryIds.refs,         userId, gridId, name: "References",    parentId: rootFolderId, folderType: "category", sortOrder: 109, isExpanded: false }).save(),
   ]);
 

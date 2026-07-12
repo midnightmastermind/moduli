@@ -12,30 +12,6 @@
     "meta": {}
   },
   {
-    "_id": "6a537674b0e08b3dcc38c86a",
-    "id": "EdTYLFDKNILF",
-    "userId": "{{USER_ID}}",
-    "gridId": "6a537667b0e08b3dcc38be4c",
-    "name": "Files",
-    "rootFolderId": "7kA-ayts-nSG",
-    "manifestType": "user",
-    "icon": "folder-tree",
-    "sortOrder": 0,
-    "meta": {}
-  },
-  {
-    "_id": "6a537675b0e08b3dcc38c8a6",
-    "id": "v_EQH7_wSTRI",
-    "userId": "{{USER_ID}}",
-    "gridId": "6a537667b0e08b3dcc38be4c",
-    "name": "Templates",
-    "rootFolderId": "qFHauZtUR5pR",
-    "manifestType": "templates",
-    "icon": "folder-tree",
-    "sortOrder": 0,
-    "meta": {}
-  },
-  {
     "_id": "6a5376793d556e413b97f368",
     "id": "usr-mfst-6a2b76b23c6b5fcb91d25d97",
     "gridId": "6a2b76b23c6b5fcb91d25d97",
@@ -46,5 +22,29 @@
     "rootFolderId": "usr-root-6a2b76b23c6b5fcb91d25d97",
     "sortOrder": 0,
     "userId": "{{USER_ID}}"
+  },
+  {
+    "_id": "6a5377f652eb46e297e3889f",
+    "id": "yxdvm4oI_bbs",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a5377e852eb46e297e37e81",
+    "name": "Files",
+    "rootFolderId": "5SHNt8TcUlY1",
+    "manifestType": "user",
+    "icon": "folder-tree",
+    "sortOrder": 0,
+    "meta": {}
+  },
+  {
+    "_id": "6a5377f752eb46e297e388d9",
+    "id": "FNeDY9fy4M3m",
+    "userId": "{{USER_ID}}",
+    "gridId": "6a5377e852eb46e297e37e81",
+    "name": "Templates",
+    "rootFolderId": "_tnu0bhKuh0j",
+    "manifestType": "templates",
+    "icon": "folder-tree",
+    "sortOrder": 0,
+    "meta": {}
   }
 ]
