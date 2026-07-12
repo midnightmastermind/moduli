@@ -889,12 +889,23 @@ export function OperationsTab() {
     [state?.fields, gridId]
   );
 
-  const categoryFolders = useMemo(
-    () => Object.values(foldersById || {})
+  // Category folders are a SHARED namespace with the Fields tab (both stamp
+  // folderId onto the same folderType:"category" records). Rendering every
+  // category as an ops column buried the op categories behind a wall of empty
+  // field-category columns (Nutrition/Wellness/…) — the user's "categories
+  // aren't organizing the ops" (2026-07-12). Data-driven split, no naming
+  // hacks: a category that holds FIELDS but no OPS is a field category → not
+  // an ops column. Empty-of-both categories stay visible (a freshly-created
+  // "New Category" must render so ops can be dragged into it).
+  const allOps = useMemo(() => Object.values(operationsById || {}), [operationsById]);
+  const categoryFolders = useMemo(() => {
+    const fieldFolderIds = new Set(Object.values(fieldsById || {}).map((f) => f?.folderId).filter(Boolean));
+    const opFolderIds = new Set(allOps.map((o) => o?.folderId).filter(Boolean));
+    return Object.values(foldersById || {})
       .filter((f) => f.gridId === gridId && f.folderType === "category")
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
-    [foldersById, gridId]
-  );
+      .filter((f) => opFolderIds.has(f.id) || !fieldFolderIds.has(f.id))
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  }, [foldersById, gridId, fieldsById, allOps]);
 
   // Split ops by schedule presence. Action ops include legacy ops with
   // schedule undefined; scheduled ops are those with op.schedule != null.

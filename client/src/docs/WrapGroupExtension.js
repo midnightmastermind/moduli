@@ -56,6 +56,15 @@ export const WrapGroup = Node.create({
         parseHTML: (el) => { const v = el.getAttribute("data-anchor-index"); return v == null ? null : Number(v); },
         renderHTML: (attrs) => (attrs.anchorIndex == null ? {} : { "data-anchor-index": attrs.anchorIndex }),
       },
+      // Wrap on/off (RESTORED 2026-07-12, per user): true (default) = the
+      // L-float morph; false = plain side-by-side COLUMNS (.wrap-group--off,
+      // no morph, no auto-stack). The only honest mode for non-textmapped
+      // hosts; toggled per-group from the neighbor's radial menu.
+      wrap: {
+        default: true,
+        parseHTML: (el) => el.getAttribute("data-wrap-mode") !== "false",
+        renderHTML: (attrs) => ({ "data-wrap-mode": String(attrs.wrap !== false) }),
+      },
       // Line-level anchor: px offset from the host prose top → the float's margin-top.
       // Allows the neighbor to start at ANY visual line, not just a block boundary.
       // null → fall back to the legacy anchorIndex block math.

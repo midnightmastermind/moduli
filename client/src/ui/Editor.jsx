@@ -1344,7 +1344,9 @@ const Editor = forwardRef(function Editor({
     if (topNode.type.name === "wrapGroup") {
       const hostNode = topNode.lastChild; // host is the LAST child (neighbor-first)
       const hostOccId = hostNode?.attrs?.occurrenceId || null;
-      if (!isTextmappedHost(hostOccId)) return bail("wrapGroup host not textmapped", { hostOccId });
+      // A columns group (non-textmapped host) can still take more neighbors /
+      // flip sides — it just stays wrap:false (no morph math applies).
+      const groupTextmapped = isTextmappedHost(hostOccId);
       let groupDom = null;
       try { groupDom = editor.view.nodeDOM(topPos); } catch (_) { return null; }
       const holder = groupDom?.querySelector?.(".wrap-group-content > [data-node-view-content-react]")
@@ -1364,26 +1366,28 @@ const Editor = forwardRef(function Editor({
         return bail("below host content → plain insert", { y: input.clientY, hostBottom: Math.round(hostContentRect.bottom) });
       const frac = (input.clientX - rect.left) / rect.width;
       const side = sideFromFrac(frac); // any in-group drop picks a side (no dead middle)
-      const anchorOffset = offsetFor(hostEl, input.clientY);
-      return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null, hostRect: rect };
+      const anchorOffset = groupTextmapped ? offsetFor(hostEl, input.clientY) : 0;
+      return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null, hostRect: rect, columnOnly: !groupTextmapped };
     }
 
     if (topNode.type.name !== "moduleEmbed") return bail("top not moduleEmbed/wrapGroup", { type: topNode.type.name });
     const hostOccId = topNode.attrs?.occurrenceId || null;
-    // Reject non-textmapped hosts (board/list/table/artifact) → normal insert, no morph.
-    if (!isTextmappedHost(hostOccId)) {
-      const occ = hostOccId ? occurrencesByIdRef.current?.[hostOccId] : null;
-      const mod = occ?.moduleId ? modulesByIdRef.current?.[occ.moduleId] : null;
-      return bail("host not textmapped", { hostOccId, role: mod?.role, kind: mod?.kind });
-    }
+    // NON-textmapped hosts (board/list/table/artifact/instance) can't morph —
+    // but they CAN hold a side-by-side COLUMN (wrapGroup wrap:false, restored
+    // 2026-07-12 per user: "dropping right/left of ANYTHING forms a wrap or
+    // nonwrapped column"). Only over the EDGE THIRDS though — the middle of a
+    // non-prose embed keeps meaning a plain insert above/below, so reordering
+    // rows in a doc doesn't accidentally form columns.
+    const textmapped = isTextmappedHost(hostOccId);
     let dom = null;
     try { dom = editor.view.nodeDOM(topPos); } catch (_) { return bail("nodeDOM threw"); }
     const rect = dom?.getBoundingClientRect?.();
     if (!rect || rect.width <= 0) return bail("no host rect");
     const frac = (input.clientX - rect.left) / rect.width;
-    const side = sideFromFrac(frac); // pick a side ANYWHERE (no dead middle third)
-    const anchorOffset = offsetFor(dom, input.clientY);
-    return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null, hostRect: rect };
+    if (!textmapped && frac > 0.33 && frac < 0.67) return bail("non-text host, middle third → plain insert", { hostOccId, frac: frac.toFixed(2) });
+    const side = sideFromFrac(frac); // textmapped: pick a side ANYWHERE (no dead middle third)
+    const anchorOffset = textmapped ? offsetFor(dom, input.clientY) : 0;
+    return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null, hostRect: rect, columnOnly: !textmapped };
   }, [editor, isTextmappedHost, blockIndexAtY, offsetFor]);
 
   useEffect(() => {
@@ -1609,7 +1613,8 @@ const Editor = forwardRef(function Editor({
           if (host.attrs?.occurrenceId === neighborOccId) return WLOG("bail: self-wrap") ?? false;
           const neighbor = embedType.create({ occurrenceId: neighborOccId });
           // Neighbor FIRST so it floats and the host's prose wraps around it (L).
-          const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: true }, [neighbor, host]);
+          // columnOnly (non-textmapped host) → wrap:false = side-by-side columns.
+          const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: !sideHost.columnOnly }, [neighbor, host]);
           const from = sideHost.hostPos;
           const to = sideHost.hostPos + host.nodeSize;
           const ran = editor.chain().focus().command(({ tr }) => { tr.replaceWith(from, to, group); return true; }).run();
@@ -1646,7 +1651,8 @@ const Editor = forwardRef(function Editor({
               if (!hostNode || hostNode.type.name !== "moduleEmbed") return false;
               const neighbor = embedType.create({ occurrenceId });
               // Neighbor FIRST so it floats and the host's prose wraps around it (L).
-              const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: true }, [neighbor, hostNode]);
+              // columnOnly (non-textmapped host) → wrap:false = side-by-side columns.
+              const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: !sideHost.columnOnly }, [neighbor, hostNode]);
               tr.replaceWith(host.pos, host.pos + hostNode.nodeSize, group);
               return true;
             }

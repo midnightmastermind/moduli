@@ -3082,6 +3082,29 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   background: linear-gradient(to right, transparent, rgba(96,165,250,0.0) 40%, rgba(96,165,250,0.0) 60%, transparent);
   transition: background 0.12s;
 }
+/* Swap-sides button riding the seam (2026-07-12, per user). Hidden until the
+   group is hovered so the seam stays quiet at rest. */
+.wrap-seam-swap {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(96,165,250,0.45);
+  background: var(--body-bg, #0b1220);
+  color: rgba(147,197,253,0.9);
+  font-size: 11px;
+  line-height: 1;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+.wrap-group:hover .wrap-seam-swap { display: inline-flex; }
+.wrap-seam-swap:hover { background: rgba(59,130,246,0.25); }
 /* Persistent column-rule line down the seam (same as the outer border), separating
    the text column from the infobox. Spans the seam height (= the neighbor height,
    set by WrapGroupNode's measure). */

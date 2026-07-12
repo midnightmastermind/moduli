@@ -268,6 +268,7 @@ export async function createLiveData(userId, options = {}) {
     bills:    uid(),
     library:  uid(),
     alarms:   uid(),
+    projects: uid(),
   };
 
   // Library / Movies Watched fields (matches createTestGrid naming exactly)
@@ -4786,6 +4787,7 @@ export async function createLiveData(userId, options = {}) {
     new Folder({ id: opCategoryIds.bills,    userId, gridId, name: "Bill Ops",       parentId: rootFolderId, folderType: "category", sortOrder: 203, isExpanded: false }).save(),
     new Folder({ id: opCategoryIds.library,  userId, gridId, name: "Library Ops",    parentId: rootFolderId, folderType: "category", sortOrder: 204, isExpanded: false }).save(),
     new Folder({ id: opCategoryIds.alarms,   userId, gridId, name: "Alarms",         parentId: rootFolderId, folderType: "category", sortOrder: 205, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.projects, userId, gridId, name: "Projects",       parentId: rootFolderId, folderType: "category", sortOrder: 206, isExpanded: false }).save(),
   ]);
 
   // ── STEP 7b: Templates manifest + Daily Routine + Day Page templates ────────
@@ -5826,35 +5828,41 @@ export async function createLiveData(userId, options = {}) {
     "",
     "![](/viafluere_new_logo_sideways.png)",
     "",
-    "**Viafluere** is a modular, event-driven workspace where everything you do can be measured — a drag-and-drop daily command center that combines a calendar, to-do list, habit tracker, and budget / nutrition / workout tracker into one interface.",
+    "**Viafluere** is one place for your whole day. It's a calendar, a to-do list, a habit tracker, and a money / food / workout tracker rolled into a single board — and instead of typing into forms, you build your day by dragging things where you want them.",
     "",
     "## What it is",
     "",
-    "A drag-and-drop daily command center. Plan your day by dropping tasks into time slots, then track what you actually did; the same slots are both your plan and your log.",
+    "Picture your day as a column of time slots. You drag tasks into the slots you plan to do them in — that's your plan. As the day happens, you check things off and jot down the numbers that matter — that's your log. Same slots, both jobs. There's no separate \"planning app\" and \"tracking app\" to keep in sync, because the plan and the record are literally the same objects on the same board.",
     "",
     "## Anything you do can be measured",
     "",
-    "A normal planner says “I did laundry.” Viafluere says:",
+    "A normal planner can only say “I did laundry.” Viafluere lets every task carry its own numbers:",
     "",
     "- Ran ✅ for 25 minutes",
     "- Ate ✅ 42g protein",
     "- Saved ✅ $20",
     "- Studied ✅ 2 pomodoros",
     "",
-    "Every task is a simple checkbox — or a checkbox plus numbers and text.",
+    "Every task starts as a simple checkbox. If you want more, you attach *fields* to it — a number, an amount of money, a duration, a rating, a note — and the checkbox becomes a measurement. You decide per task how much detail is worth recording; \"took vitamins\" can stay a checkbox forever while \"workout\" carries sets, reps, and weight.",
     "",
     "## Totals, streaks & progress",
     "",
-    "A transparent operations pipeline aggregates by what the task was, the value you entered, the time lens (today / this week / month / year), and the category filter — explicit math, no black-box trackers. So it can answer “how much protein today?”, “how much did I save this month?”, or “what's my journaling streak?”",
+    "Everything you log feeds your goals and trackers automatically. Drop a glass of water into today's schedule and check it off — the \"Daily Water\" tracker ticks up. Log an expense against an account — the balance moves. The rules are simple and visible: something counts once it's **in your schedule and done**, and every total can answer for itself — \"how much protein today?\", \"how much did I save this month?\", \"what's my journaling streak?\" — across any time window: today, this week, this month, this year.",
+    "",
+    "Under the hood these are *operations*: small, readable pipelines that do the counting with explicit math. There is no black-box \"score\". You can open any operation and see exactly which items it counted and why — and change the rules when your life changes.",
     "",
     "## Build it your way",
     "",
-    "- Boards, documents, canvases, tables, and file artifacts — all draggable, all linkable",
-    "- Reusable modules placed as occurrences; typed fields collect the data",
-    "- Iterations filter what belongs to today, this week, or any context — cascading grid → item",
-    "- Rich-text docs embed live field & instance pills; the canvas links occurrences into mind-maps",
-    "- Real-time sync with optimistic, instant updates",
-    "- An in-app assistant that can build the grid for you",
+    "Nothing here is a fixed template. The whole workspace is made of a few simple pieces you can rearrange endlessly:",
+    "",
+    "- **Panels and pages** — the big regions of your screen. Split them, stack them, resize them, swap what's inside.",
+    "- **Boards, documents, canvases, and tables** — different ways of looking at the same items. A task can sit in a kanban column, be mentioned inside a document, and appear as a card on a mind-map canvas — all at once, all in sync.",
+    "- **Fields** — the typed blanks that collect your numbers: amounts, durations, ratings, dates, dropdowns, images.",
+    "- **Time and category filters** — one switch shows you today, this week, or just \"work stuff\"; everything on screen follows.",
+    "- **Alarms & reminders** — set a time, get a ring and a notification; each alarm is just another visible, editable rule.",
+    "- **An in-app assistant** that can build pages, import articles, and wire up trackers for you when you'd rather describe than drag.",
+    "",
+    "Everything updates instantly as you work, syncs in real time across your devices, and keeps a full history — so you can always ask not just *what* you did, but *when* and *how much*.",
   ].join("\n");
 
   const viafluereImport = await markdownToModuli({ gridId, userId, markdown: viafluereMd, dryRun: false });
@@ -6159,7 +6167,7 @@ export async function createLiveData(userId, options = {}) {
   // Trigger surface matches makeTrackerOp's so onLoad / Nav / onChange /
   // onAdd / onDelete all re-aggregate.
   await new Operation({
-    id: uid(), userId, gridId, priority: 3,
+    id: uid(), userId, gridId, priority: 3, folderId: opCategoryIds.trackers,
     name: "Moods",
     description: "Build a [{mood, date}] row list for every mood-bearing item in the goal's selected period and write it to the Mood per-metric occurrence under Emotional.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
@@ -6257,7 +6265,7 @@ export async function createLiveData(userId, options = {}) {
   // multi-select on the task module is an array of person occurrence ids;
   // the inner LOOP iterates that array and resolves each id to a name.
   await new Operation({
-    id: uid(), userId, gridId, priority: 3,
+    id: uid(), userId, gridId, priority: 3, folderId: opCategoryIds.trackers,
     name: "Phone Calls",
     description: "Build a [{name, timeslot, date}] row list of completed Call-Person tasks for the goal's selected period and write to the Phone Calls per-metric occurrence under Social. Also writes a scalar count for the 2-person target.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
@@ -7418,7 +7426,7 @@ export async function createLiveData(userId, options = {}) {
   // Trigger surface: onLoad + onFilterChange (goal-scoped) + onAdd/onDelete
   // to mirror the tracker pattern and fire on Schedule date navigation.
   await new Operation({
-    id: uid(), userId, gridId, priority: 3,
+    id: uid(), userId, gridId, priority: 3, folderId: opCategoryIds.daypage,
     name: "Daily Question Rotator",
     description: "Pick today's reflection question from the library and write it to the Daily Journal's journalQuestion display field.",
     triggerTypes: ["onFilterChange", "onLoad"],
@@ -8203,6 +8211,26 @@ export async function createLiveData(userId, options = {}) {
     enabled: true,
   }).save();
 
+  // ── 6:30 AM alarm (2026-07-12, per user) ────────────────────────────────────
+  await new Operation({
+    id: uid(), userId, gridId, priority: 5,
+    name: "Alarm: 6:30 AM",
+    description: "Managed by the Alarms tab — edit it there.",
+    alarm: { type: "alarm", label: "6:30 AM", time: "06:30" },
+    triggerTypes: [],
+    triggerObjects: [],
+    triggerType: "manual",
+    schedule: { kind: "atTimes", times: ["06:30"], suppressNotifications: false, lastFiredAt: null },
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: { type: "NOTIFY", message: "⏰ 6:30 AM", sound: true, duration: 60000 } },
+      ],
+    },
+    folderId: opCategoryIds.alarms,
+    enabled: true,
+  }).save();
+
   // ── POMODORO: Start ─────────────────────────────────────────────────────────
   // Fired by PomodoroTimer.jsx on each new WORK phase. Trigger payload:
   //   { slotLabel: "9:00am", minutes: 25, pomoNumber: 1-4, phase: "work" }
@@ -8752,11 +8780,11 @@ export async function createLiveData(userId, options = {}) {
   // triggerType:"manual" so it only fires when the user explicitly runs
   // it (no spontaneous activity). Mirrors Day Page: Build's
   // idempotency-by-label pattern.
-  await new Operation(makeProjectCreateOp({ userId, gridId, projectsFolderId })).save();
+  await new Operation({ ...makeProjectCreateOp({ userId, gridId, projectsFolderId }), folderId: opCategoryIds.projects }).save();
   // Project: Status Router — onChange of statusFieldId moves the task between
   // kanban columns on the same project page. Idempotent + same-project-only
   // (anchored on the task's kanban board, not a global routing table).
-  await new Operation(makeProjectStatusRouterOp({ userId, gridId, statusFieldId })).save();
+  await new Operation({ ...makeProjectStatusRouterOp({ userId, gridId, statusFieldId }), folderId: opCategoryIds.projects }).save();
   // Project: Sync To Todo List — onChange of statusFieldId mirrors kanban
   // tasks into the Todo List page's Backburner / Docket containers via
   // COPY_LINK. Bidirectional field sync is automatic through the shared
@@ -8765,7 +8793,7 @@ export async function createLiveData(userId, options = {}) {
   // stays focused on "what's not yet in motion". The kanban task itself
   // is untouched by this op (Status Router handles kanban moves).
   await new Operation({
-    id: uid(), userId, gridId, priority: 5,
+    id: uid(), userId, gridId, priority: 5, folderId: opCategoryIds.projects,
     name: "Project: Sync To Todo List",
     description: "Mirror kanban tasks into Todo List Backburner/Docket containers via COPY_LINK when their status hits those values, and remove the mirror when status moves elsewhere. Field sync is automatic through linkedGroupId.",
     triggerTypes: ["onChange"],
@@ -9284,7 +9312,7 @@ export async function createLiveData(userId, options = {}) {
   // Priority 8 — runs after page-build ops so $allItemsById is populated.
   const ptCellDoc = (occVar) => ({ type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: occVar } }] });
   await new Operation({
-    id: uid(), userId, gridId, priority: 8,
+    id: uid(), userId, gridId, priority: 8, folderId: opCategoryIds.library,
     name: "People Table: Build",
     description: "Mirror Library person occurrences into the People-table container. Per person → one copy-linked occurrence parented under the table. Idempotent: existing rows are skipped via templateId dedup; new rows append from current rowCount.",
     triggerTypes: ["onAdd", "onDelete", "onLoad"],
@@ -9404,7 +9432,7 @@ export async function createLiveData(userId, options = {}) {
   // so the field values are mirrored.) Idempotent: re-running with the same
   // row overwrites the card's textmap with the fresh template clone.
   await new Operation({
-    id: showProfileOpId, userId, gridId, priority: 5,
+    id: showProfileOpId, userId, gridId, priority: 5, folderId: opCategoryIds.library,
     name: "People: Show Profile",
     description: "Fill the People page's profile card with the clicked person's profile via APPLY_TEMPLATE. Fired by the Show Profile button on each row.",
     triggerTypes: ["onButton", "manual"],

@@ -1,6 +1,27 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-07-11. Check this file before re-reading source._
+_Updated: 2026-07-12. Check this file before re-reading source._
+
+## Recent Changes (2026-07-12 — wrap attr RESTORED: wrap ↔ COLUMNS + seam swap button)
+Per user ("we want to be able to set it as a wrap or not; we had all of this and it got removed"):
+- **`WrapGroupExtension.js`** — `wrap` attr re-added (default true, `data-wrap-mode`). true = the
+  L-float morph; false = plain side-by-side COLUMNS (`.wrap-group--off` flex CSS, which survived).
+- **`WrapGroupNode.jsx`** — `columnsMode = attrs.wrap === false`: skips the sliver auto-stack
+  policy + rendered band guard (meaningless for non-prose), but still STACKS AT LOW WIDTH
+  (`besideW < WRAP_MIN_PROSE_W`, +20px re-enter hysteresis — per user "should also stack at a low
+  width"). The seam render gate now includes columns mode (`wrapped || columnsMode`; it was
+  `wrapped`-only, which hid the seam in columns). New **`.wrap-seam-swap`** button (⇄, hover-shown,
+  mid-seam) flips `side` — per user "a button where the resize col thing is, for swapping the cols".
+- **`ModuleEmbedNode.jsx`** — the existing radial "Wrap: on↔off" toggle (it had been writing a
+  deleted attr into the void) is now gated on the HOST being textmapped: non-text groups are
+  columns-only, no toggle. Host looked up via `operationsBridge.getLocalOcc` (non-subscribing —
+  inside the items memo).
+- **`ui/Editor.jsx` `detectSideHost`** — non-textmapped hosts NO LONGER bail: edge-third hovers
+  return `columnOnly: true` (middle third keeps meaning plain insert so row reordering isn't
+  hijacked); wrapHostWithNeighbor/wrapMoveBeside create the group with `wrap: !columnOnly`.
+  E2E-verified on the seeded logo group: swap flips sides both ways, radial toggle → real columns
+  render (side-by-side, no morph), seam+swap present in both modes, wrap 6/6 formation regression
+  clean. Groups: neighbor column stacks N occurrences (schema `moduleEmbed{2,}`); host is one block.
 
 ## Recent Changes (2026-07-11 LATE — wrap: SLIVER policy replaces all-or-nothing fill (pure decideWrapStack))
 User: "wrap only works between two width points — stacks too late when shrinking AND wrongly

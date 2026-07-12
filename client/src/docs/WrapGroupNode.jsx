@@ -12,7 +12,7 @@
 // wraps content AFTER it, so the neighbor must precede the host in source order.
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import { useRef, useEffect, useCallback, useState } from "react";
-import { hasMidAnchor, classifyWrapShape, decideWrapStack, WRAP_SLIVER_KEEP, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H } from "./wrapAnchor";
+import { hasMidAnchor, classifyWrapShape, decideWrapStack, WRAP_SLIVER_KEEP, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
 
 const DEFAULT_NW = 300;   // px — default neighbor column width when unset
 const MIN_NW = 120;       // px — splitter clamp floor
@@ -70,12 +70,14 @@ export default function WrapGroupNode({ node, updateAttributes }) {
   const side = node.attrs.side === "left" ? "left" : "right";
   // Host is the LAST child; everything before it is a floated neighbor.
   const neighborCount = Math.max(0, node.childCount - 1);
-  // The L (overflow-bottom) is the agreed default whenever there's a neighbor to
-  // wrap around — the importer still emits `wrap:false` (that was "step 1: side
-  // by side"), so we no longer gate on the attr. A right/left float gives BOTH
-  // shapes natively off the measured heights: prose sits beside a tall neighbor,
-  // and reclaims full width underneath once it's taller (the "extend the bottom").
-  const wrap = neighborCount > 0;
+  // wrap attr RESTORED (2026-07-12, per user — "we want to be able to set it as
+  // a wrap or not; we had all of this and it got removed"): wrap:true (default)
+  // = the L-float morph; wrap:false = plain side-by-side COLUMNS (the
+  // `.wrap-group--off` flex layout — no morph, no auto-stack). Columns is the
+  // only honest mode for a NON-textmapped host (image/instance/board), and a
+  // per-group toggle lives in the neighbor's radial menu.
+  const columnsMode = node.attrs.wrap === false;
+  const wrap = neighborCount > 0 && !columnsMode;
   // Shape = where the neighbor sits vertically (× `side` for left/right). Drives which
   // inner-L border lines the seam/clip draw:
   //   top     — anchorIndex 0: notch at the TOP corner, prose beside + full-width below.
@@ -140,7 +142,15 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     const besideW = wrapEl.clientWidth - neighborW - FLOAT_GAP;
     const prevUnwrap = autoUnwrapRef.current;
     const shortNeighbor = neighborH <= WRAP_SHORT_NEIGHBOR_H;
-    let nextUnwrap = decideWrapStack({ textArea, besideW, neighborH, prevStacked: prevUnwrap });
+    // COLUMNS mode (attrs.wrap === false) skips the prose-fill sliver policy
+    // (meaningless for a plain two-column layout — it would instantly stack any
+    // non-prose host) but STILL stacks at low width (2026-07-12, per user):
+    // when the host's column drops under the readable minimum, fall to stacked.
+    // Small +20px re-enter margin so the boundary doesn't flicker.
+    const isColumns = node.attrs.wrap === false;
+    let nextUnwrap = isColumns
+      ? besideW < (prevUnwrap ? WRAP_MIN_PROSE_W + 20 : WRAP_MIN_PROSE_W)
+      : decideWrapStack({ textArea, besideW, neighborH, prevStacked: prevUnwrap });
     // Rendered blank-band guard (only while already WRAPPED): the prediction can pass while the
     // RENDERED beside band is blank or a sliver — e.g. the beside column is too narrow for the
     // prose's long words, so every line drops BELOW the float and an empty column renders beside
@@ -149,7 +159,7 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     // when wrapped, the prose element always extends past the neighbor, which is why the old
     // prose-box check missed the blank column. Skipped while stacked (stacked→wrap stays
     // prediction-driven, no flicker) and for short neighbors.
-    if (!nextUnwrap && !prevUnwrap && !shortNeighbor && hostProse) {
+    if (!isColumns && !nextUnwrap && !prevUnwrap && !shortNeighbor && hostProse) {
       let bandBottomReach = top; // furthest text bottom inside the band
       const range = document.createRange();
       const walk = document.createTreeWalker(hostProse, NodeFilter.SHOW_TEXT);
@@ -250,7 +260,7 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     // (the notch-bottom line = the full-width bottom bar's TOP border) sits BELOW the
     // image with a margin above it, not flush against the image bottom.
     setSeam({ top: Math.round(top - wrapRect.top), height: Math.round(bottom - top) + BOTTOM_GAP, left: seamLeft });
-  }, [side, neighborWidth, node.attrs.anchorIndex, node.attrs.anchorOffset]);
+  }, [side, neighborWidth, node.attrs.anchorIndex, node.attrs.anchorOffset, node.attrs.wrap]);
 
   useEffect(() => {
     const wrapEl = wrapRef.current;
@@ -322,14 +332,35 @@ export default function WrapGroupNode({ node, updateAttributes }) {
       {/* The two real, separate occurrence embeds (neighbor + host) render here —
           each is its own draggable occurrence with its own handle/menu. */}
       <NodeViewContent className="wrap-group-content" />
-      {seam && wrapped && neighborCount > 0 && (
+      {/* Seam (resize + swap) renders in BOTH live layouts — the L-float AND
+          columns (wrap:false) — hidden only while auto-stacked (no side-by-side
+          boundary to resize/swap). */}
+      {seam && neighborCount > 0 && !autoUnwrap && (wrapped || columnsMode) && (
         <div
           className="wrap-seam"
           style={{ top: seam.top, height: seam.height, left: seam.left }}
           onPointerDown={onSeamDown}
           contentEditable={false}
           title="Drag to resize"
-        />
+        >
+          {/* Swap the columns (left ↔ right) — lives ON the seam per user
+              (2026-07-12): "a button where the resize col thing is, for
+              swapping the cols". pointerdown stopPropagation so pressing it
+              never starts a seam resize drag. */}
+          <button
+            type="button"
+            className="wrap-seam-swap"
+            title="Swap sides"
+            contentEditable={false}
+            onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              updateAttributes?.({ side: side === "left" ? "right" : "left" });
+            }}
+          >
+            ⇄
+          </button>
+        </div>
       )}
     </NodeViewWrapper>
   );

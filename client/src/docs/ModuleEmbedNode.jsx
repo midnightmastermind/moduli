@@ -14,6 +14,7 @@ import FieldRenderer from "../ui/FieldRenderer.jsx";
 import { CellEmbedContext } from "./CellEmbedContext.js";
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box, Combine, Ungroup, WrapText } from "lucide-react";
 import { embedDeleteRegistry } from "../helpers/embedRegistry.js";
+import { operationsBridge } from "../state/bindSocketToStore.js";
 import { findGroupMember, unwrapGroupAt, detachGroupMember } from "../helpers/wrapGroupOps.js";
 
 const ALIGN_CYCLE = ["full", "left", "center", "right"];
@@ -158,7 +159,17 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
 
     if (wrapGroupNode && wrapGroupPos != null) {
       const wrapOn = wrapGroupNode.attrs.wrap !== false;
-      items.push({
+      // The wrap↔columns choice only exists when the group HOST (last child) is
+      // a textmapped block — prose is what morphs around a neighbor. A group of
+      // non-text occurrences is columns-only (2026-07-12, per user), so no toggle.
+      // getLocalOcc (non-subscribing) because this runs inside the items memo —
+      // subscribing to the whole occurrencesById map would re-render every embed
+      // on every occurrence write (the per-slice selector design).
+      const hostOccId2 = wrapGroupNode.lastChild?.attrs?.occurrenceId || null;
+      const hostOcc2 = hostOccId2 ? operationsBridge.getLocalOcc?.(hostOccId2) : null;
+      const hostMod2 = hostOcc2?.moduleId ? modulesById?.[hostOcc2.moduleId] : null;
+      const hostTextmapped = !!hostMod2 && (hostMod2.role === "textblock" || (hostMod2.role === "container" && hostMod2.kind === "doc"));
+      if (hostTextmapped) items.push({
         label: wrapOn ? "Wrap: on → off" : "Wrap: off → on",
         icon: WrapText,
         onClick: () => {
