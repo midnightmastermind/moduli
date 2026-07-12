@@ -48,7 +48,17 @@ import { runMatchingOperations } from "../helpers/operationExecutor";
 import { setComputedValuesAction } from "../state/actions";
 
 // ─── FlowToggle (popover with 3 flow options) ─────────────────
-function FlowToggle({ flow = "in", onChange, compact = false, disabled = false }) {
+// Whole-control tints per flow (2026-07-11, per user): the control CARRYING a
+// flow toggle is colored by the flow — green=in(+), blue=replace, red=out(−).
+export const FLOW_TINTS = {
+  in:      { bg: "rgba(34,197,94,0.16)",   border: "rgba(34,197,94,0.35)",   text: "rgb(134,239,172)" },
+  out:     { bg: "rgba(248,113,113,0.16)", border: "rgba(248,113,113,0.35)", text: "rgb(252,165,165)" },
+  replace: { bg: "rgba(59,130,246,0.16)",  border: "rgba(59,130,246,0.35)",  text: "rgb(147,197,253)" },
+};
+// `segment` renders it as a divided LEADING segment inside the parent control's
+// border (the RandomizeSegment pattern) instead of a standalone square button —
+// the parent owns border/background/overflow-hidden.
+function FlowToggle({ flow = "in", onChange, compact = false, disabled = false, segment = false }) {
   const [open, setOpen] = useState(false);
   const configs = {
     in:      { icon: ArrowUp,   color: "text-green-400 bg-green-500/20 border-green-500/30", label: "In (+)", desc: "Positive" },
@@ -57,6 +67,7 @@ function FlowToggle({ flow = "in", onChange, compact = false, disabled = false }
   };
   const options = ["in", "out", "replace"];
   const config = configs[flow] || configs.in;
+  const tint = FLOW_TINTS[flow] || FLOW_TINTS.in;
   const Icon = config.icon;
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -65,9 +76,13 @@ function FlowToggle({ flow = "in", onChange, compact = false, disabled = false }
           type="button"
           disabled={disabled}
           title={`Flow: ${config.label}`}
-          className={`inline-flex items-center justify-center rounded border transition-colors flex-shrink-0
-            ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-125"}
-            ${config.color} ${compact ? "w-5 h-5" : "w-6 h-6"}`}
+          className={segment
+            ? `inline-flex items-center justify-center flex-shrink-0 ${compact ? "px-1" : "px-1.5"}
+               ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-white/10"}`
+            : `inline-flex items-center justify-center rounded border transition-colors flex-shrink-0
+               ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-125"}
+               ${config.color} ${compact ? "w-5 h-5" : "w-6 h-6"}`}
+          style={segment ? { borderRight: `1px solid ${tint.border}`, color: tint.text } : undefined}
         >
           <Icon className={compact ? "w-3 h-3" : "w-3.5 h-3.5"} />
         </button>
@@ -927,9 +942,13 @@ function Field({
       // Rendered OUTSIDE the rest↔editing swap at a stable tree position so
       // its popover survives the input's blur-commit.
       const showFlowToggle = field?.meta?.flowToggle === true && type !== "text";
+      // Attached like the randomizer segment: ONE pill, toggle divided off the
+      // left, and the WHOLE pill tinted by the flow (green/blue/red).
+      const flowPillTint = showFlowToggle ? (FLOW_TINTS[flow] || FLOW_TINTS.in) : null;
       const withFlowToggle = (inner) => !showFlowToggle ? inner : (
-        <span className="inline-flex items-center gap-1">
-          <FlowToggle flow={flow || "in"} onChange={onFlowChange} compact disabled={disabled} />
+        <span className={`inline-flex items-stretch rounded-full border overflow-hidden ${disabled ? "opacity-50" : ""}`}
+          style={{ background: flowPillTint.bg, borderColor: flowPillTint.border, color: flowPillTint.text }}>
+          <FlowToggle flow={flow || "in"} onChange={onFlowChange} compact disabled={disabled} segment />
           {inner}
         </span>
       );
@@ -950,14 +969,14 @@ function Field({
 
       if (isClickEditing) {
         return withFlowToggle(
-          <div className="field-input editing inline-flex items-center gap-0.5">
+          <div className={`field-input editing inline-flex items-center gap-0.5 ${showFlowToggle ? "px-1" : ""}`}>
             {prefix && <span className="text-[10px] text-muted-foreground">{prefix}</span>}
             <Input ref={inputRef} type={type === "number" ? "number" : "text"}
               value={localValue ?? ""}
               onChange={(e) => handleChange(type === "number" ? (e.target.value === "" ? null : Number(e.target.value)) : e.target.value)}
               onKeyDown={handleKeyDown} onBlur={handleCommit} disabled={disabled}
-              className={`${compact ? "h-5 text-[10px] w-14" : "h-6 text-xs w-16"} px-1 text-center`}
-              style={{ minWidth: 40 }} />
+              className={`${compact ? "h-5 text-[10px] w-14" : "h-6 text-xs w-16"} px-1 text-center ${showFlowToggle ? "border-0 bg-transparent" : ""}`}
+              style={{ minWidth: 40, ...(showFlowToggle ? { color: "inherit" } : {}) }} />
             {postfix && <span className="text-[10px] text-muted-foreground">{postfix}</span>}
           </div>
         );
@@ -968,9 +987,11 @@ function Field({
           onClick={() => !disabled && setIsClickEditing(true)}
           className={`field-input inline-flex items-center gap-1
             ${compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1 text-xs"}
-            rounded-full border transition-all
+            ${showFlowToggle ? "" : "rounded-full border"} transition-all
             ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
-          style={{ background: pillTint.bg, borderColor: pillTint.border, color: pillTint.text }}
+          style={showFlowToggle
+            ? { background: "transparent", color: "inherit" }
+            : { background: pillTint.bg, borderColor: pillTint.border, color: pillTint.text }}
           title={`${name ? name + ": " : ""}Click to edit`}
         >
           {!hideName && name && <span className="opacity-70">{name}:</span>}
@@ -1177,19 +1198,26 @@ function Field({
     // Shared label style for full (non-compact) inputs
     const inputLabelStyle = { fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginBottom: 2 };
 
-    // Full input controls
+    // Full input controls. The flow toggle is ATTACHED to the input (divided
+    // leading segment, randomizer-style) and the whole input is tinted by the
+    // flow — green=in, blue=replace, red=out (2026-07-11, per user).
+    const fullFlowTint = FLOW_TINTS[flow] || FLOW_TINTS.in;
     if (type === "number") {
       return (
         <div className="field-input field-input-number" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {showLabel && <span style={inputLabelStyle}>{name}</span>}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <FlowToggle flow={flow || "in"} onChange={onFlowChange} compact={compact} disabled={disabled} />
-            <Input type="number" value={localValue ?? ""} disabled={disabled}
-              placeholder="0"
-              className={compact ? "h-6 text-xs w-16" : "h-7 text-sm"}
-              onChange={e => handleChange(e.target.value === "" ? null : Number(e.target.value))}
-              onBlur={handleCommit} onKeyDown={handleKeyDown}
-              min={meta?.min} max={meta?.max} step={meta?.step} />
+            <div className={`flex items-stretch rounded border overflow-hidden ${compact ? "h-6" : "h-7"}`}
+              style={{ background: fullFlowTint.bg, borderColor: fullFlowTint.border, color: fullFlowTint.text }}>
+              <FlowToggle flow={flow || "in"} onChange={onFlowChange} compact={compact} disabled={disabled} segment />
+              <Input type="number" value={localValue ?? ""} disabled={disabled}
+                placeholder="0"
+                className={`border-0 rounded-none bg-transparent ${compact ? "h-6 text-xs w-16" : "h-7 text-sm"}`}
+                style={{ color: "inherit" }}
+                onChange={e => handleChange(e.target.value === "" ? null : Number(e.target.value))}
+                onBlur={handleCommit} onKeyDown={handleKeyDown}
+                min={meta?.min} max={meta?.max} step={meta?.step} />
+            </div>
             {showUnit && <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{unit}</span>}
           </div>
         </div>
@@ -1446,18 +1474,21 @@ function Field({
       return (
         <div className="field-input field-input-duration" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {showLabel && <span style={inputLabelStyle}>{name}</span>}
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <FlowToggle flow={flow || "in"} onChange={onFlowChange} compact={compact} disabled={disabled} />
+          <div className={`inline-flex items-center gap-1 rounded border overflow-hidden ${compact ? "h-6" : "h-7"}`}
+            style={{ background: fullFlowTint.bg, borderColor: fullFlowTint.border, color: fullFlowTint.text, alignSelf: "flex-start" }}>
+            <FlowToggle flow={flow || "in"} onChange={onFlowChange} compact={compact} disabled={disabled} segment />
             <Input type="number" value={hours} disabled={disabled} min={0} max={23} placeholder="0"
-              className={compact ? "h-6 text-xs w-12" : "h-7 text-sm w-14"}
+              className={`border-0 rounded-none bg-transparent ${compact ? "h-6 text-xs w-12" : "h-7 text-sm w-14"}`}
+              style={{ color: "inherit" }}
               onChange={e => updateDuration(parseInt(e.target.value) || 0, minutes)}
               onBlur={handleCommit} onKeyDown={handleKeyDown} />
-            <span style={{ fontSize: 10, color: "var(--text-faint)" }}>h</span>
+            <span style={{ fontSize: 10, opacity: 0.7 }}>h</span>
             <Input type="number" value={minutes} disabled={disabled} min={0} max={59} step={5} placeholder="0"
-              className={compact ? "h-6 text-xs w-12" : "h-7 text-sm w-14"}
+              className={`border-0 rounded-none bg-transparent ${compact ? "h-6 text-xs w-12" : "h-7 text-sm w-14"}`}
+              style={{ color: "inherit" }}
               onChange={e => updateDuration(hours, parseInt(e.target.value) || 0)}
               onBlur={handleCommit} onKeyDown={handleKeyDown} />
-            <span style={{ fontSize: 10, color: "var(--text-faint)" }}>m</span>
+            <span style={{ fontSize: 10, opacity: 0.7, paddingRight: 6 }}>m</span>
           </div>
         </div>
       );
