@@ -1955,6 +1955,15 @@ export async function createLiveData(userId, options = {}) {
       meta: { prefix: "$", postfix: "" },
       displayConfig: {},
     },
+    cashBalance: {
+      id: uid(),
+      name: "Cash",
+      type: "number",
+      inputEnabled: false,
+      displayEnabled: true,
+      meta: { prefix: "$", postfix: "" },
+      displayConfig: {},
+    },
     totalWorkouts: {
       id: uid(),
       name: "Workouts",
@@ -3470,6 +3479,13 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.momsAccountBalance.id, role: "display", order: 0 },
       ],
     },
+    cashAccount: {
+      id: uid(), label: "Cash", kind: "board",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.cashBalance.id, role: "display", order: 0 },
+      ],
+    },
     fitnessAccount: {
       id: uid(), label: "Fitness Stats", kind: "board",
       defaultDragMode: "move",
@@ -4100,7 +4116,7 @@ export async function createLiveData(userId, options = {}) {
   // ── Account containers ─────────────────────────────────────────────────────
   // Account containers are all-time aggregations — no filterOverride needed.
   const accountMappings = {
-    financeAccount:      { contOccId: financeAccountContOccId,      contModKey: "financeAccount",      instKeys: ["bankAccount", "savingsAccount", "momsAccount", "netWorth", "totalSubscriptions", "monthlyBills"] },
+    financeAccount:      { contOccId: financeAccountContOccId,      contModKey: "financeAccount",      instKeys: ["bankAccount", "savingsAccount", "momsAccount", "cashAccount", "netWorth", "totalSubscriptions", "monthlyBills"] },
     fitnessAccount:      { contOccId: fitnessAccountContOccId,      contModKey: "fitnessAccount",      instKeys: ["fitnessAccount"] },
     learningAccount:     { contOccId: learningAccountContOccId,     contModKey: "learningAccount",     instKeys: ["readingAccount"] },
     productivityAccount: { contOccId: productivityAccountContOccId, contModKey: "productivityAccount", instKeys: ["productivityAccount"] },
@@ -6722,6 +6738,24 @@ export async function createLiveData(userId, options = {}) {
     // Same negative/zero/positive pattern as the main Checking Account.
     displayRules: {
       "Mom's Account": [
+        { when: { value: "negative" }, color: "rgb(252,165,165)", icon: "ArrowDown" },
+        { when: { value: "null" },     color: "rgb(96,165,250)" },
+        { when: { value: "zero" },     color: "rgb(96,165,250)" },
+        { when: { value: "positive" }, color: "rgb(134,239,172)", icon: "ArrowUp" },
+      ],
+    },
+  })).save();
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Cash Balance",
+    goalLabel: "Cash", goalOccurrenceId: accountOccIds.cashAccount, goalFieldId: fields.cashBalance.id,
+    sourceFieldId: fields.amount.id, agg: "sum", timeFilter: "daily", // finance gate OFF by default (container opts out) → cumulative until activated
+    // Same policy as Mom's: accountRef narrows to items tagged Cash; the
+    // Schedule scope + completion gate apply; "Set Account Balance" resets
+    // pointed at Cash land via supportsReplace.
+    accountRefFieldId: accountRefFieldId, accountOccurrenceId: accountOccIds.cashAccount,
+    supportsReplace: true,
+    displayRules: {
+      "Cash": [
         { when: { value: "negative" }, color: "rgb(252,165,165)", icon: "ArrowDown" },
         { when: { value: "null" },     color: "rgb(96,165,250)" },
         { when: { value: "zero" },     color: "rgb(96,165,250)" },
